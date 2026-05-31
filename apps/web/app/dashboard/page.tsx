@@ -11,8 +11,6 @@ import {
   getTextColumns,
 } from "@/features/datasets/utils/dataset-analytics"
 
-import { generateInsights } from "@/features/insights/utils/generate-insights"
-
 export default function DashboardPage() {
   const rows = useDatasetStore(
     (state) => state.rows

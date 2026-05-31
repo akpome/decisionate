@@ -1,11 +1,5 @@
-import type { Metadata } from "next"
-import { ClerkProvider } from "@clerk/nextjs"
 import "./globals.css"
-
-export const metadata: Metadata = {
-  title: "Decisionate",
-  description: "Clear actionable decisions",
-}
+import { ClerkProvider, UserButton } from "@clerk/nextjs"
 
 export default function RootLayout({
   children,
@@ -15,7 +9,15 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body>{children}</body>
+        <body>
+          <div className="min-h-screen">
+            <header className="flex justify-end border-b bg-white px-6 py-4">
+              <UserButton />
+            </header>
+
+            {children}
+          </div>
+        </body>
       </html>
     </ClerkProvider>
   )
