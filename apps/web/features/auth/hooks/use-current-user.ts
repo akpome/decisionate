@@ -1,0 +1,10 @@
+import { useUser } from "@clerk/nextjs"
+
+export function useCurrentUser() {
+  const { user, isLoaded } = useUser()
+
+  return {
+    user,
+    isLoaded,
+  }
+}
