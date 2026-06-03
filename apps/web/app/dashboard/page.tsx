@@ -1,101 +1,139 @@
 "use client"
 
+import { useEffect, useState } from "react"
+
+import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import { MetricCard } from "@/features/dashboard/components/metric-card"
 import { RevenueChart } from "@/features/dashboard/components/revenue-chart"
-import { useDatasetStore } from "@/features/datasets/store/dataset-store"
-
-import {
-  formatMetricValue,
-  generateDatasetMetrics,
-  getNumericColumns,
-  getTextColumns,
-} from "@/features/datasets/utils/dataset-analytics"
+import { getDatasetDetails, getDatasets } from "@/lib/api"
 
 export default function DashboardPage() {
-  const rows = useDatasetStore(
-    (state) => state.rows
-  )
+  const [selectedDatasetId, setSelectedDatasetId] =
+    useState<number>()
 
-  const fileName = useDatasetStore(
-    (state) => state.fileName
-  )
+  const [dataset, setDataset] =
+    useState<any>(null)
 
-  const metrics =
-    generateDatasetMetrics(rows)
+  const [loading, setLoading] =
+    useState(false)
 
-  const numericColumns =
-    getNumericColumns(rows)
+  useEffect(() => {
+    if (!selectedDatasetId) return
 
-  const textColumns =
-    getTextColumns(rows)
+    async function loadDataset() {
+      try {
+        setLoading(true)
 
-  /**
-   * Auto-detect chart axes
-   */
+        const data =
+          await getDatasetDetails(
+            selectedDatasetId!
+          )
 
-  const xKey =
-    textColumns[0] ||
-    Object.keys(rows[0] || {})[0]
+        setDataset(data)
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const yKey = numericColumns[0]
+    loadDataset()
+  }, [selectedDatasetId])
+
+  useEffect(() => {
+    async function loadDefaultDataset() {
+      try {
+        const datasets =
+          await getDatasets()
+
+        if (datasets.length > 0) {
+          const latestDataset =
+            datasets[0]
+
+          setSelectedDatasetId(
+            latestDataset.id
+          )
+        }
+      } catch (error) {
+        console.error(error)
+      }
+    }
+
+    loadDefaultDataset()
+  }, [])
 
   return (
     <div className="space-y-8">
       {/* Header */}
+
       <div>
         <h1 className="text-3xl font-bold">
           Dashboard
         </h1>
 
+        <div className="mt-4">
+          <DatasetSelector
+            value={selectedDatasetId}
+            onChange={setSelectedDatasetId}
+          />
+        </div>
+
         <p className="mt-2 text-gray-500">
-          {fileName
-            ? `Analyzing ${fileName}`
-            : "Upload a dataset to begin"}
+          {dataset
+            ? `Analyzing ${dataset.file_name}`
+            : "Select a dataset"}
         </p>
       </div>
 
       {/* Empty State */}
-      {!rows.length && (
+
+      {!selectedDatasetId && (
         <div className="rounded-2xl border border-dashed bg-white p-12 text-center">
           <h2 className="text-xl font-semibold">
-            No dataset uploaded
+            No dataset selected
           </h2>
 
           <p className="mt-2 text-gray-500">
-            Upload a CSV file to generate
-            automatic insights and charts.
+            Select a dataset to view
+            metrics and insights.
           </p>
         </div>
       )}
 
+      {/* Loading */}
+
+      {loading && (
+        <div className="rounded-xl border bg-white p-6">
+          Loading dataset...
+        </div>
+      )}
+
       {/* Metrics */}
-      {metrics.length > 0 && (
+
+      {dataset?.metrics?.length > 0 && (
         <div className="grid gap-6 md:grid-cols-3">
-          {metrics.slice(0, 3).map((metric) => (
-            <MetricCard
-              key={metric.column}
-              title={metric.column}
-              value={formatMetricValue(
-                metric.total
-              )}
-              description={`Average ${formatMetricValue(
-                metric.average
-              )}`}
-            />
-          ))}
+          {dataset.metrics
+            .slice(0, 3)
+            .map((metric: any) => (
+              <MetricCard
+                key={metric.column}
+                title={metric.column}
+                value={metric.total}
+                description={`Average ${metric.average}`}
+              />
+            ))}
         </div>
       )}
 
       {/* Chart */}
-      {rows.length > 0 &&
-        xKey &&
-        yKey && (
-          <RevenueChart
-            data={rows}
-            xKey={xKey}
-            yKey={yKey}
-          />
-        )}
+
+      {dataset?.chart && (
+        <RevenueChart
+          data={dataset.chart.data}
+          xKey={dataset.chart.x_key}
+          yKey={dataset.chart.y_key}
+        />
+      )}
     </div>
   )
 }

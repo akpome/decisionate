@@ -1,4 +1,5 @@
 import { CsvUpload } from "@/features/datasets/components/csv-upload"
+import { DatasetList } from "@/features/datasets/components/dataset-list"
 
 export default function DatasetsPage() {
   return (
@@ -23,6 +24,13 @@ export default function DatasetsPage() {
         </p>
 
         <CsvUpload />
+        <div className="rounded-2xl border bg-white p-8 shadow-sm">
+        <h2 className="mb-4 text-xl font-semibold">
+          Saved Datasets
+        </h2>
+
+        <DatasetList />
+      </div>
       </div>
     </div>
   )

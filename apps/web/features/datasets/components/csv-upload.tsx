@@ -1,13 +1,15 @@
 "use client"
 
+import { useDatasetStore } from "../store/dataset-store"
 import { useState } from "react"
 import Papa from "papaparse"
-import { useDatasetStore } from "@/features/datasets/store/dataset-store"
+import { uploadDataset } from "@/lib/api"
 
 export function CsvUpload() {
   const [fileName, setFileName] = useState("")
+  const [loading, setLoading] = useState(false)
   const [data, setData] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)    
+
   const setDataset = useDatasetStore(
     (state) => state.setDataset
   )
@@ -26,14 +28,19 @@ export function CsvUpload() {
       header: true,
       skipEmptyLines: true,
 
-      complete: (results) => {
-        const parsedRows = results.data as any[]
+      complete: async (results) => {
+        const parsedData = results.data as any[]
+        setData(parsedData)
+        setDataset(file.name, parsedData)
 
-        setData(parsedRows)
-        
-        setDataset(
-          file.name,
-          parsedRows
+        const savedDataset =
+          await uploadDataset(
+            file
+          )
+
+        console.log(
+          "DATASET SAVED",
+          savedDataset
         )
 
         setLoading(false)

@@ -1,20 +1,66 @@
 "use client"
 
+import { useEffect, useState } from "react"
+
+import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import { InsightCard } from "@/features/insights/components/insight-card"
-import { generateInsights } from "@/features/insights/utils/generate-insights"
-import { useDatasetStore } from "@/features/datasets/store/dataset-store"
+
+import { getDatasetDetails, getDatasets } from "@/lib/api"
 
 export default function InsightsPage() {
-  const rows = useDatasetStore(
-    (state) => state.rows
-  )
+  const [selectedDatasetId, setSelectedDatasetId] =
+    useState<number>()
 
-  const fileName = useDatasetStore(
-    (state) => state.fileName
-  )
+  const [dataset, setDataset] =
+    useState<any>(null)
 
-  const insights =
-    generateInsights(rows)
+  const [loading, setLoading] =
+    useState(false)
+
+  useEffect(() => {
+    async function loadDefaultDataset() {
+      try {
+        const datasets =
+          await getDatasets()
+
+        if (datasets.length > 0) {
+          const latestDataset =
+            datasets[0]
+
+          setSelectedDatasetId(
+            latestDataset.id
+          )
+        }
+      } catch (error) {
+        console.error(error)
+      }
+    }
+
+    loadDefaultDataset()
+  }, [])
+
+  useEffect(() => {
+    if (!selectedDatasetId) return
+
+    async function loadDataset() {
+      try {
+        setLoading(true)
+
+        const data =
+          await getDatasetDetails(
+            selectedDatasetId!
+          )
+
+        setDataset(data)
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadDataset()
+  }, [selectedDatasetId])
 
   return (
     <div className="space-y-8">
@@ -23,33 +69,52 @@ export default function InsightsPage() {
           Insights
         </h1>
 
+        <div className="mt-4">
+          <DatasetSelector
+            value={selectedDatasetId}
+            onChange={setSelectedDatasetId}
+          />
+        </div>
+
         <p className="mt-2 text-gray-500">
-          {fileName
-            ? `Insights generated from ${fileName}`
-            : "Upload a dataset to generate insights"}
+          {dataset
+            ? `Insights generated from ${dataset.file_name}`
+            : "Select a dataset"
+          }
         </p>
       </div>
 
-      {!rows.length && (
+      {!selectedDatasetId && (
         <div className="rounded-2xl border border-dashed bg-white p-12 text-center">
           <h2 className="text-xl font-semibold">
-            No dataset uploaded
+            No dataset selected
           </h2>
 
           <p className="mt-2 text-gray-500">
-            Upload a CSV file to begin generating insights.
+            Select a dataset to view insights.
           </p>
         </div>
       )}
 
-      {insights.length > 0 && (
+      {loading && (
+        <div className="rounded-xl border bg-white p-6">
+          Loading insights...
+        </div>
+      )}
+
+      {dataset?.insights?.length > 0 && (
         <div className="grid gap-6 md:grid-cols-2">
-          {insights.map((insight, index) => (
-            <InsightCard
-              key={index}
-              insight={insight}
-            />
-          ))}
+          {dataset.insights.map(
+            (
+              insight: any,
+              index: number
+            ) => (
+              <InsightCard
+                key={index}
+                insight={insight}
+              />
+            )
+          )}
         </div>
       )}
     </div>
