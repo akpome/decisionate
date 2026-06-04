@@ -8,6 +8,10 @@ from app.modules.datasets.router import (
     router as datasets_router,
 )
 
+from app.modules.organizations.router import (
+    router as organization_router,
+)
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -17,8 +21,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3000",
+        "http://localhost:3000"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -29,6 +32,12 @@ app.include_router(
     datasets_router,
     prefix="/datasets",
     tags=["datasets"],
+)
+
+app.include_router(
+    organization_router,
+    prefix="/organizations",
+    tags=["organizations"],
 )
 
 

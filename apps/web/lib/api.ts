@@ -102,3 +102,54 @@ export async function deleteDataset(
 
   return response.json()
 }
+
+export async function getMyOrganization(
+  userId: string
+) {
+  const response =
+    await fetch(
+      `${API_URL}/organizations/me`,
+      {
+        headers: {
+          "X-User-Id": userId,
+        },
+      }
+    )
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to load organization"
+    )
+  }
+
+  return response.json()
+}
+
+export async function createOrganization(
+  name: string,
+  userId: string
+) {
+  const response =
+    await fetch(
+      `${API_URL}/organizations`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+          "X-User-Id": userId,
+        },
+        body: JSON.stringify({
+          name,
+        }),
+      }
+    )
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to create organization"
+    )
+  }
+
+  return response.json()
+}
