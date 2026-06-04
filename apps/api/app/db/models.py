@@ -41,3 +41,9 @@ class Dataset(Base):
         DateTime,
         default=datetime.utcnow,
     )
+
+    user_id = Column(
+        String,
+        nullable=False,
+        index=True,
+    )

@@ -5,7 +5,13 @@ import { useEffect, useState } from "react"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import { MetricCard } from "@/features/dashboard/components/metric-card"
 import { RevenueChart } from "@/features/dashboard/components/revenue-chart"
-import { getDatasetDetails, getDatasets } from "@/lib/api"
+
+import {
+  getDatasetDetails,
+  getDatasets,
+} from "@/lib/api"
+
+import { useUser } from "@clerk/nextjs"
 
 export default function DashboardPage() {
   const [selectedDatasetId, setSelectedDatasetId] =
@@ -17,8 +23,14 @@ export default function DashboardPage() {
   const [loading, setLoading] =
     useState(false)
 
+  const { user } = useUser()
+
   useEffect(() => {
-    if (!selectedDatasetId) return
+    if (
+      !selectedDatasetId ||
+      !user?.id
+    )
+      return
 
     async function loadDataset() {
       try {
@@ -26,7 +38,8 @@ export default function DashboardPage() {
 
         const data =
           await getDatasetDetails(
-            selectedDatasetId!
+            selectedDatasetId!,
+            user?.id ?? ""
           )
 
         setDataset(data)
@@ -38,20 +51,24 @@ export default function DashboardPage() {
     }
 
     loadDataset()
-  }, [selectedDatasetId])
+  }, [
+    selectedDatasetId,
+    user?.id,
+  ])
 
   useEffect(() => {
+    if (!user?.id) return
+
     async function loadDefaultDataset() {
       try {
         const datasets =
-          await getDatasets()
+          await getDatasets(
+            user?.id ?? ""
+          )
 
         if (datasets.length > 0) {
-          const latestDataset =
-            datasets[0]
-
           setSelectedDatasetId(
-            latestDataset.id
+            datasets[0].id
           )
         }
       } catch (error) {
@@ -60,12 +77,10 @@ export default function DashboardPage() {
     }
 
     loadDefaultDataset()
-  }, [])
+  }, [user?.id])
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-
       <div>
         <h1 className="text-3xl font-bold">
           Dashboard
@@ -85,8 +100,6 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Empty State */}
-
       {!selectedDatasetId && (
         <div className="rounded-2xl border border-dashed bg-white p-12 text-center">
           <h2 className="text-xl font-semibold">
@@ -100,15 +113,11 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Loading */}
-
       {loading && (
         <div className="rounded-xl border bg-white p-6">
           Loading dataset...
         </div>
       )}
-
-      {/* Metrics */}
 
       {dataset?.metrics?.length > 0 && (
         <div className="grid gap-6 md:grid-cols-3">
@@ -124,8 +133,6 @@ export default function DashboardPage() {
             ))}
         </div>
       )}
-
-      {/* Chart */}
 
       {dataset?.chart && (
         <RevenueChart

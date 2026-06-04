@@ -6,6 +6,7 @@ import { DatasetSelector } from "@/features/dashboard/components/dataset-selecto
 import { InsightCard } from "@/features/insights/components/insight-card"
 
 import { getDatasetDetails, getDatasets } from "@/lib/api"
+import { useUser } from "@clerk/nextjs"
 
 export default function InsightsPage() {
   const [selectedDatasetId, setSelectedDatasetId] =
@@ -14,6 +15,8 @@ export default function InsightsPage() {
   const [dataset, setDataset] =
     useState<any>(null)
 
+  const { user } = useUser()
+
   const [loading, setLoading] =
     useState(false)
 
@@ -21,7 +24,9 @@ export default function InsightsPage() {
     async function loadDefaultDataset() {
       try {
         const datasets =
-          await getDatasets()
+          await getDatasets(
+            user?.id ?? ""
+          )
 
         if (datasets.length > 0) {
           const latestDataset =
@@ -48,7 +53,8 @@ export default function InsightsPage() {
 
         const data =
           await getDatasetDetails(
-            selectedDatasetId!
+            selectedDatasetId!,
+            user?.id ?? ""
           )
 
         setDataset(data)

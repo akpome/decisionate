@@ -1,18 +1,22 @@
 "use client"
 
-import { useDatasetStore } from "../store/dataset-store"
 import { useState } from "react"
 import Papa from "papaparse"
 import { uploadDataset } from "@/lib/api"
+import { useUser } from "@clerk/nextjs"
 
-export function CsvUpload() {
+interface CsvUploadProps {
+  onUploadSuccess: () => void
+}
+
+export function CsvUpload({
+  onUploadSuccess,
+}: CsvUploadProps) {
+  const { user } = useUser()
+
   const [fileName, setFileName] = useState("")
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<any[]>([])
-
-  const setDataset = useDatasetStore(
-    (state) => state.setDataset
-  )
 
   function handleFileUpload(
     event: React.ChangeEvent<HTMLInputElement>
@@ -31,16 +35,20 @@ export function CsvUpload() {
       complete: async (results) => {
         const parsedData = results.data as any[]
         setData(parsedData)
-        setDataset(file.name, parsedData)
 
-        const savedDataset =
-          await uploadDataset(
-            file
-          )
+        await uploadDataset(
+          file,
+          user?.id ?? ""
+        )
 
         console.log(
-          "DATASET SAVED",
-          savedDataset
+          "UPLOAD SUCCESS CALLBACK"
+        )
+
+        await onUploadSuccess()
+
+        console.log(
+          "DATASETS RELOADED"
         )
 
         setLoading(false)

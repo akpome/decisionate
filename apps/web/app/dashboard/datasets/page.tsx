@@ -1,7 +1,40 @@
+"use client"
+
+import { useEffect, useState } from "react"
+
 import { CsvUpload } from "@/features/datasets/components/csv-upload"
 import { DatasetList } from "@/features/datasets/components/dataset-list"
+import { useUser } from "@clerk/nextjs"
+
+import { getDatasets } from "@/lib/api"
 
 export default function DatasetsPage() {
+  const [datasets, setDatasets] =
+    useState([])
+
+  const { user } = useUser()
+
+  async function loadDatasets() {
+    if (!user?.id) return
+
+    try {
+      const data =
+        await getDatasets(
+          user.id
+        )
+
+      setDatasets(data)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    loadDatasets()
+  }, [user?.id])
+
   return (
     <div className="space-y-8">
       <div>
@@ -23,14 +56,24 @@ export default function DatasetsPage() {
           Upload a CSV file to begin generating insights and dashboards.
         </p>
 
-        <CsvUpload />
-        <div className="rounded-2xl border bg-white p-8 shadow-sm">
+        <CsvUpload
+          onUploadSuccess={
+            loadDatasets
+          }
+        />
+      </div>
+
+      <div className="rounded-2xl border bg-white p-8 shadow-sm">
         <h2 className="mb-4 text-xl font-semibold">
           Saved Datasets
         </h2>
 
-        <DatasetList />
-      </div>
+        <DatasetList
+          datasets={datasets}
+          onRefresh={
+            loadDatasets
+          }
+        />
       </div>
     </div>
   )

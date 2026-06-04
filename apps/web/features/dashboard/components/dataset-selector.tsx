@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { getDatasets } from "@/lib/api"
+import { useUser } from "@clerk/nextjs"
 
 interface Dataset {
   id: number
@@ -17,19 +18,29 @@ export function DatasetSelector({
   value,
   onChange,
 }: DatasetSelectorProps) {
+  const { user } = useUser()
+
   const [datasets, setDatasets] =
     useState<Dataset[]>([])
 
   useEffect(() => {
-    async function loadDatasets() {
-      const data =
-        await getDatasets()
+    if (!user?.id) return
 
-      setDatasets(data)
+    async function loadDatasets() {
+      try {
+        const data =
+          await getDatasets(
+            user?.id ?? ""
+          )
+
+        setDatasets(data)
+      } catch (error) {
+        console.error(error)
+      }
     }
 
     loadDatasets()
-  }, [])
+  }, [user?.id])
 
   return (
     <select

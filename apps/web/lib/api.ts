@@ -2,7 +2,8 @@ const API_URL =
   "http://localhost:8000"
 
 export async function uploadDataset(
-  file: File
+  file: File,
+  userId: string
 ) {
   const formData =
     new FormData()
@@ -17,6 +18,9 @@ export async function uploadDataset(
       `${API_URL}/datasets/upload`,
       {
         method: "POST",
+        headers: {
+          "X-User-Id": userId,
+        },
         body: formData,
       }
     )
@@ -30,10 +34,17 @@ export async function uploadDataset(
   return response.json()
 }
 
-export async function getDatasets() {
+export async function getDatasets(
+  userId: string
+) {
   const response =
     await fetch(
-      `${API_URL}/datasets`
+      `${API_URL}/datasets`,
+      {
+        headers: {
+          "X-User-Id": userId,
+        },
+      }
     )
 
   if (!response.ok) {
@@ -46,16 +57,46 @@ export async function getDatasets() {
 }
 
 export async function getDatasetDetails(
-  id: number
+  id: number,
+  userId: string
 ) {
   const response =
     await fetch(
-      `${API_URL}/datasets/${id}/details`
+      `${API_URL}/datasets/${id}/details`,
+      {
+        headers: {
+          "X-User-Id": userId,
+        },
+      }
     )
 
   if (!response.ok) {
     throw new Error(
       "Failed to load dataset"
+    )
+  }
+
+  return response.json()
+}
+
+export async function deleteDataset(
+  id: number,
+  userId: string
+) {
+  const response =
+    await fetch(
+      `${API_URL}/datasets/${id}`,
+      {
+        method: "DELETE",
+        headers: {
+          "X-User-Id": userId,
+        },
+      }
+    )
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to delete dataset"
     )
   }
 

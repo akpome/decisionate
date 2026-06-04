@@ -1,11 +1,13 @@
 import os
 import shutil
+import uuid
 
 import pandas as pd
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi import File
 from fastapi import UploadFile
+from fastapi import Request
 
 from sqlalchemy.orm import Session
 
@@ -35,25 +37,35 @@ from app.modules.datasets.services.insights import (
     generate_insights,
 )
 
+from app.modules.datasets.services.ownership import (
+    verify_dataset_owner,
+)
+
 router = APIRouter()
 
 
 @router.post("/")
 async def create_dataset(
-    dataset: DatasetCreate
+    request: Request,
+    dataset: DatasetCreate,
 ):
+    user_id = request.headers.get("X-User-Id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
+        )
+
     db: Session = SessionLocal()
 
     try:
         dataset_record = Dataset(
+            user_id=user_id,
             file_name=dataset.file_name,
             file_path="manual_upload",
             row_count=len(dataset.rows),
-            column_count=(
-                len(dataset.rows[0])
-                if dataset.rows
-                else 0
-            ),
+            column_count=(len(dataset.rows[0]) if dataset.rows else 0),
         )
 
         db.add(dataset_record)
@@ -62,6 +74,7 @@ async def create_dataset(
 
         return {
             "id": dataset_record.id,
+            "user_id": dataset_record.user_id,
             "file_name": dataset_record.file_name,
             "rows": dataset_record.row_count,
             "message": "Dataset saved",
@@ -72,42 +85,38 @@ async def create_dataset(
 
 
 @router.post("/upload")
-async def upload_dataset(
-    file: UploadFile = File(...)
-):
-    os.makedirs(
-        "uploads",
-        exist_ok=True
-    )
+async def upload_dataset(request: Request, file: UploadFile = File(...)):
+    os.makedirs("uploads", exist_ok=True)
 
-    file_path = os.path.join(
-        "uploads",
-        file.filename
-    )
-
-    with open(
-        file_path,
-        "wb"
-    ) as buffer:
-        shutil.copyfileobj(
-            file.file,
-            buffer
+    user_id = request.headers.get("X-User-Id")
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
         )
 
-    dataframe = pd.read_csv(
-        file_path
-    )
+    unique_filename = f"{uuid.uuid4()}-{file.filename}"
+
+    file_path = os.path.join("uploads", unique_filename)
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    dataframe = pd.read_csv(file_path)
+
+    from app.db.database import engine
+
+    print("DATABASE:", engine.url.database)
 
     db = SessionLocal()
 
     try:
         dataset = Dataset(
+            user_id=user_id,
             file_name=file.filename,
             file_path=file_path,
             row_count=len(dataframe),
-            column_count=len(
-                dataframe.columns
-            ),
+            column_count=len(dataframe.columns),
         )
 
         db.add(dataset)
@@ -127,21 +136,31 @@ async def upload_dataset(
 
 
 @router.get("/")
-async def get_datasets():
-    db: Session = SessionLocal()
+async def get_datasets(
+    request: Request,
+):
+    user_id = request.headers.get("X-User-Id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
+        )
+
+    db = SessionLocal()
 
     try:
         datasets = (
             db.query(Dataset)
-            .order_by(
-                Dataset.created_at.desc()
-            )
+            .filter(Dataset.user_id == user_id)
+            .order_by(Dataset.created_at.desc())
             .all()
         )
 
         return [
             {
                 "id": dataset.id,
+                "user_id": dataset.user_id,
                 "file_name": dataset.file_name,
                 "row_count": dataset.row_count,
                 "column_count": dataset.column_count,
@@ -156,8 +175,17 @@ async def get_datasets():
 
 @router.get("/{dataset_id}")
 async def get_dataset(
-    dataset_id: int
+    request: Request,
+    dataset_id: int,
 ):
+    user_id = request.headers.get("X-User-Id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
+        )
+
     db = SessionLocal()
 
     try:
@@ -166,8 +194,14 @@ async def get_dataset(
             dataset_id,
         )
 
+        verify_dataset_owner(
+            dataset,
+            user_id,
+        )
+
         return {
             "id": dataset.id,
+            "user_id": dataset.user_id,
             "file_name": dataset.file_name,
             "file_path": dataset.file_path,
             "row_count": dataset.row_count,
@@ -181,24 +215,34 @@ async def get_dataset(
 
 @router.get("/{dataset_id}/preview")
 async def dataset_preview(
-    dataset_id: int
+    request: Request,
+    dataset_id: int,
 ):
+    user_id = request.headers.get("X-User-Id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
+        )
+
     db = SessionLocal()
 
     try:
-        dataset, dataframe = (
-            load_dataframe(
-                db,
-                dataset_id,
-            )
+        dataset, dataframe = load_dataframe(
+            db,
+            dataset_id,
+        )
+
+        verify_dataset_owner(
+            dataset,
+            user_id,
         )
 
         return {
             "dataset_id": dataset.id,
             "file_name": dataset.file_name,
-            "preview": generate_preview(
-                dataframe
-            ),
+            "preview": generate_preview(dataframe),
         }
 
     finally:
@@ -207,24 +251,34 @@ async def dataset_preview(
 
 @router.get("/{dataset_id}/metrics")
 async def dataset_metrics(
-    dataset_id: int
+    request: Request,
+    dataset_id: int,
 ):
+    user_id = request.headers.get("X-User-Id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
+        )
+
     db = SessionLocal()
 
     try:
-        dataset, dataframe = (
-            load_dataframe(
-                db,
-                dataset_id,
-            )
+        dataset, dataframe = load_dataframe(
+            db,
+            dataset_id,
+        )
+
+        verify_dataset_owner(
+            dataset,
+            user_id,
         )
 
         return {
             "dataset_id": dataset.id,
             "file_name": dataset.file_name,
-            "metrics": generate_metrics(
-                dataframe
-            ),
+            "metrics": generate_metrics(dataframe),
         }
 
     finally:
@@ -233,24 +287,34 @@ async def dataset_metrics(
 
 @router.get("/{dataset_id}/insights")
 async def dataset_insights(
-    dataset_id: int
+    request: Request,
+    dataset_id: int,
 ):
+    user_id = request.headers.get("X-User-Id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
+        )
+
     db = SessionLocal()
 
     try:
-        dataset, dataframe = (
-            load_dataframe(
-                db,
-                dataset_id,
-            )
+        dataset, dataframe = load_dataframe(
+            db,
+            dataset_id,
+        )
+
+        verify_dataset_owner(
+            dataset,
+            user_id,
         )
 
         return {
             "dataset_id": dataset.id,
             "file_name": dataset.file_name,
-            "insights": generate_insights(
-                dataframe
-            ),
+            "insights": generate_insights(dataframe),
         }
 
     finally:
@@ -259,24 +323,34 @@ async def dataset_insights(
 
 @router.get("/{dataset_id}/chart-data")
 async def dataset_chart_data(
-    dataset_id: int
+    request: Request,
+    dataset_id: int,
 ):
+    user_id = request.headers.get("X-User-Id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
+        )
+
     db = SessionLocal()
 
     try:
-        dataset, dataframe = (
-            load_dataframe(
-                db,
-                dataset_id,
-            )
+        dataset, dataframe = load_dataframe(
+            db,
+            dataset_id,
+        )
+
+        verify_dataset_owner(
+            dataset,
+            user_id,
         )
 
         return {
             "dataset_id": dataset.id,
             "file_name": dataset.file_name,
-            "chart": generate_chart_data(
-                dataframe
-            ),
+            "chart": generate_chart_data(dataframe),
         }
 
     finally:
@@ -285,16 +359,28 @@ async def dataset_chart_data(
 
 @router.get("/{dataset_id}/details")
 async def dataset_details(
-    dataset_id: int
+    request: Request,
+    dataset_id: int,
 ):
+    user_id = request.headers.get("X-User-Id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
+        )
+
     db = SessionLocal()
 
     try:
-        dataset, dataframe = (
-            load_dataframe(
-                db,
-                dataset_id,
-            )
+        dataset, dataframe = load_dataframe(
+            db,
+            dataset_id,
+        )
+
+        verify_dataset_owner(
+            dataset,
+            user_id,
         )
 
         return {
@@ -302,18 +388,10 @@ async def dataset_details(
             "file_name": dataset.file_name,
             "row_count": dataset.row_count,
             "column_count": dataset.column_count,
-            "preview": generate_preview(
-                dataframe
-            ),
-            "metrics": generate_metrics(
-                dataframe
-            ),
-            "insights": generate_insights(
-                dataframe
-            ),
-            "chart": generate_chart_data(
-                dataframe
-            ),
+            "preview": generate_preview(dataframe),
+            "metrics": generate_metrics(dataframe),
+            "insights": generate_insights(dataframe),
+            "chart": generate_chart_data(dataframe),
         }
 
     finally:
@@ -322,8 +400,17 @@ async def dataset_details(
 
 @router.delete("/{dataset_id}")
 async def delete_dataset(
-    dataset_id: int
+    request: Request,
+    dataset_id: int,
 ):
+    user_id = request.headers.get("X-User-Id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
+        )
+
     db = SessionLocal()
 
     try:
@@ -332,12 +419,18 @@ async def delete_dataset(
             dataset_id,
         )
 
+        verify_dataset_owner(
+            dataset,
+            user_id,
+        )
+
+        if dataset.file_path and os.path.exists(dataset.file_path):
+            os.remove(dataset.file_path)
+
         db.delete(dataset)
         db.commit()
 
-        return {
-            "message": "Dataset deleted"
-        }
+        return {"message": "Dataset deleted"}
 
     finally:
         db.close()
