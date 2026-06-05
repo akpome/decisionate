@@ -21,19 +21,20 @@ export default function InsightsPage() {
     useState(false)
 
   useEffect(() => {
+    if (!user?.id) return
+    const userId = user.id
+    const datasetId = selectedDatasetId
+
     async function loadDefaultDataset() {
       try {
         const datasets =
           await getDatasets(
-            user?.id ?? ""
+            userId
           )
 
         if (datasets.length > 0) {
-          const latestDataset =
-            datasets[0]
-
           setSelectedDatasetId(
-            latestDataset.id
+            datasets[0].id
           )
         }
       } catch (error) {
@@ -42,10 +43,15 @@ export default function InsightsPage() {
     }
 
     loadDefaultDataset()
-  }, [])
+  }, [user?.id])
+
 
   useEffect(() => {
     if (!selectedDatasetId) return
+
+    if (!user?.id) return
+    const userId = user.id
+    const datasetId = selectedDatasetId
 
     async function loadDataset() {
       try {
@@ -53,8 +59,8 @@ export default function InsightsPage() {
 
         const data =
           await getDatasetDetails(
-            selectedDatasetId!,
-            user?.id ?? ""
+            datasetId,
+            userId
           )
 
         setDataset(data)
@@ -66,7 +72,7 @@ export default function InsightsPage() {
     }
 
     loadDataset()
-  }, [selectedDatasetId])
+  }, [selectedDatasetId, user?.id])
 
   return (
     <div className="space-y-8">
