@@ -153,3 +153,26 @@ export async function createOrganization(
 
   return response.json()
 }
+
+export async function getForecast(
+  datasetId: number,
+  userId: string
+) {
+  const response =
+    await fetch(
+      `${API_URL}/forecasting/${datasetId}`,
+      {
+        headers: {
+          "X-User-Id": userId,
+        },
+      }
+    )
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to load forecast"
+    )
+  }
+
+  return response.json()
+}

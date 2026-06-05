@@ -45,6 +45,20 @@ export default function DashboardLayout({
             </Link>
 
             <Link
+              href="/dashboard/forecasts"
+              className="block rounded-xl px-4 py-3 hover:bg-gray-100"
+            >
+              Forecasts
+            </Link>
+
+            <Link
+              href="/dashboard/reports"
+              className="block rounded-xl px-4 py-3 hover:bg-gray-100"
+            >
+              Reports
+            </Link>
+
+            <Link
               href="/dashboard/reports"
               className="block rounded-xl px-4 py-3 hover:bg-gray-100"
             >

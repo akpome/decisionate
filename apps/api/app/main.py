@@ -12,6 +12,10 @@ from app.modules.organizations.router import (
     router as organization_router,
 )
 
+from app.modules.forecasting.router import (
+    router as forecasting_router,
+)
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -38,6 +42,13 @@ app.include_router(
     organization_router,
     prefix="/organizations",
     tags=["organizations"],
+)
+
+
+app.include_router(
+    forecasting_router,
+    prefix="/forecasting",
+    tags=["forecasting"],
 )
 
 

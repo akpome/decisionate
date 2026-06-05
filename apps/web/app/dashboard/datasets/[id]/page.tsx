@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
+import { useUser } from "@clerk/nextjs"
 import { MetricCard } from "@/features/dashboard/components/metric-card"
 import { InsightCard } from "@/features/insights/components/insight-card"
 import { RevenueChart } from "@/features/dashboard/components/revenue-chart"
+
+import { getForecast } from "@/lib/api"
 
 const API_URL =
   "http://localhost:8000"
@@ -18,23 +21,42 @@ export default function DatasetDetailsPage() {
   const [loading, setLoading] =
     useState(true)
 
+  const { user } = useUser()
+
   useEffect(() => {
+    if (!params.id) return
+    if (!user?.id) return
+
+    const userId = user.id
+
     async function loadDataset() {
       try {
         const response =
           await fetch(
-            `${API_URL}/datasets/${params.id}/details`
+            `${API_URL}/datasets/${params.id}/details`,
+            {
+              headers: {
+                "X-User-Id": userId,
+              },
+            }
           )
 
         const data =
           await response.json()
+
         setDataset(data)
+        if (user?.id) {
+          const forecast =
+            await getForecast(
+              Number(params.id),
+              user.id
+            )
 
-        console.log(
-        "PREVIEW",
-        data.preview
-        )
-
+          console.log(
+            "FORECAST",
+            forecast
+          )
+        }
       } catch (error) {
         console.error(error)
       } finally {
@@ -43,7 +65,7 @@ export default function DatasetDetailsPage() {
     }
 
     loadDataset()
-  }, [params.id])
+  }, [params.id, user?.id])
 
   if (loading) {
     return (
@@ -78,108 +100,108 @@ export default function DatasetDetailsPage() {
 
       {/* Metrics */}
 
-        <div>
-            <h2 className="mb-4 text-2xl font-bold">
-                Metrics
-            </h2>
+      <div>
+        <h2 className="mb-4 text-2xl font-bold">
+          Metrics
+        </h2>
 
-            <div className="grid gap-6 md:grid-cols-3">
-                {dataset.metrics?.map(
-                (metric: any) => (
-                    <MetricCard
-                    key={metric.column}
-                    title={metric.column}
-                    value={metric.total}
-                    description={`Average ${metric.average}`}
-                    />
-                )
-                )}
-            </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {dataset.metrics?.map(
+            (metric: any) => (
+              <MetricCard
+                key={metric.column}
+                title={metric.column}
+                value={metric.total}
+                description={`Average ${metric.average}`}
+              />
+            )
+          )}
         </div>
+      </div>
 
       {/* Insights */}
 
-        <div>
-            <h2 className="mb-4 text-2xl font-bold">
-                Insights
-            </h2>
+      <div>
+        <h2 className="mb-4 text-2xl font-bold">
+          Insights
+        </h2>
 
-            <div className="grid gap-6 md:grid-cols-2">
-                {dataset.insights?.map(
-                (
-                    insight: any,
-                    index: number
-                ) => (
-                    <InsightCard
-                    key={index}
-                    insight={insight}
-                    />
-                )
-                )}
-            </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          {dataset.insights?.map(
+            (
+              insight: any,
+              index: number
+            ) => (
+              <InsightCard
+                key={index}
+                insight={insight}
+              />
+            )
+          )}
         </div>
+      </div>
 
       {/* Chart */}
 
-        {dataset.chart && (
+      {dataset.chart && (
         <RevenueChart
-            data={dataset.chart.data}
-            xKey={dataset.chart.x_key}
-            yKey={dataset.chart.y_key}
+          data={dataset.chart.data}
+          xKey={dataset.chart.x_key}
+          yKey={dataset.chart.y_key}
         />
-        )}
+      )}
 
       {/* Preview */}
 
       {/* Preview */}
 
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-xl font-semibold">
-                Dataset Preview
-            </h2>
+      <div className="rounded-2xl border bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-xl font-semibold">
+          Dataset Preview
+        </h2>
 
-            <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
-                    <thead className="bg-gray-50">
-                        <tr>
-                        {dataset.preview?.[0] &&
-                            Object.keys(
-                            dataset.preview[0]
-                            ).map((column) => (
-                            <th
-                                key={column}
-                                className="border-b px-4 py-3 text-left font-medium text-gray-600"
-                            >
-                                {column}
-                            </th>
-                            ))}
-                        </tr>
-                    </thead>
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                {dataset.preview?.[0] &&
+                  Object.keys(
+                    dataset.preview[0]
+                  ).map((column) => (
+                    <th
+                      key={column}
+                      className="border-b px-4 py-3 text-left font-medium text-gray-600"
+                    >
+                      {column}
+                    </th>
+                  ))}
+              </tr>
+            </thead>
 
-                <tbody>
-                    {dataset.preview?.map(
-                    (
-                        row: any,
-                        index: number
-                    ) => (
-                        <tr key={index}>
-                        {Object.values(row).map(
-                            (value: any, i) => (
-                            <td
-                                key={i}
-                                className="border-b px-4 py-3 text-gray-700"
-                            >
-                                {String(value)}
-                            </td>
-                            )
-                        )}
-                        </tr>
-                    )
+            <tbody>
+              {dataset.preview?.map(
+                (
+                  row: any,
+                  index: number
+                ) => (
+                  <tr key={index}>
+                    {Object.values(row).map(
+                      (value: any, i) => (
+                        <td
+                          key={i}
+                          className="border-b px-4 py-3 text-gray-700"
+                        >
+                          {String(value)}
+                        </td>
+                      )
                     )}
-                </tbody>
-                </table>
-            </div>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
         </div>
+      </div>
     </div>
   )
 }

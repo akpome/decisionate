@@ -23,7 +23,6 @@ export default function InsightsPage() {
   useEffect(() => {
     if (!user?.id) return
     const userId = user.id
-    const datasetId = selectedDatasetId
 
     async function loadDefaultDataset() {
       try {
