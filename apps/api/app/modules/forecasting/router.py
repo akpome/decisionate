@@ -49,15 +49,51 @@ async def get_forecast(
                 detail="Dataset not found",
             )
 
-        dataframe = pd.read_csv(dataset.file_path)
+        dataframe = pd.read_csv(
+            dataset.file_path
+        )
 
-        forecast = generate_forecast(dataframe)
+        print(
+            dataframe.head().to_dict(
+                orient="records"
+            )
+        )
 
-        return {
+        forecast = generate_forecast(
+            dataframe
+        )
+
+        date_column = forecast[
+            "date_column"
+        ]
+
+        value_column = forecast[
+            "value_column"
+        ]
+
+        historical = (
+            dataframe[
+                [
+                    date_column,
+                    value_column,
+                ]
+            ]
+            .tail(12)
+            .to_dict(
+                orient="records"
+            )
+        )
+
+        response = {
             "dataset_id": dataset.id,
             "file_name": dataset.file_name,
+            "historical": historical,
             "forecast": forecast,
         }
+
+        print(response)
+
+        return response
 
     finally:
         db.close()

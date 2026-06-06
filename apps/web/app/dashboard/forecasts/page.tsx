@@ -80,15 +80,34 @@ export default function ForecastsPage() {
   ])
 
   const chartData =
-    forecast?.forecast?.forecast?.map(
-      (
-        value: number,
-        index: number
-      ) => ({
-        period: `P${index + 1}`,
-        value,
-      })
-    ) ?? []
+    forecast
+      ? [
+        ...forecast.historical.map(
+          (row: any) => ({
+            period:
+              row[
+              forecast.forecast
+                .date_column
+              ],
+            value:
+              row[
+              forecast.forecast
+                .value_column
+              ],
+          })
+        ),
+
+        ...forecast.forecast.forecast.map(
+          (
+            value: number,
+            index: number
+          ) => ({
+            period: `F${index + 1}`,
+            value,
+          })
+        ),
+      ]
+      : []
 
   return (
     <div className="space-y-8">
@@ -141,28 +160,10 @@ export default function ForecastsPage() {
             </p>
           </div>
 
-          <div className="mt-6 space-y-3">
-            {forecast.forecast.forecast.map(
-              (
-                value: number,
-                index: number
-              ) => (
-                <div
-                  key={index}
-                  className="rounded-lg border p-4"
-                >
-                  <strong>
-                    <ForecastChart
-                      data={chartData}
-                    />
-                  </strong>
-
-                  <div>
-                    {value}
-                  </div>
-                </div>
-              )
-            )}
+          <div className="mt-6">
+            <ForecastChart
+              data={chartData}
+            />
           </div>
         </div>
       )}
