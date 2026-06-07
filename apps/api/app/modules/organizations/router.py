@@ -3,10 +3,15 @@ from fastapi import HTTPException
 from fastapi import Request
 
 from app.db.database import SessionLocal
-from app.db.models import Organization
+from app.db.models import (
+    Organization,
+    UserPreference,
+)
 
 from app.modules.organizations.schemas import (
     OrganizationCreate,
+    DatasetPreferenceUpdate,
+    DatasetPreferenceResponse,
 )
 
 router = APIRouter()
@@ -25,7 +30,7 @@ async def create_organization(
             detail="Missing user id",
         )
 
-    db = SessionLocal()    
+    db = SessionLocal()
 
     try:
         existing = (
@@ -82,6 +87,106 @@ async def get_my_organization(
         return {
             "id": organization.id,
             "name": organization.name,
+        }
+
+    finally:
+        db.close()
+
+
+@router.get(
+    "/preferences/dataset",
+    response_model=DatasetPreferenceResponse,
+)
+async def get_dataset_preference(
+    request: Request,
+):
+    user_id = request.headers.get(
+        "X-User-Id"
+    )
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
+        )
+
+    db = SessionLocal()
+
+    try:
+        preference = (
+            db.query(
+                UserPreference
+            )
+            .filter(
+                UserPreference.clerk_user_id
+                == user_id
+            )
+            .first()
+        )
+
+        return {
+            "selected_dataset_id":
+                preference.selected_dataset_id
+                if preference
+                else None
+        }
+
+    finally:
+        db.close()
+
+
+@router.post(
+    "/preferences/dataset",
+    response_model=DatasetPreferenceResponse,
+)
+async def update_dataset_preference(
+    request: Request,
+    payload: DatasetPreferenceUpdate,
+):
+    user_id = request.headers.get(
+        "X-User-Id"
+    )
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing user id",
+        )
+
+    db = SessionLocal()
+
+    try:
+        preference = (
+            db.query(
+                UserPreference
+            )
+            .filter(
+                UserPreference.clerk_user_id
+                == user_id
+            )
+            .first()
+        )
+
+        if not preference:
+            preference = (
+                UserPreference(
+                    clerk_user_id=user_id,
+                    selected_dataset_id=payload.dataset_id,
+                )
+            )
+
+            db.add(preference)
+
+        else:
+            preference.selected_dataset_id = (
+                payload.dataset_id
+            )
+
+        db.commit()
+
+        return {
+            "selected_dataset_id":
+                preference.selected_dataset_id
         }
 
     finally:

@@ -4,10 +4,10 @@ import { ForecastChart } from "@/features/dashboard/components/forecast-chart"
 import { useEffect, useState } from "react"
 import { useUser } from "@clerk/nextjs"
 
-
 import {
   getDatasets,
   getForecast,
+  getDatasetPreference,
 } from "@/lib/api"
 
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
@@ -30,6 +30,21 @@ export default function ForecastsPage() {
 
     async function loadDefaultDataset() {
       try {
+        const preference =
+          await getDatasetPreference(
+            userId
+          )
+
+        if (
+          preference.selected_dataset_id
+        ) {
+          setSelectedDatasetId(
+            preference.selected_dataset_id
+          )
+
+          return
+        }
+
         const datasets =
           await getDatasets(
             userId
@@ -58,6 +73,12 @@ export default function ForecastsPage() {
     async function loadForecast() {
       try {
         setLoading(true)
+
+        console.log(
+          await getDatasetPreference(
+            userId
+          )
+        )
 
         const data =
           await getForecast(

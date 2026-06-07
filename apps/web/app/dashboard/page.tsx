@@ -9,6 +9,7 @@ import { RevenueChart } from "@/features/dashboard/components/revenue-chart"
 import {
   getDatasetDetails,
   getDatasets,
+  getDatasetPreference,
 } from "@/lib/api"
 
 import { useUser } from "@clerk/nextjs"
@@ -58,12 +59,28 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user?.id) return
+    const userId = user.id
 
     async function loadDefaultDataset() {
       try {
+        const preference =
+          await getDatasetPreference(
+            userId
+          )
+
+        if (
+          preference.selected_dataset_id
+        ) {
+          setSelectedDatasetId(
+            preference.selected_dataset_id
+          )
+
+          return
+        }
+
         const datasets =
           await getDatasets(
-            user?.id ?? ""
+            userId
           )
 
         if (datasets.length > 0) {

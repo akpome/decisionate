@@ -5,8 +5,13 @@ import { useEffect, useState } from "react"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import { InsightCard } from "@/features/insights/components/insight-card"
 
-import { getDatasetDetails, getDatasets } from "@/lib/api"
 import { useUser } from "@clerk/nextjs"
+
+import {
+  getDatasetDetails,
+  getDatasets,
+  getDatasetPreference,
+} from "@/lib/api"
 
 export default function InsightsPage() {
   const [selectedDatasetId, setSelectedDatasetId] =
@@ -26,6 +31,21 @@ export default function InsightsPage() {
 
     async function loadDefaultDataset() {
       try {
+        const preference =
+          await getDatasetPreference(
+            userId
+          )
+
+        if (
+          preference.selected_dataset_id
+        ) {
+          setSelectedDatasetId(
+            preference.selected_dataset_id
+          )
+
+          return
+        }
+
         const datasets =
           await getDatasets(
             userId

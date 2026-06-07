@@ -104,3 +104,29 @@ class OrganizationMember(Base):
         DateTime,
         default=datetime.utcnow,
     )
+
+class UserPreference(Base):
+    __tablename__ = "user_preferences"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+    clerk_user_id = Column(
+        String,
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    selected_dataset_id = Column(
+        Integer,
+        nullable=True,
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+    )

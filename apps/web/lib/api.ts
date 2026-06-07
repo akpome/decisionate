@@ -176,3 +176,54 @@ export async function getForecast(
 
   return response.json()
 }
+
+export async function getDatasetPreference(
+  userId: string
+) {
+  const response =
+    await fetch(
+      `${API_URL}/organizations/preferences/dataset`,
+      {
+        headers: {
+          "X-User-Id": userId,
+        },
+      }
+    )
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to load dataset preference"
+    )
+  }
+
+  return response.json()
+}
+
+export async function updateDatasetPreference(
+  datasetId: number,
+  userId: string
+) {
+  const response =
+    await fetch(
+      `${API_URL}/organizations/preferences/dataset`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+          "X-User-Id": userId,
+        },
+        body: JSON.stringify({
+          dataset_id: datasetId,
+        }),
+      }
+    )
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to update dataset preference"
+    )
+  }
+
+  return response.json()
+}

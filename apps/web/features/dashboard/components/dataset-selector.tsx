@@ -1,8 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getDatasets } from "@/lib/api"
 import { useUser } from "@clerk/nextjs"
+
+import {
+  getDatasets,
+  updateDatasetPreference,
+} from "@/lib/api"
 
 interface Dataset {
   id: number
@@ -45,9 +49,24 @@ export function DatasetSelector({
   return (
     <select
       value={value ?? ""}
-      onChange={(e) =>
-        onChange(Number(e.target.value))
-      }
+      onChange={async (e) => {
+        const datasetId = Number(
+          e.target.value
+        )
+
+        onChange(datasetId)
+
+        if (user?.id) {
+          try {
+            await updateDatasetPreference(
+              datasetId,
+              user.id
+            )
+          } catch (error) {
+            console.error(error)
+          }
+        }
+      }}
       className="rounded-lg border px-3 py-2"
     >
       <option value="">
