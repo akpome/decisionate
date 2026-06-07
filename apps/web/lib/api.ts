@@ -156,11 +156,15 @@ export async function createOrganization(
 
 export async function getForecast(
   datasetId: number,
-  userId: string
+  userId: string,
+  metric?: string
 ) {
   const response =
     await fetch(
-      `${API_URL}/forecasting/${datasetId}`,
+      `${API_URL}/forecasting/${datasetId}${metric
+        ? `?metric=${metric}`
+        : ""
+      }`,
       {
         headers: {
           "X-User-Id": userId,

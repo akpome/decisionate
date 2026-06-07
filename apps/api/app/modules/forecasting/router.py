@@ -22,6 +22,7 @@ async def test_forecasting():
 async def get_forecast(
     dataset_id: int,
     request: Request,
+    metric: str | None = None,
 ):
     user_id = request.headers.get("X-User-Id")
 
@@ -60,7 +61,8 @@ async def get_forecast(
         )
 
         forecast = generate_forecast(
-            dataframe
+            dataframe,
+            metric
         )
 
         date_column = forecast[

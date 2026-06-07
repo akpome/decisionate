@@ -43,6 +43,7 @@ def identify_forecast_columns(
 
 def generate_forecast(
     dataframe: pd.DataFrame,
+    metric: str | None = None,
 ):
 
     date_column, value_column = (
@@ -51,9 +52,15 @@ def generate_forecast(
         )
     )
 
-    print(
-        "COLUMNS:",
-        dataframe.columns.tolist()
+    if metric:
+        value_column = metric
+
+    numeric_columns = (
+        dataframe.select_dtypes(
+            include="number"
+        )
+        .columns
+        .tolist()
     )
 
     if not date_column:
@@ -139,5 +146,7 @@ def generate_forecast(
     return {
         "date_column": date_column,
         "value_column": value_column,
+        "available_metrics":
+            numeric_columns,
         "forecast": forecasts,
     }

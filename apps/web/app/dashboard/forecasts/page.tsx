@@ -11,6 +11,7 @@ import {
 } from "@/lib/api"
 
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
+import { MetricSelector } from "@/features/dashboard/components/metric-selector"
 
 export default function ForecastsPage() {
   const { user } = useUser()
@@ -20,6 +21,9 @@ export default function ForecastsPage() {
 
   const [forecast, setForecast] =
     useState<any>(null)
+
+  const [selectedMetric, setSelectedMetric] =
+    useState<string>()
 
   const [loading, setLoading] =
     useState(false)
@@ -74,19 +78,20 @@ export default function ForecastsPage() {
       try {
         setLoading(true)
 
-        console.log(
-          await getDatasetPreference(
-            userId
-          )
-        )
-
         const data =
           await getForecast(
             datasetId,
-            userId
+            userId,
+            selectedMetric
           )
 
         setForecast(data)
+
+        if (!selectedMetric) {
+          setSelectedMetric(
+            data.forecast.value_column
+          )
+        }
       } catch (error) {
         console.error(error)
       } finally {
@@ -97,6 +102,7 @@ export default function ForecastsPage() {
     loadForecast()
   }, [
     selectedDatasetId,
+    selectedMetric,
     user?.id,
   ])
 
@@ -146,10 +152,22 @@ export default function ForecastsPage() {
             value={selectedDatasetId}
             onChange={setSelectedDatasetId}
           />
+          <div className="mt-4">
+            <MetricSelector
+              metrics={
+                forecast?.forecast
+                  ?.available_metrics ?? []
+              }
+              value={selectedMetric}
+              onChange={
+                setSelectedMetric
+              }
+            />
+          </div>
         </div>
       </div>
 
-      {loading && (
+      {loading && !forecast && (
         <div className="rounded-xl border bg-white p-6">
           Loading forecast...
         </div>
