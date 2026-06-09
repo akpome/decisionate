@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+
 
 def identify_forecast_columns(
     dataframe: pd.DataFrame,
@@ -18,20 +20,11 @@ def identify_forecast_columns(
     for column in dataframe.columns:
         column_name = column.lower()
 
-        if any(
-            keyword in column_name
-            for keyword in date_keywords
-        ):
+        if any(keyword in column_name for keyword in date_keywords):
             date_column = column
             break
 
-    numeric_columns = (
-        dataframe.select_dtypes(
-            include="number"
-        )
-        .columns
-        .tolist()
-    )
+    numeric_columns = dataframe.select_dtypes(include="number").columns.tolist()
 
     if numeric_columns:
         value_column = numeric_columns[0]
@@ -41,104 +34,57 @@ def identify_forecast_columns(
         value_column,
     )
 
+
 def generate_forecast(
     dataframe: pd.DataFrame,
     metric: str | None = None,
 ):
 
-    date_column, value_column = (
-        identify_forecast_columns(
-            dataframe
-        )
-    )
+    date_column, value_column = identify_forecast_columns(dataframe)
 
     if metric:
         value_column = metric
 
-    numeric_columns = (
-        dataframe.select_dtypes(
-            include="number"
-        )
-        .columns
-        .tolist()
-    )
+    numeric_columns = dataframe.select_dtypes(include="number").columns.tolist()
 
     if not date_column:
-        return {
-            "error": "No date column found"
-        }
+        return {"error": "No date column found"}
 
     if not value_column:
-        return {
-            "error": "No numeric column found"
-        }
+        return {"error": "No numeric column found"}
 
-    working_dataframe = dataframe[
-        [date_column, value_column]
-    ].copy()
+    working_dataframe = dataframe[[date_column, value_column]].copy()
 
-    working_dataframe = (
-        working_dataframe
-        .dropna()
-    )
+    working_dataframe = working_dataframe.dropna()
 
-    values = (
-        working_dataframe[
-            value_column
-        ]
-        .tail(3)
-        .tolist()
-    )
+    values = working_dataframe[value_column].tolist()
 
     if len(values) < 2:
-        return {
-            "error": "Not enough data"
-        }
+        return {"error": "Not enough data"}
 
-    growth_rates = []
+    x = np.arange(len(values))
 
-    for i in range(
+    y = np.array(values)
+
+    slope, intercept = np.polyfit(
+        x,
+        y,
         1,
-        len(values),
-    ):
-        previous = values[i - 1]
-
-        current = values[i]
-
-        if previous == 0:
-            continue
-
-        growth_rates.append(
-            (
-                current
-                - previous
-            )
-            / previous
-        )
-
-    average_growth = (
-        sum(growth_rates)
-        / len(growth_rates)
-        if growth_rates
-        else 0
     )
-
-    last_value = values[-1]
 
     forecasts = []
 
-    for period in range(1, 4):
-        last_value = (
-            last_value
-            * (
-                1
-                + average_growth
-            )
-        )
+    for period in range(
+        1,
+        4,
+    ):
+        future_x = len(values) + period - 1
+
+        forecast_value = slope * future_x + intercept
 
         forecasts.append(
             round(
-                last_value,
+                float(forecast_value),
                 2,
             )
         )
@@ -146,7 +92,6 @@ def generate_forecast(
     return {
         "date_column": date_column,
         "value_column": value_column,
-        "available_metrics":
-            numeric_columns,
+        "available_metrics": numeric_columns,
         "forecast": forecasts,
     }
