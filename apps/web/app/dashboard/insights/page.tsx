@@ -66,7 +66,11 @@ export default function InsightsPage() {
 
 
   useEffect(() => {
-    if (!selectedDatasetId) return
+    if (!selectedDatasetId) {
+      setDataset(null)
+
+      return
+    }
 
     if (!user?.id) return
     const userId = user.id

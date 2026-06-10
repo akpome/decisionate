@@ -3,6 +3,8 @@
 import { ForecastChart } from "@/features/dashboard/components/forecast-chart"
 import { useEffect, useState } from "react"
 import { useUser } from "@clerk/nextjs"
+import { RecommendationCard }
+  from "@/features/dashboard/components/recommendation-card"
 
 import {
   getDatasets,
@@ -77,7 +79,11 @@ export default function ForecastsPage() {
   }, [user?.id])
 
   useEffect(() => {
-    if (!selectedDatasetId) return
+    if (!selectedDatasetId) {
+      setForecast(null)
+
+      return
+    }
     const datasetId = selectedDatasetId
 
     if (!user?.id) return
@@ -93,6 +99,8 @@ export default function ForecastsPage() {
             userId,
             selectedMetric
           )
+
+        console.log(data)
 
         setForecast(data)
 
@@ -201,6 +209,27 @@ export default function ForecastsPage() {
         <div className="rounded-xl border bg-white p-6">
           Loading forecast...
         </div>
+      )}
+
+      {forecast?.forecast?.recommendation && (
+        <RecommendationCard
+          title={
+            forecast.forecast
+              .recommendation.title
+          }
+          message={
+            forecast.forecast
+              .recommendation.message
+          }
+          reason={
+            forecast.forecast
+              .recommendation.reason
+          }
+          confidence={
+            forecast.forecast
+              .recommendation.confidence
+          }
+        />
       )}
 
       {forecast && (

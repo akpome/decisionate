@@ -92,9 +92,94 @@ def generate_forecast(
             )
         )
 
+    recommendation = generate_recommendation(forecasts)
+
     return {
         "date_column": date_column,
         "value_column": value_column,
         "available_metrics": numeric_columns,
         "forecast": forecasts,
+        "recommendation": recommendation,
     }
+
+
+def generate_recommendation(
+    forecasts: list[float],
+):
+    if len(forecasts) < 2:
+        return {
+            "title": "Insufficient Data",
+            "message": "Not enough data to generate a recommendation.",
+            "confidence": "low",
+        }
+
+    first_value = forecasts[0]
+
+    last_value = forecasts[-1]
+
+    if first_value == 0:
+        growth = 0
+    else:
+        growth = (
+            last_value
+            - first_value
+        ) / first_value
+
+    forecast_changes = []
+
+    for i in range(
+        1,
+        len(forecasts)
+    ):
+        previous = forecasts[i - 1]
+
+        current = forecasts[i]
+
+        if previous == 0:
+            continue
+
+        forecast_changes.append(
+            (
+                current
+                - previous
+            )
+            / previous
+        )
+
+    average_change = (
+        sum(forecast_changes)
+        / len(forecast_changes)
+        if forecast_changes
+        else 0
+    )
+
+    if growth > 0.15:
+        return {
+            "title": "Increase Investment",
+            "message": "Forecasted growth remains positive.",
+            "reason": "The metric has shown strong upward growth over time.",
+            "confidence": "medium",
+        }
+    elif growth > 0:
+        return {
+            "title": "Maintain Strategy",
+            "message": "Growth remains positive.",
+            "reason": "The metric is growing steadily without significant acceleration.",
+            "confidence": "medium",
+        }
+
+    elif growth < -0.10:
+        return {
+            "title": "Investigate Decline",
+            "message": "Performance is weakening.",
+            "reason": "The metric has experienced a significant downward trend.",
+            "confidence": "high",
+        }
+
+    else:
+        return {
+            "title": "Monitor Closely",
+            "message": "Performance is stable.",
+            "reason": "No significant growth or decline is currently detected.",
+            "confidence": "low",
+        }

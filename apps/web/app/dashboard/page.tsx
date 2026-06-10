@@ -28,9 +28,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (
-      !selectedDatasetId ||
-      !user?.id
-    )
+      !selectedDatasetId
+    ) {
+      setDataset(null)
+
+      return
+    }
+
+    if (!user?.id)
       return
 
     async function loadDataset() {
@@ -103,12 +108,16 @@ export default function DashboardPage() {
           Dashboard
         </h1>
 
-        <div className="mt-4">
-          <DatasetSelector
-            value={selectedDatasetId}
-            onChange={setSelectedDatasetId}
-          />
-        </div>
+        <DatasetSelector
+          value={selectedDatasetId}
+          onChange={(id) => {
+            if (!id) {
+              setDataset(null)
+            }
+
+            setSelectedDatasetId(id)
+          }}
+        />
 
         <p className="mt-2 text-gray-500">
           {dataset
