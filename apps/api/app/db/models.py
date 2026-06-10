@@ -105,6 +105,7 @@ class OrganizationMember(Base):
         default=datetime.utcnow,
     )
 
+
 class UserPreference(Base):
     __tablename__ = "user_preferences"
 
@@ -123,6 +124,11 @@ class UserPreference(Base):
 
     selected_dataset_id = Column(
         Integer,
+        nullable=True,
+    )
+
+    selected_metric = Column(
+        String,
         nullable=True,
     )
 

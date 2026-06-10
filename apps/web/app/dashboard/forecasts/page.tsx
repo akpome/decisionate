@@ -8,6 +8,7 @@ import {
   getDatasets,
   getForecast,
   getDatasetPreference,
+  updateDatasetPreference,
 } from "@/lib/api"
 
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
@@ -45,6 +46,14 @@ export default function ForecastsPage() {
           setSelectedDatasetId(
             preference.selected_dataset_id
           )
+
+          if (
+            preference.selected_metric
+          ) {
+            setSelectedMetric(
+              preference.selected_metric
+            )
+          }
 
           return
         }
@@ -150,7 +159,15 @@ export default function ForecastsPage() {
         <div className="mt-4">
           <DatasetSelector
             value={selectedDatasetId}
-            onChange={setSelectedDatasetId}
+            onChange={(id) => {
+              setSelectedMetric(
+                undefined
+              )
+
+              setSelectedDatasetId(
+                id
+              )
+            }}
           />
           <div className="mt-4">
             <MetricSelector
@@ -159,11 +176,24 @@ export default function ForecastsPage() {
                   ?.available_metrics ?? []
               }
               value={selectedMetric}
-              onChange={
-                setSelectedMetric
-              }
-            />
-          </div>
+              onChange={async (metric) => {
+                setSelectedMetric(
+                  metric
+                )
+
+                if (user?.id) {
+                  try {
+                    await updateDatasetPreference(
+                      selectedDatasetId!,
+                      user.id,
+                      metric
+                    )
+                  } catch (error) {
+                    console.error(error)
+                  }
+                }
+              }}
+            />          </div>
         </div>
       </div>
 

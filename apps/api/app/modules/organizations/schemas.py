@@ -10,13 +10,13 @@ class OrganizationResponse(BaseModel):
     name: str
 
 
-class DatasetPreferenceUpdate(
-    BaseModel
-):
+class DatasetPreferenceUpdate(BaseModel):
     dataset_id: int
 
+    selected_metric: str | None = None
 
-class DatasetPreferenceResponse(
-    BaseModel
-):
+
+class DatasetPreferenceResponse(BaseModel):
     selected_dataset_id: int | None
+
+    selected_metric: str | None = None

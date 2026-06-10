@@ -205,7 +205,8 @@ export async function getDatasetPreference(
 
 export async function updateDatasetPreference(
   datasetId: number,
-  userId: string
+  userId: string,
+  selectedMetric?: string
 ) {
   const response =
     await fetch(
@@ -219,6 +220,8 @@ export async function updateDatasetPreference(
         },
         body: JSON.stringify({
           dataset_id: datasetId,
+          selected_metric:
+            selectedMetric,
         }),
       }
     )

@@ -54,12 +54,6 @@ async def get_forecast(
             dataset.file_path
         )
 
-        print(
-            dataframe.head().to_dict(
-                orient="records"
-            )
-        )
-
         forecast = generate_forecast(
             dataframe,
             metric
@@ -92,8 +86,6 @@ async def get_forecast(
             "historical": historical,
             "forecast": forecast,
         }
-
-        print(response)
 
         return response
 

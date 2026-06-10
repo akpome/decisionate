@@ -106,8 +106,6 @@ async def upload_dataset(request: Request, file: UploadFile = File(...)):
 
     from app.db.database import engine
 
-    print("DATABASE:", engine.url.database)
-
     db = SessionLocal()
 
     try:

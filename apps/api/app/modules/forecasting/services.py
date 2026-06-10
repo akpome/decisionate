@@ -42,8 +42,11 @@ def generate_forecast(
 
     date_column, value_column = identify_forecast_columns(dataframe)
 
-    if metric:
+    if metric and metric in dataframe.columns:
         value_column = metric
+
+    if value_column not in dataframe.columns:
+        return {"error": f"Metric '{value_column}' not found"}
 
     numeric_columns = dataframe.select_dtypes(include="number").columns.tolist()
 

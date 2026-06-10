@@ -1,6 +1,4 @@
-from fastapi import APIRouter
-from fastapi import HTTPException
-from fastapi import Request
+from fastapi import APIRouter, HTTPException, Request
 
 from app.db.database import SessionLocal
 from app.db.models import (
@@ -100,9 +98,7 @@ async def get_my_organization(
 async def get_dataset_preference(
     request: Request,
 ):
-    user_id = request.headers.get(
-        "X-User-Id"
-    )
+    user_id = request.headers.get("X-User-Id")
 
     if not user_id:
         raise HTTPException(
@@ -114,21 +110,16 @@ async def get_dataset_preference(
 
     try:
         preference = (
-            db.query(
-                UserPreference
-            )
-            .filter(
-                UserPreference.clerk_user_id
-                == user_id
-            )
+            db.query(UserPreference)
+            .filter(UserPreference.clerk_user_id == user_id)
             .first()
         )
 
         return {
-            "selected_dataset_id":
-                preference.selected_dataset_id
-                if preference
-                else None
+            "selected_dataset_id": (
+                preference.selected_dataset_id if preference else None
+            ),
+            "selected_metric": preference.selected_metric if preference else None,
         }
 
     finally:
@@ -143,9 +134,7 @@ async def update_dataset_preference(
     request: Request,
     payload: DatasetPreferenceUpdate,
 ):
-    user_id = request.headers.get(
-        "X-User-Id"
-    )
+    user_id = request.headers.get("X-User-Id")
 
     if not user_id:
         raise HTTPException(
@@ -157,36 +146,30 @@ async def update_dataset_preference(
 
     try:
         preference = (
-            db.query(
-                UserPreference
-            )
-            .filter(
-                UserPreference.clerk_user_id
-                == user_id
-            )
+            db.query(UserPreference)
+            .filter(UserPreference.clerk_user_id == user_id)
             .first()
         )
 
         if not preference:
-            preference = (
-                UserPreference(
-                    clerk_user_id=user_id,
-                    selected_dataset_id=payload.dataset_id,
-                )
+            preference = UserPreference(
+                clerk_user_id=user_id,
+                selected_dataset_id=payload.dataset_id,
+                selected_metric=payload.selected_metric,
             )
 
             db.add(preference)
 
         else:
-            preference.selected_dataset_id = (
-                payload.dataset_id
-            )
+            preference.selected_dataset_id = payload.dataset_id
+
+            preference.selected_metric = payload.selected_metric
 
         db.commit()
 
         return {
-            "selected_dataset_id":
-                preference.selected_dataset_id
+            "selected_dataset_id": preference.selected_dataset_id,
+            "selected_metric": preference.selected_metric,
         }
 
     finally:
