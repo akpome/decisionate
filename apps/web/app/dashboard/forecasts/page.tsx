@@ -5,12 +5,15 @@ import { useEffect, useState } from "react"
 import { useUser } from "@clerk/nextjs"
 import { RecommendationCard }
   from "@/features/dashboard/components/recommendation-card"
+import { ForecastSummaryCard }
+  from "@/features/dashboard/components/forecast-summary-card"
 
 import {
   getDatasets,
   getForecast,
   getDatasetPreference,
   updateDatasetPreference,
+  createDecision,
 } from "@/lib/api"
 
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
@@ -30,6 +33,37 @@ export default function ForecastsPage() {
 
   const [loading, setLoading] =
     useState(false)
+
+  const [creatingDecision,
+    setCreatingDecision] =
+    useState(false)
+
+  function formatMetricName(
+    metric: string
+  ) {
+    return metric
+      .split("_")
+      .map(
+        word =>
+          word.charAt(0)
+            .toUpperCase()
+          + word.slice(1)
+      )
+      .join(" ")
+  }
+
+  const metricName =
+    forecast
+      ? formatMetricName(
+        forecast.forecast
+          .value_column
+      )
+      : ""
+
+  const verb =
+    metricName.endsWith("s")
+      ? "are"
+      : "is"
 
   useEffect(() => {
     if (!user?.id) return
@@ -100,8 +134,6 @@ export default function ForecastsPage() {
             selectedMetric
           )
 
-        console.log(data)
-
         setForecast(data)
 
         if (!selectedMetric) {
@@ -152,6 +184,93 @@ export default function ForecastsPage() {
         ),
       ]
       : []
+
+  const currentValue =
+    forecast
+      ? forecast.historical[
+      forecast.historical.length
+      - 1
+      ][
+      forecast.forecast
+        .value_column
+      ]
+      : 0
+
+  const forecastValue =
+    forecast
+      ? forecast.forecast
+        .forecast[
+      forecast.forecast
+        .forecast.length
+      - 1
+      ]
+      : 0
+
+  const growth =
+    currentValue === 0
+      ? 0
+      : (
+        (
+          forecastValue
+          - currentValue
+        )
+        / currentValue
+      ) * 100
+
+  const direction =
+    growth >= 0
+      ? "increase"
+      : "decrease"
+
+  const decisionBrief =
+    forecast
+      ? `${metricName} ${verb} projected to ${direction} from ${currentValue.toLocaleString()} to ${forecastValue.toLocaleString()} (${growth.toFixed(
+        1
+      )}%).`
+      : ""
+
+  async function handleCreateDecision() {
+    if (creatingDecision) {
+      return
+    }
+
+    if (
+      !forecast ||
+      !user?.id ||
+      !selectedDatasetId
+    ) {
+      return
+    }
+
+    try {
+      setCreatingDecision(true)
+
+      await createDecision(
+        {
+          dataset_id:
+            selectedDatasetId,
+
+          title:
+            forecast.forecast
+              .recommendation
+              .title,
+
+          description:
+            decisionBrief,
+        },
+
+        user.id
+      )
+
+      alert(
+        "Decision created"
+      )
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setCreatingDecision(false)
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -211,54 +330,81 @@ export default function ForecastsPage() {
         </div>
       )}
 
-      {forecast?.forecast?.recommendation && (
-        <RecommendationCard
-          title={
-            forecast.forecast
-              .recommendation.title
-          }
-          message={
-            forecast.forecast
-              .recommendation.message
-          }
-          reason={
-            forecast.forecast
-              .recommendation.reason
-          }
-          confidence={
-            forecast.forecast
-              .recommendation.confidence
-          }
-        />
+      {forecast && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {forecast?.forecast?.recommendation && (
+            <RecommendationCard
+              title={
+                forecast.forecast
+                  .recommendation.title
+              }
+              decisionBrief={
+                decisionBrief
+              }
+              reason={
+                forecast.forecast
+                  .recommendation.reason
+              }
+              confidence={
+                forecast.forecast
+                  .recommendation.confidence
+              }
+              onCreateDecision={
+                handleCreateDecision
+              }
+              creatingDecision={
+                creatingDecision
+              }
+            />
+          )}
+
+          <ForecastSummaryCard
+            currentValue={
+              currentValue
+            }
+            forecastValue={
+              forecastValue
+            }
+          />
+        </div>
       )}
 
       {forecast && (
         <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold">
-            Forecast Results
-          </h2>
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold">
+              Forecast Trend
+            </h2>
 
-          <div className="space-y-2">
-            <p>
-              Dataset:
-              {" "}
-              {forecast.file_name}
-            </p>
-
-            <p>
-              Time Column:
-              {" "}
-              {forecast.forecast.date_column}
-            </p>
-
-            <p>
-              Metric:
-              {" "}
-              {forecast.forecast.value_column}
+            <p className="text-sm text-gray-500">
+              Historical values and projected future performance.
             </p>
           </div>
 
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border px-3 py-1 text-sm">
+              {forecast.file_name}
+            </span>
+
+            <span className="rounded-full border px-3 py-1 text-sm">
+              {forecast.forecast.value_column}
+            </span>
+          </div>
+
           <div className="mt-6">
+            <div className="mb-6 rounded-xl bg-gray-50 p-4">
+              <p className="font-medium">
+                Forecast Insight
+              </p>
+
+              <p className="mt-2 text-sm text-gray-600">
+                Expected change:
+                {" "}
+                {growth.toFixed(1)}%
+                {" "}
+                over the forecast period.
+              </p>
+            </div>
             <ForecastChart
               data={chartData}
             />

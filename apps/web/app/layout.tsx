@@ -11,9 +11,9 @@ export default function RootLayout({
       <html lang="en">
         <body>
           <div className="min-h-screen">
-            <header className="flex justify-end border-b bg-white px-6 py-4">
+            {/* <header className="flex justify-end border-b bg-white px-6 py-4">
               <UserButton />
-            </header>
+            </header> */}
 
             {children}
           </div>

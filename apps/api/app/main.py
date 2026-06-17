@@ -16,6 +16,13 @@ from app.modules.forecasting.router import (
     router as forecasting_router,
 )
 
+from app.modules.decisions import (
+    router as decisions_router
+)
+
+from app.modules.decisions.models import Decision
+from app.modules.decisions.activity_models import DecisionActivity
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -51,6 +58,9 @@ app.include_router(
     tags=["forecasting"],
 )
 
+app.include_router(
+    decisions_router.router
+)
 
 @app.get("/")
 def root():

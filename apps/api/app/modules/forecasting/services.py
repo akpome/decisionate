@@ -120,17 +120,11 @@ def generate_recommendation(
     if first_value == 0:
         growth = 0
     else:
-        growth = (
-            last_value
-            - first_value
-        ) / first_value
+        growth = (last_value - first_value) / first_value
 
     forecast_changes = []
 
-    for i in range(
-        1,
-        len(forecasts)
-    ):
+    for i in range(1, len(forecasts)):
         previous = forecasts[i - 1]
 
         current = forecasts[i]
@@ -138,19 +132,10 @@ def generate_recommendation(
         if previous == 0:
             continue
 
-        forecast_changes.append(
-            (
-                current
-                - previous
-            )
-            / previous
-        )
+        forecast_changes.append((current - previous) / previous)
 
     average_change = (
-        sum(forecast_changes)
-        / len(forecast_changes)
-        if forecast_changes
-        else 0
+        sum(forecast_changes) / len(forecast_changes) if forecast_changes else 0
     )
 
     if growth > 0.15:

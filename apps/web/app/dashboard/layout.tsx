@@ -52,6 +52,13 @@ export default function DashboardLayout({
             </Link>
 
             <Link
+              href="/dashboard/decisions"
+              className="block rounded-xl px-4 py-3 hover:bg-gray-100"
+            >
+              Decisions
+            </Link>
+
+            <Link
               href="/dashboard/reports"
               className="block rounded-xl px-4 py-3 hover:bg-gray-100"
             >
@@ -68,14 +75,14 @@ export default function DashboardLayout({
         </nav>
 
         {/* User */}
-        <div className="border-t p-4">
+        {/* <div className="border-t p-4">
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500">
               Account
             </span>
 
           </div>
-        </div>
+        </div> */}
       </aside>
 
       {/* Main Content */}
