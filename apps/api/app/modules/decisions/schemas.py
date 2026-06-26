@@ -26,6 +26,7 @@ class DecisionResponse(BaseModel):
     priority: str | None
     priority: str | None
     category: str | None
+    confidence_score: str | None = None
     status: str
     created_at: datetime
 
@@ -63,3 +64,8 @@ class DecisionPriorityUpdate(BaseModel):
 
 class DecisionCategoryUpdate(BaseModel):
     category: str
+
+class DecisionConfidenceUpdate(
+    BaseModel
+):
+    confidence_score: str | None = None

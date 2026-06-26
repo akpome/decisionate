@@ -75,3 +75,5 @@ class Decision(Base):
     )
 
     category = Column(String, default="general")
+
+    confidence_score = Column(String, nullable=True)

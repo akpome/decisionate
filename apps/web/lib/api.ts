@@ -558,3 +558,28 @@ export async function updateDecisionCategory(
 
   return response.json()
 }
+
+export async function updateDecisionConfidence(
+    decisionId: number,
+    confidenceScore: string,
+    userId: string
+) {
+    const response = await fetch(
+        `${API_URL}/decisions/${decisionId}/confidence?clerk_user_id=${userId}`,
+        {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                confidence_score: confidenceScore,
+            }),
+        }
+    )
+
+    if (!response.ok) {
+        throw new Error("Failed to update decision confidence")
+    }
+
+    return response.json()
+}

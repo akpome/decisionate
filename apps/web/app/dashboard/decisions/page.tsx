@@ -16,20 +16,21 @@ import {
     LineChart,
     Line,
     CartesianGrid,
+    LabelList,
 } from "recharts"
 
 import {
     BarChart3,
-    CheckCircle2,
-    Clock3,
-    AlertTriangle,
-    TrendingUp,
-    XCircle,
     Target,
     Calendar,
     Activity,
     FolderOpen,
     Flag,
+    Gauge,
+    BriefcaseBusiness,
+    Layers3,
+    HeartPulse,
+    AlertTriangle,
 } from "lucide-react"
 
 export default function DecisionsPage() {
@@ -53,15 +54,15 @@ export default function DecisionsPage() {
     }, [user?.id])
 
     const successfulCount = decisions.filter(
-        d => d.outcome_status === "successful"
+        decision => decision.outcome_status === "successful"
     ).length
 
     const partiallySuccessfulCount = decisions.filter(
-        d => d.outcome_status === "partially_successful"
+        decision => decision.outcome_status === "partially_successful"
     ).length
 
     const unsuccessfulCount = decisions.filter(
-        d => d.outcome_status === "unsuccessful"
+        decision => decision.outcome_status === "unsuccessful"
     ).length
 
     const evaluatedCount =
@@ -77,19 +78,6 @@ export default function DecisionsPage() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    const upcomingReviews = decisions
-        .filter(
-            decision =>
-                decision.review_date &&
-                new Date(decision.review_date) >= today
-        )
-        .sort(
-            (a, b) =>
-                new Date(a.review_date).getTime() -
-                new Date(b.review_date).getTime()
-        )
-        .slice(0, 3)
-
     const overdueReviews = decisions
         .filter(
             decision =>
@@ -103,50 +91,61 @@ export default function DecisionsPage() {
         )
         .slice(0, 3)
 
+    const upcomingReviews = decisions
+        .filter(
+            decision =>
+                decision.review_date &&
+                new Date(decision.review_date) >= today
+        )
+        .sort(
+            (a, b) =>
+                new Date(a.review_date).getTime() -
+                new Date(b.review_date).getTime()
+        )
+        .slice(0, 3)
+
+    const decisionsMissingOutcome = decisions.filter(
+        decision => !decision.outcome_status
+    )
+
+    const decisionsMissingLearning = decisions.filter(
+        decision =>
+            decision.outcome_status &&
+            !decision.lessons_learned
+    )
+
+    const attentionItems = [
+        ...overdueReviews.map(decision => ({
+            id: decision.id,
+            title: decision.title,
+            issue: "Review overdue",
+        })),
+        ...decisionsMissingOutcome.map(decision => ({
+            id: decision.id,
+            title: decision.title,
+            issue: "Outcome missing",
+        })),
+        ...decisionsMissingLearning.map(decision => ({
+            id: decision.id,
+            title: decision.title,
+            issue: "Learning missing",
+        })),
+    ]
+
     const categoryChartData = [
-        {
-            name: "General",
-            value: decisions.filter(
-                d => d.category === "general"
-            ).length,
-        },
-        {
-            name: "Marketing",
-            value: decisions.filter(
-                d => d.category === "marketing"
-            ).length,
-        },
-        {
-            name: "Sales",
-            value: decisions.filter(
-                d => d.category === "sales"
-            ).length,
-        },
-        {
-            name: "Operations",
-            value: decisions.filter(
-                d => d.category === "operations"
-            ).length,
-        },
-        {
-            name: "Finance",
-            value: decisions.filter(
-                d => d.category === "finance"
-            ).length,
-        },
-        {
-            name: "Hiring",
-            value: decisions.filter(
-                d => d.category === "hiring"
-            ).length,
-        },
-        {
-            name: "Product",
-            value: decisions.filter(
-                d => d.category === "product"
-            ).length,
-        },
-    ].filter(item => item.value > 0)
+        ["General", "general"],
+        ["Marketing", "marketing"],
+        ["Sales", "sales"],
+        ["Operations", "operations"],
+        ["Finance", "finance"],
+        ["Hiring", "hiring"],
+        ["Product", "product"],
+    ]
+        .map(([name, key]) => ({
+            name,
+            value: decisions.filter(d => d.category === key).length,
+        }))
+        .filter(item => item.value > 0)
         .sort((a, b) => b.value - a.value)
 
     const categoryColors = [
@@ -161,20 +160,14 @@ export default function DecisionsPage() {
 
     const monthlyDecisionCounts = decisions.reduce(
         (acc: Record<string, number>, decision) => {
-            const date =
-                decision.created_at
-                    ? new Date(decision.created_at)
-                    : null
+            if (!decision.created_at) return acc
 
-            if (!date) return acc
+            const month = new Date(decision.created_at).toLocaleString(
+                "default",
+                { month: "short" }
+            )
 
-            const month =
-                date.toLocaleString("default", {
-                    month: "short",
-                })
-
-            acc[month] =
-                (acc[month] || 0) + 1
+            acc[month] = (acc[month] || 0) + 1
 
             return acc
         },
@@ -188,21 +181,65 @@ export default function DecisionsPage() {
         value,
     }))
 
+    const monthlyDecisionTotal =
+        monthlyDecisionData.reduce(
+            (total, item) => total + item.value,
+            0
+        )
+
     function getSuccessRateStyle(rate: number) {
-        if (rate >= 80) {
-            return "bg-green-50 text-green-600"
-        }
-
-        if (rate >= 60) {
-            return "bg-blue-50 text-blue-600"
-        }
-
-        if (rate >= 40) {
-            return "bg-amber-50 text-amber-600"
-        }
-
+        if (rate >= 80) return "bg-green-50 text-green-600"
+        if (rate >= 60) return "bg-blue-50 text-blue-600"
+        if (rate >= 40) return "bg-amber-50 text-amber-600"
         return "bg-red-50 text-red-600"
     }
+
+    const outcomeRecordedCount = decisions.filter(
+        decision => decision.outcome_status
+    ).length
+
+    const learningCapturedCount = decisions.filter(
+        decision => decision.lessons_learned
+    ).length
+
+    const reviewScheduledCount = decisions.filter(
+        decision => decision.review_date
+    ).length
+
+    const notesAddedCount = decisions.filter(
+        decision => decision.notes
+    ).length
+
+    const totalDecisions =
+        decisions.length || 1
+
+    const outcomeCompletion =
+        Math.round(
+            (outcomeRecordedCount /
+                totalDecisions) *
+            100
+        )
+
+    const learningCompletion =
+        Math.round(
+            (learningCapturedCount /
+                totalDecisions) *
+            100
+        )
+
+    const reviewCompletion =
+        Math.round(
+            (reviewScheduledCount /
+                totalDecisions) *
+            100
+        )
+
+    const notesCompletion =
+        Math.round(
+            (notesAddedCount /
+                totalDecisions) *
+            100
+        )
 
     return (
         <div className="space-y-6">
@@ -216,15 +253,15 @@ export default function DecisionsPage() {
                 </p>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-2xl border bg-white p-6 shadow-sm transition hover:border-gray-300 hover:shadow-md">
+            <div className="grid gap-6 xl:grid-cols-2">
+                <DashboardCard>
                     <div className="flex items-start justify-between gap-4">
                         <div>
-                            <p className="text-sm uppercase tracking-wide text-gray-500">
+                            <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
                                 Decision Success Rate
                             </p>
 
-                            <p className="mt-2 text-5xl font-bold">
+                            <p className="mt-2 text-6xl font-bold tracking-tight">
                                 {successRate}%
                             </p>
 
@@ -238,198 +275,228 @@ export default function DecisionsPage() {
                                                 ? "bg-amber-500"
                                                 : "bg-red-500"
                                         }`}
-                                    style={{
-                                        width: `${successRate}%`,
-                                    }}
+                                    style={{ width: `${successRate}%` }}
                                 />
                             </div>
 
-                            <p className="mt-2 text-gray-500">
+                            <p className="mt-2 text-sm text-gray-500">
                                 Based on decisions with recorded outcomes.
                             </p>
                         </div>
 
-                        <div
-                            className={`flex h-12 w-12 items-center justify-center rounded-full ${getSuccessRateStyle(
-                                successRate
-                            )}`}
-                        >
-                            <Target size={22} />
-                        </div>
+                        <IconBadge
+                            className={getSuccessRateStyle(successRate)}
+                            icon={<Target size={22} />}
+                        />
                     </div>
-                </div>
+                </DashboardCard>
 
-                <div className="rounded-2xl border bg-white p-6 shadow-sm flex flex-col">
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <h2 className="text-xl font-semibold">
-                                Decisions by Category
-                            </h2>
+                <DashboardCard>
+                    <CardHeader
+                        title="Decisions by Category"
+                        description="Decisions grouped by business area."
+                        icon={
+                            <IconBadge
+                                className="bg-purple-50 text-purple-600"
+                                icon={<BarChart3 size={22} />}
+                            />
+                        }
+                    />
 
-                            <p className="mt-1 text-sm text-gray-500">
-                                Decisions grouped by business area.
-                            </p>
-                        </div>
-
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-50 text-purple-600">
-                            <BarChart3 size={18} />
-                        </div>
-                    </div>
-
-                    <div className="mt-4 h-32">
-                        <ResponsiveContainer
-                            width="100%"
-                            height="100%"
-                        >
-                            <BarChart
-                                data={categoryChartData}
-                                layout="vertical"
-                            >
-                                <XAxis
-                                    type="number"
-                                    allowDecimals={false}
-                                />
-
-                                <YAxis
-                                    type="category"
-                                    dataKey="name"
-                                    width={90}
-                                />
-
-                                <Tooltip />
-
-                                <Bar
-                                    dataKey="value"
-                                    radius={[0, 6, 6, 0]}
+                    {categoryChartData.length === 0 ? (
+                        <EmptyState
+                            title="No category data yet"
+                            description="Categories will appear when decisions are created."
+                        />
+                    ) : (
+                        <div className="mt-4 h-36">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={categoryChartData}
+                                    layout="vertical"
                                 >
-                                    {categoryChartData.map((entry, index) => (
-                                        <Cell
-                                            key={`cell-${entry.name}`}
-                                            fill={categoryColors[index % categoryColors.length]}
+                                    <XAxis type="number" allowDecimals={false} />
+                                    <YAxis
+                                        type="category"
+                                        dataKey="name"
+                                        width={90}
+                                    />
+                                    <Tooltip />
+
+                                    <Bar
+                                        dataKey="value"
+                                        radius={[0, 6, 6, 0]}
+                                    >
+                                        <LabelList
+                                            dataKey="value"
+                                            position="right"
                                         />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
+
+                                        {categoryChartData.map((entry, index) => (
+                                            <Cell
+                                                key={`cell-${entry.name}`}
+                                                fill={
+                                                    categoryColors[
+                                                    index % categoryColors.length
+                                                    ]
+                                                }
+                                            />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+                </DashboardCard>
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
-                <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                        <MetricCard
-                            label="Total Decisions"
-                            value={decisions.length}
-                            icon={<BarChart3 size={18} />}
-                            accent="blue"
-                        />
-
-                        <MetricCard
-                            label="Evaluated"
-                            value={evaluatedCount}
-                            icon={<CheckCircle2 size={18} />}
-                            accent="green"
-                        />
-
-                        <MetricCard
-                            label="Upcoming Reviews"
-                            value={upcomingReviews.length}
-                            icon={<Clock3 size={18} />}
-                            accent="amber"
-                        />
-
-                        <MetricCard
-                            label="Overdue Reviews"
-                            value={overdueReviews.length}
-                            icon={<AlertTriangle size={18} />}
-                            accent="red"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                        <MetricCard
-                            label="Successful"
-                            value={successfulCount}
-                            icon={<CheckCircle2 size={18} />}
-                            accent="green"
-                        />
-
-                        <MetricCard
-                            label="Partially Successful"
-                            value={partiallySuccessfulCount}
-                            icon={<TrendingUp size={18} />}
-                            accent="amber"
-                        />
-
-                        <MetricCard
-                            label="Unsuccessful"
-                            value={unsuccessfulCount}
-                            icon={<XCircle size={18} />}
-                            accent="red"
-                        />
-                    </div>
-
-                    <div className="grid gap-6 lg:grid-cols-2">
-                        {upcomingReviews.length > 0 && (
-                            <ReviewSection
-                                title="Upcoming Reviews"
-                                decisions={upcomingReviews}
-                                label="Review"
+                <DashboardCard className="h-full">
+                    <CardHeader
+                        title="Decision Metrics"
+                        description="Snapshot of decision activity and outcomes."
+                        icon={
+                            <IconBadge
+                                className="bg-indigo-50 text-indigo-600"
+                                icon={<Gauge size={22} />}
                             />
-                        )}
+                        }
+                    />
 
-                        {overdueReviews.length > 0 && (
-                            <ReviewSection
-                                title="Overdue Reviews"
-                                decisions={overdueReviews}
-                                label="Review was due"
-                            />
-                        )}
+                    <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+                        <MetricCard label="Total Decisions" value={decisions.length} />
+                        <MetricCard label="Evaluated" value={evaluatedCount} />
+                        <MetricCard label="Upcoming Reviews" value={upcomingReviews.length} />
+                        <MetricCard label="Overdue Reviews" value={overdueReviews.length} />
+                        <MetricCard
+                            label="Planned"
+                            value={decisions.filter(d => d.status === "planned").length}
+                        />
+
+                        <MetricCard
+                            label="In Progress"
+                            value={decisions.filter(d => d.status === "in_progress").length}
+                        />
+
+                        <MetricCard
+                            label="Completed"
+                            value={decisions.filter(d => d.status === "completed").length}
+                        />
+
+                        <MetricCard
+                            label="Cancelled"
+                            value={decisions.filter(d => d.status === "cancelled").length}
+                        />
                     </div>
-                </div>
+                </DashboardCard>
 
-                <div className="rounded-2xl border bg-white p-6 shadow-sm">
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <h2 className="text-xl font-semibold">
-                                Monthly Decision Trend
-                            </h2>
+                <DashboardCard>
+                    <CardHeader
+                        title="Monthly Decision Trend"
+                        description="Decision creation activity over time."
+                        icon={
+                            <IconBadge
+                                className="bg-blue-50 text-blue-600"
+                                icon={<Activity size={22} />}
+                            />
+                        }
+                    />
 
-                            <p className="mt-1 text-sm text-gray-500">
-                                Decision creation activity over time.
+                    {monthlyDecisionData.length > 1 ? (
+                        <div className="mt-4 h-40">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={monthlyDecisionData}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="month" />
+                                    <YAxis allowDecimals={false} />
+                                    <Tooltip />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="value"
+                                        stroke="#2563eb"
+                                        strokeWidth={3}
+                                        dot={{ r: 4 }}
+                                        activeDot={{ r: 6 }}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    ) : (
+                        <div className="mt-4 flex h-40 flex-col items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-center">
+                            <p className="text-5xl font-bold text-blue-700">
+                                {monthlyDecisionTotal}
+                            </p>
+
+                            <p className="mt-2 text-sm font-medium text-blue-700">
+                                decisions created this month
+                            </p>
+
+                            <p className="mt-1 text-xs text-blue-500">
+                                Trend chart appears when multiple months are available.
                             </p>
                         </div>
+                    )}
+                </DashboardCard>
+            </div>
 
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                            <Activity size={18} />
-                        </div>
-                    </div>
+            <DashboardCard>
+                <CardHeader
+                    title="Decision Health"
+                    description="How complete your decision records are."
+                    icon={
+                        <IconBadge
+                            className="bg-green-50 text-green-600"
+                            icon={<HeartPulse size={22} />}
+                        />
+                    }
+                />
 
-                    <div className="mt-4 h-[calc(100%-3rem)]">
-                        <ResponsiveContainer
-                            width="100%"
-                            height="100%"
-                        >
-                            <LineChart data={monthlyDecisionData}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="month" />
-                                <YAxis allowDecimals={false} />
-                                <Tooltip />
-                                <Line
-                                    type="monotone"
-                                    dataKey="value"
-                                    stroke="#2563eb"
-                                    strokeWidth={3}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
+                <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+                    <MetricCard
+                        label="Outcomes Recorded"
+                        value={outcomeRecordedCount}
+                    />
+
+                    <MetricCard
+                        label="Learning Captured"
+                        value={learningCapturedCount}
+                    />
+
+                    <MetricCard
+                        label="Reviews Scheduled"
+                        value={reviewScheduledCount}
+                    />
+
+                    <MetricCard
+                        label="Notes Added"
+                        value={notesAddedCount}
+                    />
                 </div>
+            </DashboardCard>
+
+            <div>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-2xl font-semibold">
+                            Decision Portfolio
+                        </h2>
+
+                        <p className="mt-1 text-sm text-gray-500">
+                            {decisions.length} decisions available for review and management.
+                        </p>
+                    </div>
+
+                    <IconBadge
+                        className="bg-purple-50 text-purple-600"
+                        icon={<BriefcaseBusiness size={22} />}
+                    />
+                </div>
+
+                <div className="mt-4 h-px bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200" />
             </div>
 
             {decisions.length === 0 ? (
-                <div className="rounded-2xl border border-dashed bg-white p-8 text-center shadow-sm">
+                <DashboardCard className="border-dashed text-center">
                     <h3 className="text-lg font-semibold">
                         No decisions yet
                     </h3>
@@ -437,9 +504,9 @@ export default function DecisionsPage() {
                     <p className="mt-2 text-sm text-gray-500">
                         Create your first decision to start tracking outcomes and learning what works.
                     </p>
-                </div>
+                </DashboardCard>
             ) : (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                     {decisions.map(decision => (
                         <DecisionCard
                             key={decision.id}
@@ -448,21 +515,64 @@ export default function DecisionsPage() {
                     ))}
                 </div>
             )}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-semibold">
-                        Decision Portfolio
-                    </h2>
+        </div>
+    )
+}
 
-                    <p className="mt-1 text-sm text-gray-500">
-                        {decisions.length} decisions available for review and management.
-                    </p>
-                </div>
+function DashboardCard({
+    children,
+    className = "",
+}: {
+    children: React.ReactNode
+    className?: string
+}) {
+    return (
+        <div
+            className={`rounded-2xl border border-gray-200 bg-white p-6 shadow-sm ${className}`}
+        >
+            {children}
+        </div>
+    )
+}
 
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-600">
-                    <BarChart3 size={18} />
-                </div>
+function CardHeader({
+    title,
+    description,
+    icon,
+}: {
+    title: string
+    description: string
+    icon: React.ReactNode
+}) {
+    return (
+        <div className="flex items-start justify-between gap-4">
+            <div>
+                <h2 className="text-xl font-semibold tracking-tight">
+                    {title}
+                </h2>
+
+                <p className="mt-1 text-sm text-gray-600">
+                    {description}
+                </p>
             </div>
+
+            {icon}
+        </div>
+    )
+}
+
+function IconBadge({
+    icon,
+    className,
+}: {
+    icon: React.ReactNode
+    className: string
+}) {
+    return (
+        <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${className}`}
+        >
+            {icon}
         </div>
     )
 }
@@ -470,107 +580,41 @@ export default function DecisionsPage() {
 function MetricCard({
     label,
     value,
-    icon,
-    accent = "gray",
+    suffix = "",
 }: {
     label: string
     value: number
-    icon: React.ReactNode
-    accent?: "gray" | "blue" | "green" | "amber" | "red"
+    suffix?: string
 }) {
-    const accents = {
-        gray: "bg-gray-100 text-gray-600",
-        blue: "bg-blue-50 text-blue-600",
-        green: "bg-green-50 text-green-600",
-        amber: "bg-amber-50 text-amber-600",
-        red: "bg-red-50 text-red-600",
-    }
-
     return (
-        <div className="rounded-xl border bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md">
-            <div className="flex items-start justify-between">
-                <div>
-                    <p className="text-sm text-gray-500">
-                        {label}
-                    </p>
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+            <p className="truncate text-xs font-medium text-gray-500">
+                {label}
+            </p>
 
-                    <p className="mt-2 text-3xl font-bold">
-                        {value}
-                    </p>
-                </div>
-
-                <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-full ${accents[accent]}`}
-                >
-                    {icon}
-                </div>
-            </div>
+            <p className="mt-1 text-xl font-semibold text-gray-900">
+                {value}{suffix}
+            </p>
         </div>
     )
 }
 
-function ReviewSection({
+function EmptyState({
     title,
-    decisions,
-    label,
+    description,
 }: {
     title: string
-    decisions: any[]
-    label: string
+    description: string
 }) {
-    const isOverdue =
-        title === "Overdue Reviews"
-
     return (
-        <div className="rounded-xl border bg-white p-6 shadow-sm transition hover:border-gray-300 hover:shadow-md">
-            <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">
-                    {title}
-                </h2>
+        <div className="mt-4 flex h-36 flex-col items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-center">
+            <p className="text-sm font-medium text-blue-700">
+                {title}
+            </p>
 
-                <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-full ${isOverdue
-                        ? "bg-red-50 text-red-600"
-                        : "bg-amber-50 text-amber-600"
-                        }`}
-                >
-                    {isOverdue ? (
-                        <AlertTriangle size={18} />
-                    ) : (
-                        <Clock3 size={18} />
-                    )}
-                </div>
-            </div>
-
-            <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
-                {decisions.map(decision => (
-                    <Link
-                        key={decision.id}
-                        href={`/dashboard/decisions/${decision.id}`}
-                        className={`min-w-[200px] rounded-lg border border-l-4 bg-white p-3 transition hover:border-gray-300 hover:shadow-sm ${isOverdue
-                            ? "border-l-red-400"
-                            : "border-l-amber-400"
-                            }`}
-                    >
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <p className="text-sm font-medium">
-                                    {decision.title}
-                                </p>
-
-                                <p className="mt-1 flex items-center gap-1 text-xs text-gray-500">
-                                    <Calendar size={12} />
-
-                                    {label}:{" "}
-                                    {new Date(
-                                        decision.review_date
-                                    ).toLocaleDateString()}
-                                </p>
-                            </div>
-                        </div>
-                    </Link>
-                ))}
-            </div>
+            <p className="mt-1 text-xs text-blue-500">
+                {description}
+            </p>
         </div>
     )
 }
@@ -630,16 +674,15 @@ function DecisionCard({
 }: {
     decision: any
 }) {
-    const health =
-        getDecisionHealth(decision)
+    const health = getDecisionHealth(decision)
 
     return (
         <Link
             href={`/dashboard/decisions/${decision.id}`}
-            className="block rounded-xl border bg-white p-6 shadow-sm transition hover:border-gray-300 hover:shadow-md"
+            className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-200 hover:shadow-lg"
         >
             <div className="flex items-start justify-between gap-4">
-                <h2 className="font-semibold text-lg">
+                <h2 className="text-lg font-semibold">
                     {decision.title}
                 </h2>
 
@@ -657,17 +700,11 @@ function DecisionCard({
                     "No description provided."}
             </p>
 
-            <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
+            <div className="mt-4 grid grid-cols-2 gap-y-2 text-xs">
                 {decision.category && (
                     <span className="flex items-center gap-1 text-blue-600">
                         <FolderOpen size={12} />
-                        {decision.category
-                            .replaceAll("_", " ")
-                            .replace(
-                                /\b\w/g,
-                                (char: string) =>
-                                    char.toUpperCase()
-                            )}
+                        {formatLabel(decision.category)}
                     </span>
                 )}
 
@@ -683,32 +720,38 @@ function DecisionCard({
                 {decision.priority && (
                     <span className="flex items-center gap-1 text-red-600">
                         <Flag size={12} />
-                        {decision.priority
-                            .charAt(0)
-                            .toUpperCase() +
-                            decision.priority.slice(1)}
+                        {formatLabel(decision.priority)}
                     </span>
                 )}
 
                 {decision.outcome_status && (
                     <span className="flex items-center gap-1 text-green-600">
                         <Target size={12} />
-                        {decision.outcome_status
-                            .replaceAll("_", " ")
-                            .replace(
-                                /\b\w/g,
-                                (char: string) =>
-                                    char.toUpperCase()
-                            )}
+                        {formatLabel(decision.outcome_status)}
                     </span>
                 )}
+            </div>
+
+            <div className="mt-4 border-t border-gray-100 pt-3">
+                <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">
+                        Click to manage decision
+                    </span>
+
+                    <span className="font-medium text-blue-600">
+                        View Details →
+                    </span>
+                </div>
             </div>
         </Link>
     )
 }
 
-function formatOutcomeStatus(status: string) {
-    return status
+function formatLabel(value: string) {
+    return value
         .replaceAll("_", " ")
-        .replace(/\b\w/g, char => char.toUpperCase())
+        .replace(
+            /\b\w/g,
+            (char: string) => char.toUpperCase()
+        )
 } 

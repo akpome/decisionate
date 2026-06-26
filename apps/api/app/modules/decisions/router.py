@@ -6,6 +6,7 @@ from app.modules.decisions.models import (
 )
 from app.modules.decisions.schemas import (
     DecisionCategoryUpdate,
+    DecisionConfidenceUpdate,
     DecisionCreate,
     DecisionResponse,
     DecisionReviewUpdate,
@@ -116,13 +117,6 @@ async def update_decision(
 
     finally:
         db.close()
-
-
-from fastapi import (
-    APIRouter,
-    Header,
-    HTTPException,
-)
 
 
 @router.get(
@@ -384,6 +378,46 @@ async def update_decision_category(
             )
 
         decision.category = payload.category
+
+        db.commit()
+
+        db.refresh(decision)
+
+        return decision
+
+    finally:
+        db.close()
+
+@router.patch(
+    "/{decision_id}/confidence",
+    response_model=DecisionResponse,
+)
+async def update_decision_confidence(
+    decision_id: int,
+    payload: DecisionConfidenceUpdate,
+    x_user_id: str = Header(alias="X-User-Id"),
+):
+    db = SessionLocal()
+
+    try:
+        decision = (
+            db.query(Decision)
+            .filter(
+                Decision.id == decision_id,
+                Decision.clerk_user_id == x_user_id,
+            )
+            .first()
+        )
+
+        if not decision:
+            raise HTTPException(
+                status_code=404,
+                detail="Decision not found",
+            )
+
+        decision.confidence_score = (
+            payload.confidence_score
+        )
 
         db.commit()
 
