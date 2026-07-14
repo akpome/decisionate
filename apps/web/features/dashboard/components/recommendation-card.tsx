@@ -1,3 +1,7 @@
+import {
+    PlusCircle,
+} from "lucide-react"
+
 interface RecommendationCardProps {
     title: string
     reason: string
@@ -27,20 +31,20 @@ export function RecommendationCard({
     creatingDecision
 }: RecommendationCardProps) {
     return (
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
+        <div className="rounded-lg border bg-white p-6 shadow-sm">
             <p className="text-sm uppercase tracking-wide text-gray-500">
                 Recommended Action
             </p>
 
-            <h2 className="mt-2 text-4xl font-bold">
+            <h2 className="mt-2 text-2xl font-semibold">
                 {title}
             </h2>
 
-            <p className="mt-6 text-lg">
+            <p className="mt-5 text-base leading-7 text-gray-800">
                 {decisionBrief}
             </p>
 
-            <div className="mt-6">
+            <div className="mt-5">
                 <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
                     Reason
                 </p>
@@ -62,8 +66,9 @@ export function RecommendationCard({
                 <button
                     onClick={onCreateDecision}
                     disabled={creatingDecision}
-                    className="rounded-lg border px-4 py-2 cursor-pointer hover:bg-gray-50 transition"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
+                    <PlusCircle size={16} />
                     {
                         creatingDecision
                             ? "Creating..."

@@ -11,7 +11,10 @@ import {
 } from "recharts"
 
 interface ForecastChartProps {
-    data: Record<string, any>[]
+    data: Record<
+        string,
+        string | number | boolean | null | undefined
+    >[]
 }
 
 export function ForecastChart({
@@ -19,7 +22,7 @@ export function ForecastChart({
 }: ForecastChartProps) {
     if (!data.length) {
         return (
-            <div className="flex h-[350px] items-center justify-center rounded-2xl border bg-white">
+            <div className="flex h-[350px] items-center justify-center rounded-lg border bg-white">
                 <p className="text-sm text-gray-500">
                     No forecast data available
                 </p>
@@ -28,15 +31,17 @@ export function ForecastChart({
     }
 
     return (
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <div className="mb-6">
-                <h2 className="text-xl font-semibold">
-                    Forecast Trend
-                </h2>
+        <div>
+            <div className="mb-4 flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-blue-600" />
+                    Historical
+                </div>
 
-                <p className="mt-1 text-sm text-gray-500">
-                    Historical values and forecasted trend.
-                </p>
+                <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                    Forecast
+                </div>
             </div>
 
             <div className="h-[350px]">
@@ -55,9 +60,23 @@ export function ForecastChart({
 
                         <Line
                             type="monotone"
-                            dataKey="value"
+                            dataKey="historicalValue"
+                            name="Historical"
+                            stroke="#2563eb"
                             strokeWidth={3}
                             dot={true}
+                            connectNulls={false}
+                        />
+
+                        <Line
+                            type="monotone"
+                            dataKey="forecastValue"
+                            name="Forecast"
+                            stroke="#059669"
+                            strokeWidth={3}
+                            strokeDasharray="6 4"
+                            dot={true}
+                            connectNulls={false}
                         />
                     </LineChart>
                 </ResponsiveContainer>

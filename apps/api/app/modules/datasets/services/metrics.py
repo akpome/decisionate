@@ -1,9 +1,19 @@
 import pandas as pd
 
+from app.modules.datasets.services.serialization import (
+    to_json_number,
+)
+
 
 def generate_metrics(
     dataframe: pd.DataFrame
 ):
+    if not isinstance(
+        dataframe,
+        pd.DataFrame,
+    ):
+        return []
+
     metrics = []
 
     numeric_columns = (
@@ -15,20 +25,28 @@ def generate_metrics(
     )
 
     for column in numeric_columns:
+        column_label = str(column)
+        total = to_json_number(
+            dataframe[column].sum()
+        )
+        average = to_json_number(
+            dataframe[column].mean()
+        )
+        minimum = to_json_number(
+            dataframe[column].min()
+        )
+        maximum = to_json_number(
+            dataframe[column].max()
+        )
+
         metrics.append({
-            "column": column,
-            "total": float(
-                dataframe[column].sum()
-            ),
-            "average": float(
-                dataframe[column].mean()
-            ),
-            "minimum": float(
-                dataframe[column].min()
-            ),
-            "maximum": float(
-                dataframe[column].max()
-            ),
+            "column": column_label,
+            "total": total,
+            "average": average,
+            "min": minimum,
+            "max": maximum,
+            "minimum": minimum,
+            "maximum": maximum,
         })
 
     return metrics

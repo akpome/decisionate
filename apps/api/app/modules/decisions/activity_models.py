@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     Column,
@@ -9,6 +9,12 @@ from sqlalchemy import (
 )
 
 from app.db.database import Base
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC).replace(
+        tzinfo=None,
+    )
 
 
 class DecisionActivity(
@@ -31,6 +37,16 @@ class DecisionActivity(
         nullable=False,
     )
 
+    # =========================
+    # Decision Activity Workspace Ownership For Agency Client History
+    # =========================
+
+    workspace_id = Column(
+        String,
+        nullable=True,
+        index=True,
+    )
+
     activity_type = Column(
         String,
         nullable=False,
@@ -43,5 +59,5 @@ class DecisionActivity(
 
     created_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now,
     )

@@ -1,9 +1,11 @@
-import pandas as pd
-
 from fastapi import HTTPException
 
 from app.modules.datasets.repositories.dataset_repository import (
     get_dataset,
+)
+from app.modules.datasets.services.analytics_adapters import (
+    AnalyticsAdapterUnavailable,
+    load_dataset_dataframe,
 )
 
 
@@ -28,9 +30,15 @@ def load_dataset(
 def load_dataframe_from_dataset(
     dataset,
 ):
-    return pd.read_csv(
-        dataset.file_path
-    )
+    try:
+        return load_dataset_dataframe(
+            dataset
+        )
+    except AnalyticsAdapterUnavailable as error:
+        raise HTTPException(
+            status_code=503,
+            detail=str(error),
+        ) from error
 
 
 def load_dataframe(

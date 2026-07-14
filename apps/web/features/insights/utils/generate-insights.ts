@@ -2,6 +2,7 @@ import {
   calculateColumnMax,
   calculateColumnMin,
   getNumericColumns,
+  toFiniteNumber,
 } from "@/features/datasets/utils/dataset-analytics"
 
 import { DatasetRow } from "@/features/datasets/store/dataset-store"
@@ -22,17 +23,17 @@ export function generateInsights(
   const insights: Insight[] = []
 
   numericColumns.forEach((column) => {
-    const firstValue = Number(
+    const firstValue = toFiniteNumber(
       rows[0][column]
     )
 
-    const lastValue = Number(
+    const lastValue = toFiniteNumber(
       rows[rows.length - 1][column]
     )
 
     if (
-      !isNaN(firstValue) &&
-      !isNaN(lastValue) &&
+      firstValue !== null &&
+      lastValue !== null &&
       firstValue !== 0
     ) {
       const growth =

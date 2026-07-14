@@ -1,0 +1,15 @@
+# Common optional dataset upload readers.
+pyarrow
+openpyxl
+
+# Alternative dataset upload readers.
+# fastparquet
+# xlrd
+
+# Future analytics and connector packages.
+# duckdb
+# psycopg[binary]
+# pymysql
+# pyodbc
+# google-cloud-bigquery
+# snowflake-connector-python

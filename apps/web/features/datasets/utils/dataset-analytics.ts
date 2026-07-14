@@ -1,5 +1,27 @@
 import { DatasetRow } from "../store/dataset-store"
 
+export function toFiniteNumber(
+  value: unknown
+) {
+  if (value === null || value === undefined) {
+    return null
+  }
+
+  if (
+    typeof value === "string" &&
+    !value.trim()
+  ) {
+    return null
+  }
+
+  const numericValue =
+    Number(value)
+
+  return Number.isFinite(numericValue)
+    ? numericValue
+    : null
+}
+
 export function getNumericColumns(
   rows: DatasetRow[]
 ): string[] {
@@ -9,11 +31,7 @@ export function getNumericColumns(
     rows.some((row) => {
       const value = row[key]
 
-      return (
-        value !== null &&
-        value !== "" &&
-        !isNaN(Number(value))
-      )
+      return toFiniteNumber(value) !== null
     })
   )
 }
@@ -29,7 +47,8 @@ export function getTextColumns(
 
       return (
         typeof value === "string" &&
-        isNaN(Number(value))
+        toFiniteNumber(value) === null &&
+        value.trim() !== ""
       )
     })
   )
@@ -40,9 +59,11 @@ export function calculateColumnTotal(
   column: string
 ): number {
   return rows.reduce((total, row) => {
-    const value = Number(row[column])
+    const value = toFiniteNumber(
+      row[column]
+    )
 
-    if (isNaN(value)) return total
+    if (value === null) return total
 
     return total + value
   }, 0)
@@ -53,8 +74,8 @@ export function calculateColumnAverage(
   column: string
 ): number {
   const values = rows
-    .map((row) => Number(row[column]))
-    .filter((value) => !isNaN(value))
+    .map((row) => toFiniteNumber(row[column]))
+    .filter((value) => value !== null)
 
   if (!values.length) return 0
 
@@ -71,8 +92,8 @@ export function calculateColumnMax(
   column: string
 ): number {
   const values = rows
-    .map((row) => Number(row[column]))
-    .filter((value) => !isNaN(value))
+    .map((row) => toFiniteNumber(row[column]))
+    .filter((value) => value !== null)
 
   if (!values.length) return 0
 
@@ -84,8 +105,8 @@ export function calculateColumnMin(
   column: string
 ): number {
   const values = rows
-    .map((row) => Number(row[column]))
-    .filter((value) => !isNaN(value))
+    .map((row) => toFiniteNumber(row[column]))
+    .filter((value) => value !== null)
 
   if (!values.length) return 0
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     Column,
@@ -9,6 +9,17 @@ from sqlalchemy import (
 )
 
 from app.db.database import Base
+from app.modules.decisions.schemas import (
+    DEFAULT_DECISION_CATEGORY,
+    DEFAULT_DECISION_PRIORITY,
+    DEFAULT_DECISION_STATUS,
+)
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC).replace(
+        tzinfo=None,
+    )
 
 
 class Decision(Base):
@@ -23,6 +34,12 @@ class Decision(Base):
     clerk_user_id = Column(
         String,
         nullable=False,
+        index=True,
+    )
+
+    workspace_id = Column(
+        String,
+        nullable=True,
         index=True,
     )
 
@@ -62,18 +79,24 @@ class Decision(Base):
 
     review_date = Column(DateTime)
 
-    priority = Column(String, default="medium")
+    priority = Column(String, default=DEFAULT_DECISION_PRIORITY)
 
     status = Column(
         String,
-        default="planned",
+        default=DEFAULT_DECISION_STATUS,
     )
 
     created_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now,
     )
 
-    category = Column(String, default="general")
+    updated_at = Column(
+        DateTime,
+        nullable=True,
+        onupdate=utc_now,
+    )
+
+    category = Column(String, default=DEFAULT_DECISION_CATEGORY)
 
     confidence_score = Column(String, nullable=True)

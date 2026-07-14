@@ -1,12 +1,27 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import {
+  useEffect,
+  useState,
+  type FormEvent,
+} from "react"
 import { useRouter } from "next/navigation"
-import { getMyOrganization } from "@/lib/api"
-
 import { useUser } from "@clerk/nextjs"
 
-import { createOrganization } from "@/lib/api"
+import {
+  createOrganization,
+  getMyOrganization,
+} from "@/lib/api"
+
+function getOnboardingErrorMessage(
+  error: unknown,
+  fallbackMessage: string
+) {
+  return error instanceof Error &&
+    error.message
+    ? error.message
+    : fallbackMessage
+}
 
 export default function OnboardingPage() {
   const { user } = useUser()
@@ -18,21 +33,26 @@ export default function OnboardingPage() {
 
   const [loading, setLoading] =
     useState(false)
+  const [errorMessage, setErrorMessage] =
+    useState("")
 
-
+  const canCreateOrganization =
+    Boolean(organizationName.trim()) &&
+    !loading
 
   async function handleSubmit(
-    event: React.FormEvent
+    event: FormEvent
   ) {
     event.preventDefault()
 
-    if (!user?.id) return
+    if (!user?.id || !canCreateOrganization) return
 
     try {
       setLoading(true)
+      setErrorMessage("")
 
       await createOrganization(
-        organizationName,
+        organizationName.trim(),
         user.id
       )
 
@@ -41,20 +61,28 @@ export default function OnboardingPage() {
       )
     } catch (error) {
       console.error(error)
+      setErrorMessage(
+        getOnboardingErrorMessage(
+          error,
+          "Organization could not be created."
+        )
+      )
     } finally {
       setLoading(false)
     }
   }
 
-
   useEffect(() => {
     if (!user?.id) return
+
+    const userId =
+      user.id
 
     async function checkOrganization() {
       try {
         const organization =
           await getMyOrganization(
-            user?.id ?? ""
+            userId
           )
 
         if (organization) {
@@ -64,12 +92,17 @@ export default function OnboardingPage() {
         }
       } catch (error) {
         console.error(error)
+        setErrorMessage(
+          getOnboardingErrorMessage(
+            error,
+            "Unable to check organization setup."
+          )
+        )
       }
     }
 
-    checkOrganization()
+    void checkOrganization()
   }, [user?.id, router])
-
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
@@ -79,7 +112,7 @@ export default function OnboardingPage() {
         </h1>
 
         <p className="mb-8 text-gray-600">
-          Let's create your organization.
+          Create your organization to continue.
         </p>
 
         <form
@@ -107,10 +140,16 @@ export default function OnboardingPage() {
             />
           </div>
 
+          {errorMessage && (
+            <p className="text-sm font-medium text-red-600">
+              {errorMessage}
+            </p>
+          )}
+
           <button
             type="submit"
-            disabled={loading}
-            className="rounded-xl bg-black px-6 py-3 text-white"
+            disabled={!canCreateOrganization}
+            className="rounded-xl bg-black px-6 py-3 text-white disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {loading
               ? "Creating..."

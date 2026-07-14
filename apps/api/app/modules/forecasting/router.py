@@ -1,16 +1,84 @@
-import pandas as pd
-
 from fastapi import HTTPException
 from fastapi import Request, APIRouter
 
+from sqlalchemy import and_, or_
+
 from app.db.database import SessionLocal
 from app.db.models import Dataset
+
+from app.modules.datasets.services.auth import (
+    get_user_id,
+    get_workspace_id,
+)
+from app.modules.datasets.services.serialization import (
+    dataframe_to_json_records,
+)
+from app.modules.datasets.services.dataset_loader import (
+    load_dataframe_from_dataset,
+)
+from app.modules.datasets.services.source_metadata import (
+    build_dataset_source_metadata,
+)
 
 from app.modules.forecasting.services import (
     generate_forecast,
 )
 
 router = APIRouter()
+
+
+# =========================
+# Forecast Dataset Workspace Filter For Shared Agency And Legacy Rows
+# =========================
+
+def filter_forecast_dataset_for_workspace(
+    dataset_id: int,
+    user_id: str,
+    workspace_id: str,
+):
+    clean_user_id = str(
+        user_id or ""
+    ).strip()
+    clean_workspace_id = str(
+        workspace_id or ""
+    ).strip()
+
+    return and_(
+        Dataset.id == dataset_id,
+        or_(
+            Dataset.workspace_id == clean_workspace_id,
+            and_(
+                Dataset.workspace_id.is_(None),
+                Dataset.user_id == clean_user_id,
+            ),
+        ),
+    )
+
+
+def load_forecast_dataframe(
+    dataset,
+):
+    try:
+        return load_dataframe_from_dataset(
+            dataset
+        )
+    except (FileNotFoundError, OSError) as error:
+        raise HTTPException(
+            status_code=404,
+            detail="Dataset file not found",
+        ) from error
+
+
+def build_forecast_dataset_metadata(
+    dataset,
+):
+    return {
+        "dataset_id": dataset.id,
+        "file_name": dataset.file_name,
+        **build_dataset_source_metadata(
+            dataset
+        ),
+    }
 
 
 @router.get("/test")
@@ -24,13 +92,11 @@ async def get_forecast(
     request: Request,
     metric: str | None = None,
 ):
-    user_id = request.headers.get("X-User-Id")
-
-    if not user_id:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing user id",
-        )
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
 
     db = SessionLocal()
 
@@ -38,8 +104,11 @@ async def get_forecast(
         dataset = (
             db.query(Dataset)
             .filter(
-                Dataset.id == dataset_id,
-                Dataset.user_id == user_id,
+                filter_forecast_dataset_for_workspace(
+                    dataset_id,
+                    user_id,
+                    workspace_id,
+                )
             )
             .first()
         )
@@ -50,14 +119,20 @@ async def get_forecast(
                 detail="Dataset not found",
             )
 
-        dataframe = pd.read_csv(
-            dataset.file_path
+        dataframe = load_forecast_dataframe(
+            dataset
         )
 
         forecast = generate_forecast(
             dataframe,
             metric
         )
+
+        if "error" in forecast:
+            raise HTTPException(
+                status_code=400,
+                detail=forecast["error"],
+            )
 
         date_column = forecast[
             "date_column"
@@ -68,21 +143,21 @@ async def get_forecast(
         ]
 
         historical = (
-            dataframe[
-                [
-                    date_column,
-                    value_column,
+            dataframe_to_json_records(
+                dataframe[
+                    [
+                        date_column,
+                        value_column,
+                    ]
                 ]
-            ]
-            .tail(12)
-            .to_dict(
-                orient="records"
+                .tail(12)
             )
         )
 
         response = {
-            "dataset_id": dataset.id,
-            "file_name": dataset.file_name,
+            **build_forecast_dataset_metadata(
+                dataset
+            ),
             "historical": historical,
             "forecast": forecast,
         }
