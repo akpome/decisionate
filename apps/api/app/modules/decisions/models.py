@@ -48,6 +48,11 @@ class Decision(Base):
         nullable=False,
     )
 
+    metric_column = Column(
+        String,
+        nullable=True,
+    )
+
     title = Column(
         String,
         nullable=False,

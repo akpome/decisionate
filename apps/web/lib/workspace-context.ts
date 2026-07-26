@@ -1,5 +1,5 @@
 /* =========================
-   Browser Workspace Selection Storage For Agency And Client Switching
+   Browser Workspace Selection Storage For Shared Workspace Switching
 ========================= */
 
 export type ActiveWorkspaceChange = {
@@ -8,6 +8,18 @@ export type ActiveWorkspaceChange = {
 
 export const activeWorkspaceChangedEvent =
   "decisionate:active-workspace-changed"
+export const workspaceAccessChangedEvent =
+  "decisionate:workspace-access-changed"
+
+export function notifyWorkspaceAccessChanged() {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  window.dispatchEvent(
+    new Event(workspaceAccessChangedEvent)
+  )
+}
 
 function cleanWorkspaceId(
   workspaceId: string | null | undefined,

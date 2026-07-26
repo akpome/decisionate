@@ -3,7 +3,11 @@
 import { ForecastChart } from "@/features/dashboard/components/forecast-chart"
 import { useEffect, useState } from "react"
 import { useUser } from "@clerk/nextjs"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
+import {
+  RefreshCw,
+} from "lucide-react"
 import { RecommendationCard }
   from "@/features/dashboard/components/recommendation-card"
 import { ForecastSummaryCard }
@@ -11,8 +15,10 @@ import { ForecastSummaryCard }
 
 import {
   type DatasetSummary,
+  type DecisionConfidenceScore,
   type ForecastResponse,
   getDatasets,
+  getDatasetMetrics,
   getForecast,
   getDatasetPreference,
   updateDatasetPreference,
@@ -22,11 +28,28 @@ import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
 import {
+  useWorkspaceAccess,
+} from "@/lib/use-workspace-access"
+import {
+  WorkspaceAccessNotice,
+} from "@/features/dashboard/components/workspace-access-notice"
+import {
   getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
 
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
-import { MetricSelector } from "@/features/dashboard/components/metric-selector"
+import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import {
+  MetricSelector,
+  formatMetricLabel,
+} from "@/features/dashboard/components/metric-selector"
+import {
+  getAIAnalysisLearningContext,
+  getAIAnalysisSourceLabel,
+} from "@/features/ai/lib/analysis-copy"
+import {
+  AIAnalysisPanel,
+} from "@/features/ai/components/analysis-panel"
 
 // Forecast error helper: converts unknown failures into readable UI messages.
 function getForecastPageErrorMessage(
@@ -48,7 +71,7 @@ function getForecastUnavailableMessage(
     )
 
   if (message === "No date column found") {
-    return "This dataset does not include a recognizable date column, so Decisionate cannot create a time-based forecast from it. Choose a dataset with a date, month, year, time, period, or quarter column."
+    return "This dataset does not include a recognizable date column, so a time-based forecast cannot be created from it. Choose a dataset with a date, month, year, time, period, or quarter column."
   }
 
   if (message === "No numeric column found") {
@@ -57,6 +80,10 @@ function getForecastUnavailableMessage(
 
   if (message.includes("is not numeric")) {
     return "The selected metric is not numeric, so it cannot be forecasted. Choose a numeric metric from this dataset."
+  }
+
+  if (message.includes("not found")) {
+    return "The selected metric is not available in this dataset anymore. Choose another metric from this dataset."
   }
 
   return ""
@@ -92,6 +119,24 @@ function formatForecastNumber(
   return (value ?? 0).toLocaleString()
 }
 
+function getConservativeConfidence(
+  first: DecisionConfidenceScore,
+  second: DecisionConfidenceScore,
+): DecisionConfidenceScore {
+  const confidenceRank: Record<
+    DecisionConfidenceScore,
+    number
+  > = {
+    low: 0,
+    medium: 1,
+    high: 2,
+  }
+
+  return confidenceRank[first] <= confidenceRank[second]
+    ? first
+    : second
+}
+
 function getInitialForecastDatasetId() {
   if (typeof window === "undefined") {
     return undefined
@@ -116,8 +161,43 @@ function getInitialForecastDatasetId() {
     : undefined
 }
 
+function getForecastModelQualityStatus(
+  modelQuality: NonNullable<
+    ForecastResponse["forecast"]["model_quality"]
+  >
+) {
+  const reliability =
+    modelQuality.reliability ?? "limited"
+
+  if (reliability === "limited") {
+    return {
+      label: "Limited reliability: no holdout validation",
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+    }
+  }
+
+  if (reliability === "low") {
+    return {
+      label: "Low reliability: high forecast error",
+      className: "border-red-200 bg-red-50 text-red-800",
+    }
+  }
+
+  if (reliability === "moderate") {
+    return {
+      label: "Review before acting: moderate forecast error",
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+    }
+  }
+
+  return {
+    label: "Good validation signal",
+    className: "border-green-200 bg-green-50 text-green-800",
+  }
+}
+
 export default function ForecastsPage() {
-  // Auth and navigation: Clerk identifies ownership; router opens created decisions.
+  // Auth and navigation: user identity sets ownership; router opens created decisions.
   const { user } = useUser()
   const router = useRouter()
   const {
@@ -125,6 +205,10 @@ export default function ForecastsPage() {
     workspaceVersion,
   } =
     useActiveWorkspace(user?.id)
+  const {
+    canManageWorkspaceData,
+    loadingWorkspaceAccess,
+  } = useWorkspaceAccess(user?.id)
 
   // Dataset and forecast state: controls which dataset metric is being forecasted.
   const [selectedDatasetId, setSelectedDatasetId] =
@@ -136,6 +220,18 @@ export default function ForecastsPage() {
 
   const [datasets, setDatasets] =
     useState<DatasetSummary[]>([])
+  const [
+    datasetMetricColumns,
+    setDatasetMetricColumns,
+  ] = useState<string[]>([])
+  const [
+    metricsDatasetId,
+    setMetricsDatasetId,
+  ] = useState<number>()
+  const [
+    metricsLoadFailedDatasetId,
+    setMetricsLoadFailedDatasetId,
+  ] = useState<number>()
 
   const [forecast, setForecast] =
     useState<ForecastResponse | null>(null)
@@ -145,12 +241,32 @@ export default function ForecastsPage() {
 
   const [loading, setLoading] =
     useState(false)
+  const [
+    forecastRefreshVersion,
+    setForecastRefreshVersion,
+  ] = useState(0)
+  const [datasetLoadRetryKey, setDatasetLoadRetryKey] =
+    useState(0)
+  const [
+    datasetsLoading,
+    setDatasetsLoading,
+  ] = useState(false)
+  const [
+    metricsLoading,
+    setMetricsLoading,
+  ] = useState(false)
+  const [metricsLoadError, setMetricsLoadError] =
+    useState("")
+  const [metricLoadRetryKey, setMetricLoadRetryKey] =
+    useState(0)
 
   const [creatingDecision,
     setCreatingDecision] =
     useState(false)
 
   const [pageError, setPageError] =
+    useState("")
+  const [preferenceWarning, setPreferenceWarning] =
     useState("")
   const [
     forecastUnavailableMessage,
@@ -162,6 +278,15 @@ export default function ForecastsPage() {
       (dataset) =>
         dataset.id === selectedDatasetId
     )
+  const forecastMetricColumns =
+    forecast?.forecast
+      ?.available_metrics ?? []
+  const metricsReadyForSelectedDataset =
+    metricsDatasetId === selectedDatasetId
+  const availableForecastMetrics =
+    metricsReadyForSelectedDataset
+      ? datasetMetricColumns
+      : forecastMetricColumns
   const selectedDatasetSource =
     selectedDataset
       ? getDatasetSourceDetails(
@@ -177,24 +302,9 @@ export default function ForecastsPage() {
           )
       : null
 
-  // Display helpers: converts backend metric keys into user-facing labels.
-  function formatMetricName(
-    metric: string
-  ) {
-    return metric
-      .split("_")
-      .map(
-        word =>
-          word.charAt(0)
-            .toUpperCase()
-          + word.slice(1)
-      )
-      .join(" ")
-  }
-
   const metricName =
     forecast
-      ? formatMetricName(
+      ? formatMetricLabel(
         forecast.forecast
           .value_column
       )
@@ -209,30 +319,57 @@ export default function ForecastsPage() {
   useEffect(() => {
     if (!user?.id) return
     const userId = user.id
+    let ignoreResult = false
 
     async function loadDefaultDataset() {
       try {
         setPageError("")
+        setPreferenceWarning("")
+        setDatasets([])
+        setSelectedDatasetId(undefined)
+        setSelectedMetric(undefined)
+        setDatasetMetricColumns([])
+        setMetricsDatasetId(undefined)
+        setMetricsLoadFailedDatasetId(
+          undefined
+        )
+        setMetricsLoadError("")
+        setMetricsLoading(false)
+        setForecast(null)
+        setDatasetsLoading(true)
 
-        const [
-          preference,
-          datasetsResult,
-        ] = await Promise.all([
-          getDatasetPreference(
+        const preferencePromise =
+          Promise.allSettled([
+            getDatasetPreference(
               userId,
               activeWorkspaceId
-          ),
-          getDatasets(
+            ),
+          ])
+        const [datasetsResult] =
+          await Promise.allSettled([
+            getDatasets(
               userId,
               activeWorkspaceId
-          ),
-        ])
+            ),
+          ])
 
-        setDatasets(datasetsResult)
+        if (ignoreResult) {
+          return
+        }
+
+        if (datasetsResult.status === "rejected") {
+          throw datasetsResult.reason
+        }
+
+        const datasetSummaries =
+          datasetsResult.value
+
+        setDatasets(datasetSummaries)
+        setDatasetsLoading(false)
 
         const initialDataset =
           initialDatasetId
-            ? datasetsResult.find(
+            ? datasetSummaries.find(
                 (dataset) =>
                   dataset.id ===
                   initialDatasetId
@@ -243,57 +380,171 @@ export default function ForecastsPage() {
           setSelectedDatasetId(
             initialDataset.id
           )
-
-          setSelectedMetric(
-            preference.selected_dataset_id ===
-              initialDataset.id
-              ? preference.selected_metric ??
-                  undefined
-              : undefined
+        } else if (datasetSummaries.length > 0) {
+          setSelectedDatasetId(
+            datasetSummaries[0].id
           )
-
-          return
         }
 
-        if (
-          preference.selected_dataset_id
-        ) {
-          setSelectedDatasetId(
-            preference.selected_dataset_id
-          )
+        const [preferenceResult] =
+          await preferencePromise
+        if (!ignoreResult) {
+          const preference =
+            preferenceResult.status === "fulfilled"
+              ? preferenceResult.value
+              : undefined
 
-          if (
-            preference.selected_metric
-          ) {
-            setSelectedMetric(
-              preference.selected_metric
+          if (preferenceResult.status === "rejected") {
+            setPreferenceWarning(
+              `${getForecastPageErrorMessage(
+                preferenceResult.reason,
+                "Dataset preference service is unavailable."
+              )} Using the first available dataset.`
             )
+          } else {
+            setPreferenceWarning("")
           }
 
+          const preferredDataset =
+            preference?.selected_dataset_id
+              ? datasetSummaries.find(
+                  (dataset) =>
+                    dataset.id ===
+                    preference.selected_dataset_id
+                )
+              : undefined
+
+          if (!initialDataset && preferredDataset) {
+            setSelectedDatasetId(
+              preferredDataset.id
+            )
+            setSelectedMetric(
+              preference?.selected_metric ??
+                undefined
+            )
+          }
+        }
+      } catch (error) {
+        if (ignoreResult) {
           return
         }
 
-        if (datasetsResult.length > 0) {
-          setSelectedDatasetId(
-            datasetsResult[0].id
-          )
-        }
-      } catch (error) {
         console.error(error)
-
+        setPreferenceWarning("")
         setPageError(
           getForecastPageErrorMessage(
             error,
             "Unable to load your saved forecast preferences."
           )
         )
+      } finally {
+        if (!ignoreResult) {
+          setDatasetsLoading(false)
+        }
       }
     }
 
     loadDefaultDataset()
+
+    return () => {
+      ignoreResult = true
+      setDatasetsLoading(false)
+    }
   }, [
     activeWorkspaceId,
+    datasetLoadRetryKey,
     initialDatasetId,
+    user?.id,
+    workspaceVersion,
+  ])
+
+  // Dataset metrics loading: validates saved metric choices before forecasting.
+  useEffect(() => {
+    if (!selectedDatasetId) {
+      return
+    }
+
+    if (!user?.id) return
+
+    const datasetId = selectedDatasetId
+    const userId = user.id
+    let ignore = false
+
+    async function loadDatasetMetrics() {
+      try {
+        setMetricsLoading(true)
+        setMetricsLoadError("")
+        setDatasetMetricColumns([])
+        setMetricsDatasetId(undefined)
+        setMetricsLoadFailedDatasetId(
+          undefined
+        )
+
+        const data =
+          await getDatasetMetrics(
+            datasetId,
+            userId,
+            activeWorkspaceId
+          )
+
+        if (ignore) {
+          return
+        }
+
+        const metricColumns =
+          Array.from(
+            new Set(
+              data.metrics
+                .map((metric) =>
+                  metric.column.trim()
+                )
+                .filter(Boolean)
+            )
+          )
+
+        setDatasetMetricColumns(
+          metricColumns
+        )
+        setSelectedMetric(currentMetric =>
+          currentMetric &&
+          !metricColumns.includes(currentMetric)
+            ? undefined
+            : currentMetric
+        )
+        setMetricsDatasetId(datasetId)
+        setMetricsLoadError("")
+      } catch (error) {
+        if (ignore) {
+          return
+        }
+
+        setDatasetMetricColumns([])
+        setMetricsDatasetId(undefined)
+        setMetricsLoadFailedDatasetId(
+          datasetId
+        )
+        setMetricsLoadError(
+          getForecastPageErrorMessage(
+            error,
+            "Could not load metrics for this dataset."
+          )
+        )
+      } finally {
+        if (!ignore) {
+          setMetricsLoading(false)
+        }
+      }
+    }
+
+    loadDatasetMetrics()
+
+    return () => {
+      ignore = true
+    }
+  }, [
+    activeWorkspaceId,
+    metricLoadRetryKey,
+    selectedDatasetId,
     user?.id,
     workspaceVersion,
   ])
@@ -307,6 +558,50 @@ export default function ForecastsPage() {
 
     if (!user?.id) return
     const userId = user.id
+    let ignoreResult = false
+    const metricsKnownForDataset =
+      metricsDatasetId === datasetId
+    const metricsLoadFailedForDataset =
+      metricsLoadFailedDatasetId ===
+      datasetId
+
+    if (
+      !metricsKnownForDataset &&
+      !metricsLoadFailedForDataset
+    ) {
+      return
+    }
+
+    if (
+      selectedMetric &&
+      metricsKnownForDataset &&
+      !datasetMetricColumns.includes(
+        selectedMetric
+      )
+    ) {
+      async function clearStaleSelectedMetric() {
+        setSelectedMetric(undefined)
+        setForecast(null)
+        setForecastUnavailableMessage("")
+
+        try {
+          await updateDatasetPreference(
+            datasetId,
+            userId,
+            "",
+            undefined,
+            undefined,
+            activeWorkspaceId
+          )
+        } catch {
+          // A stale saved metric should not block the user from forecasting.
+        }
+      }
+
+      void clearStaleSelectedMetric()
+
+      return
+    }
 
     async function loadForecast() {
       try {
@@ -322,24 +617,75 @@ export default function ForecastsPage() {
             activeWorkspaceId
           )
 
+        if (ignoreResult) {
+          return
+        }
+
         setForecast(data)
 
         if (!selectedMetric) {
-          setSelectedMetric(
+          const defaultMetric =
             data.forecast.value_column
-          )
+
+          setSelectedMetric(defaultMetric)
+
+          void updateDatasetPreference(
+            datasetId,
+            userId,
+            defaultMetric,
+            undefined,
+            undefined,
+            activeWorkspaceId
+          ).catch(error => {
+            if (!ignoreResult) {
+              setPreferenceWarning(
+                getForecastPageErrorMessage(
+                  error,
+                  "Forecast metric preference could not be saved."
+                )
+              )
+            }
+          })
         }
       } catch (error) {
+        const errorMessage =
+          getForecastPageErrorMessage(
+            error,
+            ""
+          )
         const unavailableMessage =
           getForecastUnavailableMessage(
             error
           )
+
+        if (ignoreResult) {
+          return
+        }
 
         if (unavailableMessage) {
           setForecast(null)
           setForecastUnavailableMessage(
             unavailableMessage
           )
+
+          if (
+            errorMessage.includes(
+              "not found"
+            )
+          ) {
+            setSelectedMetric(undefined)
+
+            void updateDatasetPreference(
+              datasetId,
+              userId,
+              "",
+              undefined,
+              undefined,
+              activeWorkspaceId
+            ).catch(() => {
+              // Clearing a stale metric preference should not block recovery.
+            })
+          }
         } else {
           console.error(error)
 
@@ -351,17 +697,27 @@ export default function ForecastsPage() {
           )
         }
       } finally {
-        setLoading(false)
+        if (!ignoreResult) {
+          setLoading(false)
+        }
       }
     }
 
     loadForecast()
+
+    return () => {
+      ignoreResult = true
+    }
   }, [
     selectedDatasetId,
     selectedMetric,
+    datasetMetricColumns,
+    metricsDatasetId,
+    metricsLoadFailedDatasetId,
     activeWorkspaceId,
     user?.id,
     workspaceVersion,
+    forecastRefreshVersion,
   ])
 
   // Chart data preparation: combines historical values with forecasted periods.
@@ -545,9 +901,54 @@ export default function ForecastsPage() {
       )}%).`
       : ""
 
+  const forecastRecommendation =
+    forecast?.forecast.recommendation
+  const aiRecommendation =
+    forecast?.forecast.ai_analysis?.source === "openai"
+      ? forecast.forecast.ai_analysis.recommendations[0]
+      : undefined
+  const recommendationTitle =
+    aiRecommendation
+      ? "AI recommended follow-up"
+      : forecastRecommendation?.title ?? ""
+  const recommendationReason =
+    aiRecommendation ||
+    forecastRecommendation?.reason ||
+    ""
+  const recommendationConfidence =
+    forecast?.forecast.ai_analysis?.source === "openai"
+      ? getConservativeConfidence(
+        forecastRecommendation?.confidence ?? "low",
+        forecast.forecast.ai_analysis.confidence,
+      )
+      : forecastRecommendation?.confidence ?? "low"
+  const recommendationSource =
+    forecast?.forecast.ai_analysis
+      ? getAIAnalysisSourceLabel(
+        forecast.forecast.ai_analysis
+      )
+      : "deterministic forecast rules"
+  const learningContextCopy =
+    forecast?.forecast.ai_analysis
+      ? getAIAnalysisLearningContext(
+        forecast.forecast.ai_analysis
+      )
+      : ""
+  const learningContext =
+    learningContextCopy
+      ? `Decisionate learning context: ${learningContextCopy}`
+      : ""
+  const decisionDatasetName =
+    selectedDataset?.file_name ??
+    forecast?.file_name ??
+    "selected dataset"
+
   // Decision creation flow: saves the forecast recommendation and opens its detail page.
   async function handleCreateDecision() {
-    if (creatingDecision) {
+    if (
+      creatingDecision ||
+      !canManageWorkspaceData
+    ) {
       return
     }
 
@@ -569,18 +970,28 @@ export default function ForecastsPage() {
             dataset_id:
               selectedDatasetId,
 
-            title:
-              forecast.forecast
-                .recommendation
-                .title,
+            metric_column:
+              selectedMetric ||
+              forecast.forecast.value_column,
 
-            description:
-              decisionBrief,
+            title: recommendationTitle,
 
-            confidence_score:
-              forecast.forecast
-                .recommendation
-                .confidence,
+                description:
+              [
+                decisionBrief,
+                `Recommendation: ${recommendationTitle}`,
+                `Decision target: ${metricName || selectedMetric || "selected metric"} (${decisionDatasetName})`,
+                learningContext,
+                `Decisionate AI source: ${recommendationSource}`,
+              ]
+                .filter(Boolean)
+                .join("\n\n"),
+
+            expected_outcome:
+              decisionBrief ||
+              `Evaluate whether ${metricName || "the selected metric"} in ${decisionDatasetName} follows the forecast recommendation.`,
+
+            confidence_score: recommendationConfidence,
           },
 
           user.id,
@@ -604,89 +1015,396 @@ export default function ForecastsPage() {
     }
   }
 
+  async function handleDatasetChange(
+    datasetId: number | undefined
+  ) {
+    const previousDatasetId = selectedDatasetId
+    const previousMetric = selectedMetric
+    setPageError("")
+    setForecastUnavailableMessage("")
+    setForecast(null)
+    setSelectedMetric(undefined)
+    setDatasetMetricColumns([])
+    setMetricsDatasetId(undefined)
+    setMetricsLoadFailedDatasetId(undefined)
+    setMetricsLoadError("")
+    setMetricsLoading(false)
+    setSelectedDatasetId(datasetId)
+
+    if (typeof window !== "undefined") {
+      const url =
+        new URL(window.location.href)
+
+      if (datasetId) {
+        url.searchParams.set(
+          "dataset",
+          String(datasetId)
+        )
+      } else {
+        url.searchParams.delete("dataset")
+      }
+
+      window.history.replaceState(
+        null,
+        "",
+        url.toString()
+      )
+    }
+
+    if (datasetId && user?.id) {
+      try {
+        await updateDatasetPreference(
+          datasetId,
+          user.id,
+          "",
+          undefined,
+          undefined,
+          activeWorkspaceId
+        )
+        setPreferenceWarning("")
+      } catch (error) {
+        console.error(error)
+        setSelectedDatasetId(previousDatasetId)
+        setSelectedMetric(previousMetric)
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href)
+
+          if (previousDatasetId) {
+            url.searchParams.set(
+              "dataset",
+              String(previousDatasetId)
+            )
+          } else {
+            url.searchParams.delete("dataset")
+          }
+
+          window.history.replaceState(
+            null,
+            "",
+            url.toString()
+          )
+        }
+
+        setPageError(
+          getForecastPageErrorMessage(
+            error,
+            "Unable to save your selected forecast dataset."
+          )
+        )
+      }
+    }
+  }
+
+  function refreshForecast() {
+    if (
+      !selectedDatasetId ||
+      datasetsLoading ||
+      loading ||
+      metricsLoading
+    ) {
+      return
+    }
+
+    setForecastRefreshVersion(
+      version => version + 1
+    )
+  }
+
+  const refreshButtonLabel =
+    datasetsLoading
+      ? "Loading..."
+      : loading || metricsLoading
+      ? forecast
+        ? "Refreshing..."
+        : "Loading..."
+      : "Refresh"
+
   return (
     <div className="space-y-8">
       {/* Forecast controls section: dataset and metric selectors drive the forecast request. */}
       <div>
-        <h1 className="text-3xl font-bold">
-          Forecasts
-        </h1>
+        <DashboardPageHeader
+          title="Forecasts"
+          description="Forecast future trends from your datasets so decision reviews can include a clear outlook and confidence signal."
+          actions={
+            <button
+            type="button"
+            onClick={refreshForecast}
+            disabled={
+              !selectedDatasetId ||
+              datasetsLoading ||
+              loading ||
+              metricsLoading
+            }
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 sm:w-auto"
+          >
+            <RefreshCw size={16} />
+            {refreshButtonLabel}
+            </button>
+          }
+        />
 
-        <p className="mt-2 text-gray-500">
-          Forecast future trends from your datasets.
-        </p>
+        <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">
+                Forecast setup
+              </h2>
 
-        <div className="mt-4">
-          <DatasetSelector
-            value={selectedDatasetId}
-            onChange={(id) => {
-              setPageError("")
-              setForecastUnavailableMessage("")
+              <p className="text-sm text-gray-500">
+                Choose the dataset and numeric metric to forecast.
+              </p>
+            </div>
 
-              setForecast(null)
-
-              setSelectedMetric(
-                undefined
-              )
-
-              setSelectedDatasetId(
-                id
-              )
-            }}
-          />
-          <div className="mt-4">
-            <MetricSelector
-              metrics={
-                forecast?.forecast
-                  ?.available_metrics ?? []
-              }
-              value={selectedMetric}
-              onChange={async (metric) => {
-                setPageError("")
-                setForecastUnavailableMessage("")
-
-                setSelectedMetric(
-                  metric
-                )
-
-                if (user?.id) {
-                  try {
-                    await updateDatasetPreference(
-                      selectedDatasetId!,
-                      user.id,
-                      metric,
-                      undefined,
-                      undefined,
-                      activeWorkspaceId
-                    )
-                  } catch (error) {
-                    console.error(error)
-
-                    setPageError(
-                      getForecastPageErrorMessage(
-                        error,
-                        "Unable to save your selected metric."
-                      )
-                    )
-                  }
-                }
-              }}
-            />
+            {loading && (
+              <p
+                role="status"
+                aria-live="polite"
+                className="text-sm font-medium text-[var(--decisionate-brand-primary-text)]"
+              >
+                {forecast
+                  ? "Refreshing forecast..."
+                  : "Loading forecast..."}
+              </p>
+            )}
           </div>
-        </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <label className="min-w-0 space-y-2">
+              <span className="text-sm font-medium text-gray-700">
+                Dataset
+              </span>
+
+              <DatasetSelector
+                ariaLabel="Select forecast dataset"
+                datasets={datasets}
+                emptyMessage={
+                  canManageWorkspaceData
+                    ? undefined
+                    : "Ask the workspace team to share a dataset before creating a forecast."
+                }
+                loading={
+                  !user?.id ||
+                  datasetsLoading
+                }
+                loadError={
+                  Boolean(pageError) &&
+                  datasets.length === 0
+                }
+                value={selectedDatasetId}
+                onChange={(id) => {
+                  void handleDatasetChange(id)
+                }}
+              />
+            </label>
+
+            <label className="min-w-0 space-y-2">
+              <span className="text-sm font-medium text-gray-700">
+                Metric
+              </span>
+
+              <MetricSelector
+                ariaLabel="Select forecast metric"
+                metrics={
+                  availableForecastMetrics
+                }
+                value={selectedMetric}
+                loadError={Boolean(metricsLoadError)}
+                disabled={
+                  !selectedDatasetId ||
+                  loading ||
+                  metricsLoading ||
+                  !availableForecastMetrics.length
+                }
+                placeholder={
+                  !selectedDatasetId
+                    ? "Choose dataset first"
+                    : metricsLoading
+                      ? "Loading metrics..."
+                      : !availableForecastMetrics.length
+                        ? "No numeric metrics"
+                      : "Select Metric"
+                }
+                onChange={async (metric) => {
+                  const previousMetric =
+                    selectedMetric
+                  setPageError("")
+                  setForecastUnavailableMessage("")
+
+                  setSelectedMetric(
+                    metric
+                  )
+
+                  if (
+                    user?.id &&
+                    selectedDatasetId
+                  ) {
+                    try {
+                      await updateDatasetPreference(
+                        selectedDatasetId,
+                        user.id,
+                        metric ?? "",
+                        undefined,
+                        undefined,
+                        activeWorkspaceId
+                      )
+                      setPreferenceWarning("")
+                    } catch (error) {
+                      console.error(error)
+                      setSelectedMetric(
+                        previousMetric
+                      )
+
+                      setPageError(
+                        getForecastPageErrorMessage(
+                          error,
+                          "Unable to save your selected metric."
+                        )
+                      )
+                    }
+                  }
+                }}
+              />
+
+              {metricsLoadError && (
+                <div
+                  role="alert"
+                  className="mt-2 flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span>{metricsLoadError}</span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMetricLoadRetryKey(currentKey => currentKey + 1)
+                    }
+                    className="w-fit rounded-md border border-red-200 bg-white px-2 py-1 font-medium text-red-700 transition hover:bg-red-100"
+                  >
+                    Retry metrics
+                  </button>
+                </div>
+              )}
+            </label>
+          </div>
+
+          <p className="mt-3 max-w-full break-words text-sm text-gray-500">
+            {selectedDataset ? (
+              <>
+                Forecasting from{" "}
+                <span className="font-medium text-gray-700">
+                  {selectedDataset.file_name}
+                </span>
+                {selectedDatasetSource?.label
+                  ? ` • ${selectedDatasetSource.label}`
+                  : ""}
+                {selectedMetric
+                  ? ` • Focused on ${formatMetricLabel(selectedMetric)}`
+                  : " • Auto metric"}
+                {selectedDatasetId && (
+                  <Link
+                    href={`/dashboard/datasets/${selectedDatasetId}`}
+                    className="ml-2 font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
+                  >
+                    Open dataset details
+                  </Link>
+                )}
+              </>
+            ) : (
+              "Select a dataset"
+            )}
+          </p>
+        </section>
       </div>
 
       {/* Error message section: surfaces forecast and decision creation failures. */}
       {pageError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
-          {pageError}
+        <div
+          role="alert"
+          className="flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>{pageError}</span>
+
+          {!selectedDatasetId && (
+            <button
+              type="button"
+              onClick={() =>
+                setDatasetLoadRetryKey(
+                  currentKey => currentKey + 1
+                )
+              }
+              className="w-fit rounded-md border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50"
+            >
+              Retry dataset load
+            </button>
+          )}
         </div>
       )}
+
+      {preferenceWarning && (
+        <div
+          role="status"
+          className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>{preferenceWarning}</span>
+
+          <button
+            type="button"
+            onClick={() =>
+              setDatasetLoadRetryKey(
+                currentKey => currentKey + 1
+              )
+            }
+            className="w-fit rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
+          >
+            Retry preference
+          </button>
+        </div>
+      )}
+
+      <WorkspaceAccessNotice
+        loading={loadingWorkspaceAccess}
+        canManageWorkspaceData={canManageWorkspaceData}
+        message="Analysis and metric selection are available in this shared workspace. Workspace managers handle decision creation and data changes."
+      />
+
+      {user?.id &&
+        !datasetsLoading &&
+        !selectedDatasetId &&
+        !pageError && (
+          <div className="rounded-2xl border border-dashed bg-white p-6 text-center sm:p-12">
+            <h2 className="text-xl font-semibold">
+              {datasets.length === 0
+                ? "No datasets available"
+                : "No dataset selected"}
+            </h2>
+
+            <p className="mt-2 text-gray-500">
+              {datasets.length === 0
+                ? canManageWorkspaceData
+                  ? "Upload or pull a dataset first to create a forecast."
+                  : "Ask the workspace team to share a dataset before creating a forecast."
+                : "Select a dataset to create a forecast."}
+            </p>
+
+            <Link
+              href="/dashboard/datasets"
+              className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
+            >
+              {canManageWorkspaceData
+                ? "Open datasets"
+                : "View datasets"}
+            </Link>
+          </div>
+        )}
 
       {forecastUnavailableMessage &&
         !forecast &&
         !loading && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+          >
             <p className="font-medium">
               Forecast unavailable for this dataset
             </p>
@@ -697,42 +1415,9 @@ export default function ForecastsPage() {
           </div>
         )}
 
-      {/* Loading section: keeps the page stable while the first forecast is loading. */}
-      {loading && !forecast && (
-        <div className="rounded-xl border bg-white p-6">
-          Loading forecast...
-        </div>
-      )}
-
       {/* Recommendation summary section: shows decision recommendation and forecast totals. */}
       {forecast && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {forecast?.forecast?.recommendation && (
-            <RecommendationCard
-              title={
-                forecast.forecast
-                  .recommendation.title
-              }
-              decisionBrief={
-                decisionBrief
-              }
-              reason={
-                forecast.forecast
-                  .recommendation.reason
-              }
-              confidence={
-                forecast.forecast
-                  .recommendation.confidence
-              }
-              onCreateDecision={
-                handleCreateDecision
-              }
-              creatingDecision={
-                creatingDecision
-              }
-            />
-          )}
-
+        <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
           <ForecastSummaryCard
             currentValue={
               currentValueForDisplay
@@ -753,58 +1438,116 @@ export default function ForecastsPage() {
               growth
             }
           />
-        </div>
+
+          {forecast.forecast.model_quality && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+              <span
+                className={`rounded-full border px-2.5 py-1 font-medium ${getForecastModelQualityStatus(
+                  forecast.forecast.model_quality
+                ).className}`}
+              >
+                {getForecastModelQualityStatus(
+                  forecast.forecast.model_quality
+                ).label}
+              </span>
+              <span>
+                {forecast.forecast.model_quality.candidate_count && forecast.forecast.model_quality.candidate_count > 1
+                  ? `Compared ${forecast.forecast.model_quality.candidate_count} models · `
+                  : ""}
+                Selected model: {forecast.forecast.model_quality.method.replaceAll("_", " ")} · {forecast.forecast.model_quality.validation_periods > 0
+                  ? `${forecast.forecast.model_quality.validation_periods}-period holdout`
+                  : "No holdout validation"}
+                {forecast.forecast.model_quality.mae !== null
+                  ? ` · MAE ${forecast.forecast.model_quality.mae.toLocaleString()}`
+                  : ""}
+                {forecast.forecast.model_quality.mape !== null
+                  ? ` · MAPE ${forecast.forecast.model_quality.mape.toLocaleString()}%`
+                  : ""}
+              </span>
+            </div>
+          )}
+
+          {forecast?.forecast?.recommendation && (
+            <div className="mt-5 border-t pt-5">
+              <RecommendationCard
+                title={recommendationTitle}
+                decisionBrief={
+                  decisionBrief
+                }
+                reason={recommendationReason}
+                confidence={recommendationConfidence}
+                source={recommendationSource}
+                learningContext={learningContextCopy}
+                onCreateDecision={
+                  canManageWorkspaceData
+                    ? handleCreateDecision
+                    : undefined
+                }
+                creatingDecision={
+                  creatingDecision
+                }
+              />
+            </div>
+          )}
+
+          {forecast.forecast.ai_analysis && (
+            <AIAnalysisPanel
+              analysis={forecast.forecast.ai_analysis}
+              title="Forecast analysis"
+              metric={selectedMetric}
+              className="mt-5 p-4"
+            />
+          )}
+        </section>
       )}
 
       {/* Forecast chart section: visualizes historical values against projected periods. */}
       {forecast && (
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <div className="mb-4">
-            <h2 className="text-xl font-semibold">
-              Forecast Trend
-            </h2>
+        <div className="min-w-0 rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-6 flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-xl font-semibold">
+                Forecast Trend
+              </h2>
 
-            <p className="text-sm text-gray-500">
-              Historical values and projected future performance.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border px-3 py-1 text-sm">
-              {selectedDataset
-                ? selectedDataset.file_name
-                : forecast.file_name}
-            </span>
-
-            {selectedDatasetSource && (
-              <span className="rounded-full border px-3 py-1 text-sm">
-                {selectedDatasetSource.label}
-              </span>
-            )}
-
-            <span className="rounded-full border px-3 py-1 text-sm">
-              {forecast.forecast.value_column}
-            </span>
-          </div>
-
-          <div className="mt-6">
-            <div className="mb-6 rounded-xl bg-gray-50 p-4">
-              <p className="font-medium">
-                Forecast Insight
-              </p>
-
-              <p className="mt-2 text-sm text-gray-600">
-                Expected change:
-                {" "}
-                {growth.toFixed(1)}%
-                {" "}
-                over the forecast period.
+              <p className="text-sm text-gray-500">
+                Historical values and projected future performance.
               </p>
             </div>
-            <ForecastChart
-              data={chartData}
-            />
+
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
+              <span
+                className="inline-block max-w-full truncate rounded-full border px-3 py-1 text-sm"
+                title={
+                  selectedDataset
+                    ? selectedDataset.file_name
+                    : forecast.file_name
+                }
+              >
+                {selectedDataset
+                  ? selectedDataset.file_name
+                  : forecast.file_name}
+              </span>
+
+              {selectedDatasetSource && (
+                <span
+                  className="inline-block max-w-full truncate rounded-full border px-3 py-1 text-sm"
+                  title={selectedDatasetSource.label}
+                >
+                  {selectedDatasetSource.label}
+                </span>
+              )}
+
+              <span
+                className="inline-block max-w-full truncate rounded-full border px-3 py-1 text-sm"
+                title={metricName}
+              >
+                {metricName}
+              </span>
+            </div>
           </div>
+
+          <ForecastChart data={chartData} />
         </div>
       )}
     </div>

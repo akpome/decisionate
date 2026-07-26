@@ -1,6 +1,16 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import {
+  useSearchParams,
+} from "next/navigation"
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react"
 import {
   Area,
   AreaChart,
@@ -19,10 +29,39 @@ import {
 
 import {
   getPublicSharedDashboard,
+  type DecisionSummary,
 } from "@/lib/api"
 import {
   getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
+import {
+  formatMetricLabel,
+} from "@/features/dashboard/components/metric-selector"
+import {
+  WorkspaceBrandMark,
+} from "@/app/dashboard/workspace-brand-mark"
+import {
+  defaultWorkspaceBrand,
+  getBrandColorWithAlpha,
+  getBrandSurfaceTextColor,
+  getReadableBrandTextColor,
+  getWorkspaceBrandFromPayload,
+  type WorkspaceBrand,
+} from "@/lib/workspace-brand"
+import {
+  useWorkspaceBrowserBrand,
+} from "@/lib/use-workspace-browser-brand"
+import {
+  dashboardRegistry,
+  type DashboardChartTitles,
+  type DashboardMetricMapping,
+} from "@/features/dashboards/dashboard-registry"
+import {
+  dashboardUsesDatasetMetricMapping,
+  defaultDashboardKey,
+  getDashboardDefinition,
+  isDashboardKey,
+} from "@/features/dashboards/dashboard-definitions"
 
 type ChartType = "line" | "bar" | "area"
 type ScaleMode = "actual" | "indexed"
@@ -62,6 +101,7 @@ type DashboardMetric = {
 
 type DashboardDataset = {
   file_name: string
+  row_count?: number
   source_type?: string | null
   source_label?: string | null
   source_config?: string | null
@@ -77,8 +117,22 @@ type DashboardDataset = {
 type SharedDashboardConfig = {
   datasetId?: number
   dashboardTemplate?: DashboardTemplate
+  selectedDashboard?: string
   token?: string
 }
+
+type SharedBrandStyle =
+  CSSProperties & {
+    "--decisionate-brand-primary": string
+    "--decisionate-brand-primary-soft": string
+    "--decisionate-brand-primary-ring": string
+    "--decisionate-brand-primary-text": string
+    "--decisionate-brand-primary-surface-text": string
+    "--decisionate-brand-accent": string
+    "--decisionate-brand-accent-soft": string
+    "--decisionate-brand-accent-ring": string
+    "--decisionate-brand-accent-text": string
+  }
 
 const chartTypes: ChartType[] = [
   "line",
@@ -107,26 +161,62 @@ const dashboardTemplates: DashboardTemplate[] = [
   "performance",
   "comparison",
 ]
+const maxDashboardKpiCards = 8
+const maxDashboardTitleLength = 120
+const maxDashboardSubtitleLength = 220
 
-const colorPalette = [
+const defaultColorPalette = [
   "#2563eb",
-  "#16a34a",
+  "#14b8a6",
   "#f97316",
   "#9333ea",
   "#dc2626",
   "#0891b2",
+  "#ca8a04",
+  "#4f46e5",
 ]
 
 const unavailableSharedDashboardMessage =
   "This shared dashboard link is no longer available."
 
 export default function SharedDashboardPage() {
-  const [sharedConfig] =
-    useState<SharedDashboardConfig>(
-      () => getSharedDashboardConfig()
+  return (
+    <Suspense
+      fallback={
+        <SharedPageShell>
+          <SharedCard
+            role="status"
+            aria-live="polite"
+          >
+            <p className="text-sm text-gray-500">
+              Loading shared dashboard...
+            </p>
+          </SharedCard>
+        </SharedPageShell>
+      }
+    >
+      <SharedDashboardContent />
+    </Suspense>
+  )
+}
+
+function SharedDashboardContent() {
+  const searchParams =
+    useSearchParams()
+  const searchParamString =
+    searchParams.toString()
+  const sharedConfig =
+    useMemo(
+      () =>
+        getSharedDashboardConfig(
+          searchParamString
+        ),
+      [searchParamString]
     )
   const [dataset, setDataset] =
     useState<DashboardDataset | null>(null)
+  const [sharedBrand, setSharedBrand] =
+    useState<WorkspaceBrand>(defaultWorkspaceBrand)
   const [selectedMetrics, setSelectedMetrics] =
     useState<string[]>([])
   const [chartType, setChartType] =
@@ -137,6 +227,20 @@ export default function SharedDashboardPage() {
     useState<PeriodFilter>("1y")
   const [dashboardTemplate, setDashboardTemplate] =
     useState<DashboardTemplate>("executive")
+  const [dashboardTitle, setDashboardTitle] =
+    useState("")
+  const [
+    dashboardSubtitle,
+    setDashboardSubtitle,
+  ] = useState("")
+  const [
+    dashboardMetricMapping,
+    setDashboardMetricMapping,
+  ] = useState<DashboardMetricMapping>({})
+  const [dashboardChartTitles, setDashboardChartTitles] =
+    useState<DashboardChartTitles>({})
+  const [decisionSummary, setDecisionSummary] =
+    useState<DecisionSummary | null>(null)
   const [startDate, setStartDate] =
     useState("")
   const [targets, setTargets] =
@@ -145,8 +249,43 @@ export default function SharedDashboardPage() {
     useState(true)
   const [pageError, setPageError] =
     useState("")
+  const [sharedLoadRetryKey, setSharedLoadRetryKey] =
+    useState(0)
+  const sharedDatasetId =
+    sharedConfig.datasetId
+  const sharedDashboardTemplate =
+    sharedConfig.dashboardTemplate
+  const sharedSelectedDashboard =
+    sharedConfig.selectedDashboard ?? ""
+  const sharedToken =
+    sharedConfig.token ?? ""
+  const sharedConfigKey =
+    [
+      sharedDatasetId ?? "",
+      sharedSelectedDashboard,
+      sharedDashboardTemplate ?? "",
+      sharedToken,
+    ].join("|")
 
   useEffect(() => {
+    const [
+      datasetIdValue,
+      selectedDashboardValue,
+      dashboardTemplateValue,
+      tokenValue,
+    ] = sharedConfigKey.split("|")
+    const effectDatasetId =
+      getQueryDatasetId(datasetIdValue)
+    const effectDashboardTemplate =
+      dashboardTemplateValue
+        ? getSavedDashboardTemplate(
+            dashboardTemplateValue as DashboardTemplate
+          )
+        : undefined
+    const effectSelectedDashboard =
+      selectedDashboardValue || undefined
+    const effectToken =
+      tokenValue || undefined
     let isCurrent = true
     const abortController =
       new AbortController()
@@ -159,22 +298,47 @@ export default function SharedDashboardPage() {
       setPageError(message)
     }
 
+    function clearSharedDashboardState() {
+      if (!isCurrent) {
+        return
+      }
+
+      setDataset(null)
+      setSharedBrand(defaultWorkspaceBrand)
+      setSelectedMetrics([])
+      setTargets({})
+      setDashboardMetricMapping({})
+      setDashboardChartTitles({})
+      setDecisionSummary(null)
+      setDashboardTitle("")
+      setDashboardSubtitle("")
+      setStartDate("")
+    }
+
     async function loadSharedDashboard() {
       try {
         setLoading(true)
         setPageError("")
 
+        if (effectDashboardTemplate) {
+          setDashboardTemplate(
+            effectDashboardTemplate
+          )
+        }
+
         const datasetId =
-          sharedConfig.datasetId
+          effectDatasetId
 
         if (!datasetId) {
+          clearSharedDashboardState()
           setSharedPageError(
             unavailableSharedDashboardMessage
           )
           return
         }
 
-        if (!sharedConfig.token) {
+        if (!effectToken) {
+          clearSharedDashboardState()
           setSharedPageError(
             unavailableSharedDashboardMessage
           )
@@ -184,11 +348,13 @@ export default function SharedDashboardPage() {
         const response =
           await getPublicSharedDashboard(
             datasetId,
-            sharedConfig.token,
+            effectToken,
+            effectSelectedDashboard,
             abortController.signal
           )
 
         if (!response) {
+          clearSharedDashboardState()
           setSharedPageError(
             unavailableSharedDashboardMessage
           )
@@ -206,6 +372,20 @@ export default function SharedDashboardPage() {
           preference.dashboard_preferences?.[
             datasetKey
           ] ?? {}
+        const sharedDashboardMetricMapping =
+          getSavedDashboardMetricMapping(
+            effectSelectedDashboard
+              ? dashboardPreference.metricMappings?.[
+                  effectSelectedDashboard
+                ]
+              : undefined
+          )
+        const sharedDashboardChartTitles =
+          effectSelectedDashboard
+            ? dashboardPreference.chartTitles?.[
+                effectSelectedDashboard
+              ] ?? {}
+            : {}
         const availableMetrics =
           data.metrics?.map(
             (metric) => metric.column
@@ -224,6 +404,14 @@ export default function SharedDashboardPage() {
         }
 
         setDataset(data)
+        setDecisionSummary(
+          response.decision_summary ?? null
+        )
+        setSharedBrand(
+          getWorkspaceBrandFromPayload(
+            response.branding
+          )
+        )
         setSelectedMetrics(
           getSavedSelectedMetrics(
             dashboardPreference.selectedMetrics,
@@ -243,9 +431,29 @@ export default function SharedDashboardPage() {
         setPeriodFilter(safePeriodFilter)
         setDashboardTemplate(
           getSavedDashboardTemplate(
-            sharedConfig.dashboardTemplate ??
-              dashboardPreference.dashboardTemplate
+            dashboardPreference.dashboardTemplate ??
+              effectDashboardTemplate
           )
+        )
+        setDashboardTitle(
+          getSavedDashboardText(
+            dashboardPreference.title,
+            "",
+            maxDashboardTitleLength
+          )
+        )
+        setDashboardSubtitle(
+          getSavedDashboardText(
+            dashboardPreference.subtitle,
+            "",
+            maxDashboardSubtitleLength
+          )
+        )
+        setDashboardMetricMapping(
+          sharedDashboardMetricMapping
+        )
+        setDashboardChartTitles(
+          sharedDashboardChartTitles
         )
         setStartDate(
           getSafeStartDate(
@@ -268,8 +476,12 @@ export default function SharedDashboardPage() {
           return
         }
 
+        clearSharedDashboardState()
         setSharedPageError(
-          "Unable to load this shared dashboard."
+          error instanceof Error &&
+            error.message
+            ? error.message
+            : "Unable to load this shared dashboard."
         )
       } finally {
         if (isCurrent) {
@@ -285,15 +497,57 @@ export default function SharedDashboardPage() {
       abortController.abort()
     }
   }, [
-    sharedConfig.datasetId,
-    sharedConfig.dashboardTemplate,
-    sharedConfig.token,
+    sharedLoadRetryKey,
+    sharedConfigKey,
   ])
+
+  const effectiveDashboardTemplate =
+    dashboardTemplate
+  const selectedDashboardDefinition =
+    getDashboardDefinition(
+      sharedConfig.selectedDashboard
+    )
+  const sharedDashboardTitle =
+    selectedDashboardDefinition.key !==
+    defaultDashboardKey
+      ? selectedDashboardDefinition.name
+      : getSavedDashboardText(
+          dashboardTitle,
+          getSharedDashboardTitle(
+            effectiveDashboardTemplate
+          ),
+          maxDashboardTitleLength
+        )
+
+  useWorkspaceBrowserBrand(
+    `${sharedDashboardTitle} | ${sharedBrand.name}`,
+    sharedBrand
+  )
 
   const metrics =
     useMemo(
       () => dataset?.metrics ?? [],
       [dataset]
+    )
+  const dashboardColorPalette =
+    useMemo(
+      () => getDashboardColorPalette(
+        sharedBrand.primaryColor,
+        sharedBrand.accentColor
+      ),
+      [
+        sharedBrand.accentColor,
+        sharedBrand.primaryColor,
+      ]
+    )
+  const sharedPrimaryTextColor =
+    getReadableBrandTextColor(
+      sharedBrand.primaryColor
+    )
+  const sharedAccentTextColor =
+    getReadableBrandTextColor(
+      sharedBrand.accentColor,
+      defaultWorkspaceBrand.accentColor
     )
   const allRows =
     useMemo(
@@ -337,13 +591,13 @@ export default function SharedDashboardPage() {
 
   if (loading) {
     return (
-      <SharedPageShell>
+      <SharedPageShell brand={sharedBrand}>
         <SharedCard
           role="status"
           aria-live="polite"
         >
           <p className="text-sm text-gray-500">
-            Loading shared dashboard...
+            Loading {sharedDashboardTitle.toLowerCase()}...
           </p>
         </SharedCard>
       </SharedPageShell>
@@ -352,11 +606,25 @@ export default function SharedDashboardPage() {
 
   if (pageError || !dataset) {
     return (
-      <SharedPageShell>
+      <SharedPageShell brand={sharedBrand}>
         <SharedCard role="alert">
-          <p className="text-sm text-gray-500">
-            {pageError || "Dashboard not found."}
-          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-500">
+              {pageError || "Dashboard not found."}
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                setSharedLoadRetryKey(
+                  currentKey => currentKey + 1
+                )
+              }
+              className="w-fit rounded-md border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              Try again
+            </button>
+          </div>
         </SharedCard>
       </SharedPageShell>
     )
@@ -364,33 +632,123 @@ export default function SharedDashboardPage() {
 
   const sourceDetails =
     dataset
-        ? getDatasetSourceDetails(
+      ? getDatasetSourceDetails(
           dataset.source_type,
           dataset.source_config,
           dataset.source_label
         )
       : null
+  const sharedDatasetDescription =
+    dataset
+      ? getDashboardDatasetDescription(
+          dataset,
+          sourceDetails
+        )
+      : ""
+  const sharedDashboardSubtitle =
+    getSavedDashboardText(
+      dashboardSubtitle,
+      sharedDatasetDescription,
+      maxDashboardSubtitleLength
+    )
+
+  if (
+    selectedDashboardDefinition.key !==
+    defaultDashboardKey
+  ) {
+    const SelectedDashboard =
+      dashboardRegistry[
+        selectedDashboardDefinition.componentKey
+      ]
+
+    return (
+      <SharedPageShell brand={sharedBrand}>
+        <SelectedDashboard
+          name={selectedDashboardDefinition.name}
+          description={selectedDashboardDefinition.description}
+          highlights={selectedDashboardDefinition.highlights}
+          dataset={dataset}
+          datasetId={sharedDatasetId}
+          manualMapping={
+            dashboardUsesDatasetMetricMapping(
+              selectedDashboardDefinition.componentKey
+            )
+              ? dashboardMetricMapping
+              : undefined
+          }
+          chartTitles={dashboardChartTitles}
+          decisionSummary={decisionSummary}
+          brand={sharedBrand}
+          showActions={false}
+        />
+      </SharedPageShell>
+    )
+  }
 
   return (
-    <SharedPageShell>
+    <SharedPageShell brand={sharedBrand}>
       <div className="space-y-5">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-950">
-            Shared Dashboard
-          </h1>
+        <div
+          className="rounded-2xl border bg-white p-5 shadow-sm"
+          style={{
+            borderColor: sharedBrand.primaryColor,
+          }}
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <WorkspaceBrandMark
+                name={sharedBrand.name}
+                logoUrl={sharedBrand.logoUrl}
+                primaryColor={sharedBrand.primaryColor}
+                className="h-14 w-14 rounded-2xl text-lg"
+              />
 
-          <p className="mt-1 text-sm text-gray-500">
-            {dataset.file_name}
-            {sourceDetails && (
-              <>
-                {" "}
-                • {sourceDetails.label}
-              </>
-            )}
-          </p>
+              <div className="min-w-0">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                  Shared by
+                </p>
+
+                <p
+                  className="break-words text-xl font-semibold"
+                  style={{
+                    color: sharedPrimaryTextColor,
+                  }}
+                >
+                  {sharedBrand.name}
+                </p>
+
+                <p
+                  className="text-sm"
+                  style={{
+                    color: sharedAccentTextColor,
+                  }}
+                >
+                  Reporting workspace
+                </p>
+              </div>
+            </div>
+
+            <div className="min-w-0 sm:text-right">
+              <h1 className="break-words text-3xl font-bold tracking-tight text-gray-950">
+                {sharedDashboardTitle}
+              </h1>
+
+              <p className="mt-1 break-words text-sm text-gray-500">
+                {sharedDashboardSubtitle}
+              </p>
+
+              {sharedDatasetDescription &&
+                sharedDatasetDescription !==
+                  sharedDashboardSubtitle && (
+                  <p className="mt-1 break-words text-xs text-gray-400">
+                    {sharedDatasetDescription}
+                  </p>
+                )}
+            </div>
+          </div>
         </div>
 
-        {dashboardTemplate === "executive" && (
+        {effectiveDashboardTemplate === "executive" && (
           <>
             <KpiGrid metrics={metrics} />
 
@@ -404,6 +762,7 @@ export default function SharedDashboardPage() {
                 primaryMetric={primaryMetric}
                 selectedTarget={selectedTarget}
                 scaleMode={scaleMode}
+                colorPalette={dashboardColorPalette}
               />
 
               <TargetKpiCard
@@ -416,7 +775,7 @@ export default function SharedDashboardPage() {
           </>
         )}
 
-        {dashboardTemplate === "performance" && (
+        {effectiveDashboardTemplate === "performance" && (
           <>
             <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
               <TargetKpiCard
@@ -435,6 +794,7 @@ export default function SharedDashboardPage() {
                 primaryMetric={primaryMetric}
                 selectedTarget={selectedTarget}
                 scaleMode={scaleMode}
+                colorPalette={dashboardColorPalette}
               />
             </div>
 
@@ -442,22 +802,23 @@ export default function SharedDashboardPage() {
           </>
         )}
 
-        {dashboardTemplate === "comparison" && (
-          <>
-            <KpiGrid metrics={metrics} />
-
-            <MainChartCard
-              chartType={chartType}
-              chartRows={chartRows}
-              xKey={xKey}
-              selectedMetrics={selectedMetrics}
-              metrics={metrics}
-              primaryMetric={primaryMetric}
-              selectedTarget={selectedTarget}
-              scaleMode={scaleMode}
-              className="h-[720px]"
-            />
-          </>
+        {effectiveDashboardTemplate === "comparison" && (
+          <MainChartCard
+            key={`shared-comparison-${chartType}-${scaleMode}-${selectedMetrics.join(
+              "|"
+            )}-${chartRows.length}`}
+            chartType={chartType}
+            chartRows={chartRows}
+            xKey={xKey}
+            selectedMetrics={selectedMetrics}
+            metrics={metrics}
+            primaryMetric={primaryMetric}
+            selectedTarget={selectedTarget}
+            scaleMode={scaleMode}
+            colorPalette={dashboardColorPalette}
+            className="w-full xl:h-[720px]"
+            chartAreaClassName="mt-4 h-[520px] flex-none xl:h-auto xl:min-h-[560px] xl:flex-1"
+          />
         )}
       </div>
     </SharedPageShell>
@@ -469,16 +830,73 @@ function KpiGrid({
 }: {
   metrics: DashboardMetric[]
 }) {
+  const scrollRef =
+    useRef<HTMLDivElement | null>(null)
+  const canScroll =
+    metrics.length > maxDashboardKpiCards
+
+  if (metrics.length === 0) {
+    return null
+  }
+
+  function scrollKpis(direction: -1 | 1) {
+    const node = scrollRef.current
+
+    if (!node) {
+      return
+    }
+
+    node.scrollBy({
+      left:
+        direction *
+        Math.max(node.clientWidth * 0.9, 320),
+      behavior: "smooth",
+    })
+  }
+
   return (
-    <div className="grid gap-4 md:grid-cols-4">
-      {metrics.slice(0, 4).map((metric) => (
-        <KpiCard
-          key={metric.column}
-          label={formatMetricName(metric.column)}
-          value={metric.total ?? 0}
-        />
-      ))}
-    </div>
+    <section className="space-y-2">
+      {canScroll && (
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => scrollKpis(-1)}
+            aria-label="Show previous KPI cards"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+          >
+            ‹
+          </button>
+
+          <button
+            type="button"
+            onClick={() => scrollKpis(1)}
+            aria-label="Show more KPI cards"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+          >
+            ›
+          </button>
+        </div>
+      )}
+
+      <div
+        ref={scrollRef}
+        className="dashboard-kpi-scroll flex gap-4 overflow-x-auto scroll-smooth pb-2"
+      >
+        {metrics.map((metric) => (
+          <div
+            key={metric.column}
+            className="dashboard-kpi-strip-card"
+          >
+            <KpiCard
+              label={formatMetricName(
+                metric.column
+              )}
+              value={metric.total ?? 0}
+            />
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -491,7 +909,9 @@ function MainChartCard({
   primaryMetric,
   selectedTarget,
   scaleMode,
-  className = "h-[640px]",
+  colorPalette,
+  className = "xl:h-[640px]",
+  chartAreaClassName = "mt-4 h-[360px] flex-none xl:h-auto xl:min-h-[360px] xl:flex-1",
 }: {
   chartType: ChartType
   chartRows: DashboardRow[]
@@ -501,11 +921,22 @@ function MainChartCard({
   primaryMetric: string
   selectedTarget: number
   scaleMode: ScaleMode
+  colorPalette: string[]
   className?: string
+  chartAreaClassName?: string
 }) {
   const hasChartData =
     chartRows.length > 0 &&
     selectedMetrics.length > 0
+  const chartDescription =
+    getSharedDashboardChartDescription({
+      chartType,
+      rows: chartRows,
+      xKey,
+      metrics: selectedMetrics,
+      target: selectedTarget,
+      showTarget: scaleMode === "actual",
+    })
 
   return (
     <SharedCard className={`flex min-w-0 flex-col ${className}`}>
@@ -523,10 +954,15 @@ function MainChartCard({
       />
 
       {hasChartData ? (
-        <div className="mt-4 min-h-[360px] flex-1">
+        <div
+          className={chartAreaClassName}
+          role="img"
+          aria-label={chartDescription}
+        >
           <ResponsiveContainer
             width="100%"
             height="100%"
+            minWidth={0}
           >
             <MainChart
               chartType={chartType}
@@ -538,11 +974,16 @@ function MainChartCard({
               showTarget={
                 scaleMode === "actual"
               }
+              colorPalette={colorPalette}
             />
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="mt-4 flex min-h-[360px] flex-1 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center">
+        <div
+          role="status"
+          aria-live="polite"
+          className={`flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center ${chartAreaClassName}`}
+        >
           <p className="max-w-sm text-sm text-gray-500">
             No chartable metrics are available for this shared dashboard.
           </p>
@@ -557,7 +998,7 @@ function TargetKpiCard({
   latestValue,
   selectedTarget,
   targetProgress,
-  className = "h-[640px]",
+  className = "xl:h-[640px]",
 }: {
   primaryMetric: string
   latestValue: number
@@ -604,16 +1045,63 @@ function TargetKpiCard({
 
 function SharedPageShell({
   children,
+  brand = defaultWorkspaceBrand,
 }: {
   children: React.ReactNode
+  brand?: WorkspaceBrand
 }) {
   return (
-    <main className="min-h-screen bg-gray-50 p-6 lg:p-10">
-      <div className="mx-auto max-w-7xl">
+    <main
+      className="min-h-screen bg-[var(--decisionate-app-surface-muted)] p-4 sm:p-6 lg:p-8"
+      style={getSharedBrandStyle(brand)}
+    >
+      <div className="mx-auto w-full max-w-none">
         {children}
       </div>
     </main>
   )
+}
+
+function getSharedBrandStyle(
+  brand: WorkspaceBrand
+): SharedBrandStyle {
+  return {
+    "--decisionate-brand-primary": brand.primaryColor,
+    "--decisionate-brand-primary-soft":
+      getBrandColorWithAlpha(
+        brand.primaryColor,
+        "12"
+      ),
+    "--decisionate-brand-primary-ring":
+      getBrandColorWithAlpha(
+        brand.primaryColor,
+        "33"
+      ),
+    "--decisionate-brand-primary-text":
+      getReadableBrandTextColor(
+        brand.primaryColor
+      ),
+    "--decisionate-brand-primary-surface-text":
+      getBrandSurfaceTextColor(
+        brand.primaryColor
+      ),
+    "--decisionate-brand-accent": brand.accentColor,
+    "--decisionate-brand-accent-soft":
+      getBrandColorWithAlpha(
+        brand.accentColor,
+        "12"
+      ),
+    "--decisionate-brand-accent-ring":
+      getBrandColorWithAlpha(
+        brand.accentColor,
+        "33"
+      ),
+    "--decisionate-brand-accent-text":
+      getReadableBrandTextColor(
+        brand.accentColor,
+        defaultWorkspaceBrand.accentColor
+      ),
+  }
 }
 
 function SharedCard({
@@ -643,12 +1131,12 @@ function CardHeader({
 }) {
   return (
     <div>
-      <h2 className="text-xl font-semibold tracking-tight">
+      <h2 className="break-words text-xl font-semibold tracking-tight">
         {title}
       </h2>
 
       {description && (
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 break-words text-sm text-gray-500">
           {description}
         </p>
       )}
@@ -664,8 +1152,8 @@ function KpiCard({
   value: string | number
 }) {
   return (
-    <SharedCard>
-      <p className="text-sm text-gray-500">
+    <SharedCard className="min-w-0">
+      <p className="truncate text-sm text-gray-500">
         {label}
       </p>
 
@@ -686,6 +1174,7 @@ function MainChart({
   allMetrics,
   target,
   showTarget,
+  colorPalette,
 }: {
   chartType: ChartType
   rows: DashboardRow[]
@@ -694,6 +1183,7 @@ function MainChart({
   allMetrics: DashboardMetric[]
   target: number
   showTarget: boolean
+  colorPalette: string[]
 }) {
   const margin = {
     top: 20,
@@ -717,12 +1207,12 @@ function MainChart({
       {showTarget && target > 0 && (
         <ReferenceLine
           y={target}
-          stroke="#111827"
+          stroke="var(--decisionate-brand-primary)"
           strokeDasharray="4 4"
           label={{
             value: "Target",
             position: "insideTopRight",
-            fill: "#111827",
+            fill: "var(--decisionate-brand-primary)",
             fontSize: 12,
           }}
         />
@@ -741,7 +1231,8 @@ function MainChart({
             dataKey={metric}
             name={formatMetricName(metric)}
             fill={getMetricColor(
-              getMetricIndex(allMetrics, metric)
+              getMetricIndex(allMetrics, metric),
+              colorPalette
             )}
             radius={[8, 8, 0, 0]}
           />
@@ -762,10 +1253,12 @@ function MainChart({
             dataKey={metric}
             name={formatMetricName(metric)}
             stroke={getMetricColor(
-              getMetricIndex(allMetrics, metric)
+              getMetricIndex(allMetrics, metric),
+              colorPalette
             )}
             fill={getMetricColor(
-              getMetricIndex(allMetrics, metric)
+              getMetricIndex(allMetrics, metric),
+              colorPalette
             )}
             fillOpacity={
               index === 0 ? 0.18 : 0.1
@@ -791,7 +1284,8 @@ function MainChart({
           dataKey={metric}
           name={formatMetricName(metric)}
           stroke={getMetricColor(
-            getMetricIndex(allMetrics, metric)
+            getMetricIndex(allMetrics, metric),
+            colorPalette
           )}
           strokeWidth={
             index === 0 ? 5 : 4
@@ -802,6 +1296,85 @@ function MainChart({
       ))}
     </LineChart>
   )
+}
+
+function getSharedDashboardChartDescription({
+  chartType,
+  rows,
+  xKey,
+  metrics,
+  target,
+  showTarget,
+}: {
+  chartType: ChartType
+  rows: DashboardRow[]
+  xKey: string
+  metrics: string[]
+  target: number
+  showTarget: boolean
+}) {
+  if (
+    rows.length === 0 ||
+    metrics.length === 0
+  ) {
+    return "No shared dashboard chart data is available."
+  }
+
+  const firstRow = rows[0]
+  const lastRow = rows[rows.length - 1]
+  const firstPeriod =
+    formatSharedChartCellValue(firstRow[xKey])
+  const lastPeriod =
+    formatSharedChartCellValue(lastRow[xKey])
+  const metricLabels =
+    metrics.map(formatMetricName)
+  const latestValues =
+    metrics.slice(0, 3).map(metric =>
+      `${formatMetricName(metric)} ${formatSharedChartCellValue(lastRow[metric])}`
+    )
+  const hiddenMetricCount =
+    Math.max(metrics.length - latestValues.length, 0)
+  const hiddenMetricSummary =
+    hiddenMetricCount > 0
+      ? `, plus ${hiddenMetricCount} more metric${
+          hiddenMetricCount === 1 ? "" : "s"
+        }`
+      : ""
+  const targetSummary =
+    showTarget && target > 0
+      ? ` Target is ${formatNumber(target)}.`
+      : ""
+
+  return `${formatMetricName(chartType)} chart showing ${metricLabels.join(
+    ", "
+  )} across ${rows.length} period${rows.length === 1 ? "" : "s"} from ${firstPeriod} to ${lastPeriod}. Latest values: ${latestValues.join(
+    ", "
+  )}${hiddenMetricSummary}.${targetSummary}`
+}
+
+function formatSharedChartCellValue(
+  value: DashboardCellValue
+) {
+  if (value instanceof Date) {
+    return value.toLocaleDateString()
+  }
+
+  const numericValue =
+    toFiniteDashboardNumber(value)
+
+  if (numericValue !== null) {
+    return formatNumber(numericValue)
+  }
+
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "unknown"
+  }
+
+  return String(value)
 }
 
 function TargetGauge({
@@ -824,7 +1397,13 @@ function TargetGauge({
     )
 
   return (
-    <div className="mx-auto w-52">
+    <div
+      role="img"
+      aria-label={`Target progress ${value} percent. ${status.text}. Current value ${formatNumber(
+        actualValue
+      )}; target ${formatNumber(targetValue)}.`}
+      className="mx-auto w-52"
+    >
       <div className="relative h-32 w-52">
         <svg
           viewBox="0 0 220 135"
@@ -836,8 +1415,8 @@ function TargetGauge({
             "#f97316",
             "#facc15",
             "#84cc16",
-            "#16a34a",
-            "#166534",
+            "var(--decisionate-brand-accent)",
+            "var(--decisionate-brand-accent-text)",
           ].map((color, index) => {
             const start =
               -180 + index * (180 / 7)
@@ -861,14 +1440,14 @@ function TargetGauge({
           >
             <path
               d="M110 112 L104 48 Q110 30 116 48 Z"
-              fill="#111827"
+              fill="var(--decisionate-brand-primary)"
             />
 
             <circle
               cx="110"
               cy="112"
               r="10"
-              fill="#111827"
+              fill="var(--decisionate-brand-primary)"
             />
           </g>
         </svg>
@@ -948,26 +1527,24 @@ function SnapshotRow({
   value: string | number
 }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+    <div className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <span className="text-sm text-gray-500">
         {label}
       </span>
 
-      <span className="font-semibold text-gray-900">
+      <span className="break-words font-semibold text-gray-900 sm:text-right">
         {value}
       </span>
     </div>
   )
 }
 
-function getSharedDashboardConfig(): SharedDashboardConfig {
-  if (typeof window === "undefined") {
-    return {}
-  }
-
+function getSharedDashboardConfig(
+  searchParamString: string
+): SharedDashboardConfig {
   const params =
     new URLSearchParams(
-      window.location.search
+      searchParamString
     )
   const datasetId =
     getQueryDatasetId(
@@ -975,6 +1552,8 @@ function getSharedDashboardConfig(): SharedDashboardConfig {
     )
   const template =
     params.get("template")
+  const selectedDashboard =
+    params.get("dashboard")?.trim()
   const token =
     params.get("token")?.trim()
 
@@ -986,8 +1565,64 @@ function getSharedDashboardConfig(): SharedDashboardConfig {
             template as DashboardTemplate
           )
         : undefined,
+    selectedDashboard:
+      isDashboardKey(selectedDashboard)
+        ? selectedDashboard
+        : undefined,
     token: token || undefined,
   }
+}
+
+function getSharedDashboardTitle(
+  dashboardTemplate: DashboardTemplate
+) {
+  switch (dashboardTemplate) {
+    case "executive":
+      return "Executive Dashboard"
+    case "comparison":
+      return "Comparison Dashboard"
+    case "performance":
+    default:
+      return "Performance Dashboard"
+  }
+}
+
+function getDashboardDatasetDescription(
+  dataset: DashboardDataset,
+  sourceDetails: ReturnType<
+    typeof getDatasetSourceDetails
+  > | null
+) {
+  return sourceDetails
+    ? `${dataset.file_name} • ${sourceDetails.label}`
+    : dataset.file_name
+}
+
+function cleanDashboardText(
+  value: string,
+  maxLength: number
+) {
+  return value
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength)
+}
+
+function getSavedDashboardText(
+  value: unknown,
+  fallback: string,
+  maxLength: number
+) {
+  if (typeof value !== "string") {
+    return fallback
+  }
+
+  const cleanValue = cleanDashboardText(
+    value,
+    maxLength
+  )
+
+  return cleanValue || fallback
 }
 
 function getQueryDatasetId(
@@ -1029,6 +1664,40 @@ function getSavedSelectedMetrics(
   return availableMetrics.length > 0
     ? [availableMetrics[0]]
     : []
+}
+
+function getSavedDashboardMetricMapping(
+  mapping: unknown
+): DashboardMetricMapping {
+  if (
+    !mapping ||
+    typeof mapping !== "object" ||
+    Array.isArray(mapping)
+  ) {
+    return {}
+  }
+
+  return (
+    [
+      "primary",
+      "category",
+      "stage",
+      "date",
+    ] as const
+  ).reduce<DashboardMetricMapping>(
+    (result, key) => {
+      const value = (
+        mapping as Record<string, unknown>
+      )[key]
+
+      if (typeof value === "string" && value.trim()) {
+        result[key] = value.trim().slice(0, 120)
+      }
+
+      return result
+    },
+    {}
+  )
 }
 
 function getSavedMetricTargets(
@@ -1425,10 +2094,40 @@ function getMetricIndex(
   return Math.max(index, 0)
 }
 
-function getMetricColor(index: number) {
+function getMetricColor(
+  index: number,
+  colorPalette: string[]
+) {
   return colorPalette[
     index % colorPalette.length
   ]
+}
+
+function getDashboardColorPalette(
+  primaryColor: string,
+  accentColor: string
+) {
+  return [
+    primaryColor,
+    accentColor,
+    ...defaultColorPalette,
+  ].reduce<string[]>((palette, color) => {
+    const normalizedColor =
+      color.trim().toLowerCase()
+
+    if (
+      normalizedColor &&
+      !palette.some(
+        (existingColor) =>
+          existingColor.trim().toLowerCase() ===
+          normalizedColor
+      )
+    ) {
+      palette.push(color)
+    }
+
+    return palette
+  }, [])
 }
 
 function isAbortError(error: unknown) {
@@ -1441,16 +2140,7 @@ function isAbortError(error: unknown) {
 }
 
 function formatMetricName(metric: string) {
-  if (!metric) return "None"
-
-  return metric
-    .split("_")
-    .map(
-      word =>
-        word.charAt(0).toUpperCase() +
-        word.slice(1)
-    )
-    .join(" ")
+  return formatMetricLabel(metric)
 }
 
 function formatNumber(value: number) {

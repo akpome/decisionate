@@ -164,7 +164,7 @@ def get_verified_workspace_access(
 
 
 # =========================
-# Workspace Membership Validation For Agency And Client Access
+# Workspace Membership Validation For Shared Workspace Access
 # =========================
 
 def verify_workspace_membership(

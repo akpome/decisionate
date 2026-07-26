@@ -86,3 +86,11 @@ class DatasetPreferenceResponse(BaseModel):
     metric_targets: dict[str, dict[str, float]] | None = None
 
     dashboard_preferences: dict[str, dict[str, Any]] | None = None
+
+
+class DashboardPreferenceUpdate(BaseModel):
+    selected_dashboard: str
+
+
+class DashboardPreferenceResponse(BaseModel):
+    selected_dashboard: str

@@ -7,6 +7,7 @@ import type { DataSourceConnection } from "@/lib/api"
 
 type ConnectionPullWidgetProps = {
   connections: DataSourceConnection[]
+  loadError?: boolean
 }
 
 function formatStatus(
@@ -39,15 +40,12 @@ function getStatusClasses(
 
 export function ConnectionPullWidget({
   connections,
+  loadError = false,
 }: ConnectionPullWidgetProps) {
   const [
     selectedConnectionId,
     setSelectedConnectionId,
   ] = useState("")
-  const [
-    preparedConnectionId,
-    setPreparedConnectionId,
-  ] = useState<number | null>(null)
 
   const selectedConnection =
     connections.find(
@@ -60,48 +58,35 @@ export function ConnectionPullWidget({
 
   const selectedId =
     selectedConnection?.id.toString() ?? ""
+  const selectedConnectionLabel =
+    selectedConnection
+      ? `${selectedConnection.display_name} · ${selectedConnection.source_label}`
+      : undefined
   const hasEnvironmentRequirement =
     selectedConnection?.environment_configured != null
-  const isReadyForPull =
-    Boolean(
-      selectedConnection?.has_config
-    ) &&
-    selectedConnection?.environment_configured !==
-      false
 
   function handleSelectionChange(
     connectionId: string
   ) {
     setSelectedConnectionId(connectionId)
-    setPreparedConnectionId(null)
-  }
-
-  function handlePreparePull() {
-    if (!selectedConnection) {
-      return
-    }
-
-    setPreparedConnectionId(
-      selectedConnection.id
-    )
   }
 
   return (
-    <div className="rounded-2xl border bg-white p-8 shadow-sm">
+    <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold">
-            Pull from Saved Connection
+            Saved Connection Status
           </h2>
 
           <p className="mt-2 text-sm text-gray-500">
-            Select an existing connection as the source for a dataset pull. Connection setup stays under Connections.
+            Review saved connection setup. External connector pulls are planned; supported files can be uploaded from Datasets.
           </p>
         </div>
 
         <Link
           href="/dashboard/connections"
-          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+          className="inline-flex w-full items-center justify-center rounded-lg border border-[var(--decisionate-brand-primary-ring)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] sm:w-auto sm:border-0 sm:px-0 sm:py-0 sm:hover:bg-transparent sm:hover:opacity-80"
         >
           Manage connections
         </Link>
@@ -109,7 +94,9 @@ export function ConnectionPullWidget({
 
       {connections.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-gray-50 p-5 text-sm text-gray-600">
-          No saved connections yet. Create a PostgreSQL or external source connection first, then return here to use it as a dataset source.
+          {loadError
+            ? "Saved connections are unavailable. Retry the data services above."
+            : "No pull-capable connections are configured yet. External connector pulls are planned; upload a CSV, Excel, JSON, or Parquet file from Datasets for now."}
         </div>
       ) : (
         <div className="space-y-5">
@@ -124,12 +111,13 @@ export function ConnectionPullWidget({
             <select
               id="dataset-connection-source"
               value={selectedId}
+              title={selectedConnectionLabel}
               onChange={(event) =>
                 handleSelectionChange(
                   event.target.value
                 )
               }
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              className="block w-full max-w-full truncate rounded-lg border border-gray-300 bg-white px-3 py-2 pr-9 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
             >
               {connections.map((connection) => (
                 <option
@@ -144,22 +132,22 @@ export function ConnectionPullWidget({
 
           {selectedConnection && (
             <>
-              <div className="grid gap-3 rounded-xl border bg-gray-50 p-4 text-sm sm:grid-cols-4">
-                <div>
+              <div className="grid min-w-0 gap-3 rounded-xl border bg-gray-50 p-4 text-sm sm:grid-cols-4">
+                <div className="min-w-0">
                   <p className="text-xs uppercase tracking-wide text-gray-400">
                     Source
                   </p>
-                  <p className="mt-1 font-medium text-gray-900">
+                  <p className="mt-1 break-words font-medium text-gray-900">
                     {selectedConnection.source_label}
                   </p>
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs uppercase tracking-wide text-gray-400">
                     Status
                   </p>
                   <span
-                    className={`mt-1 inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusClasses(
+                    className={`mt-1 inline-flex max-w-full rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusClasses(
                       selectedConnection.status
                     )}`}
                   >
@@ -169,11 +157,11 @@ export function ConnectionPullWidget({
                   </span>
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs uppercase tracking-wide text-gray-400">
                     Setup
                   </p>
-                  <p className="mt-1 font-medium text-gray-900">
+                  <p className="mt-1 break-words font-medium text-gray-900">
                     {selectedConnection.has_config
                       ? "Configuration saved"
                       : "Needs configuration"}
@@ -181,7 +169,7 @@ export function ConnectionPullWidget({
                 </div>
 
                 {hasEnvironmentRequirement && (
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs uppercase tracking-wide text-gray-400">
                       Credentials
                     </p>
@@ -193,35 +181,16 @@ export function ConnectionPullWidget({
                       }
                     >
                       {selectedConnection.environment_configured
-                        ? "Configured"
-                        : "Not configured"}
+                        ? "Ready"
+                        : "Needs setup"}
                     </p>
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <button
-                  type="button"
-                  onClick={handlePreparePull}
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
-                >
-                  Use for Dataset Pull
-                </button>
-
-                <p className="text-sm text-gray-500">
-                  {isReadyForPull
-                    ? "Ready to use this saved connection for dataset ingestion work."
-                    : "Add the required connection settings and credentials before pulling data from this source."}
-                </p>
+              <div className="break-words rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-4 py-3 text-sm text-[var(--decisionate-brand-primary-text)]">
+                Connection ingestion is not enabled in this MVP. Upload a CSV, Excel, JSON, or Parquet file to create a dataset.
               </div>
-
-              {preparedConnectionId ===
-                selectedConnection.id && (
-                <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                  {selectedConnection.display_name} is selected as the dataset pull source. The pull job can use this saved connection without exposing engine details here.
-                </div>
-              )}
             </>
           )}
         </div>

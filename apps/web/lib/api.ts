@@ -1,6 +1,13 @@
 import {
   getActiveWorkspaceId,
+  notifyWorkspaceAccessChanged,
 } from "@/lib/workspace-context"
+import {
+  dashboardUsesDatasetMetricMapping,
+  defaultDashboardKey,
+  getDashboardDefinition,
+  isDashboardKey,
+} from "@/features/dashboards/dashboard-definitions"
 
 const configuredApiUrl =
   process.env.NEXT_PUBLIC_API_URL
@@ -9,6 +16,11 @@ const configuredApiUrl =
 
 export const API_URL =
   configuredApiUrl || "http://localhost:8000"
+const maxDashboardTitleLength = 120
+const maxDashboardSubtitleLength = 220
+const maxDashboardChartTitleLength = 80
+const datasetPreferenceWriteQueues =
+  new Map<string, Promise<void>>()
 
 type ApiErrorBody = {
   detail?: string | {
@@ -129,6 +141,28 @@ export type DatasetSummary = {
   created_at?: string
 }
 
+export type DatasetMetricSummary = {
+  column: string
+  total?: number
+  average?: number
+  min?: number
+  max?: number
+  minimum?: number
+  maximum?: number
+}
+
+export type DatasetMetricsResponse = {
+  dataset_id: number
+  file_name: string
+  metrics: DatasetMetricSummary[]
+}
+
+export type DatasetAIAnalysisResponse = {
+  dataset_id: number
+  metric?: string | null
+  ai_analysis: AIAnalysis
+}
+
 export type DatasetSourceStatus =
   | "available"
   | "needs_setup"
@@ -185,7 +219,9 @@ export type DataSourceConnectionUpdatePayload = {
   connection_config?: Record<string, unknown>
 }
 
-type DashboardPreferencePayload = {
+export type DashboardPreferencePayload = {
+  title?: string
+  subtitle?: string
   selectedMetrics?: string[]
   chartType?: "line" | "bar" | "area"
   scaleMode?: "actual" | "indexed"
@@ -203,22 +239,74 @@ type DashboardPreferencePayload = {
     | "performance"
     | "comparison"
   startDate?: string
+  metricMappings?: Record<string, DashboardMetricMapping>
+  chartTitles?: Record<string, DashboardChartTitles>
+}
+
+export type DashboardMetricMapping = {
+  primary?: string
+  category?: string
+  stage?: string
+  date?: string
+}
+
+export type DashboardChartTitleKey =
+  | "trend"
+  | "mix"
+  | "operations"
+  | "outcome"
+
+export type DashboardChartTitles = Partial<
+  Record<DashboardChartTitleKey, string>
+>
+
+export type SelectedDashboardPreference = {
+  selected_dashboard: string
+}
+
+export type DatasetPreferenceResponse = {
+  selected_dataset_id: number | null
+  selected_metric?: string | null
+  metric_targets?: Record<string, Record<string, number>> | null
+  dashboard_preferences?: Record<
+    string,
+    DashboardPreferencePayload
+  > | null
 }
 
 export type DatasetShareLink = {
   dataset_id: number
+  dashboard?: string
   share_token: string
   share_enabled: boolean
 }
 
 export type DatasetShareStatus = {
   dataset_id: number
+  dashboard?: string
   share_enabled: boolean
 }
 
 export type DatasetShareResult = {
   dataset_id: number
+  dashboard?: string
   share_token: string | null
+  share_enabled: boolean
+}
+
+export type StopAllDatasetSharingResult = {
+  datasets_updated: number
+  legacy_shares_cleared?: number
+  dashboard_shares_deleted: number
+  shares_stopped?: number
+  share_enabled: boolean
+}
+
+export type AllDatasetSharingStatus = {
+  datasets_checked: number
+  legacy_shares: number
+  dashboard_shares: number
+  shares_active: number
   share_enabled: boolean
 }
 
@@ -234,11 +322,125 @@ export type WeeklyReportPreference = {
   recipient_emails: string[]
   metric_focus: string[]
   include_recommendations: boolean
+  sender_name: string
+  sender_email: string
+  reply_to_email: string
+  subject_prefix: string
+  smtp_host: string
+  smtp_port?: number | null
+  smtp_username: string
+  smtp_password?: string
+  smtp_clear_password?: boolean
+  smtp_password_set: boolean
+  smtp_use_tls: boolean
+  smtp_use_ssl: boolean
+  last_sent_at?: string | null
+  last_send_status?: string | null
+  last_send_error?: string | null
+}
+
+export type WeeklyReportDigestMetric = {
+  dataset_id: number
+  dataset_name: string
+  column: string
+  total?: number | null
+  average?: number | null
+  minimum?: number | null
+  maximum?: number | null
+}
+
+export type AIAnalysis = {
+  source: "openai" | "rules"
+  model?: string | null
+  metric?: string | null
+  fallback_reason?:
+    | "not_configured"
+    | "unsupported_provider"
+    | "provider_unavailable"
+    | null
+  summary: string
+  recommendations: string[]
+  risks: string[]
+  confidence: "high" | "medium" | "low"
+  learning_context?: {
+    learning_scope?:
+      | "workspace"
+      | "dataset"
+      | "metric"
+      | "decision"
+    recorded_lesson_count: number
+    recorded_outcome_count: number
+    sampled_lesson_count: number
+    sampled_evidence_count: number
+  } | null
+}
+
+export type WeeklyReportAIAnalysis = AIAnalysis
+
+export type WeeklyReportDigest = {
+  enabled: boolean
+  cadence: "weekly"
+  delivery_day:
+    | "monday"
+    | "tuesday"
+    | "wednesday"
+    | "thursday"
+    | "friday"
+  recipient_emails: string[]
+  metric_focus: string[]
+  sender_name: string
+  sender_email: string
+  reply_to_email: string
+  subject_prefix: string
+  brand_name: string
+  subject: string
+  preview_text: string
+  ai_analysis?: WeeklyReportAIAnalysis | null
+  dataset_count: number
+  metrics: WeeklyReportDigestMetric[]
+  recommendations: string[]
+  unavailable_datasets: string[]
+}
+
+export type WeeklyReportDeliveryResult = {
+  status: "sent"
+  workspace_id: string
+  delivered_count: number
+  recipients: string[]
+  subject: string
+  metrics_count: number
+  sent_at: string
+}
+
+export type WeeklyReportDeliveryConfig = {
+  email_delivery_configured: boolean
+  scheduler_configured: boolean
+  required_email_environment_keys: string[]
+  optional_email_environment_keys: string[]
+  scheduler_environment_key: string
+  scheduler_header_name: string
+  send_due_endpoint: string
+  ai_provider_configured?: boolean
+  ai_provider?: string
+  ai_model?: string | null
+}
+
+export type AIStatus = {
+  configured: boolean
+  provider: string
+  model?: string | null
 }
 
 export type PublicSharedDashboardResponse = {
+  branding: {
+    name: string
+    logo_url?: string | null
+    primary_color?: string | null
+    accent_color?: string | null
+  }
   dataset: {
     file_name: string
+    row_count?: number
     source_type?: string | null
     source_label?: string | null
     source_config?: string | null
@@ -272,6 +474,8 @@ export type PublicSharedDashboardResponse = {
     dashboard_preferences?: Record<
       string,
       {
+        title?: string
+        subtitle?: string
         selectedMetrics?: string[]
         chartType?: "line" | "bar" | "area"
         scaleMode?: "actual" | "indexed"
@@ -289,9 +493,18 @@ export type PublicSharedDashboardResponse = {
           | "performance"
           | "comparison"
         startDate?: string
+        metricMappings?: Record<
+          string,
+          Record<string, string>
+        >
+        chartTitles?: Record<
+          string,
+          DashboardChartTitles
+        >
       }
     > | null
   }
+  decision_summary?: DecisionSummary | null
 }
 
 export type ForecastResponse = {
@@ -320,12 +533,25 @@ export type ForecastResponse = {
         | "stable"
       forecast_period?: string | null
     }
+    model_quality?: {
+      method: string
+      candidate_count?: number
+      validation_periods: number
+      mae: number | null
+      mape: number | null
+      reliability?:
+        | "limited"
+        | "low"
+        | "moderate"
+        | "good"
+    }
     available_metrics?: string[]
     recommendation: {
       title: string
       reason: string
       confidence: DecisionConfidenceScore
     }
+    ai_analysis?: AIAnalysis
   }
 }
 
@@ -384,6 +610,7 @@ export type DecisionRecord = {
   id: number
   workspace_id?: string | null
   dataset_id: number
+  metric_column?: string | null
   title: string
   description?: string | null
   notes?: string | null
@@ -420,6 +647,12 @@ export type DecisionSummary = {
   by_status: Record<string, number>
   by_outcome_status: Record<string, number>
   by_category: Record<string, number>
+  ai_analysis?: AIAnalysis | null
+}
+
+export type DecisionOutcomeAnalysisResponse = {
+  decision_id: number
+  ai_analysis: AIAnalysis
 }
 
 export type DecisionActivity = {
@@ -439,9 +672,10 @@ export type DecisionActivityFeedItem =
 
 export type DecisionCreatePayload = {
   dataset_id: number
+  metric_column?: string
   title: string
   description?: string
-  expected_outcome?: string
+  expected_outcome: string
   priority?: DecisionPriority
   category?: DecisionCategory
   confidence_score?: DecisionConfidenceScore
@@ -459,6 +693,7 @@ export type DecisionOverviewPayload = {
 export type DecisionDetailsPayload = {
   title?: string
   description?: string | null
+  metric_column?: string | null
 }
 
 export type DecisionOutcomePayload = {
@@ -521,7 +756,7 @@ export type OrganizationInviteCreatePayload = {
 }
 
 /* =========================
-   Workspace Header Helpers For User And Agency Scoped Requests
+   Workspace Header Helpers For Personal And Shared Workspace Requests
 ========================= */
 
 type ClerkBrowserSession = {
@@ -537,8 +772,17 @@ type AuthenticatedHeaders =
 
 const clerkTokenTimeoutMs = 1500
 const apiRequestTimeoutMs = 10000
+const apiReadCacheTtlMs = 15000
 const clerkBearerAuthEnabled =
   process.env.NEXT_PUBLIC_ENABLE_API_BEARER_AUTH === "true"
+
+type ApiReadCacheEntry<T> = {
+  expiresAt: number
+  promise: Promise<T>
+}
+
+const apiReadCache =
+  new Map<string, ApiReadCacheEntry<unknown>>()
 
 declare global {
   interface Window {
@@ -594,17 +838,48 @@ async function apiFetch(
   init?: RequestInit
 ) {
   if (typeof window === "undefined") {
-    return fetch(
-      input,
-      init
-    )
+    try {
+      return await fetch(
+        input,
+        init
+      )
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(
+          "API service is unavailable. Check that the backend is running and reachable."
+        )
+      }
+
+      throw error
+    }
   }
 
   const controller =
     new AbortController()
+  const callerSignal = init?.signal
+  let timedOut = false
+  const abortFromCaller = () => {
+    controller.abort()
+  }
+
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      controller.abort()
+    } else {
+      callerSignal.addEventListener(
+        "abort",
+        abortFromCaller,
+        { once: true }
+      )
+    }
+  }
+
   const timeoutId =
     window.setTimeout(
-      () => controller.abort(),
+      () => {
+        timedOut = true
+        controller.abort()
+      },
       apiRequestTimeoutMs
     )
 
@@ -618,14 +893,28 @@ async function apiFetch(
     )
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
+      if (!timedOut) {
+        throw error
+      }
+
       throw new Error(
         "API request timed out. Check that the backend is running and responding."
+      )
+    }
+
+    if (error instanceof TypeError) {
+      throw new Error(
+        "API service is unavailable. Check that the backend is running and reachable."
       )
     }
 
     throw error
   } finally {
     window.clearTimeout(timeoutId)
+    callerSignal?.removeEventListener(
+      "abort",
+      abortFromCaller
+    )
   }
 }
 
@@ -731,6 +1020,44 @@ async function throwApiError(
   )
 }
 
+async function fetchOrganizationRequest(
+  input: string,
+  init: RequestInit
+): Promise<Response> {
+  try {
+    return await apiFetch(
+      input,
+      init
+    )
+  } catch (error) {
+    rethrowApiFetchError(
+      error,
+      "Organization service is unavailable."
+    )
+  }
+}
+
+function rethrowApiFetchError(
+  error: unknown,
+  fallbackMessage: string
+): never {
+  if (error instanceof Error && error.message) {
+    const normalizedMessage =
+      error.message.trim().toLowerCase()
+    const isTransportFailure =
+      normalizedMessage === "failed to fetch" ||
+      normalizedMessage === "fetch failed" ||
+      normalizedMessage === "load failed" ||
+      normalizedMessage === "network request failed"
+
+    if (!isTransportFailure) {
+      throw error
+    }
+  }
+
+  throw new Error(fallbackMessage)
+}
+
 export class ApiError extends Error {
   status: number
 
@@ -741,6 +1068,123 @@ export class ApiError extends Error {
     super(message)
     this.name = "ApiError"
     this.status = status
+  }
+}
+
+function getWorkspaceCacheIdentity(
+  userId: string,
+  workspaceId?: string
+) {
+  const cleanUserId =
+    cleanHeaderIdentity(userId)
+  const activeWorkspaceId =
+    cleanHeaderIdentity(
+      workspaceId,
+      getActiveWorkspaceId(cleanUserId)
+    )
+
+  return `${cleanUserId}:${activeWorkspaceId}`
+}
+
+function getCachedRead<T>(
+  cacheKey: string,
+  loader: () => Promise<T>
+): Promise<T> {
+  if (typeof window === "undefined") {
+    return loader()
+  }
+
+  const now = Date.now()
+  const cachedEntry =
+    apiReadCache.get(cacheKey) as
+      | ApiReadCacheEntry<T>
+      | undefined
+
+  if (
+    cachedEntry &&
+    cachedEntry.expiresAt > now
+  ) {
+    return cachedEntry.promise
+  }
+
+  const promise =
+    loader().catch((error) => {
+      const currentEntry =
+        apiReadCache.get(cacheKey)
+
+      if (currentEntry?.promise === promise) {
+        apiReadCache.delete(cacheKey)
+      }
+
+      throw error
+    })
+
+  apiReadCache.set(
+    cacheKey,
+    {
+      expiresAt: now + apiReadCacheTtlMs,
+      promise,
+    }
+  )
+
+  return promise
+}
+
+function enqueueDatasetPreferenceWrite<T>(
+  cacheKey: string,
+  writer: () => Promise<T>
+) {
+  const previousWrite =
+    datasetPreferenceWriteQueues.get(cacheKey) ??
+    Promise.resolve()
+  const nextWrite = previousWrite
+    .catch(() => undefined)
+    .then(writer)
+  const settledWrite = nextWrite.then(
+    () => undefined,
+    () => undefined
+  )
+
+  datasetPreferenceWriteQueues.set(
+    cacheKey,
+    settledWrite
+  )
+
+  return nextWrite.finally(() => {
+    if (
+      datasetPreferenceWriteQueues.get(cacheKey) ===
+      settledWrite
+    ) {
+      datasetPreferenceWriteQueues.delete(cacheKey)
+    }
+  })
+}
+
+function invalidateApiReadCache(
+  prefixes: string[]
+) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  for (const cacheKey of apiReadCache.keys()) {
+    if (
+      prefixes.some((prefix) =>
+        cacheKey.startsWith(prefix)
+      )
+    ) {
+      apiReadCache.delete(cacheKey)
+    }
+  }
+
+  if (
+    prefixes.some((prefix) =>
+      prefix.startsWith(
+        "organization-workspaces:"
+      )
+    )
+  ) {
+    notifyWorkspaceAccessChanged()
   }
 }
 
@@ -956,16 +1400,38 @@ function cleanDashboardPreference(
   preference: Record<string, unknown>
 ): DashboardPreferencePayload {
   const cleanPreference: DashboardPreferencePayload = {}
+  const cleanTitle =
+    getCleanDashboardPreferenceText(
+      preference.title,
+      maxDashboardTitleLength
+    )
+  const cleanSubtitle =
+    getCleanDashboardPreferenceText(
+      preference.subtitle,
+      maxDashboardSubtitleLength
+    )
+
+  if (cleanTitle) {
+    cleanPreference.title = cleanTitle
+  }
+
+  if (cleanSubtitle) {
+    cleanPreference.subtitle = cleanSubtitle
+  }
+
   const selectedMetrics =
     preference.selectedMetrics
 
   if (Array.isArray(selectedMetrics)) {
-    const cleanMetrics =
-      selectedMetrics.filter(
-        (metric): metric is string =>
-          typeof metric === "string" &&
-          Boolean(metric.trim())
-      ).map((metric) => metric.trim())
+    const cleanMetrics = Array.from(
+      new Set(
+        selectedMetrics.filter(
+          (metric): metric is string =>
+            typeof metric === "string" &&
+            Boolean(metric.trim())
+        ).map((metric) => metric.trim())
+      )
+    )
 
     if (cleanMetrics.length > 0) {
       cleanPreference.selectedMetrics =
@@ -1007,7 +1473,176 @@ function cleanDashboardPreference(
       preference.startDate
   }
 
+  if (
+    preference.metricMappings &&
+    typeof preference.metricMappings === "object" &&
+    !Array.isArray(preference.metricMappings)
+  ) {
+    const cleanMappings =
+      Object.fromEntries(
+        Object.entries(
+          preference.metricMappings
+        ).map(([dashboard, mapping]) => [
+          dashboard,
+          cleanDashboardPreferenceMapping(mapping),
+        ]).filter(
+          ([dashboard, mapping]) =>
+            typeof dashboard === "string" &&
+            Boolean(dashboard.trim()) &&
+            isDashboardKey(dashboard) &&
+            dashboardUsesDatasetMetricMapping(
+              getDashboardDefinition(dashboard).componentKey
+            ) &&
+            mapping &&
+            Object.keys(mapping).length > 0
+        )
+      )
+
+  if (Object.keys(cleanMappings).length > 0) {
+      cleanPreference.metricMappings =
+        cleanMappings
+    }
+  }
+
+  if (
+    preference.chartTitles &&
+    typeof preference.chartTitles === "object" &&
+    !Array.isArray(preference.chartTitles)
+  ) {
+    const cleanChartTitles =
+      Object.fromEntries(
+        Object.entries(
+          preference.chartTitles as Record<string, unknown>
+        ).map(([dashboard, titles]) => [
+          dashboard,
+          cleanDashboardPreferenceChartTitles(titles),
+        ]).filter(
+          ([dashboard, titles]) =>
+            typeof dashboard === "string" &&
+            Boolean(dashboard.trim()) &&
+            isDashboardKey(dashboard) &&
+            dashboard !== "general-business" &&
+            titles &&
+            Object.keys(titles).length > 0
+        )
+      )
+
+    if (Object.keys(cleanChartTitles).length > 0) {
+      cleanPreference.chartTitles =
+        cleanChartTitles as Record<
+          string,
+          DashboardChartTitles
+        >
+    }
+  }
+
   return cleanPreference
+}
+
+function cleanDashboardPreferenceChartTitles(
+  titles: unknown
+): DashboardChartTitles {
+  if (
+    !titles ||
+    typeof titles !== "object" ||
+    Array.isArray(titles)
+  ) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(titles as Record<string, unknown>)
+      .filter(([key]) =>
+        [
+          "trend",
+          "mix",
+          "operations",
+          "outcome",
+        ].includes(key)
+      )
+      .map(([key, value]) => [
+        key,
+        typeof value === "string"
+          ? value
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, maxDashboardChartTitleLength)
+          : "",
+      ])
+      .filter(([, value]) => Boolean(value))
+  ) as DashboardChartTitles
+}
+
+function cleanDashboardPreferenceMapping(
+  mapping: unknown
+) {
+  if (
+    !mapping ||
+    typeof mapping !== "object" ||
+    Array.isArray(mapping)
+  ) {
+    return undefined
+  }
+
+  return Object.fromEntries(
+    Object.entries(
+      mapping as Record<string, unknown>
+    ).filter(
+      ([key, value]) =>
+        [
+          "primary",
+          "category",
+          "stage",
+          "date",
+        ].includes(key) &&
+        typeof value === "string" &&
+        Boolean(value.trim())
+    ).map(([key, value]) => [
+      key,
+      String(value).trim(),
+    ])
+  )
+}
+
+function getSafeDashboardPreference(
+  preference: unknown
+): SelectedDashboardPreference {
+  if (
+    !preference ||
+    typeof preference !== "object" ||
+    Array.isArray(preference)
+  ) {
+    return {
+      selected_dashboard: defaultDashboardKey,
+    }
+  }
+
+  const selectedDashboard = (
+    preference as Record<string, unknown>
+  ).selected_dashboard
+
+  return {
+    selected_dashboard:
+      isDashboardKey(selectedDashboard)
+        ? selectedDashboard
+        : defaultDashboardKey,
+  }
+}
+
+function getCleanDashboardPreferenceText(
+  value: unknown,
+  maxLength: number
+) {
+  if (typeof value !== "string") {
+    return undefined
+  }
+
+  const cleanValue = value
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength)
+
+  return cleanValue || undefined
 }
 
 function isChartType(
@@ -1216,7 +1851,7 @@ export async function uploadDataset(
   )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/datasets/upload`,
       {
         method: "POST",
@@ -1235,6 +1870,21 @@ export async function uploadDataset(
     )
   }
 
+  invalidateApiReadCache([
+    `datasets:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}`,
+    `dataset-metrics:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}:`,
+    `dataset-preference:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}`,
+  ])
+
   return response.json()
 }
 
@@ -1242,41 +1892,114 @@ export async function getDatasets(
   userId: string,
   workspaceId?: string
 ): Promise<DatasetSummary[]> {
-  const response =
-    await fetch(
-      `${API_URL}/datasets`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
+  const cacheKey =
+    `datasets:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}`
+
+  return getCachedRead(
+    cacheKey,
+    async () => {
+      let response: Response
+
+      try {
+        response =
+          await apiFetch(
+            `${API_URL}/datasets/`,
+            {
+              headers: await workspaceHeaders(
+                userId,
+                workspaceId
+              ),
+            }
+          )
+      } catch (error) {
+        rethrowApiFetchError(
+          error,
+          "Dataset service is unavailable."
+        )
       }
-    )
 
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load datasets"
-    )
-  }
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to load datasets"
+        )
+      }
 
-  return response.json()
+      return response.json()
+    }
+  )
+}
+
+export async function getDatasetMetrics(
+  id: number,
+  userId: string,
+  workspaceId?: string
+): Promise<DatasetMetricsResponse> {
+  const cleanDatasetId =
+    cleanPositiveIntegerId(
+      id,
+      "Dataset id"
+    )
+  const cacheIdentity =
+    getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )
+  const cacheKey =
+    `dataset-metrics:${cacheIdentity}:${cleanDatasetId}`
+
+  return getCachedRead(
+    cacheKey,
+    async () => {
+      const response =
+        await apiFetch(
+          `${API_URL}/datasets/${cleanDatasetId}/metrics`,
+          {
+            headers: await workspaceHeaders(
+              userId,
+              workspaceId
+            ),
+          }
+        )
+
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to load dataset metrics"
+        )
+      }
+
+      return response.json()
+    }
+  )
 }
 
 export async function getDatasetSources(
   userId: string,
   workspaceId?: string
 ): Promise<DatasetSourceOption[]> {
-  const response =
-    await fetch(
-      `${API_URL}/datasets/sources`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
-      }
+  let response: Response
+
+  try {
+    response =
+      await apiFetch(
+        `${API_URL}/datasets/sources`,
+        {
+          headers: await workspaceHeaders(
+            userId,
+            workspaceId
+          ),
+        }
+      )
+  } catch (error) {
+    rethrowApiFetchError(
+      error,
+      "Dataset source service is unavailable."
     )
+  }
 
   if (!response.ok) {
     await throwApiError(
@@ -1295,7 +2018,7 @@ export async function getAnalyticsEngineStatus(
   workspaceId?: string
 ): Promise<AnalyticsEngineStatus> {
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/datasets/analytics/status`,
       {
         headers: await workspaceHeaders(
@@ -1319,16 +2042,25 @@ export async function getDataSourceConnections(
   userId: string,
   workspaceId?: string
 ): Promise<DataSourceConnection[]> {
-  const response =
-    await fetch(
-      `${API_URL}/datasets/source-connections`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
-      }
+  let response: Response
+
+  try {
+    response =
+      await apiFetch(
+        `${API_URL}/datasets/source-connections`,
+        {
+          headers: await workspaceHeaders(
+            userId,
+            workspaceId
+          ),
+        }
+      )
+  } catch (error) {
+    rethrowApiFetchError(
+      error,
+      "Data source connection service is unavailable."
     )
+  }
 
   if (!response.ok) {
     await throwApiError(
@@ -1345,7 +2077,7 @@ export async function getWeeklyReportPreference(
   workspaceId?: string
 ): Promise<WeeklyReportPreference> {
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/alerts/weekly-report`,
       {
         headers: await workspaceHeaders(
@@ -1365,13 +2097,88 @@ export async function getWeeklyReportPreference(
   return response.json()
 }
 
+export async function getWeeklyReportDigest(
+  userId: string,
+  workspaceId?: string
+): Promise<WeeklyReportDigest> {
+  const response =
+    await apiFetch(
+      `${API_URL}/alerts/weekly-report/digest`,
+      {
+        headers: await workspaceHeaders(
+          userId,
+          workspaceId
+        ),
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to load weekly report preview"
+    )
+  }
+
+  return response.json()
+}
+
+export async function getWeeklyReportDeliveryConfig(
+  userId: string,
+  workspaceId?: string
+): Promise<WeeklyReportDeliveryConfig> {
+  const response =
+    await apiFetch(
+      `${API_URL}/alerts/weekly-report/delivery-config`,
+      {
+        headers: await workspaceHeaders(
+          userId,
+          workspaceId
+        ),
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to load weekly report delivery configuration"
+    )
+  }
+
+  return response.json()
+}
+
+export async function getAIStatus(
+  userId: string,
+  workspaceId?: string
+): Promise<AIStatus> {
+  const response =
+    await apiFetch(
+      `${API_URL}/ai/status`,
+      {
+        headers: await workspaceHeaders(
+          userId,
+          workspaceId
+        ),
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to load AI status"
+    )
+  }
+
+  return response.json()
+}
+
 export async function updateWeeklyReportPreference(
   payload: WeeklyReportPreference,
   userId: string,
   workspaceId?: string
 ): Promise<WeeklyReportPreference> {
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/alerts/weekly-report`,
       {
         method: "PUT",
@@ -1395,6 +2202,58 @@ export async function updateWeeklyReportPreference(
   return response.json()
 }
 
+export async function sendWeeklyReportNow(
+  userId: string,
+  workspaceId?: string
+): Promise<WeeklyReportDeliveryResult> {
+  const response =
+    await apiFetch(
+      `${API_URL}/alerts/weekly-report/send`,
+      {
+        method: "POST",
+        headers: await workspaceHeaders(
+          userId,
+          workspaceId
+        ),
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to send weekly KPI email"
+    )
+  }
+
+  return response.json()
+}
+
+export async function sendWeeklyReportTestEmail(
+  userId: string,
+  workspaceId?: string
+): Promise<WeeklyReportDeliveryResult> {
+  const response =
+    await apiFetch(
+      `${API_URL}/alerts/weekly-report/send-test`,
+      {
+        method: "POST",
+        headers: await workspaceHeaders(
+          userId,
+          workspaceId
+        ),
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to send test KPI email"
+    )
+  }
+
+  return response.json()
+}
+
 export async function createDataSourceConnection(
   payload: DataSourceConnectionCreatePayload,
   userId: string,
@@ -1406,7 +2265,7 @@ export async function createDataSourceConnection(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/datasets/source-connections`,
       {
         method: "POST",
@@ -1447,7 +2306,7 @@ export async function updateDataSourceConnection(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/datasets/source-connections/${cleanConnectionId}`,
       {
         method: "PATCH",
@@ -1483,7 +2342,7 @@ export async function deleteDataSourceConnection(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/datasets/source-connections/${cleanConnectionId}`,
       {
         method: "DELETE",
@@ -1516,7 +2375,7 @@ export async function getDatasetDetails(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/datasets/${cleanDatasetId}/details`,
       {
         headers: await workspaceHeaders(
@@ -1536,6 +2395,43 @@ export async function getDatasetDetails(
   return response.json()
 }
 
+export async function getDatasetAIAnalysis(
+  id: number,
+  userId: string,
+  workspaceId?: string,
+  metric?: string
+): Promise<DatasetAIAnalysisResponse> {
+  const cleanDatasetId =
+    cleanPositiveIntegerId(
+      id,
+      "Dataset id"
+    )
+  const cleanMetric = metric?.trim()
+  const query = cleanMetric
+    ? `?metric=${encodeURIComponent(cleanMetric)}`
+    : ""
+
+  const response =
+    await apiFetch(
+      `${API_URL}/datasets/${cleanDatasetId}/ai-analysis${query}`,
+      {
+        headers: await workspaceHeaders(
+          userId,
+          workspaceId
+        ),
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to load metric AI analysis"
+    )
+  }
+
+  return response.json()
+}
+
 export async function getDatasetAnalytics(
   id: number,
   userId: string,
@@ -1548,7 +2444,7 @@ export async function getDatasetAnalytics(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/datasets/${cleanDatasetId}/analytics`,
       {
         headers: await workspaceHeaders(
@@ -1571,6 +2467,7 @@ export async function getDatasetAnalytics(
 export async function getPublicSharedDashboard(
   datasetId: number,
   token: string,
+  dashboard?: string,
   signal?: AbortSignal
 ): Promise<PublicSharedDashboardResponse | null> {
   const cleanDatasetId =
@@ -1590,14 +2487,77 @@ export async function getPublicSharedDashboard(
       token: cleanToken,
     })
 
-  const response =
-    await fetch(
-      `${API_URL}/public/dashboard/${cleanDatasetId}?${params.toString()}`,
-      {
-        cache: "no-store",
-        signal,
-      }
+  if (dashboard?.trim()) {
+    params.set(
+      "dashboard",
+      dashboard.trim()
     )
+  }
+
+  let response: Response
+  const requestController =
+    new AbortController()
+  let timedOut = false
+  const timeoutId = setTimeout(
+    () => {
+      timedOut = true
+      requestController.abort()
+    },
+    apiRequestTimeoutMs
+  )
+  const abortRequest = () =>
+    requestController.abort()
+
+  if (signal) {
+    if (signal.aborted) {
+      requestController.abort()
+    } else {
+      signal.addEventListener(
+        "abort",
+        abortRequest,
+        { once: true }
+      )
+    }
+  }
+
+  try {
+    response =
+      await fetch(
+        `${API_URL}/public/dashboard/${cleanDatasetId}?${params.toString()}`,
+        {
+          cache: "no-store",
+          signal: requestController.signal,
+        }
+      )
+  } catch (error) {
+    if (
+      error instanceof DOMException &&
+      error.name === "AbortError"
+    ) {
+      if (signal?.aborted && !timedOut) {
+        throw error
+      }
+
+      throw new Error(
+        "Public dashboard request timed out."
+      )
+    }
+
+    if (error instanceof TypeError) {
+      throw new Error(
+        "API service is unavailable. Check that the backend is running and reachable."
+      )
+    }
+
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+
+    signal?.removeEventListener(
+      "abort",
+      abortRequest
+    )
+  }
 
   if (response.status === 404) {
     return null
@@ -1606,17 +2566,36 @@ export async function getPublicSharedDashboard(
   if (!response.ok) {
     await throwApiError(
       response,
-      "Failed to load shared dashboard"
+      "Failed to load performance dashboard"
     )
   }
 
   return response.json()
 }
 
+function buildDashboardShareQuery(
+  dashboard: string | undefined
+) {
+  const cleanDashboard =
+    dashboard?.trim()
+
+  if (!isDashboardKey(cleanDashboard)) {
+    return ""
+  }
+
+  const params =
+    new URLSearchParams({
+      dashboard: cleanDashboard,
+    })
+
+  return `?${params.toString()}`
+}
+
 export async function getDatasetShareLink(
   datasetId: number,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  dashboard?: string
 ): Promise<DatasetShareLink> {
   const cleanDatasetId =
     cleanPositiveIntegerId(
@@ -1625,8 +2604,8 @@ export async function getDatasetShareLink(
     )
 
   const response =
-    await fetch(
-      `${API_URL}/datasets/${cleanDatasetId}/share`,
+    await apiFetch(
+      `${API_URL}/datasets/${cleanDatasetId}/share${buildDashboardShareQuery(dashboard)}`,
       {
         cache: "no-store",
         method: "POST",
@@ -1640,7 +2619,7 @@ export async function getDatasetShareLink(
   if (!response.ok) {
     await throwApiError(
       response,
-      "Failed to create shared dashboard link"
+      "Failed to create dashboard share link"
     )
   }
 
@@ -1650,7 +2629,8 @@ export async function getDatasetShareLink(
 export async function getDatasetShareStatus(
   datasetId: number,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  dashboard?: string
 ): Promise<DatasetShareStatus> {
   const cleanDatasetId =
     cleanPositiveIntegerId(
@@ -1659,8 +2639,8 @@ export async function getDatasetShareStatus(
     )
 
   const response =
-    await fetch(
-      `${API_URL}/datasets/${cleanDatasetId}/share/status`,
+    await apiFetch(
+      `${API_URL}/datasets/${cleanDatasetId}/share/status${buildDashboardShareQuery(dashboard)}`,
       {
         cache: "no-store",
         headers: await workspaceHeaders(
@@ -1673,7 +2653,7 @@ export async function getDatasetShareStatus(
   if (!response.ok) {
     await throwApiError(
       response,
-      "Failed to load shared dashboard status"
+      "Failed to load dashboard sharing status"
     )
   }
 
@@ -1683,7 +2663,8 @@ export async function getDatasetShareStatus(
 export async function stopDatasetSharing(
   datasetId: number,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  dashboard?: string
 ): Promise<DatasetShareResult> {
   const cleanDatasetId =
     cleanPositiveIntegerId(
@@ -1692,8 +2673,8 @@ export async function stopDatasetSharing(
     )
 
   const response =
-    await fetch(
-      `${API_URL}/datasets/${cleanDatasetId}/share`,
+    await apiFetch(
+      `${API_URL}/datasets/${cleanDatasetId}/share${buildDashboardShareQuery(dashboard)}`,
       {
         cache: "no-store",
         method: "DELETE",
@@ -1714,6 +2695,59 @@ export async function stopDatasetSharing(
   return response.json()
 }
 
+export async function stopAllDatasetSharing(
+  userId: string,
+  workspaceId?: string
+): Promise<StopAllDatasetSharingResult> {
+  const response =
+    await apiFetch(
+      `${API_URL}/datasets/share/all`,
+      {
+        cache: "no-store",
+        method: "DELETE",
+        headers: await workspaceHeaders(
+          userId,
+          workspaceId
+        ),
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to stop all dashboard sharing"
+    )
+  }
+
+  return response.json()
+}
+
+export async function getAllDatasetSharingStatus(
+  userId: string,
+  workspaceId?: string
+): Promise<AllDatasetSharingStatus> {
+  const response =
+    await apiFetch(
+      `${API_URL}/datasets/share/status/all`,
+      {
+        cache: "no-store",
+        headers: await workspaceHeaders(
+          userId,
+          workspaceId
+        ),
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to load dashboard sharing status"
+    )
+  }
+
+  return response.json()
+}
+
 export async function getDataset(
   id: number,
   userId: string,
@@ -1726,7 +2760,7 @@ export async function getDataset(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/datasets/${cleanDatasetId}`,
       {
         headers: await workspaceHeaders(
@@ -1758,7 +2792,7 @@ export async function deleteDataset(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/datasets/${cleanDatasetId}`,
       {
         method: "DELETE",
@@ -1776,6 +2810,21 @@ export async function deleteDataset(
     )
   }
 
+  invalidateApiReadCache([
+    `datasets:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}`,
+    `dataset-metrics:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}:`,
+    `dataset-preference:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}`,
+  ])
+
   return response.json()
 }
 
@@ -1786,24 +2835,32 @@ export async function deleteDataset(
 export async function getMyOrganization(
   userId: string
 ): Promise<OrganizationRecord | null> {
-  const response =
-    await fetch(
-      `${API_URL}/organizations/me`,
-      {
-        headers: await organizationOwnerHeaders(
-          userId
-        ),
+  const cacheKey =
+    `organization:${userId.trim()}`
+
+  return getCachedRead(
+    cacheKey,
+    async () => {
+      const response =
+        await fetchOrganizationRequest(
+          `${API_URL}/organizations/me`,
+          {
+            headers: await organizationOwnerHeaders(
+              userId
+            ),
+          }
+        )
+
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to load organization"
+        )
       }
-    )
 
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load organization"
-    )
-  }
-
-  return response.json()
+      return response.json()
+    }
+  )
 }
 
 export async function createOrganization(
@@ -1818,7 +2875,7 @@ export async function createOrganization(
       : payload
 
   const response =
-    await fetch(
+    await fetchOrganizationRequest(
       `${API_URL}/organizations`,
       {
         method: "POST",
@@ -1838,6 +2895,11 @@ export async function createOrganization(
     )
   }
 
+  invalidateApiReadCache([
+    `organization:${userId.trim()}`,
+    `organization-workspaces:${userId.trim()}`,
+  ])
+
   return response.json()
 }
 
@@ -1853,7 +2915,7 @@ export async function updateMyOrganization(
       : payload
 
   const response =
-    await fetch(
+    await fetchOrganizationRequest(
       `${API_URL}/organizations/me`,
       {
         method: "PATCH",
@@ -1873,6 +2935,11 @@ export async function updateMyOrganization(
     )
   }
 
+  invalidateApiReadCache([
+    `organization:${userId.trim()}`,
+    `organization-workspaces:${userId.trim()}`,
+  ])
+
   return response.json()
 }
 
@@ -1880,7 +2947,7 @@ export async function getOrganizationMembers(
   userId: string
 ): Promise<OrganizationMemberRecord[]> {
   const response =
-    await fetch(
+    await fetchOrganizationRequest(
       `${API_URL}/organizations/members`,
       {
         headers: await organizationOwnerHeaders(
@@ -1902,31 +2969,39 @@ export async function getOrganizationMembers(
 export async function getOrganizationWorkspaces(
   userId: string
 ): Promise<OrganizationWorkspaceRecord[]> {
-  const response =
-    await fetch(
-      `${API_URL}/organizations/workspaces`,
-      {
-        headers: await organizationOwnerHeaders(
-          userId
-        ),
+  const cacheKey =
+    `organization-workspaces:${userId.trim()}`
+
+  return getCachedRead(
+    cacheKey,
+    async () => {
+      const response =
+        await fetchOrganizationRequest(
+          `${API_URL}/organizations/workspaces`,
+          {
+            headers: await organizationOwnerHeaders(
+              userId
+            ),
+          }
+        )
+
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to load organization workspaces"
+        )
       }
-    )
 
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load organization workspaces"
-    )
-  }
-
-  return response.json()
+      return response.json()
+    }
+  )
 }
 
 export async function getOrganizationInvites(
   userId: string
 ): Promise<OrganizationInviteRecord[]> {
   const response =
-    await fetch(
+    await fetchOrganizationRequest(
       `${API_URL}/organizations/invites`,
       {
         headers: await organizationOwnerHeaders(
@@ -1950,7 +3025,7 @@ export async function addOrganizationInvite(
   userId: string
 ): Promise<OrganizationInviteRecord> {
   const response =
-    await fetch(
+    await fetchOrganizationRequest(
       `${API_URL}/organizations/invites`,
       {
         method: "POST",
@@ -1978,7 +3053,7 @@ export async function addOrganizationMember(
   userId: string
 ): Promise<OrganizationMemberRecord> {
   const response =
-    await fetch(
+    await fetchOrganizationRequest(
       `${API_URL}/organizations/members`,
       {
         method: "POST",
@@ -1998,6 +3073,10 @@ export async function addOrganizationMember(
     )
   }
 
+  invalidateApiReadCache([
+    `organization-workspaces:${userId.trim()}`,
+  ])
+
   return response.json()
 }
 
@@ -2006,7 +3085,7 @@ export async function removeOrganizationInvite(
   userId: string
 ) {
   const response =
-    await fetch(
+    await fetchOrganizationRequest(
       `${API_URL}/organizations/invites/${inviteId}`,
       {
         method: "DELETE",
@@ -2032,7 +3111,7 @@ export async function updateOrganizationMemberRole(
   userId: string
 ): Promise<OrganizationMemberRecord> {
   const response =
-    await fetch(
+    await fetchOrganizationRequest(
       `${API_URL}/organizations/members/${memberId}`,
       {
         method: "PATCH",
@@ -2052,6 +3131,10 @@ export async function updateOrganizationMemberRole(
     )
   }
 
+  invalidateApiReadCache([
+    `organization-workspaces:${userId.trim()}`,
+  ])
+
   return response.json()
 }
 
@@ -2060,7 +3143,7 @@ export async function removeOrganizationMember(
   userId: string
 ) {
   const response =
-    await fetch(
+    await fetchOrganizationRequest(
       `${API_URL}/organizations/members/${memberId}`,
       {
         method: "DELETE",
@@ -2076,6 +3159,10 @@ export async function removeOrganizationMember(
       "Failed to remove organization member"
     )
   }
+
+  invalidateApiReadCache([
+    `organization-workspaces:${userId.trim()}`,
+  ])
 
   return response.json()
 }
@@ -2102,7 +3189,7 @@ export async function getForecast(
       ? `?metric=${encodeURIComponent(cleanMetric)}`
       : ""
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/forecasting/${cleanDatasetId}${metricQuery}`,
       {
         headers: await workspaceHeaders(
@@ -2126,29 +3213,130 @@ export async function getForecast(
    Dataset Preference API For Selected Dataset Metrics And Dashboard State
 ========================= */
 
-export async function getDatasetPreference(
+export async function getDashboardPreference(
   userId: string,
   workspaceId?: string
-) {
-  const response =
-    await fetch(
-      `${API_URL}/organizations/preferences/dataset`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
-      }
+): Promise<SelectedDashboardPreference> {
+  let response: Response
+
+  try {
+    response =
+      await apiFetch(
+        `${API_URL}/organizations/preferences/dashboard`,
+        {
+          headers: await workspaceHeaders(
+            userId,
+            workspaceId
+          ),
+        }
+      )
+  } catch (error) {
+    rethrowApiFetchError(
+      error,
+      "Dashboard preference service is unavailable."
     )
+  }
 
   if (!response.ok) {
     await throwApiError(
       response,
-      "Failed to load dataset preference"
+      "Failed to load dashboard preference"
     )
   }
 
-  return response.json()
+  return getSafeDashboardPreference(
+    await response.json()
+  )
+}
+
+export async function updateDashboardPreference(
+  selectedDashboard: string,
+  userId: string,
+  workspaceId?: string
+): Promise<SelectedDashboardPreference> {
+  const safeSelectedDashboard =
+    isDashboardKey(selectedDashboard)
+      ? selectedDashboard
+      : defaultDashboardKey
+  let response: Response
+
+  try {
+    response =
+      await apiFetch(
+        `${API_URL}/organizations/preferences/dashboard`,
+        {
+          method: "PATCH",
+          headers: await workspaceJsonHeaders(
+            userId,
+            workspaceId
+          ),
+          body: JSON.stringify({
+            selected_dashboard: safeSelectedDashboard,
+          }),
+        }
+      )
+  } catch (error) {
+    rethrowApiFetchError(
+      error,
+      "Dashboard preference service is unavailable."
+    )
+  }
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to update dashboard preference"
+    )
+  }
+
+  return getSafeDashboardPreference(
+    await response.json()
+  )
+}
+
+export async function getDatasetPreference(
+  userId: string,
+  workspaceId?: string
+): Promise<DatasetPreferenceResponse> {
+  const cacheKey =
+    `dataset-preference:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}`
+
+  return getCachedRead(
+    cacheKey,
+    async () => {
+      let response: Response
+
+      try {
+        response =
+          await apiFetch(
+            `${API_URL}/organizations/preferences/dataset`,
+            {
+              headers: await workspaceHeaders(
+                userId,
+                workspaceId
+              ),
+            }
+          )
+      } catch (error) {
+        rethrowApiFetchError(
+          error,
+          "Dataset preference service is unavailable."
+        )
+      }
+
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to load dataset preference"
+        )
+      }
+
+      return response.json()
+    }
+  )
 }
 
 export async function updateDatasetPreference(
@@ -2156,9 +3344,9 @@ export async function updateDatasetPreference(
   userId: string,
   selectedMetric?: string,
   metricTargets?: Record<string, Record<string, number>>,
-  dashboardPreferences?: Record<string, Record<string, unknown>>,
+  dashboardPreferences?: Record<string, DashboardPreferencePayload>,
   workspaceId?: string
-) {
+): Promise<DatasetPreferenceResponse> {
   const cleanDatasetId =
     cleanPositiveIntegerId(
       datasetId,
@@ -2169,7 +3357,7 @@ export async function updateDatasetPreference(
     dataset_id: number
     selected_metric?: string | null
     metric_targets?: Record<string, Record<string, number>>
-    dashboard_preferences?: Record<string, Record<string, unknown>>
+    dashboard_preferences?: Record<string, DashboardPreferencePayload>
   } = {
     dataset_id: cleanDatasetId,
   }
@@ -2191,27 +3379,40 @@ export async function updateDatasetPreference(
       )
   }
 
-  const response =
-    await fetch(
-      `${API_URL}/organizations/preferences/dataset`,
-      {
-        method: "POST",
-        headers: await workspaceJsonHeaders(
-          userId,
-          workspaceId
-        ),
-        body: JSON.stringify(body),
+  const cacheKey =
+    `dataset-preference:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}`
+
+  return enqueueDatasetPreferenceWrite(
+    cacheKey,
+    async () => {
+      const response =
+        await apiFetch(
+          `${API_URL}/organizations/preferences/dataset`,
+          {
+            method: "POST",
+            headers: await workspaceJsonHeaders(
+              userId,
+              workspaceId
+            ),
+            body: JSON.stringify(body),
+          }
+        )
+
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to update dataset preference"
+        )
       }
-    )
 
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to update dataset preference"
-    )
-  }
+      invalidateApiReadCache([cacheKey])
 
-  return response.json()
+      return response.json()
+    }
+  )
 }
 
 /* =========================
@@ -2252,11 +3453,22 @@ export async function getDecisions(
 
 export async function getDecisionSummary(
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  datasetId?: number
 ): Promise<DecisionSummary> {
+  const cleanDatasetId =
+    datasetId === undefined
+      ? undefined
+      : cleanPositiveIntegerId(
+          datasetId,
+          "Dataset id"
+        )
+  const query = cleanDatasetId
+    ? `?dataset_id=${cleanDatasetId}`
+    : ""
   const response =
     await apiFetch(
-      `${API_URL}/decisions/summary`,
+      `${API_URL}/decisions/summary${query}`,
       {
         headers: await decisionHeaders(
           userId,
@@ -2335,7 +3547,7 @@ export async function createDecision(
   }
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions`,
       {
         method: "POST",
@@ -2374,7 +3586,7 @@ export async function updateDecision(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}`,
       {
         method: "PATCH",
@@ -2417,7 +3629,7 @@ export async function updateDecisionOverview(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/overview`,
       {
         method: "PATCH",
@@ -2456,7 +3668,7 @@ export async function updateDecisionDetails(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/details`,
       {
         method: "PATCH",
@@ -2509,7 +3721,7 @@ export async function getDecisionActivities(
     })
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/activities?${params.toString()}`,
       {
         headers: await decisionHeaders(
@@ -2545,7 +3757,7 @@ export async function archiveDecision(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/archive`,
       {
         method: "PATCH",
@@ -2578,7 +3790,7 @@ export async function restoreDecision(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/restore`,
       {
         method: "PATCH",
@@ -2615,7 +3827,7 @@ export async function getDecision(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}`,
       {
         headers: await decisionHeaders(
@@ -2629,6 +3841,38 @@ export async function getDecision(
     await throwApiError(
       response,
       "Failed to load decision"
+    )
+  }
+
+  return response.json()
+}
+
+export async function getDecisionOutcomeAnalysis(
+  decisionId: number,
+  userId: string,
+  workspaceId?: string
+): Promise<DecisionOutcomeAnalysisResponse> {
+  const cleanDecisionId =
+    cleanPositiveIntegerId(
+      decisionId,
+      "Decision id"
+    )
+
+  const response =
+    await apiFetch(
+      `${API_URL}/decisions/${cleanDecisionId}/outcome-analysis`,
+      {
+        headers: await decisionHeaders(
+          userId,
+          workspaceId
+        ),
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to generate decision outcome analysis"
     )
   }
 
@@ -2652,7 +3896,7 @@ export async function updateDecisionNotes(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/notes`,
       {
         method: "PATCH",
@@ -2690,7 +3934,7 @@ export async function updateDecisionOutcome(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/outcome`,
       {
         method: "PATCH",
@@ -2730,7 +3974,7 @@ export async function updateDecisionLearning(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/learning`,
       {
         method: "PATCH",
@@ -2774,7 +4018,7 @@ export async function updateDecisionReviewDate(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/review-date`,
       {
         method: "PATCH",
@@ -2812,7 +4056,7 @@ export async function updateDecisionPriority(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/priority`,
       {
         method: "PATCH",
@@ -2851,7 +4095,7 @@ export async function updateDecisionCategory(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/category`,
       {
         method: "PATCH",
@@ -2890,7 +4134,7 @@ export async function updateDecisionConfidence(
     )
 
   const response =
-    await fetch(
+    await apiFetch(
       `${API_URL}/decisions/${cleanDecisionId}/confidence`,
       {
         method: "PATCH",

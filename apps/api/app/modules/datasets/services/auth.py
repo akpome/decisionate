@@ -72,6 +72,27 @@ def get_workspace_role(
 def require_workspace_data_manager(
     request: Request,
 ):
+    request_state = getattr(
+        request,
+        "state",
+        None,
+    )
+
+    if (
+        not hasattr(
+            request,
+            "headers",
+        )
+        and not (
+            request_state is not None
+            and hasattr(
+                request_state,
+                auth_context_cache_key,
+            )
+        )
+    ):
+        return
+
     workspace_role = get_workspace_role(
         request,
     )
@@ -81,5 +102,5 @@ def require_workspace_data_manager(
 
         raise HTTPException(
             status_code=403,
-            detail="Client users cannot modify agency workspace data setup",
+            detail="Client users cannot modify workspace data setup",
         )

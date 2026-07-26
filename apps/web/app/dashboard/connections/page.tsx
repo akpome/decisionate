@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs"
 
 import { DataSourceConnections } from "@/features/datasets/components/data-source-connections"
 import { DataSourcePanel } from "@/features/datasets/components/data-source-panel"
+import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import {
   createDataSourceConnection,
   deleteDataSourceConnection,
@@ -52,6 +53,10 @@ export default function ConnectionsPage() {
   ] = useState<number | null>(null)
   const [connectionError, setConnectionError] =
     useState("")
+  const [connectionLoadError, setConnectionLoadError] =
+    useState("")
+  const [loadRetryKey, setLoadRetryKey] =
+    useState(0)
 
   const { user } = useUser()
   const {
@@ -62,8 +67,13 @@ export default function ConnectionsPage() {
   const {
     canManageWorkspaceData,
     isClientWorkspace,
+    loadingWorkspaceAccess,
+    workspaceRole,
   } =
     useWorkspaceAccess(user?.id)
+  const readOnlyWorkspace =
+    isClientWorkspace ||
+    workspaceRole === "unknown"
   const savedSourceTypes =
     sourceConnections.map(
       (connection) =>
@@ -251,13 +261,23 @@ export default function ConnectionsPage() {
   }
 
   useEffect(() => {
-    if (!user?.id) return
+    if (
+      !user?.id ||
+      !canManageWorkspaceData
+    ) {
+      return
+    }
 
     let ignoreResult = false
 
     async function loadInitialConnections(
       userId: string
     ) {
+      setSources([])
+      setSourceConnections([])
+      setConnectionError("")
+      setConnectionLoadError("")
+
       const [
         sourcesResult,
         connectionsResult,
@@ -279,12 +299,12 @@ export default function ConnectionsPage() {
       if (sourcesResult.status === "fulfilled") {
         setSources(sourcesResult.value)
       } else {
-        setConnectionError(
-          getErrorMessage(
-            sourcesResult.reason,
-            "Could not load data source options."
-          )
+        const message = getErrorMessage(
+          sourcesResult.reason,
+          "Could not load data source options."
         )
+        setConnectionError(message)
+        setConnectionLoadError(message)
         console.error(sourcesResult.reason)
       }
 
@@ -293,12 +313,12 @@ export default function ConnectionsPage() {
           connectionsResult.value
         )
       } else {
-        setConnectionError(
-          getErrorMessage(
-            connectionsResult.reason,
-            "Could not load data source connections."
-          )
+        const message = getErrorMessage(
+          connectionsResult.reason,
+          "Could not load data source connections."
         )
+        setConnectionError(message)
+        setConnectionLoadError(message)
         console.error(connectionsResult.reason)
       }
 
@@ -307,6 +327,7 @@ export default function ConnectionsPage() {
         connectionsResult.status === "fulfilled"
       ) {
         setConnectionError("")
+        setConnectionLoadError("")
       }
     }
 
@@ -318,35 +339,44 @@ export default function ConnectionsPage() {
   }, [
     user?.id,
     activeWorkspaceId,
+    canManageWorkspaceData,
     workspaceVersion,
+    loadRetryKey,
   ])
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">
-          Connections
-        </h1>
+      <DashboardPageHeader
+        title="Connections"
+        description="Configure external business systems that can feed datasets, forecasts, reports, alerts, and decisions."
+      />
 
-        <p className="mt-2 text-gray-500">
-          Configure external business data sources. PostgreSQL is the transactional database path; analytics processing stays internal.
-        </p>
-      </div>
+      {canManageWorkspaceData && connectionError && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          <span>{connectionError}</span>
 
-      {connectionError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {connectionError}
+          {connectionLoadError && (
+            <button
+              type="button"
+              onClick={() =>
+                setLoadRetryKey((currentKey) =>
+                  currentKey + 1
+                )
+              }
+              className="h-10 shrink-0 rounded-xl border border-red-200 bg-white px-3 font-medium text-red-700 transition hover:border-red-300"
+            >
+              Try again
+            </button>
+          )}
         </div>
       )}
 
-      {isClientWorkspace && (
-        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-6 text-sm text-blue-800">
-          You are viewing a client portal workspace. Your agency manages connection setup and credentials for this workspace.
-        </div>
-      )}
-
-      {canManageWorkspaceData && (
-        <div className="rounded-2xl border bg-white p-8 shadow-sm">
+      {!loadingWorkspaceAccess &&
+        canManageWorkspaceData && (
+        <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
           <h2 className="mb-4 text-xl font-semibold">
             Data Sources
           </h2>
@@ -370,43 +400,60 @@ export default function ConnectionsPage() {
         </div>
       )}
 
-      <div className="rounded-2xl border bg-white p-8 shadow-sm">
-        <h2 className="text-xl font-semibold">
-          Configure Added Connections
-        </h2>
+      {loadingWorkspaceAccess ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500"
+        >
+          Checking workspace access...
+        </div>
+      ) : readOnlyWorkspace ? (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          {isClientWorkspace
+            ? "Data source connections are managed by the workspace team. Use the shared datasets and analysis pages to review available results."
+            : "Workspace access could not be confirmed. Connection management is temporarily unavailable."}
+        </div>
+      ) : (
+        <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
+          <h2 className="text-xl font-semibold">
+            Configure Added Connections
+          </h2>
 
-        <p className="mb-4 mt-2 text-sm text-gray-500">
-          Finish setup for data sources added to this workspace by providing account identifiers, queries, and credential readiness before dataset pulls.
-        </p>
+          <p className="mb-4 mt-2 text-sm text-gray-500">
+            Finish setup for data sources added to this workspace by providing the account, query, or credential details needed for dataset pulls.
+          </p>
 
-        <DataSourceConnections
-          connections={
-            sourceConnections
-          }
-          sources={configurableSources}
-          deletingConnectionId={
-            deletingConnectionId
-          }
-          updatingConnectionId={
-            updatingConnectionId
-          }
-          onDeleteConnection={
-            canManageWorkspaceData
-              ? handleDeleteSourceConnection
-              : undefined
-          }
-          onRenameConnection={
-            canManageWorkspaceData
-              ? handleRenameSourceConnection
-              : undefined
-          }
-          onConfigureConnection={
-            canManageWorkspaceData
-              ? handleConfigureSourceConnection
-              : undefined
-          }
-        />
-      </div>
+          <DataSourceConnections
+            connections={
+              sourceConnections
+            }
+            loadError={Boolean(connectionLoadError)}
+            sources={configurableSources}
+            deletingConnectionId={
+              deletingConnectionId
+            }
+            updatingConnectionId={
+              updatingConnectionId
+            }
+            onDeleteConnection={
+              canManageWorkspaceData
+                ? handleDeleteSourceConnection
+                : undefined
+            }
+            onRenameConnection={
+              canManageWorkspaceData
+                ? handleRenameSourceConnection
+                : undefined
+            }
+            onConfigureConnection={
+              canManageWorkspaceData
+                ? handleConfigureSourceConnection
+                : undefined
+            }
+          />
+        </div>
+      )}
     </div>
   )
 }

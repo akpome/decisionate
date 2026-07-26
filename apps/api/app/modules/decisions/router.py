@@ -1,3 +1,5 @@
+import asyncio
+
 from app.db.database import SessionLocal
 from app.db.models import (
     Dataset,
@@ -7,6 +9,13 @@ from app.modules.decisions.models import (
 )
 from app.modules.decisions.activity_models import (
     DecisionActivity,
+)
+from app.modules.ai.service import (
+    generate_structured_analysis,
+)
+from app.modules.ai.learning import (
+    build_dataset_decision_learning_filter,
+    build_workspace_decision_learning_context,
 )
 from app.modules.decisions.schemas import (
     ACTIVE_DECISION_LIST_LIFECYCLE,
@@ -49,6 +58,7 @@ from app.modules.decisions.schemas import (
     DecisionUpdate,
     DecisionNotesUpdate,
     DecisionOutcomeUpdate,
+    DecisionOutcomeAnalysisResponse,
     DecisionLearningUpdate,
     DecisionPriorityUpdate,
     DecisionNotesWorkflowState,
@@ -81,16 +91,32 @@ from datetime import UTC, datetime
 
 from fastapi import (
     APIRouter,
+    Depends,
     Header,
     HTTPException,
     Query,
+    Request,
 )
 from sqlalchemy import and_, func, or_
+
+from app.modules.auth_context import (
+    get_auth_context,
+)
 
 router = APIRouter(
     prefix="/decisions",
     tags=["decisions"],
 )
+
+
+def require_decision_manager(
+    request: Request,
+):
+    if get_auth_context(request).workspace_role == "client":
+        raise HTTPException(
+            status_code=403,
+            detail="Client users can review decisions but cannot modify them",
+        )
 
 DECISION_ACTIVITY_MESSAGES: dict[DecisionActivityType, str] = {
     CREATED_DECISION_ACTIVITY:
@@ -128,7 +154,7 @@ def utc_now() -> datetime:
     )
 
 # =========================
-# Workspace Ownership Helpers For User And Agency Access
+# Workspace Ownership Helpers For Personal And Shared Access
 # =========================
 
 def get_active_user_id(
@@ -465,6 +491,22 @@ def clean_optional_multiline_text(
     return clean_value or None
 
 
+def clean_required_decision_expected_outcome(
+    value: str | None,
+) -> str:
+    clean_value = clean_optional_multiline_text(
+        value,
+    )
+
+    if not clean_value:
+        raise HTTPException(
+            status_code=400,
+            detail="Expected outcome is required",
+        )
+
+    return clean_value
+
+
 # =========================
 # Decision Controlled Value Validators For Metrics And Filters
 # =========================
@@ -669,11 +711,13 @@ def apply_decision_list_sort(
             Decision.updated_at.is_(None),
             Decision.updated_at.desc(),
             Decision.created_at.desc(),
+            Decision.id.desc(),
         )
 
     if sort == CREATED_ASC_DECISION_LIST_SORT:
         return query.order_by(
             Decision.created_at.asc(),
+            Decision.id.asc(),
         )
 
     if sort == REVIEW_ASC_DECISION_LIST_SORT:
@@ -681,6 +725,7 @@ def apply_decision_list_sort(
             Decision.review_date.is_(None),
             Decision.review_date.asc(),
             Decision.created_at.desc(),
+            Decision.id.desc(),
         )
 
     if sort == REVIEW_DESC_DECISION_LIST_SORT:
@@ -688,10 +733,12 @@ def apply_decision_list_sort(
             Decision.review_date.is_(None),
             Decision.review_date.desc(),
             Decision.created_at.desc(),
+            Decision.id.desc(),
         )
 
     return query.order_by(
         Decision.created_at.desc(),
+        Decision.id.desc(),
     )
 
 
@@ -781,6 +828,7 @@ def get_decision_count_map(
     x_workspace_id: str | None,
     field,
     allowed_values: set[str] | None = None,
+    dataset_id: int | None = None,
 ):
     filters = [
         filter_decisions_for_workspace(
@@ -789,6 +837,11 @@ def get_decision_count_map(
         ),
         has_meaningful_text(field),
     ]
+
+    if dataset_id is not None:
+        filters.append(
+            Decision.dataset_id == dataset_id,
+        )
 
     if allowed_values:
         filters.append(
@@ -815,24 +868,32 @@ def get_decision_month_count_map(
     db,
     x_user_id: str,
     x_workspace_id: str | None,
+    dataset_id: int | None = None,
 ):
     month_key = func.strftime(
         "%Y-%m",
         Decision.created_at,
     )
 
+    filters = [
+        filter_decisions_for_workspace(
+            x_user_id,
+            x_workspace_id,
+        ),
+        Decision.created_at.isnot(None),
+    ]
+
+    if dataset_id is not None:
+        filters.append(
+            Decision.dataset_id == dataset_id,
+        )
+
     rows = (
         db.query(
             month_key,
             func.count(Decision.id),
         )
-        .filter(
-            filter_decisions_for_workspace(
-                x_user_id,
-                x_workspace_id,
-            ),
-            Decision.created_at.isnot(None),
-        )
+        .filter(*filters)
         .group_by(month_key)
         .order_by(month_key)
         .all()
@@ -850,6 +911,7 @@ def get_decision_month_count_map(
 
 @router.post(
     "/",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def create_decision(
@@ -890,11 +952,14 @@ async def create_decision(
                 x_workspace_id,
             ),
             dataset_id=payload.dataset_id,
+            metric_column=clean_optional_single_line_text(
+                payload.metric_column,
+            ),
             title=clean_title,
             description=clean_optional_single_line_text(
                 payload.description,
             ),
-            expected_outcome=clean_optional_multiline_text(
+            expected_outcome=clean_required_decision_expected_outcome(
                 payload.expected_outcome,
             ),
             priority=validate_optional_decision_controlled_value(
@@ -1124,6 +1189,10 @@ async def get_decision_summary(
         default=None,
         alias="X-Workspace-Id",
     ),
+    dataset_id: int | None = Query(
+        default=None,
+        ge=1,
+    ),
 ):
     db = SessionLocal()
 
@@ -1132,6 +1201,12 @@ async def get_decision_summary(
             x_user_id,
             x_workspace_id,
         )
+
+        if dataset_id is not None:
+            base_filter = and_(
+                base_filter,
+                Decision.dataset_id == dataset_id,
+            )
 
         total = (
             db.query(Decision)
@@ -1273,6 +1348,102 @@ async def get_decision_summary(
             .count()
         )
 
+        by_status = get_decision_count_map(
+            db,
+            x_user_id,
+            x_workspace_id,
+            Decision.status,
+            VALID_DECISION_STATUSES,
+            dataset_id,
+        )
+        by_outcome_status = get_decision_count_map(
+            db,
+            x_user_id,
+            x_workspace_id,
+            Decision.outcome_status,
+            VALID_DECISION_OUTCOME_STATUSES,
+            dataset_id,
+        )
+        by_category = get_decision_count_map(
+            db,
+            x_user_id,
+            x_workspace_id,
+            Decision.category,
+            VALID_DECISION_CATEGORIES,
+            dataset_id,
+        )
+        learning_context = build_workspace_decision_learning_context(
+            db,
+            x_user_id,
+            get_active_workspace_id(
+                x_user_id,
+                x_workspace_id,
+            ),
+            base_filter=base_filter,
+            learning_scope=(
+                "dataset"
+                if dataset_id is not None
+                else "workspace"
+            ),
+        )
+        learning_recommendations = []
+        recorded_outcomes = learning_context.get(
+            "recorded_outcome_count",
+            0,
+        )
+        recorded_lessons = learning_context.get(
+            "recorded_lesson_count",
+            0,
+        )
+        if recorded_outcomes:
+            learning_recommendations.append(
+                f"Use the {recorded_outcomes} recorded decision outcome"
+                f"{'s' if recorded_outcomes != 1 else ''} as evidence when shaping the next decision."
+            )
+        if recorded_lessons:
+            learning_recommendations.append(
+                f"Use the {recorded_lessons} recorded lesson"
+                f"{'s' if recorded_lessons != 1 else ''} when shaping the next decision."
+            )
+
+        decision_ai_analysis = await asyncio.to_thread(
+            generate_structured_analysis,
+            context="decision portfolio health and recommendation",
+            facts={
+                "total": total,
+                "active": total - archived,
+                "attention_required": attention_required,
+                "reviews_overdue": reviews_overdue,
+                "reviews_upcoming": reviews_upcoming,
+                "outcomes_evaluated": outcomes_evaluated,
+                "by_outcome_status": by_outcome_status,
+                "by_category": by_category,
+                "historical_decision_learning": learning_context,
+            },
+            fallback_summary=(
+                f"{attention_required} active decision"
+                f"{'s' if attention_required != 1 else ''} require"
+                " attention."
+            ),
+            fallback_recommendations=(
+                [
+                    "Review decisions requiring attention before creating new commitments."
+                ]
+                if attention_required
+                else [
+                    "Continue scheduled outcome reviews and capture lessons learned."
+                ]
+            ) + learning_recommendations,
+            fallback_risks=(
+                [
+                    f"{reviews_overdue} decision review"
+                    f"{'s are' if reviews_overdue != 1 else ' is'} overdue."
+                ]
+                if reviews_overdue
+                else []
+            ),
+        )
+
         return DecisionSummaryResponse(
             total=total,
             active=total - archived,
@@ -1293,28 +1464,12 @@ async def get_decision_summary(
                 db,
                 x_user_id,
                 x_workspace_id,
+                dataset_id,
             ),
-            by_status=get_decision_count_map(
-                db,
-                x_user_id,
-                x_workspace_id,
-                Decision.status,
-                VALID_DECISION_STATUSES,
-            ),
-            by_outcome_status=get_decision_count_map(
-                db,
-                x_user_id,
-                x_workspace_id,
-                Decision.outcome_status,
-                VALID_DECISION_OUTCOME_STATUSES,
-            ),
-            by_category=get_decision_count_map(
-                db,
-                x_user_id,
-                x_workspace_id,
-                Decision.category,
-                VALID_DECISION_CATEGORIES,
-            ),
+            by_status=by_status,
+            by_outcome_status=by_outcome_status,
+            by_category=by_category,
+            ai_analysis=decision_ai_analysis,
         )
 
     finally:
@@ -1365,7 +1520,10 @@ async def get_decision_activity_feed(
                     x_workspace_id,
                 ),
             )
-            .order_by(DecisionActivity.created_at.desc())
+            .order_by(
+                DecisionActivity.created_at.desc(),
+                DecisionActivity.id.desc(),
+            )
             .offset(offset)
             .limit(limit)
             .all()
@@ -1395,6 +1553,7 @@ async def get_decision_activity_feed(
 
 @router.patch(
     "/{decision_id}",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def update_decision(
@@ -1477,6 +1636,7 @@ async def update_decision(
 
 @router.patch(
     "/{decision_id}/overview",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def update_decision_overview(
@@ -1620,6 +1780,7 @@ async def update_decision_overview(
 
 @router.patch(
     "/{decision_id}/details",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def update_decision_details(
@@ -1668,6 +1829,18 @@ async def update_decision_details(
                 clean_description,
             ):
                 decision.description = clean_description
+                changed = True
+
+        if "metric_column" in payload.model_fields_set:
+            clean_metric_column = clean_optional_single_line_text(
+                payload.metric_column,
+            )
+
+            if values_differ(
+                decision.metric_column,
+                clean_metric_column,
+            ):
+                decision.metric_column = clean_metric_column
                 changed = True
 
         if changed:
@@ -1733,7 +1906,10 @@ async def get_decision_activities(
                     x_workspace_id,
                 ),
             )
-            .order_by(DecisionActivity.created_at.desc())
+            .order_by(
+                DecisionActivity.created_at.desc(),
+                DecisionActivity.id.desc(),
+            )
             .offset(offset)
             .limit(limit)
             .all()
@@ -1749,6 +1925,7 @@ async def get_decision_activities(
 
 @router.patch(
     "/{decision_id}/archive",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def archive_decision(
@@ -1796,6 +1973,7 @@ async def archive_decision(
 
 @router.patch(
     "/{decision_id}/restore",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def restore_decision(
@@ -1874,11 +2052,112 @@ async def get_decision(
 
 
 # =========================
+# AI Outcome Review Route For Recorded Decision Results
+# =========================
+
+@router.get(
+    "/{decision_id}/outcome-analysis",
+    dependencies=[Depends(require_decision_manager)],
+    response_model=DecisionOutcomeAnalysisResponse,
+)
+async def get_decision_outcome_analysis(
+    decision_id: int,
+    x_user_id: str = Header(alias="X-User-Id"),
+    x_workspace_id: str | None = Header(
+        default=None,
+        alias="X-Workspace-Id",
+    ),
+):
+    db = SessionLocal()
+
+    try:
+        decision = get_accessible_decision_or_404(
+            db,
+            decision_id,
+            x_user_id,
+            x_workspace_id,
+        )
+
+        expected_outcome = (
+            decision.expected_outcome or ""
+        ).strip()
+        actual_outcome = (
+            decision.actual_outcome or ""
+        ).strip()
+
+        if not expected_outcome or not actual_outcome:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Expected and actual outcomes are required "
+                    "before generating an AI outcome review"
+                ),
+            )
+
+        outcome_status = (
+            decision.outcome_status or "not classified"
+        )
+        historical_learning = build_workspace_decision_learning_context(
+            db,
+            x_user_id,
+            get_active_workspace_id(
+                x_user_id,
+                x_workspace_id,
+            ),
+            base_filter=build_dataset_decision_learning_filter(
+                decision.dataset_id,
+                decision.metric_column,
+            ),
+            exclude_decision_id=decision.id,
+            learning_scope="decision",
+        )
+        outcome_analysis = await asyncio.to_thread(
+            generate_structured_analysis,
+            context="decision outcome comparison and learning review",
+            facts={
+                "decision_title": decision.title,
+                "category": decision.category,
+                "metric_column": decision.metric_column,
+                "expected_outcome": expected_outcome,
+                "actual_outcome": actual_outcome,
+                "outcome_status": outcome_status,
+                "existing_lesson_learned": decision.lessons_learned,
+                "historical_decision_learning": historical_learning,
+            },
+            fallback_summary=(
+                f"The recorded outcome is classified as {outcome_status}. "
+                "Compare the evidence with the original success criteria "
+                "before closing the learning follow-up."
+            ),
+            fallback_recommendations=[
+                "Capture the evidence that explains the gap between expected and actual results.",
+                "Record one lesson learned before closing the decision follow-up.",
+            ],
+            fallback_risks=(
+                [
+                    "The outcome is unsuccessful; review the original assumptions before repeating the decision."
+                ]
+                if outcome_status == "unsuccessful"
+                else []
+            ),
+        )
+
+        return DecisionOutcomeAnalysisResponse(
+            decision_id=decision.id,
+            ai_analysis=outcome_analysis,
+        )
+
+    finally:
+        db.close()
+
+
+# =========================
 # Decision Notes Patch Route For Detail Page Notes Card
 # =========================
 
 @router.patch(
     "/{decision_id}/notes",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def update_decision_notes(
@@ -1938,6 +2217,7 @@ async def update_decision_notes(
 
 @router.patch(
     "/{decision_id}/outcome",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def update_decision_outcome(
@@ -2026,6 +2306,7 @@ async def update_decision_outcome(
 
 @router.patch(
     "/{decision_id}/learning",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def update_decision_learning(
@@ -2089,6 +2370,7 @@ async def update_decision_learning(
 
 @router.patch(
     "/{decision_id}/review-date",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def update_review_date(
@@ -2148,6 +2430,7 @@ async def update_review_date(
 
 @router.patch(
     "/{decision_id}/priority",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def update_decision_priority(
@@ -2209,6 +2492,7 @@ async def update_decision_priority(
 
 @router.patch(
     "/{decision_id}/category",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def update_decision_category(
@@ -2270,6 +2554,7 @@ async def update_decision_category(
 
 @router.patch(
     "/{decision_id}/confidence",
+    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def update_decision_confidence(

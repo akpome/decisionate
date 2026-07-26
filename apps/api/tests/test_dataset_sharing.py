@@ -652,11 +652,16 @@ class DatasetSharingTests(unittest.TestCase):
             "shopify",
             "stripe",
             "quickbooks",
+            "xero",
             "google_analytics",
             "postgresql",
             "mysql",
             "sql_server",
             "snowflake",
+            "bigquery",
+            "gcs",
+            "azure_blob_storage",
+            "s3",
             "crm",
             "marketing_platform",
             "rest_api",
@@ -699,6 +704,51 @@ class DatasetSharingTests(unittest.TestCase):
             get_dataset_source(
                 "shopify",
             )["config_keys"],
+            )
+
+    def test_dataset_source_registry_groups_warehouses_and_object_storage(self):
+        sources = {
+            source["type"]: source
+            for source in list_dataset_sources()
+        }
+
+        self.assertEqual(
+            sources["snowflake"]["category"],
+            "data_warehouses",
+        )
+        self.assertEqual(
+            sources["bigquery"]["category"],
+            "data_warehouses",
+        )
+        self.assertEqual(
+            sources["bigquery"]["connection_type"],
+            "data_warehouse",
+        )
+
+        for source_type in [
+            "gcs",
+            "azure_blob_storage",
+            "s3",
+        ]:
+            with self.subTest(
+                source_type=source_type,
+            ):
+                self.assertEqual(
+                    sources[source_type]["category"],
+                    "cloud_object_storage",
+                )
+                self.assertEqual(
+                    sources[source_type]["connection_type"],
+                    "object_storage",
+                )
+
+        self.assertIn(
+            "bucket",
+            sources["s3"]["config_keys"],
+        )
+        self.assertNotIn(
+            "AWS_S3_BUCKET",
+            sources["s3"]["environment_keys"],
         )
 
     def test_dataset_source_availability_tracks_status(self):

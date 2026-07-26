@@ -13,6 +13,30 @@ interface DataSourcePanelProps {
   ) => void
 }
 
+const SOURCE_CATEGORY_ORDER = [
+  "cloud_files",
+  "commerce",
+  "payments",
+  "accounting",
+  "analytics",
+  "databases",
+  "data_warehouses",
+  "cloud_object_storage",
+  "business_apps",
+  "custom",
+  "other",
+]
+
+const SOURCE_CATEGORY_DESCRIPTIONS: Record<
+  string,
+  string
+> = {
+  data_warehouses:
+    "Connect analytical warehouse tables and query results for governed reporting datasets.",
+  cloud_object_storage:
+    "Connect file-based datasets stored in cloud buckets, containers, or object prefixes.",
+}
+
 export function DataSourcePanel({
   sources,
   savedSourceTypes = [],
@@ -40,10 +64,20 @@ export function DataSourcePanel({
         ],
       }
     }, {})
+  const orderedSourceGroups =
+    Object.entries(groupedSources).sort(
+      ([leftCategory], [rightCategory]) =>
+        getSourceCategoryRank(
+          leftCategory
+        ) -
+        getSourceCategoryRank(
+          rightCategory
+        )
+    )
 
   return (
     <div className="space-y-6">
-      {Object.entries(groupedSources).map(
+      {orderedSourceGroups.map(
         ([category, categorySources]) => (
           <section key={category}>
             <h3 className="text-sm font-semibold uppercase text-gray-500">
@@ -51,6 +85,18 @@ export function DataSourcePanel({
                 category
               )}
             </h3>
+
+            {SOURCE_CATEGORY_DESCRIPTIONS[
+              category
+            ] && (
+              <p className="mt-1 text-sm text-gray-500">
+                {
+                  SOURCE_CATEGORY_DESCRIPTIONS[
+                    category
+                  ]
+                }
+              </p>
+            )}
 
             <div className="mt-3 divide-y rounded-xl border">
               {categorySources.map(
@@ -63,7 +109,9 @@ export function DataSourcePanel({
                     "needs_setup"
                   const canCreateDraft =
                     source.connection_type !==
-                    "upload"
+                      "upload" &&
+                    source.status !==
+                      "planned"
                   const isSaved =
                     savedSourceTypeSet.has(
                       normalizeSourceType(
@@ -88,20 +136,20 @@ export function DataSourcePanel({
                   return (
                     <div
                       key={source.type}
-                      className="flex items-start justify-between gap-4 bg-white p-4 first:rounded-t-xl last:rounded-b-xl"
+                      className="flex min-w-0 flex-col gap-3 bg-white p-4 first:rounded-t-xl last:rounded-b-xl sm:flex-row sm:items-start sm:justify-between sm:gap-4"
                     >
-                      <div>
-                        <h4 className="font-medium">
+                      <div className="min-w-0">
+                        <h4 className="break-words font-medium">
                           {source.label}
                         </h4>
 
-                        <p className="mt-1 text-sm text-gray-500">
+                        <p className="mt-1 break-words text-sm text-gray-500">
                           {
                             source.description
                           }
                         </p>
 
-                        <p className="mt-2 text-xs font-medium uppercase text-gray-400">
+                        <p className="mt-2 break-words text-xs font-medium uppercase text-gray-400">
                           {formatSourceConnection(
                             source.connection_type
                           )}
@@ -112,31 +160,22 @@ export function DataSourcePanel({
                         </p>
 
                         {source.availability_note && (
-                          <p className="mt-1 text-xs text-amber-700">
+                          <p className="mt-1 break-words text-xs text-amber-700">
                             {
                               source.availability_note
                             }
                           </p>
                         )}
 
-                        {hasConfigKeys && (
-                          <p className="mt-1 text-xs text-gray-400">
-                            Setup fields:{" "}
-                            {formatConfigKeys(
-                              source.config_keys ||
-                                []
-                            )}
-                          </p>
-                        )}
-
-                        {hasEnvironmentKeys && (
-                          <p className="mt-1 text-xs text-gray-400">
-                            Provider credentials required during configuration.
+                        {(hasConfigKeys ||
+                          hasEnvironmentKeys) && (
+                          <p className="mt-1 break-words text-xs text-gray-400">
+                            Required details are collected after this connection is added.
                           </p>
                         )}
                       </div>
 
-                      <div className="flex shrink-0 flex-col items-end gap-2">
+                      <div className="flex w-full shrink-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
                         <span
                           className={
                             isAvailable
@@ -166,7 +205,7 @@ export function DataSourcePanel({
                                 isCreating ||
                                 isSaved
                               }
-                              className="rounded-lg border px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              className="w-full rounded-lg border px-3 py-1.5 text-center text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                             >
                               {getSourceActionLabel(
                                 isCreating,
@@ -198,6 +237,19 @@ function normalizeSourceType(
 function formatSourceCategory(
   category: string
 ) {
+  if (
+    category === "data_warehouses"
+  ) {
+    return "Data Warehouses"
+  }
+
+  if (
+    category ===
+    "cloud_object_storage"
+  ) {
+    return "Cloud Object Storage"
+  }
+
   return category
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) =>
@@ -205,9 +257,40 @@ function formatSourceCategory(
     )
 }
 
+function getSourceCategoryRank(
+  category: string
+) {
+  const index =
+    SOURCE_CATEGORY_ORDER.indexOf(
+      category
+    )
+
+  return index === -1
+    ? SOURCE_CATEGORY_ORDER.length
+    : index
+}
+
 function formatSourceConnection(
   connectionType?: string
 ) {
+  if (
+    connectionType ===
+    "data_warehouse"
+  ) {
+    return "Data Warehouse"
+  }
+
+  if (
+    connectionType ===
+    "object_storage"
+  ) {
+    return "Object Storage"
+  }
+
+  if (connectionType === "api_key") {
+    return "API Key"
+  }
+
   return (
     connectionType || "connector"
   )
@@ -231,16 +314,6 @@ function formatSyncModes(
         .replace(/\b\w/g, (letter) =>
           letter.toUpperCase()
         )
-    )
-    .join(", ")
-}
-
-function formatConfigKeys(
-  configKeys: string[]
-) {
-  return configKeys
-    .map((key) =>
-      key.replace(/_/g, " ")
     )
     .join(", ")
 }

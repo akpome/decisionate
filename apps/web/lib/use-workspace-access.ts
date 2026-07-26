@@ -13,6 +13,9 @@ import {
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
+import {
+  workspaceAccessChangedEvent,
+} from "@/lib/workspace-context"
 
 export type WorkspaceRole =
   | "owner"
@@ -31,6 +34,32 @@ export function useWorkspaceAccess(
     useState<OrganizationWorkspaceRecord[]>([])
   const [loadingWorkspaceAccess, setLoadingWorkspaceAccess] =
     useState(true)
+  const workspaceAccessKey =
+    `${userId ?? ""}:${activeWorkspaceId}`
+  const [loadedWorkspaceAccessKey, setLoadedWorkspaceAccessKey] =
+    useState("")
+  const [accessRefreshKey, setAccessRefreshKey] =
+    useState(0)
+
+  useEffect(() => {
+    const handleWorkspaceAccessChanged = () => {
+      setAccessRefreshKey(
+        currentKey => currentKey + 1
+      )
+    }
+
+    window.addEventListener(
+      workspaceAccessChangedEvent,
+      handleWorkspaceAccessChanged
+    )
+
+    return () => {
+      window.removeEventListener(
+        workspaceAccessChangedEvent,
+        handleWorkspaceAccessChanged
+      )
+    }
+  }, [])
 
   useEffect(() => {
     let ignoreResult = false
@@ -39,6 +68,7 @@ export function useWorkspaceAccess(
       if (!userId) {
         if (!ignoreResult) {
           setWorkspaces([])
+          setLoadedWorkspaceAccessKey(workspaceAccessKey)
           setLoadingWorkspaceAccess(false)
         }
 
@@ -55,12 +85,14 @@ export function useWorkspaceAccess(
 
         if (!ignoreResult) {
           setWorkspaces(workspaceData)
+          setLoadedWorkspaceAccessKey(workspaceAccessKey)
         }
       } catch (error) {
         console.error(error)
 
         if (!ignoreResult) {
           setWorkspaces([])
+          setLoadedWorkspaceAccessKey(workspaceAccessKey)
         }
       } finally {
         if (!ignoreResult) {
@@ -75,8 +107,9 @@ export function useWorkspaceAccess(
       ignoreResult = true
     }
   }, [
+    accessRefreshKey,
+    workspaceAccessKey,
     userId,
-    workspaceVersion,
   ])
 
   const activeWorkspace =
@@ -98,7 +131,7 @@ export function useWorkspaceAccess(
       ]
     )
 
-  const workspaceRole: WorkspaceRole =
+  const workspaceRoleFromData: WorkspaceRole =
     activeWorkspace
       ? normalizeWorkspaceRole(
         activeWorkspace.role
@@ -108,17 +141,25 @@ export function useWorkspaceAccess(
           activeWorkspaceId !== userId
         ? "unknown"
         : "owner"
+  const workspaceAccessReady =
+    loadedWorkspaceAccessKey === workspaceAccessKey
+  const workspaceRole: WorkspaceRole =
+    workspaceAccessReady
+      ? workspaceRoleFromData
+      : "unknown"
 
   return {
     activeWorkspace,
     activeWorkspaceId,
     canManageWorkspaceData:
+      workspaceAccessReady &&
       !loadingWorkspaceAccess &&
       workspaceRole !== "client" &&
       workspaceRole !== "unknown",
     isClientWorkspace:
       workspaceRole === "client",
     loadingWorkspaceAccess,
+    workspaceAccessReady,
     workspaceRole,
     workspaceVersion,
   }

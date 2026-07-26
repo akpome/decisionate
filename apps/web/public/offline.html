@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#4f46e5" />
+    <title>Decisionate offline</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family:
+          Arial,
+          Helvetica,
+          sans-serif;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, #e0e7ff, transparent 32rem),
+          #f8fafc;
+        color: #111827;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+      }
+
+      main {
+        width: min(100%, 34rem);
+        border: 1px solid #e5e7eb;
+        border-radius: 1.5rem;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+        padding: 2rem;
+      }
+
+      .mark {
+        width: 3rem;
+        height: 3rem;
+        border-radius: 1rem;
+        background: linear-gradient(135deg, #4f46e5, #0891b2);
+        display: grid;
+        place-items: center;
+        color: white;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+      }
+
+      h1 {
+        margin: 1.25rem 0 0;
+        font-size: clamp(1.75rem, 8vw, 2.5rem);
+        line-height: 1;
+      }
+
+      p {
+        color: #4b5563;
+        line-height: 1.6;
+        margin: 1rem 0 0;
+      }
+
+      button {
+        border: 0;
+        border-radius: 0.875rem;
+        background: #4f46e5;
+        color: white;
+        cursor: pointer;
+        font-weight: 700;
+        margin-top: 1.5rem;
+        padding: 0.875rem 1rem;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true">D</div>
+      <h1>You’re offline</h1>
+      <p>
+        Decisionate could not reach the network. Reconnect to load live
+        dashboards, datasets, alerts, and decisions.
+      </p>
+      <button type="button" onclick="window.location.reload()">
+        Try again
+      </button>
+    </main>
+  </body>
+</html>

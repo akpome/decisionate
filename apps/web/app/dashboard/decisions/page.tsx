@@ -14,31 +14,46 @@ import {
     allPortfolioLifecycle,
     archivedDecisionStatus,
     archivedPortfolioLifecycle,
-    cancelledDecisionStatus,
-    completedDecisionStatus,
     defaultPortfolioLifecycle,
     defaultDecisionSort,
     decisionCategoryOptions,
-    decisionOutcomeStatusOptions,
     decisionSortOptions,
     formatDecisionLabel,
-    inProgressDecisionStatus,
 } from "@/lib/decision-options"
 import {
-    hasAddedNotes,
-    hasCapturedLearning,
     hasPendingLearning,
     hasPendingNotes,
     hasPendingOutcome,
-    hasPlannedOutcome,
     hasRecordedOutcome,
 } from "@/lib/decision-outcomes"
+import {
+    archivedDecisionHealthLabel,
+    cancelledDecisionHealthLabel,
+    getDecisionHealth,
+    healthyDecisionHealthLabel,
+    inProgressDecisionHealthLabel,
+    needsReviewDecisionHealthLabel,
+} from "@/lib/decision-health"
+import type {
+    DecisionHealthLabel,
+} from "@/lib/decision-health"
 import type {
     ActiveDecisionStatus,
 } from "@/lib/decision-options"
 import {
     useActiveWorkspace,
 } from "@/lib/use-active-workspace"
+import {
+    useWorkspaceAccess,
+} from "@/lib/use-workspace-access"
+import {
+    WorkspaceAccessNotice,
+} from "@/features/dashboard/components/workspace-access-notice"
+import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { getAIRecommendationSource } from "@/features/decisions/lib/ai-recommendation-source"
+import {
+    formatMetricLabel,
+} from "@/features/dashboard/components/metric-selector"
 import type {
     DecisionAttentionWorkflowState,
     DecisionCategory,
@@ -49,7 +64,6 @@ import type {
     DecisionOutcomeWorkflowState,
     DecisionReviewWorkflowState,
     DecisionListSort,
-    DecisionOutcomeStatus,
     DecisionRecord,
     DecisionSummary,
 } from "@/lib/api"
@@ -62,21 +76,6 @@ import { useUser } from "@clerk/nextjs"
 import Link from "next/link"
 
 import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    Tooltip,
-    ResponsiveContainer,
-    Cell,
-    LineChart,
-    Line,
-    CartesianGrid,
-    LabelList,
-} from "recharts"
-
-import {
-    BarChart3,
     Target,
     Calendar,
     Activity,
@@ -86,12 +85,12 @@ import {
     FileText,
     Gauge,
     Lightbulb,
+    LineChart as LineChartIcon,
     BriefcaseBusiness,
-    HeartPulse,
     Search,
-    TrendingUp,
     RefreshCw,
     Plus,
+    Link2,
     X,
 } from "lucide-react"
 
@@ -106,11 +105,6 @@ function getDecisionPageErrorMessage(
         ? error.message
         : fallbackMessage
 }
-
-type DecisionSummaryCountKey =
-    | "by_status"
-    | "by_outcome_status"
-    | "by_category"
 
 type PortfolioFilter = DecisionListLifecycle
 
@@ -150,38 +144,67 @@ type ActivePortfolioFilterChip = {
     onClear: () => void
 }
 
-const healthyDecisionLabel = "Healthy"
-const needsReviewDecisionLabel = "Needs Review"
-const archivedDecisionLabel = "Archived"
-const inProgressDecisionLabel = "In Progress"
-const cancelledDecisionLabel = "Cancelled"
-const plannedDecisionLabel = "Planned"
-
-type DecisionHealthLabel =
-    | typeof healthyDecisionLabel
-    | typeof needsReviewDecisionLabel
-    | typeof archivedDecisionLabel
-    | typeof inProgressDecisionLabel
-    | typeof cancelledDecisionLabel
-    | typeof plannedDecisionLabel
-
-function getInitialPortfolioAttentionFilter(): PortfolioAttentionFilter {
+function getDecisionPortfolioSearchParams() {
     if (typeof window === "undefined") {
-        return ""
+        return new URLSearchParams()
     }
 
-    const params =
-        new URLSearchParams(
-            window.location.search
-        )
+    return new URLSearchParams(
+        window.location.search
+    )
+}
 
-    return params.get("attention") === "required"
-        ? "required"
-        : ""
+function getInitialDecisionPortfolioOption<T extends string>(
+    key: string,
+    allowedValues: readonly T[],
+    fallbackValue: T
+) {
+    const value =
+        getDecisionPortfolioSearchParams().get(key)
+
+    return allowedValues.includes(value as T)
+        ? value as T
+        : fallbackValue
+}
+
+function getInitialDecisionPortfolioText(
+    key: string
+) {
+    return getDecisionPortfolioSearchParams()
+        .get(key)
+        ?.trim() ?? ""
 }
 
 const portfolioPageSize = 24
 const activityFeedPageSize = 20
+const addNotesFollowUpAction = "Add notes"
+const decisionPortfolioLifecycleOptions = [
+    allPortfolioLifecycle,
+    defaultPortfolioLifecycle,
+    archivedPortfolioLifecycle,
+] as const
+const decisionPortfolioAttentionOptions = [
+    "required",
+] as const
+const decisionPortfolioOutcomeOptions = [
+    "planned",
+    "pending",
+    "recorded",
+    "evaluated",
+] as const
+const decisionPortfolioLearningOptions = [
+    "captured",
+    "pending",
+] as const
+const decisionPortfolioNotesOptions = [
+    "added",
+    "pending",
+] as const
+const decisionPortfolioReviewOptions = [
+    "scheduled",
+    "overdue",
+    "upcoming",
+] as const
 
 export default function DecisionsPage() {
     const { user } = useUser()
@@ -190,6 +213,10 @@ export default function DecisionsPage() {
         workspaceVersion,
     } =
         useActiveWorkspace(user?.id)
+    const {
+        canManageWorkspaceData,
+        loadingWorkspaceAccess,
+    } = useWorkspaceAccess(user?.id)
     const portfolioLoadedOnce = useRef(false)
     const [decisions, setDecisions] = useState<DecisionListRecord[]>([])
     const [decisionSummary, setDecisionSummary] =
@@ -203,33 +230,126 @@ export default function DecisionsPage() {
     const [decisionActivityError, setDecisionActivityError] =
         useState("")
     const [portfolioFilter, setPortfolioFilter] =
-        useState<PortfolioFilter>(defaultPortfolioLifecycle)
+        useState<PortfolioFilter>(
+            () => getInitialDecisionPortfolioOption(
+                "lifecycle",
+                decisionPortfolioLifecycleOptions,
+                defaultPortfolioLifecycle
+            )
+        )
     const [portfolioSearch, setPortfolioSearch] =
-        useState("")
+        useState(
+            () => getInitialDecisionPortfolioText("search")
+        )
     const [portfolioStatusFilter, setPortfolioStatusFilter] =
-        useState<PortfolioStatusFilter>("")
+        useState<PortfolioStatusFilter>(
+            () =>
+                getInitialDecisionPortfolioOption(
+                    "lifecycle",
+                    decisionPortfolioLifecycleOptions,
+                    defaultPortfolioLifecycle
+                ) === archivedPortfolioLifecycle
+                    ? ""
+                    : getInitialDecisionPortfolioOption(
+                        "status",
+                        activeDecisionStatusOptions.map(option => option.value),
+                        ""
+                    )
+        )
     const [portfolioCategoryFilter, setPortfolioCategoryFilter] =
-        useState<PortfolioCategoryFilter>("")
+        useState<PortfolioCategoryFilter>(
+            () => getInitialDecisionPortfolioOption(
+                "category",
+                decisionCategoryOptions.map(option => option.value),
+                ""
+            )
+        )
     const [portfolioAttentionFilter, setPortfolioAttentionFilter] =
         useState<PortfolioAttentionFilter>(
-            () => getInitialPortfolioAttentionFilter()
+            () => getInitialDecisionPortfolioOption(
+                "attention",
+                decisionPortfolioAttentionOptions,
+                ""
+            )
         )
     const [portfolioOutcomeFilter, setPortfolioOutcomeFilter] =
-        useState<PortfolioOutcomeFilter>("")
+        useState<PortfolioOutcomeFilter>(
+            () =>
+                getInitialDecisionPortfolioOption(
+                    "attention",
+                    decisionPortfolioAttentionOptions,
+                    ""
+                )
+                    ? ""
+                    : getInitialDecisionPortfolioOption(
+                        "outcome",
+                        decisionPortfolioOutcomeOptions,
+                        ""
+                    )
+        )
     const [portfolioLearningFilter, setPortfolioLearningFilter] =
-        useState<PortfolioLearningFilter>("")
+        useState<PortfolioLearningFilter>(
+            () =>
+                getInitialDecisionPortfolioOption(
+                    "attention",
+                    decisionPortfolioAttentionOptions,
+                    ""
+                )
+                    ? ""
+                    : getInitialDecisionPortfolioOption(
+                        "learning",
+                        decisionPortfolioLearningOptions,
+                        ""
+                    )
+        )
     const [portfolioNotesFilter, setPortfolioNotesFilter] =
-        useState<PortfolioNotesFilter>("")
+        useState<PortfolioNotesFilter>(
+            () =>
+                getInitialDecisionPortfolioOption(
+                    "attention",
+                    decisionPortfolioAttentionOptions,
+                    ""
+                )
+                    ? ""
+                    : getInitialDecisionPortfolioOption(
+                        "notes",
+                        decisionPortfolioNotesOptions,
+                        ""
+                    )
+        )
     const [portfolioReviewFilter, setPortfolioReviewFilter] =
-        useState<PortfolioReviewFilter>("")
+        useState<PortfolioReviewFilter>(
+            () =>
+                getInitialDecisionPortfolioOption(
+                    "attention",
+                    decisionPortfolioAttentionOptions,
+                    ""
+                )
+                    ? ""
+                    : getInitialDecisionPortfolioOption(
+                        "review",
+                        decisionPortfolioReviewOptions,
+                        ""
+                    )
+        )
     const [portfolioSort, setPortfolioSort] =
         useState<PortfolioSort>(
-            () => getInitialPortfolioAttentionFilter()
-                ? "review_asc"
-                : defaultDecisionSort
+            () => getInitialDecisionPortfolioOption(
+                "sort",
+                decisionSortOptions.map(option => option.value),
+                getInitialDecisionPortfolioOption(
+                    "attention",
+                    decisionPortfolioAttentionOptions,
+                    ""
+                )
+                    ? "review_asc"
+                    : defaultDecisionSort
+            )
         )
     const [debouncedPortfolioSearch, setDebouncedPortfolioSearch] =
-        useState("")
+        useState(
+            () => getInitialDecisionPortfolioText("search")
+        )
     const [hasMorePortfolioDecisions, setHasMorePortfolioDecisions] =
         useState(false)
     const [portfolioLoading, setPortfolioLoading] =
@@ -242,11 +362,115 @@ export default function DecisionsPage() {
         useState("")
     const [portfolioRetryKey, setPortfolioRetryKey] =
         useState(0)
+    const [activityRetryKey, setActivityRetryKey] =
+        useState(0)
     const [workspaceRefreshing, setWorkspaceRefreshing] =
         useState(false)
+    const [portfolioLinkStatus, setPortfolioLinkStatus] =
+        useState<{
+            message: string
+            viewKey: string
+        } | null>(null)
+    const refreshRequestId = useRef(0)
+    const activeRefreshRequestId = useRef<number | null>(null)
+    const portfolioRequestId = useRef(0)
+    const activityRequestId = useRef(0)
+    const decisionContextWorkspaceId = useRef<
+        string | undefined
+    >(undefined)
+    const portfolioWorkspaceId = useRef<string | undefined>(
+        undefined
+    )
+
+    const trimmedPortfolioSearch =
+        portfolioSearch.trim()
+    const portfolioViewKey = JSON.stringify([
+        portfolioFilter,
+        portfolioStatusFilter,
+        portfolioCategoryFilter,
+        portfolioAttentionFilter,
+        portfolioOutcomeFilter,
+        portfolioLearningFilter,
+        portfolioNotesFilter,
+        portfolioReviewFilter,
+        portfolioSort,
+        trimmedPortfolioSearch,
+    ])
+
+    useEffect(() => {
+        if (!portfolioLinkStatus) {
+            return
+        }
+
+        const timeout =
+            window.setTimeout(() => {
+                setPortfolioLinkStatus(null)
+            }, 3000)
+
+        return () => {
+            window.clearTimeout(timeout)
+        }
+    }, [portfolioLinkStatus])
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return
+        }
+
+        const url =
+            new URL(window.location.href)
+
+        const setPortfolioParam = (
+            key: string,
+            value: string,
+            defaultValue = ""
+        ) => {
+            if (value && value !== defaultValue) {
+                url.searchParams.set(key, value)
+            } else {
+                url.searchParams.delete(key)
+            }
+        }
+
+        setPortfolioParam(
+            "lifecycle",
+            portfolioFilter,
+            defaultPortfolioLifecycle
+        )
+        setPortfolioParam("status", portfolioStatusFilter)
+        setPortfolioParam("category", portfolioCategoryFilter)
+        setPortfolioParam("attention", portfolioAttentionFilter)
+        setPortfolioParam("outcome", portfolioOutcomeFilter)
+        setPortfolioParam("learning", portfolioLearningFilter)
+        setPortfolioParam("notes", portfolioNotesFilter)
+        setPortfolioParam("review", portfolioReviewFilter)
+        setPortfolioParam(
+            "sort",
+            portfolioSort,
+            defaultDecisionSort
+        )
+        setPortfolioParam("search", trimmedPortfolioSearch)
+
+        window.history.replaceState(
+            null,
+            "",
+            url.toString()
+        )
+    }, [
+        portfolioFilter,
+        portfolioStatusFilter,
+        portfolioCategoryFilter,
+        portfolioAttentionFilter,
+        portfolioOutcomeFilter,
+        portfolioLearningFilter,
+        portfolioNotesFilter,
+        portfolioReviewFilter,
+        portfolioSort,
+        trimmedPortfolioSearch,
+    ])
 
     const portfolioSearchPending =
-        portfolioSearch !== debouncedPortfolioSearch
+        trimmedPortfolioSearch !== debouncedPortfolioSearch
 
     const portfolioFiltersActive =
         portfolioFilter !== defaultPortfolioLifecycle ||
@@ -257,8 +481,14 @@ export default function DecisionsPage() {
         Boolean(portfolioNotesFilter) ||
         Boolean(portfolioReviewFilter) ||
         Boolean(portfolioStatusFilter) ||
-        Boolean(portfolioSearch) ||
+        Boolean(trimmedPortfolioSearch) ||
         portfolioSort !== defaultDecisionSort
+    const advancedPortfolioFiltersActive =
+        Boolean(portfolioAttentionFilter) ||
+        Boolean(portfolioOutcomeFilter) ||
+        Boolean(portfolioLearningFilter) ||
+        Boolean(portfolioNotesFilter) ||
+        Boolean(portfolioReviewFilter)
 
     const activePortfolioFilterChips = [
         portfolioFilter !== defaultPortfolioLifecycle
@@ -317,10 +547,10 @@ export default function DecisionsPage() {
                 onClear: () => setPortfolioReviewFilter(""),
             }
             : null,
-        portfolioSearch
+        trimmedPortfolioSearch
             ? {
                 key: "search",
-                label: `Search: ${portfolioSearch}`,
+                label: `Search: ${trimmedPortfolioSearch}`,
                 onClear: () => setPortfolioSearch(""),
             }
             : null,
@@ -340,7 +570,19 @@ export default function DecisionsPage() {
     async function handleRefreshDecisionWorkspace() {
         if (!user?.id || workspaceRefreshing) return
 
+        const requestId =
+            refreshRequestId.current + 1
+        refreshRequestId.current = requestId
+        activeRefreshRequestId.current = requestId
+        portfolioRequestId.current += 1
+        activityRequestId.current += 1
+        const portfolioRefreshRequestId =
+            portfolioRequestId.current
+        const activityRefreshRequestId =
+            activityRequestId.current
         setWorkspaceRefreshing(true)
+        setPortfolioLoading(true)
+        setDecisionActivityLoading(true)
 
         const userId = user.id
 
@@ -372,7 +614,7 @@ export default function DecisionsPage() {
                         learningState: portfolioLearningFilter || undefined,
                         notesState: portfolioNotesFilter || undefined,
                         reviewState: portfolioReviewFilter || undefined,
-                        search: debouncedPortfolioSearch,
+                        search: trimmedPortfolioSearch,
                         sort: portfolioSort,
                         limit: portfolioPageSize,
                         offset: 0,
@@ -380,24 +622,50 @@ export default function DecisionsPage() {
                 ),
             ])
 
+            if (refreshRequestId.current !== requestId) {
+                if (activeRefreshRequestId.current === requestId) {
+                    activeRefreshRequestId.current = null
+                    setWorkspaceRefreshing(false)
+                    if (
+                        activityRequestId.current ===
+                        activityRefreshRequestId
+                    ) {
+                        setDecisionActivityLoading(false)
+                    }
+                }
+                return
+            }
+
             if (summaryResult.status === "fulfilled") {
                 setDecisionSummary(summaryResult.value)
             }
 
-            if (activityResult.status === "fulfilled") {
-                setDecisionActivityFeed(activityResult.value)
-                setHasMoreDecisionActivity(
-                    activityResult.value.length === activityFeedPageSize
-                )
-                setDecisionActivityError("")
-            } else {
-                setHasMoreDecisionActivity(false)
-                setDecisionActivityError(
-                    getDecisionPageErrorMessage(
-                        activityResult.reason,
-                        "Decision activity could not be loaded."
+            if (
+                activityRequestId.current ===
+                activityRefreshRequestId
+            ) {
+                if (activityResult.status === "fulfilled") {
+                    setDecisionActivityFeed(activityResult.value)
+                    setHasMoreDecisionActivity(
+                        activityResult.value.length === activityFeedPageSize
                     )
-                )
+                    setDecisionActivityError("")
+                } else {
+                    setHasMoreDecisionActivity(false)
+                    setDecisionActivityError(
+                        getDecisionPageErrorMessage(
+                            activityResult.reason,
+                            "Decision activity could not be loaded."
+                        )
+                    )
+                }
+            }
+
+            if (
+                portfolioRequestId.current !==
+                portfolioRefreshRequestId
+            ) {
+                return
             }
 
             if (portfolioResult.status === "fulfilled") {
@@ -405,18 +673,65 @@ export default function DecisionsPage() {
                 setHasMorePortfolioDecisions(
                     portfolioResult.value.length === portfolioPageSize
                 )
+                setPortfolioLoadError("")
+                setPortfolioPaginationError("")
+                portfolioLoadedOnce.current = true
+            } else {
+                setDecisions([])
+                setHasMorePortfolioDecisions(false)
+                setPortfolioPaginationError("")
+                setPortfolioLoadError(
+                    getDecisionPageErrorMessage(
+                        portfolioResult.reason,
+                        "Decision portfolio could not be refreshed."
+                    )
+                )
             }
         } catch (error) {
             console.error(error)
         } finally {
-            setWorkspaceRefreshing(false)
+            if (refreshRequestId.current === requestId) {
+                activeRefreshRequestId.current = null
+                setWorkspaceRefreshing(false)
+                if (
+                    portfolioRequestId.current ===
+                    portfolioRefreshRequestId
+                ) {
+                    setPortfolioLoading(false)
+                }
+                if (
+                    activityRequestId.current ===
+                    activityRefreshRequestId
+                ) {
+                    setDecisionActivityLoading(false)
+                }
+            }
         }
     }
 
     useEffect(() => {
         if (!user?.id) return
         const userId = user.id
+        let cancelled = false
+        refreshRequestId.current += 1
+        activityRequestId.current += 1
+        const workspaceContextRequestId =
+            refreshRequestId.current
+        const activityLoadRequestId =
+            activityRequestId.current
+        const workspaceChanged =
+            decisionContextWorkspaceId.current !==
+            activeWorkspaceId
+        decisionContextWorkspaceId.current =
+            activeWorkspaceId
         portfolioLoadedOnce.current = false
+
+        if (workspaceChanged) {
+            setDecisionSummary(null)
+            setDecisionActivityFeed([])
+            setHasMoreDecisionActivity(false)
+            setDecisionActivityError("")
+        }
 
         async function loadWorkspaceDecisionContext() {
             try {
@@ -425,13 +740,32 @@ export default function DecisionsPage() {
                         userId,
                         activeWorkspaceId
                     )
+
+                if (
+                    cancelled ||
+                    refreshRequestId.current !==
+                    workspaceContextRequestId
+                ) {
+                    return
+                }
+
                 setDecisionSummary(summaryData)
             } catch (error) {
+                if (
+                    cancelled ||
+                    refreshRequestId.current !==
+                    workspaceContextRequestId
+                ) {
+                    return
+                }
+
                 console.error(error)
                 setDecisionSummary(null)
             }
 
             try {
+                setDecisionActivityLoading(true)
+
                 const activityData =
                     await getDecisionActivityFeed(
                         userId,
@@ -439,12 +773,29 @@ export default function DecisionsPage() {
                         activityFeedPageSize,
                         0
                     )
+
+                if (
+                    cancelled ||
+                    activityRequestId.current !==
+                    activityLoadRequestId
+                ) {
+                    return
+                }
+
                 setDecisionActivityFeed(activityData)
                 setHasMoreDecisionActivity(
                     activityData.length === activityFeedPageSize
                 )
                 setDecisionActivityError("")
             } catch (error) {
+                if (
+                    cancelled ||
+                    activityRequestId.current !==
+                    activityLoadRequestId
+                ) {
+                    return
+                }
+
                 console.error(error)
                 setDecisionActivityFeed([])
                 setHasMoreDecisionActivity(false)
@@ -454,12 +805,25 @@ export default function DecisionsPage() {
                         "Decision activity could not be loaded."
                     )
                 )
+            } finally {
+                if (
+                    !cancelled &&
+                    activityRequestId.current ===
+                    activityLoadRequestId
+                ) {
+                    setDecisionActivityLoading(false)
+                }
             }
         }
 
-        loadWorkspaceDecisionContext()
+        void loadWorkspaceDecisionContext()
+
+        return () => {
+            cancelled = true
+        }
     }, [
         activeWorkspaceId,
+        activityRetryKey,
         user?.id,
         workspaceVersion,
     ])
@@ -471,18 +835,30 @@ export default function DecisionsPage() {
     useEffect(() => {
         const timeout =
             window.setTimeout(() => {
-                setDebouncedPortfolioSearch(portfolioSearch)
+                setDebouncedPortfolioSearch(trimmedPortfolioSearch)
             }, 300)
 
         return () => {
             window.clearTimeout(timeout)
         }
-    }, [portfolioSearch])
+    }, [trimmedPortfolioSearch])
 
     useEffect(() => {
         if (!user?.id) return
         const userId = user.id
         let cancelled = false
+        portfolioRequestId.current += 1
+        const requestId =
+            portfolioRequestId.current
+        const workspaceChanged =
+            portfolioWorkspaceId.current !==
+            activeWorkspaceId
+        portfolioWorkspaceId.current = activeWorkspaceId
+
+        if (workspaceChanged) {
+            setDecisions([])
+            setHasMorePortfolioDecisions(false)
+        }
 
         async function loadPortfolioDecisions() {
             setPortfolioLoading(true)
@@ -514,7 +890,12 @@ export default function DecisionsPage() {
                         }
                     )
 
-                if (cancelled) return
+                if (
+                    cancelled ||
+                    portfolioRequestId.current !== requestId
+                ) {
+                    return
+                }
 
                 setDecisions(decisionData)
                 setHasMorePortfolioDecisions(
@@ -523,7 +904,10 @@ export default function DecisionsPage() {
             } catch (error) {
                 console.error(error)
 
-                if (!cancelled) {
+                if (
+                    !cancelled &&
+                    portfolioRequestId.current === requestId
+                ) {
                     setDecisions([])
                     setHasMorePortfolioDecisions(false)
                     setPortfolioLoadError(
@@ -533,7 +917,10 @@ export default function DecisionsPage() {
                     )
                 }
             } finally {
-                if (!cancelled) {
+                if (
+                    !cancelled &&
+                    portfolioRequestId.current === requestId
+                ) {
                     portfolioLoadedOnce.current = true
                     setPortfolioLoading(false)
                     setPortfolioInitialLoading(false)
@@ -564,9 +951,17 @@ export default function DecisionsPage() {
     ])
 
     async function handleLoadMoreDecisions() {
-        if (!user?.id || portfolioLoading) return
+        if (
+            !user?.id ||
+            portfolioLoading ||
+            portfolioSearchPending
+        ) {
+            return
+        }
 
         setPortfolioLoading(true)
+        const requestId =
+            portfolioRequestId.current
 
         try {
             const decisionData =
@@ -589,10 +984,16 @@ export default function DecisionsPage() {
                     }
                 )
 
-            setDecisions([
-                ...decisions,
-                ...decisionData,
-            ])
+            if (portfolioRequestId.current !== requestId) {
+                return
+            }
+
+            setDecisions(currentDecisions =>
+                appendUniqueDecisions(
+                    currentDecisions,
+                    decisionData
+                )
+            )
 
             setHasMorePortfolioDecisions(
                 decisionData.length === portfolioPageSize
@@ -600,14 +1001,19 @@ export default function DecisionsPage() {
             setPortfolioPaginationError("")
         } catch (error) {
             console.error(error)
-            setPortfolioPaginationError(
-                getDecisionPageErrorMessage(
-                    error,
-                    "More decisions could not be loaded."
+
+            if (portfolioRequestId.current === requestId) {
+                setPortfolioPaginationError(
+                    getDecisionPageErrorMessage(
+                        error,
+                        "More decisions could not be loaded."
+                    )
                 )
-            )
+            }
         } finally {
-            setPortfolioLoading(false)
+            if (portfolioRequestId.current === requestId) {
+                setPortfolioLoading(false)
+            }
         }
     }
 
@@ -625,6 +1031,8 @@ export default function DecisionsPage() {
 
         setDecisionActivityLoading(true)
         setDecisionActivityError("")
+        const requestId =
+            activityRequestId.current
 
         try {
             const activityData =
@@ -635,10 +1043,16 @@ export default function DecisionsPage() {
                     decisionActivityFeed.length
                 )
 
-            setDecisionActivityFeed([
-                ...decisionActivityFeed,
-                ...activityData,
-            ])
+            if (activityRequestId.current !== requestId) {
+                return
+            }
+
+            setDecisionActivityFeed(currentFeed =>
+                appendUniqueDecisionActivity(
+                    currentFeed,
+                    activityData
+                )
+            )
 
             setHasMoreDecisionActivity(
                 activityData.length === activityFeedPageSize
@@ -646,53 +1060,21 @@ export default function DecisionsPage() {
             setDecisionActivityError("")
         } catch (error) {
             console.error(error)
-            setDecisionActivityError(
-                getDecisionPageErrorMessage(
-                    error,
-                    "More decision activity could not be loaded."
+
+            if (activityRequestId.current === requestId) {
+                setDecisionActivityError(
+                    getDecisionPageErrorMessage(
+                        error,
+                        "More decision activity could not be loaded."
+                    )
                 )
-            )
+            }
         } finally {
-            setDecisionActivityLoading(false)
+            if (activityRequestId.current === requestId) {
+                setDecisionActivityLoading(false)
+            }
         }
     }
-
-    const outcomeCounts =
-        Object.fromEntries(
-            decisionOutcomeStatusOptions.map(option => [
-                option.value,
-                getSummaryCount(
-                    decisionSummary,
-                    "by_outcome_status",
-                    option.value,
-                    decisions.filter(
-                        decision => decision.outcome_status === option.value
-                    ).length
-                ),
-            ])
-        ) as Record<DecisionOutcomeStatus, number>
-
-    const successfulCount =
-        outcomeCounts.successful
-
-    const partiallySuccessfulCount =
-        outcomeCounts.partially_successful
-
-    const unsuccessfulCount =
-        outcomeCounts.unsuccessful
-
-    const evaluatedCount =
-        decisionSummary?.outcomes_evaluated ??
-        (
-            successfulCount +
-            partiallySuccessfulCount +
-            unsuccessfulCount
-        )
-
-    const successRate =
-        evaluatedCount === 0
-            ? 0
-            : Math.round((successfulCount / evaluatedCount) * 100)
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -712,111 +1094,10 @@ export default function DecisionsPage() {
             }
         ).length
 
-    const upcomingReviewCount =
-        decisionSummary?.reviews_upcoming ??
-        decisions.filter(
-            decision => {
-                if (decision.status === archivedDecisionStatus) {
-                    return false
-                }
-
-                const reviewDate =
-                    getDecisionDateValue(decision.review_date)
-
-                return Boolean(reviewDate && reviewDate >= today)
-            }
-        ).length
-
-    const categoryChartData = decisionCategoryOptions
-        .map(({ label, value }) => ({
-            name: label,
-            value: getSummaryCount(
-                decisionSummary,
-                "by_category",
-                value,
-                decisions.filter(d => d.category === value).length
-            ),
-        }))
-        .filter(item => item.value > 0)
-        .sort((a, b) => b.value - a.value)
-
-    const categoryColors = [
-        "#2563eb",
-        "#16a34a",
-        "#f97316",
-        "#9333ea",
-        "#dc2626",
-        "#0891b2",
-        "#ca8a04",
-    ]
-
-    const monthlyDecisionCounts = decisions.reduce(
-        (acc: Record<string, number>, decision) => {
-            const createdAt =
-                getDecisionDateValue(decision.created_at)
-
-            if (!createdAt) return acc
-
-            const month = createdAt.toLocaleString(
-                "default",
-                { month: "short" }
-            )
-
-            acc[month] = (acc[month] || 0) + 1
-
-            return acc
-        },
-        {}
-    )
-
-    const monthlyDecisionData =
-        decisionSummary
-            ? Object.entries(decisionSummary.by_created_month)
-                .map(([month, value]) => ({
-                    month: formatSummaryMonth(month),
-                    value,
-                }))
-            : Object.entries(monthlyDecisionCounts)
-                .map(([month, value]) => ({
-                    month,
-                    value,
-                }))
-
-    const monthlyDecisionTotal =
-        monthlyDecisionData.reduce(
-            (total, item) => total + item.value,
-            0
-        )
-
-    function getSuccessRateStyle(rate: number) {
-        if (rate >= 80) return "bg-green-50 text-green-600"
-        if (rate >= 60) return "bg-blue-50 text-blue-600"
-        if (rate >= 40) return "bg-amber-50 text-amber-600"
-        return "bg-red-50 text-red-600"
-    }
-
-    const outcomePlannedCount =
-        decisionSummary?.outcomes_planned ??
-        decisions.filter(
-            hasPlannedOutcome
-        ).length
-
     const outcomePendingCount =
         decisionSummary?.outcomes_pending ??
         decisions.filter(
             hasPendingOutcome
-        ).length
-
-    const outcomeRecordedCount =
-        decisionSummary?.outcomes_recorded ??
-        decisions.filter(
-            hasRecordedOutcome
-            ).length
-
-    const learningCapturedCount =
-        decisionSummary?.learning_captured ??
-        decisions.filter(
-            hasCapturedLearning
         ).length
 
     const learningPendingCount =
@@ -825,42 +1106,19 @@ export default function DecisionsPage() {
             hasPendingLearning
         ).length
 
-    const reviewScheduledCount =
-        decisionSummary?.reviews_scheduled ??
-        decisions.filter(
-            decision =>
-                decision.status !== archivedDecisionStatus &&
-                decision.review_date
-        ).length
-
-    const notesAddedCount =
-        decisionSummary?.notes_added ??
-        decisions.filter(
-            hasAddedNotes
-        ).length
-
-    const notesPendingCount =
-        decisionSummary?.notes_pending ??
-        decisions.filter(
-            hasPendingNotes
-        ).length
-
     const attentionRequiredCount =
         decisionSummary?.attention_required ??
         decisions.filter(
-            decision => {
-                const reviewDate =
-                    getDecisionDateValue(decision.review_date)
-                const hasOverdueReview =
-                    decision.status !== archivedDecisionStatus &&
-                    Boolean(reviewDate && reviewDate < today)
-
-                return (
-                    hasPendingOutcome(decision) ||
-                    hasPendingLearning(decision) ||
-                    hasOverdueReview
+            decision =>
+                hasPendingOutcome(decision) ||
+                hasPendingLearning(decision) ||
+                (
+                    Boolean(decision.review_date) &&
+                    Boolean(
+                        getDecisionDateValue(decision.review_date)
+                    ) &&
+                    getDecisionDateValue(decision.review_date)! < today
                 )
-            }
         ).length
 
     /* =========================
@@ -881,22 +1139,30 @@ export default function DecisionsPage() {
         decisions.filter(
             decision => decision.status === archivedDecisionStatus
         ).length
+    const activityFeedEmpty =
+        decisionActivityFeed.length === 0
+    const activityFeedLoadingEmpty =
+        decisionActivityLoading &&
+        activityFeedEmpty
+    const activityFeedErrorEmpty =
+        Boolean(decisionActivityError) &&
+        activityFeedEmpty
     const actionNeededView =
         portfolioAttentionFilter === "required"
     const portfolioEmptyTitle =
         actionNeededView
-            ? portfolioSearch
+            ? trimmedPortfolioSearch
                 ? "No action-needed decisions match"
                 : "No action needed"
             : "No decisions in this view"
     const portfolioEmptyDescription =
         actionNeededView
-            ? portfolioSearch
+            ? trimmedPortfolioSearch
                 ? "Clear the search or adjust filters to review the rest of the action queue."
                 : "Pending outcomes, learning follow-ups and overdue reviews are clear."
             : "Adjust the filter or search to review the rest of your decision portfolio."
     const portfolioEmptyResetLabel =
-        actionNeededView && !portfolioSearch
+        actionNeededView && !trimmedPortfolioSearch
             ? "View active decisions"
             : "Reset filters"
 
@@ -933,6 +1199,27 @@ export default function DecisionsPage() {
         setPortfolioReviewFilter("")
         setPortfolioSort(defaultDecisionSort)
         setPortfolioSearch("")
+    }
+
+    async function copyPortfolioViewLink() {
+        if (typeof window === "undefined") {
+            return
+        }
+
+        try {
+            await navigator.clipboard.writeText(
+                window.location.href
+            )
+            setPortfolioLinkStatus({
+                message: "View link copied",
+                viewKey: portfolioViewKey,
+            })
+        } catch {
+            setPortfolioLinkStatus({
+                message: "Could not copy view link",
+                viewKey: portfolioViewKey,
+            })
+        }
     }
 
     function showAttentionRequiredDecisions() {
@@ -1001,31 +1288,6 @@ export default function DecisionsPage() {
             })
     }
 
-    function showNotesWorkflowDecisions(
-        notesState: DecisionNotesWorkflowState
-    ) {
-        setPortfolioFilter(
-            notesState === "added"
-                ? allPortfolioLifecycle
-                : defaultPortfolioLifecycle
-        )
-        setPortfolioStatusFilter("")
-        setPortfolioCategoryFilter("")
-        setPortfolioAttentionFilter("")
-        setPortfolioOutcomeFilter("")
-        setPortfolioLearningFilter("")
-        setPortfolioNotesFilter(notesState)
-        setPortfolioReviewFilter("")
-        setPortfolioSearch("")
-
-        document
-            .getElementById("decision-portfolio")
-            ?.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-            })
-    }
-
     function showReviewWorkflowDecisions(
         reviewState: DecisionReviewWorkflowState
     ) {
@@ -1050,307 +1312,73 @@ export default function DecisionsPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold">
-                        Decisions
-                    </h1>
+            <DashboardPageHeader
+                title="Decisions"
+                description="Track decisions, review outcomes, and learn what works."
+                actions={canManageWorkspaceData ? (
+                    <Link
+                        href="/dashboard/decisions/new?returnTo=%2Fdashboard%2Fdecisions"
+                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 sm:w-auto"
+                    >
+                        <Plus size={16} />
+                        New Decision
+                    </Link>
+                ) : undefined}
+            />
 
-                    <p className="mt-2 text-gray-500">
-                        Track decisions, review outcomes, and learn what works.
-                    </p>
-                </div>
+            <WorkspaceAccessNotice
+                loading={loadingWorkspaceAccess}
+                canManageWorkspaceData={canManageWorkspaceData}
+                message="This client workspace is read-only. You can review decisions and their activity here."
+                className="rounded-xl"
+            />
 
-                <Link
-                    href="/dashboard/decisions/new?returnTo=%2Fdashboard%2Fdecisions"
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700"
-                >
-                    <Plus size={16} />
-                    New Decision
-                </Link>
-            </div>
-
-            <div className="grid gap-6 xl:grid-cols-2">
-                <DashboardCard>
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
-                                Decision Success Rate
-                            </p>
-
-                            <p className="mt-2 text-6xl font-bold tracking-tight">
-                                {successRate}%
-                            </p>
-
-                            <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-100">
-                                <div
-                                    className={`h-full rounded-full ${successRate >= 80
-                                        ? "bg-green-500"
-                                        : successRate >= 60
-                                            ? "bg-blue-500"
-                                            : successRate >= 40
-                                                ? "bg-amber-500"
-                                                : "bg-red-500"
-                                        }`}
-                                    style={{ width: `${successRate}%` }}
-                                />
-                            </div>
-
-                            <p className="mt-2 text-sm text-gray-500">
-                                Based on decisions with recorded outcomes.
-                            </p>
-                        </div>
-
-                        <IconBadge
-                            className={getSuccessRateStyle(successRate)}
-                            icon={<Target size={22} />}
-                        />
-                    </div>
-                </DashboardCard>
-
-                <DashboardCard>
+            <div className="grid gap-6">
+                <DashboardCard className="h-full p-4 sm:p-5">
                     <CardHeader
-                        title="Decisions by Category"
-                        description="Decisions grouped by business area."
+                        title="Action Queue"
+                        description="Outcome, learning, and overdue-review work that needs attention."
                         icon={
                             <IconBadge
-                                className="bg-purple-50 text-purple-600"
-                                icon={<BarChart3 size={22} />}
-                            />
-                        }
-                    />
-
-                    {categoryChartData.length === 0 ? (
-                        <EmptyState
-                            title="No category data yet"
-                            description="Categories will appear when decisions are created."
-                        />
-                    ) : (
-                        <div className="mt-4 h-36">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart
-                                    data={categoryChartData}
-                                    layout="vertical"
-                                >
-                                    <XAxis type="number" allowDecimals={false} />
-                                    <YAxis
-                                        type="category"
-                                        dataKey="name"
-                                        width={90}
-                                    />
-                                    <Tooltip />
-
-                                    <Bar
-                                        dataKey="value"
-                                        radius={[0, 6, 6, 0]}
-                                    >
-                                        <LabelList
-                                            dataKey="value"
-                                            position="right"
-                                        />
-
-                                        {categoryChartData.map((entry, index) => (
-                                            <Cell
-                                                key={`cell-${entry.name}`}
-                                                fill={
-                                                    categoryColors[
-                                                    index % categoryColors.length
-                                                    ]
-                                                }
-                                            />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
-                </DashboardCard>
-            </div>
-
-            <div className="grid gap-6 xl:grid-cols-2">
-                <DashboardCard className="h-full">
-                    <CardHeader
-                        title="Decision Metrics"
-                        description="Snapshot of decision activity and outcomes."
-                        icon={
-                            <IconBadge
-                                className="bg-indigo-50 text-indigo-600"
+                                className="bg-amber-50 text-amber-600"
                                 icon={<Gauge size={22} />}
                             />
                         }
                     />
 
-                    <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-                        <MetricCard label="Total Decisions" value={decisionTotalCount} />
-                        <MetricCard label="Evaluated" value={evaluatedCount} />
-                        <MetricCard label="Upcoming Reviews" value={upcomingReviewCount} />
-                        <MetricCard label="Overdue Reviews" value={overdueReviewCount} />
-                        {activeDecisionStatusOptions.map(option => (
-                            <MetricCard
-                                key={option.value}
-                                label={option.label}
-                                value={getSummaryCount(
-                                    decisionSummary,
-                                    "by_status",
-                                    option.value,
-                                    decisions.filter(
-                                        decision => decision.status === option.value
-                                    ).length
-                                )}
-                            />
-                        ))}
+                    <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                        <MetricCard
+                            label="Action Needed"
+                            value={attentionRequiredCount}
+                            onClick={showAttentionRequiredDecisions}
+                        />
+
+                        <MetricCard
+                            label="Outcome Pending"
+                            value={outcomePendingCount}
+                            onClick={() =>
+                                showOutcomeWorkflowDecisions("pending")
+                            }
+                        />
+
+                        <MetricCard
+                            label="Learning Pending"
+                            value={learningPendingCount}
+                            onClick={() =>
+                                showLearningWorkflowDecisions("pending")
+                            }
+                        />
+
+                        <MetricCard
+                            label="Reviews Overdue"
+                            value={overdueReviewCount}
+                            onClick={() =>
+                                showReviewWorkflowDecisions("overdue")
+                            }
+                        />
                     </div>
                 </DashboardCard>
-
-                <DashboardCard>
-                    <CardHeader
-                        title="Monthly Decision Trend"
-                        description="Decision creation activity over time."
-                        icon={
-                            <IconBadge
-                                className="bg-blue-50 text-blue-600"
-                                icon={<TrendingUp size={22} />}
-                            />
-                        }
-                    />
-
-                    {monthlyDecisionData.length > 1 ? (
-                        <div className="mt-4 h-40">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={monthlyDecisionData}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="month" />
-                                    <YAxis allowDecimals={false} />
-                                    <Tooltip />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="value"
-                                        stroke="#2563eb"
-                                        strokeWidth={3}
-                                        dot={{ r: 4 }}
-                                        activeDot={{ r: 6 }}
-                                    />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    ) : (
-                        <div className="mt-4 flex h-40 flex-col items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-center">
-                            <p className="text-5xl font-bold text-blue-700">
-                                {monthlyDecisionTotal}
-                            </p>
-
-                            <p className="mt-2 text-sm font-medium text-blue-700">
-                                decisions created this month
-                            </p>
-
-                            <p className="mt-1 text-xs text-blue-500">
-                                Trend chart appears when multiple months are available.
-                            </p>
-                        </div>
-                    )}
-                </DashboardCard>
             </div>
-
-            <DashboardCard>
-                <CardHeader
-                    title="Decision Health"
-                    description="How complete your decision records are."
-                    icon={
-                        <IconBadge
-                            className="bg-green-50 text-green-600"
-                            icon={<HeartPulse size={22} />}
-                        />
-                    }
-                />
-
-                <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-6">
-                    <MetricCard
-                        label="Action Needed"
-                        value={attentionRequiredCount}
-                        onClick={showAttentionRequiredDecisions}
-                    />
-
-                    <MetricCard
-                        label="Outcomes Planned"
-                        value={outcomePlannedCount}
-                        onClick={() =>
-                            showOutcomeWorkflowDecisions("planned")
-                        }
-                    />
-
-                    <MetricCard
-                        label="Outcomes Pending"
-                        value={outcomePendingCount}
-                        onClick={() =>
-                            showOutcomeWorkflowDecisions("pending")
-                        }
-                    />
-
-                    <MetricCard
-                        label="Outcomes Recorded"
-                        value={outcomeRecordedCount}
-                        onClick={() =>
-                            showOutcomeWorkflowDecisions("recorded")
-                        }
-                    />
-
-                    <MetricCard
-                        label="Learning Captured"
-                        value={learningCapturedCount}
-                        onClick={() =>
-                            showLearningWorkflowDecisions("captured")
-                        }
-                    />
-
-                    <MetricCard
-                        label="Learning Pending"
-                        value={learningPendingCount}
-                        onClick={() =>
-                            showLearningWorkflowDecisions("pending")
-                        }
-                    />
-
-                    <MetricCard
-                        label="Reviews Overdue"
-                        value={overdueReviewCount}
-                        onClick={() =>
-                            showReviewWorkflowDecisions("overdue")
-                        }
-                    />
-
-                    <MetricCard
-                        label="Reviews Upcoming"
-                        value={upcomingReviewCount}
-                        onClick={() =>
-                            showReviewWorkflowDecisions("upcoming")
-                        }
-                    />
-
-                    <MetricCard
-                        label="Reviews Scheduled"
-                        value={reviewScheduledCount}
-                        onClick={() =>
-                            showReviewWorkflowDecisions("scheduled")
-                        }
-                    />
-
-                    <MetricCard
-                        label="Notes Added"
-                        value={notesAddedCount}
-                        onClick={() =>
-                            showNotesWorkflowDecisions("added")
-                        }
-                    />
-
-                    <MetricCard
-                        label="Notes Pending"
-                        value={notesPendingCount}
-                        onClick={() =>
-                            showNotesWorkflowDecisions("pending")
-                        }
-                    />
-                </div>
-            </DashboardCard>
 
             {/* =========================
                 Workspace Recent Decision Activity Feed Section
@@ -1366,7 +1394,7 @@ export default function DecisionsPage() {
                             aria-label="Refresh decision workspace"
                             onClick={handleRefreshDecisionWorkspace}
                             disabled={workspaceRefreshing}
-                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-gray-300"
+                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] disabled:cursor-not-allowed disabled:text-gray-300"
                         >
                             <RefreshCw
                                 size={16}
@@ -1387,18 +1415,44 @@ export default function DecisionsPage() {
                 />
 
                 {decisionActivityError && (
-                    <div className="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
-                        {decisionActivityError}
+                    <div
+                        className="mt-4 flex flex-col gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
+                        role="alert"
+                    >
+                        <span>{decisionActivityError}</span>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setActivityRetryKey(
+                                    currentKey => currentKey + 1
+                                )
+                            }
+                            className="w-fit rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
+                        >
+                            Retry
+                        </button>
                     </div>
                 )}
 
-                {decisionActivityFeed.length === 0 ? (
+                {activityFeedLoadingEmpty ? (
+                    <div
+                        className="mt-4 flex h-36 flex-col items-center justify-center rounded-xl border border-gray-100 bg-gray-50 text-center"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <p className="text-sm font-medium text-gray-600">
+                            Loading activity...
+                        </p>
+                    </div>
+                ) : activityFeedErrorEmpty ? null
+                : activityFeedEmpty ? (
                     <EmptyState
                         title="No activity yet"
                         description="Decision updates will appear here as work happens."
                     />
                 ) : (
-                    <div className="mt-4 max-h-72 overflow-y-auto pr-2 divide-y divide-gray-100">
+                    <div className="mt-4 divide-y divide-gray-100 md:max-h-72 md:overflow-y-auto md:pr-2">
                         {decisionActivityFeed.map(activityItem => (
                             <DecisionActivityRow
                                 key={activityItem.id}
@@ -1412,7 +1466,7 @@ export default function DecisionsPage() {
                                     type="button"
                                     onClick={handleLoadMoreDecisionActivity}
                                     disabled={decisionActivityLoading}
-                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-gray-300"
+                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] disabled:cursor-not-allowed disabled:text-gray-300"
                                 >
                                     {decisionActivityLoading
                                         ? "Loading activity..."
@@ -1424,278 +1478,366 @@ export default function DecisionsPage() {
                 )}
             </DashboardCard>
 
-            <div id="decision-portfolio" className="scroll-mt-4">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h2 className="text-2xl font-semibold">
+            <DashboardCard id="decision-portfolio" className="scroll-mt-4">
+                <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                        <h2 className="break-words text-2xl font-semibold">
                             Decision Portfolio
                         </h2>
+
+                        <p className="mt-1 break-words text-sm text-gray-500">
+                            Search, filter, and resolve follow-up work across decisions.
+                        </p>
                     </div>
 
-                    <IconBadge
-                        className="bg-purple-50 text-purple-600"
-                        icon={<BriefcaseBusiness size={22} />}
-                    />
+                    <div className="flex shrink-0 items-center gap-3">
+                        {canManageWorkspaceData && (
+                            <Link
+                                href="/dashboard/decisions/new?returnTo=%2Fdashboard%2Fdecisions"
+                                className="hidden h-10 items-center justify-center gap-2 rounded-lg border border-[var(--decisionate-brand-primary-ring)] px-3 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)] sm:inline-flex"
+                            >
+                                <Plus size={16} />
+                                New Decision
+                            </Link>
+                        )}
+
+                        <IconBadge
+                            className="bg-[var(--decisionate-brand-accent-soft)] text-[var(--decisionate-brand-accent-text)]"
+                            icon={<BriefcaseBusiness size={22} />}
+                        />
+                    </div>
                 </div>
 
                 {/* =========================
                     Decision Portfolio Controls For Lifecycle Filter And Search
                 ========================= */}
 
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <div className="flex flex-wrap gap-2">
-                        {portfolioFilters.map(filter => (
-                            <button
-                                key={filter.key}
-                                type="button"
-                                onClick={() => {
-                                    setPortfolioFilter(filter.key)
+                <div className="mt-5 space-y-3 rounded-2xl bg-gray-50/70 p-3 sm:p-4">
+                    <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="flex min-w-0 flex-wrap gap-2">
+                            {portfolioFilters.map(filter => {
+                                const active =
+                                    portfolioFilter === filter.key
 
-                                    if (
-                                        filter.key ===
-                                        archivedPortfolioLifecycle
-                                    ) {
-                                        setPortfolioStatusFilter("")
+                                return (
+                                    <button
+                                        key={filter.key}
+                                        type="button"
+                                        aria-pressed={active}
+                                        onClick={() => {
+                                            setPortfolioFilter(filter.key)
+
+                                            if (
+                                                filter.key ===
+                                                archivedPortfolioLifecycle
+                                            ) {
+                                                setPortfolioStatusFilter("")
+                                            }
+                                        }}
+                                        className={getPortfolioFilterClass(
+                                            active
+                                        )}
+                                    >
+                                        {filter.label}
+                                        <span className="ml-2 rounded-full bg-white/70 px-2 py-0.5 text-xs">
+                                            {filter.count}
+                                        </span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:justify-end">
+                            {/* =========================
+                                Decision Portfolio Status Filter For Server Query
+                            ========================= */}
+
+                            <select
+                                aria-label="Filter decisions by status"
+                                value={portfolioStatusFilter}
+                                disabled={
+                                    portfolioFilter === archivedPortfolioLifecycle
+                                }
+                                onChange={(event) =>
+                                    setPortfolioStatusFilter(
+                                        event.target.value as PortfolioStatusFilter
+                                    )
+                                }
+                                className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 sm:w-auto"
+                            >
+                                <option value="">All statuses</option>
+                                {activeDecisionStatusOptions.map(option => (
+                                    <option
+                                        key={option.value}
+                                        value={option.value}
+                                    >
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+
+                            {/* =========================
+                                Decision Portfolio Category Filter For Server Query
+                            ========================= */}
+
+                            <select
+                                aria-label="Filter decisions by category"
+                                value={portfolioCategoryFilter}
+                                onChange={(event) =>
+                                    setPortfolioCategoryFilter(
+                                        event.target.value as PortfolioCategoryFilter
+                                    )
+                                }
+                                className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] sm:w-auto"
+                            >
+                                <option value="">All categories</option>
+                                {decisionCategoryOptions.map(option => (
+                                    <option
+                                        key={option.value}
+                                        value={option.value}
+                                    >
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <details
+                        className="rounded-xl border border-gray-100 bg-white/95 p-3 shadow-sm"
+                        open={
+                            advancedPortfolioFiltersActive
+                                ? true
+                                : undefined
+                        }
+                    >
+                        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 text-sm font-medium text-gray-700">
+                            <span>
+                                More filters
+                            </span>
+
+                            <span className="text-xs font-normal text-gray-500">
+                                Outcome, learning, notes, review
+                                {advancedPortfolioFiltersActive
+                                    ? " • active"
+                                    : ""}
+                            </span>
+                        </summary>
+
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                            {/* =========================
+                                Decision Portfolio Attention Filter For Aggregate Follow-Up Work
+                            ========================= */}
+
+                            <select
+                                aria-label="Filter decisions by action state"
+                                value={portfolioAttentionFilter}
+                                onChange={(event) => {
+                                    const attentionState =
+                                        event.target.value as PortfolioAttentionFilter
+
+                                    setPortfolioAttentionFilter(attentionState)
+
+                                    if (attentionState) {
+                                        setPortfolioOutcomeFilter("")
+                                        setPortfolioLearningFilter("")
+                                        setPortfolioNotesFilter("")
+                                        setPortfolioReviewFilter("")
                                     }
                                 }}
-                                className={getPortfolioFilterClass(
-                                    portfolioFilter === filter.key
-                                )}
+                                className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
                             >
-                                {filter.label}
-                                <span className="ml-2 rounded-full bg-white/70 px-2 py-0.5 text-xs">
-                                    {filter.count}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
+                                <option value="">All action states</option>
+                                <option value="required">Action needed</option>
+                            </select>
 
-                    {/* =========================
-                        Decision Portfolio Status Filter For Server Query
-                    ========================= */}
+                            {/* =========================
+                                Decision Portfolio Outcome Workflow Filter For Server Query
+                            ========================= */}
 
-                    <select
-                        value={portfolioStatusFilter}
-                        disabled={
-                            portfolioFilter === archivedPortfolioLifecycle
-                        }
-                        onChange={(event) =>
-                            setPortfolioStatusFilter(
-                                event.target.value as PortfolioStatusFilter
-                            )
-                        }
-                        className="h-10 rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-                    >
-                        <option value="">All statuses</option>
-                        {activeDecisionStatusOptions.map(option => (
-                            <option
-                                key={option.value}
-                                value={option.value}
+                            <select
+                                aria-label="Filter decisions by outcome work"
+                                value={portfolioOutcomeFilter}
+                                onChange={(event) => {
+                                    setPortfolioAttentionFilter("")
+                                    setPortfolioOutcomeFilter(
+                                        event.target.value as PortfolioOutcomeFilter
+                                    )
+                                }}
+                                className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
                             >
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
+                                <option value="">All outcome work</option>
+                                <option value="planned">Outcome planned</option>
+                                <option value="pending">Outcome pending</option>
+                                <option value="recorded">Outcome recorded</option>
+                                <option value="evaluated">Outcome evaluated</option>
+                            </select>
 
-                    {/* =========================
-                        Decision Portfolio Category Filter For Server Query
-                    ========================= */}
+                            {/* =========================
+                                Decision Portfolio Learning Workflow Filter For Server Query
+                            ========================= */}
 
-                    <select
-                        value={portfolioCategoryFilter}
-                        onChange={(event) =>
-                            setPortfolioCategoryFilter(
-                                event.target.value as PortfolioCategoryFilter
-                            )
-                        }
-                        className="h-10 rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    >
-                        <option value="">All categories</option>
-                        {decisionCategoryOptions.map(option => (
-                            <option
-                                key={option.value}
-                                value={option.value}
+                            <select
+                                aria-label="Filter decisions by learning work"
+                                value={portfolioLearningFilter}
+                                onChange={(event) => {
+                                    setPortfolioAttentionFilter("")
+                                    setPortfolioLearningFilter(
+                                        event.target.value as PortfolioLearningFilter
+                                    )
+                                }}
+                                className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
                             >
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
+                                <option value="">All learning work</option>
+                                <option value="captured">Learning captured</option>
+                                <option value="pending">Learning pending</option>
+                            </select>
 
-                    {/* =========================
-                        Decision Portfolio Attention Filter For Aggregate Follow-Up Work
-                    ========================= */}
+                            {/* =========================
+                                Decision Portfolio Notes Workflow Filter For Server Query
+                            ========================= */}
 
-                    <select
-                        value={portfolioAttentionFilter}
-                        onChange={(event) => {
-                            const attentionState =
-                                event.target.value as PortfolioAttentionFilter
-
-                            setPortfolioAttentionFilter(attentionState)
-
-                            if (attentionState) {
-                                setPortfolioOutcomeFilter("")
-                                setPortfolioLearningFilter("")
-                                setPortfolioNotesFilter("")
-                                setPortfolioReviewFilter("")
-                            }
-                        }}
-                        className="h-10 rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    >
-                        <option value="">All action states</option>
-                        <option value="required">Action needed</option>
-                    </select>
-
-                    {/* =========================
-                        Decision Portfolio Outcome Workflow Filter For Server Query
-                    ========================= */}
-
-                    <select
-                        value={portfolioOutcomeFilter}
-                        onChange={(event) => {
-                            setPortfolioAttentionFilter("")
-                            setPortfolioOutcomeFilter(
-                                event.target.value as PortfolioOutcomeFilter
-                            )
-                        }}
-                        className="h-10 rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    >
-                        <option value="">All outcome work</option>
-                        <option value="planned">Outcome planned</option>
-                        <option value="pending">Outcome pending</option>
-                        <option value="recorded">Outcome recorded</option>
-                        <option value="evaluated">Outcome evaluated</option>
-                    </select>
-
-                    {/* =========================
-                        Decision Portfolio Learning Workflow Filter For Server Query
-                    ========================= */}
-
-                    <select
-                        value={portfolioLearningFilter}
-                        onChange={(event) => {
-                            setPortfolioAttentionFilter("")
-                            setPortfolioLearningFilter(
-                                event.target.value as PortfolioLearningFilter
-                            )
-                        }}
-                        className="h-10 rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    >
-                        <option value="">All learning work</option>
-                        <option value="captured">Learning captured</option>
-                        <option value="pending">Learning pending</option>
-                    </select>
-
-                    {/* =========================
-                        Decision Portfolio Notes Workflow Filter For Server Query
-                    ========================= */}
-
-                    <select
-                        value={portfolioNotesFilter}
-                        onChange={(event) => {
-                            setPortfolioAttentionFilter("")
-                            setPortfolioNotesFilter(
-                                event.target.value as PortfolioNotesFilter
-                            )
-                        }}
-                        className="h-10 rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    >
-                        <option value="">All note work</option>
-                        <option value="added">Notes added</option>
-                        <option value="pending">Notes pending</option>
-                    </select>
-
-                    {/* =========================
-                        Decision Portfolio Review Workflow Filter For Server Query
-                    ========================= */}
-
-                    <select
-                        value={portfolioReviewFilter}
-                        onChange={(event) => {
-                            setPortfolioAttentionFilter("")
-                            setPortfolioReviewFilter(
-                                event.target.value as PortfolioReviewFilter
-                            )
-                        }}
-                        className="h-10 rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    >
-                        <option value="">All review work</option>
-                        <option value="scheduled">Review scheduled</option>
-                        <option value="overdue">Review overdue</option>
-                        <option value="upcoming">Review upcoming</option>
-                    </select>
-
-                    {/* =========================
-                        Decision Portfolio Sort Control For Server Ordering
-                    ========================= */}
-
-                    <select
-                        value={portfolioSort}
-                        onChange={(event) =>
-                            setPortfolioSort(
-                                event.target.value as PortfolioSort
-                            )
-                        }
-                        className="h-10 rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    >
-                        {decisionSortOptions.map(option => (
-                            <option
-                                key={option.value}
-                                value={option.value}
+                            <select
+                                aria-label="Filter decisions by note work"
+                                value={portfolioNotesFilter}
+                                onChange={(event) => {
+                                    setPortfolioAttentionFilter("")
+                                    setPortfolioNotesFilter(
+                                        event.target.value as PortfolioNotesFilter
+                                    )
+                                }}
+                                className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
                             >
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
+                                <option value="">All note work</option>
+                                <option value="added">Notes added</option>
+                                <option value="pending">Notes pending</option>
+                            </select>
 
-                    {/* =========================
-                        Decision Portfolio Search Input For Visible Cards
-                    ========================= */}
+                            {/* =========================
+                                Decision Portfolio Review Workflow Filter For Server Query
+                            ========================= */}
 
-                    <div className="relative w-full sm:w-72">
-                        <Search
-                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                            size={16}
-                        />
+                            <select
+                                aria-label="Filter decisions by review work"
+                                value={portfolioReviewFilter}
+                                onChange={(event) => {
+                                    setPortfolioAttentionFilter("")
+                                    setPortfolioReviewFilter(
+                                        event.target.value as PortfolioReviewFilter
+                                    )
+                                }}
+                                className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                            >
+                                <option value="">All review work</option>
+                                <option value="scheduled">Review scheduled</option>
+                                <option value="overdue">Review overdue</option>
+                                <option value="upcoming">Review upcoming</option>
+                            </select>
+                        </div>
+                    </details>
 
-                        <input
-                            value={portfolioSearch}
+                    <div className="flex min-w-0 flex-wrap items-center gap-3">
+                        {/* =========================
+                            Decision Portfolio Sort Control For Server Ordering
+                        ========================= */}
+
+                        <select
+                            aria-label="Sort decisions"
+                            value={portfolioSort}
                             onChange={(event) =>
-                                setPortfolioSearch(event.target.value)
+                                setPortfolioSort(
+                                    event.target.value as PortfolioSort
+                                )
                             }
-                            placeholder="Search decisions"
-                            className="h-10 w-full rounded-lg border border-gray-200 pl-9 pr-9 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        />
+                            className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] sm:w-auto"
+                        >
+                            {decisionSortOptions.map(option => (
+                                <option
+                                    key={option.value}
+                                    value={option.value}
+                                >
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
 
-                        {portfolioSearch && (
-                            <button
-                                type="button"
-                                aria-label="Clear decision search"
-                                onClick={() => setPortfolioSearch("")}
-                                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                        {/* =========================
+                            Decision Portfolio Search Input For Visible Cards
+                        ========================= */}
+
+                        <div className="relative min-w-0 w-full sm:w-72">
+                            <Search
+                                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                                size={16}
+                            />
+
+                            <input
+                                aria-label="Search decisions"
+                                value={portfolioSearch}
+                                onChange={(event) =>
+                                    setPortfolioSearch(event.target.value)
+                                }
+                                placeholder="Search decisions"
+                                className="h-10 w-full rounded-lg border border-gray-200 pl-9 pr-9 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                            />
+
+                            {portfolioSearch && (
+                                <button
+                                    type="button"
+                                    aria-label="Clear decision search"
+                                    onClick={() => setPortfolioSearch("")}
+                                    className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+
+                        {(portfolioSearchPending || portfolioLoading) && (
+                            <p
+                                className="text-sm text-gray-500"
+                                role="status"
+                                aria-live="polite"
                             >
-                                <X size={14} />
-                            </button>
+                                {portfolioSearchPending
+                                    ? "Preparing search..."
+                                    : "Loading decisions..."}
+                            </p>
+                        )}
+
+                        {portfolioFiltersActive && (
+                            <>
+                                <button
+                                    type="button"
+                                    aria-label="Copy current decision portfolio view link"
+                                    onClick={copyPortfolioViewLink}
+                                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] sm:w-auto"
+                                >
+                                    <Link2 size={15} />
+                                    Copy view link
+                                </button>
+
+                                <button
+                                    type="button"
+                                    aria-label="Reset all decision portfolio filters"
+                                    onClick={resetPortfolioFilters}
+                                    className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] sm:w-auto"
+                                >
+                                    Reset filters
+                                </button>
+                            </>
+                        )}
+
+                        {portfolioLinkStatus?.viewKey === portfolioViewKey && (
+                            <div
+                                className="basis-full rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700"
+                                role="status"
+                                aria-live="polite"
+                            >
+                                {portfolioLinkStatus.message}
+                            </div>
                         )}
                     </div>
-
-                    {(portfolioSearchPending || portfolioLoading) && (
-                        <p className="text-sm text-gray-500">
-                            {portfolioSearchPending
-                                ? "Preparing search..."
-                                : "Loading decisions..."}
-                        </p>
-                    )}
-
-                    {portfolioFiltersActive && (
-                        <button
-                            type="button"
-                            onClick={resetPortfolioFilters}
-                            className="h-10 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-700"
-                        >
-                            Reset filters
-                        </button>
-                    )}
                 </div>
 
                 {portfolioFiltersActive && (
@@ -1708,8 +1850,9 @@ export default function DecisionsPage() {
                             <button
                                 key={chip.key}
                                 type="button"
+                                aria-label={`Clear decision portfolio filter: ${chip.label}`}
                                 onClick={chip.onClear}
-                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-700"
+                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
                             >
                                 {chip.label}
                                 <X size={12} />
@@ -1717,18 +1860,23 @@ export default function DecisionsPage() {
                         ))}
                     </div>
                 )}
-
-                <div className="mt-4 h-px bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200" />
-            </div>
+            </DashboardCard>
 
             {portfolioInitialLoading ? (
-                <DashboardCard className="border-dashed text-center">
+                <DashboardCard
+                    className="border-dashed text-center"
+                    role="status"
+                    aria-live="polite"
+                >
                     <p className="text-sm font-medium text-gray-600">
                         Loading decision portfolio...
                     </p>
                 </DashboardCard>
             ) : portfolioLoadError ? (
-                <DashboardCard className="border-dashed text-center">
+                <DashboardCard
+                    className="border-dashed text-center"
+                    role="alert"
+                >
                     <h3 className="text-lg font-semibold text-red-600">
                         Decision portfolio could not load
                     </h3>
@@ -1746,7 +1894,7 @@ export default function DecisionsPage() {
                                 currentKey => currentKey + 1
                             )
                         }}
-                        className="mt-4 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-700"
+                        className="mt-4 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
                     >
                         Retry
                     </button>
@@ -1758,8 +1906,20 @@ export default function DecisionsPage() {
                     </h3>
 
                     <p className="mt-2 text-sm text-gray-500">
-                        Create your first decision to start tracking outcomes and learning what works.
+                        {canManageWorkspaceData
+                            ? "Create your first decision to start tracking outcomes and learning what works."
+                            : "No decisions have been shared with this client workspace yet."}
                     </p>
+
+                    {canManageWorkspaceData && (
+                        <Link
+                            href="/dashboard/decisions/new?returnTo=%2Fdashboard%2Fdecisions"
+                            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 sm:w-auto"
+                        >
+                            <Plus size={16} />
+                            Create Decision
+                        </Link>
+                    )}
                 </DashboardCard>
             ) : decisions.length === 0 ? (
                 <DashboardCard className="border-dashed text-center">
@@ -1774,8 +1934,9 @@ export default function DecisionsPage() {
                     {portfolioFiltersActive && (
                         <button
                             type="button"
+                            aria-label="Reset all decision portfolio filters"
                             onClick={resetPortfolioFilters}
-                            className="mt-4 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-700"
+                            className="mt-4 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
                         >
                             {portfolioEmptyResetLabel}
                         </button>
@@ -1786,7 +1947,7 @@ export default function DecisionsPage() {
                     Decision Portfolio Scrollable Card Grid For Large Workspaces
                 ========================= */
 
-                <div className="max-h-[42rem] overflow-y-auto pr-2">
+                <div className="xl:max-h-[42rem] xl:overflow-y-auto xl:pr-2">
                     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                         {decisions.map(decision => (
                             <DecisionCard
@@ -1797,22 +1958,40 @@ export default function DecisionsPage() {
                     </div>
 
                     {portfolioPaginationError && (
-                        <div className="mt-5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
-                            {portfolioPaginationError}
-                        </div>
-                    )}
+                        <div
+                            className="mt-5 flex flex-col gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
+                            role="alert"
+                        >
+                            <span>{portfolioPaginationError}</span>
 
-                    {hasMorePortfolioDecisions && (
-                        <div className="sticky bottom-0 mt-5 bg-white/95 py-3 text-center backdrop-blur">
                             <button
                                 type="button"
                                 onClick={handleLoadMoreDecisions}
                                 disabled={portfolioLoading}
+                                className="w-fit rounded-md border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    )}
+
+                    {hasMorePortfolioDecisions && (
+                        <div className="mt-5 bg-white/95 py-3 text-center backdrop-blur xl:sticky xl:bottom-0">
+                            <button
+                                type="button"
+                                onClick={handleLoadMoreDecisions}
+                                disabled={
+                                    portfolioLoading ||
+                                    portfolioSearchPending
+                                }
                                 className={getLoadMoreButtonClass(
-                                    portfolioLoading
+                                    portfolioLoading ||
+                                    portfolioSearchPending
                                 )}
                             >
-                                {portfolioLoading
+                                {portfolioSearchPending
+                                    ? "Preparing search..."
+                                    : portfolioLoading
                                     ? "Loading..."
                                     : "Load More Decisions"}
                             </button>
@@ -1827,13 +2006,15 @@ export default function DecisionsPage() {
 function DashboardCard({
     children,
     className = "",
-}: {
+    ...props
+}: React.HTMLAttributes<HTMLDivElement> & {
     children: React.ReactNode
     className?: string
 }) {
     return (
         <div
-            className={`rounded-2xl border border-gray-200 bg-white p-6 shadow-sm ${className}`}
+            className={`min-w-0 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm ${className}`}
+            {...props}
         >
             {children}
         </div>
@@ -1852,18 +2033,18 @@ function CardHeader({
     icon: React.ReactNode
 }) {
     return (
-        <div className="flex items-start justify-between gap-4">
-            <div>
-                <h2 className="text-xl font-semibold tracking-tight">
+        <div className="flex min-w-0 items-start justify-between gap-4">
+            <div className="min-w-0">
+                <h2 className="break-words text-xl font-semibold tracking-tight">
                     {title}
                 </h2>
 
-                <p className="mt-1 text-sm text-gray-600">
+                <p className="mt-1 break-words text-sm text-gray-600">
                     {description}
                 </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
                 {action}
                 {icon}
             </div>
@@ -1901,7 +2082,7 @@ function MetricCard({
     const className =
         "w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-left" +
         (onClick
-            ? " transition hover:border-blue-200 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            ? " transition hover:border-[var(--decisionate-brand-primary-ring)] hover:bg-[var(--decisionate-brand-primary-soft)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
             : "")
 
     const content = (
@@ -1940,42 +2121,15 @@ function EmptyState({
     description: string
 }) {
     return (
-        <div className="mt-4 flex h-36 flex-col items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-center">
-            <p className="text-sm font-medium text-blue-700">
+        <div className="mt-4 flex h-36 flex-col items-center justify-center rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-center">
+            <p className="text-sm font-medium text-[var(--decisionate-brand-primary-text)]">
                 {title}
             </p>
 
-            <p className="mt-1 text-xs text-blue-500">
+            <p className="mt-1 text-xs text-[var(--decisionate-brand-primary-text)] opacity-75">
                 {description}
             </p>
         </div>
-    )
-}
-
-/* =========================
-   Decision Summary Count Helpers For Backend First Metrics
-========================= */
-
-function getSummaryCount(
-    summary: DecisionSummary | null,
-    key: DecisionSummaryCountKey,
-    value: string,
-    fallback: number
-) {
-    return summary?.[key][value] ?? fallback
-}
-
-function formatSummaryMonth(monthKey: string) {
-    const [year, month] =
-        monthKey.split("-")
-
-    return new Date(
-        Number(year),
-        Number(month) - 1,
-        1
-    ).toLocaleString(
-        "default",
-        { month: "short" }
     )
 }
 
@@ -1986,16 +2140,16 @@ function formatSummaryMonth(monthKey: string) {
 function getPortfolioFilterClass(active: boolean) {
     return `inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition ${
         active
-            ? "border-blue-200 bg-blue-50 text-blue-700"
-            : "border-gray-200 bg-white text-gray-600 hover:border-blue-200 hover:text-blue-700"
+            ? "border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
+            : "border-gray-200 bg-white text-gray-600 hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
     }`
 }
 
 function getLoadMoreButtonClass(disabled: boolean) {
-    return `rounded-lg border px-4 py-2 text-sm font-medium transition ${
+    return `rounded-xl border px-4 py-2 text-sm font-medium transition ${
         disabled
             ? "cursor-not-allowed border-gray-200 text-gray-400"
-            : "border-blue-200 text-blue-700 hover:bg-blue-50"
+            : "border-[var(--decisionate-brand-primary-ring)] text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)]"
     }`
 }
 
@@ -2011,6 +2165,50 @@ function isActivePortfolioFilterChip(
     chip: ActivePortfolioFilterChip | null
 ): chip is ActivePortfolioFilterChip {
     return chip !== null
+}
+
+function appendUniqueDecisions(
+    currentDecisions: DecisionListRecord[],
+    incomingDecisions: DecisionListRecord[]
+) {
+    const seenDecisionIds =
+        new Set(
+            currentDecisions.map(decision => decision.id)
+        )
+
+    return [
+        ...currentDecisions,
+        ...incomingDecisions.filter(decision => {
+            if (seenDecisionIds.has(decision.id)) {
+                return false
+            }
+
+            seenDecisionIds.add(decision.id)
+            return true
+        }),
+    ]
+}
+
+function appendUniqueDecisionActivity(
+    currentFeed: DecisionActivityFeedItem[],
+    incomingFeed: DecisionActivityFeedItem[]
+) {
+    const seenActivityIds =
+        new Set(
+            currentFeed.map(activityItem => activityItem.id)
+        )
+
+    return [
+        ...currentFeed,
+        ...incomingFeed.filter(activityItem => {
+            if (seenActivityIds.has(activityItem.id)) {
+                return false
+            }
+
+            seenActivityIds.add(activityItem.id)
+            return true
+        }),
+    ]
 }
 
 /* =========================
@@ -2038,19 +2236,19 @@ function DecisionActivityRow({
                     {activityItem.decision_title}
                 </span>
 
-                    <span className="mt-1 block text-sm text-gray-500">
-                        {activityItem.message}
-                    </span>
-
-                    {!decisionAvailable && (
-                        <span className="mt-1 block text-xs font-medium text-gray-400">
-                            Decision not available
-                        </span>
-                    )}
+                <span className="mt-1 block break-words text-sm text-gray-500">
+                    {activityItem.message}
                 </span>
 
-            <span className="flex shrink-0 items-start gap-3">
-                <span className="flex flex-col items-end gap-1">
+                {!decisionAvailable && (
+                    <span className="mt-1 block text-xs font-medium text-gray-400">
+                        Decision not available
+                    </span>
+                )}
+            </span>
+
+            <span className="flex w-full shrink-0 items-start justify-between gap-3 pl-5 sm:w-auto sm:justify-start sm:pl-0">
+                <span className="flex flex-col items-start gap-1 sm:items-end">
                     <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${getDecisionActivityBadgeClass(
                             activityItem.activity_type
@@ -2069,7 +2267,7 @@ function DecisionActivityRow({
                 <ArrowRight
                     className={`mt-1 transition ${
                         decisionAvailable
-                            ? "text-gray-300 group-hover:text-blue-500"
+                            ? "text-gray-300 group-hover:text-[var(--decisionate-brand-primary-text)]"
                             : "text-gray-200"
                     }`}
                     size={16}
@@ -2080,7 +2278,7 @@ function DecisionActivityRow({
 
     if (!decisionAvailable) {
         return (
-            <div className="flex items-start gap-3 py-3 opacity-75">
+            <div className="flex flex-wrap items-start gap-3 py-3 opacity-75">
                 {rowContent}
             </div>
         )
@@ -2090,7 +2288,7 @@ function DecisionActivityRow({
         <Link
             href={`/dashboard/decisions/${activityItem.decision_id}`}
             aria-label={`${activityItem.decision_title}: ${activityItem.message}`}
-            className="group flex items-start gap-3 py-3 transition hover:bg-gray-50"
+            className="group flex flex-wrap items-start gap-3 py-3 transition hover:bg-gray-50"
         >
             {rowContent}
         </Link>
@@ -2114,46 +2312,6 @@ function formatActivityTimestamp(createdAt: string) {
             minute: "2-digit",
         }
     )
-}
-
-/* =========================
-   Decision Card Health Label And Badge Helpers
-========================= */
-
-function getDecisionHealth(
-    decision: DecisionListRecord
-): DecisionHealthLabel {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    if (decision.status === archivedDecisionStatus) {
-        return archivedDecisionLabel
-    }
-
-    const reviewDate =
-        getDecisionDateValue(decision.review_date)
-
-    if (reviewDate && reviewDate < today) {
-        return needsReviewDecisionLabel
-    }
-
-    if (
-        decision.status === completedDecisionStatus &&
-        hasRecordedOutcome(decision) &&
-        decision.lessons_learned
-    ) {
-        return healthyDecisionLabel
-    }
-
-    if (decision.status === inProgressDecisionStatus) {
-        return inProgressDecisionLabel
-    }
-
-    if (decision.status === cancelledDecisionStatus) {
-        return cancelledDecisionLabel
-    }
-
-    return plannedDecisionLabel
 }
 
 function getDecisionFollowUpActions(
@@ -2183,27 +2341,34 @@ function getDecisionFollowUpActions(
         actions.push("Capture learning")
     }
 
+    if (
+        actions.length === 0 &&
+        hasPendingNotes(decision)
+    ) {
+        actions.push(addNotesFollowUpAction)
+    }
+
     return actions
 }
 
 function getHealthBadgeClass(health: DecisionHealthLabel) {
-    if (health === healthyDecisionLabel) {
+    if (health === healthyDecisionHealthLabel) {
         return "border-green-200 bg-green-50 text-green-700"
     }
 
-    if (health === needsReviewDecisionLabel) {
+    if (health === needsReviewDecisionHealthLabel) {
         return "border-amber-200 bg-amber-50 text-amber-700"
     }
 
-    if (health === inProgressDecisionLabel) {
-        return "border-blue-200 bg-blue-50 text-blue-700"
+    if (health === inProgressDecisionHealthLabel) {
+        return "border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
     }
 
-    if (health === cancelledDecisionLabel) {
+    if (health === cancelledDecisionHealthLabel) {
         return "border-red-200 bg-red-50 text-red-700"
     }
 
-    if (health === archivedDecisionLabel) {
+    if (health === archivedDecisionHealthLabel) {
         return "border-gray-200 bg-gray-50 text-gray-600"
     }
 
@@ -2230,23 +2395,30 @@ function DecisionCard({
         hasPendingNotes(decision)
     const followUpActions =
         getDecisionFollowUpActions(decision)
+    const documentationOnlyAction =
+        followUpActions.length === 1 &&
+        followUpActions[0] === addNotesFollowUpAction
     const decisionHref =
         followUpActions.length > 0
             ? `/dashboard/decisions/${decision.id}?focus=next-action`
             : `/dashboard/decisions/${decision.id}`
+    const analysisSource =
+        getAIRecommendationSource(
+            decision.description
+        )
 
     return (
         <Link
             href={decisionHref}
             className={getDecisionCardClass(isArchived)}
         >
-            <div className="flex items-start justify-between gap-4">
-                <h2 className="text-lg font-semibold">
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <h2 className="min-w-0 break-words text-lg font-semibold">
                     {decision.title}
                 </h2>
 
                 <span
-                    className={`rounded-full border px-3 py-1 text-xs font-medium ${getHealthBadgeClass(
+                    className={`w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${getHealthBadgeClass(
                         health
                     )}`}
                 >
@@ -2254,13 +2426,13 @@ function DecisionCard({
                 </span>
             </div>
 
-            <p className="mt-3 text-sm text-gray-500 line-clamp-2">
+            <p className="mt-3 break-words text-sm text-gray-500 line-clamp-2">
                 {decision.description ||
                     "No description provided."}
             </p>
 
             {expectedOutcome && (
-                <p className="mt-3 border-l-2 border-green-200 pl-3 text-sm text-gray-600 line-clamp-2">
+                <p className="mt-3 break-words border-l-2 border-green-200 pl-3 text-sm text-gray-600 line-clamp-2">
                     <span className="font-medium text-green-700">
                         Expected:
                     </span>{" "}
@@ -2269,16 +2441,34 @@ function DecisionCard({
             )}
 
             {followUpActions.length > 0 && (
-                <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                        Action needed
+                <div
+                    className={`mt-3 rounded-xl border px-3 py-2 ${
+                        documentationOnlyAction
+                            ? "border-gray-200 bg-gray-50"
+                            : "border-amber-100 bg-amber-50"
+                    }`}
+                >
+                    <p
+                        className={`text-xs font-semibold uppercase tracking-wide ${
+                            documentationOnlyAction
+                                ? "text-gray-600"
+                                : "text-amber-700"
+                        }`}
+                    >
+                        {documentationOnlyAction
+                            ? "Completeness gap"
+                            : "Action needed"}
                     </p>
 
                     <div className="mt-2 flex flex-wrap gap-2">
                         {followUpActions.map(action => (
                             <span
                                 key={action}
-                                className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-amber-700 shadow-sm"
+                                className={`max-w-full break-words rounded-full bg-white px-2.5 py-1 text-xs font-medium shadow-sm ${
+                                    documentationOnlyAction
+                                        ? "text-gray-700"
+                                        : "text-amber-700"
+                                }`}
                             >
                                 {action}
                             </span>
@@ -2289,37 +2479,53 @@ function DecisionCard({
 
             <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
                 {decision.category && (
-                    <span className="flex min-w-0 items-center gap-1 text-blue-600">
+                    <span className="flex min-w-0 items-center gap-1 break-words text-[var(--decisionate-brand-primary-text)]">
                         <FolderOpen size={12} className="shrink-0" />
                         {formatDecisionLabel(decision.category)}
                     </span>
                 )}
 
+                {decision.metric_column && (
+                    <span className="flex min-w-0 items-center gap-1 break-words text-[var(--decisionate-brand-primary-text)]">
+                        <LineChartIcon size={12} className="shrink-0" />
+                        Metric: {formatMetricLabel(decision.metric_column)}
+                    </span>
+                )}
+
+                {analysisSource && (
+                    <span
+                        className="flex min-w-0 items-center gap-1 break-words text-blue-700"
+                        title={analysisSource}
+                    >
+                        <BriefcaseBusiness size={12} className="shrink-0" />
+                        Analysis: {analysisSource}
+                    </span>
+                )}
+
                 {decision.review_date && (
-                    <span className="flex min-w-0 items-center gap-1 text-amber-600">
+                    <span className="flex min-w-0 items-center gap-1 break-words text-amber-600">
                         <Calendar size={12} className="shrink-0" />
-                        {formatDecisionDate(
-                            decision.review_date
-                        )}
+                        Review:{" "}
+                        {formatDecisionDate(decision.review_date)}
                     </span>
                 )}
 
                 {decision.priority && (
-                    <span className="flex min-w-0 items-center gap-1 text-red-600">
+                    <span className="flex min-w-0 items-center gap-1 break-words text-red-600">
                         <Flag size={12} className="shrink-0" />
                         Priority: {formatDecisionLabel(decision.priority)}
                     </span>
                 )}
 
                 {outcomePending && (
-                    <span className="flex min-w-0 items-center gap-1 text-amber-600">
+                    <span className="flex min-w-0 items-center gap-1 break-words text-amber-600">
                         <Target size={12} className="shrink-0" />
                         Outcome Pending
                     </span>
                 )}
 
                 {hasRecordedOutcome(decision) && (
-                    <span className="flex min-w-0 items-center gap-1 text-green-600">
+                    <span className="flex min-w-0 items-center gap-1 break-words text-green-600">
                         <Target size={12} className="shrink-0" />
                         {decision.outcome_status
                             ? formatDecisionLabel(decision.outcome_status)
@@ -2328,28 +2534,28 @@ function DecisionCard({
                 )}
 
                 {learningPending && (
-                    <span className="flex min-w-0 items-center gap-1 text-purple-600">
+                    <span className="flex min-w-0 items-center gap-1 break-words text-[var(--decisionate-brand-accent-text)]">
                         <Lightbulb size={12} className="shrink-0" />
                         Learning Pending
                     </span>
                 )}
 
                 {notesPending && (
-                    <span className="flex min-w-0 items-center gap-1 text-gray-600">
+                    <span className="flex min-w-0 items-center gap-1 break-words text-gray-600">
                         <FileText size={12} className="shrink-0" />
                         Notes Pending
                     </span>
                 )}
 
                 {decision.confidence_score && (
-                    <span className="flex min-w-0 items-center gap-1 text-indigo-600">
+                    <span className="flex min-w-0 items-center gap-1 break-words text-[var(--decisionate-brand-primary-text)]">
                         <Gauge size={12} className="shrink-0" />
                         Confidence: {formatDecisionLabel(decision.confidence_score)}
                     </span>
                 )}
 
                 {lastUpdatedLabel && (
-                    <span className="flex min-w-0 items-center gap-1 text-gray-500">
+                    <span className="flex min-w-0 items-center gap-1 break-words text-gray-500">
                         <Activity size={12} className="shrink-0" />
                         {lastUpdatedLabel}
                     </span>
@@ -2357,20 +2563,24 @@ function DecisionCard({
             </div>
 
             <div className="mt-4 border-t border-gray-100 pt-3">
-                <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400">
+                <div className="flex min-w-0 flex-col gap-2 text-xs sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                    <span className="min-w-0 break-words text-gray-400">
                         {isArchived
                             ? "Historical record"
                             : followUpActions.length > 0
-                              ? "Next action ready"
+                              ? documentationOnlyAction
+                                ? "Record can be completed"
+                                : "Next action ready"
                             : "Click to manage decision"}
                     </span>
 
-                    <span className="font-medium text-blue-600">
+                    <span className="w-fit shrink-0 font-medium text-[var(--decisionate-brand-primary-text)]">
                         {isArchived
                             ? "View Archived Record →"
                             : followUpActions.length > 0
-                              ? "Resolve Next Action →"
+                              ? documentationOnlyAction
+                                ? "Complete Record →"
+                                : "Resolve Next Action →"
                             : "View Details →"}
                     </span>
                 </div>
@@ -2382,10 +2592,10 @@ function DecisionCard({
 function getDecisionCardClass(
     archived: boolean
 ) {
-    return `block rounded-2xl border p-6 shadow-sm transition hover:shadow-lg ${
+    return `block min-w-0 rounded-2xl border p-5 shadow-sm transition hover:shadow-md sm:p-6 ${
         archived
             ? "border-gray-200 bg-gray-50 hover:border-gray-300"
-            : "border-gray-200 bg-white hover:border-blue-200"
+            : "border-gray-200 bg-white hover:border-[var(--decisionate-brand-primary-ring)]"
     }`
 }
 

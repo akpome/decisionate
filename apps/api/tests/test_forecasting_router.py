@@ -422,6 +422,41 @@ class ForecastingRouterTests(unittest.TestCase):
             ],
         )
 
+    def test_generate_forecast_sorts_rows_by_date_before_fitting(self):
+        forecast = generate_forecast(
+            pd.DataFrame(
+                {
+                    "month": [
+                        "2024-03-01",
+                        "2024-01-01",
+                        "2024-02-01",
+                    ],
+                    "revenue": [
+                        140,
+                        100,
+                        120,
+                    ],
+                }
+            )
+        )
+
+        self.assertEqual(
+            forecast["forecast"],
+            [
+                160.0,
+                190.0,
+                220.0,
+            ],
+        )
+        self.assertEqual(
+            forecast["forecast_periods"],
+            [
+                "2024-04-01",
+                "2024-05-01",
+                "2024-06-01",
+            ],
+        )
+
     def test_generate_forecast_includes_projected_period_labels(self):
         forecast = generate_forecast(
             pd.DataFrame(

@@ -1,9 +1,52 @@
-import { SignIn } from "@clerk/nextjs"
+import {
+  auth,
+} from "@clerk/nextjs/server"
+import Link from "next/link"
+import { redirect } from "next/navigation"
 
-export default function Page() {
+import { AuthCard } from "@/app/auth-card"
+import { ThemeToggle } from "@/app/theme-toggle"
+
+export default async function SignInPage() {
+  const {
+    userId,
+  } = await auth()
+
+  if (userId) {
+    redirect("/dashboard")
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <SignIn />
-    </div>
+    <main className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-6xl justify-end">
+        <ThemeToggle />
+      </div>
+
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <section className="max-w-2xl">
+          <Link
+            href="/"
+            className="text-sm font-semibold text-[var(--decisionate-brand-primary-text)]"
+          >
+            Decisionate
+          </Link>
+
+          <h1 className="mt-5 text-3xl font-bold tracking-tight text-gray-950 sm:text-5xl">
+            Welcome back
+          </h1>
+
+          <p className="mt-4 text-lg leading-8 text-gray-600">
+            Sign in to continue with your dashboards, datasets, alerts, and decision follow-up.
+          </p>
+        </section>
+
+        <section
+          aria-label="Sign in"
+          className="flex justify-center"
+        >
+          <AuthCard mode="sign-in" />
+        </section>
+      </div>
+    </main>
   )
 }

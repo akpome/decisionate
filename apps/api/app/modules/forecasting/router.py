@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import HTTPException
 from fastapi import Request, APIRouter
 
@@ -19,6 +21,10 @@ from app.modules.datasets.services.dataset_loader import (
 from app.modules.datasets.services.source_metadata import (
     build_dataset_source_metadata,
 )
+from app.modules.ai.learning import (
+    build_dataset_decision_learning_filter,
+    build_workspace_decision_learning_context,
+)
 
 from app.modules.forecasting.services import (
     generate_forecast,
@@ -28,7 +34,7 @@ router = APIRouter()
 
 
 # =========================
-# Forecast Dataset Workspace Filter For Shared Agency And Legacy Rows
+# Forecast Dataset Workspace Filter For Shared And Legacy Rows
 # =========================
 
 def filter_forecast_dataset_for_workspace(
@@ -123,9 +129,27 @@ async def get_forecast(
             dataset
         )
 
-        forecast = generate_forecast(
+        learning_context = (
+            build_workspace_decision_learning_context(
+                db,
+                user_id,
+                workspace_id,
+                base_filter=build_dataset_decision_learning_filter(
+                    dataset.id,
+                    metric,
+                ),
+                learning_scope=(
+                    "metric"
+                    if str(metric or "").strip()
+                    else "dataset"
+                ),
+            )
+        )
+        forecast = await asyncio.to_thread(
+            generate_forecast,
             dataframe,
-            metric
+            metric,
+            learning_context,
         )
 
         if "error" in forecast:

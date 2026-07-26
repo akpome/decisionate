@@ -6,10 +6,11 @@ openpyxl
 # fastparquet
 # xlrd
 
+google-cloud-bigquery
+
 # Future analytics and connector packages.
 # duckdb
 # psycopg[binary]
 # pymysql
 # pyodbc
-# google-cloud-bigquery
 # snowflake-connector-python

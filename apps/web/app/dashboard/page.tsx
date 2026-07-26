@@ -1,19 +1,46 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { Dispatch, SetStateAction } from "react"
-import { useUser } from "@clerk/nextjs"
+import {
+  useAuth,
+  useUser,
+} from "@clerk/nextjs"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
+import {
+  formatMetricLabel,
+  MetricSelector,
+} from "@/features/dashboard/components/metric-selector"
 
 import {
+  createDecision,
+  type AIAnalysis,
+  type DatasetSummary,
+  type DashboardPreferencePayload,
+  type OrganizationRecord,
+  type OrganizationWorkspaceRecord,
+  getDatasetAIAnalysis,
   getDatasetDetails,
   getDatasetShareLink,
   getDatasetShareStatus,
   getDatasets,
   getDatasetPreference,
+  getDashboardPreference,
+  getMyOrganization,
+  getOrganizationWorkspaces,
   stopDatasetSharing,
   updateDatasetPreference,
 } from "@/lib/api"
+import {
+  buildAIRecommendationDecisionPayload,
+} from "@/features/decisions/lib/ai-decision-handoff"
+import {
+  AnalysisStatus,
+} from "@/features/ai/components/analysis-status"
+import {
+  AIAnalysisPanel,
+} from "@/features/ai/components/analysis-panel"
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -21,15 +48,50 @@ import {
   useWorkspaceAccess,
 } from "@/lib/use-workspace-access"
 import {
+  useDashboardSessionUserId,
+} from "@/lib/dashboard-session-context"
+import {
   getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
+import {
+  WorkspaceBrandMark,
+} from "@/app/dashboard/workspace-brand-mark"
+import {
+  WorkspaceAccessNotice,
+} from "@/features/dashboard/components/workspace-access-notice"
+import {
+  getWorkspaceBrand,
+  type WorkspaceBrand,
+} from "@/lib/workspace-brand"
+import {
+  useWorkspaceBrowserBrand,
+} from "@/lib/use-workspace-browser-brand"
+import {
+  dashboardRegistry,
+  getDashboardAutoMetricMapping,
+  getDashboardChartTitleFields,
+  getDashboardMappingChartTitles,
+  DashboardActionButton,
+  type DashboardChartTitleField,
+  type DashboardChartTitleKey,
+  type DashboardChartTitles,
+  type DashboardMetricMapping,
+} from "@/features/dashboards/dashboard-registry"
+import {
+  dashboardUsesDatasetMetricMapping,
+  defaultDashboardKey,
+  getDashboardDefinition,
+  isDashboardKey,
+} from "@/features/dashboards/dashboard-definitions"
+import {
+  dashboardChartPalette,
+} from "@/features/dashboard/lib/chart-palette"
 
 import {
   Database,
-  Download,
+  FileDown,
   Gauge,
   LineChart as LineChartIcon,
-  Printer,
   Share2,
   Unlink,
 } from "lucide-react"
@@ -90,11 +152,13 @@ type DashboardMetric = {
 
 type DashboardDataset = {
   file_name: string
+  row_count?: number
   source_type?: string | null
   source_label?: string | null
   source_config?: string | null
   preview: DashboardRow[]
   metrics: DashboardMetric[]
+  ai_analysis?: AIAnalysis | null
   chart?: {
     x_key?: string
     y_key?: string
@@ -103,6 +167,8 @@ type DashboardDataset = {
 }
 
 type ReportSectionProps = {
+  dashboardTitle: string
+  dashboardSubtitle: string
   dataset: DashboardDataset
   metrics: DashboardMetric[]
   rows: DashboardRow[]
@@ -124,18 +190,10 @@ type ReportSectionProps = {
   setScaleMode: (value: ScaleMode) => void
   setPeriodFilter: (value: PeriodFilter) => void
   setStartDate: (value: string) => void
-  setTargets: Dispatch<SetStateAction<Record<string, number>>>
   onResetView: () => void
 }
 
-type DashboardViewPreference = {
-  selectedMetrics?: string[]
-  chartType?: ChartType
-  scaleMode?: ScaleMode
-  periodFilter?: PeriodFilter
-  dashboardTemplate?: DashboardTemplate
-  startDate?: string
-}
+type DashboardViewPreference = DashboardPreferencePayload
 
 type SharedDashboardConfig = {
   datasetId?: number
@@ -145,17 +203,6 @@ type SharedDashboardConfig = {
 /* =========================
    Constants
 ========================= */
-
-const colorPalette = [
-  "#2563eb",
-  "#16a34a",
-  "#f97316",
-  "#9333ea",
-  "#dc2626",
-  "#0891b2",
-  "#ca8a04",
-  "#4f46e5",
-]
 
 const chartTypes: ChartType[] = [
   "line",
@@ -184,6 +231,12 @@ const dashboardTemplates: DashboardTemplate[] = [
   "performance",
   "comparison",
 ]
+const maxDashboardKpiCards = 8
+const defaultDashboardTitle = "Dashboard"
+const defaultDashboardSubtitle =
+  "Monitor performance, compare metrics, and track targets."
+const maxDashboardTitleLength = 120
+const maxDashboardSubtitleLength = 220
 
 const emptyDashboardDataset: DashboardDataset = {
   file_name: "",
@@ -208,18 +261,32 @@ function getErrorMessage(
 export default function DashboardPage() {
   const { user } = useUser()
   const {
+    isLoaded: authLoaded,
+    userId: clerkUserId,
+  } = useAuth()
+  const router = useRouter()
+  const serverUserId =
+    useDashboardSessionUserId()
+  const userId =
+    clerkUserId ??
+    user?.id ??
+    serverUserId ??
+    ""
+  const {
     activeWorkspaceId,
     workspaceVersion,
   } =
-    useActiveWorkspace(user?.id)
+    useActiveWorkspace(userId || undefined)
   const {
     canManageWorkspaceData,
-    isClientWorkspace,
+    loadingWorkspaceAccess,
   } =
-    useWorkspaceAccess(user?.id)
+    useWorkspaceAccess(userId || undefined)
 
   const [selectedDatasetId, setSelectedDatasetId] =
     useState<number>()
+  const [datasets, setDatasets] =
+    useState<DatasetSummary[]>([])
 
   const [dataset, setDataset] =
     useState<DashboardDataset | null>(null)
@@ -238,6 +305,14 @@ export default function DashboardPage() {
 
   const [dashboardTemplate, setDashboardTemplate] =
     useState<DashboardTemplate>("executive")
+
+  const [dashboardTitle, setDashboardTitle] =
+    useState(defaultDashboardTitle)
+
+  const [
+    dashboardSubtitle,
+    setDashboardSubtitle,
+  ] = useState(defaultDashboardSubtitle)
 
   const [startDate, setStartDate] =
     useState("")
@@ -264,6 +339,8 @@ export default function DashboardPage() {
     useState(false)
   const shareStatusTimeoutRef =
     useRef<number | null>(null)
+  const dashboardReportRef =
+    useRef<HTMLDivElement | null>(null)
 
   const [sharedConfig] =
     useState<SharedDashboardConfig>(
@@ -272,8 +349,113 @@ export default function DashboardPage() {
 
   const [loading, setLoading] =
     useState(false)
+  const [metricAnalysisLoading, setMetricAnalysisLoading] =
+    useState(false)
+  const [metricAnalysisError, setMetricAnalysisError] =
+    useState(false)
+  const [metricAnalysisRetryKey, setMetricAnalysisRetryKey] =
+    useState(0)
+  const [
+    datasetsLoading,
+    setDatasetsLoading,
+  ] = useState(false)
   const [dashboardError, setDashboardError] =
     useState("")
+  const [datasetPreferenceError, setDatasetPreferenceError] =
+    useState("")
+  const [dashboardErrorRetryMode, setDashboardErrorRetryMode] =
+    useState<"dataset" | "default" | null>(null)
+  const [datasetLoadRetryKey, setDatasetLoadRetryKey] =
+    useState(0)
+  const [defaultDatasetRetryKey, setDefaultDatasetRetryKey] =
+    useState(0)
+  const [pdfExporting, setPdfExporting] =
+    useState(false)
+  const [creatingDashboardRecommendation, setCreatingDashboardRecommendation] =
+    useState(false)
+  const [organization, setOrganization] =
+    useState<OrganizationRecord | null>(null)
+  const [workspaces, setWorkspaces] =
+    useState<OrganizationWorkspaceRecord[]>([])
+  const [selectedDashboard, setSelectedDashboard] =
+    useState(defaultDashboardKey)
+  const [dashboardPreferenceError, setDashboardPreferenceError] =
+    useState("")
+  const [dashboardPreferenceRetryKey, setDashboardPreferenceRetryKey] =
+    useState(0)
+  const [
+    dashboardMetricMappings,
+    setDashboardMetricMappings,
+  ] = useState<Record<string, DashboardMetricMapping>>({})
+  const [
+    dashboardChartTitlesByKey,
+    setDashboardChartTitlesByKey,
+  ] = useState<Record<string, DashboardChartTitles>>({})
+  const dashboardPreferenceSaveQueueRef =
+    useRef<Promise<void>>(Promise.resolve())
+  const dashboardPreferenceSaveVersionRef =
+    useRef(0)
+  const dashboardPreferenceContextRef =
+    useRef("")
+
+  useEffect(() => {
+    dashboardPreferenceContextRef.current =
+      `${activeWorkspaceId}:${selectedDatasetId ?? "none"}:${selectedDashboard}`
+  }, [
+    activeWorkspaceId,
+    selectedDashboard,
+    selectedDatasetId,
+  ])
+
+  useEffect(() => {
+    if (!userId) return
+
+    const cleanUserId = userId
+
+    let cancelled = false
+
+    async function loadDashboardPreference() {
+      try {
+        const preference =
+          await getDashboardPreference(
+            cleanUserId,
+            activeWorkspaceId
+          )
+
+        if (!cancelled) {
+          setSelectedDashboard(
+            isDashboardKey(
+              preference.selected_dashboard
+            )
+              ? preference.selected_dashboard
+              : defaultDashboardKey
+          )
+          setDashboardPreferenceError("")
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSelectedDashboard(defaultDashboardKey)
+          setDashboardPreferenceError(
+            getErrorMessage(
+              error,
+              "Dashboard preference service is unavailable."
+            )
+          )
+        }
+      }
+    }
+
+    void loadDashboardPreference()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    activeWorkspaceId,
+    dashboardPreferenceRetryKey,
+    userId,
+    workspaceVersion,
+  ])
 
   useEffect(() => {
     return () => {
@@ -284,6 +466,73 @@ export default function DashboardPage() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (!userId) return
+
+    let ignoreResult = false
+
+    async function loadDashboardBrand(
+      userId: string
+    ) {
+      const [
+        organizationResult,
+        workspaceResult,
+      ] = await Promise.allSettled([
+        getMyOrganization(userId),
+        getOrganizationWorkspaces(userId),
+      ])
+
+      if (!ignoreResult) {
+        if (
+          organizationResult.status ===
+          "fulfilled"
+        ) {
+          setOrganization(
+            organizationResult.value
+          )
+        }
+
+        if (
+          workspaceResult.status ===
+          "fulfilled"
+        ) {
+          setWorkspaces(
+            workspaceResult.value
+          )
+        }
+      }
+    }
+
+    void loadDashboardBrand(userId)
+
+    function handleOrganizationUpdated(
+      event: Event
+    ) {
+      const organization =
+        (event as CustomEvent<OrganizationRecord>).detail
+
+      if (organization) {
+        setOrganization(organization)
+      }
+    }
+
+    window.addEventListener(
+      "decisionate:organization-updated",
+      handleOrganizationUpdated
+    )
+
+    return () => {
+      ignoreResult = true
+      window.removeEventListener(
+        "decisionate:organization-updated",
+        handleOrganizationUpdated
+      )
+    }
+  }, [
+    activeWorkspaceId,
+    userId,
+  ])
 
   const clearShareStatus =
     useCallback(() => {
@@ -297,11 +546,46 @@ export default function DashboardPage() {
       setShareStatus("")
     }, [])
 
+  useEffect(() => {
+    function handleWorkspaceSharingStopped(
+      event: Event
+    ) {
+      if (
+        !(event instanceof CustomEvent) ||
+        event.detail?.scope !== "workspace" ||
+        event.detail?.action !== "stop-all"
+      ) {
+        return
+      }
+
+      setShareEnabled(false)
+      clearShareStatus()
+    }
+
+    window.addEventListener(
+      "decisionate:dashboard-sharing-changed",
+      handleWorkspaceSharingStopped
+    )
+
+    return () => {
+      window.removeEventListener(
+        "decisionate:dashboard-sharing-changed",
+        handleWorkspaceSharingStopped
+      )
+    }
+  }, [clearShareStatus])
+
   const clearSelectedDashboard =
     useCallback(() => {
       setDataset(null)
       setSelectedMetrics([])
       setTargets({})
+      setDashboardTitle(defaultDashboardTitle)
+      setDashboardSubtitle(
+        defaultDashboardSubtitle
+      )
+      setDashboardError("")
+      setDashboardErrorRetryMode(null)
       setShareEnabled(false)
       setLoading(false)
       clearShareStatus()
@@ -309,16 +593,48 @@ export default function DashboardPage() {
       clearShareStatus,
     ])
 
+  async function handleDatasetSelectionChange(
+    datasetId: number | undefined
+  ) {
+    const previousDatasetId = selectedDatasetId
+    clearSelectedDashboard()
+    setSelectedDatasetId(datasetId)
+
+    if (!datasetId || !userId) {
+      return
+    }
+
+    try {
+      await updateDatasetPreference(
+        datasetId,
+        userId,
+        "",
+        undefined,
+        undefined,
+        activeWorkspaceId
+      )
+      setDatasetPreferenceError("")
+    } catch (error) {
+      setSelectedDatasetId(previousDatasetId)
+      setDashboardError(
+        getErrorMessage(
+          error,
+          "Unable to save your selected dataset."
+        )
+      )
+      setDashboardErrorRetryMode(null)
+    }
+  }
+
   /* =========================
      Load Selected Dataset
   ========================= */
 
   useEffect(() => {
-    if (!selectedDatasetId || !user?.id) {
+    if (!selectedDatasetId || !userId) {
       return
     }
 
-    const userId = user.id
     const datasetId = selectedDatasetId
     let isCurrent = true
 
@@ -327,10 +643,10 @@ export default function DashboardPage() {
         setLoading(true)
 
         const [
-          data,
-          preference,
-          shareState,
-        ] = await Promise.all([
+          datasetResult,
+          preferenceResult,
+          shareResult,
+        ] = await Promise.allSettled([
           getDatasetDetails(
             datasetId,
             userId,
@@ -340,35 +656,92 @@ export default function DashboardPage() {
             userId,
             activeWorkspaceId
           ),
-          getDatasetShareStatus(
-            datasetId,
-            userId,
-            activeWorkspaceId
-          ).catch(() => ({
-            share_enabled: false,
-          })),
+          canManageWorkspaceData
+            ? getDatasetShareStatus(
+                datasetId,
+                userId,
+                activeWorkspaceId,
+                selectedDashboard
+              )
+            : Promise.resolve({
+                share_enabled: false,
+              }),
         ])
 
         if (!isCurrent) {
           return
         }
 
+        if (datasetResult.status === "rejected") {
+          throw datasetResult.reason
+        }
+
+        const data = datasetResult.value
+        const preference =
+          preferenceResult.status === "fulfilled"
+            ? preferenceResult.value
+            : undefined
+        const shareState =
+          shareResult.status === "fulfilled"
+            ? shareResult.value
+            : { share_enabled: false }
+
         const savedTargets =
-          preference.metric_targets ?? {}
+          preference?.metric_targets ?? {}
 
         const savedDashboardPreferences =
-          preference.dashboard_preferences ?? {}
+          preference?.dashboard_preferences ?? {}
 
         const datasetKey =
           String(datasetId)
 
         const savedDashboardPreference =
           savedDashboardPreferences[datasetKey] ?? {}
+        const dashboardSupportsMetricMapping =
+          dashboardUsesDatasetMetricMapping(
+            getDashboardDefinition(
+              selectedDashboard
+            ).componentKey
+          )
+        const savedMetricMapping =
+          dashboardSupportsMetricMapping
+            ? getSavedDashboardMetricMapping(
+                getSavedDashboardMetricMappings(
+                  savedDashboardPreference.metricMappings
+                )[selectedDashboard]
+              )
+            : {}
+        const savedDashboardChartTitles =
+          getSavedDashboardChartTitles(
+            savedDashboardPreference.chartTitles
+          )
 
         const availableMetrics =
           data?.metrics?.map(
             (metric: DashboardMetric) => metric.column
           ) ?? []
+        const savedSelectedMetrics =
+          getSavedSelectedMetrics(
+            savedDashboardPreference.selectedMetrics,
+            availableMetrics
+          )
+        const sharedSelectedMetric =
+          selectedDashboard === defaultDashboardKey &&
+          typeof preference?.selected_metric === "string" &&
+          availableMetrics.includes(
+            preference.selected_metric
+          )
+            ? preference.selected_metric
+            : undefined
+        const resolvedSelectedMetrics =
+          sharedSelectedMetric
+            ? [
+              sharedSelectedMetric,
+              ...savedSelectedMetrics.filter(
+                metric => metric !== sharedSelectedMetric
+              ),
+            ]
+            : savedSelectedMetrics
         const datasetTargets =
           getSavedMetricTargets(
             savedTargets[datasetKey],
@@ -400,12 +773,19 @@ export default function DashboardPage() {
         setDashboardPreferencesByDataset(
           savedDashboardPreferences
         )
+        setDashboardMetricMappings(current => ({
+          ...current,
+          [`${selectedDashboard}:${datasetId}`]:
+            savedMetricMapping,
+        }))
+        setDashboardChartTitlesByKey(current => ({
+          ...current,
+          [`${selectedDashboard}:${datasetId}`]:
+            savedDashboardChartTitles[selectedDashboard] ?? {},
+        }))
 
         setSelectedMetrics(
-          getSavedSelectedMetrics(
-            savedDashboardPreference.selectedMetrics,
-            availableMetrics
-          )
+          resolvedSelectedMetrics
         )
 
         setChartType(
@@ -426,8 +806,24 @@ export default function DashboardPage() {
 
         setDashboardTemplate(
           getSavedDashboardTemplate(
-            sharedConfig?.dashboardTemplate ??
-              savedDashboardPreference.dashboardTemplate
+            savedDashboardPreference.dashboardTemplate ??
+              sharedConfig?.dashboardTemplate
+          )
+        )
+
+        setDashboardTitle(
+          getSavedDashboardText(
+            savedDashboardPreference.title,
+            defaultDashboardTitle,
+            maxDashboardTitleLength
+          )
+        )
+
+        setDashboardSubtitle(
+          getSavedDashboardText(
+            savedDashboardPreference.subtitle,
+            defaultDashboardSubtitle,
+            maxDashboardSubtitleLength
           )
         )
 
@@ -444,6 +840,7 @@ export default function DashboardPage() {
           }
         )
         setDashboardError("")
+        setDashboardErrorRetryMode(null)
       } catch (error) {
         if (isCurrent) {
           setDashboardError(
@@ -452,6 +849,7 @@ export default function DashboardPage() {
               "Unable to load dashboard."
             )
           )
+          setDashboardErrorRetryMode("dataset")
           console.error(error)
         }
       } finally {
@@ -465,12 +863,16 @@ export default function DashboardPage() {
 
     return () => {
       isCurrent = false
+      setDatasetsLoading(false)
     }
   }, [
     selectedDatasetId,
     activeWorkspaceId,
+    canManageWorkspaceData,
+    datasetLoadRetryKey,
+    selectedDashboard,
     sharedConfig,
-    user?.id,
+    userId,
     workspaceVersion,
   ])
 
@@ -479,75 +881,120 @@ export default function DashboardPage() {
   ========================= */
 
   useEffect(() => {
-    if (!user?.id) return
+    if (!userId) return
 
-    const userId = user.id
     let isCurrent = true
 
     async function loadDefaultDataset() {
       try {
         clearSelectedDashboard()
         setSelectedDatasetId(undefined)
+        setDatasets([])
+        setDatasetPreferenceError("")
+        setDatasetsLoading(true)
 
-        const preference =
-          await getDatasetPreference(
-            userId,
-            activeWorkspaceId
-          )
+        const preferencePromise =
+          Promise.allSettled([
+            getDatasetPreference(
+              userId,
+              activeWorkspaceId
+            ),
+          ])
+        const [datasetsResult] =
+          await Promise.allSettled([
+            getDatasets(
+              userId,
+              activeWorkspaceId
+            ),
+          ])
 
         if (!isCurrent) {
           return
+        }
+
+        if (datasetsResult.status === "rejected") {
+          throw datasetsResult.reason
+        }
+
+        const datasetSummaries =
+          datasetsResult.value
+
+        setDatasets(datasetSummaries)
+        const sharedDatasetId =
+          sharedConfig?.datasetId &&
+          datasetSummaries.some(
+            (datasetSummary) =>
+              datasetSummary.id ===
+              sharedConfig.datasetId
+          )
+            ? sharedConfig.datasetId
+            : undefined
+
+        setSelectedDatasetId(
+          sharedDatasetId ??
+            datasetSummaries[0]?.id
+        )
+        setDatasetsLoading(false)
+
+        const [preferenceResult] =
+          await preferencePromise
+
+        if (!isCurrent) {
+          return
+        }
+
+        const preference =
+          preferenceResult.status === "fulfilled"
+            ? preferenceResult.value
+            : undefined
+
+        if (preferenceResult.status === "rejected") {
+          setDatasetPreferenceError(
+            `${getErrorMessage(
+              preferenceResult.reason,
+              "Dataset preference service is unavailable."
+            )} Using the first available dataset.`
+          )
+        } else {
+          setDatasetPreferenceError("")
         }
 
         setMetricTargetsByDataset(
-          preference.metric_targets ?? {}
+          preference?.metric_targets ?? {}
         )
 
         setDashboardPreferencesByDataset(
-          preference.dashboard_preferences ?? {}
+          preference?.dashboard_preferences ?? {}
         )
 
-        if (sharedConfig?.datasetId) {
-          setSelectedDatasetId(
-            sharedConfig.datasetId
+        if (
+          !sharedDatasetId &&
+          preference?.selected_dataset_id &&
+          datasetSummaries.some(
+            (datasetSummary) =>
+              datasetSummary.id ===
+              preference.selected_dataset_id
           )
-          return
-        }
-
-        if (preference.selected_dataset_id) {
+        ) {
           setSelectedDatasetId(
             preference.selected_dataset_id
           )
-          return
         }
-
-        const datasets =
-          await getDatasets(
-            userId,
-            activeWorkspaceId
-          )
-
-        if (!isCurrent) {
-          return
-        }
-
-        if (datasets.length > 0) {
-          setSelectedDatasetId(
-            datasets[0].id
-          )
-          return
-        }
-
-        setSelectedDatasetId(undefined)
       } catch (error) {
         if (isCurrent) {
+          setDatasets([])
+          setDatasetPreferenceError("")
           setDashboardError(
             getErrorMessage(
               error,
               "Unable to load dashboard defaults."
             )
           )
-          console.error(error)
+          setDashboardErrorRetryMode("default")
+        }
+      } finally {
+        if (isCurrent) {
+          setDatasetsLoading(false)
         }
       }
     }
@@ -561,7 +1008,8 @@ export default function DashboardPage() {
     sharedConfig,
     activeWorkspaceId,
     clearSelectedDashboard,
-    user?.id,
+    defaultDatasetRetryKey,
+    userId,
     workspaceVersion,
   ])
 
@@ -571,7 +1019,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (
-      !user?.id ||
+      !userId ||
       !selectedDatasetId ||
       !dataset ||
       loading
@@ -602,7 +1050,7 @@ export default function DashboardPage() {
         try {
           await updateDatasetPreference(
             selectedDatasetId,
-            user.id,
+            userId,
             undefined,
             nextMetricTargets,
             undefined,
@@ -613,13 +1061,16 @@ export default function DashboardPage() {
             nextMetricTargets
           )
           setDashboardError("")
+          setDashboardErrorRetryMode(null)
         } catch (error) {
+          setTargets(savedDatasetTargets)
           setDashboardError(
             getErrorMessage(
               error,
               "Unable to save metric targets."
             )
           )
+          setDashboardErrorRetryMode(null)
           console.error(error)
         }
       }, 500)
@@ -634,7 +1085,7 @@ export default function DashboardPage() {
     selectedDatasetId,
     targets,
     activeWorkspaceId,
-    user?.id,
+    userId,
   ])
 
   /* =========================
@@ -652,7 +1103,81 @@ export default function DashboardPage() {
     () => dataset?.metrics ?? [],
     [dataset]
   )
-  const xKey = dataset?.chart?.x_key ?? "month"
+  const dashboardMappingKey = useMemo(
+    () =>
+      `${selectedDashboard}:${selectedDatasetId ?? "none"}`,
+    [
+      selectedDashboard,
+      selectedDatasetId,
+    ]
+  )
+  const dashboardChartTitleKey = dashboardMappingKey
+  const currentDashboardChartTitles = useMemo(
+    () =>
+      cleanDashboardChartTitles(
+        dashboardChartTitlesByKey[
+          dashboardChartTitleKey
+        ] ?? {}
+      ),
+    [
+      dashboardChartTitleKey,
+      dashboardChartTitlesByKey,
+    ]
+  )
+  const currentMetricMapping = useMemo(
+    () => {
+      const savedMapping =
+        dashboardMetricMappings[dashboardMappingKey] ?? {}
+      const availableColumns = new Set(
+        getDashboardMappingColumns(dataset)
+      )
+      const numericColumns = new Set(
+        getDashboardNumericMappingColumns(dataset)
+      )
+
+      return (
+        [
+          "primary",
+          "category",
+          "stage",
+          "date",
+        ] as const
+      ).reduce<DashboardMetricMapping>(
+        (result, key) => {
+          const value = savedMapping[key]
+
+          if (
+            value &&
+            availableColumns.has(value) &&
+            (key !== "primary" ||
+              numericColumns.has(value))
+          ) {
+            result[key] = value
+          }
+
+          return result
+        },
+        {}
+      )
+    },
+    [
+      dashboardMetricMappings,
+      dashboardMappingKey,
+      dataset,
+    ]
+  )
+  const cleanCurrentMetricMapping =
+    useMemo(
+      () =>
+        cleanDashboardMetricMapping(
+          currentMetricMapping
+        ),
+      [currentMetricMapping]
+    )
+  const xKey =
+    currentMetricMapping.date ||
+    dataset?.chart?.x_key ||
+    "month"
 
   const rows =
     filterRowsByPeriod(
@@ -666,6 +1191,107 @@ export default function DashboardPage() {
     selectedMetrics[0] ??
     metrics[0]?.column ??
     ""
+  const dashboardComponentKeyForSync =
+    getDashboardDefinition(
+      selectedDashboard
+    ).componentKey
+  const selectedDashboardUsesMetricMapping =
+    dashboardUsesDatasetMetricMapping(
+      dashboardComponentKeyForSync
+    )
+  const selectedDashboardAutoMetric =
+    getDashboardAutoMetricMapping(
+      dashboardComponentKeyForSync,
+      dataset
+    ).primary
+  const dashboardAnalysisMetric =
+    selectedDashboardUsesMetricMapping
+      ? currentMetricMapping.primary ||
+        selectedDashboardAutoMetric ||
+        primaryMetric
+      : primaryMetric
+  const selectedDashboardSharedMetric =
+    selectedDashboard === defaultDashboardKey
+      ? primaryMetric
+      : selectedDashboardUsesMetricMapping
+        ? currentMetricMapping.primary ||
+          selectedDashboardAutoMetric
+        : undefined
+
+  useEffect(() => {
+    const selectedComponentKey =
+      getDashboardDefinition(
+        selectedDashboard
+      ).componentKey
+
+    if (
+      !userId ||
+      !selectedDatasetId ||
+      !dashboardAnalysisMetric ||
+      selectedComponentKey === "decisionPerformance"
+    ) {
+      queueMicrotask(() => {
+        setMetricAnalysisLoading(false)
+        setMetricAnalysisError(false)
+      })
+      return
+    }
+
+    const safeDatasetId = selectedDatasetId
+    const metric = dashboardAnalysisMetric
+    let ignoreResult = false
+    queueMicrotask(() => {
+      setMetricAnalysisLoading(true)
+      setMetricAnalysisError(false)
+    })
+
+    async function loadMetricAIAnalysis() {
+      try {
+        const result =
+          await getDatasetAIAnalysis(
+            safeDatasetId,
+            userId,
+            activeWorkspaceId,
+            metric
+          )
+
+        if (!ignoreResult) {
+          setDataset(current =>
+            current
+              ? {
+                ...current,
+                ai_analysis: {
+                  ...result.ai_analysis,
+                  metric: result.metric,
+                },
+              }
+              : current
+          )
+        }
+      } catch {
+        if (!ignoreResult) {
+          setMetricAnalysisError(true)
+        }
+      } finally {
+        if (!ignoreResult) {
+          setMetricAnalysisLoading(false)
+        }
+      }
+    }
+
+    void loadMetricAIAnalysis()
+
+    return () => {
+      ignoreResult = true
+    }
+  }, [
+    activeWorkspaceId,
+    dashboardAnalysisMetric,
+    metricAnalysisRetryKey,
+    selectedDashboard,
+    selectedDatasetId,
+    userId,
+  ])
 
   const selectedTarget =
     targets[primaryMetric] ?? 0
@@ -682,6 +1308,67 @@ export default function DashboardPage() {
   const targetMet =
     selectedTarget > 0 &&
     targetProgress >= 100
+  const availableMetricColumns =
+    useMemo(
+      () =>
+        metrics.map(
+          (metric) => metric.column
+        ),
+      [metrics]
+    )
+
+  async function handleCreateMainDashboardRecommendation() {
+    const analysis = dataset?.ai_analysis
+
+    if (
+      !userId ||
+      !selectedDatasetId ||
+      !primaryMetric ||
+      !analysis ||
+      !analysis.recommendations.length ||
+      !canManageWorkspaceData ||
+      creatingDashboardRecommendation
+    ) {
+      return
+    }
+
+    const decisionPayload =
+      buildAIRecommendationDecisionPayload(
+        selectedDatasetId,
+        primaryMetric,
+        analysis,
+        dataset.file_name
+      )
+
+    if (!decisionPayload) {
+      return
+    }
+
+    try {
+      setCreatingDashboardRecommendation(true)
+      setDashboardError("")
+
+      const createdDecision =
+        await createDecision(
+          decisionPayload,
+          userId,
+          activeWorkspaceId
+        )
+
+      router.push(
+        `/dashboard/decisions/${createdDecision.id}`
+      )
+    } catch (error) {
+      setDashboardError(
+        getErrorMessage(
+          error,
+          "Unable to create a decision from the dashboard analysis."
+        )
+      )
+    } finally {
+      setCreatingDashboardRecommendation(false)
+    }
+  }
 
   const chartRows =
     scaleMode === "indexed" &&
@@ -692,6 +1379,266 @@ export default function DashboardPage() {
           xKey
         )
       : rows
+  const activeBrand = useMemo(
+    () =>
+      getWorkspaceBrand(
+        activeWorkspaceId,
+        userId,
+        organization,
+        workspaces,
+        user?.fullName
+      ),
+    [
+      activeWorkspaceId,
+      organization,
+      user?.fullName,
+      userId,
+      workspaces,
+    ]
+  )
+  const effectiveDashboardTitle =
+    getSavedDashboardText(
+      dashboardTitle,
+      defaultDashboardTitle,
+      maxDashboardTitleLength
+    )
+  const effectiveDashboardSubtitle =
+    getSavedDashboardText(
+      dashboardSubtitle,
+      defaultDashboardSubtitle,
+      maxDashboardSubtitleLength
+    )
+  useWorkspaceBrowserBrand(
+    `${effectiveDashboardTitle} | ${activeBrand.name}`,
+    activeBrand
+  )
+  const selectedDashboardDefinition =
+    getDashboardDefinition(selectedDashboard)
+  const selectedDashboardNeedsDataset =
+    selectedDashboardDefinition.dataBasis ===
+    "dataset"
+  const selectedDashboardComponentKey =
+    selectedDashboardDefinition.componentKey
+  const selectedDashboardUsesDatasetMetricMapping =
+    dashboardUsesDatasetMetricMapping(
+      selectedDashboardComponentKey
+    )
+  const savedDashboardMetricMappings =
+    useMemo(
+      () =>
+        getNextDashboardMetricMappings(
+          dashboardPreferencesByDataset[
+            String(selectedDatasetId ?? "")
+          ]?.metricMappings ?? {},
+          selectedDashboard,
+          cleanCurrentMetricMapping,
+          dashboardUsesDatasetMetricMapping(
+            getDashboardDefinition(
+              selectedDashboard
+            ).componentKey
+          )
+        ),
+      [
+        cleanCurrentMetricMapping,
+        dashboardPreferencesByDataset,
+        selectedDashboard,
+        selectedDatasetId,
+      ]
+    )
+  const savedDashboardChartTitles =
+    useMemo(
+      () =>
+        getNextDashboardChartTitles(
+          dashboardPreferencesByDataset[
+            String(selectedDatasetId ?? "")
+          ]?.chartTitles ?? {},
+          selectedDashboard,
+          currentDashboardChartTitles,
+          selectedDashboard !== defaultDashboardKey
+        ),
+      [
+        currentDashboardChartTitles,
+        dashboardPreferencesByDataset,
+        selectedDashboard,
+        selectedDatasetId,
+      ]
+    )
+  const currentDashboardPreference =
+    useMemo<DashboardViewPreference>(
+      () => ({
+        title: cleanDashboardText(
+          dashboardTitle,
+          maxDashboardTitleLength
+        ),
+        subtitle: cleanDashboardText(
+          dashboardSubtitle,
+          maxDashboardSubtitleLength
+        ),
+        selectedMetrics:
+          getValidSelectedMetrics(
+            selectedMetrics,
+            availableMetricColumns
+          ),
+        chartType,
+        scaleMode,
+        periodFilter,
+        dashboardTemplate,
+        startDate,
+        ...(Object.keys(
+          savedDashboardMetricMappings
+        ).length > 0
+          ? {
+            metricMappings:
+              savedDashboardMetricMappings,
+          }
+          : {}),
+        ...(Object.keys(
+          savedDashboardChartTitles
+        ).length > 0
+          ? {
+            chartTitles:
+              savedDashboardChartTitles,
+          }
+          : {}),
+      }),
+      [
+        availableMetricColumns,
+        chartType,
+        dashboardSubtitle,
+        dashboardTemplate,
+        dashboardTitle,
+        periodFilter,
+        scaleMode,
+        savedDashboardChartTitles,
+        selectedMetrics,
+        startDate,
+        savedDashboardMetricMappings,
+      ]
+    )
+
+  const saveDashboardViewPreference =
+    useCallback(async () => {
+      if (
+        !userId ||
+        !selectedDatasetId ||
+        !dataset ||
+        loading
+      ) {
+        return
+      }
+
+      const datasetKey =
+        String(selectedDatasetId)
+
+      const savedDashboardPreference =
+        dashboardPreferencesByDataset[datasetKey] ?? {}
+
+      if (
+        JSON.stringify(savedDashboardPreference) ===
+        JSON.stringify(currentDashboardPreference)
+      ) {
+        return
+      }
+
+      const nextDashboardPreferences = {
+        ...dashboardPreferencesByDataset,
+        [datasetKey]: currentDashboardPreference,
+      }
+
+      const saveVersion =
+        ++dashboardPreferenceSaveVersionRef.current
+      const saveContextKey =
+        dashboardPreferenceContextRef.current
+      const saveRequest =
+        dashboardPreferenceSaveQueueRef.current.then(
+          async () => {
+            try {
+              await updateDatasetPreference(
+                selectedDatasetId,
+                userId,
+                selectedDashboardSharedMetric,
+                undefined,
+                nextDashboardPreferences,
+                activeWorkspaceId
+              )
+
+              if (
+                saveVersion !==
+                  dashboardPreferenceSaveVersionRef.current ||
+                saveContextKey !==
+                  dashboardPreferenceContextRef.current
+              ) {
+                return
+              }
+
+              setDashboardPreferencesByDataset(
+                nextDashboardPreferences
+              )
+              setDashboardError("")
+              setDashboardErrorRetryMode(null)
+            } catch (error) {
+              if (
+                saveVersion !==
+                  dashboardPreferenceSaveVersionRef.current ||
+                saveContextKey !==
+                  dashboardPreferenceContextRef.current
+              ) {
+                return
+              }
+
+              const savedMetricMappings =
+                getSavedDashboardMetricMappings(
+                  savedDashboardPreference.metricMappings
+                )
+              const savedChartTitles =
+                getSavedDashboardChartTitles(
+                  savedDashboardPreference.chartTitles
+                )
+              setDashboardMetricMappings(current => ({
+                ...current,
+                [dashboardMappingKey]:
+                  getSavedDashboardMetricMapping(
+                    savedMetricMappings[selectedDashboard]
+                  ),
+              }))
+              setDashboardChartTitlesByKey(current => ({
+                ...current,
+                [dashboardChartTitleKey]:
+                  savedChartTitles[selectedDashboard] ?? {},
+              }))
+              setDashboardError(
+                getErrorMessage(
+                  error,
+                  "Unable to save dashboard view."
+                )
+              )
+              setDashboardErrorRetryMode(null)
+              console.error(error)
+              throw error
+            }
+          }
+        )
+
+      dashboardPreferenceSaveQueueRef.current =
+        saveRequest.then(
+          () => undefined,
+          () => undefined
+        )
+
+      await saveRequest
+    }, [
+      activeWorkspaceId,
+      currentDashboardPreference,
+      dashboardMappingKey,
+      dashboardChartTitleKey,
+      dashboardPreferencesByDataset,
+      dataset,
+      loading,
+      selectedDashboardSharedMetric,
+      selectedDatasetId,
+      selectedDashboard,
+      userId,
+    ])
 
   /* =========================
      Persist Dashboard View
@@ -699,7 +1646,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (
-      !user?.id ||
+      !userId ||
       !selectedDatasetId ||
       !dataset ||
       loading
@@ -707,62 +1654,11 @@ export default function DashboardPage() {
       return
     }
 
-    const datasetKey =
-      String(selectedDatasetId)
-
-    const nextDashboardPreference: DashboardViewPreference = {
-      selectedMetrics:
-        getValidSelectedMetrics(
-          selectedMetrics,
-          metrics.map((metric) => metric.column)
-        ),
-      chartType,
-      scaleMode,
-      periodFilter,
-      dashboardTemplate,
-      startDate,
-    }
-
-    const savedDashboardPreference =
-      dashboardPreferencesByDataset[datasetKey] ?? {}
-
-    if (
-      JSON.stringify(savedDashboardPreference) ===
-      JSON.stringify(nextDashboardPreference)
-    ) {
-      return
-    }
-
-    const nextDashboardPreferences = {
-      ...dashboardPreferencesByDataset,
-      [datasetKey]: nextDashboardPreference,
-    }
-
     const saveViewTimeout =
-      window.setTimeout(async () => {
-        try {
-          await updateDatasetPreference(
-            selectedDatasetId,
-            user.id,
-            undefined,
-            undefined,
-            nextDashboardPreferences,
-            activeWorkspaceId
-          )
-
-          setDashboardPreferencesByDataset(
-            nextDashboardPreferences
-          )
-          setDashboardError("")
-        } catch (error) {
-          setDashboardError(
-            getErrorMessage(
-              error,
-              "Unable to save dashboard view."
-            )
-          )
-          console.error(error)
-        }
+      window.setTimeout(() => {
+        void saveDashboardViewPreference().catch(
+          () => undefined
+        )
       }, 500)
 
     return () => {
@@ -770,7 +1666,6 @@ export default function DashboardPage() {
     }
   }, [
     chartType,
-    dashboardPreferencesByDataset,
     dashboardTemplate,
     dataset,
     loading,
@@ -778,13 +1673,14 @@ export default function DashboardPage() {
     scaleMode,
     selectedDatasetId,
     selectedMetrics,
+    saveDashboardViewPreference,
     startDate,
-    activeWorkspaceId,
-    user?.id,
-    metrics,
+    userId,
   ])
 
   const templateProps: ReportSectionProps = {
+    dashboardTitle: effectiveDashboardTitle,
+    dashboardSubtitle: effectiveDashboardSubtitle,
     dataset: dataset ?? emptyDashboardDataset,
     metrics,
     rows,
@@ -806,7 +1702,6 @@ export default function DashboardPage() {
     setScaleMode,
     setPeriodFilter,
     setStartDate,
-    setTargets,
     onResetView: handleResetView,
   }
 
@@ -833,11 +1728,52 @@ export default function DashboardPage() {
     })
   }
 
+  function handlePrimaryMetricChange(
+    metric: string | undefined
+  ) {
+    if (!metric) {
+      return
+    }
+
+    setSelectedMetrics(current => [
+      metric,
+      ...current.filter(
+        selectedMetric => selectedMetric !== metric
+      ),
+    ])
+  }
+
   function handleResetView() {
     setPeriodFilter("1y")
     setStartDate("")
     setScaleMode("actual")
     setChartType("line")
+  }
+
+  async function handleDownloadDashboardPdf() {
+    if (
+      selectedDashboardNeedsDataset &&
+      (!selectedDatasetId || !dataset)
+    ) {
+      setTemporaryShareStatus(
+        "Select a dataset before downloading a PDF."
+      )
+      return
+    }
+
+    try {
+      setPdfExporting(true)
+      setTemporaryShareStatus(
+        "Use Save as PDF in the print dialog.",
+        5000
+      )
+      await waitForNextFrame()
+      window.print()
+    } finally {
+      window.setTimeout(() => {
+        setPdfExporting(false)
+      }, 1000)
+    }
   }
 
   function setTemporaryShareStatus(
@@ -860,11 +1796,14 @@ export default function DashboardPage() {
   }
 
   async function handleShareDashboard() {
-    if (shareAction) {
+    if (
+      shareAction ||
+      !canManageWorkspaceData
+    ) {
       return
     }
 
-    if (!selectedDatasetId || !user?.id) {
+    if (!selectedDatasetId || !userId) {
       setTemporaryShareStatus(
         "Select a dataset before sharing."
       )
@@ -875,17 +1814,20 @@ export default function DashboardPage() {
 
     try {
       setShareAction("share")
+      await saveDashboardViewPreference()
 
       const shareLink =
         await getDatasetShareLink(
           selectedDatasetId,
-          user.id,
-          activeWorkspaceId
+          userId,
+          activeWorkspaceId,
+          selectedDashboard
         )
       shareUrl =
         buildDashboardShareUrl(
           selectedDatasetId,
           dashboardTemplate,
+          selectedDashboard,
           shareLink.share_token
         )
 
@@ -898,6 +1840,11 @@ export default function DashboardPage() {
       )
       setShareEnabled(
         shareLink.share_enabled
+      )
+      window.dispatchEvent(
+        new Event(
+          "decisionate:dashboard-sharing-changed"
+        )
       )
     } catch (error) {
       setTemporaryShareStatus(
@@ -913,11 +1860,14 @@ export default function DashboardPage() {
   }
 
   async function handleStopSharing() {
-    if (shareAction) {
+    if (
+      shareAction ||
+      !canManageWorkspaceData
+    ) {
       return
     }
 
-    if (!selectedDatasetId || !user?.id) {
+    if (!selectedDatasetId || !userId) {
       setTemporaryShareStatus(
         "Select a dataset before stopping sharing."
       )
@@ -926,7 +1876,7 @@ export default function DashboardPage() {
 
     const confirmed =
       window.confirm(
-        "Stopping sharing will make all existing shared dashboard links stop working. Continue?"
+        `Stopping sharing will make all existing ${dashboardShareTitle.toLowerCase()} links stop working. Continue?`
       )
 
     if (!confirmed) {
@@ -939,8 +1889,9 @@ export default function DashboardPage() {
       const shareState =
         await stopDatasetSharing(
           selectedDatasetId,
-          user.id,
-          activeWorkspaceId
+          userId,
+          activeWorkspaceId,
+          selectedDashboard
         )
 
       setTemporaryShareStatus(
@@ -949,6 +1900,11 @@ export default function DashboardPage() {
       )
       setShareEnabled(
         shareState.share_enabled
+      )
+      window.dispatchEvent(
+        new Event(
+          "decisionate:dashboard-sharing-changed"
+        )
       )
     } catch (error) {
       setTemporaryShareStatus(
@@ -965,12 +1921,19 @@ export default function DashboardPage() {
 
   const shareControlsDisabled =
     !selectedDatasetId ||
-    !user?.id ||
+    !userId ||
     shareAction !== null ||
     !canManageWorkspaceData
   const stopSharingDisabled =
     shareControlsDisabled ||
     !shareEnabled
+  const isCustomSelectedDashboard =
+    selectedDashboardDefinition.key !==
+    defaultDashboardKey
+  const dashboardShareTitle =
+    isCustomSelectedDashboard
+      ? selectedDashboardDefinition.name
+      : effectiveDashboardTitle
   const shareButtonLabel =
     shareAction === "share"
       ? shareEnabled
@@ -981,102 +1944,547 @@ export default function DashboardPage() {
         : "Share"
   const shareButtonTitle =
     shareEnabled
-      ? "Copy the current public dashboard link."
-      : "Create and copy a public dashboard link."
+      ? `Copy the current ${dashboardShareTitle.toLowerCase()} link.`
+      : `Create and copy a ${dashboardShareTitle.toLowerCase()} link.`
   const shareButtonAriaLabel =
     shareEnabled
-      ? "Copy public dashboard share link"
-      : "Create public dashboard share link"
+      ? `Copy ${dashboardShareTitle.toLowerCase()} share link`
+      : `Create ${dashboardShareTitle.toLowerCase()} share link`
+
+  if (isCustomSelectedDashboard) {
+    const SelectedDashboard =
+      dashboardRegistry[
+        selectedDashboardDefinition.componentKey
+      ]
+    const usesDatasetMetricMapping =
+      selectedDashboardUsesDatasetMetricMapping
+    const usesDatasetSelection =
+      selectedDashboardDefinition.dataBasis ===
+      "dataset"
+    const dashboardMappingColumns =
+      usesDatasetMetricMapping
+        ? getDashboardMappingColumns(dataset)
+        : []
+    const dashboardNumericMappingColumns =
+      usesDatasetMetricMapping
+        ? getDashboardNumericMappingColumns(dataset)
+        : []
+    const defaultDashboardMappingChartTitles =
+      getDashboardMappingChartTitles(
+        selectedDashboardDefinition.componentKey
+      )
+    const dashboardMappingChartTitles = {
+      trend:
+        currentDashboardChartTitles.trend ??
+        defaultDashboardMappingChartTitles.trend,
+      mix:
+        currentDashboardChartTitles.mix ??
+        defaultDashboardMappingChartTitles.mix,
+      operations:
+        currentDashboardChartTitles.operations ??
+        defaultDashboardMappingChartTitles.operations,
+    }
+    const dashboardChartTitleFields =
+      getDashboardChartTitleFields(
+        selectedDashboardDefinition.componentKey
+      )
+    const dashboardAutoMetricMapping =
+      getDashboardAutoMetricMapping(
+        selectedDashboardDefinition.componentKey,
+        dataset
+      )
+    const customDashboardMetricValue =
+      currentMetricMapping.primary &&
+      availableMetricColumns.includes(
+        currentMetricMapping.primary
+      )
+        ? currentMetricMapping.primary
+        : undefined
+    const dashboardRecommendationMetric =
+      customDashboardMetricValue ||
+      dashboardAutoMetricMapping.primary
+
+    async function handleCreateDashboardRecommendation() {
+      const analysis = dataset?.ai_analysis
+
+      if (
+        !userId ||
+        !selectedDatasetId ||
+        !dashboardRecommendationMetric ||
+        !analysis ||
+        !analysis.recommendations.length ||
+        !canManageWorkspaceData ||
+        creatingDashboardRecommendation
+      ) {
+        return
+      }
+
+      const decisionPayload =
+        buildAIRecommendationDecisionPayload(
+          selectedDatasetId,
+          dashboardRecommendationMetric,
+          analysis,
+          dataset.file_name
+        )
+
+      if (!decisionPayload) {
+        return
+      }
+
+      try {
+        setCreatingDashboardRecommendation(true)
+        setDashboardError("")
+
+        const createdDecision =
+          await createDecision(
+            decisionPayload,
+            userId,
+            activeWorkspaceId
+          )
+
+        router.push(
+          `/dashboard/decisions/${createdDecision.id}`
+        )
+      } catch (error) {
+        setDashboardError(
+          getErrorMessage(
+            error,
+            "Unable to create a decision from the dashboard analysis."
+          )
+        )
+      } finally {
+        setCreatingDashboardRecommendation(false)
+      }
+    }
+    const dashboardControls = usesDatasetSelection ? (
+      <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:w-[34rem] sm:grid-cols-2 lg:w-[30rem]">
+          <div className="min-w-0 space-y-1">
+            <DatasetSelector
+              ariaLabel="Select dashboard dataset"
+              datasets={datasets}
+              emptyMessage={
+                canManageWorkspaceData
+                  ? undefined
+                  : "Ask the workspace team to share a dataset to populate this dashboard."
+              }
+              loading={
+                !authLoaded ||
+                !userId ||
+                datasetsLoading
+              }
+              loadError={
+                Boolean(dashboardError) &&
+                datasets.length === 0
+              }
+              value={selectedDatasetId}
+              onChange={(id) => {
+                void handleDatasetSelectionChange(id)
+              }}
+            />
+
+            {selectedDatasetId && (
+              <Link
+                href={`/dashboard/datasets/${selectedDatasetId}`}
+                className="block truncate text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
+              >
+                Open dataset details
+              </Link>
+            )}
+          </div>
+        {usesDatasetMetricMapping && (
+          <div className="min-w-0">
+            <MetricSelector
+              ariaLabel="Select dashboard metric"
+              metrics={availableMetricColumns}
+              value={customDashboardMetricValue}
+              disabled={
+                !selectedDatasetId ||
+                !dataset ||
+                loading ||
+                availableMetricColumns.length === 0
+              }
+              placeholder={
+                !selectedDatasetId
+                  ? "Choose dataset first"
+                  : availableMetricColumns.length === 0
+                    ? "No numeric metrics"
+                    : "Auto Metric"
+              }
+              onChange={(metric) => {
+                setDashboardMetricMappings(current => ({
+                  ...current,
+                  [dashboardMappingKey]:
+                    getNextDashboardMetricMapping(
+                      current[dashboardMappingKey] ?? {},
+                      "primary",
+                      metric ?? ""
+                    ),
+                }))
+                setTemporaryShareStatus(
+                  metric
+                    ? "Dashboard metric updated."
+                    : "Dashboard metric reset to auto."
+                )
+              }}
+            />
+          </div>
+        )}
+
+        {usesDatasetMetricMapping && (
+          <p className="col-span-full truncate text-xs text-gray-500">
+            {dataset
+              ? `${dataset.file_name} • ${
+                customDashboardMetricValue
+                  ? `Focused on ${formatMetricLabel(customDashboardMetricValue)}`
+                  : "Auto metric"
+              }`
+              : "Select a dataset"}
+          </p>
+        )}
+      </div>
+    ) : undefined
+
+    return (
+      <div className="screen-page space-y-3">
+        <div
+          aria-hidden="true"
+          className="dashboard-print-page"
+        >
+          <SelectedDashboard
+            name={selectedDashboardDefinition.name}
+            description={selectedDashboardDefinition.description}
+            highlights={selectedDashboardDefinition.highlights}
+            dataset={dataset}
+            datasetName={dataset?.file_name}
+            datasetId={selectedDatasetId}
+            canManageWorkspaceData={canManageWorkspaceData}
+            analysisMetric={dashboardAnalysisMetric}
+            analysisLoading={metricAnalysisLoading}
+            analysisError={metricAnalysisError}
+            onRetryAnalysis={() =>
+              setMetricAnalysisRetryKey(
+                currentKey => currentKey + 1
+              )
+            }
+            manualMapping={
+              usesDatasetMetricMapping
+                ? currentMetricMapping
+                : undefined
+            }
+            chartTitles={currentDashboardChartTitles}
+            brand={activeBrand}
+            showActions={false}
+            exportMode
+          />
+        </div>
+
+        <WorkspaceAccessNotice
+          loading={loadingWorkspaceAccess}
+          canManageWorkspaceData={canManageWorkspaceData}
+          message="Analysis and metric selection are available in this shared workspace. Workspace managers handle data changes and dashboard sharing."
+          className="rounded-lg print:hidden"
+        />
+
+        <SelectedDashboard
+          name={selectedDashboardDefinition.name}
+          description={selectedDashboardDefinition.description}
+          highlights={selectedDashboardDefinition.highlights}
+          dataset={dataset}
+          datasetName={dataset?.file_name}
+          datasetId={selectedDatasetId}
+          canManageWorkspaceData={canManageWorkspaceData}
+          analysisMetric={dashboardAnalysisMetric}
+          analysisLoading={metricAnalysisLoading}
+          analysisError={metricAnalysisError}
+          onRetryAnalysis={() =>
+            setMetricAnalysisRetryKey(
+              currentKey => currentKey + 1
+            )
+          }
+          manualMapping={
+            usesDatasetMetricMapping
+              ? currentMetricMapping
+              : undefined
+          }
+          chartTitles={currentDashboardChartTitles}
+          brand={activeBrand}
+          controls={dashboardControls}
+          onCreateRecommendation={
+            usesDatasetMetricMapping &&
+            canManageWorkspaceData &&
+            Boolean(
+              dashboardRecommendationMetric &&
+              dataset?.ai_analysis?.recommendations.length
+            )
+              ? () => {
+                void handleCreateDashboardRecommendation()
+              }
+              : undefined
+          }
+          creatingRecommendation={
+            creatingDashboardRecommendation
+          }
+          status={
+            canManageWorkspaceData && shareStatus ? (
+              <div
+                className={getShareStatusClassName(shareStatus)}
+                role="status"
+                aria-live="polite"
+              >
+                {getShareStatusMessage(
+                  shareStatus,
+                  dashboardShareTitle
+                )}
+              </div>
+            ) : null
+          }
+          onDownloadPdf={handleDownloadDashboardPdf}
+          onShare={handleShareDashboard}
+          onStopSharing={
+            canManageWorkspaceData
+              ? handleStopSharing
+              : undefined
+          }
+          pdfDisabled={
+            (selectedDashboardNeedsDataset && (
+              !selectedDatasetId ||
+              !dataset ||
+              loading
+            )) ||
+            pdfExporting
+          }
+          shareDisabled={shareControlsDisabled}
+          stopSharingDisabled={stopSharingDisabled}
+          pdfLabel={
+            pdfExporting
+              ? "Opening..."
+              : "Save PDF"
+          }
+          shareLabel={shareButtonLabel}
+          stopSharingLabel={
+            shareAction === "stop"
+              ? "Stopping..."
+              : "Stop sharing"
+          }
+          shareTitle={shareButtonTitle}
+          shareAriaLabel={shareButtonAriaLabel}
+          stopSharingTitle={`Turn off public access for this ${dashboardShareTitle.toLowerCase()}.`}
+          stopSharingAriaLabel={`Stop sharing ${dashboardShareTitle.toLowerCase()}`}
+          shareEnabled={shareEnabled}
+        />
+
+        {selectedDashboard !== defaultDashboardKey &&
+          selectedDatasetId &&
+          dataset && (
+          <DashboardChartTitlePanel
+            fields={dashboardChartTitleFields}
+            titles={currentDashboardChartTitles}
+            onChange={(key, value) => {
+              setDashboardChartTitlesByKey(current => ({
+                ...current,
+                [dashboardChartTitleKey]:
+                  getNextDashboardChartTitle(
+                    current[dashboardChartTitleKey] ?? {},
+                    key,
+                    value
+                  ),
+              }))
+              setTemporaryShareStatus(
+                value
+                  ? "Chart name updated."
+                  : "Chart name reset to default."
+              )
+            }}
+          />
+        )}
+
+        {usesDatasetMetricMapping &&
+          dataset &&
+          dashboardMappingColumns.length > 0 && (
+          <DashboardMetricMappingPanel
+            chartTitles={dashboardMappingChartTitles}
+            columns={dashboardMappingColumns}
+            numericColumns={dashboardNumericMappingColumns}
+            mapping={currentMetricMapping}
+            autoMapping={dashboardAutoMetricMapping}
+            onChange={(role, value) => {
+              setDashboardMetricMappings(current => ({
+                ...current,
+                [dashboardMappingKey]:
+                  getNextDashboardMetricMapping(
+                    current[dashboardMappingKey] ?? {},
+                    role,
+                    value
+                  ),
+              }))
+              setTemporaryShareStatus(
+                value
+                  ? "Metric mapping updated."
+                  : "Metric mapping reset to auto."
+              )
+            }}
+          />
+        )}
+
+        {!datasetsLoading &&
+          userId &&
+          !dashboardError &&
+          datasets.length === 0 && (
+            <div className="print:hidden rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {canManageWorkspaceData ? (
+                <>
+                  No datasets available.{" "}
+                  <Link
+                    href="/dashboard/datasets"
+                    className="font-medium underline"
+                  >
+                    Add a dataset
+                  </Link>
+                  {" "}to connect real data to dashboards.
+                </>
+              ) : (
+                "No shared datasets are available for this workspace yet."
+              )}
+            </div>
+          )}
+      </div>
+    )
+  }
 
   return (
     <div className="screen-page space-y-4">
+      {dataset && !loading && (
+        <div
+          aria-hidden="true"
+          className="dashboard-print-page"
+        >
+          <DashboardPrintPage
+            brand={activeBrand}
+            dashboardTemplate={dashboardTemplate}
+            props={templateProps}
+          />
+        </div>
+      )}
+
       {/* =========================
           Page Header
       ========================= */}
 
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-3xl font-bold">
-            Dashboard
-          </h1>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 lg:shrink-0">
+          <label
+            htmlFor="dashboard-title"
+            className="sr-only"
+          >
+            Dashboard title
+          </label>
 
-          <p className="mt-1 text-sm text-gray-500">
-            Monitor performance, compare metrics, and track targets.
+          <input
+            id="dashboard-title"
+            value={dashboardTitle}
+            maxLength={maxDashboardTitleLength}
+            disabled={
+              !selectedDatasetId ||
+              !dataset ||
+              loading
+            }
+            onChange={(event) =>
+              setDashboardTitle(
+                event.target.value
+              )
+            }
+            placeholder={defaultDashboardTitle}
+            className="block w-full min-w-0 rounded-lg bg-transparent px-0 py-0 text-3xl font-bold text-gray-950 outline-none transition placeholder:text-gray-400 focus:bg-white focus:px-3 focus:py-2 focus:shadow-sm disabled:cursor-not-allowed disabled:text-gray-400"
+          />
+
+          <label
+            htmlFor="dashboard-subtitle"
+            className="sr-only"
+          >
+            Dashboard subtitle
+          </label>
+
+          <input
+            id="dashboard-subtitle"
+            value={dashboardSubtitle}
+            maxLength={maxDashboardSubtitleLength}
+            disabled={
+              !selectedDatasetId ||
+              !dataset ||
+              loading
+            }
+            onChange={(event) =>
+              setDashboardSubtitle(
+                event.target.value
+              )
+            }
+            placeholder={
+              defaultDashboardSubtitle
+            }
+            className="mt-1 block w-full min-w-0 rounded-lg bg-transparent px-0 py-0 text-sm text-gray-500 outline-none transition placeholder:text-gray-400 focus:bg-white focus:px-3 focus:py-2 focus:shadow-sm disabled:cursor-not-allowed disabled:text-gray-400"
+          />
+
+          <p className="mt-1 text-xs text-gray-400">
+            {selectedDatasetId
+              ? "Title and subtitle auto-save for this dataset."
+              : "Select a dataset to customize this dashboard title."}
           </p>
-
-          {selectedDatasetId && (
-            <div className="mt-3">
-              <span
-                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${
-                  shareEnabled
-                    ? "border-green-100 bg-green-50 text-green-700"
-                    : "border-gray-200 bg-white text-gray-500"
-                }`}
-              >
-                {shareEnabled
-                  ? "Sharing on"
-                  : "Sharing off"}
-              </span>
-            </div>
-          )}
-
-          {isClientWorkspace && (
-            <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-              Client portal view: your agency manages public dashboard sharing for this workspace.
-            </p>
-          )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm"
-          >
-            <Printer size={16} />
-            Print
-          </button>
-
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white shadow-sm"
-          >
-            <Download size={16} />
-            PDF
-          </button>
+        <div className="flex min-w-0 flex-wrap items-start gap-3 lg:flex-1 lg:justify-end xl:flex-nowrap">
+          <DashboardActionButton
+            icon={<FileDown size={16} />}
+            label={
+              pdfExporting
+                ? "Opening..."
+                : "Save PDF"
+            }
+            onClick={handleDownloadDashboardPdf}
+            disabled={
+              !selectedDatasetId ||
+              !dataset ||
+              loading ||
+              pdfExporting
+            }
+            className="w-full sm:w-auto"
+          />
 
           {canManageWorkspaceData && (
             <>
-              <button
-                type="button"
+              <DashboardActionButton
+                icon={<Share2 size={16} />}
+                label={shareButtonLabel}
                 onClick={handleShareDashboard}
                 disabled={shareControlsDisabled}
                 title={shareButtonTitle}
-                aria-label={shareButtonAriaLabel}
-                className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Share2 size={16} />
-                {shareButtonLabel}
-              </button>
+                ariaLabel={shareButtonAriaLabel}
+                className="w-full sm:w-auto"
+              />
 
-              <button
-                type="button"
-                onClick={handleStopSharing}
-                disabled={stopSharingDisabled}
-                title="Turn off public access for this dashboard."
-                aria-label="Stop sharing public dashboard"
-                className="flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-medium text-red-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Unlink size={16} />
-                {shareAction === "stop"
-                  ? "Stopping..."
-                  : "Stop sharing"}
-              </button>
+              {shareEnabled && (
+                <DashboardActionButton
+                  icon={<Unlink size={16} />}
+                  label={
+                    shareAction === "stop"
+                      ? "Stopping..."
+                      : "Stop sharing"
+                  }
+                  onClick={handleStopSharing}
+                  disabled={stopSharingDisabled}
+                  title={`Turn off public access for this ${dashboardShareTitle.toLowerCase()}.`}
+                  ariaLabel={`Stop sharing ${dashboardShareTitle.toLowerCase()}`}
+                  tone="danger"
+                  className="w-full sm:w-auto"
+                />
+              )}
             </>
           )}
 
-          <div className="flex items-center rounded-xl border border-gray-200 bg-white p-1">
+          <div
+            className="grid h-11 w-full shrink-0 grid-cols-3 rounded-xl border border-gray-200 bg-white p-1 sm:w-auto sm:flex sm:items-center"
+            role="group"
+            aria-label="Dashboard template"
+          >
             {([
               ["executive", "Executive"],
               ["performance", "Performance"],
@@ -1085,12 +2493,13 @@ export default function DashboardPage() {
               <button
                 key={value}
                 type="button"
+                aria-pressed={dashboardTemplate === value}
                 onClick={() =>
                   setDashboardTemplate(value)
                 }
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+                className={`h-full rounded-lg px-2 text-sm font-medium transition sm:px-3 ${
                   dashboardTemplate === value
-                    ? "bg-blue-600 text-white"
+                    ? "bg-[var(--decisionate-brand-primary)] text-[var(--decisionate-brand-primary-surface-text)]"
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
@@ -1099,34 +2508,197 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          <div className="min-w-64 flex-1 xl:w-80 xl:flex-none">
+          <div className="w-full min-w-0 max-w-full space-y-1 sm:w-72 sm:flex-none lg:w-60 xl:w-56">
             <DatasetSelector
+              ariaLabel="Select dashboard dataset"
+              datasets={datasets}
+              emptyMessage={
+                canManageWorkspaceData
+                  ? undefined
+                  : "Ask the workspace team to share a dataset to populate this dashboard."
+              }
+              loading={
+                !authLoaded ||
+                !userId ||
+                datasetsLoading
+              }
+              loadError={
+                Boolean(dashboardError) &&
+                datasets.length === 0
+              }
               value={selectedDatasetId}
               onChange={(id) => {
-                clearSelectedDashboard()
-                setSelectedDatasetId(id)
+                void handleDatasetSelectionChange(id)
               }}
+            />
+
+            {selectedDatasetId && (
+              <Link
+                href={`/dashboard/datasets/${selectedDatasetId}`}
+                className="block truncate text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
+              >
+                Open dataset details
+              </Link>
+            )}
+          </div>
+
+          <div className="w-full min-w-0 max-w-full sm:w-72 sm:flex-none lg:w-60 xl:w-56">
+            <MetricSelector
+              ariaLabel="Select primary dashboard metric"
+              metrics={availableMetricColumns}
+              value={primaryMetric || undefined}
+              disabled={
+                !selectedDatasetId ||
+                !dataset ||
+                loading ||
+                availableMetricColumns.length === 0
+              }
+              placeholder={
+                !selectedDatasetId
+                  ? "Choose dataset first"
+                  : availableMetricColumns.length === 0
+                    ? "No numeric metrics"
+                    : "Select primary metric"
+              }
+              onChange={handlePrimaryMetricChange}
             />
           </div>
         </div>
       </div>
 
-      {shareStatus && (
+      <WorkspaceAccessNotice
+        loading={loadingWorkspaceAccess}
+        canManageWorkspaceData={canManageWorkspaceData}
+        message="Analysis and metric selection are available in this shared workspace. Workspace managers handle data changes and dashboard sharing."
+        className="rounded-lg print:hidden"
+      />
+
+      {metricAnalysisLoading && (
+        <AnalysisStatus kind="loading" />
+      )}
+
+      {metricAnalysisError && (
+        <AnalysisStatus
+          kind="unavailable"
+          onRetry={() =>
+            setMetricAnalysisRetryKey(
+              currentKey => currentKey + 1
+            )
+          }
+        />
+      )}
+
+      {!metricAnalysisLoading &&
+        dataset?.ai_analysis &&
+        (!dashboardAnalysisMetric ||
+          dataset.ai_analysis.metric === dashboardAnalysisMetric) && (
+        <AIAnalysisPanel
+          analysis={dataset.ai_analysis}
+          title="Business overview analysis"
+          metric={dashboardAnalysisMetric}
+          className="print:hidden"
+          onCreateDecision={
+            canManageWorkspaceData &&
+            primaryMetric &&
+            dataset.ai_analysis.recommendations.length > 0
+              ? () => {
+                void handleCreateMainDashboardRecommendation()
+              }
+              : undefined
+          }
+          creatingDecision={
+            creatingDashboardRecommendation
+          }
+        />
+      )}
+
+      {canManageWorkspaceData && shareStatus && (
         <div
           className={getShareStatusClassName(shareStatus)}
           role="status"
           aria-live="polite"
         >
-          {getShareStatusMessage(shareStatus)}
+          {getShareStatusMessage(
+            shareStatus,
+            dashboardShareTitle
+          )}
+        </div>
+      )}
+
+      {dashboardPreferenceError && (
+        <div
+          className="flex flex-col gap-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between"
+          role="status"
+        >
+          <span>
+            {dashboardPreferenceError} The default dashboard is shown for now.
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDashboardPreferenceRetryKey(
+                currentKey => currentKey + 1
+              )
+            }}
+            className="w-fit rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
+          >
+            Retry preference
+          </button>
+        </div>
+      )}
+
+      {datasetPreferenceError && (
+        <div
+          className="flex flex-col gap-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between"
+          role="status"
+        >
+          <span>{datasetPreferenceError}</span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDefaultDatasetRetryKey(
+                currentKey => currentKey + 1
+              )
+            }}
+            className="w-fit rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
+          >
+            Retry dataset preference
+          </button>
         </div>
       )}
 
       {dashboardError && (
         <div
-          className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700"
+          className="flex flex-col gap-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
           role="alert"
         >
-          {dashboardError}
+          <span>{dashboardError}</span>
+
+          {dashboardErrorRetryMode && (
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  dashboardErrorRetryMode ===
+                  "dataset"
+                ) {
+                  setDatasetLoadRetryKey(
+                    currentKey => currentKey + 1
+                  )
+                  return
+                }
+
+                setDefaultDatasetRetryKey(
+                  currentKey => currentKey + 1
+                )
+              }}
+              className="w-fit rounded-md border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50"
+            >
+              Retry dashboard load
+            </button>
+          )}
         </div>
       )}
 
@@ -1134,7 +2706,42 @@ export default function DashboardPage() {
           Empty State
       ========================= */}
 
-      {!selectedDatasetId && (
+      {authLoaded &&
+        Boolean(userId) &&
+        !datasetsLoading &&
+        !dashboardError &&
+        datasets.length === 0 && (
+        <DashboardCard>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Database
+              size={36}
+              className="text-gray-400"
+            />
+
+            <h2 className="mt-4 text-lg font-semibold">
+              No datasets available
+            </h2>
+
+            <p className="mt-2 max-w-md text-sm text-gray-500">
+              {canManageWorkspaceData
+                ? "Upload or connect a dataset to populate the General Business dashboard."
+                : "Ask the workspace team to share a dataset to populate this dashboard."}
+            </p>
+
+            {canManageWorkspaceData && (
+              <Link
+                href="/dashboard/datasets"
+                className="mt-4 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
+              >
+                Go to Datasets
+              </Link>
+            )}
+          </div>
+        </DashboardCard>
+      )}
+
+      {!selectedDatasetId &&
+        datasets.length > 0 && (
         <DashboardCard>
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Database
@@ -1171,7 +2778,73 @@ export default function DashboardPage() {
 
       {dataset && !loading && (
         <>
-          <div className="dashboard-report space-y-4 bg-white">
+          <div
+            ref={dashboardReportRef}
+            className="dashboard-report space-y-4 bg-white"
+          >
+            <div
+              className="dashboard-export-header hidden rounded-2xl border bg-white p-5 shadow-sm"
+              style={{
+                borderColor:
+                  activeBrand.primaryColor,
+              }}
+            >
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-4">
+                  <WorkspaceBrandMark
+                    name={activeBrand.name}
+                    logoUrl={activeBrand.logoUrl}
+                    primaryColor={
+                      activeBrand.primaryColor
+                    }
+                    className="h-14 w-14 rounded-2xl text-lg"
+                  />
+
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                      Shared by
+                    </p>
+
+                    <p
+                      className="break-words text-xl font-semibold"
+                      style={{
+                        color:
+                          "var(--decisionate-brand-primary-text)",
+                      }}
+                    >
+                      {activeBrand.name}
+                    </p>
+
+                    <p
+                      className="text-sm"
+                      style={{
+                        color:
+                          "var(--decisionate-brand-accent-text)",
+                      }}
+                    >
+                      Reporting workspace
+                    </p>
+                  </div>
+                </div>
+
+                <div className="min-w-0 sm:text-right">
+                  <h2 className="break-words text-2xl font-bold text-gray-950">
+                    {effectiveDashboardTitle}
+                  </h2>
+
+                  <p className="mt-1 break-words text-sm font-medium text-gray-600">
+                    {effectiveDashboardSubtitle}
+                  </p>
+
+                  <p className="mt-1 break-words text-xs text-gray-500">
+                    {getDashboardDatasetDescription(
+                      dataset
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {dashboardTemplate === "executive" && (
               <ExecutiveTemplate {...templateProps} />
             )}
@@ -1187,36 +2860,315 @@ export default function DashboardPage() {
           </div>
 
           {/* =========================
-              Metric Selection Cards
+              Compact Metric Selection And Target Controls
           ========================= */}
 
-          <div className="grid gap-4 md:grid-cols-3">
-            {metrics.map((metric, index) => (
-              <MetricCard
-                key={metric.column}
-                metric={metric}
-                index={index}
-                rows={rows}
-                xKey={xKey}
-                chartType={chartType}
-                selected={selectedMetrics.includes(
-                  metric.column
-                )}
-                target={targets[metric.column] ?? 0}
-                onTargetChange={(value) =>
-                  setTargets((current) => ({
-                    ...current,
-                    [metric.column]: value,
-                  }))
-                }
-                onToggle={() =>
-                  handleMetricToggle(metric.column)
-                }
-              />
-            ))}
-          </div>
+          <DashboardCard>
+            <CardHeader
+              title="Metrics & Targets"
+              description="Choose which metrics appear in the chart and set optional targets."
+              icon={
+                <IconBadge
+                  className="bg-[var(--decisionate-brand-accent-soft)] text-[var(--decisionate-brand-accent-text)]"
+                  icon={<Gauge size={22} />}
+                />
+              }
+            />
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {metrics.map((metric) => (
+                <MetricSelectionRow
+                  key={metric.column}
+                  metric={metric}
+                  color={getMetricColor(
+                    getMetricIndex(
+                      metrics,
+                      metric.column
+                    )
+                  )}
+                  selected={selectedMetrics.includes(
+                    metric.column
+                  )}
+                  target={targets[metric.column] ?? 0}
+                  onTargetChange={(value) =>
+                    setTargets((current) => ({
+                      ...current,
+                      [metric.column]: value,
+                    }))
+                  }
+                  onToggle={() =>
+                    handleMetricToggle(metric.column)
+                  }
+                />
+              ))}
+            </div>
+          </DashboardCard>
         </>
       )}
+    </div>
+  )
+}
+
+/* =========================
+   Print/PDF One Page Replica
+========================= */
+
+function DashboardPrintPage({
+  brand,
+  dashboardTemplate,
+  props,
+}: {
+  brand: WorkspaceBrand
+  dashboardTemplate: DashboardTemplate
+  props: ReportSectionProps
+}) {
+  const hasChartData =
+    props.chartRows.length > 0 &&
+    props.selectedMetrics.length > 0
+  const chartDescription =
+    getDashboardChartDescription({
+      chartType: props.chartType,
+      rows: props.chartRows,
+      xKey: props.xKey,
+      metrics: props.selectedMetrics,
+      target: props.selectedTarget,
+      showTarget:
+        props.scaleMode === "actual",
+    })
+  const topMetrics =
+    props.metrics.slice(0, maxDashboardKpiCards)
+  const isComparisonDashboard =
+    dashboardTemplate === "comparison"
+
+  return (
+    <div className="dashboard-print-one-page">
+      <div
+        className="dashboard-print-header rounded-2xl border bg-white p-4 shadow-sm"
+        style={{
+          borderColor: brand.primaryColor,
+        }}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <WorkspaceBrandMark
+              name={brand.name}
+              logoUrl={brand.logoUrl}
+              primaryColor={brand.primaryColor}
+              className="h-12 w-12 rounded-2xl text-base"
+            />
+
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                Shared by
+              </p>
+
+              <p
+                className="truncate text-lg font-semibold"
+                style={{
+                  color:
+                    "var(--decisionate-brand-primary-text)",
+                }}
+              >
+                {brand.name}
+              </p>
+
+              <p
+                className="text-xs"
+                style={{
+                  color:
+                    "var(--decisionate-brand-accent-text)",
+                }}
+              >
+                Reporting workspace
+              </p>
+            </div>
+          </div>
+
+          <div className="min-w-0 text-right">
+            <h2 className="truncate text-xl font-bold text-gray-950">
+              {props.dashboardTitle}
+            </h2>
+
+            <p className="mt-1 truncate text-xs font-medium text-gray-600">
+              {props.dashboardSubtitle}
+            </p>
+
+            <p className="mt-1 truncate text-[10px] text-gray-400">
+              {getDashboardDatasetDescription(props.dataset)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {!isComparisonDashboard && (
+        <div className="dashboard-print-inline-kpis">
+          {topMetrics.map((metric) => (
+            <section
+              key={metric.column}
+              className="dashboard-print-inline-kpi-card rounded-xl border border-gray-200 bg-white shadow-sm"
+            >
+              <p className="truncate text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                {formatMetricName(
+                  metric.column
+                )}
+              </p>
+
+              <p className="mt-1 truncate text-base font-bold text-gray-950">
+                {formatNumber(
+                  metric.total ?? 0
+                )}
+              </p>
+            </section>
+          ))}
+        </div>
+      )}
+
+      <div
+        className={`dashboard-print-main-grid ${
+          isComparisonDashboard
+            ? "dashboard-print-main-grid-comparison"
+            : ""
+        }`}
+      >
+        <section
+          className={`dashboard-print-main-chart rounded-2xl border border-gray-200 bg-white p-4 shadow-sm ${
+            isComparisonDashboard
+              ? "dashboard-print-main-chart-full"
+              : ""
+          }`}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="truncate text-lg font-semibold text-gray-950">
+                {props.selectedMetrics.length > 1
+                  ? props.selectedMetrics
+                      .slice(0, 3)
+                      .map(formatMetricName)
+                      .join(" vs ")
+                  : `${formatMetricName(
+                      props.primaryMetric
+                    )} Performance`}
+              </h3>
+
+              <p className="mt-1 text-xs text-gray-500">
+                {formatPeriodLabel(
+                  props.periodFilter
+                )}{" "}
+                view
+                {props.scaleMode === "indexed"
+                  ? " · indexed scale"
+                  : ""}
+              </p>
+            </div>
+          </div>
+
+          {hasChartData ? (
+            <div
+              className={`dashboard-print-main-chart-area ${
+                isComparisonDashboard
+                  ? "dashboard-print-main-chart-area-comparison"
+                  : ""
+              }`}
+              role="img"
+              aria-label={chartDescription}
+            >
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+                minWidth={0}
+              >
+                <MainChart
+                  chartType={props.chartType}
+                  rows={props.chartRows}
+                  xKey={props.xKey}
+                  metrics={props.selectedMetrics}
+                  allMetrics={props.metrics}
+                  chartMargin={{
+                    top: 12,
+                    right: 10,
+                    left: 0,
+                    bottom: 32,
+                  }}
+                  yAxisWidth={52}
+                  target={props.selectedTarget}
+                  showTarget={
+                    props.scaleMode === "actual"
+                  }
+                />
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <ChartEmptyState
+              className={`dashboard-print-main-chart-area ${
+                isComparisonDashboard
+                  ? "dashboard-print-main-chart-area-comparison"
+                  : ""
+              }`}
+            />
+          )}
+        </section>
+
+        {!isComparisonDashboard && (
+          <aside className="dashboard-print-kpi-column">
+            <section className="dashboard-print-target-card rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                  Target Snapshot
+                </p>
+
+                <p className="mt-1 truncate text-sm font-semibold text-gray-950">
+                  {formatMetricName(
+                    props.primaryMetric
+                  )}
+                </p>
+              </div>
+
+              <div className="dashboard-print-target-gauge mt-2">
+                <TargetGauge
+                  value={props.targetProgress}
+                  actualValue={props.latestValue}
+                  targetValue={props.selectedTarget}
+                />
+              </div>
+
+              <div className="dashboard-print-target-details space-y-2 text-xs">
+                <PrintMetricLine
+                  label="Current"
+                  value={formatNumber(
+                    props.latestValue
+                  )}
+                />
+                <PrintMetricLine
+                  label="Target"
+                  value={formatNumber(
+                    props.selectedTarget
+                  )}
+                />
+              </div>
+            </section>
+          </aside>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PrintMetricLine({
+  label,
+  value,
+}: {
+  label: string
+  value: string | number
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-2 py-1.5">
+      <span className="text-gray-500">
+        {label}
+      </span>
+
+      <span className="truncate font-semibold text-gray-900">
+        {value}
+      </span>
     </div>
   )
 }
@@ -1241,11 +3193,20 @@ function PerformanceTemplate(
   const hasChartData =
     props.chartRows.length > 0 &&
     props.selectedMetrics.length > 0
+  const chartDescription =
+    getDashboardChartDescription({
+      chartType: props.chartType,
+      rows: props.chartRows,
+      xKey: props.xKey,
+      metrics: props.selectedMetrics,
+      target: props.selectedTarget,
+      showTarget: props.scaleMode === "actual",
+    })
 
   return (
     <>
-      <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <DashboardCard className="flex h-[660px] min-w-0 flex-col">
+      <div className="dashboard-print-target-grid dashboard-print-target-grid-left grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <DashboardCard className="dashboard-print-target-card flex min-w-0 flex-col xl:h-[660px]">
           <CardHeader
             title="Performance Target"
             description={getDashboardDatasetDescription(
@@ -1271,66 +3232,54 @@ function PerformanceTemplate(
             />
           </div>
 
-          <div className="mt-5 space-y-3">
-            <TargetInput
-              key={props.primaryMetric}
-              label={`${formatMetricName(
-                props.primaryMetric
-              )} Target`}
-              value={props.selectedTarget}
-              onChange={(value) =>
-                props.setTargets((current) => ({
-                  ...current,
-                  [props.primaryMetric]: value,
-                }))
-              }
-            />
+          <div className="mt-auto space-y-4 pt-5">
+            <div className="space-y-3">
+              <SnapshotRow
+                label="Primary Metric"
+                value={formatMetricName(
+                  props.primaryMetric
+                )}
+              />
 
-            <SnapshotRow
-              label="Primary Metric"
-              value={formatMetricName(
-                props.primaryMetric
-              )}
-            />
+              <SnapshotRow
+                label="Current Value"
+                value={formatNumber(
+                  props.latestValue
+                )}
+              />
 
-            <SnapshotRow
-              label="Current Value"
-              value={formatNumber(
-                props.latestValue
-              )}
-            />
+              <SnapshotRow
+                label="Target"
+                value={formatNumber(
+                  props.selectedTarget
+                )}
+              />
+            </div>
 
-            <SnapshotRow
-              label="Target"
-              value={formatNumber(
+            <div
+              className={`rounded-xl border p-4 text-sm ${
+                props.targetMet
+                  ? "border-green-100 bg-green-50 text-green-700"
+                  : "border-amber-100 bg-amber-50 text-amber-700"
+              }`}
+            >
+              {getTargetInsight(
+                props.primaryMetric,
+                props.latestValue,
                 props.selectedTarget
               )}
-            />
-          </div>
-
-          <div
-            className={`mt-4 rounded-xl border p-4 text-sm ${
-              props.targetMet
-                ? "border-green-100 bg-green-50 text-green-700"
-                : "border-amber-100 bg-amber-50 text-amber-700"
-            }`}
-          >
-            {getTargetInsight(
-              props.primaryMetric,
-              props.latestValue,
-              props.selectedTarget
-            )}
+            </div>
           </div>
         </DashboardCard>
 
-        <DashboardCard className="flex h-[660px] min-w-0 flex-col">
+        <DashboardCard className="dashboard-print-chart-card flex min-w-0 flex-col xl:h-[660px]">
           <CardHeader
             title={`${formatMetricName(
               props.primaryMetric
             )} Trend`}
             icon={
               <IconBadge
-                className="bg-blue-50 text-blue-600"
+                className="bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
                 icon={<LineChartIcon size={22} />}
               />
             }
@@ -1350,10 +3299,15 @@ function PerformanceTemplate(
           />
 
           {hasChartData ? (
-            <div className="mt-4 min-h-[320px] flex-1">
+            <div
+              className="dashboard-print-chart-area mt-4 h-[320px] flex-none xl:h-auto xl:min-h-[320px] xl:flex-1"
+              role="img"
+              aria-label={chartDescription}
+            >
               <ResponsiveContainer
                 width="100%"
                 height="100%"
+                minWidth={0}
               >
                 <MainChart
                   chartType={props.chartType}
@@ -1369,20 +3323,12 @@ function PerformanceTemplate(
               </ResponsiveContainer>
             </div>
           ) : (
-            <ChartEmptyState className="mt-4 min-h-[320px] flex-1" />
+            <ChartEmptyState className="dashboard-print-chart-area mt-4 h-[320px] flex-none xl:h-auto xl:min-h-[320px] xl:flex-1" />
           )}
         </DashboardCard>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        {props.metrics.slice(0, 4).map((metric) => (
-          <KpiCard
-            key={metric.column}
-            label={formatMetricName(metric.column)}
-            value={metric.total ?? 0}
-          />
-        ))}
-      </div>
+      <KpiCarousel metrics={props.metrics} />
     </>
   )
 }
@@ -1411,20 +3357,21 @@ function ComparisonTemplate({
   const hasChartData =
     chartRows.length > 0 &&
     selectedMetrics.length > 0
+  const chartDescription =
+    getDashboardChartDescription({
+      chartType,
+      rows: chartRows,
+      xKey,
+      metrics: selectedMetrics,
+      target: selectedTarget,
+      showTarget: scaleMode === "actual",
+    })
 
   return (
     <>
-      <div className="grid gap-4 md:grid-cols-4">
-        {metrics.slice(0, 4).map((metric) => (
-          <KpiCard
-            key={metric.column}
-            label={formatMetricName(metric.column)}
-            value={metric.total ?? 0}
-          />
-        ))}
-      </div>
+      <KpiCarousel metrics={metrics} />
 
-      <DashboardCard className="flex h-[720px] min-w-0 flex-col">
+      <DashboardCard className="flex min-w-0 flex-col xl:h-[720px]">
         <CardHeader
           title={
             selectedMetrics.length > 3
@@ -1441,7 +3388,7 @@ function ComparisonTemplate({
           }
           icon={
             <IconBadge
-              className="bg-blue-50 text-blue-600"
+              className="bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
               icon={<LineChartIcon size={22} />}
             />
           }
@@ -1461,10 +3408,15 @@ function ComparisonTemplate({
         />
 
         {hasChartData ? (
-          <div className="mt-4 min-h-[360px] flex-1">
+          <div
+            className="mt-4 h-[360px] flex-none xl:h-auto xl:min-h-[360px] xl:flex-1"
+            role="img"
+            aria-label={chartDescription}
+          >
             <ResponsiveContainer
               width="100%"
               height="100%"
+              minWidth={0}
             >
               <MainChart
                 chartType={chartType}
@@ -1480,7 +3432,7 @@ function ComparisonTemplate({
             </ResponsiveContainer>
           </div>
         ) : (
-          <ChartEmptyState className="mt-4 min-h-[360px] flex-1" />
+          <ChartEmptyState className="mt-4 h-[360px] flex-none xl:h-auto xl:min-h-[360px] xl:flex-1" />
         )}
       </DashboardCard>
     </>
@@ -1512,28 +3464,31 @@ function ReportSection({
   setScaleMode,
   setPeriodFilter,
   setStartDate,
-  setTargets,
   onResetView,
 }: ReportSectionProps) {
   const hasChartData =
     chartRows.length > 0 &&
     selectedMetrics.length > 0
+  const chartDescription =
+    getDashboardChartDescription({
+      chartType,
+      rows: chartRows,
+      xKey,
+      metrics: selectedMetrics,
+      target: selectedTarget,
+      showTarget: scaleMode === "actual",
+    })
 
   return (
     <>
       {/* KPI Row */}
-      <div className="grid gap-4 md:grid-cols-4">
-        {metrics.slice(0, 4).map((metric) => (
-          <KpiCard
-            key={metric.column}
-            label={formatMetricName(metric.column)}
-            value={metric.total ?? 0}
-          />
-        ))}
-      </div>
+      <KpiCarousel metrics={metrics} />
 
       {/* Executive Insight */}
-      <div className="flex h-9 items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 text-xs text-blue-700">
+      <div
+        data-dashboard-export-control
+        className="flex h-9 items-center justify-between rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 text-xs text-[var(--decisionate-brand-primary-text)]"
+      >
         <div className="flex min-w-0 items-center">
           <span className="shrink-0 font-medium">
             Insight:
@@ -1548,7 +3503,7 @@ function ReportSection({
               )}
             </span>
           ) : (
-            <span className="ml-2 text-blue-600">
+            <span className="ml-2 text-[var(--decisionate-brand-primary-text)]">
               Hidden
             </span>
           )}
@@ -1556,19 +3511,20 @@ function ReportSection({
 
         <button
           type="button"
+          data-dashboard-export-control
           onClick={() =>
             setShowNarrative(!showNarrative)
           }
-          className="ml-3 shrink-0 font-medium text-blue-700 hover:text-blue-900"
+          className="ml-3 shrink-0 font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-80"
         >
           {showNarrative ? "Hide" : "Show"}
         </button>
       </div>
 
       {/* Main Executive Grid */}
-      <div className="grid items-stretch gap-5 xl:h-[660px] xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="dashboard-print-target-grid dashboard-print-target-grid-right grid items-stretch gap-5 xl:h-[660px] xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Executive Chart Card */}
-        <DashboardCard className="flex h-[560px] min-w-0 flex-col sm:h-[620px] xl:h-full">
+        <DashboardCard className="dashboard-print-chart-card flex min-h-[460px] min-w-0 flex-col sm:min-h-[560px] xl:h-full xl:min-h-0">
           <CardHeader
             title={
               selectedMetrics.length > 3
@@ -1585,7 +3541,7 @@ function ReportSection({
             }
             icon={
               <IconBadge
-                className="bg-blue-50 text-blue-600"
+                className="bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
                 icon={<LineChartIcon size={22} />}
               />
             }
@@ -1605,10 +3561,15 @@ function ReportSection({
           />
 
           {hasChartData ? (
-            <div className="mt-4 min-h-[320px] flex-1">
+            <div
+              className="dashboard-print-chart-area mt-4 h-[320px] flex-none xl:h-auto xl:min-h-[320px] xl:flex-1"
+              role="img"
+              aria-label={chartDescription}
+            >
               <ResponsiveContainer
                 width="100%"
                 height="100%"
+                minWidth={0}
               >
                 <MainChart
                   chartType={chartType}
@@ -1624,12 +3585,12 @@ function ReportSection({
               </ResponsiveContainer>
             </div>
           ) : (
-            <ChartEmptyState className="mt-4 min-h-[320px] flex-1" />
+            <ChartEmptyState className="dashboard-print-chart-area mt-4 h-[320px] flex-none xl:h-auto xl:min-h-[320px] xl:flex-1" />
           )}
         </DashboardCard>
 
         {/* Executive Target Card */}
-        <DashboardCard className="flex min-w-0 flex-col justify-between xl:h-full">
+        <DashboardCard className="dashboard-print-target-card flex min-w-0 flex-col xl:h-full">
           <div>
             <CardHeader
               title="Target Snapshot"
@@ -1655,22 +3616,10 @@ function ReportSection({
                 targetValue={selectedTarget}
               />
             </div>
+          </div>
 
-            <div className="mt-4 space-y-3">
-              <TargetInput
-                key={primaryMetric}
-                label={`${formatMetricName(
-                  primaryMetric
-                )} Target`}
-                value={selectedTarget}
-                onChange={(value) =>
-                  setTargets((current) => ({
-                    ...current,
-                    [primaryMetric]: value,
-                  }))
-                }
-              />
-
+          <div className="mt-auto space-y-4 pt-4">
+            <div className="space-y-3">
               <SnapshotRow
                 label="Primary Metric"
                 value={formatMetricName(
@@ -1688,20 +3637,20 @@ function ReportSection({
                 value={formatNumber(selectedTarget)}
               />
             </div>
-          </div>
 
-          <div
-            className={`rounded-xl border p-4 text-sm ${
-              targetMet
-                ? "border-green-100 bg-green-50 text-green-700"
-                : "border-amber-100 bg-amber-50 text-amber-700"
-            }`}
-          >
-            {getTargetInsight(
-              primaryMetric,
-              latestValue,
-              selectedTarget
-            )}
+            <div
+              className={`rounded-xl border p-4 text-sm ${
+                targetMet
+                  ? "border-green-100 bg-green-50 text-green-700"
+                  : "border-amber-100 bg-amber-50 text-amber-700"
+              }`}
+            >
+              {getTargetInsight(
+                primaryMetric,
+                latestValue,
+                selectedTarget
+              )}
+            </div>
           </div>
         </DashboardCard>
       </div>
@@ -1737,7 +3686,10 @@ function DashboardControls({
   onResetView: () => void
 }) {
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
+    <div
+      data-dashboard-export-control
+      className="mt-3 grid gap-2 sm:flex sm:flex-wrap sm:items-center"
+    >
       <CompactSelect
         label="Chart"
         value={chartType}
@@ -1781,7 +3733,7 @@ function DashboardControls({
         ]}
       />
 
-      <label className="flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 text-xs">
+      <label className="flex h-10 w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs sm:h-9 sm:w-auto sm:px-2">
         <span className="whitespace-nowrap font-medium text-gray-500">
           Start
         </span>
@@ -1792,11 +3744,11 @@ function DashboardControls({
           onChange={(event) =>
             setStartDate(event.target.value)
           }
-          className="h-7 bg-transparent text-xs outline-none"
+          className="h-7 min-w-0 flex-1 bg-transparent text-xs outline-none sm:flex-none"
         />
       </label>
 
-      <div className="flex h-9 items-center rounded-lg border border-blue-100 bg-blue-50 px-3 text-xs text-blue-700">
+      <div className="flex min-h-10 w-full flex-wrap items-center rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-xs text-[var(--decisionate-brand-primary-text)] sm:min-h-9 sm:w-auto sm:py-0">
         Showing&nbsp;
         <span className="font-semibold">
           {formatPeriodLabel(periodFilter)}
@@ -1812,12 +3764,12 @@ function DashboardControls({
       <button
         type="button"
         onClick={onResetView}
-        className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
+        className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 sm:h-9 sm:w-auto"
       >
         Reset view
       </button>
 
-      <div className="flex h-9 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">
+      <div className="flex h-10 w-full items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs text-gray-600 sm:h-9 sm:w-auto">
         Metrics:&nbsp;
         <span className="font-semibold text-gray-800">
           {selectedMetrics.length}
@@ -1825,7 +3777,7 @@ function DashboardControls({
       </div>
 
       {selectedMetrics.length > 5 && (
-        <div className="flex h-9 items-center rounded-lg border border-amber-100 bg-amber-50 px-3 text-xs font-medium text-amber-700">
+        <div className="flex min-h-10 w-full items-center rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 sm:min-h-9 sm:w-auto sm:py-0">
           Many metrics selected. Use Indexed scale.
         </div>
       )}
@@ -1843,6 +3795,8 @@ function MainChart({
   xKey,
   metrics,
   allMetrics,
+  chartMargin,
+  yAxisWidth = 70,
   target,
   showTarget,
 }: {
@@ -1851,10 +3805,17 @@ function MainChart({
   xKey: string
   metrics: string[]
   allMetrics: DashboardMetric[]
+  chartMargin?: {
+    top: number
+    right: number
+    left: number
+    bottom: number
+  }
+  yAxisWidth?: number
   target: number
   showTarget: boolean
 }) {
-  const margin = {
+  const margin = chartMargin ?? {
     top: 20,
     right: 32,
     left: 8,
@@ -1866,7 +3827,7 @@ function MainChart({
       <CartesianGrid strokeDasharray="3 3" />
       <XAxis dataKey={xKey} tickLine={false} />
       <YAxis
-        width={70}
+        width={yAxisWidth}
         tickLine={false}
         domain={["auto", "auto"]}
       />
@@ -1876,12 +3837,12 @@ function MainChart({
       {showTarget && target > 0 && (
         <ReferenceLine
           y={target}
-          stroke="#111827"
+          stroke="var(--decisionate-brand-primary)"
           strokeDasharray="4 4"
           label={{
             value: "Target",
             position: "insideTopRight",
-            fill: "#111827",
+            fill: "var(--decisionate-brand-primary)",
             fontSize: 12,
           }}
         />
@@ -1963,135 +3924,210 @@ function MainChart({
   )
 }
 
-/* =========================
-   Shared: Metric Cards
-========================= */
-
-function MetricCard({
-  metric,
-  index,
+function getDashboardChartDescription({
+  chartType,
   rows,
   xKey,
-  chartType,
+  metrics,
+  target,
+  showTarget,
+}: {
+  chartType: ChartType
+  rows: DashboardRow[]
+  xKey: string
+  metrics: string[]
+  target: number
+  showTarget: boolean
+}) {
+  if (
+    rows.length === 0 ||
+    metrics.length === 0
+  ) {
+    return "No dashboard chart data is available."
+  }
+
+  const firstRow = rows[0]
+  const lastRow = rows[rows.length - 1]
+  const firstPeriod =
+    formatChartCellValue(firstRow[xKey])
+  const lastPeriod =
+    formatChartCellValue(lastRow[xKey])
+  const metricLabels =
+    metrics.map(formatMetricName)
+  const latestValues =
+    metrics.slice(0, 3).map(metric =>
+      `${formatMetricName(metric)} ${formatChartCellValue(lastRow[metric])}`
+    )
+  const hiddenMetricCount =
+    Math.max(metrics.length - latestValues.length, 0)
+  const hiddenMetricSummary =
+    hiddenMetricCount > 0
+      ? `, plus ${hiddenMetricCount} more metric${
+          hiddenMetricCount === 1 ? "" : "s"
+        }`
+      : ""
+  const targetSummary =
+    showTarget && target > 0
+      ? ` Target is ${formatNumber(target)}.`
+      : ""
+
+  return `${formatMetricName(chartType)} chart showing ${metricLabels.join(
+    ", "
+  )} across ${rows.length} period${rows.length === 1 ? "" : "s"} from ${firstPeriod} to ${lastPeriod}. Latest values: ${latestValues.join(
+    ", "
+  )}${hiddenMetricSummary}.${targetSummary}`
+}
+
+function formatChartCellValue(
+  value: DashboardCellValue
+) {
+  if (value instanceof Date) {
+    return value.toLocaleDateString()
+  }
+
+  const numericValue =
+    toFiniteDashboardNumber(value)
+
+  if (numericValue !== null) {
+    return formatNumber(numericValue)
+  }
+
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "unknown"
+  }
+
+  return String(value)
+}
+
+/* =========================
+   Shared: Metric Selection Rows
+========================= */
+
+function MetricSelectionRow({
+  metric,
+  color,
   selected,
   target,
   onToggle,
   onTargetChange,
 }: {
   metric: DashboardMetric
-  index: number
-  rows: DashboardRow[]
-  xKey: string
-  chartType: ChartType
+  color: string
   selected: boolean
   target: number
   onToggle: () => void
   onTargetChange: (value: number) => void
 }) {
-  const latestValue =
-    getLatestValue(rows, metric.column)
-
-  const targetProgress =
-    getTargetProgress(
-      latestValue,
-      target
-    )
-
-  const targetMet =
-    target > 0 &&
-    targetProgress >= 100
-
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={onToggle}
-      onKeyDown={(event) => {
-        if (
-          event.key === "Enter" ||
-          event.key === " "
-        ) {
-          event.preventDefault()
-          onToggle()
-        }
-      }}
-      className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition ${
+      className={`flex flex-col gap-3 rounded-xl border p-3 transition sm:flex-row sm:items-center sm:justify-between ${
         selected
-          ? "border-blue-300 bg-blue-50"
-          : "border-gray-200"
+          ? ""
+          : "border-gray-100 bg-gray-50"
       }`}
+      style={
+        selected
+          ? {
+            borderColor: getColorWithAlpha(
+              color,
+              "66"
+            ),
+            backgroundColor: getColorWithAlpha(
+              color,
+              "12"
+            ),
+          }
+          : undefined
+      }
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h3 className="font-semibold">
-            {formatMetricName(metric.column)}
-          </h3>
-
-          <p className="mt-1 text-sm text-gray-500">
-            {getGrowth(rows, metric.column)}% growth
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            onToggle()
-          }}
-          className={`rounded-full px-2 py-1 text-xs font-medium ${
+      <button
+        type="button"
+        aria-pressed={selected}
+        aria-label={`${selected ? "Hide" : "Show"} ${formatMetricName(
+          metric.column
+        )} in dashboard chart`}
+        onClick={onToggle}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
+        <span
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
             selected
-              ? "bg-blue-100 text-blue-700"
-              : "bg-gray-100 text-gray-600"
+              ? "bg-white"
+              : "border-gray-200 bg-white text-gray-400"
           }`}
+          style={
+            selected
+              ? {
+                borderColor: getColorWithAlpha(
+                  color,
+                  "66"
+                ),
+                color,
+              }
+              : undefined
+          }
+          aria-hidden="true"
         >
-          {selected ? "Selected" : "Select"}
-        </button>
-      </div>
-
-      <div className="mt-3 h-20">
-        <ResponsiveContainer
-          width="100%"
-          height="100%"
-        >
-          <MiniChart
-            rows={rows}
-            xKey={xKey}
-            metric={metric.column}
-            chartType={chartType}
-            color={getMetricColor(index)}
-          />
-        </ResponsiveContainer>
-      </div>
-
-      <div className="mt-3 flex justify-between text-sm">
-        <span className="text-gray-500">
-          Latest
+          {selected ? "✓" : ""}
         </span>
 
-        <span className="font-semibold text-gray-900">
-          {formatNumber(latestValue)}
-        </span>
-      </div>
+        <span className="min-w-0">
+          <span className="flex min-w-0 items-center gap-2">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{
+                backgroundColor: color,
+              }}
+              aria-hidden="true"
+            />
 
-      <div
-        className="mt-3 rounded-xl border border-gray-200 bg-white p-3"
+            <span className="truncate text-sm font-semibold text-gray-900">
+              {formatMetricName(metric.column)}
+            </span>
+          </span>
+
+          <span className="block text-xs text-gray-500">
+            {selected
+              ? "Included in chart"
+              : "Hidden from chart"}
+          </span>
+        </span>
+      </button>
+
+      <label
+        className="flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-500 sm:w-52"
+        style={
+          selected
+            ? {
+              borderColor: getColorWithAlpha(
+                color,
+                "44"
+              ),
+            }
+            : undefined
+        }
         onClick={(event) => {
           event.stopPropagation()
         }}
       >
-        <label className="block text-xs font-medium text-gray-500">
+        <span className="shrink-0 font-medium">
           Target
-        </label>
+        </span>
 
         <input
           type="number"
+          aria-label={`Target for ${formatMetricName(metric.column)}`}
           min={0}
           value={
             target > 0
               ? target
               : ""
           }
-          placeholder="Set target"
+          placeholder="Optional"
           onChange={(event) => {
             const nextValue =
               event.target.value
@@ -2102,99 +4138,10 @@ function MetricCard({
                 : Number(nextValue)
             )
           }}
-          className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none"
         />
-
-        <div className="mt-2 flex items-center justify-between text-xs">
-          <span
-            className={
-              targetMet
-                ? "text-green-600"
-                : "text-gray-500"
-            }
-          >
-            {target > 0
-              ? `${targetProgress}% of target`
-              : "No target set"}
-          </span>
-
-          {target > 0 && (
-            <span className="font-medium text-gray-700">
-              {formatNumber(target)}
-            </span>
-          )}
-        </div>
-      </div>
+      </label>
     </div>
-  )
-}
-
-/* =========================
-   Shared: Mini Chart
-========================= */
-
-function MiniChart({
-  rows,
-  xKey,
-  metric,
-  chartType,
-  color,
-}: {
-  rows: DashboardRow[]
-  xKey: string
-  metric: string
-  chartType: ChartType
-  color: string
-}) {
-  if (chartType === "bar") {
-    return (
-      <BarChart data={rows}>
-        <XAxis dataKey={xKey} hide />
-        <YAxis hide />
-        <Tooltip />
-        <Bar
-          dataKey={metric}
-          fill={color}
-          radius={[6, 6, 0, 0]}
-        />
-      </BarChart>
-    )
-  }
-
-  if (chartType === "area") {
-    return (
-      <AreaChart data={rows}>
-        <XAxis dataKey={xKey} hide />
-        <YAxis hide />
-        <Tooltip />
-
-        <Area
-          type="monotone"
-          dataKey={metric}
-          stroke={color}
-          fill={color}
-          fillOpacity={0.18}
-          strokeWidth={3}
-          dot={false}
-        />
-      </AreaChart>
-    )
-  }
-
-  return (
-    <LineChart data={rows}>
-      <XAxis dataKey={xKey} hide />
-      <YAxis hide />
-      <Tooltip />
-
-      <Line
-        type="monotone"
-        dataKey={metric}
-        stroke={color}
-        strokeWidth={3}
-        dot={false}
-      />
-    </LineChart>
   )
 }
 
@@ -2236,8 +4183,8 @@ function TargetGauge({
             "#f97316",
             "#facc15",
             "#84cc16",
-            "#16a34a",
-            "#166534",
+            "var(--decisionate-brand-accent)",
+            "var(--decisionate-brand-accent-text)",
           ].map((color, index) => {
             const start =
               -180 + index * (180 / 7)
@@ -2262,14 +4209,14 @@ function TargetGauge({
           >
             <path
               d="M110 112 L104 48 Q110 30 116 48 Z"
-              fill="#111827"
+              fill="var(--decisionate-brand-primary)"
             />
 
             <circle
               cx="110"
               cy="112"
               r="10"
-              fill="#111827"
+              fill="var(--decisionate-brand-primary)"
             />
           </g>
         </svg>
@@ -2363,46 +4310,6 @@ function polarToCartesian(
   }
 }
 
-/* =========================
-   Shared: Inputs and Cards
-========================= */
-
-function TargetInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: number
-  onChange: (value: number) => void
-}) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-gray-500">
-        {label}
-      </span>
-
-      <input
-        type="number"
-        value={value > 0 ? value : ""}
-        min={0}
-        placeholder="Set target"
-        onChange={(event) => {
-          const nextValue =
-            event.target.value
-
-          onChange(
-            nextValue === ""
-              ? 0
-              : Number(nextValue)
-          )
-        }}
-        className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-      />
-    </label>
-  )
-}
-
 function CompactSelect({
   label,
   value,
@@ -2415,8 +4322,8 @@ function CompactSelect({
   onChange: (value: string) => void
 }) {
   return (
-    <label className="flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 text-xs">
-      <span className="font-medium text-gray-500">
+    <label className="flex h-10 w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs sm:h-9 sm:w-auto sm:px-2">
+      <span className="shrink-0 font-medium text-gray-500">
         {label}
       </span>
 
@@ -2425,7 +4332,7 @@ function CompactSelect({
         onChange={(event) =>
           onChange(event.target.value)
         }
-        className="h-7 bg-transparent text-xs font-medium text-gray-800 outline-none"
+        className="h-7 min-w-0 flex-1 bg-transparent text-xs font-medium text-gray-800 outline-none sm:flex-none"
       >
         {options.map(
           ([optionValue, optionLabel]) => (
@@ -2518,6 +4425,84 @@ function IconBadge({
   )
 }
 
+function KpiCarousel({
+  metrics,
+}: {
+  metrics: DashboardMetric[]
+}) {
+  const scrollRef =
+    useRef<HTMLDivElement | null>(null)
+  const canScroll =
+    metrics.length > maxDashboardKpiCards
+
+  if (metrics.length === 0) {
+    return null
+  }
+
+  function scrollKpis(direction: -1 | 1) {
+    const node = scrollRef.current
+
+    if (!node) {
+      return
+    }
+
+    node.scrollBy({
+      left:
+        direction *
+        Math.max(node.clientWidth * 0.9, 320),
+      behavior: "smooth",
+    })
+  }
+
+  return (
+    <section className="space-y-2">
+      {canScroll && (
+        <div
+          data-dashboard-export-control
+          className="flex justify-end gap-2"
+        >
+          <button
+            type="button"
+            onClick={() => scrollKpis(-1)}
+            aria-label="Show previous KPI cards"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+          >
+            ‹
+          </button>
+
+          <button
+            type="button"
+            onClick={() => scrollKpis(1)}
+            aria-label="Show more KPI cards"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+          >
+            ›
+          </button>
+        </div>
+      )}
+
+      <div
+        ref={scrollRef}
+        className="dashboard-kpi-scroll flex gap-4 overflow-x-auto scroll-smooth pb-2"
+      >
+        {metrics.map((metric) => (
+          <div
+            key={metric.column}
+            className="dashboard-kpi-strip-card"
+          >
+            <KpiCard
+              label={formatMetricName(
+                metric.column
+              )}
+              value={metric.total ?? 0}
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function KpiCard({
   label,
   value,
@@ -2526,8 +4511,8 @@ function KpiCard({
   value: string | number
 }) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-      <p className="text-sm text-gray-500">
+    <div className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+      <p className="truncate text-sm text-gray-500">
         {label}
       </p>
 
@@ -2612,6 +4597,259 @@ function getSavedMetricTargets(
    Saved View Validation
 ========================= */
 
+const dashboardChartTitleKeys: DashboardChartTitleKey[] = [
+  "trend",
+  "mix",
+  "operations",
+  "outcome",
+]
+
+function getSavedDashboardChartTitles(
+  titles: unknown
+): Record<string, DashboardChartTitles> {
+  if (
+    !titles ||
+    typeof titles !== "object" ||
+    Array.isArray(titles)
+  ) {
+    return {}
+  }
+
+  return Object.entries(
+    titles as Record<string, unknown>
+  ).reduce<Record<string, DashboardChartTitles>>(
+    (result, [dashboardKey, chartTitles]) => {
+      if (
+        !isDashboardKey(dashboardKey) ||
+        dashboardKey === defaultDashboardKey
+      ) {
+        return result
+      }
+
+      const cleanTitles =
+        cleanDashboardChartTitles(chartTitles)
+
+      if (Object.keys(cleanTitles).length > 0) {
+        result[dashboardKey] = cleanTitles
+      }
+
+      return result
+    },
+    {}
+  )
+}
+
+function cleanDashboardChartTitles(
+  titles: unknown
+): DashboardChartTitles {
+  if (
+    !titles ||
+    typeof titles !== "object" ||
+    Array.isArray(titles)
+  ) {
+    return {}
+  }
+
+  return dashboardChartTitleKeys.reduce<DashboardChartTitles>(
+    (result, key) => {
+      const value = (titles as Record<string, unknown>)[key]
+
+      if (typeof value === "string") {
+        const cleanValue = value
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 80)
+
+        if (cleanValue) {
+          result[key] = cleanValue
+        }
+      }
+
+      return result
+    },
+    {}
+  )
+}
+
+function getNextDashboardChartTitle(
+  titles: DashboardChartTitles,
+  key: DashboardChartTitleKey,
+  value: string
+): DashboardChartTitles {
+  const nextTitles = {
+    ...cleanDashboardChartTitles(titles),
+  }
+  const cleanValue = value
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80)
+
+  if (cleanValue) {
+    nextTitles[key] = cleanValue
+  } else {
+    delete nextTitles[key]
+  }
+
+  return nextTitles
+}
+
+function getNextDashboardChartTitles(
+  titles: unknown,
+  dashboardKey: string,
+  currentTitles: DashboardChartTitles,
+  shouldSave: boolean
+): Record<string, DashboardChartTitles> {
+  const nextTitles = getSavedDashboardChartTitles(titles)
+
+  if (!shouldSave || dashboardKey === defaultDashboardKey) {
+    return nextTitles
+  }
+
+  const cleanTitles =
+    cleanDashboardChartTitles(currentTitles)
+
+  if (Object.keys(cleanTitles).length > 0) {
+    nextTitles[dashboardKey] = cleanTitles
+  } else {
+    delete nextTitles[dashboardKey]
+  }
+
+  return nextTitles
+}
+
+function getSavedDashboardMetricMapping(
+  mapping: unknown
+): DashboardMetricMapping {
+  if (
+    !mapping ||
+    typeof mapping !== "object" ||
+    Array.isArray(mapping)
+  ) {
+    return {}
+  }
+
+  return cleanDashboardMetricMapping(
+    mapping as DashboardMetricMapping
+  ) ?? {}
+}
+
+function getSavedDashboardMetricMappings(
+  mappings: unknown
+): Record<string, DashboardMetricMapping> {
+  if (
+    !mappings ||
+    typeof mappings !== "object" ||
+    Array.isArray(mappings)
+  ) {
+    return {}
+  }
+
+  return Object.entries(
+    mappings as Record<string, unknown>
+  ).reduce<Record<string, DashboardMetricMapping>>(
+    (result, [dashboardKey, mapping]) => {
+      if (typeof dashboardKey !== "string") {
+        return result
+      }
+
+      const cleanMapping =
+        getSavedDashboardMetricMapping(mapping)
+
+      if (Object.keys(cleanMapping).length > 0) {
+        result[dashboardKey] = cleanMapping
+      }
+
+      return result
+    },
+    {}
+  )
+}
+
+function cleanDashboardMetricMapping(
+  mapping: DashboardMetricMapping
+): DashboardMetricMapping | undefined {
+  const cleanMapping =
+    (
+      [
+        "primary",
+        "category",
+        "stage",
+        "date",
+      ] as const
+    ).reduce<DashboardMetricMapping>(
+      (result, key) => {
+        const value = mapping[key]
+
+        if (typeof value === "string" && value.trim()) {
+          result[key] = value.trim()
+        }
+
+        return result
+      },
+      {}
+    )
+
+  return Object.keys(cleanMapping).length > 0
+    ? cleanMapping
+    : undefined
+}
+
+function getNextDashboardMetricMapping(
+  mapping: DashboardMetricMapping,
+  role: keyof DashboardMetricMapping,
+  value: string
+): DashboardMetricMapping {
+  const nextMapping = {
+    ...mapping,
+  }
+  const cleanValue = value.trim()
+
+  if (cleanValue) {
+    nextMapping[role] = cleanValue
+  } else {
+    delete nextMapping[role]
+  }
+
+  return nextMapping
+}
+
+function getNextDashboardMetricMappings(
+  mappings: Record<string, DashboardMetricMapping>,
+  dashboardKey: string,
+  mapping: DashboardMetricMapping | undefined,
+  shouldSaveMapping: boolean
+): Record<string, DashboardMetricMapping> {
+  const nextMappings = Object.entries(
+    mappings
+  ).reduce<Record<string, DashboardMetricMapping>>(
+    (result, [key, value]) => {
+      if (
+        isDashboardKey(key) &&
+        dashboardUsesDatasetMetricMapping(
+          getDashboardDefinition(key).componentKey
+        )
+      ) {
+        result[key] = value
+      }
+
+      return result
+    },
+    {}
+  )
+
+  if (
+    shouldSaveMapping &&
+    mapping &&
+    Object.keys(mapping).length > 0
+  ) {
+    nextMappings[dashboardKey] = mapping
+  } else {
+    delete nextMappings[dashboardKey]
+  }
+
+  return nextMappings
+}
+
 function getValidSelectedMetrics(
   selectedMetrics: unknown,
   availableMetrics: string[]
@@ -2620,11 +4858,13 @@ function getValidSelectedMetrics(
     return []
   }
 
-  return (
-    selectedMetrics.filter(
-      (metric): metric is string =>
-        typeof metric === "string" &&
-        availableMetrics.includes(metric)
+  return Array.from(
+    new Set(
+      selectedMetrics.filter(
+        (metric): metric is string =>
+          typeof metric === "string" &&
+          availableMetrics.includes(metric)
+      )
     )
   )
 }
@@ -2680,6 +4920,33 @@ function getSavedDashboardTemplate(
   )
     ? savedDashboardTemplate
     : "executive"
+}
+
+function cleanDashboardText(
+  value: string,
+  maxLength: number
+) {
+  return value
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength)
+}
+
+function getSavedDashboardText(
+  value: unknown,
+  fallback: string,
+  maxLength: number
+) {
+  if (typeof value !== "string") {
+    return fallback
+  }
+
+  const cleanValue = cleanDashboardText(
+    value,
+    maxLength
+  )
+
+  return cleanValue || fallback
 }
 
 function isSavedChartType(
@@ -2791,6 +5058,7 @@ function getQueryDatasetId(
 function buildDashboardShareUrl(
   datasetId: number | undefined,
   dashboardTemplate: DashboardTemplate,
+  selectedDashboard: string,
   token: string
 ) {
   if (typeof window === "undefined") {
@@ -2815,11 +5083,25 @@ function buildDashboardShareUrl(
     dashboardTemplate
   )
   url.searchParams.set(
+    "dashboard",
+    isDashboardKey(selectedDashboard)
+      ? selectedDashboard
+      : defaultDashboardKey
+  )
+  url.searchParams.set(
     "token",
     token
   )
 
   return url.toString()
+}
+
+function waitForNextFrame() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => {
+      resolve()
+    })
+  })
 }
 
 function buildIndexedRows(
@@ -3087,7 +5369,7 @@ function getTargetStatus(
 
   return {
     text: `${progress}% of target`,
-    className: "text-blue-600",
+    className: "text-[var(--decisionate-brand-primary-text)]",
   }
 }
 
@@ -3217,22 +5499,39 @@ function getMetricIndex(
 }
 
 function getMetricColor(index: number) {
-  return colorPalette[
-    index % colorPalette.length
+  return dashboardChartPalette[
+    index % dashboardChartPalette.length
   ]
 }
 
-function formatMetricName(metric: string) {
-  if (!metric) return "None"
+function getColorWithAlpha(
+  color: string,
+  alpha: string
+) {
+  if (
+    !/^[0-9a-fA-F]{2}$/.test(alpha)
+  ) {
+    return color
+  }
 
-  return metric
-    .split("_")
-    .map(
-      word =>
-        word.charAt(0).toUpperCase() +
-        word.slice(1)
-    )
-    .join(" ")
+  if (/^#[0-9a-fA-F]{6}$/.test(color)) {
+    return `${color}${alpha}`
+  }
+
+  if (color.startsWith("var(")) {
+    const alphaPercent =
+      Math.round(
+        (parseInt(alpha, 16) / 255) * 100
+      )
+
+    return `color-mix(in srgb, ${color} ${alphaPercent}%, transparent)`
+  }
+
+  return `${color}${alpha}`
+}
+
+function formatMetricName(metric: string) {
+  return formatMetricLabel(metric)
 }
 
 function getDashboardDatasetDescription(
@@ -3304,17 +5603,23 @@ function getSafeRatioPercent(
   )
 }
 
-function getShareStatusMessage(status: string) {
+function getShareStatusMessage(
+  status: string,
+  dashboardShareTitle: string
+) {
+  const dashboardLabel =
+    dashboardShareTitle.toLowerCase()
+
   if (status === "Copied") {
-    return "Share link copied."
+    return `${dashboardShareTitle} link copied.`
   }
 
   if (status === "SharingStopped") {
-    return "Sharing stopped. Existing shared links no longer work."
+    return `Sharing stopped. Existing ${dashboardLabel} links no longer work.`
   }
 
   if (status.startsWith("http")) {
-    return `Share link created: ${status}`
+    return `${dashboardShareTitle} link created: ${status}`
   }
 
   return status
@@ -3337,10 +5642,269 @@ function getShareStatusClassName(status: string) {
   }
 
   if (status.startsWith("http")) {
-    return `${baseClassName} break-all border-blue-100 bg-blue-50 text-blue-700`
+    return `${baseClassName} break-all border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]`
   }
 
-  return `${baseClassName} border-blue-100 bg-blue-50 text-blue-700`
+  return `${baseClassName} border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]`
+}
+
+function DashboardChartTitlePanel({
+  fields,
+  titles,
+  onChange,
+}: {
+  fields: DashboardChartTitleField[]
+  titles: DashboardChartTitles
+  onChange: (
+    key: DashboardChartTitleKey,
+    value: string
+  ) => void
+}) {
+  return (
+    <section className="print:hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight text-gray-950">
+          Chart Names
+        </h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Rename the charts in this dashboard. Changes save automatically.
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {fields.map(field => (
+          <label
+            key={field.key}
+            className="min-w-0 rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm"
+          >
+            <span className="block truncate text-xs font-semibold uppercase text-gray-500">
+              {field.label}
+            </span>
+            <input
+              type="text"
+              value={titles[field.key] ?? ""}
+              placeholder={field.defaultValue}
+              maxLength={80}
+              onChange={event =>
+                onChange(field.key, event.target.value)
+              }
+              className="mt-2 h-10 w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm placeholder:text-gray-400"
+            />
+          </label>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function DashboardMetricMappingPanel({
+  chartTitles,
+  columns,
+  numericColumns,
+  mapping,
+  autoMapping,
+  onChange,
+}: {
+  chartTitles: {
+    trend: string
+    mix: string
+    operations: string
+  }
+  columns: string[]
+  numericColumns: string[]
+  mapping: DashboardMetricMapping
+  autoMapping: DashboardMetricMapping
+  onChange: (
+    role: keyof DashboardMetricMapping,
+    value: string
+  ) => void
+}) {
+  const chartMappings: Array<{
+    chart: string
+    description: string
+    key: keyof DashboardMetricMapping
+    label: string
+    numericOnly?: boolean
+  }> = [
+    {
+      chart: chartTitles.trend,
+      description: "Numeric column plotted as the main trend series.",
+      key: "primary",
+      label: "Trend value column",
+      numericOnly: true,
+    },
+    {
+      chart: chartTitles.trend,
+      description: "Date or period column shown along this chart's horizontal axis.",
+      key: "date",
+      label: "Horizontal axis column",
+    },
+    {
+      chart: chartTitles.mix,
+      description: "Grouping column for category, source, segment, or mix charts.",
+      key: "category",
+      label: "Category column",
+    },
+    {
+      chart: chartTitles.operations,
+      description: "Workflow, funnel, pipeline, or status grouping column.",
+      key: "stage",
+      label: "Stage column",
+    },
+  ]
+
+  return (
+    <section className="print:hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-950">
+            Metric Mapping
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Map dataset columns to the dashboard charts when automatic detection needs help.
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            Auto uses the detected column. Choose a column only when a chart is using the wrong field.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid items-stretch gap-3 lg:auto-rows-fr lg:grid-cols-4">
+        {chartMappings.map(mappingCard => (
+          <div
+            key={`${mappingCard.chart}-${mappingCard.key}`}
+            className="flex h-full min-w-0 flex-col rounded-xl border border-gray-100 bg-gray-50 p-3"
+          >
+            <p className="truncate text-xs font-semibold uppercase text-gray-500">
+              {mappingCard.chart}
+            </p>
+
+            <DashboardMappingSelect
+              label={mappingCard.label}
+              description={mappingCard.description}
+              value={mapping[mappingCard.key] ?? ""}
+              autoValue={autoMapping[mappingCard.key]}
+              options={
+                mappingCard.numericOnly
+                  ? numericColumns
+                  : columns
+              }
+              emptyLabel="Auto"
+              onChange={value =>
+                onChange(mappingCard.key, value)
+              }
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function DashboardMappingSelect({
+  label,
+  description,
+  value,
+  autoValue,
+  options,
+  emptyLabel,
+  onChange,
+}: {
+  label: string
+  description?: string
+  value: string
+  autoValue?: string
+  options: string[]
+  emptyLabel: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="flex min-h-0 min-w-0 flex-1 flex-col text-sm">
+      <span className="font-medium text-gray-700">
+        {label}
+      </span>
+      {description && (
+        <span className="mt-0.5 block text-xs leading-4 text-gray-500">
+          {description}
+        </span>
+      )}
+      {!value && autoValue && (
+        <span className="mt-1 block truncate text-xs font-medium text-[var(--decisionate-brand-primary-text)]">
+          Auto: {autoValue}
+        </span>
+      )}
+      {!value && !autoValue && (
+        <span className="mt-1 block text-xs font-medium text-amber-600">
+          Auto: not detected
+        </span>
+      )}
+      <select
+        value={value}
+        onChange={event =>
+          onChange(event.target.value)
+        }
+        className="mt-auto h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm"
+      >
+        <option value="">
+          {emptyLabel}
+        </option>
+        {options.map(option => (
+          <option
+            key={option}
+            value={option}
+          >
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+function getDashboardMappingColumns(
+  dataset: DashboardDataset | null
+) {
+  const columns = new Set<string>()
+
+  dataset?.metrics.forEach(metric => {
+    columns.add(metric.column)
+  })
+
+  ;(dataset?.chart?.data?.length
+    ? dataset.chart.data
+    : dataset?.preview ?? []
+  )
+    .slice(0, 25)
+    .forEach(row => {
+      Object.keys(row).forEach(column => {
+        columns.add(column)
+      })
+    })
+
+  return Array.from(columns)
+}
+
+function getDashboardNumericMappingColumns(
+  dataset: DashboardDataset | null
+) {
+  const metricColumns = new Set(
+    dataset?.metrics.map(metric => metric.column) ?? []
+  )
+
+  if (metricColumns.size > 0) {
+    return Array.from(metricColumns)
+  }
+
+  const rows = dataset?.chart?.data?.length
+    ? dataset.chart.data
+    : dataset?.preview ?? []
+  const columns = getDashboardMappingColumns(dataset)
+
+  return columns.filter(column =>
+    rows.some(row =>
+      toFiniteDashboardNumber(row[column]) !== null
+    )
+  )
 }
 
 async function copyTextToClipboard(text: string) {

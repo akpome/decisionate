@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Decisionate</title>
+  <defs>
+    <linearGradient id="decisionate-icon-gradient" x1="96" y1="80" x2="416" y2="432" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4f46e5" />
+      <stop offset="1" stop-color="#0891b2" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#2563EB" />
+  <rect x="48" y="48" width="416" height="416" rx="96" fill="#ffffff" />
+  <rect x="96" y="96" width="320" height="320" rx="80" fill="url(#decisionate-icon-gradient)" />
+  <path d="M168 354V158h78c62 0 104 39 104 98s-42 98-104 98h-78Zm56-52h23c32 0 47-20 47-46s-15-46-47-46h-23v92Z" fill="#fff" />
+  <circle cx="354" cy="166" r="24" fill="#ccfbf1" />
+</svg>

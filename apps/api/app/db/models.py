@@ -81,6 +81,48 @@ class Dataset(Base):
     )
 
 
+class DashboardShare(Base):
+    __tablename__ = "dashboard_shares"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+    dataset_id = Column(
+        Integer,
+        nullable=False,
+        index=True,
+    )
+
+    dashboard_key = Column(
+        String,
+        nullable=False,
+        index=True,
+    )
+
+    share_token = Column(
+        String,
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    created_at = Column(
+        DateTime,
+        default=utc_now,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "dataset_id",
+            "dashboard_key",
+            name="uq_dashboard_shares_dataset_dashboard",
+        ),
+    )
+
+
 class DataSourceConnection(Base):
     __tablename__ = "data_source_connections"
 
@@ -315,6 +357,71 @@ class WeeklyReportPreference(Base):
         default=1,
     )
 
+    sender_name = Column(
+        String,
+        nullable=True,
+    )
+
+    sender_email = Column(
+        String,
+        nullable=True,
+    )
+
+    reply_to_email = Column(
+        String,
+        nullable=True,
+    )
+
+    subject_prefix = Column(
+        String,
+        nullable=True,
+    )
+
+    smtp_host = Column(
+        String,
+        nullable=True,
+    )
+
+    smtp_port = Column(
+        Integer,
+        nullable=True,
+    )
+
+    smtp_username = Column(
+        String,
+        nullable=True,
+    )
+
+    smtp_password = Column(
+        Text,
+        nullable=True,
+    )
+
+    smtp_use_tls = Column(
+        Integer,
+        nullable=True,
+    )
+
+    smtp_use_ssl = Column(
+        Integer,
+        nullable=True,
+    )
+
+    last_sent_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
+    last_send_status = Column(
+        String,
+        nullable=True,
+    )
+
+    last_send_error = Column(
+        Text,
+        nullable=True,
+    )
+
     created_at = Column(
         DateTime,
         default=utc_now,
@@ -372,6 +479,11 @@ class UserPreference(Base):
 
     dashboard_preferences = Column(
         Text,
+        nullable=True,
+    )
+
+    selected_dashboard = Column(
+        String,
         nullable=True,
     )
 

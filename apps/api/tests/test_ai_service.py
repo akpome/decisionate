@@ -1,0 +1,156 @@
+import json
+import os
+import unittest
+from unittest.mock import patch
+
+from app.modules.ai import service
+
+
+class FakeAIResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
+
+
+class AIServiceTests(unittest.TestCase):
+    def setUp(self):
+        with service._analysis_cache_lock:
+            service._analysis_cache.clear()
+
+    def tearDown(self):
+        with service._analysis_cache_lock:
+            service._analysis_cache.clear()
+
+    def test_learning_metadata_ignores_invalid_counts(self):
+        metadata = service.build_learning_context_metadata({
+            "historical_decision_learning": {
+                "learning_scope": "metric",
+                "recorded_lesson_count": "invalid",
+                "recorded_outcome_count": -2,
+                "sampled_lesson_count": None,
+                "sampled_evidence_count": "3",
+            },
+        })
+
+        self.assertEqual(
+            metadata,
+            {
+                "learning_scope": "metric",
+                "recorded_lesson_count": 0,
+                "recorded_outcome_count": 0,
+                "sampled_lesson_count": 0,
+                "sampled_evidence_count": 3,
+            },
+        )
+
+    def test_missing_key_returns_explicit_fallback(self):
+        with patch.dict(
+            os.environ,
+            {
+                "AI_PROVIDER": "openai",
+                "OPENAI_API_KEY": "",
+            },
+            clear=False,
+        ):
+            result = service.generate_structured_analysis(
+                context="test",
+                facts={"value": 1},
+                fallback_summary="Baseline summary",
+                fallback_recommendations=["Review the metric"],
+            )
+
+        self.assertEqual(result["source"], "rules")
+        self.assertEqual(
+            result["fallback_reason"],
+            service.FALLBACK_NOT_CONFIGURED,
+        )
+
+    def test_unsupported_provider_returns_explicit_fallback(self):
+        with patch.dict(
+            os.environ,
+            {
+                "AI_PROVIDER": "anthropic",
+                "OPENAI_API_KEY": "test-key",
+            },
+            clear=False,
+        ):
+            result = service.generate_structured_analysis(
+                context="test",
+                facts={"value": 1},
+                fallback_summary="Baseline summary",
+                fallback_recommendations=["Review the metric"],
+            )
+
+        self.assertEqual(result["source"], "rules")
+        self.assertEqual(
+            result["fallback_reason"],
+            service.FALLBACK_UNSUPPORTED_PROVIDER,
+        )
+
+    def test_provider_result_is_cached_and_bounded(self):
+        calls = []
+        provider_payload = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps({
+                            "summary": "Provider summary",
+                            "recommendations": ["Review the metric"],
+                            "risks": [],
+                            "confidence": "medium",
+                        }),
+                    },
+                },
+            ],
+        }
+
+        def fake_urlopen(request, timeout):
+            calls.append(
+                json.loads(request.data.decode("utf-8"))
+            )
+            return FakeAIResponse(provider_payload)
+
+        with patch.dict(
+            os.environ,
+            {
+                "AI_PROVIDER": "openai",
+                "OPENAI_API_KEY": "test-key",
+                "OPENAI_MODEL": "gpt-4o-mini",
+                "OPENAI_API_URL": "https://example.test/chat/completions",
+                "AI_MAX_OUTPUT_TOKENS": "500",
+                "AI_ANALYSIS_CACHE_TTL_SECONDS": "300",
+            },
+            clear=False,
+        ), patch(
+            "app.modules.ai.service.urlopen",
+            side_effect=fake_urlopen,
+        ):
+            first = service.generate_structured_analysis(
+                context="test",
+                facts={"value": 1},
+                fallback_summary="Baseline summary",
+                fallback_recommendations=["Review the metric"],
+            )
+            second = service.generate_structured_analysis(
+                context="test",
+                facts={"value": 1},
+                fallback_summary="Baseline summary",
+                fallback_recommendations=["Review the metric"],
+            )
+
+        self.assertEqual(first, second)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["max_tokens"], 500)
+        self.assertEqual(first["source"], "openai")
+
+
+if __name__ == "__main__":
+    unittest.main()

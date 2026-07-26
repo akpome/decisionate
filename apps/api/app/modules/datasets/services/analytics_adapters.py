@@ -1,6 +1,11 @@
+import importlib
+
 from app.modules.datasets.services.analytics_engine import (
     AnalyticsEngineConfig,
     get_analytics_engine_config,
+)
+from app.modules.datasets.services.analytics_storage import (
+    build_bigquery_table_id,
 )
 from app.modules.datasets.services.file_loader import (
     load_dataset_file,
@@ -53,8 +58,41 @@ class BigQueryAnalyticsAdapter(
         self,
         dataset,
     ):
-        raise AnalyticsAdapterUnavailable(
-            "BigQuery analytics adapter is not implemented yet"
+        if not self.config.bigquery_project_id:
+            raise AnalyticsAdapterUnavailable(
+                "BIGQUERY_PROJECT_ID is required for the BigQuery analytics adapter"
+            )
+
+        if not self.config.bigquery_dataset:
+            raise AnalyticsAdapterUnavailable(
+                "BIGQUERY_ANALYTICS_DATASET is required for the BigQuery analytics adapter"
+            )
+
+        try:
+            bigquery = importlib.import_module(
+                "google.cloud.bigquery"
+            )
+        except ModuleNotFoundError as error:
+            raise AnalyticsAdapterUnavailable(
+                "BigQuery analytics adapter requires the optional google-cloud-bigquery package"
+            ) from error
+
+        table_id = build_bigquery_table_id(
+            dataset,
+            self.config,
+        )
+        client = bigquery.Client(
+            project=self.config.bigquery_project_id
+        )
+        query_job = client.query(
+            f"SELECT * FROM `{table_id}`",
+            location=self.config.bigquery_location,
+        )
+
+        return (
+            query_job
+            .result()
+            .to_dataframe()
         )
 
 

@@ -24,11 +24,39 @@ from app.modules.organizations.schemas import (
     OrganizationMemberRoleUpdate,
     OrganizationWorkspaceResponse,
     OrganizationUpdate,
+    DashboardPreferenceUpdate,
+    DashboardPreferenceResponse,
     DatasetPreferenceUpdate,
     DatasetPreferenceResponse,
 )
 
 router = APIRouter()
+MAX_DASHBOARD_TITLE_LENGTH = 120
+MAX_DASHBOARD_SUBTITLE_LENGTH = 220
+MAX_DASHBOARD_CHART_TITLE_LENGTH = 80
+DEFAULT_SELECTED_DASHBOARD = "general-business"
+VALID_SELECTED_DASHBOARDS = {
+    DEFAULT_SELECTED_DASHBOARD,
+    "marketing-performance",
+    "sales-performance",
+    "decision-performance",
+    "retail-performance",
+    "restaurant-performance",
+    "professional-services",
+    "healthcare-practice",
+    "real-estate",
+    "nonprofit-performance",
+}
+DATASET_METRIC_MAPPING_DASHBOARDS = VALID_SELECTED_DASHBOARDS - {
+    DEFAULT_SELECTED_DASHBOARD,
+    "decision-performance",
+}
+DASHBOARD_CHART_TITLE_KEYS = {
+    "trend",
+    "mix",
+    "operations",
+    "outcome",
+}
 
 
 def find_user_preference(
@@ -245,18 +273,34 @@ def clean_dashboard_preferences(
             continue
 
         clean_preference = {}
+        title = clean_dashboard_preference_text(
+            preference.get("title"),
+            MAX_DASHBOARD_TITLE_LENGTH,
+        )
+        subtitle = clean_dashboard_preference_text(
+            preference.get("subtitle"),
+            MAX_DASHBOARD_SUBTITLE_LENGTH,
+        )
+
+        if title:
+            clean_preference["title"] = title
+
+        if subtitle:
+            clean_preference["subtitle"] = subtitle
 
         selected_metrics = preference.get(
             "selectedMetrics"
         )
 
         if isinstance(selected_metrics, list):
-            clean_metrics = [
-                metric.strip()
-                for metric in selected_metrics
-                if isinstance(metric, str)
-                and metric.strip()
-            ]
+            clean_metrics = list(
+                dict.fromkeys(
+                    metric.strip()
+                    for metric in selected_metrics
+                    if isinstance(metric, str)
+                    and metric.strip()
+                )
+            )
 
             if clean_metrics:
                 clean_preference["selectedMetrics"] = clean_metrics
@@ -307,14 +351,131 @@ def clean_dashboard_preferences(
             ):
                 clean_preference["startDate"] = clean_start_date
 
+        metric_mappings = preference.get(
+            "metricMappings"
+        )
+
+        if isinstance(metric_mappings, dict):
+            clean_mappings = {}
+
+            for dashboard_key, mapping in metric_mappings.items():
+                if not isinstance(dashboard_key, str) or not isinstance(
+                    mapping,
+                    dict,
+                ):
+                    continue
+
+                clean_dashboard_key = dashboard_key.strip()
+
+                if (
+                    clean_dashboard_key
+                    not in DATASET_METRIC_MAPPING_DASHBOARDS
+                ):
+                    continue
+
+                clean_mapping = clean_dashboard_metric_mapping(
+                    mapping
+                )
+
+                if clean_mapping:
+                    clean_mappings[clean_dashboard_key] = clean_mapping
+
+            if clean_mappings:
+                clean_preference["metricMappings"] = clean_mappings
+
+        chart_titles = preference.get(
+            "chartTitles"
+        )
+
+        if isinstance(chart_titles, dict):
+            clean_chart_titles = {}
+
+            for dashboard_key, titles in chart_titles.items():
+                if not isinstance(dashboard_key, str) or not isinstance(
+                    titles,
+                    dict,
+                ):
+                    continue
+
+                clean_dashboard_key = dashboard_key.strip()
+
+                if (
+                    clean_dashboard_key not in VALID_SELECTED_DASHBOARDS
+                    or clean_dashboard_key == DEFAULT_SELECTED_DASHBOARD
+                ):
+                    continue
+
+                clean_titles = {}
+
+                for title_key in DASHBOARD_CHART_TITLE_KEYS:
+                    clean_title = clean_dashboard_preference_text(
+                        titles.get(title_key),
+                        MAX_DASHBOARD_CHART_TITLE_LENGTH,
+                    )
+
+                    if clean_title:
+                        clean_titles[title_key] = clean_title
+
+                if clean_titles:
+                    clean_chart_titles[clean_dashboard_key] = clean_titles
+
+            if clean_chart_titles:
+                clean_preference["chartTitles"] = clean_chart_titles
+
         clean_preferences[clean_dataset_key] = clean_preference
 
     return clean_preferences or None
 
 
+def clean_dashboard_metric_mapping(
+    mapping: dict,
+):
+    clean_mapping = {}
+
+    for key in (
+        "primary",
+        "category",
+        "stage",
+        "date",
+    ):
+        value = mapping.get(key)
+
+        if isinstance(value, str) and value.strip():
+            clean_mapping[key] = value.strip()[:120]
+
+    return clean_mapping
+
+
+def clean_dashboard_preference_text(
+    value,
+    max_length: int,
+):
+    if not isinstance(value, str):
+        return None
+
+    clean_value = re.sub(
+        r"\s+",
+        " ",
+        value,
+    ).strip()
+
+    if not clean_value:
+        return None
+
+    return clean_value[:max_length]
+
+
 def serialize_user_preference(
     preference: UserPreference | None,
 ):
+    dashboard_preferences = clean_dashboard_preferences(
+        parse_preference_json_object(
+            preference.dashboard_preferences
+            if preference
+            else None
+        )
+    )
+
     return {
         "selected_dataset_id": (
             preference.selected_dataset_id
@@ -333,11 +494,42 @@ def serialize_user_preference(
             if preference
             else None
         ),
-        "dashboard_preferences": parse_preference_json_object(
-            preference.dashboard_preferences
-            if preference
-            else None
-        ),
+        "dashboard_preferences": dashboard_preferences,
+    }
+
+
+def clean_selected_dashboard(
+    selected_dashboard: str | None,
+):
+    clean_value = str(
+        selected_dashboard or ""
+    ).strip()
+
+    if clean_value not in VALID_SELECTED_DASHBOARDS:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid dashboard selection",
+        )
+
+    return clean_value
+
+
+def serialize_dashboard_preference(
+    preference: UserPreference | None,
+):
+    selected_dashboard = (
+        preference.selected_dashboard
+        if preference
+        else None
+    )
+
+    if selected_dashboard in VALID_SELECTED_DASHBOARDS:
+        return {
+            "selected_dashboard": selected_dashboard,
+        }
+
+    return {
+        "selected_dashboard": DEFAULT_SELECTED_DASHBOARD,
     }
 
 
@@ -398,22 +590,37 @@ def clean_optional_organization_text(
 def clean_optional_logo_url(
     value,
 ):
+    max_logo_value_length = 250_000
+    supported_inline_logo_prefixes = (
+        "data:image/png;base64,",
+        "data:image/jpeg;base64,",
+        "data:image/jpg;base64,",
+        "data:image/webp;base64,",
+        "data:image/gif;base64,",
+        "data:image/svg+xml;base64,",
+    )
     clean_value = clean_optional_organization_text(
         value,
         "Logo URL",
-        500,
+        max_logo_value_length,
     )
 
     if clean_value is None:
         return None
 
+    clean_value_lower = clean_value.lower()
+
     if not (
         clean_value.startswith("https://")
         or clean_value.startswith("http://")
+        or any(
+            clean_value_lower.startswith(prefix)
+            for prefix in supported_inline_logo_prefixes
+        )
     ):
         raise HTTPException(
             status_code=400,
-            detail="Logo URL must start with http:// or https://",
+            detail="Logo must be an HTTP(S) image URL or a supported uploaded image.",
         )
 
     return clean_value
@@ -663,6 +870,7 @@ async def get_accessible_workspaces(
             )
             .order_by(
                 Organization.name.asc(),
+                Organization.id.asc(),
             )
             .all()
         )
@@ -823,6 +1031,7 @@ async def get_organization_members(
             )
             .order_by(
                 OrganizationMember.created_at.asc(),
+                OrganizationMember.id.asc(),
             )
             .all()
         )
@@ -929,6 +1138,7 @@ async def get_organization_invites(
             )
             .order_by(
                 OrganizationInvite.created_at.asc(),
+                OrganizationInvite.id.asc(),
             )
             .all()
         )
@@ -1205,6 +1415,74 @@ async def update_my_organization(
 # =========================
 # Dataset Preferences
 # =========================
+
+@router.get(
+    "/preferences/dashboard",
+    response_model=DashboardPreferenceResponse,
+)
+async def get_dashboard_preference(
+    request: Request,
+):
+    auth_context = get_auth_context(
+        request,
+    )
+
+    db = SessionLocal()
+
+    try:
+        preference = find_user_preference(
+            db,
+            auth_context.user_id,
+            auth_context.workspace_id,
+        )
+
+        return serialize_dashboard_preference(preference)
+
+    finally:
+        db.close()
+
+
+@router.patch(
+    "/preferences/dashboard",
+    response_model=DashboardPreferenceResponse,
+)
+async def update_dashboard_preference(
+    request: Request,
+    payload: DashboardPreferenceUpdate,
+):
+    auth_context = get_auth_context(
+        request,
+    )
+    selected_dashboard = clean_selected_dashboard(
+        payload.selected_dashboard,
+    )
+
+    db = SessionLocal()
+
+    try:
+        preference = find_exact_user_preference(
+            db,
+            auth_context.user_id,
+            auth_context.workspace_id,
+        )
+
+        if not preference:
+            preference = UserPreference(
+                clerk_user_id=auth_context.user_id,
+                workspace_id=auth_context.workspace_id,
+                selected_dashboard=selected_dashboard,
+            )
+            db.add(preference)
+        else:
+            preference.selected_dashboard = selected_dashboard
+
+        db.commit()
+
+        return serialize_dashboard_preference(preference)
+
+    finally:
+        db.close()
+
 
 @router.get(
     "/preferences/dataset",

@@ -6,6 +6,7 @@ import { useUser } from "@clerk/nextjs"
 import { ConnectionPullWidget } from "@/features/datasets/components/connection-pull-widget"
 import { CsvUpload } from "@/features/datasets/components/csv-upload"
 import { DatasetList } from "@/features/datasets/components/dataset-list"
+import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import {
   getDataSourceConnections,
   getDatasetSources,
@@ -20,6 +21,9 @@ import {
 import {
   useWorkspaceAccess,
 } from "@/lib/use-workspace-access"
+import {
+  WorkspaceAccessNotice,
+} from "@/features/dashboard/components/workspace-access-notice"
 
 function getErrorMessage(
   error: unknown,
@@ -44,6 +48,8 @@ export default function DatasetsPage() {
     useState("")
   const [connectionError, setConnectionError] =
     useState("")
+  const [initialDataRetryKey, setInitialDataRetryKey] =
+    useState(0)
 
   const { user } = useUser()
   const {
@@ -53,7 +59,7 @@ export default function DatasetsPage() {
     useActiveWorkspace(user?.id)
   const {
     canManageWorkspaceData,
-    isClientWorkspace,
+    loadingWorkspaceAccess,
   } =
     useWorkspaceAccess(user?.id)
 
@@ -76,7 +82,6 @@ export default function DatasetsPage() {
           "Could not load datasets."
         )
       )
-      console.error(error)
     }
   }
 
@@ -88,24 +93,16 @@ export default function DatasetsPage() {
     async function loadInitialData(
       userId: string
     ) {
-      const [
-        datasetsResult,
-        sourcesResult,
-        connectionsResult,
-      ] = await Promise.allSettled([
-        getDatasets(
-          userId,
-          activeWorkspaceId
-        ),
-        getDatasetSources(
-          userId,
-          activeWorkspaceId
-        ),
-        getDataSourceConnections(
-          userId,
-          activeWorkspaceId
-        ),
-      ])
+      setDatasets([])
+      setDatasetError("")
+
+      const [datasetsResult] =
+        await Promise.allSettled([
+          getDatasets(
+            userId,
+            activeWorkspaceId
+          ),
+        ])
 
       if (ignoreResult) {
         return
@@ -121,7 +118,56 @@ export default function DatasetsPage() {
             "Could not load datasets."
           )
         )
-        console.error(datasetsResult.reason)
+      }
+
+    }
+
+    void loadInitialData(user.id)
+
+    return () => {
+      ignoreResult = true
+    }
+  }, [
+    user?.id,
+    activeWorkspaceId,
+    initialDataRetryKey,
+    workspaceVersion,
+  ])
+
+  useEffect(() => {
+    if (
+      !user?.id ||
+      !canManageWorkspaceData
+    ) {
+      return
+    }
+
+    let ignoreResult = false
+
+    async function loadSourceData(
+      userId: string
+    ) {
+      setSources([])
+      setConnections([])
+      setSourceError("")
+      setConnectionError("")
+
+      const [
+        sourcesResult,
+        connectionsResult,
+      ] = await Promise.allSettled([
+        getDatasetSources(
+          userId,
+          activeWorkspaceId
+        ),
+        getDataSourceConnections(
+          userId,
+          activeWorkspaceId
+        ),
+      ])
+
+      if (ignoreResult) {
+        return
       }
 
       if (sourcesResult.status === "fulfilled") {
@@ -134,7 +180,6 @@ export default function DatasetsPage() {
             "Could not load upload source options."
           )
         )
-        console.error(sourcesResult.reason)
       }
 
       if (
@@ -149,64 +194,86 @@ export default function DatasetsPage() {
             "Could not load saved connections."
           )
         )
-        console.error(connectionsResult.reason)
       }
     }
 
-    void loadInitialData(user.id)
+    void loadSourceData(user.id)
 
     return () => {
       ignoreResult = true
     }
   }, [
-    user?.id,
     activeWorkspaceId,
+    canManageWorkspaceData,
+    initialDataRetryKey,
+    user?.id,
     workspaceVersion,
   ])
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">
-          Datasets
-        </h1>
+      <DashboardPageHeader
+        title="Datasets"
+        description={
+          loadingWorkspaceAccess
+            ? "Loading workspace data access..."
+            : canManageWorkspaceData
+              ? "Upload and manage datasets used for dashboards, insights, forecasts, and decisions."
+              : "Review datasets shared by the workspace team for dashboards, insights, forecasts, and decisions."
+        }
+      />
 
-        <p className="mt-2 text-gray-500">
-          Upload and manage datasets used for dashboards, insights, forecasts and decisions.
-        </p>
-      </div>
+      <WorkspaceAccessNotice
+        loading={loadingWorkspaceAccess}
+        canManageWorkspaceData={canManageWorkspaceData}
+        message="This shared workspace is read-only. Workspace managers handle dataset uploads, connections, and changes."
+        className="rounded-xl"
+      />
 
       {sourceError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
           {sourceError}
         </div>
       )}
 
       {datasetError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
           {datasetError}
         </div>
       )}
 
       {connectionError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
           {connectionError}
         </div>
       )}
 
-      {isClientWorkspace && (
-        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-6 text-sm text-blue-800">
-          You are viewing a client portal workspace. Your agency manages uploads, source pulls, and dataset setup for this workspace.
-        </div>
+      {(sourceError || datasetError || connectionError) && (
+        <button
+          type="button"
+          onClick={() =>
+            setInitialDataRetryKey(
+              currentKey => currentKey + 1
+            )
+          }
+          className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+        >
+          Retry data services
+        </button>
       )}
 
       {canManageWorkspaceData && (
         <>
-          <div className="rounded-2xl border bg-white p-8 shadow-sm">
-            <h2 className="mb-4 text-xl font-semibold">
-              Upload Data File
-            </h2>
-
+          <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
             <p className="mb-6 text-sm text-gray-500">
               Upload CSV, Excel, JSON or Parquet files directly into the workspace.
             </p>
@@ -221,11 +288,12 @@ export default function DatasetsPage() {
 
           <ConnectionPullWidget
             connections={connections}
+            loadError={Boolean(connectionError)}
           />
         </>
       )}
 
-      <div className="rounded-2xl border bg-white p-8 shadow-sm">
+      <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
         <h2 className="mb-4 text-xl font-semibold">
           Saved Datasets
         </h2>
@@ -233,6 +301,8 @@ export default function DatasetsPage() {
         <DatasetList
           datasets={datasets}
           canDelete={canManageWorkspaceData}
+          canManage={canManageWorkspaceData}
+          loadError={Boolean(datasetError)}
           onRefresh={
             loadDatasets
           }

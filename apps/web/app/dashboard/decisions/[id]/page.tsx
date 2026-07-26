@@ -10,6 +10,7 @@ import {
 import Link from "next/link"
 import {
   useParams,
+  useSearchParams,
 } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
 
@@ -28,8 +29,10 @@ import {
   ApiError,
   archiveDecision,
   getDataset,
+  getDatasetMetrics,
   getDecisionActivities,
   getDecision,
+  getDecisionOutcomeAnalysis,
   restoreDecision,
   updateDecisionDetails,
   updateDecisionOverview,
@@ -42,11 +45,24 @@ import {
   getDecisionActivityTitleClass,
 } from "@/lib/decision-activity-style"
 import {
+  hasAddedNotes,
+  hasCapturedLearning,
   hasPendingLearning,
   hasPendingOutcome,
   hasPlannedOutcome,
   hasRecordedOutcome,
 } from "@/lib/decision-outcomes"
+import {
+  archivedDecisionHealthLabel,
+  cancelledDecisionHealthLabel,
+  getDecisionHealth,
+  healthyDecisionHealthLabel,
+  inProgressDecisionHealthLabel,
+  needsReviewDecisionHealthLabel,
+} from "@/lib/decision-health"
+import type {
+  DecisionHealthLabel,
+} from "@/lib/decision-health"
 import {
   archiveDecisionActivity,
   archivedDecisionStatus,
@@ -70,9 +86,28 @@ import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
 import {
+    useWorkspaceAccess,
+} from "@/lib/use-workspace-access"
+import {
+  WorkspaceAccessNotice,
+} from "@/features/dashboard/components/workspace-access-notice"
+import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import {
   getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
+import { getAIRecommendationSource } from "@/features/decisions/lib/ai-recommendation-source"
+import {
+  AIAnalysisPanel,
+} from "@/features/ai/components/analysis-panel"
+import {
+  AnalysisStatus,
+} from "@/features/ai/components/analysis-status"
+import {
+  MetricSelector,
+  formatMetricLabel,
+} from "@/features/dashboard/components/metric-selector"
 import type {
+  AIAnalysis,
   DatasetSummary,
   DecisionActivity,
   DecisionCategory,
@@ -87,10 +122,10 @@ import type {
 } from "@/lib/api"
 
 const inputClass =
-  "mt-2 h-10 w-full rounded-lg border border-gray-200 px-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+  "mt-2 h-10 w-full rounded-lg border border-gray-200 px-3 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
 
 const textareaClass =
-  "mt-2 w-full rounded-lg border border-gray-200 p-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+  "mt-2 w-full rounded-lg border border-gray-200 p-3 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
 
 const timelineActivityPageSize = 20
 const reviewDateQuickActions = [
@@ -158,15 +193,6 @@ type SaveError = {
   message: string
 }
 
-const archivedHealthStatusLabel = "Archived"
-const healthyHealthStatusLabel = "Healthy"
-const incompleteHealthStatusLabel = "Incomplete"
-
-type DecisionHealthStatusLabel =
-  | typeof archivedHealthStatusLabel
-  | typeof healthyHealthStatusLabel
-  | typeof incompleteHealthStatusLabel
-
 type DecisionConfidenceFormValue =
   | DecisionConfidenceScore
   | ""
@@ -180,22 +206,18 @@ type DecisionNextActionTarget = {
   label: string
 }
 
-function getShouldFocusNextActionFromUrl() {
-  if (typeof window === "undefined") {
-    return false
-  }
-
-  return new URLSearchParams(window.location.search)
-    .get("focus") === "next-action"
-}
-
 export default function DecisionPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const { user } = useUser()
   const {
     activeWorkspaceId,
     workspaceVersion,
   } = useActiveWorkspace(user?.id)
+  const {
+    canManageWorkspaceData,
+    loadingWorkspaceAccess,
+  } = useWorkspaceAccess(user?.id)
 
   const [decision, setDecision] =
     useState<DecisionRecord | null>(null)
@@ -218,6 +240,12 @@ export default function DecisionPage() {
   const [description, setDescription] = useState("")
   const [originalDescription, setOriginalDescription] = useState("")
 
+  const [metricColumn, setMetricColumn] = useState("")
+  const [originalMetricColumn, setOriginalMetricColumn] = useState("")
+  const [metricColumns, setMetricColumns] = useState<string[]>([])
+  const [metricsLoading, setMetricsLoading] = useState(false)
+  const [metricLoadError, setMetricLoadError] = useState("")
+
   const [detailsSaved, setDetailsSaved] = useState(false)
 
   const [archiveSaved, setArchiveSaved] = useState(false)
@@ -231,6 +259,8 @@ export default function DecisionPage() {
   const [loadError, setLoadError] =
     useState("")
   const [loadRetryKey, setLoadRetryKey] =
+    useState(0)
+  const [metricLoadRetryKey, setMetricLoadRetryKey] =
     useState(0)
 
   const [status, setStatus] =
@@ -274,20 +304,80 @@ export default function DecisionPage() {
     useState<DecisionOutcomeStatusFormValue>("")
 
   const [outcomeSaved, setOutcomeSaved] = useState(false)
+  const [outcomeAnalysis, setOutcomeAnalysis] =
+    useState<AIAnalysis | null>(null)
+  const [outcomeAnalysisLoading, setOutcomeAnalysisLoading] =
+    useState(false)
+  const [outcomeAnalysisError, setOutcomeAnalysisError] =
+    useState(false)
+  const [outcomeAnalysisRetryKey, setOutcomeAnalysisRetryKey] =
+    useState(0)
 
   const [lessonsLearned, setLessonsLearned] = useState("")
   const [originalLessonsLearned, setOriginalLessonsLearned] = useState("")
   const [learningSaved, setLearningSaved] = useState(false)
-  const [showActionQueueBackLink] =
-    useState(() => getShouldFocusNextActionFromUrl())
-  const lastAutoFocusedDecisionId = useRef<number | null>(null)
+  const savedFeedbackTimeouts = useRef<
+    Partial<Record<SaveSection, number>>
+  >({})
+  const activeTimelineDecisionId = useRef<number | null>(
+    null
+  )
+  const lastAutoFocusedDecisionKey = useRef<string | null>(null)
+  const shouldFocusNextAction =
+    searchParams.get("focus") === "next-action"
+  const showActionQueueBackLink =
+    searchParams.get("source") === "action-needed"
+
+  function showSectionSaved(
+    section: SaveSection,
+    setter: (value: boolean) => void
+  ) {
+    const existingTimeout =
+      savedFeedbackTimeouts.current[section]
+
+    if (existingTimeout !== undefined) {
+      window.clearTimeout(existingTimeout)
+    }
+
+    setter(true)
+    savedFeedbackTimeouts.current[section] =
+      window.setTimeout(() => {
+        setter(false)
+        delete savedFeedbackTimeouts.current[section]
+      }, 3000)
+  }
+
+  useEffect(() => {
+    const timeouts = savedFeedbackTimeouts.current
+    return () => {
+      Object.values(timeouts).forEach(
+        timeoutId => window.clearTimeout(timeoutId)
+      )
+    }
+  }, [])
 
   useEffect(() => {
     if (!user?.id) return
     const userId = user.id
+    let ignoreResult = false
 
     async function load() {
       try {
+        setDecision(null)
+        setDataset(null)
+        setMetricColumns([])
+        setMetricsLoading(false)
+        setMetricLoadError("")
+        setActivities([])
+        setHasMoreActivities(false)
+        setActivityLoadError("")
+        setDetailsSaved(false)
+        setOverviewSaved(false)
+        setNoteSaved(false)
+        setOutcomeSaved(false)
+        setLearningSaved(false)
+        setSaveError(null)
+        activeTimelineDecisionId.current = null
         setLoadError("")
 
         const decisionId =
@@ -307,27 +397,13 @@ export default function DecisionPage() {
           activeWorkspaceId
         )
 
-        setDecision(data)
-
-        await loadActivities(
-          data.id,
-          userId,
-          activeWorkspaceId
-        )
-
-        try {
-          const datasetData =
-            await getDataset(
-              data.dataset_id,
-              userId,
-              activeWorkspaceId
-            )
-
-          setDataset(datasetData)
-        } catch (datasetError) {
-          console.error(datasetError)
-          setDataset(null)
+        if (ignoreResult) {
+          return
         }
+
+        activeTimelineDecisionId.current =
+          data.id
+        setDecision(data)
 
         syncDetailsFormFromDecision(
           data
@@ -348,7 +424,66 @@ export default function DecisionPage() {
         syncLearningFormFromDecision(
           data
         )
+
+        void loadActivities(
+          data.id,
+          userId,
+          activeWorkspaceId,
+          () => !ignoreResult
+        )
+
+        setMetricsLoading(true)
+
+        const [
+          datasetResult,
+          metricsResult,
+        ] = await Promise.allSettled([
+          getDataset(
+            data.dataset_id,
+            userId,
+            activeWorkspaceId
+          ),
+          getDatasetMetrics(
+            data.dataset_id,
+            userId,
+            activeWorkspaceId
+          ),
+        ])
+
+        if (ignoreResult) {
+          return
+        }
+
+        if (datasetResult.status === "fulfilled") {
+          setDataset(datasetResult.value)
+        } else {
+          console.error(datasetResult.reason)
+          setDataset(null)
+        }
+
+        if (metricsResult.status === "fulfilled") {
+          setMetricColumns(
+            metricsResult.value.metrics
+              .map(metric => metric.column.trim())
+              .filter(Boolean)
+          )
+          setMetricLoadError("")
+        } else {
+          console.error(metricsResult.reason)
+          setMetricColumns([])
+          setMetricLoadError(
+            metricsResult.reason instanceof Error &&
+              metricsResult.reason.message
+              ? metricsResult.reason.message
+              : "Could not load metrics for this decision."
+          )
+        }
+        setMetricsLoading(false)
       } catch (error) {
+        if (ignoreResult) {
+          return
+        }
+
         if (isDecisionUnavailableError(error)) {
           setDecision(null)
           setLoadError(
@@ -368,18 +503,96 @@ export default function DecisionPage() {
     }
 
     load()
+    return () => {
+      ignoreResult = true
+      activeTimelineDecisionId.current = null
+    }
   }, [
     loadRetryKey,
+    metricLoadRetryKey,
     params.id,
     activeWorkspaceId,
     user?.id,
     workspaceVersion,
   ])
 
+  useEffect(() => {
+    const expectedOutcome =
+      decision?.expected_outcome?.trim()
+    const actualOutcome =
+      decision?.actual_outcome?.trim()
+
+    if (
+      !user?.id ||
+      !decision?.id ||
+      !canManageWorkspaceData ||
+      !expectedOutcome ||
+      !actualOutcome
+    ) {
+      queueMicrotask(() => {
+        setOutcomeAnalysis(null)
+        setOutcomeAnalysisLoading(false)
+        setOutcomeAnalysisError(false)
+      })
+      return
+    }
+
+    const decisionId = decision.id
+    const userId = user.id
+    let ignoreResult = false
+
+    queueMicrotask(() => {
+      setOutcomeAnalysisLoading(true)
+      setOutcomeAnalysisError(false)
+    })
+
+    async function loadOutcomeAnalysis() {
+      try {
+        const result =
+          await getDecisionOutcomeAnalysis(
+            decisionId,
+            userId,
+            activeWorkspaceId
+          )
+
+        if (!ignoreResult) {
+          setOutcomeAnalysis(
+            result.ai_analysis
+          )
+        }
+      } catch {
+        if (!ignoreResult) {
+          setOutcomeAnalysis(null)
+          setOutcomeAnalysisError(true)
+        }
+      } finally {
+        if (!ignoreResult) {
+          setOutcomeAnalysisLoading(false)
+        }
+      }
+    }
+
+    void loadOutcomeAnalysis()
+
+    return () => {
+      ignoreResult = true
+    }
+  }, [
+    activeWorkspaceId,
+    decision?.actual_outcome,
+    decision?.expected_outcome,
+    decision?.id,
+    decision?.outcome_status,
+    canManageWorkspaceData,
+    outcomeAnalysisRetryKey,
+    user?.id,
+  ])
+
   async function loadActivities(
     decisionId: number,
     userId: string,
-    workspaceId: string
+    workspaceId: string,
+    isCurrent: () => boolean = () => true
   ) {
     try {
       setActivitiesLoading(true)
@@ -394,11 +607,19 @@ export default function DecisionPage() {
           0
         )
 
+      if (!isCurrent()) {
+        return
+      }
+
       setActivities(data)
       setHasMoreActivities(
         data.length === timelineActivityPageSize
       )
     } catch (error) {
+      if (!isCurrent()) {
+        return
+      }
+
       console.error(error)
       setActivities([])
       setHasMoreActivities(false)
@@ -409,7 +630,9 @@ export default function DecisionPage() {
         )
       )
     } finally {
-      setActivitiesLoading(false)
+      if (isCurrent()) {
+        setActivitiesLoading(false)
+      }
     }
   }
 
@@ -428,6 +651,7 @@ export default function DecisionPage() {
 
     setActivitiesLoading(true)
     setActivityLoadError("")
+    const timelineDecisionId = decision.id
 
     try {
       const data =
@@ -439,6 +663,13 @@ export default function DecisionPage() {
           activities.length
         )
 
+      if (
+        activeTimelineDecisionId.current !==
+        timelineDecisionId
+      ) {
+        return
+      }
+
       setActivities([
         ...activities,
         ...data,
@@ -448,6 +679,13 @@ export default function DecisionPage() {
         data.length === timelineActivityPageSize
       )
     } catch (error) {
+      if (
+        activeTimelineDecisionId.current !==
+        timelineDecisionId
+      ) {
+        return
+      }
+
       console.error(error)
       setActivityLoadError(
         getSaveErrorMessage(
@@ -456,7 +694,12 @@ export default function DecisionPage() {
         )
       )
     } finally {
-      setActivitiesLoading(false)
+      if (
+        activeTimelineDecisionId.current ===
+        timelineDecisionId
+      ) {
+        setActivitiesLoading(false)
+      }
     }
   }
 
@@ -524,6 +767,8 @@ export default function DecisionPage() {
     setOriginalTitle(nextDecision.title ?? "")
     setDescription(nextDecision.description ?? "")
     setOriginalDescription(nextDecision.description ?? "")
+    setMetricColumn(nextDecision.metric_column ?? "")
+    setOriginalMetricColumn(nextDecision.metric_column ?? "")
   }
 
   /* =========================
@@ -580,7 +825,8 @@ export default function DecisionPage() {
 
   const detailsChanged =
     title !== originalTitle ||
-    description !== originalDescription
+    description !== originalDescription ||
+    metricColumn !== originalMetricColumn
 
   const overviewChanged =
     statusChanged ||
@@ -596,6 +842,9 @@ export default function DecisionPage() {
     expectedOutcome !== originalExpectedOutcome ||
     actualOutcome !== originalActualOutcome ||
     outcomeStatus !== originalOutcomeStatus
+
+  const expectedOutcomeMissing =
+    expectedOutcome.trim().length === 0
 
   const learningChanged =
     lessonsLearned !== originalLessonsLearned
@@ -617,6 +866,10 @@ export default function DecisionPage() {
         detailsPayload.description = description
       }
 
+      if (metricColumn !== originalMetricColumn) {
+        detailsPayload.metric_column = metricColumn || null
+      }
+
       const data = await updateDecisionDetails(
         decision.id,
         detailsPayload,
@@ -633,7 +886,10 @@ export default function DecisionPage() {
         user.id,
         activeWorkspaceId
       )
-      showSaved(setDetailsSaved)
+      showSectionSaved(
+        detailsDecisionActivity,
+        setDetailsSaved
+      )
     } catch (error) {
       console.error(error)
       setSaveError({
@@ -696,7 +952,10 @@ export default function DecisionPage() {
         user.id,
         activeWorkspaceId
       )
-      showSaved(setOverviewSaved)
+      showSectionSaved(
+        overviewDecisionActivity,
+        setOverviewSaved
+      )
     } catch (error) {
       console.error(error)
       setSaveError({
@@ -713,6 +972,7 @@ export default function DecisionPage() {
 
   function handleSetReviewDateOffset(days: number) {
     clearSaveErrorForSection(overviewDecisionActivity)
+    setOverviewSaved(false)
     setReviewDate(
       getDateInputValueFromToday(days)
     )
@@ -741,7 +1001,10 @@ export default function DecisionPage() {
         user.id,
         activeWorkspaceId
       )
-      showSaved(setNoteSaved)
+      showSectionSaved(
+        notesDecisionActivity,
+        setNoteSaved
+      )
     } catch (error) {
       console.error(error)
       setSaveError({
@@ -759,6 +1022,17 @@ export default function DecisionPage() {
   async function handleSaveOutcome() {
     if (!user?.id || !decision) return
 
+    const cleanExpectedOutcome =
+      expectedOutcome.trim()
+
+    if (!cleanExpectedOutcome) {
+      setSaveError({
+        section: outcomeDecisionActivity,
+        message: "Expected outcome is required before saving outcome tracking.",
+      })
+      return
+    }
+
     setSavingSection(outcomeDecisionActivity)
     setSaveError(null)
 
@@ -766,7 +1040,7 @@ export default function DecisionPage() {
       const outcomePayload: DecisionOutcomePayload = {}
 
       if (expectedOutcome !== originalExpectedOutcome) {
-        outcomePayload.expected_outcome = expectedOutcome
+        outcomePayload.expected_outcome = cleanExpectedOutcome
       }
 
       if (actualOutcome !== originalActualOutcome) {
@@ -789,12 +1063,17 @@ export default function DecisionPage() {
       syncOutcomeFormFromDecision(
         data
       )
+      setOutcomeAnalysis(null)
+      setOutcomeAnalysisError(false)
       await loadActivities(
         data.id,
         user.id,
         activeWorkspaceId
       )
-      showSaved(setOutcomeSaved)
+      showSectionSaved(
+        outcomeDecisionActivity,
+        setOutcomeSaved
+      )
     } catch (error) {
       console.error(error)
       setSaveError({
@@ -832,7 +1111,10 @@ export default function DecisionPage() {
         user.id,
         activeWorkspaceId
       )
-      showSaved(setLearningSaved)
+      showSectionSaved(
+        learningDecisionActivity,
+        setLearningSaved
+      )
     } catch (error) {
       console.error(error)
       setSaveError({
@@ -849,6 +1131,7 @@ export default function DecisionPage() {
 
   function handleAddLearningPrompt(prompt: string) {
     clearSaveErrorForSection(learningDecisionActivity)
+    setLearningSaved(false)
     setLessonsLearned(currentValue => {
       const cleanCurrentValue =
         currentValue.trim()
@@ -859,8 +1142,44 @@ export default function DecisionPage() {
     })
   }
 
+  function handleApplyOutcomeRecommendation() {
+    const recommendation =
+      outcomeAnalysis?.recommendations[0]
+
+    if (!recommendation) {
+      return
+    }
+
+    const learningEntry =
+      `AI outcome review: ${recommendation}`
+    if (lessonsLearned.includes(learningEntry)) {
+      return
+    }
+
+    handleAddLearningPrompt(
+      learningEntry
+    )
+
+    window.setTimeout(() => {
+      const learningField =
+        document.getElementById(
+          "decision-lessons-learned"
+        )
+
+      learningField?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
+
+      if (learningField instanceof HTMLTextAreaElement) {
+        learningField.focus()
+      }
+    }, 0)
+  }
+
   function handleAddNotePrompt(prompt: string) {
     clearSaveErrorForSection(notesDecisionActivity)
+    setNoteSaved(false)
     setNotes(currentValue => {
       const cleanCurrentValue =
         currentValue.trim()
@@ -894,7 +1213,10 @@ export default function DecisionPage() {
         user.id,
         activeWorkspaceId
       )
-      showSaved(setArchiveSaved)
+      showSectionSaved(
+        archiveDecisionActivity,
+        setArchiveSaved
+      )
     } catch (error) {
       console.error(error)
       setSaveError({
@@ -932,7 +1254,10 @@ export default function DecisionPage() {
         user.id,
         activeWorkspaceId
       )
-      showSaved(setRestoreSaved)
+      showSectionSaved(
+        restoreDecisionActivity,
+        setRestoreSaved
+      )
     } catch (error) {
       console.error(error)
       setSaveError({
@@ -953,21 +1278,23 @@ export default function DecisionPage() {
     decision
       ? getNextActionTarget(decision)
       : null
+  const nextActionFocusKey =
+    decision && nextActionTarget
+      ? `${decision.id}:${nextActionTarget.elementId}`
+      : null
 
   useEffect(() => {
-    const shouldAutoFocusNextAction =
-      getShouldFocusNextActionFromUrl()
-
     if (
       !decision ||
       !nextActionTarget ||
-      !shouldAutoFocusNextAction ||
-      lastAutoFocusedDecisionId.current === decision.id
+      !nextActionFocusKey ||
+      !shouldFocusNextAction ||
+      lastAutoFocusedDecisionKey.current === nextActionFocusKey
     ) {
       return
     }
 
-    lastAutoFocusedDecisionId.current = decision.id
+    lastAutoFocusedDecisionKey.current = nextActionFocusKey
 
     const timeoutId = window.setTimeout(() => {
       focusNextActionTarget(nextActionTarget)
@@ -977,6 +1304,8 @@ export default function DecisionPage() {
   }, [
     decision,
     nextActionTarget,
+    nextActionFocusKey,
+    shouldFocusNextAction,
   ])
 
   if (!decision && loadError) {
@@ -995,11 +1324,13 @@ export default function DecisionPage() {
             Back to Decisions
           </Link>
 
-          <p className={`text-sm font-medium ${
-            decisionUnavailable
-              ? "text-gray-700"
-              : "text-red-600"
-          }`}
+          <p
+            role={decisionUnavailable ? "status" : "alert"}
+            className={`text-sm font-medium ${
+              decisionUnavailable
+                ? "text-gray-700"
+                : "text-red-600"
+            }`}
           >
             {loadError}
           </p>
@@ -1010,7 +1341,7 @@ export default function DecisionPage() {
               onClick={() => setLoadRetryKey(
                 currentKey => currentKey + 1
               )}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-700"
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
             >
               Try Again
             </button>
@@ -1028,7 +1359,11 @@ export default function DecisionPage() {
             Decision Detail Loading State While Record Fetch Is In Progress
         ========================= */}
 
-        <p className="text-sm text-gray-500">
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-sm text-gray-500"
+        >
           Loading decision...
         </p>
       </DashboardCard>
@@ -1044,9 +1379,9 @@ export default function DecisionPage() {
 
   const healthItems = [
     outcomeRecorded,
-    Boolean(decision.lessons_learned),
+    hasCapturedLearning(decision),
     Boolean(decision.review_date),
-    Boolean(decision.notes),
+    hasAddedNotes(decision),
   ]
 
   const completedHealthItems =
@@ -1055,11 +1390,6 @@ export default function DecisionPage() {
   const healthScore =
     Math.round(
       (completedHealthItems / healthItems.length) * 100
-    )
-
-  const decisionAgeDays =
-    getDecisionAgeDays(
-      decision.created_at
     )
 
   const reviewDateValue =
@@ -1076,20 +1406,13 @@ export default function DecisionPage() {
     hasPendingLearning(decision) ||
     hasOverdueReview(decision)
 
-  const isHealthy =
-    outcomeRecorded &&
-    decision.lessons_learned &&
-    decision.review_date &&
-    decision.notes
-
   const healthStatusLabel =
-    getDecisionHealthStatusLabel(
-      decision,
-      Boolean(isHealthy)
-    )
+    getDecisionHealth(decision)
 
   const isArchivedDecision =
     decision.status === archivedDecisionStatus
+  const decisionIsReadOnly =
+    !canManageWorkspaceData
 
   const detailsSaveDisabled =
     getSectionSaveDisabled({
@@ -1106,6 +1429,7 @@ export default function DecisionPage() {
       savingSection,
       section: outcomeDecisionActivity,
       changed: outcomeChanged,
+      invalid: expectedOutcomeMissing,
     })
 
   const overviewSaveDisabled =
@@ -1139,6 +1463,15 @@ export default function DecisionPage() {
     showActionQueueBackLink
       ? "Back to Action Needed"
       : "Back to Decisions"
+  const decisionDatasetLabel =
+    formatDecisionDatasetLabel(
+      dataset,
+      decision.dataset_id
+    )
+  const aiRecommendationSource =
+    getAIRecommendationSource(
+      decision.description
+    )
 
   return (
     <div className="space-y-6">
@@ -1150,74 +1483,37 @@ export default function DecisionPage() {
         {backToDecisionsLabel}
       </Link>
 
+      <WorkspaceAccessNotice
+        loading={loadingWorkspaceAccess}
+        canManageWorkspaceData={!decisionIsReadOnly}
+        message="This client workspace is read-only. Decision changes are managed by the workspace team."
+        className="rounded-xl"
+      />
+
       <DashboardCard>
         {/* =========================
             Decision Detail Header With Status Dataset And Review Badges
         ========================= */}
 
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {decision.title}
-            </h1>
-
-            <p className="mt-2 text-gray-600">
-              {decision.description || "No description provided."}
-            </p>
-          </div>
-
-          <IconBadge
-            className={
-              isArchivedDecision
-                ? "bg-gray-100 text-gray-600"
-                : "bg-blue-50 text-blue-600"
-            }
-            icon={<Target size={26} />}
-            large
-          />
-        </div>
+        <DashboardPageHeader
+          title={decision.title}
+          description={decision.description || "No description provided."}
+          actions={
+            <IconBadge
+              className={
+                isArchivedDecision
+                  ? "bg-gray-100 text-gray-600"
+                  : "bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
+              }
+              icon={<Target size={26} />}
+              large
+            />
+          }
+        />
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Badge className="border-green-200 bg-green-50 text-green-700">
-            Outcome: {formatDecisionLabel(decision.outcome_status)}
-          </Badge>
-
-          <Badge className="border-blue-200 bg-blue-50 text-blue-700">
+          <Badge className="border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]">
             Status: {formatDecisionLabel(decision.status)}
-          </Badge>
-
-          <Badge className="border-purple-200 bg-purple-50 text-purple-700">
-            Category: {formatDecisionLabel(decision.category)}
-          </Badge>
-
-          <Badge className="border-red-200 bg-red-50 text-red-700">
-            Priority: {formatDecisionLabel(decision.priority)}
-          </Badge>
-
-          {decision.confidence_score && (
-            <Badge className="border-indigo-200 bg-indigo-50 text-indigo-700">
-              Confidence: {formatDecisionLabel(decision.confidence_score)}
-            </Badge>
-          )}
-
-          {decision.review_date && (
-            <Badge className="border-amber-200 bg-amber-50 text-amber-700">
-              Review: {formatDecisionDate(decision.review_date)}
-            </Badge>
-          )}
-
-          <Badge className="border-gray-200 bg-gray-50 text-gray-700">
-            Created: {formatDecisionDate(decision.created_at)}
-          </Badge>
-
-          {decision.updated_at && (
-            <Badge className="border-gray-200 bg-gray-50 text-gray-700">
-              Updated: {formatDecisionDate(decision.updated_at)}
-            </Badge>
-          )}
-
-          <Badge className="border-blue-200 bg-blue-50 text-blue-700">
-            Age: {decisionAgeDays} days
           </Badge>
 
           <Badge className={getReviewUrgencyClass(reviewUrgency)}>
@@ -1226,28 +1522,24 @@ export default function DecisionPage() {
 
           <Link
             href={`/dashboard/datasets/${decision.dataset_id}`}
-            className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+            title={decisionDatasetLabel}
+            className="inline-block max-w-full truncate rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:bg-[var(--decisionate-brand-primary-soft)] hover:text-[var(--decisionate-brand-primary-text)]"
           >
             Dataset:{" "}
-            {formatDecisionDatasetLabel(
-              dataset,
-              decision.dataset_id
-            )}
+            {decisionDatasetLabel}
           </Link>
-        </div>
 
-        <div className={getLifecycleNoticeClass(isArchivedDecision)}>
-          <p className="text-sm font-semibold">
-            {isArchivedDecision
-              ? "Historical decision record"
-              : "Active decision record"}
-          </p>
+          {decision.metric_column && (
+            <Badge className="border-gray-200 bg-gray-50 text-gray-700">
+              Metric: {formatMetricLabel(decision.metric_column)}
+            </Badge>
+          )}
 
-          <p className="mt-1 text-sm">
-            {isArchivedDecision
-              ? "This decision is preserved for reference. Restore it before making changes."
-              : "This decision can be updated, reviewed and tracked through outcomes."}
-          </p>
+          {aiRecommendationSource && (
+            <Badge className="border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]">
+              Analysis source: {aiRecommendationSource}
+            </Badge>
+          )}
         </div>
       </DashboardCard>
 
@@ -1289,12 +1581,14 @@ export default function DecisionPage() {
           </div>
 
           <button
+            type="button"
             onClick={
               isArchivedDecision
                 ? handleRestoreDecision
                 : handleArchiveDecision
             }
             disabled={
+              decisionIsReadOnly ||
               savingSection === archiveDecisionActivity ||
               savingSection === restoreDecisionActivity
             }
@@ -1351,32 +1645,83 @@ export default function DecisionPage() {
               <SavedBadge />
             ) : (
               <IconBadge
-                className="bg-blue-50 text-blue-600"
+                className="bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
                 icon={<ClipboardList size={22} />}
               />
             )
           }
         />
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)]">
           <Field label="Title">
             <input
+              aria-label="Decision title"
               value={title}
-              disabled={isArchivedDecision}
+              disabled={decisionIsReadOnly || isArchivedDecision}
               onChange={(e) => {
                 clearSaveErrorForSection(detailsDecisionActivity)
+                setDetailsSaved(false)
                 setTitle(e.target.value)
               }}
               className={inputClass}
             />
           </Field>
 
+          <Field label="Metric">
+            <MetricSelector
+              ariaLabel="Decision metric"
+              metrics={metricColumn && !metricColumns.includes(metricColumn)
+                ? [metricColumn, ...metricColumns]
+                : metricColumns}
+              value={metricColumn || undefined}
+              loadError={Boolean(metricLoadError)}
+              disabled={
+                isArchivedDecision ||
+                metricsLoading ||
+                metricColumns.length === 0
+              }
+              placeholder={
+                metricsLoading
+                  ? "Loading metrics..."
+                  : metricColumns.length === 0
+                    ? "No numeric metrics"
+                    : "No metric selected"
+              }
+              onChange={(metric) => {
+                clearSaveErrorForSection(detailsDecisionActivity)
+                setDetailsSaved(false)
+                setMetricColumn(metric ?? "")
+              }}
+            />
+
+            {metricLoadError && (
+              <div
+                role="alert"
+                className="mt-2 flex flex-col gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <span>{metricLoadError}</span>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMetricLoadRetryKey(currentKey => currentKey + 1)
+                  }
+                  className="w-fit rounded-md border border-red-200 bg-white px-2 py-1 font-medium text-red-700 transition hover:bg-red-100"
+                >
+                  Retry metrics
+                </button>
+              </div>
+            )}
+          </Field>
+
           <Field label="Description">
             <textarea
+              aria-label="Decision description"
               value={description}
-              disabled={isArchivedDecision}
+              disabled={decisionIsReadOnly || isArchivedDecision}
               onChange={(e) => {
                 clearSaveErrorForSection(detailsDecisionActivity)
+                setDetailsSaved(false)
                 setDescription(e.target.value)
               }}
               rows={3}
@@ -1390,7 +1735,7 @@ export default function DecisionPage() {
           savingSection={savingSection}
           saveError={saveError}
           isArchived={isArchivedDecision}
-          disabled={detailsSaveDisabled}
+          disabled={decisionIsReadOnly || detailsSaveDisabled}
           label="Save Details"
           onClick={handleSaveDetails}
         >
@@ -1410,7 +1755,7 @@ export default function DecisionPage() {
       <DashboardCard>
         <CardHeader
           title="Decision Health"
-          description="Completion status based on outcome, learning, review schedule and notes."
+          description="Lifecycle health with documentation completeness across outcome, learning, review schedule and notes."
           icon={
             <IconBadge
               className={getHealthIconClass(
@@ -1439,7 +1784,6 @@ export default function DecisionPage() {
             </p>
 
             <HealthLevelBadge
-              score={healthScore}
               statusLabel={healthStatusLabel}
             />
           </div>
@@ -1461,7 +1805,7 @@ export default function DecisionPage() {
           <HealthItem
             title="Outcome"
             complete={outcomeRecorded}
-            muted={healthStatusLabel === archivedHealthStatusLabel}
+            muted={healthStatusLabel === archivedDecisionHealthLabel}
             value={
               decision.outcome_status
                 ? formatDecisionLabel(decision.outcome_status)
@@ -1475,10 +1819,10 @@ export default function DecisionPage() {
 
           <HealthItem
             title="Learning"
-            complete={Boolean(decision.lessons_learned)}
-            muted={healthStatusLabel === archivedHealthStatusLabel}
+            complete={hasCapturedLearning(decision)}
+            muted={healthStatusLabel === archivedDecisionHealthLabel}
             value={
-              decision.lessons_learned
+              hasCapturedLearning(decision)
                 ? "Captured"
                 : "Not Captured"
             }
@@ -1487,7 +1831,7 @@ export default function DecisionPage() {
           <HealthItem
             title="Review"
             complete={Boolean(decision.review_date)}
-            muted={healthStatusLabel === archivedHealthStatusLabel}
+            muted={healthStatusLabel === archivedDecisionHealthLabel}
             value={
               decision.review_date
                 ? reviewUrgency === "Review Overdue"
@@ -1499,10 +1843,10 @@ export default function DecisionPage() {
 
           <HealthItem
             title="Notes"
-            complete={Boolean(decision.notes)}
-            muted={healthStatusLabel === archivedHealthStatusLabel}
+            complete={hasAddedNotes(decision)}
+            muted={healthStatusLabel === archivedDecisionHealthLabel}
             value={
-              decision.notes
+              hasAddedNotes(decision)
                 ? "Added"
                 : "Not Added"
             }
@@ -1511,7 +1855,7 @@ export default function DecisionPage() {
           <HealthItem
             title="Confidence"
             complete={Boolean(decision.confidence_score)}
-            muted={healthStatusLabel === archivedHealthStatusLabel}
+            muted={healthStatusLabel === archivedDecisionHealthLabel}
             optional
             value={formatDecisionLabel(
               decision.confidence_score
@@ -1519,12 +1863,12 @@ export default function DecisionPage() {
           />
         </div>
 
-        <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-blue-600">
+        <div className="mt-4 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
             Next Action
           </p>
 
-          <p className="mt-1 text-sm text-blue-700">
+          <p className="mt-1 text-sm text-[var(--decisionate-brand-primary-text)]">
             {nextAction}
           </p>
 
@@ -1532,7 +1876,7 @@ export default function DecisionPage() {
             <button
               type="button"
               onClick={() => focusNextActionTarget(nextActionTarget)}
-              className="mt-3 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
+              className="mt-3 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)]"
             >
               {nextActionTarget.label}
             </button>
@@ -1553,7 +1897,7 @@ export default function DecisionPage() {
 
               <Link
                 href="/dashboard/action-needed"
-                className="mt-2 inline-flex font-medium text-blue-700 hover:text-blue-900"
+                className="mt-2 inline-flex font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-80"
               >
                 Back to Action Needed →
               </Link>
@@ -1584,13 +1928,15 @@ export default function DecisionPage() {
           />
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <Field label="Expected Outcome">
+            <Field label="Expected Outcome" required>
               <textarea
                 id="decision-expected-outcome"
+                aria-label="Expected outcome"
                 value={expectedOutcome}
-                disabled={isArchivedDecision}
+                disabled={decisionIsReadOnly || isArchivedDecision}
                 onChange={(e) => {
                   clearSaveErrorForSection(outcomeDecisionActivity)
+                  setOutcomeSaved(false)
                   setExpectedOutcome(e.target.value)
                 }}
                 rows={4}
@@ -1601,10 +1947,12 @@ export default function DecisionPage() {
             <Field label="Actual Outcome">
               <textarea
                 id="decision-actual-outcome"
+                aria-label="Actual outcome"
                 value={actualOutcome}
-                disabled={isArchivedDecision}
+                disabled={decisionIsReadOnly || isArchivedDecision}
                 onChange={(e) => {
                   clearSaveErrorForSection(outcomeDecisionActivity)
+                  setOutcomeSaved(false)
                   setActualOutcome(e.target.value)
                 }}
                 rows={4}
@@ -1619,10 +1967,12 @@ export default function DecisionPage() {
           >
             <select
               id="decision-outcome-status"
+              aria-label="Outcome status"
               value={outcomeStatus}
-              disabled={isArchivedDecision}
+              disabled={decisionIsReadOnly || isArchivedDecision}
               onChange={(e) => {
                 clearSaveErrorForSection(outcomeDecisionActivity)
+                setOutcomeSaved(false)
                 setOutcomeStatus(
                   e.target.value as DecisionOutcomeStatusFormValue
                 )
@@ -1649,7 +1999,7 @@ export default function DecisionPage() {
                 <button
                   key={option.value}
                   type="button"
-                  disabled={isArchivedDecision}
+                  disabled={decisionIsReadOnly || isArchivedDecision}
                   onClick={() => {
                     clearSaveErrorForSection(outcomeDecisionActivity)
                     setOutcomeStatus(option.value)
@@ -1671,10 +2021,16 @@ export default function DecisionPage() {
             savingSection={savingSection}
             saveError={saveError}
             isArchived={isArchivedDecision}
-            disabled={outcomeSaveDisabled}
+            disabled={decisionIsReadOnly || outcomeSaveDisabled}
             label="Save Outcome"
             onClick={handleSaveOutcome}
-          />
+          >
+            {!isArchivedDecision && expectedOutcomeMissing && (
+              <p className="mt-2 text-sm font-medium text-amber-700">
+                Expected outcome is required so this decision keeps a measurable review target.
+              </p>
+            )}
+          </SectionSaveActions>
         </DashboardCard>
 
         <DashboardCard className="flex h-full flex-col">
@@ -1686,7 +2042,7 @@ export default function DecisionPage() {
                 <SavedBadge />
               ) : (
                 <IconBadge
-                  className="bg-blue-50 text-blue-600"
+                  className="bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
                   icon={<ClipboardList size={22} />}
                 />
               )
@@ -1696,10 +2052,12 @@ export default function DecisionPage() {
           <div className="mt-4 grid gap-x-6 gap-y-4 md:grid-cols-2">
             <Field label="Status">
               <select
+                aria-label="Decision status"
                 value={status}
-                disabled={isArchivedDecision}
+                disabled={decisionIsReadOnly || isArchivedDecision}
                 onChange={(e) => {
                   clearSaveErrorForSection(overviewDecisionActivity)
+                  setOverviewSaved(false)
                   setStatus(
                     e.target.value as DecisionStatus
                   )
@@ -1721,10 +2079,12 @@ export default function DecisionPage() {
 
             <Field label="Priority">
               <select
+                aria-label="Decision priority"
                 value={priority}
-                disabled={isArchivedDecision}
+                disabled={decisionIsReadOnly || isArchivedDecision}
                 onChange={(e) => {
                   clearSaveErrorForSection(overviewDecisionActivity)
+                  setOverviewSaved(false)
                   setPriority(
                     e.target.value as DecisionPriority
                   )
@@ -1746,10 +2106,12 @@ export default function DecisionPage() {
 
             <Field label="Category">
               <select
+                aria-label="Decision category"
                 value={category}
-                disabled={isArchivedDecision}
+                disabled={decisionIsReadOnly || isArchivedDecision}
                 onChange={(e) => {
                   clearSaveErrorForSection(overviewDecisionActivity)
+                  setOverviewSaved(false)
                   setCategory(
                     e.target.value as DecisionCategory
                   )
@@ -1772,10 +2134,12 @@ export default function DecisionPage() {
             <Field label="Confidence">
               <select
                 id="decision-confidence-score"
+                aria-label="Decision confidence"
                 value={confidenceScore}
-                disabled={isArchivedDecision}
+                disabled={decisionIsReadOnly || isArchivedDecision}
                 onChange={(e) => {
                   clearSaveErrorForSection(overviewDecisionActivity)
+                  setOverviewSaved(false)
                   setConfidenceScore(
                     e.target.value as DecisionConfidenceFormValue
                   )
@@ -1799,11 +2163,13 @@ export default function DecisionPage() {
             <Field label="Review Date">
               <input
                 id="decision-review-date"
+                aria-label="Decision review date"
                 type="date"
                 value={reviewDate}
-                disabled={isArchivedDecision}
+                disabled={decisionIsReadOnly || isArchivedDecision}
                 onChange={(e) => {
                   clearSaveErrorForSection(overviewDecisionActivity)
+                  setOverviewSaved(false)
                   setReviewDate(e.target.value)
                 }}
                 className={inputClass}
@@ -1814,9 +2180,9 @@ export default function DecisionPage() {
                   <button
                     key={action.days}
                     type="button"
-                    disabled={isArchivedDecision}
+                    disabled={decisionIsReadOnly || isArchivedDecision}
                     onClick={() => handleSetReviewDateOffset(action.days)}
-                    className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+                    className="rounded-full border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1 text-xs font-medium text-[var(--decisionate-brand-primary-text)] transition hover:opacity-80 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
                   >
                     In {action.label}
                   </button>
@@ -1830,12 +2196,42 @@ export default function DecisionPage() {
             savingSection={savingSection}
             saveError={saveError}
             isArchived={isArchivedDecision}
-            disabled={overviewSaveDisabled}
+            disabled={decisionIsReadOnly || overviewSaveDisabled}
             label="Save Overview"
             onClick={handleSaveOverview}
           />
         </DashboardCard>
       </div>
+
+      {outcomeAnalysisLoading && (
+        <AnalysisStatus kind="loading" />
+      )}
+
+      {outcomeAnalysisError && (
+        <AnalysisStatus
+          kind="unavailable"
+          onRetry={() =>
+            setOutcomeAnalysisRetryKey(
+              currentKey => currentKey + 1
+            )
+          }
+        />
+      )}
+
+      {!outcomeAnalysisLoading && outcomeAnalysis && (
+        <AIAnalysisPanel
+          analysis={outcomeAnalysis}
+          title="Outcome review"
+          metric={decision.metric_column ?? undefined}
+          className="rounded-2xl p-5 shadow-sm sm:p-6"
+          onApplyRecommendation={
+            !decisionIsReadOnly && !isArchivedDecision
+              ? handleApplyOutcomeRecommendation
+              : undefined
+          }
+          applyRecommendationLabel="Add recommendation to learning"
+        />
+      )}
 
       {/* =========================
           Decision Notes And Learning Capture Cards
@@ -1860,10 +2256,12 @@ export default function DecisionPage() {
 
           <textarea
             id="decision-notes"
+            aria-label="Decision notes"
             value={notes}
-            disabled={isArchivedDecision}
+            disabled={decisionIsReadOnly || isArchivedDecision}
             onChange={(e) => {
               clearSaveErrorForSection(notesDecisionActivity)
+              setNoteSaved(false)
               setNotes(e.target.value)
             }}
             rows={5}
@@ -1875,7 +2273,7 @@ export default function DecisionPage() {
               <button
                 key={prompt.label}
                 type="button"
-                disabled={isArchivedDecision}
+                disabled={decisionIsReadOnly || isArchivedDecision}
                 onClick={() => handleAddNotePrompt(prompt.text)}
                 className="rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
               >
@@ -1889,7 +2287,7 @@ export default function DecisionPage() {
             savingSection={savingSection}
             saveError={saveError}
             isArchived={isArchivedDecision}
-            disabled={noteSaveDisabled}
+            disabled={decisionIsReadOnly || noteSaveDisabled}
             label="Save Note"
             onClick={handleSaveNote}
           />
@@ -1904,7 +2302,7 @@ export default function DecisionPage() {
                 <SavedBadge />
               ) : (
                 <IconBadge
-                  className="bg-purple-50 text-purple-600"
+                  className="bg-[var(--decisionate-brand-accent-soft)] text-[var(--decisionate-brand-accent-text)]"
                   icon={<Lightbulb size={22} />}
                 />
               )
@@ -1913,10 +2311,12 @@ export default function DecisionPage() {
 
           <textarea
             id="decision-lessons-learned"
+            aria-label="Decision lessons learned"
             value={lessonsLearned}
-            disabled={isArchivedDecision}
+            disabled={decisionIsReadOnly || isArchivedDecision}
             onChange={(e) => {
               clearSaveErrorForSection(learningDecisionActivity)
+              setLearningSaved(false)
               setLessonsLearned(e.target.value)
             }}
             rows={5}
@@ -1928,9 +2328,9 @@ export default function DecisionPage() {
               <button
                 key={prompt.label}
                 type="button"
-                disabled={isArchivedDecision}
+                disabled={decisionIsReadOnly || isArchivedDecision}
                 onClick={() => handleAddLearningPrompt(prompt.text)}
-                className="rounded-full border border-purple-100 bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700 transition hover:bg-purple-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+                className="rounded-full border border-[var(--decisionate-brand-accent-ring)] bg-[var(--decisionate-brand-accent-soft)] px-3 py-1 text-xs font-medium text-[var(--decisionate-brand-accent-text)] transition hover:opacity-80 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
               >
                 {prompt.label}
               </button>
@@ -1942,7 +2342,7 @@ export default function DecisionPage() {
             savingSection={savingSection}
             saveError={saveError}
             isArchived={isArchivedDecision}
-            disabled={learningSaveDisabled}
+            disabled={decisionIsReadOnly || learningSaveDisabled}
             label="Save Learning"
             onClick={handleSaveLearning}
           />
@@ -1988,7 +2388,7 @@ export default function DecisionPage() {
           </div>
         )}
 
-        <div className="mt-4 max-h-96 space-y-4 overflow-y-auto border-l-2 border-gray-200 pl-4 pr-2">
+        <div className="mt-4 space-y-4 border-l-2 border-gray-200 pl-4 md:max-h-96 md:overflow-y-auto md:pr-2">
           {activitiesLoading && activities.length === 0 ? (
             <p className="text-sm text-gray-500">
               Loading timeline...
@@ -2016,7 +2416,7 @@ export default function DecisionPage() {
                   type="button"
                   onClick={handleLoadMoreActivities}
                   disabled={activitiesLoading}
-                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-gray-300"
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] disabled:cursor-not-allowed disabled:text-gray-300"
                 >
                   {activitiesLoading
                     ? "Loading timeline..."
@@ -2048,7 +2448,7 @@ function DashboardCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-gray-200 bg-white p-6 shadow-sm ${className}`}
+      className={`min-w-0 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm ${className}`}
     >
       {children}
     </div>
@@ -2065,13 +2465,13 @@ function CardHeader({
   icon: ReactNode
 }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">
+    <div className="flex min-w-0 items-start justify-between gap-4">
+      <div className="min-w-0">
+        <h2 className="break-words text-xl font-semibold tracking-tight">
           {title}
         </h2>
 
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 break-words text-sm text-gray-600">
           {description}
         </p>
       </div>
@@ -2112,7 +2512,7 @@ function Badge({
 }) {
   return (
     <span
-      className={`rounded-full border px-3 py-1 text-sm font-medium ${className}`}
+      className={`inline-block max-w-full break-words rounded-full border px-3 py-1 text-sm font-medium ${className}`}
     >
       {children}
     </span>
@@ -2135,15 +2535,22 @@ function Field({
   label,
   children,
   className = "",
+  required = false,
 }: {
   label: string
   children: ReactNode
   className?: string
+  required?: boolean
 }) {
   return (
-    <div className={className}>
+    <div className={`min-w-0 ${className}`}>
       <p className="text-sm font-medium text-gray-600">
         {label}
+        {required && (
+          <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+            Required
+          </span>
+        )}
       </p>
 
       {children}
@@ -2352,7 +2759,7 @@ function getHealthItemClass(
 ) {
   if (muted || optional) {
     if (optional && complete && !muted) {
-      return "border-indigo-200 bg-indigo-50"
+      return "border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)]"
     }
 
     return "border-gray-200 bg-gray-50"
@@ -2364,75 +2771,78 @@ function getHealthItemClass(
 }
 
 function HealthLevelBadge({
-  score,
   statusLabel,
 }: {
-  score: number
-  statusLabel: DecisionHealthStatusLabel
+  statusLabel: DecisionHealthLabel
 }) {
-  if (statusLabel === archivedHealthStatusLabel) {
-    return (
-      <span className="rounded-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600">
-        Archived
-      </span>
-    )
-  }
-
   return (
     <span
-      className={`rounded-full px-2 py-1 text-xs font-medium ${
-        score === 100
-          ? "bg-green-50 text-green-700"
-          : score >= 75
-            ? "bg-blue-50 text-blue-700"
-            : score >= 50
-              ? "bg-amber-50 text-amber-700"
-              : "bg-red-50 text-red-700"
-      }`}
+      className={`rounded-full border px-2 py-1 text-xs font-medium ${getHealthBadgeClass(
+        statusLabel
+      )}`}
     >
-      {score === 100
-        ? "Complete"
-        : score >= 75
-          ? "Near Complete"
-          : score >= 50
-            ? "In Progress"
-            : "Needs Attention"}
+      {statusLabel}
     </span>
   )
 }
 
-function getDecisionHealthStatusLabel(
-  decision: DecisionRecord,
-  isHealthy: boolean
-): DecisionHealthStatusLabel {
-  if (decision.status === archivedDecisionStatus) {
-    return archivedHealthStatusLabel
-  }
-
-  return isHealthy
-    ? healthyHealthStatusLabel
-    : incompleteHealthStatusLabel
-}
-
 function getHealthIconClass(
-  statusLabel: DecisionHealthStatusLabel
+  statusLabel: DecisionHealthLabel
 ) {
-  if (statusLabel === archivedHealthStatusLabel) {
+  if (statusLabel === archivedDecisionHealthLabel) {
     return "bg-gray-100 text-gray-600"
   }
 
-  if (statusLabel === healthyHealthStatusLabel) {
+  if (statusLabel === healthyDecisionHealthLabel) {
     return "bg-green-50 text-green-600"
   }
 
-  return "bg-amber-50 text-amber-600"
+  if (statusLabel === inProgressDecisionHealthLabel) {
+    return "bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
+  }
+
+  if (statusLabel === cancelledDecisionHealthLabel) {
+    return "bg-red-50 text-red-600"
+  }
+
+  if (statusLabel === needsReviewDecisionHealthLabel) {
+    return "bg-amber-50 text-amber-600"
+  }
+
+  return "bg-gray-50 text-gray-600"
+}
+
+function getHealthBadgeClass(
+  statusLabel: DecisionHealthLabel
+) {
+  if (statusLabel === archivedDecisionHealthLabel) {
+    return "border-gray-200 bg-gray-50 text-gray-600"
+  }
+
+  if (statusLabel === healthyDecisionHealthLabel) {
+    return "border-green-200 bg-green-50 text-green-700"
+  }
+
+  if (statusLabel === needsReviewDecisionHealthLabel) {
+    return "border-amber-200 bg-amber-50 text-amber-700"
+  }
+
+  if (statusLabel === inProgressDecisionHealthLabel) {
+    return "border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
+  }
+
+  if (statusLabel === cancelledDecisionHealthLabel) {
+    return "border-red-200 bg-red-50 text-red-700"
+  }
+
+  return "border-gray-200 bg-gray-50 text-gray-700"
 }
 
 function getHealthProgressClass(
-  statusLabel: DecisionHealthStatusLabel,
+  statusLabel: DecisionHealthLabel,
   score: number
 ) {
-  if (statusLabel === archivedHealthStatusLabel) {
+  if (statusLabel === archivedDecisionHealthLabel) {
     return "bg-gray-400"
   }
 
@@ -2442,20 +2852,20 @@ function getHealthProgressClass(
 }
 
 function getHealthScoreDisplay(
-  statusLabel: DecisionHealthStatusLabel,
+  statusLabel: DecisionHealthLabel,
   score: number
 ) {
-  return statusLabel === archivedHealthStatusLabel
+  return statusLabel === archivedDecisionHealthLabel
     ? "Archived Record"
     : `${score}% Complete`
 }
 
 function getHealthRequirementDisplay(
-  statusLabel: DecisionHealthStatusLabel,
+  statusLabel: DecisionHealthLabel,
   completedItems: number,
   totalItems: number
 ) {
-  return statusLabel === archivedHealthStatusLabel
+  return statusLabel === archivedDecisionHealthLabel
     ? "Historical decision record"
     : `${completedItems} of ${totalItems} requirements completed`
 }
@@ -2506,7 +2916,7 @@ function FallbackTimeline({
   return (
     <>
       <TimelineEvent
-        color="bg-blue-500"
+        color="bg-[var(--decisionate-brand-primary)]"
         title="Decision created"
         date={formatActivityDateTime(
           decision.created_at
@@ -2534,11 +2944,11 @@ function FallbackTimeline({
       )}
 
       {decision.lessons_learned && (
-        <TimelineEvent
-          color="bg-purple-500"
+      <TimelineEvent
+          color="bg-[var(--decisionate-brand-accent)]"
           title="Learning captured"
           date="—"
-          titleClassName="text-purple-700"
+          titleClassName="text-[var(--decisionate-brand-accent-text)]"
         />
       )}
     </>
@@ -2546,7 +2956,7 @@ function FallbackTimeline({
 }
 
 function getSaveButtonClass(disabled: boolean) {
-  return `w-36 rounded-lg border px-4 py-2 font-medium transition ${
+  return `w-full rounded-lg border px-4 py-2 font-medium transition sm:w-36 ${
     disabled
       ? "cursor-not-allowed opacity-50"
       : "cursor-pointer hover:bg-gray-50"
@@ -2554,20 +2964,10 @@ function getSaveButtonClass(disabled: boolean) {
 }
 
 function getArchiveButtonClass(disabled: boolean) {
-  return `w-40 rounded-lg border px-4 py-2 font-medium transition ${
+  return `w-full rounded-lg border px-4 py-2 font-medium transition sm:w-40 ${
     disabled
       ? "cursor-not-allowed border-gray-200 text-gray-400"
       : "border-gray-300 text-gray-700 hover:bg-gray-50"
-  }`
-}
-
-function getLifecycleNoticeClass(
-  archived: boolean
-) {
-  return `mt-4 rounded-xl border px-4 py-3 ${
-    archived
-      ? "border-gray-200 bg-gray-50 text-gray-600"
-      : "border-blue-100 bg-blue-50 text-blue-700"
   }`
 }
 
@@ -2645,28 +3045,6 @@ function getDateInputValueFromToday(days: number) {
   const day = String(date.getDate()).padStart(2, "0")
 
   return `${year}-${month}-${day}`
-}
-
-function getDecisionAgeDays(
-  createdAt?: string | null
-) {
-  const createdDate =
-    getDecisionDateValue(createdAt)
-
-  if (!createdDate) {
-    return 0
-  }
-
-  return Math.max(
-    0,
-    Math.floor(
-      (
-        new Date().getTime() -
-        createdDate.getTime()
-      ) /
-        (1000 * 60 * 60 * 24)
-    )
-  )
 }
 
 /* =========================
@@ -2765,7 +3143,7 @@ function getNextAction(decision: DecisionRecord) {
     return "Record the outcome of this decision."
   }
 
-  if (!decision.lessons_learned) {
+  if (!hasCapturedLearning(decision)) {
     return "Capture lessons learned from the outcome."
   }
 
@@ -2773,7 +3151,7 @@ function getNextAction(decision: DecisionRecord) {
     return "Schedule a review date."
   }
 
-  if (!decision.notes) {
+  if (!hasAddedNotes(decision)) {
     return "Add notes to complete the decision record."
   }
 
@@ -2812,7 +3190,7 @@ function getNextActionTarget(
     }
   }
 
-  if (!decision.lessons_learned) {
+  if (!hasCapturedLearning(decision)) {
     return {
       elementId: "decision-lessons-learned",
       label: "Capture Learning",
@@ -2826,7 +3204,7 @@ function getNextActionTarget(
     }
   }
 
-  if (!decision.notes) {
+  if (!hasAddedNotes(decision)) {
     return {
       elementId: "decision-notes",
       label: "Add Notes",
@@ -2849,19 +3227,63 @@ function focusNextActionTarget(
   const element =
     document.getElementById(target.elementId)
 
+  if (!element) {
+    return
+  }
+
   element?.scrollIntoView({
     behavior: "smooth",
     block: "center",
   })
-  element?.focus()
+  element.focus()
+  highlightNextActionTarget(element)
 }
 
-function showSaved(
-  setter: (value: boolean) => void
+function highlightNextActionTarget(
+  element: HTMLElement
 ) {
-  setter(true)
+  const highlightToken =
+    String(Date.now())
+  const previousTransition =
+    element.style.transition
+  const previousBoxShadow =
+    element.style.boxShadow
+  const previousBorderColor =
+    element.style.borderColor
+  const previousBackgroundColor =
+    element.style.backgroundColor
 
-  setTimeout(() => {
-    setter(false)
-  }, 3000)
+  element.dataset.decisionateNextActionHighlight =
+    highlightToken
+  element.style.transition = [
+    previousTransition,
+    "box-shadow 200ms ease",
+    "border-color 200ms ease",
+    "background-color 200ms ease",
+  ].filter(Boolean).join(", ")
+  element.style.borderColor =
+    "var(--decisionate-brand-primary)"
+  element.style.boxShadow =
+    "0 0 0 4px var(--decisionate-brand-primary-ring)"
+  element.style.backgroundColor =
+    "var(--decisionate-brand-primary-soft)"
+
+  window.setTimeout(() => {
+    if (
+      element.dataset.decisionateNextActionHighlight !==
+      highlightToken
+    ) {
+      return
+    }
+
+    element.style.transition =
+      previousTransition
+    element.style.boxShadow =
+      previousBoxShadow
+    element.style.borderColor =
+      previousBorderColor
+    element.style.backgroundColor =
+      previousBackgroundColor
+    delete element.dataset.decisionateNextActionHighlight
+  }, 1800)
 }

@@ -43,7 +43,8 @@ def list_datasets(
     return (
         db.query(Dataset)
         .order_by(
-            Dataset.created_at.desc()
+            Dataset.created_at.desc(),
+            Dataset.id.desc(),
         )
         .all()
     )

@@ -26,6 +26,8 @@ interface DatasetListProps {
   datasets: Dataset[]
   onRefresh: () => Promise<void>
   canDelete?: boolean
+  canManage?: boolean
+  loadError?: boolean
 }
 
 interface Dataset {
@@ -43,6 +45,8 @@ export function DatasetList({
     datasets,
     onRefresh,
     canDelete = true,
+    canManage = true,
+    loadError = false,
 }: DatasetListProps) {
 
     const { user } = useUser()
@@ -104,8 +108,12 @@ export function DatasetList({
 
     if (!datasets.length) {
         return (
-            <div className="rounded-lg border border-dashed bg-gray-50 p-6 text-sm text-gray-500">
-                No datasets uploaded yet.
+            <div className={`rounded-lg border border-dashed p-6 text-sm ${loadError ? "border-red-200 bg-red-50 text-red-700" : "bg-gray-50 text-gray-500"}`}>
+                {loadError
+                    ? "The saved dataset list is unavailable. Retry the data services above."
+                    : canManage
+                        ? "No saved datasets yet. Upload a file above or pull from a configured connection so dashboards, forecasts, reports, alerts, and decisions can use real metrics."
+                        : "No datasets have been shared with this workspace yet. Ask the workspace team to share one so dashboards, forecasts, reports, alerts, and decisions can use real metrics."}
             </div>
         )
     }
@@ -137,7 +145,10 @@ export function DatasetList({
     return (
         <div className="space-y-4">
             {errorMessage && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div
+                    role="alert"
+                    className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                >
                     {errorMessage}
                 </div>
             )}
@@ -270,15 +281,15 @@ function DatasetListItem({
                     </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+                    <span className="rounded-full bg-[var(--decisionate-brand-primary-soft)] px-2.5 py-1 text-xs font-medium text-[var(--decisionate-brand-primary-text)]">
                         {sourceDetails.label}
                     </span>
 
                 </div>
 
                 {sourceDetails.originalFileName && (
-                    <div className="mt-2 text-xs text-gray-400">
+                    <div className="mt-2 break-all text-xs text-gray-400">
                         Original file:{" "}
                         {sourceDetails.originalFileName}
                     </div>
@@ -286,10 +297,10 @@ function DatasetListItem({
 
             </Link>
 
-            <div className="flex shrink-0 gap-2 md:justify-end">
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:justify-end">
                 <Link
                     href={`/dashboard/datasets/${dataset.id}`}
-                    className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
                 >
                     <ExternalLink size={15} />
                     View
@@ -297,6 +308,7 @@ function DatasetListItem({
 
                 {canDelete && (
                     <button
+                        type="button"
                         onClick={() =>
                             onDelete(
                                 dataset.id
@@ -306,7 +318,7 @@ function DatasetListItem({
                             deletingDatasetId ===
                             dataset.id
                         }
-                        className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                         title="Delete dataset"
                     >
                         <Trash2 size={15} />

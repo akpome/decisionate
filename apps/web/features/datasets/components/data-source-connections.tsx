@@ -12,6 +12,7 @@ import {
 
 interface DataSourceConnectionsProps {
   connections: DataSourceConnection[]
+  loadError?: boolean
   sources?: DatasetSourceOption[]
   deletingConnectionId?: number | null
   updatingConnectionId?: number | null
@@ -30,6 +31,7 @@ interface DataSourceConnectionsProps {
 
 export function DataSourceConnections({
   connections,
+  loadError = false,
   sources = [],
   deletingConnectionId,
   updatingConnectionId,
@@ -179,7 +181,9 @@ export function DataSourceConnections({
   if (!connections.length) {
     return (
       <div className="rounded-xl border bg-white p-4 text-sm text-gray-500">
-        No added data source connections yet. Choose Add connection from Data Sources above.
+        {loadError
+          ? "Saved data source connections are unavailable. Retry the data services above."
+          : "No data source connections are configured yet. External connector pulls are planned; upload a CSV, Excel, JSON, or Parquet file from Datasets for now."}
       </div>
     )
   }
@@ -354,8 +358,9 @@ function DataSourceConnectionRow({
     <div className="flex flex-col gap-4 bg-white p-4 first:rounded-t-xl last:rounded-b-xl md:flex-row md:items-start md:justify-between">
       <div className="min-w-0 flex-1">
         {isEditing ? (
-          <div className="flex max-w-md flex-wrap gap-2">
+          <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row sm:flex-wrap">
             <input
+              aria-label="Connection display name"
               value={editingDisplayName}
               onChange={(event) =>
                 setEditingDisplayName(
@@ -391,7 +396,7 @@ function DataSourceConnectionRow({
                   connection.id ||
                 !canSave
               }
-              className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               Save
             </button>
@@ -399,23 +404,23 @@ function DataSourceConnectionRow({
             <button
               type="button"
               onClick={stopEditing}
-              className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="w-full rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
             >
               Cancel
             </button>
           </div>
         ) : (
-          <h3 className="font-medium">
+          <h3 className="break-words font-medium">
             {connection.display_name}
           </h3>
         )}
 
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 break-words text-sm text-gray-500">
           {connection.source_label}
         </p>
 
         {connection.availability_note && (
-          <p className="mt-1 text-xs text-amber-700">
+          <p className="mt-1 break-words text-xs text-amber-700">
             {connection.availability_note}
           </p>
         )}
@@ -430,20 +435,20 @@ function DataSourceConnectionRow({
           <p
             className={
               environmentConfigured
-                ? "mt-1 text-xs text-green-700"
-                : "mt-1 text-xs text-amber-700"
+                ? "mt-1 break-words text-xs text-green-700"
+                : "mt-1 break-words text-xs text-amber-700"
             }
           >
             {externalCredentialLabel}:{" "}
             {environmentConfigured
-              ? "configured"
-              : "not configured"}
+              ? "ready"
+              : "needs setup"}
           </p>
         )}
 
         {isConfiguring && (
-          <div className="mt-4 max-w-2xl rounded-xl border border-blue-100 bg-blue-50 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-blue-700">
+          <div className="mt-4 max-w-2xl rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
               Configure connection settings
             </p>
 
@@ -480,17 +485,17 @@ function DataSourceConnectionRow({
               />
             )}
 
-            <p className="mt-2 text-xs text-blue-700">
+            <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
               Saved values are hidden. Enter replacement values for the fields you want to save.
             </p>
 
             {requiresEnvironmentCredentials && (
-              <p className="mt-1 text-xs text-blue-700">
+              <p className="mt-1 text-xs text-[var(--decisionate-brand-primary-text)]">
                 {connectionConfigHelpText}
               </p>
             )}
 
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button
                 type="button"
                 onClick={() =>
@@ -503,7 +508,7 @@ function DataSourceConnectionRow({
                     connection.id ||
                   !hasEditedConfig
                 }
-                className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 {updatingConnectionId ===
                 connection.id
@@ -523,7 +528,7 @@ function DataSourceConnectionRow({
                     updatingConnectionId ===
                     connection.id
                   }
-                  className="rounded-lg border border-red-100 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-lg border border-red-100 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   Clear Saved Config
                 </button>
@@ -532,7 +537,7 @@ function DataSourceConnectionRow({
               <button
                 type="button"
                 onClick={stopConfiguring}
-                className="rounded-lg border border-blue-100 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
               >
                 Cancel
               </button>
@@ -541,7 +546,7 @@ function DataSourceConnectionRow({
         )}
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-2">
+      <div className="flex w-full shrink-0 flex-col items-start gap-2 md:w-auto md:items-end">
         <span
           className={getConnectionStatusClassName(
             connection.status
@@ -556,7 +561,7 @@ function DataSourceConnectionRow({
           (onRenameConnection ||
             onDeleteConnection ||
             canConfigure) && (
-            <div className="flex gap-2">
+            <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
               {canConfigure && (
                 <button
                   type="button"
@@ -571,7 +576,7 @@ function DataSourceConnectionRow({
                     updatingConnectionId ===
                     connection.id
                   }
-                  className="rounded-lg border px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-lg border px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {isConfiguring
                     ? "Close"
@@ -591,7 +596,7 @@ function DataSourceConnectionRow({
                     updatingConnectionId ===
                     connection.id
                   }
-                  className="rounded-lg border px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-lg border px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {updatingConnectionId ===
                   connection.id
@@ -612,7 +617,7 @@ function DataSourceConnectionRow({
                     deletingConnectionId ===
                     connection.id
                   }
-                  className="rounded-lg border px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-lg border px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {deletingConnectionId ===
                   connection.id
@@ -646,7 +651,7 @@ function ConnectionConfigFieldGroup({
 }) {
   return (
     <div className="mt-3">
-      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-blue-700">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
         {title}
       </p>
 
@@ -694,10 +699,10 @@ function ConnectionConfigField({
     ? `Replace saved ${label.toLowerCase()}`
     : `Enter ${label.toLowerCase()}`
   const sharedClassName =
-    "mt-1 w-full rounded-lg border border-blue-100 bg-white px-3 text-sm normal-case tracking-normal text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+    "mt-1 min-w-0 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 text-sm normal-case tracking-normal text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
 
   return (
-    <label className="text-xs font-medium uppercase tracking-wide text-gray-500">
+    <label className="block min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
       {label}
       {configKey === "query" ? (
         <textarea
@@ -791,6 +796,20 @@ function getExternalCredentialLabel(
     return "Database credentials"
   }
 
+  if (
+    source?.connection_type ===
+    "data_warehouse"
+  ) {
+    return "Warehouse credentials"
+  }
+
+  if (
+    source?.connection_type ===
+    "object_storage"
+  ) {
+    return "Storage credentials"
+  }
+
   if (source?.connection_type === "api_key") {
     return "API credentials"
   }
@@ -806,18 +825,32 @@ function getConnectionConfigHelpText(
   source?: DatasetSourceOption
 ) {
   if (source?.connection_type === "database") {
-    return "Dataset fields select what to import. Database credential fields are saved with this added connection and hidden after save."
+    return "Dataset fields select what to import. Credential fields are saved with this connection and hidden after save."
+  }
+
+  if (
+    source?.connection_type ===
+    "data_warehouse"
+  ) {
+    return "Dataset fields select the warehouse query to import. Credential fields are saved with this connection and hidden after save."
+  }
+
+  if (
+    source?.connection_type ===
+    "object_storage"
+  ) {
+    return "Dataset fields select the bucket, container, prefix, or file pattern to import. Credential fields are saved with this connection and hidden after save."
   }
 
   if (source?.connection_type === "api_key") {
-    return "Dataset fields identify the account or endpoint. API credential fields are saved with this added connection and hidden after save."
+    return "Dataset fields identify the account or endpoint. Credential fields are saved with this connection and hidden after save."
   }
 
   if (source?.connection_type === "webhook") {
-    return "Dataset fields identify the incoming event stream. Webhook secret fields are saved with this added connection and hidden after save."
+    return "Dataset fields identify the incoming event stream. Secret fields are saved with this connection and hidden after save."
   }
 
-  return "Dataset fields identify the account, file, or store. OAuth credential fields are saved with this added connection and hidden after save."
+  return "Dataset fields identify the account, file, or store. Credential fields are saved with this connection and hidden after save."
 }
 
 function formatConnectionConfigKey(

@@ -6,6 +6,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from app.modules.public_dashboard import (
+    build_public_dashboard_brand_response,
     build_public_dashboard_dataset_response,
     get_clean_dataset_preference_entry,
     get_dataset_preference_entry,
@@ -18,12 +19,68 @@ from app.modules.public_dashboard import (
     raise_shared_dashboard_not_found,
 )
 from app.modules.organizations.router import (
+    clean_dashboard_preferences,
     clean_metric_targets,
 )
 import pandas as pd
 
 
 class PublicDashboardTests(unittest.TestCase):
+    def test_public_brand_uses_report_name_and_saved_colors(self):
+        organization = SimpleNamespace(
+            name="Northstar Agency",
+            report_display_name="Northstar Advisory",
+            logo_url="https://example.com/logo.png",
+            primary_color="#123456",
+            accent_color="#ABCDEF",
+        )
+
+        self.assertEqual(
+            build_public_dashboard_brand_response(
+                organization,
+            ),
+            {
+                "name": "Northstar Advisory",
+                "logo_url": "https://example.com/logo.png",
+                "primary_color": "#123456",
+                "accent_color": "#ABCDEF",
+            },
+        )
+
+    def test_public_brand_supports_direct_workspace_defaults(self):
+        organization = SimpleNamespace(
+            name="Acme Retail",
+            report_display_name="",
+            logo_url=None,
+            primary_color=None,
+            accent_color=None,
+        )
+
+        self.assertEqual(
+            build_public_dashboard_brand_response(
+                organization,
+            ),
+            {
+                "name": "Acme Retail",
+                "logo_url": None,
+                "primary_color": "#2563EB",
+                "accent_color": "#14B8A6",
+            },
+        )
+
+    def test_public_brand_uses_safe_defaults_without_organization(self):
+        self.assertEqual(
+            build_public_dashboard_brand_response(
+                None,
+            ),
+            {
+                "name": "Decisionate",
+                "logo_url": None,
+                "primary_color": "#2563EB",
+                "accent_color": "#14B8A6",
+            },
+        )
+
     def test_normalize_share_token_strips_whitespace(self):
         self.assertEqual(
             normalize_share_token("  abc123  "),
@@ -176,6 +233,22 @@ class PublicDashboardTests(unittest.TestCase):
             },
         )
 
+    def test_get_clean_dataset_preference_entry_preserves_dashboard_title(self):
+        self.assertEqual(
+            get_clean_dataset_preference_entry(
+                '{"7": {"title": "  Sales   Board  ", "subtitle": " Weekly  KPIs ", "chartType": "line"}, "8": {"title": "Other"}}',
+                7,
+                clean_dashboard_preferences,
+            ),
+            {
+                "7": {
+                    "title": "Sales Board",
+                    "subtitle": "Weekly KPIs",
+                    "chartType": "line",
+                },
+            },
+        )
+
     def test_shared_dashboard_not_found_uses_no_store_header(self):
         with self.assertRaises(HTTPException) as context:
             raise_shared_dashboard_not_found()
@@ -259,6 +332,70 @@ class PublicDashboardTests(unittest.TestCase):
         self.assertEqual(
             response["metrics"][0]["column"],
             "revenue",
+        )
+
+    def test_public_dashboard_response_includes_workspace_branding(self):
+        response = SimpleNamespace(
+            headers={},
+        )
+        db = SimpleNamespace(
+            close=lambda: None,
+        )
+        dataset = SimpleNamespace(
+            id=7,
+            user_id="user-1",
+            workspace_id="workspace-1",
+            share_token="token",
+            file_name="sales.json",
+            source_type="json",
+            source_config='{"ingestion_mode": "upload"}',
+        )
+        dataframe = pd.DataFrame({
+            "month": [
+                "Jan",
+            ],
+            "revenue": [
+                10,
+            ],
+        })
+        branding = {
+            "name": "Northstar Advisory",
+            "logo_url": None,
+            "primary_color": "#123456",
+            "accent_color": "#ABCDEF",
+        }
+
+        with patch(
+            "app.modules.public_dashboard.SessionLocal",
+            return_value=db,
+        ), patch(
+            "app.modules.public_dashboard.load_dataset",
+            return_value=dataset,
+        ), patch(
+            "app.modules.public_dashboard.load_dataframe_from_dataset",
+            return_value=dataframe,
+        ), patch(
+            "app.modules.public_dashboard.get_dashboard_preference",
+            return_value=None,
+        ), patch(
+            "app.modules.public_dashboard.get_public_dashboard_brand",
+            return_value=branding,
+        ):
+            result = asyncio.run(
+                get_public_shared_dashboard(
+                    7,
+                    response,
+                    "token",
+                )
+            )
+
+        self.assertEqual(
+            result["branding"],
+            branding,
+        )
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "no-store",
         )
 
     def test_public_dashboard_hides_loader_http_errors(self):

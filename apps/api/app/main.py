@@ -21,6 +21,10 @@ from app.modules.alerts.router import (
     router as alerts_router,
 )
 
+from app.modules.ai.router import (
+    router as ai_router,
+)
+
 from app.modules.forecasting.router import (
     router as forecasting_router,
 )
@@ -127,7 +131,7 @@ ensure_workspace_column(
 
 
 # =========================
-# Workspace Lookup Indexes For Agency Client Scoped Queries
+# Workspace Lookup Indexes For Shared Workspace Scoped Queries
 # =========================
 
 def ensure_workspace_indexes():
@@ -180,7 +184,7 @@ ensure_workspace_indexes()
 
 
 # =========================
-# Decision Activity Workspace Backfill For Agency Client History
+# Decision Activity Workspace Backfill For Shared Workspace History
 # =========================
 
 def ensure_decision_activity_workspace_column():
@@ -258,6 +262,14 @@ def ensure_decision_optional_columns():
                 text(
                     "ALTER TABLE decisions "
                     "ADD COLUMN confidence_score VARCHAR"
+                )
+            )
+
+        if "metric_column" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE decisions "
+                    "ADD COLUMN metric_column VARCHAR"
                 )
             )
 
@@ -546,6 +558,14 @@ def ensure_user_preference_columns():
                 )
             )
 
+        if "selected_dashboard" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE user_preferences "
+                    "ADD COLUMN selected_dashboard VARCHAR"
+                )
+            )
+
 
 ensure_user_preference_columns()
 
@@ -599,6 +619,7 @@ def ensure_user_preference_workspace_uniqueness():
                         selected_metric VARCHAR,
                         metric_targets TEXT,
                         dashboard_preferences TEXT,
+                        selected_dashboard VARCHAR,
                         created_at DATETIME,
                         PRIMARY KEY (id)
                     )
@@ -616,6 +637,7 @@ def ensure_user_preference_workspace_uniqueness():
                         selected_metric,
                         metric_targets,
                         dashboard_preferences,
+                        selected_dashboard,
                         created_at
                     )
                     SELECT
@@ -626,6 +648,7 @@ def ensure_user_preference_workspace_uniqueness():
                         selected_metric,
                         metric_targets,
                         dashboard_preferences,
+                        selected_dashboard,
                         created_at
                     FROM user_preferences
                     """
@@ -710,6 +733,131 @@ def ensure_dataset_share_token_column():
 ensure_dataset_share_token_column()
 
 
+def ensure_dashboard_shares_table():
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS dashboard_shares (
+                    id INTEGER PRIMARY KEY,
+                    dataset_id INTEGER NOT NULL,
+                    dashboard_key VARCHAR NOT NULL,
+                    share_token VARCHAR NOT NULL,
+                    created_at DATETIME,
+                    CONSTRAINT uq_dashboard_shares_dataset_dashboard
+                    UNIQUE (dataset_id, dashboard_key)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_dashboard_shares_share_token
+                ON dashboard_shares (share_token)
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE INDEX IF NOT EXISTS idx_dashboard_shares_dataset_dashboard
+                ON dashboard_shares (dataset_id, dashboard_key)
+                """
+            )
+        )
+
+
+ensure_dashboard_shares_table()
+
+
+def ensure_weekly_report_delivery_columns():
+    with engine.begin() as connection:
+        columns = connection.execute(
+            text("PRAGMA table_info(weekly_report_preferences)")
+        ).fetchall()
+
+        column_names = {
+            column[1]
+            for column in columns
+        }
+
+        for column_name, column_type in [
+            (
+                "sender_name",
+                "VARCHAR",
+            ),
+            (
+                "sender_email",
+                "VARCHAR",
+            ),
+            (
+                "reply_to_email",
+                "VARCHAR",
+            ),
+            (
+                "subject_prefix",
+                "VARCHAR",
+            ),
+            (
+                "smtp_host",
+                "VARCHAR",
+            ),
+            (
+                "smtp_port",
+                "INTEGER",
+            ),
+            (
+                "smtp_username",
+                "VARCHAR",
+            ),
+            (
+                "smtp_password",
+                "TEXT",
+            ),
+            (
+                "smtp_use_tls",
+                "INTEGER",
+            ),
+            (
+                "smtp_use_ssl",
+                "INTEGER",
+            ),
+            (
+                "last_sent_at",
+                "DATETIME",
+            ),
+            (
+                "last_send_status",
+                "VARCHAR",
+            ),
+            (
+                "last_send_error",
+                "TEXT",
+            ),
+        ]:
+            if column_name not in column_names:
+                connection.execute(
+                    text(
+                        "ALTER TABLE weekly_report_preferences "
+                        f"ADD COLUMN {column_name} {column_type}"
+                    )
+                )
+
+        connection.execute(
+            text(
+                """
+                CREATE INDEX IF NOT EXISTS
+                idx_weekly_report_preferences_enabled_day
+                ON weekly_report_preferences (enabled, delivery_day)
+                """
+            )
+        )
+
+
+ensure_weekly_report_delivery_columns()
+
+
 # =========================
 # Organization Owner Membership Backfill For Workspace Role Readiness
 # =========================
@@ -752,11 +900,20 @@ app = FastAPI(
 def get_allowed_origins():
     configured_origins = os.getenv(
         "CORS_ALLOWED_ORIGINS",
-        "http://localhost:3000",
     )
 
+    if not configured_origins or not configured_origins.strip():
+        configured_origins = ",".join(
+            (
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:3001",
+                "http://127.0.0.1:3001",
+            )
+        )
+
     return [
-        origin.strip()
+        origin.strip().rstrip("/")
         for origin in configured_origins.split(",")
         if origin.strip()
     ]
@@ -826,6 +983,12 @@ app.include_router(
 )
 
 app.include_router(
+    ai_router,
+    prefix="/ai",
+    tags=["ai"],
+)
+
+app.include_router(
     forecasting_router,
     prefix="/forecasting",
     tags=["forecasting"],
@@ -845,4 +1008,12 @@ app.include_router(
 def root():
     return {
         "message": "Decisionate API"
+    }
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "service": "decisionate-api",
     }

@@ -1,25 +1,31 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useUser } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 import {
-  AlertCircle,
   Bell,
-  Database,
-  Target,
+  CalendarDays,
+  Mail,
+  PlusCircle,
+  Save,
+  Send,
 } from "lucide-react"
 
 import {
-  getDataSourceConnections,
   getDatasetDetails,
   getDatasets,
-  getDecisionSummary,
+  createDecision,
+  getWeeklyReportDeliveryConfig,
+  getWeeklyReportDigest,
   getWeeklyReportPreference,
+  sendWeeklyReportTestEmail,
+  sendWeeklyReportNow,
   updateWeeklyReportPreference,
-  type DataSourceConnection,
   type DatasetSummary,
-  type DecisionSummary,
+  type WeeklyReportDeliveryConfig,
+  type WeeklyReportDigest,
   type WeeklyReportPreference,
 } from "@/lib/api"
 import {
@@ -28,6 +34,68 @@ import {
 import {
   useWorkspaceAccess,
 } from "@/lib/use-workspace-access"
+import {
+  WorkspaceAccessNotice,
+} from "@/features/dashboard/components/workspace-access-notice"
+import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import {
+  buildAIRecommendationDecisionPayload,
+} from "@/features/decisions/lib/ai-decision-handoff"
+import {
+  formatMetricLabel,
+} from "@/features/dashboard/components/metric-selector"
+import {
+  AIAnalysisPanel,
+} from "@/features/ai/components/analysis-panel"
+
+const defaultWeeklyReportPreference: WeeklyReportPreference = {
+  enabled: false,
+  cadence: "weekly",
+  delivery_day: "monday",
+  recipient_emails: [],
+  metric_focus: [],
+  include_recommendations: true,
+  sender_name: "",
+  sender_email: "",
+  reply_to_email: "",
+  subject_prefix: "",
+  smtp_host: "",
+  smtp_port: 587,
+  smtp_username: "",
+  smtp_password: "",
+  smtp_clear_password: false,
+  smtp_password_set: false,
+  smtp_use_tls: true,
+  smtp_use_ssl: false,
+  last_sent_at: null,
+  last_send_status: null,
+  last_send_error: null,
+}
+
+const deliveryDays: WeeklyReportPreference["delivery_day"][] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+]
+
+type DatasetMetric = {
+  column: string
+  total?: number
+  average?: number
+}
+
+type DatasetDetails = {
+  file_name?: string
+  metrics?: DatasetMetric[]
+}
+
+type DatasetMetricOption = {
+  value: string
+  label: string
+  datasetNames: string[]
+}
 
 function getErrorMessage(
   error: unknown,
@@ -39,79 +107,22 @@ function getErrorMessage(
     : fallback
 }
 
-type ReportDatasetMetric = {
-  column: string
-  total?: number
-  average?: number
-  min?: number
-  max?: number
-  minimum?: number
-  maximum?: number
-}
-
-type ReportDatasetRow =
-  Record<string, string | number | boolean | null | undefined>
-
-type ReportDatasetDetails = {
-  file_name: string
-  metrics?: ReportDatasetMetric[]
-  preview?: ReportDatasetRow[]
-  chart?: {
-    data?: ReportDatasetRow[]
-    x_key?: string
-    y_key?: string
-  }
-}
-
-const defaultWeeklyReportPreference: WeeklyReportPreference = {
-  enabled: false,
-  cadence: "weekly",
-  delivery_day: "monday",
-  recipient_emails: [],
-  metric_focus: [
-    "revenue",
-    "customers",
-  ],
-  include_recommendations: true,
-}
-
-const reportMetricOptions = [
-  {
-    value: "revenue",
-    label: "Revenue",
-  },
-  {
-    value: "customers",
-    label: "Customer growth / decline",
-  },
-  {
-    value: "profit",
-    label: "Profit",
-  },
-  {
-    value: "expenses",
-    label: "Expenses",
-  },
-]
-
 export default function AlertsPage() {
-  const { user } = useUser()
+  const {
+    user,
+    isLoaded: authLoaded,
+    isSignedIn,
+  } = useUser()
+  const router = useRouter()
   const {
     activeWorkspaceId,
     workspaceVersion,
   } = useActiveWorkspace(user?.id)
   const {
     canManageWorkspaceData,
-    isClientWorkspace,
+    loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
-  const [decisionSummary, setDecisionSummary] =
-    useState<DecisionSummary | null>(null)
-  const [connections, setConnections] =
-    useState<DataSourceConnection[]>([])
-  const [datasets, setDatasets] =
-    useState<DatasetSummary[]>([])
-  const [reportDataset, setReportDataset] =
-    useState<ReportDatasetDetails | null>(null)
+
   const [
     weeklyReportPreference,
     setWeeklyReportPreference,
@@ -122,156 +133,300 @@ export default function AlertsPage() {
     recipientEmailText,
     setRecipientEmailText,
   ] = useState("")
-  const [savingReportSetup, setSavingReportSetup] =
-    useState(false)
-  const [reportSetupStatus, setReportSetupStatus] =
-    useState("")
-  const [alertsError, setAlertsError] =
-    useState("")
+  const [metricOptions, setMetricOptions] =
+    useState<DatasetMetricOption[]>([])
+  const [weeklyReportDigest, setWeeklyReportDigest] =
+    useState<WeeklyReportDigest | null>(null)
+  const [
+    weeklyReportDeliveryConfig,
+    setWeeklyReportDeliveryConfig,
+  ] = useState<WeeklyReportDeliveryConfig | null>(
+    null
+  )
   const [loading, setLoading] =
     useState(true)
+  const [saving, setSaving] =
+    useState(false)
+  const [sending, setSending] =
+    useState(false)
+  const [sendingTestEmail, setSendingTestEmail] =
+    useState(false)
+  const [
+    deliverySettingsDirty,
+    setDeliverySettingsDirty,
+  ] = useState(false)
+  const [statusMessage, setStatusMessage] =
+    useState("")
+  const [errorMessage, setErrorMessage] =
+    useState("")
+  const [loadRetryKey, setLoadRetryKey] =
+    useState(0)
+  const [creatingDecision, setCreatingDecision] =
+    useState(false)
+  const [selectedDecisionMetricKey, setSelectedDecisionMetricKey] =
+    useState("")
+
+  const recipientEmails = useMemo(
+    () => parseRecipientEmailText(recipientEmailText),
+    [recipientEmailText]
+  )
+  const selectedMetricLabels =
+    weeklyReportPreference.metric_focus.map(
+      (metric) =>
+        getMetricOptionLabel(
+          metric,
+          metricOptions
+      )
+    )
+  const effectiveSelectedDecisionMetricKey = useMemo(() => {
+    const metrics = weeklyReportDigest?.metrics ?? []
+    const selectedMetricStillExists = metrics.some(
+      (metric) =>
+        `${metric.dataset_id}:${metric.column}` ===
+        selectedDecisionMetricKey
+    )
+
+    return selectedMetricStillExists
+      ? selectedDecisionMetricKey
+      : metrics[0]
+        ? `${metrics[0].dataset_id}:${metrics[0].column}`
+        : ""
+  }, [
+    selectedDecisionMetricKey,
+    weeklyReportDigest,
+  ])
+  const selectedDecisionMetric = useMemo(() => {
+    const metrics = weeklyReportDigest?.metrics ?? []
+
+    return (
+      metrics.find(
+        (metric) =>
+          `${metric.dataset_id}:${metric.column}` ===
+          effectiveSelectedDecisionMetricKey
+      ) ?? metrics[0]
+    )
+  }, [
+    effectiveSelectedDecisionMetricKey,
+    weeklyReportDigest,
+  ])
+
+  async function handleCreateDigestDecision() {
+    const digest = weeklyReportDigest
+    const metric = selectedDecisionMetric
+    const recommendation =
+      digest?.ai_analysis?.recommendations[0]
+
+    if (
+      !user?.id ||
+      !canManageWorkspaceData ||
+      !metric ||
+      !recommendation ||
+      !digest?.ai_analysis ||
+      creatingDecision
+    ) {
+      return
+    }
+
+    const decisionPayload =
+      buildAIRecommendationDecisionPayload(
+        metric.dataset_id,
+        metric.column,
+        digest.ai_analysis,
+        metric.dataset_name
+      )
+
+    if (!decisionPayload) {
+      return
+    }
+
+    try {
+      setCreatingDecision(true)
+      setErrorMessage("")
+
+      const createdDecision =
+        await createDecision(
+          decisionPayload,
+          user.id,
+          activeWorkspaceId
+        )
+
+      router.push(
+        `/dashboard/decisions/${createdDecision.id}`
+      )
+    } catch (error) {
+      setErrorMessage(
+        getErrorMessage(
+          error,
+          "Unable to create a decision from the alert analysis."
+        )
+      )
+    } finally {
+      setCreatingDecision(false)
+    }
+  }
 
   useEffect(() => {
-    if (!user?.id) return
+    if (!authLoaded) {
+      return
+    }
+
+    if (!isSignedIn || !user?.id) {
+      setLoading(false)
+      setErrorMessage(
+        "Sign in to load notification setup."
+      )
+      return
+    }
 
     let ignoreResult = false
 
-    async function loadAlerts(
+    async function loadPreference(
       userId: string
     ) {
-      setLoading(true)
-
-      const [
-        summaryResult,
-        connectionResult,
-        datasetResult,
-        weeklyReportResult,
-      ] = await Promise.allSettled([
-        getDecisionSummary(
-          userId,
-          activeWorkspaceId
-        ),
-        getDataSourceConnections(
-          userId,
-          activeWorkspaceId
-        ),
-        getDatasets(
-          userId,
-          activeWorkspaceId
-        ),
-        getWeeklyReportPreference(
-          userId,
-          activeWorkspaceId
-        ),
-      ])
-
-      if (ignoreResult) return
-
-      if (summaryResult.status === "fulfilled") {
-        setDecisionSummary(summaryResult.value)
-      }
-
-      if (connectionResult.status === "fulfilled") {
-        setConnections(connectionResult.value)
-      }
-
-      if (datasetResult.status === "fulfilled") {
-        setDatasets(datasetResult.value)
-
-        const previewDataset =
-          datasetResult.value[0]
-
-        if (previewDataset) {
-          try {
-            const detailData =
-              await getDatasetDetails(
-                previewDataset.id,
-                userId,
-                activeWorkspaceId
-              ) as ReportDatasetDetails
-
-            if (!ignoreResult) {
-              setReportDataset(detailData)
-            }
-          } catch (error) {
-            console.error(error)
-
-            if (!ignoreResult) {
-              setReportDataset(null)
-            }
-          }
-        } else {
-          setReportDataset(null)
-        }
-      }
-
-      if (weeklyReportResult.status === "fulfilled") {
+      try {
         setWeeklyReportPreference(
-          weeklyReportResult.value
+          defaultWeeklyReportPreference
+        )
+        setRecipientEmailText("")
+        setMetricOptions([])
+        setWeeklyReportDigest(null)
+        setWeeklyReportDeliveryConfig(null)
+        setStatusMessage("")
+        setLoading(true)
+        setErrorMessage("")
+
+        const [
+          preferenceResult,
+          datasetsResult,
+          digestResult,
+          deliveryConfigResult,
+        ] = await Promise.allSettled([
+          getWeeklyReportPreference(
+            userId,
+            activeWorkspaceId
+          ),
+          getDatasets(
+            userId,
+            activeWorkspaceId
+          ),
+          getWeeklyReportDigest(
+            userId,
+            activeWorkspaceId
+          ),
+          getWeeklyReportDeliveryConfig(
+            userId,
+            activeWorkspaceId
+          ),
+        ])
+
+        if (preferenceResult.status === "rejected") {
+          throw preferenceResult.reason
+        }
+
+        const preference =
+          preferenceResult.value
+        const workspaceDatasets =
+          datasetsResult.status === "fulfilled"
+            ? datasetsResult.value
+            : []
+
+        const nextMetricOptions =
+          await loadDatasetMetricOptions(
+            workspaceDatasets,
+            userId,
+            activeWorkspaceId
+          )
+
+        if (ignoreResult) {
+          return
+        }
+
+        const supportingDataUnavailable =
+          datasetsResult.status === "rejected" ||
+          digestResult.status === "rejected" ||
+          deliveryConfigResult.status ===
+            "rejected"
+
+        setMetricOptions(nextMetricOptions)
+        setWeeklyReportDigest(
+          digestResult.status === "fulfilled"
+            ? digestResult.value
+            : null
+        )
+        setWeeklyReportDeliveryConfig(
+          deliveryConfigResult.status ===
+            "fulfilled"
+            ? deliveryConfigResult.value
+            : null
+        )
+        setWeeklyReportPreference(
+          reconcileMetricFocusWithOptions(
+            normalizeWeeklyReportPreference(
+              preference
+            ),
+            nextMetricOptions
+          )
         )
         setRecipientEmailText(
-          weeklyReportResult.value.recipient_emails.join(
-            "\n"
-          )
+          preference.recipient_emails.join("\n")
         )
-      }
+        setDeliverySettingsDirty(false)
 
-      const failedResult = [
-        summaryResult,
-        connectionResult,
-        datasetResult,
-        weeklyReportResult,
-      ].find(
-        (result) => result.status === "rejected"
-      )
-
-      setAlertsError(
-        failedResult?.status === "rejected"
-          ? getErrorMessage(
-            failedResult.reason,
-            "Could not load alerts."
+        if (supportingDataUnavailable) {
+          setErrorMessage(
+            "Notification setup loaded, but some supporting status data is temporarily unavailable."
           )
-          : ""
-      )
-      setLoading(false)
+        }
+      } catch (error) {
+        if (!ignoreResult) {
+          setErrorMessage(
+            getErrorMessage(
+              error,
+              "Notification setup could not be loaded."
+            )
+          )
+        }
+      } finally {
+        if (!ignoreResult) {
+          setLoading(false)
+        }
+      }
     }
 
-    void loadAlerts(user.id)
+    void loadPreference(user.id)
 
     return () => {
       ignoreResult = true
+      setLoading(false)
     }
   }, [
     activeWorkspaceId,
+    authLoaded,
+    isSignedIn,
+    loadRetryKey,
     user?.id,
     workspaceVersion,
   ])
-
-  const decisionActionCount =
-    getDecisionActionCount(decisionSummary)
-  const connectionIssueCount =
-    connections.filter(
-      needsConnectionAttention
-    ).length
-  const hasDatasets =
-    datasets.length > 0
-  const activeAlertCount =
-    decisionActionCount +
-    connectionIssueCount +
-    (hasDatasets ? 0 : 1)
-  const weeklyReportRecipientCount =
-    weeklyReportPreference.recipient_emails.length
 
   function updateWeeklyReportDraft(
     patch: Partial<WeeklyReportPreference>
   ) {
     setWeeklyReportPreference(
-      (currentPreference) => ({
-        ...currentPreference,
-        ...patch,
-      })
+      (currentPreference) =>
+        normalizeWeeklyReportPreference({
+          ...currentPreference,
+          ...patch,
+        })
     )
-    setReportSetupStatus("")
+    setStatusMessage("")
+    setErrorMessage("")
+  }
+
+  function updateDeliverySettingsDraft(
+    patch: Partial<WeeklyReportPreference>
+  ) {
+    updateWeeklyReportDraft(patch)
+    setDeliverySettingsDirty(true)
   }
 
   function toggleMetricFocus(
@@ -292,966 +447,1626 @@ export default function AlertsPage() {
     updateWeeklyReportDraft({
       metric_focus: nextFocus.length
         ? nextFocus
-        : [
-          "revenue",
-          "customers",
-        ],
+        : defaultWeeklyReportPreference.metric_focus,
     })
   }
 
-  async function handleSaveWeeklyReportSetup() {
+  async function handleSave() {
     if (
       !user?.id ||
       !canManageWorkspaceData ||
-      savingReportSetup
+      saving
     ) {
       return
     }
 
-    setSavingReportSetup(true)
-    setReportSetupStatus("")
+    if (
+      weeklyReportPreference.enabled &&
+      recipientEmails.length === 0
+    ) {
+      setErrorMessage(
+        "Add at least one recipient before enabling KPI email notifications."
+      )
+      return
+    }
+
+    if (
+      weeklyReportPreference.enabled &&
+      weeklyReportPreference.metric_focus.length === 0
+    ) {
+      setErrorMessage(
+        "Select at least one KPI metric from your datasets before enabling notifications."
+      )
+      return
+    }
 
     try {
-      const payload = {
-        ...weeklyReportPreference,
-        recipient_emails:
-          parseRecipientEmailText(
-            recipientEmailText
-          ),
-      }
+      setSaving(true)
+      setErrorMessage("")
+      setStatusMessage("")
+
       const savedPreference =
         await updateWeeklyReportPreference(
-          payload,
+          {
+            ...weeklyReportPreference,
+            cadence: "weekly",
+            recipient_emails: recipientEmails,
+          },
+          user.id,
+          activeWorkspaceId
+        )
+
+      const normalizedPreference =
+        normalizeWeeklyReportPreference(
+          savedPreference
+        )
+
+      setWeeklyReportPreference(
+        normalizedPreference
+      )
+      setRecipientEmailText(
+        normalizedPreference.recipient_emails.join(
+          "\n"
+        )
+      )
+      setDeliverySettingsDirty(false)
+
+      const [
+        digestResult,
+        deliveryConfigResult,
+      ] = await Promise.allSettled([
+        getWeeklyReportDigest(
+          user.id,
+          activeWorkspaceId
+        ),
+        getWeeklyReportDeliveryConfig(
+          user.id,
+          activeWorkspaceId
+        ),
+      ])
+
+      if (digestResult.status === "fulfilled") {
+        setWeeklyReportDigest(digestResult.value)
+      }
+
+      if (
+        deliveryConfigResult.status ===
+        "fulfilled"
+      ) {
+        setWeeklyReportDeliveryConfig(
+          deliveryConfigResult.value
+        )
+      }
+
+      setStatusMessage(
+        digestResult.status === "fulfilled" &&
+          deliveryConfigResult.status ===
+            "fulfilled"
+          ? "Notification setup saved."
+          : "Notification setup saved. Status refresh is temporarily unavailable."
+      )
+    } catch (error) {
+      setErrorMessage(
+        getErrorMessage(
+          error,
+          "Notification setup could not be saved."
+        )
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleSendNow() {
+    if (
+      !user?.id ||
+      !canManageWorkspaceData ||
+      sending ||
+      !weeklyReportPreference.enabled ||
+      deliverySettingsDirty ||
+      weeklyReportPreference.recipient_emails.length === 0 ||
+      weeklyReportPreference.recipient_emails.join("\n") !==
+        recipientEmails.join("\n") ||
+      !weeklyReportDeliveryConfig?.email_delivery_configured
+    ) {
+      return
+    }
+
+    try {
+      setSending(true)
+      setErrorMessage("")
+      setStatusMessage("")
+
+      const deliveryResult =
+        await sendWeeklyReportNow(
           user.id,
           activeWorkspaceId
         )
 
       setWeeklyReportPreference(
-        savedPreference
+        (currentPreference) =>
+          normalizeWeeklyReportPreference({
+            ...currentPreference,
+            last_send_status: "sent",
+            last_send_error: null,
+            last_sent_at: deliveryResult.sent_at,
+          })
       )
-      setRecipientEmailText(
-        savedPreference.recipient_emails.join(
-          "\n"
+
+      try {
+        setWeeklyReportDigest(
+          await getWeeklyReportDigest(
+            user.id,
+            activeWorkspaceId
+          )
         )
-      )
-      setReportSetupStatus(
-        "Weekly report setup saved."
+      } catch {
+        // Delivery already succeeded; keep the local sent status.
+      }
+
+      setStatusMessage(
+        `KPI digest sent to ${deliveryResult.delivered_count} recipient${deliveryResult.delivered_count === 1 ? "" : "s"}.`
       )
     } catch (error) {
-      console.error(error)
-      setReportSetupStatus(
+      setErrorMessage(
         getErrorMessage(
           error,
-          "Could not save weekly report setup."
+          "KPI digest could not be sent. Check email delivery configuration."
         )
       )
+      try {
+        setWeeklyReportPreference(
+          normalizeWeeklyReportPreference(
+            await getWeeklyReportPreference(
+              user.id,
+              activeWorkspaceId
+            )
+          )
+        )
+      } catch {
+        // Keep the draft in place when status refresh fails.
+      }
     } finally {
-      setSavingReportSetup(false)
+      setSending(false)
+    }
+  }
+
+  async function handleSendTestEmail() {
+    if (
+      !user?.id ||
+      !canManageWorkspaceData ||
+      sendingTestEmail ||
+      saving ||
+      !weeklyReportDeliveryConfig?.email_delivery_configured ||
+      deliverySettingsDirty ||
+      weeklyReportPreference.recipient_emails.length === 0 ||
+      weeklyReportPreference.recipient_emails.join("\n") !==
+        recipientEmails.join("\n")
+    ) {
+      return
+    }
+
+    try {
+      setSendingTestEmail(true)
+      setErrorMessage("")
+      setStatusMessage("")
+
+      const deliveryResult =
+        await sendWeeklyReportTestEmail(
+          user.id,
+          activeWorkspaceId
+        )
+
+      setWeeklyReportPreference(
+        (currentPreference) =>
+          normalizeWeeklyReportPreference({
+            ...currentPreference,
+            last_send_status: "test_sent",
+            last_send_error: null,
+          })
+      )
+      setStatusMessage(
+        `Test KPI email sent to ${deliveryResult.delivered_count} recipient${deliveryResult.delivered_count === 1 ? "" : "s"} at ${formatDateTime(deliveryResult.sent_at)}.`
+      )
+    } catch (error) {
+      setErrorMessage(
+        getErrorMessage(
+          error,
+          "Test KPI email could not be sent. Check delivery configuration and saved recipients."
+        )
+      )
+      try {
+        setWeeklyReportPreference(
+          normalizeWeeklyReportPreference(
+            await getWeeklyReportPreference(
+              user.id,
+              activeWorkspaceId
+            )
+          )
+        )
+      } catch {
+        // Keep the draft in place when status refresh fails.
+      }
+    } finally {
+      setSendingTestEmail(false)
     }
   }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border bg-white p-8 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-blue-600">
-              Monitoring
-            </p>
-
-            <h1 className="mt-2 text-3xl font-bold tracking-tight">
-              Alerts
-            </h1>
-
-            <p className="mt-3 max-w-3xl text-gray-600">
-              Monitor decision follow-up, data-source readiness, and workspace data availability from one place.
-            </p>
-
-            {isClientWorkspace && (
-              <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-                Client portal view: your agency manages data setup and connection fixes for this workspace.
-              </p>
-            )}
+      <DashboardPageHeader
+        eyebrow="Decision intelligence"
+        title="Alerts & Notifications"
+        description="Configure periodic KPI email messages and AI-assisted recommendations for workspace owners, teammates, or client recipients."
+        actions={
+          <div className="rounded-xl bg-[var(--decisionate-brand-primary-soft)] p-2.5 text-[var(--decisionate-brand-primary-text)]">
+            <Bell size={22} />
           </div>
+        }
+      />
 
-          <div className="rounded-2xl bg-blue-50 p-3 text-blue-600">
-            <Bell size={28} />
-          </div>
-        </div>
-      </div>
+      {errorMessage && (
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>{errorMessage}</span>
 
-      {alertsError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {alertsError}
+          {!loading && (
+            <button
+              type="button"
+              onClick={() =>
+                setLoadRetryKey(
+                  currentKey => currentKey + 1
+                )
+              }
+              className="w-fit rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
+            >
+              Retry notification setup
+            </button>
+          )}
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <AlertMetric
-          label="Active Alerts"
-          value={loading ? "…" : activeAlertCount.toLocaleString()}
-          tone={activeAlertCount > 0 ? "amber" : "green"}
-        />
-        <AlertMetric
-          label="Decision Follow-ups"
-          value={loading ? "…" : decisionActionCount.toLocaleString()}
-          tone={decisionActionCount > 0 ? "amber" : "green"}
-        />
-        <AlertMetric
-          label="Connection Issues"
-          value={loading ? "…" : connectionIssueCount.toLocaleString()}
-          tone={connectionIssueCount > 0 ? "amber" : "green"}
-        />
-      </div>
-
-      <div className="rounded-2xl border bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-blue-600">
-              Weekly Email Report
-            </p>
-
-            <h2 className="mt-2 text-2xl font-semibold">
-              Revenue, customer movement, and recommended actions
-            </h2>
-
-            <p className="mt-2 max-w-3xl text-sm text-gray-500">
-              Set up the weekly agency-branded report that should eventually be sent by email. This stores the schedule and recipients now; delivery automation comes next.
-            </p>
-          </div>
-
-          <span
-            className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${
-              weeklyReportPreference.enabled
-                ? "border-green-200 bg-green-50 text-green-700"
-                : "border-gray-200 bg-gray-50 text-gray-600"
-            }`}
-          >
-            {weeklyReportPreference.enabled
-              ? "Enabled"
-              : "Disabled"}
-          </span>
+      {statusMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+        >
+          {statusMessage}
         </div>
+      )}
 
-        {!canManageWorkspaceData ? (
-          <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
-            Your agency manages this weekly email report setup. Current setup:{" "}
-            {weeklyReportPreference.enabled
-              ? `${weeklyReportRecipientCount} recipient${weeklyReportRecipientCount === 1 ? "" : "s"} every ${formatDeliveryDay(weeklyReportPreference.delivery_day)}`
-              : "not enabled yet"}
-            .
+      <WorkspaceAccessNotice
+        loading={loadingWorkspaceAccess}
+        canManageWorkspaceData={canManageWorkspaceData}
+        message="Notification setup is managed by workspace managers. Shared workspace users can review the current digest status."
+        className="print:hidden"
+      />
+
+      <div className="space-y-5">
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
+                Email digest
+              </p>
+
+              <h2 className="mt-1.5 text-xl font-semibold">
+                Periodic KPI notification
+              </h2>
+
+              <p className="mt-1.5 max-w-3xl text-sm text-gray-500">
+                Choose which dataset metrics and recommendations should shape the email digest.
+              </p>
+            </div>
+
+            <span
+              className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${
+                weeklyReportPreference.enabled
+                  ? "border-green-200 bg-green-50 text-green-700"
+                  : "border-gray-200 bg-gray-50 text-gray-600"
+              }`}
+            >
+              {weeklyReportPreference.enabled
+                ? "Enabled"
+                : "Disabled"}
+            </span>
           </div>
-        ) : (
-          <div className="mt-6 space-y-5">
-            <label className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
-              <input
-                type="checkbox"
-                checked={weeklyReportPreference.enabled}
-                onChange={(event) =>
-                  updateWeeklyReportDraft({
-                    enabled: event.target.checked,
-                  })
-                }
-                className="h-4 w-4"
-              />
 
-              <span>
-                <span className="block text-sm font-medium text-gray-900">
-                  Send weekly email report
-                </span>
-                <span className="block text-sm text-gray-500">
-                  Weekly only for the MVP. Email delivery will use this saved setup once delivery is connected.
-                </span>
-              </span>
-            </label>
-
-            <div className="grid gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
+          {loading ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mt-6 rounded-xl border bg-gray-50 p-4 text-sm text-gray-500"
+            >
+              Loading notification setup...
+            </div>
+          ) : !canManageWorkspaceData ? (
+            <ReadOnlyNotificationSummary
+              preference={weeklyReportPreference}
+              selectedMetricLabels={selectedMetricLabels}
+            />
+          ) : (
+            <div className="mt-5 space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Delivery day
-                </label>
-
-                <select
-                  value={weeklyReportPreference.delivery_day}
-                  onChange={(event) =>
-                    updateWeeklyReportDraft({
-                      delivery_day:
-                        event.target.value as WeeklyReportPreference["delivery_day"],
-                    })
-                  }
-                  className="h-11 w-full rounded-xl border px-3 text-sm"
-                >
-                  {[
-                    "monday",
-                    "tuesday",
-                    "wednesday",
-                    "thursday",
-                    "friday",
-                  ].map((day) => (
-                    <option
-                      key={day}
-                      value={day}
-                    >
-                      {formatDeliveryDay(day)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Recipients
-                </label>
-
-                <textarea
-                  value={recipientEmailText}
-                  onChange={(event) => {
-                    setRecipientEmailText(
-                      event.target.value
-                    )
-                    setReportSetupStatus("")
-                  }}
-                  rows={4}
-                  placeholder="owner@agency.com&#10;client@example.com"
-                  className="w-full rounded-xl border px-3 py-2 text-sm"
-                />
+                <p className="text-sm font-medium text-gray-700">
+                  KPI focus
+                </p>
 
                 <p className="mt-1 text-xs text-gray-500">
-                  Add one recipient per line or separate them with commas.
+                  Metrics are pulled from the datasets in this workspace.
+                </p>
+
+                {metricOptions.length > 0 ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {metricOptions.map((option) => (
+                      <label
+                        key={option.value}
+                        className="flex min-w-0 items-start gap-2.5 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={weeklyReportPreference.metric_focus.includes(
+                            option.value
+                          )}
+                          onChange={() =>
+                            toggleMetricFocus(
+                              option.value
+                            )
+                          }
+                          className="mt-0.5 h-4 w-4 accent-[var(--decisionate-brand-primary)]"
+                        />
+
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium text-gray-900">
+                            {option.label}
+                          </span>
+                          <span className="mt-1 block truncate text-xs text-gray-500">
+                            Source:{" "}
+                            {formatMetricDatasetNames(
+                              option.datasetNames
+                            )}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-800">
+                    <p className="font-medium">
+                      No dataset metrics available yet.
+                    </p>
+
+                    <p className="mt-1">
+                      Upload or pull a dataset so notifications can use real KPIs from your data.
+                    </p>
+
+                    <Link
+                      href="/dashboard/datasets"
+                      className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-medium text-amber-800 transition hover:bg-amber-50 sm:w-auto"
+                    >
+                      Add dataset
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              <label className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={
+                    weeklyReportPreference.include_recommendations
+                  }
+                  onChange={(event) =>
+                    updateWeeklyReportDraft({
+                      include_recommendations:
+                        event.target.checked,
+                    })
+                  }
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
+                />
+
+                <span className="text-sm text-gray-700">
+                  Include recommendations and decision follow-ups
+                </span>
+              </label>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--decisionate-brand-primary)] px-5 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 sm:w-auto"
+                >
+                  <Save
+                    size={16}
+                    className="shrink-0"
+                  />
+                  {saving
+                    ? "Saving..."
+                    : "Save KPI Setup"}
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-500">
+                Delivery settings, recipients, and manual sending are managed in the Delivery configuration card.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+          <WeeklyReportDigestPreview
+            digest={weeklyReportDigest}
+            loading={loading}
+            selectedMetricLabels={selectedMetricLabels}
+            onCreateDecision={
+              canManageWorkspaceData &&
+              Boolean(
+                selectedDecisionMetric &&
+                weeklyReportDigest?.ai_analysis?.recommendations.length
+              )
+                ? () => {
+                  void handleCreateDigestDecision()
+                }
+                : undefined
+            }
+            selectedMetricKey={
+              effectiveSelectedDecisionMetricKey
+            }
+            selectedDecisionMetricLabel={
+              selectedDecisionMetric
+                ? `${formatMetricName(selectedDecisionMetric.column)} · ${selectedDecisionMetric.dataset_name}`
+                : undefined
+            }
+            onSelectMetric={setSelectedDecisionMetricKey}
+            creatingDecision={creatingDecision}
+          />
+
+          {canManageWorkspaceData && (
+            <DeliveryConfigurationStatus
+              config={weeklyReportDeliveryConfig}
+              loading={loading}
+              preference={weeklyReportPreference}
+              recipientEmailText={recipientEmailText}
+              saving={saving}
+              sending={sending}
+              sendingTestEmail={sendingTestEmail}
+              deliverySettingsDirty={deliverySettingsDirty}
+              onPreferenceChange={updateDeliverySettingsDraft}
+              onRecipientEmailTextChange={(value) => {
+                setRecipientEmailText(value)
+                setStatusMessage("")
+                setErrorMessage("")
+              }}
+              onSave={handleSave}
+              onSendTestEmail={handleSendTestEmail}
+              onSendNow={handleSendNow}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function WeeklyReportDigestPreview({
+  digest,
+  loading,
+  selectedMetricLabels,
+  onCreateDecision,
+  selectedMetricKey,
+  selectedDecisionMetricLabel,
+  onSelectMetric,
+  creatingDecision,
+}: {
+  digest: WeeklyReportDigest | null
+  loading: boolean
+  selectedMetricLabels: string[]
+  onCreateDecision?: () => void
+  selectedMetricKey: string
+  selectedDecisionMetricLabel?: string
+  onSelectMetric: (value: string) => void
+  creatingDecision: boolean
+}) {
+  if (loading) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="h-full rounded-2xl border bg-white p-5 text-sm text-gray-500 shadow-sm"
+      >
+        Loading digest preview...
+      </div>
+    )
+  }
+
+  if (!digest) {
+    return (
+      <div className="h-full rounded-2xl border bg-white p-5 text-sm text-gray-500 shadow-sm">
+        Save notification setup to preview the KPI digest.
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full rounded-2xl border bg-white p-5 shadow-sm">
+      <p className="text-sm font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
+        Saved digest preview
+      </p>
+
+      <h2 className="mt-2 text-lg font-semibold">
+        {digest.subject}
+      </h2>
+
+      <p className="mt-2 text-sm text-gray-500">
+        {digest.preview_text}
+      </p>
+
+      {digest.ai_analysis && (
+        <AIAnalysisPanel
+          analysis={digest.ai_analysis}
+          title="Alert analysis"
+          metricContext={selectedDecisionMetricLabel}
+          metrics={selectedMetricLabels}
+          className="mt-4"
+        />
+      )}
+
+      <div className="mt-3 space-y-2.5">
+        {digest.metrics.slice(0, 5).map((metric) => (
+          <div
+            key={`${metric.dataset_id}-${metric.column}`}
+            className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  {formatMetricName(metric.column)}
+                </p>
+
+                <p className="mt-1 text-xs text-gray-500">
+                  {metric.dataset_name}
                 </p>
               </div>
+
+              <p className="text-sm font-semibold text-gray-900 sm:text-right">
+                {formatMetricValue(metric.total)}
+              </p>
+            </div>
+
+            <p className="mt-2 text-xs text-gray-500">
+              Avg {formatMetricValue(metric.average)} · Min{" "}
+              {formatMetricValue(metric.minimum)} · Max{" "}
+              {formatMetricValue(metric.maximum)}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {digest.metrics.length === 0 && (
+        <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">
+          No saved KPI metrics match the current datasets yet.
+        </div>
+      )}
+
+      {onCreateDecision && digest.metrics.length > 0 && (
+        <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
+          <label
+            htmlFor="alert-decision-metric"
+            className="text-xs font-semibold uppercase tracking-wide text-gray-600"
+          >
+            Decision metric
+          </label>
+          <select
+            id="alert-decision-metric"
+            value={selectedMetricKey}
+            onChange={(event) => onSelectMetric(event.target.value)}
+            className="mt-2 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+          >
+            {digest.metrics.map((metric) => {
+              const metricKey = `${metric.dataset_id}:${metric.column}`
+
+              return (
+                <option
+                  key={metricKey}
+                  value={metricKey}
+                >
+                  {formatMetricName(metric.column)} · {metric.dataset_name}
+                </option>
+              )
+            })}
+          </select>
+          <p className="mt-1.5 text-xs text-gray-500">
+            Choose the KPI that will receive this analysis as a decision.
+          </p>
+        </div>
+      )}
+
+      {onCreateDecision && (
+        <button
+          type="button"
+          onClick={onCreateDecision}
+          disabled={creatingDecision}
+          className="mt-4 inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--decisionate-brand-primary)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <PlusCircle size={16} />
+          {creatingDecision
+            ? "Creating decision..."
+            : "Create decision from analysis"}
+        </button>
+      )}
+
+      {digest.unavailable_datasets.length > 0 && (
+        <p className="mt-4 break-words text-xs text-amber-700">
+          Could not read:{" "}
+          {digest.unavailable_datasets.join(", ")}
+        </p>
+      )}
+
+      <p className="mt-4 text-xs text-gray-400">
+        Preview updates after saving setup changes.
+      </p>
+    </div>
+  )
+}
+
+function DeliveryConfigurationStatus({
+  config,
+  loading,
+  preference,
+  recipientEmailText,
+  saving,
+  sending,
+  sendingTestEmail,
+  deliverySettingsDirty,
+  onPreferenceChange,
+  onRecipientEmailTextChange,
+  onSave,
+  onSendTestEmail,
+  onSendNow,
+}: {
+  config: WeeklyReportDeliveryConfig | null
+  loading: boolean
+  preference: WeeklyReportPreference
+  recipientEmailText: string
+  saving: boolean
+  sending: boolean
+  sendingTestEmail: boolean
+  deliverySettingsDirty: boolean
+  onPreferenceChange: (
+    patch: Partial<WeeklyReportPreference>
+  ) => void
+  onRecipientEmailTextChange: (
+    value: string
+  ) => void
+  onSave: () => void
+  onSendTestEmail: () => void
+  onSendNow: () => void
+}) {
+  if (loading) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="h-full rounded-2xl border bg-white p-5 text-sm text-gray-500 shadow-sm"
+      >
+        Loading delivery configuration...
+      </div>
+    )
+  }
+
+  const emailDeliveryConfigured =
+    Boolean(config?.email_delivery_configured)
+  const schedulerConfigured =
+    Boolean(config?.scheduler_configured)
+  const draftWorkspaceEmailConfigured =
+    Boolean(preference.sender_email.trim()) &&
+    Boolean(preference.smtp_host.trim())
+  const draftEmailDeliveryConfigured =
+    emailDeliveryConfigured ||
+    draftWorkspaceEmailConfigured
+  const draftEmailDeliveryPendingSave =
+    draftWorkspaceEmailConfigured &&
+    !emailDeliveryConfigured
+  const emailSenderReadyText =
+    draftEmailDeliveryPendingSave
+      ? "Ready after save"
+      : deliverySettingsDirty && emailDeliveryConfigured
+        ? "Saved settings ready"
+        : "Ready"
+  const draftRecipientEmails =
+    parseRecipientEmailText(
+      recipientEmailText
+    )
+  const recipientChangesPendingSave =
+    preference.recipient_emails.join("\n") !==
+    draftRecipientEmails.join("\n")
+  const hasSavedRecipients =
+    preference.recipient_emails.length > 0
+
+  return (
+    <div className="h-full rounded-2xl border bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">
+            Delivery configuration
+          </h2>
+
+          <p className="mt-1 text-sm text-gray-500">
+            Manage email delivery, schedule, and recipients.
+          </p>
+        </div>
+
+        <span
+          className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${
+            preference.enabled
+              ? "border-green-200 bg-green-50 text-green-700"
+              : "border-gray-200 bg-gray-50 text-gray-600"
+          }`}
+        >
+          {preference.enabled
+            ? "Enabled"
+            : "Disabled"}
+        </span>
+      </div>
+
+      <div className="mt-4 space-y-4">
+        <label className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+          <input
+            type="checkbox"
+            checked={preference.enabled}
+            onChange={(event) =>
+              onPreferenceChange({
+                enabled: event.target.checked,
+              })
+            }
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
+          />
+
+          <span>
+            <span className="block text-sm font-medium text-gray-900">
+              Email delivery
+            </span>
+            <span className="mt-1 block text-sm text-gray-500">
+              Send the saved KPI digest to the recipients below.
+            </span>
+          </span>
+        </label>
+
+        <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+          <p className="text-sm font-medium text-gray-800">
+            Email send details
+          </p>
+
+          <p className="mt-1 text-xs text-gray-500">
+            These fields control the sender identity and subject line used for outgoing KPI emails.
+          </p>
+
+          <div className="mt-3 grid gap-3">
+            <div>
+              <label
+                htmlFor="weekly-report-sender-name"
+                className="mb-1.5 block text-xs font-medium text-gray-600"
+              >
+                Sender name
+              </label>
+
+              <input
+                id="weekly-report-sender-name"
+                value={preference.sender_name}
+                onChange={(event) =>
+                  onPreferenceChange({
+                    sender_name: event.target.value,
+                  })
+                }
+                placeholder="Your workspace"
+                className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
             </div>
 
             <div>
-              <p className="mb-2 text-sm font-medium text-gray-700">
-                Report focus
-              </p>
+              <label
+                htmlFor="weekly-report-sender-email"
+                className="mb-1.5 block text-xs font-medium text-gray-600"
+              >
+                Sender email
+              </label>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                {reportMetricOptions.map((option) => (
-                  <label
-                    key={option.value}
-                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={weeklyReportPreference.metric_focus.includes(
-                        option.value
-                      )}
-                      onChange={() =>
-                        toggleMetricFocus(
-                          option.value
-                        )
-                      }
-                      className="h-4 w-4"
-                    />
-                    {option.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <label className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
               <input
-                type="checkbox"
-                checked={
-                  weeklyReportPreference.include_recommendations
-                }
+                id="weekly-report-sender-email"
+                type="email"
+                value={preference.sender_email}
                 onChange={(event) =>
-                  updateWeeklyReportDraft({
-                    include_recommendations:
-                      event.target.checked,
+                  onPreferenceChange({
+                    sender_email: event.target.value,
                   })
                 }
-                className="h-4 w-4"
+                placeholder="reports@example.com"
+                className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
               />
 
-              <span className="text-sm text-gray-700">
-                Include recommended actions in the weekly report
-              </span>
-            </label>
-
-            {reportSetupStatus && (
-              <p className="text-sm font-medium text-gray-700">
-                {reportSetupStatus}
+              <p className="mt-1 text-xs text-gray-500">
+                Used as the From address. If left blank, the server SMTP sender is used.
               </p>
-            )}
+            </div>
 
-            <button
-              type="button"
-              onClick={handleSaveWeeklyReportSetup}
-              disabled={savingReportSetup}
-              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-200"
-            >
-              {savingReportSetup
-                ? "Saving..."
-                : "Save Weekly Report Setup"}
-            </button>
-          </div>
-        )}
-      </div>
-
-      <WeeklyReportPreview
-        preference={weeklyReportPreference}
-        dataset={reportDataset}
-        datasetCount={datasets.length}
-        decisionActionCount={decisionActionCount}
-        connectionIssueCount={connectionIssueCount}
-        loading={loading}
-      />
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <AlertWorkflowCard
-          title="Decision action needed"
-          description="Review pending outcomes, pending learning, and overdue reviews."
-          href="/dashboard/action-needed"
-          action="Open action queue"
-          icon={<Target size={20} />}
-          status={
-            decisionActionCount > 0
-              ? `${decisionActionCount} item${decisionActionCount === 1 ? "" : "s"} need attention`
-              : "No decision follow-up alerts"
-          }
-          tone={decisionActionCount > 0 ? "amber" : "green"}
-        />
-
-        <AlertWorkflowCard
-          title="Connection setup"
-          description={
-            canManageWorkspaceData
-              ? "Configure saved data-source connections that still need setup details or credentials."
-              : "Connection setup is managed by your agency for this workspace."
-          }
-          href="/dashboard/connections"
-          action={
-            canManageWorkspaceData
-              ? "Manage connections"
-              : "View connections"
-          }
-          icon={<Database size={20} />}
-          status={
-            connectionIssueCount > 0
-              ? `${connectionIssueCount} connection${connectionIssueCount === 1 ? "" : "s"} need setup`
-              : "Connections ready"
-          }
-          tone={connectionIssueCount > 0 ? "amber" : "green"}
-        />
-
-        <AlertWorkflowCard
-          title="Workspace data"
-          description={
-            hasDatasets
-              ? "Datasets are available for dashboards, forecasts, reports, and decisions."
-              : canManageWorkspaceData
-                ? "Upload or pull a dataset before analytics workflows can produce useful output."
-                : "Your agency has not added datasets to this workspace yet."
-          }
-          href="/dashboard/datasets"
-          action={
-            hasDatasets
-              ? "Review datasets"
-              : canManageWorkspaceData
-                ? "Add dataset"
-                : "View datasets"
-          }
-          icon={<AlertCircle size={20} />}
-          status={
-            hasDatasets
-              ? `${datasets.length} dataset${datasets.length === 1 ? "" : "s"} available`
-              : "No datasets yet"
-          }
-          tone={hasDatasets ? "green" : "amber"}
-        />
-      </div>
-    </div>
-  )
-}
-
-function AlertMetric({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: string
-  tone: "green" | "amber"
-}) {
-  return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm">
-      <p className="text-sm text-gray-500">
-        {label}
-      </p>
-
-      <p
-        className={`mt-2 text-3xl font-semibold ${
-          tone === "green"
-            ? "text-green-700"
-            : "text-amber-700"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
-  )
-}
-
-function AlertWorkflowCard({
-  title,
-  description,
-  href,
-  action,
-  icon,
-  status,
-  tone,
-}: {
-  title: string
-  description: string
-  href: string
-  action: string
-  icon: React.ReactNode
-  status: string
-  tone: "green" | "amber"
-}) {
-  return (
-    <Link
-      href={href}
-      className="rounded-2xl border bg-white p-6 shadow-sm transition hover:border-blue-200 hover:shadow-md"
-    >
-      <div className="flex h-full flex-col">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-blue-50 p-2 text-blue-600">
-            {icon}
-          </div>
-
-          <h2 className="text-lg font-semibold">
-            {title}
-          </h2>
-        </div>
-
-        <p className="mt-4 flex-1 text-sm text-gray-500">
-          {description}
-        </p>
-
-        <span
-          className={`mt-4 w-fit rounded-full border px-3 py-1 text-xs font-medium ${
-            tone === "green"
-              ? "border-green-200 bg-green-50 text-green-700"
-              : "border-amber-200 bg-amber-50 text-amber-700"
-          }`}
-        >
-          {status}
-        </span>
-
-        <span className="mt-5 text-sm font-medium text-blue-600">
-          {action} →
-        </span>
-      </div>
-    </Link>
-  )
-}
-
-function WeeklyReportPreview({
-  preference,
-  dataset,
-  datasetCount,
-  decisionActionCount,
-  connectionIssueCount,
-  loading,
-}: {
-  preference: WeeklyReportPreference
-  dataset: ReportDatasetDetails | null
-  datasetCount: number
-  decisionActionCount: number
-  connectionIssueCount: number
-  loading: boolean
-}) {
-  const focusItems =
-    buildWeeklyReportFocusItems(
-      preference,
-      dataset
-    )
-  const recommendedActions =
-    buildRecommendedActions({
-      dataset,
-      datasetCount,
-      decisionActionCount,
-      connectionIssueCount,
-      preference,
-    })
-
-  return (
-    <div className="rounded-2xl border bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-blue-600">
-            Report Preview
-          </p>
-
-          <h2 className="mt-2 text-2xl font-semibold">
-            What the weekly email will summarize
-          </h2>
-
-          <p className="mt-2 max-w-3xl text-sm text-gray-500">
-            Preview generated from the first available dataset in this workspace. Delivery automation will send this kind of summary once email is connected.
-          </p>
-        </div>
-
-        <span className="w-fit rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600">
-          {dataset?.file_name ||
-            (loading
-              ? "Loading dataset"
-              : "No dataset selected")}
-        </span>
-      </div>
-
-      {!dataset && !loading ? (
-        <div className="mt-5 rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-800">
-          Add a dataset before Decisionate can produce revenue, customer movement, and recommended-action report content.
-        </div>
-      ) : (
-        <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900">
-              Metric Highlights
-            </h3>
-
-            {focusItems.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-xl border border-gray-100 bg-gray-50 p-4"
+            <div>
+              <label
+                htmlFor="weekly-report-reply-to-email"
+                className="mb-1.5 block text-xs font-medium text-gray-600"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-medium text-gray-900">
-                    {item.label}
-                  </p>
+                Reply-to email
+              </label>
 
-                  <span
-                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                      item.detected
-                        ? "border-green-200 bg-green-50 text-green-700"
-                        : "border-amber-200 bg-amber-50 text-amber-700"
-                    }`}
-                  >
-                    {item.detected
-                      ? "Detected"
-                      : "Not found"}
-                  </span>
+              <input
+                id="weekly-report-reply-to-email"
+                type="email"
+                value={preference.reply_to_email}
+                onChange={(event) =>
+                  onPreferenceChange({
+                    reply_to_email: event.target.value,
+                  })
+                }
+                placeholder="support@example.com"
+                className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="weekly-report-subject-prefix"
+                className="mb-1.5 block text-xs font-medium text-gray-600"
+              >
+                Subject prefix
+              </label>
+
+              <input
+                id="weekly-report-subject-prefix"
+                value={preference.subject_prefix}
+                onChange={(event) =>
+                  onPreferenceChange({
+                    subject_prefix: event.target.value,
+                  })
+                }
+                placeholder="[Weekly KPI]"
+                className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+            </div>
+
+            <div className="rounded-lg border border-gray-100 bg-white p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                SMTP setup
+              </p>
+
+              <div className="mt-3 grid gap-3">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_6rem]">
+                  <div>
+                    <label
+                      htmlFor="weekly-report-smtp-host"
+                      className="mb-1.5 block text-xs font-medium text-gray-600"
+                    >
+                      SMTP host
+                    </label>
+
+                    <input
+                      id="weekly-report-smtp-host"
+                      value={preference.smtp_host}
+                      onChange={(event) =>
+                        onPreferenceChange({
+                          smtp_host: event.target.value,
+                        })
+                      }
+                      placeholder="smtp.example.com"
+                      className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="weekly-report-smtp-port"
+                      className="mb-1.5 block text-xs font-medium text-gray-600"
+                    >
+                      Port
+                    </label>
+
+                    <input
+                      id="weekly-report-smtp-port"
+                      type="number"
+                      min={1}
+                      max={65535}
+                      value={preference.smtp_port ?? ""}
+                      onChange={(event) =>
+                        onPreferenceChange({
+                          smtp_port: event.target.value
+                            ? Number(event.target.value)
+                            : null,
+                        })
+                      }
+                      placeholder="587"
+                      className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                    />
+                  </div>
                 </div>
 
-                <p className="mt-2 text-sm text-gray-600">
-                  {item.summary}
-                </p>
-              </div>
-            ))}
-          </div>
+                <div>
+                  <label
+                    htmlFor="weekly-report-smtp-username"
+                    className="mb-1.5 block text-xs font-medium text-gray-600"
+                  >
+                    SMTP username
+                  </label>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900">
-              Recommended Actions
-            </h3>
+                  <input
+                    id="weekly-report-smtp-username"
+                    value={preference.smtp_username}
+                    onChange={(event) =>
+                      onPreferenceChange({
+                        smtp_username: event.target.value,
+                      })
+                    }
+                    placeholder="apikey or user@example.com"
+                    className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                  />
+                </div>
 
-            {recommendedActions.map((action) => (
-              <div
-                key={action}
-                className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800"
-              >
-                {action}
+                <div>
+                  <label
+                    htmlFor="weekly-report-smtp-password"
+                    className="mb-1.5 block text-xs font-medium text-gray-600"
+                  >
+                    SMTP password
+                  </label>
+
+                  <input
+                    id="weekly-report-smtp-password"
+                    type="password"
+                    value={preference.smtp_password ?? ""}
+                    onChange={(event) =>
+                      onPreferenceChange({
+                        smtp_password: event.target.value,
+                      })
+                    }
+                    placeholder={
+                      preference.smtp_password_set
+                        ? "Password saved — enter a new one to replace it"
+                        : "SMTP password or API key"
+                    }
+                    className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                  />
+
+                  <p className="mt-1 text-xs text-gray-500">
+                    {preference.smtp_password_set
+                      ? "A password is saved. Leave this blank to keep it."
+                      : "Needed only when your SMTP provider requires authentication."}
+                  </p>
+
+                  {preference.smtp_password_set && (
+                    <label className="mt-2 flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(
+                          preference.smtp_clear_password
+                        )}
+                        onChange={(event) =>
+                          onPreferenceChange({
+                            smtp_clear_password: event.target.checked,
+                            smtp_password: event.target.checked
+                              ? ""
+                              : preference.smtp_password,
+                          })
+                        }
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
+                      />
+                      Clear saved SMTP password on next save
+                    </label>
+                  )}
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={preference.smtp_use_tls}
+                      onChange={(event) =>
+                        onPreferenceChange({
+                          smtp_use_tls: event.target.checked,
+                          smtp_use_ssl: event.target.checked
+                            ? false
+                            : preference.smtp_use_ssl,
+                        })
+                      }
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
+                    />
+                    Use TLS / STARTTLS
+                  </label>
+
+                  <label className="flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={preference.smtp_use_ssl}
+                      onChange={(event) =>
+                        onPreferenceChange({
+                          smtp_use_ssl: event.target.checked,
+                          smtp_use_tls: event.target.checked
+                            ? false
+                            : preference.smtp_use_tls,
+                        })
+                      }
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
+                    />
+                    Use SSL
+                  </label>
+                </div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
+
+        <div>
+          <label
+            htmlFor="weekly-report-delivery-day"
+            className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700"
+          >
+            <CalendarDays
+              size={16}
+              className="shrink-0"
+            />
+            Scheduled sending
+          </label>
+
+          <select
+            id="weekly-report-delivery-day"
+            value={preference.delivery_day}
+            onChange={(event) =>
+              onPreferenceChange({
+                delivery_day:
+                  event.target.value as WeeklyReportPreference["delivery_day"],
+              })
+            }
+            className="h-11 w-full rounded-xl border px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+          >
+            {deliveryDays.map((day) => (
+              <option
+                key={day}
+                value={day}
+              >
+                {formatDeliveryDay(day)}
+              </option>
+            ))}
+          </select>
+
+          <p className="mt-1 text-xs text-gray-500">
+            Runs weekly on the selected day when email delivery is enabled.
+          </p>
+        </div>
+
+        <div>
+          <label
+            htmlFor="weekly-report-recipients"
+            className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700"
+          >
+            <Mail
+              size={16}
+              className="shrink-0"
+            />
+            Recipient emails
+          </label>
+
+          <textarea
+            id="weekly-report-recipients"
+            value={recipientEmailText}
+            onChange={(event) =>
+              onRecipientEmailTextChange(
+                event.target.value
+              )
+            }
+            rows={4}
+            placeholder="owner@example.com&#10;client@example.com"
+            className="w-full rounded-xl border px-3 py-2 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+          />
+
+          <p className="mt-1 text-xs text-gray-500">
+            Add one email per line or separate addresses with commas.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--decisionate-brand-primary)] px-5 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+          >
+            <Save
+              size={16}
+              className="shrink-0"
+            />
+            {saving
+              ? "Saving..."
+              : "Save Delivery Settings"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onSendNow}
+            disabled={
+              sending ||
+              sendingTestEmail ||
+              saving ||
+              deliverySettingsDirty ||
+              recipientChangesPendingSave ||
+              !hasSavedRecipients ||
+              !preference.enabled ||
+              !emailDeliveryConfigured
+            }
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
+          >
+            <Send
+              size={16}
+              className="shrink-0"
+            />
+            {sending
+              ? "Sending..."
+              : "Send Digest Now"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onSendTestEmail}
+            disabled={
+              sendingTestEmail ||
+              sending ||
+              saving ||
+              deliverySettingsDirty ||
+              !emailDeliveryConfigured ||
+              !hasSavedRecipients ||
+              recipientChangesPendingSave
+            }
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-white px-5 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-text)] shadow-sm transition hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
+          >
+            <Send
+              size={16}
+              className="shrink-0"
+            />
+            {sendingTestEmail
+              ? "Sending test..."
+              : "Send Test Email"}
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+          <p className="text-sm font-medium text-gray-800">
+            Delivery readiness
+          </p>
+
+          <div className="mt-3 space-y-2.5">
+            {config ? (
+              <>
+                <ConfigurationStatusRow
+                  label="Email sender"
+                  ready={draftEmailDeliveryConfigured}
+                  readyText={emailSenderReadyText}
+                  missingText="Needs setup"
+                />
+
+                <ConfigurationStatusRow
+                  label="Schedule runner"
+                  ready={schedulerConfigured}
+                  readyText="Ready"
+                  missingText="Needs setup"
+                />
+
+                <ConfigurationStatusRow
+                  label="AI analysis"
+                  ready={Boolean(config.ai_provider_configured)}
+                  readyText={
+                    config.ai_model
+                      ? `Ready (${config.ai_model})`
+                      : "Ready"
+                  }
+                  missingText="Fallback rules"
+                />
+              </>
+            ) : (
+              <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Delivery configuration status could not be loaded.
+              </p>
+            )}
+          </div>
+
+          <p className="mt-3 break-words text-xs text-gray-500">
+            Current delivery status:{" "}
+            <span className="font-medium text-gray-700">
+              {formatDeliveryStatus(preference)}
+            </span>
+          </p>
+
+          {!draftEmailDeliveryConfigured && (
+            <p className="mt-2 break-words rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Add a sender email and SMTP host above, or complete server SMTP environment setup, then save delivery settings.
+            </p>
+          )}
+
+          {draftEmailDeliveryPendingSave && (
+            <p className="mt-2 break-words rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-xs text-[var(--decisionate-brand-primary-text)]">
+              Sender details look complete. Save delivery settings before sending a digest.
+            </p>
+          )}
+
+          {emailDeliveryConfigured && (
+            <p className="mt-2 break-words text-xs text-gray-500">
+              Test email uses the saved delivery settings and saved recipients.
+            </p>
+          )}
+
+          {emailDeliveryConfigured && !hasSavedRecipients && (
+            <p className="mt-2 break-words rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Save at least one recipient before sending or testing email.
+            </p>
+          )}
+
+          {emailDeliveryConfigured && !preference.enabled && (
+            <p className="mt-2 break-words rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Enable email delivery before sending the full KPI digest. You can still send a test email after recipients are saved.
+            </p>
+          )}
+
+          {emailDeliveryConfigured && recipientChangesPendingSave && (
+            <p className="mt-2 break-words rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-xs text-[var(--decisionate-brand-primary-text)]">
+              Recipient changes need to be saved before sending or testing email.
+            </p>
+          )}
+
+          {emailDeliveryConfigured && deliverySettingsDirty && (
+            <p className="mt-2 break-words rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-xs text-[var(--decisionate-brand-primary-text)]">
+              Delivery settings have unsaved changes. Save before sending or testing email.
+            </p>
+          )}
+
+          {preference.last_send_error && (
+            <p className="mt-2 break-words text-xs text-red-600">
+              Last error: {preference.last_send_error}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {config && (
+        <details className="mt-4 rounded-xl bg-gray-50 p-3 text-xs text-gray-600">
+          <summary className="cursor-pointer font-medium text-gray-800">
+            Administrator setup details
+          </summary>
+
+          <div className="mt-3 space-y-3">
+            <div>
+              <p className="font-medium text-gray-800">
+                Required email settings
+              </p>
+
+              <p className="mt-1 break-words font-mono">
+                {config.required_email_environment_keys.length > 0
+                  ? config.required_email_environment_keys.join(
+                    ", "
+                  )
+                  : "No server email environment settings required when workspace SMTP is saved."}
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium text-gray-800">
+                Scheduler
+              </p>
+
+              <p className="mt-1 break-words">
+                Call{" "}
+                <span className="break-all font-mono">
+                  POST {config.send_due_endpoint}
+                </span>{" "}
+                with{" "}
+                <span className="break-all font-mono">
+                  {config.scheduler_header_name}
+                </span>
+                .
+              </p>
+
+              <p className="mt-1 break-words font-mono">
+                {config.scheduler_environment_key}
+              </p>
+            </div>
+          </div>
+        </details>
       )}
     </div>
   )
 }
 
-function buildWeeklyReportFocusItems(
-  preference: WeeklyReportPreference,
-  dataset: ReportDatasetDetails | null
-) {
-  const focusValues =
-    preference.metric_focus.length
-      ? preference.metric_focus
-      : [
-        "revenue",
-        "customers",
-      ]
+function ConfigurationStatusRow({
+  label,
+  ready,
+  readyText,
+  missingText,
+}: {
+  label: string
+  ready: boolean
+  readyText: string
+  missingText: string
+}) {
+  return (
+    <div className="flex flex-col items-start gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <span className="font-medium text-gray-700">
+        {label}
+      </span>
 
-  return focusValues.map((focus) => {
-    const config =
-      getReportMetricConfig(focus)
-    const metric =
-      findReportMetric(
-        dataset,
-        config.keywords
+      <span
+        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+          ready
+            ? "bg-green-50 text-green-700"
+            : "bg-amber-50 text-amber-700"
+        }`}
+      >
+        {ready ? readyText : missingText}
+      </span>
+    </div>
+  )
+}
+
+function ReadOnlyNotificationSummary({
+  preference,
+  selectedMetricLabels,
+}: {
+  preference: WeeklyReportPreference
+  selectedMetricLabels: string[]
+}) {
+  return (
+    <div className="mt-6 break-words rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4 text-sm text-[var(--decisionate-brand-primary-text)]">
+      The workspace owner manages notification setup. Current setup:{" "}
+      {preference.enabled
+        ? `${preference.recipient_emails.length} recipient${preference.recipient_emails.length === 1 ? "" : "s"} every ${formatDeliveryDay(preference.delivery_day)} for ${selectedMetricLabels.join(", ") || "no selected dataset metrics"}`
+        : "not enabled"}
+      .
+    </div>
+  )
+}
+
+function normalizeWeeklyReportPreference(
+  preference: WeeklyReportPreference
+): WeeklyReportPreference {
+  return {
+    ...defaultWeeklyReportPreference,
+    ...preference,
+    cadence: "weekly",
+    metric_focus:
+      preference.metric_focus.length > 0
+        ? preference.metric_focus
+        : defaultWeeklyReportPreference.metric_focus,
+  }
+}
+
+async function loadDatasetMetricOptions(
+  datasets: DatasetSummary[],
+  userId: string,
+  activeWorkspaceId: string | undefined
+): Promise<DatasetMetricOption[]> {
+  const detailResults =
+    await Promise.allSettled(
+      datasets.map((dataset) =>
+        getDatasetDetails(
+          dataset.id,
+          userId,
+          activeWorkspaceId
+        ) as Promise<DatasetDetails>
       )
-    const trend =
-      metric && dataset
-        ? summarizeMetricTrend(
-          dataset,
-          metric.column
-        )
-        : ""
+    )
 
-    if (!metric) {
-      return {
-        label: config.label,
-        detected: false,
-        summary:
-          `No ${config.label.toLowerCase()} metric was detected. Add a column such as ${config.examples.join(", ")} to include it in the weekly report.`,
-      }
+  const metricOptionsByColumn =
+    new Map<string, DatasetMetricOption>()
+
+  detailResults.forEach((result, index) => {
+    if (result.status !== "fulfilled") {
+      return
     }
 
+    const datasetName =
+      result.value.file_name ||
+      datasets[index]?.file_name ||
+      `Dataset ${datasets[index]?.id ?? index + 1}`
+
+    result.value.metrics?.forEach((metric) => {
+      const metricColumn =
+        metric.column.trim()
+
+      if (!metricColumn) {
+        return
+      }
+
+      const metricKey =
+        metricColumn.toLowerCase()
+      const existingOption =
+        metricOptionsByColumn.get(metricKey)
+
+      if (existingOption) {
+        if (
+          !existingOption.datasetNames.includes(
+            datasetName
+          )
+        ) {
+          existingOption.datasetNames.push(
+            datasetName
+          )
+        }
+
+        return
+      }
+
+      metricOptionsByColumn.set(
+        metricKey,
+        {
+          value: metricColumn,
+          label: formatMetricName(metricColumn),
+          datasetNames: [
+            datasetName,
+          ],
+        }
+      )
+    })
+  })
+
+  return Array.from(
+    metricOptionsByColumn.values()
+  ).sort((firstOption, secondOption) =>
+    firstOption.label.localeCompare(
+      secondOption.label
+    )
+  )
+}
+
+function reconcileMetricFocusWithOptions(
+  preference: WeeklyReportPreference,
+  metricOptions: DatasetMetricOption[]
+): WeeklyReportPreference {
+  if (metricOptions.length === 0) {
     return {
-      label: config.label,
-      detected: true,
-      summary:
-        `${formatMetricName(metric.column)} is available with ${formatMetricTotal(metric)}. ${trend}`.trim(),
+      ...preference,
+      metric_focus: [],
+    }
+  }
+
+  const metricOptionsByKey =
+    new Map(
+      metricOptions.map((option) => [
+        option.value.toLowerCase(),
+        option.value,
+      ])
+    )
+  const reconciledMetricFocus: string[] = []
+
+  preference.metric_focus.forEach((metric) => {
+    const metricValue =
+      metricOptionsByKey.get(
+        metric.toLowerCase()
+      )
+
+    if (
+      metricValue &&
+      !reconciledMetricFocus.includes(metricValue)
+    ) {
+      reconciledMetricFocus.push(metricValue)
     }
   })
-}
-
-function buildRecommendedActions({
-  dataset,
-  datasetCount,
-  decisionActionCount,
-  connectionIssueCount,
-  preference,
-}: {
-  dataset: ReportDatasetDetails | null
-  datasetCount: number
-  decisionActionCount: number
-  connectionIssueCount: number
-  preference: WeeklyReportPreference
-}) {
-  if (!preference.include_recommendations) {
-    return [
-      "Recommended actions are disabled for this weekly report setup.",
-    ]
-  }
-
-  const actions: string[] = []
-
-  if (datasetCount === 0) {
-    actions.push(
-      "Add a dataset so the weekly report can include metric movement and concrete business recommendations."
-    )
-  }
-
-  if (connectionIssueCount > 0) {
-    actions.push(
-      "Resolve connection setup issues so future weekly reports can use fresh business data."
-    )
-  }
-
-  if (decisionActionCount > 0) {
-    actions.push(
-      "Clear the decision action queue: review pending outcomes, overdue reviews, and missing learning notes."
-    )
-  }
-
-  const revenueMetric =
-    findReportMetric(
-      dataset,
-      getReportMetricConfig("revenue").keywords
-    )
-  const customerMetric =
-    findReportMetric(
-      dataset,
-      getReportMetricConfig("customers").keywords
-    )
-
-  if (
-    revenueMetric &&
-    dataset &&
-    getMetricTrendDirection(
-      dataset,
-      revenueMetric.column
-    ) === "down"
-  ) {
-    actions.push(
-      "Investigate the revenue decline: compare recent campaigns, pricing changes, and customer segments before the next client review."
-    )
-  }
-
-  if (
-    customerMetric &&
-    dataset &&
-    getMetricTrendDirection(
-      dataset,
-      customerMetric.column
-    ) === "down"
-  ) {
-    actions.push(
-      "Review customer acquisition and retention drivers because customer movement is trending down."
-    )
-  }
-
-  if (actions.length === 0) {
-    actions.push(
-      "No urgent action detected. Use the weekly report to keep the client aligned on trend movement and next decisions."
-    )
-  }
-
-  return actions.slice(0, 4)
-}
-
-function getReportMetricConfig(
-  focus: string
-) {
-  if (focus === "customers") {
-    return {
-      label: "Customer growth / decline",
-      keywords: [
-        "customer",
-        "client",
-        "user",
-        "account",
-      ],
-      examples: [
-        "customers",
-        "new_customers",
-        "active_clients",
-      ],
-    }
-  }
-
-  if (focus === "profit") {
-    return {
-      label: "Profit",
-      keywords: [
-        "profit",
-        "margin",
-        "net income",
-      ],
-      examples: [
-        "profit",
-        "gross_margin",
-        "net_income",
-      ],
-    }
-  }
-
-  if (focus === "expenses") {
-    return {
-      label: "Expenses",
-      keywords: [
-        "expense",
-        "cost",
-        "spend",
-      ],
-      examples: [
-        "expenses",
-        "cost",
-        "ad_spend",
-      ],
-    }
-  }
 
   return {
-    label: "Revenue",
-    keywords: [
-      "revenue",
-      "sales",
-      "income",
-      "arr",
-    ],
-    examples: [
-      "revenue",
-      "sales",
-      "monthly_revenue",
-    ],
+    ...preference,
+    metric_focus: reconciledMetricFocus,
   }
 }
 
-function findReportMetric(
-  dataset: ReportDatasetDetails | null,
-  keywords: string[]
+function getMetricOptionLabel(
+  metric: string,
+  metricOptions: DatasetMetricOption[]
 ) {
-  if (!dataset?.metrics?.length) {
-    return null
-  }
-
-  return dataset.metrics.find((metric) => {
-    const cleanColumn =
-      metric.column
-        .trim()
-        .toLowerCase()
-        .replaceAll("_", " ")
-
-    return keywords.some((keyword) =>
-      cleanColumn.includes(keyword)
-    )
-  }) ?? null
+  return (
+    metricOptions.find(
+      (option) =>
+        option.value.toLowerCase() ===
+        metric.toLowerCase()
+    )?.label ?? formatMetricName(metric)
+  )
 }
 
-function summarizeMetricTrend(
-  dataset: ReportDatasetDetails,
-  column: string
+function formatMetricDatasetNames(
+  datasetNames: string[]
 ) {
-  const values =
-    getMetricSeriesValues(
-      dataset,
-      column
-    )
-
-  if (values.length < 2) {
-    return "Trend direction will appear once at least two rows are available."
+  if (datasetNames.length === 0) {
+    return "Dataset metric"
   }
 
-  const firstValue = values[0]
-  const latestValue =
-    values[values.length - 1]
-  const direction =
-    latestValue > firstValue
-      ? "up"
-      : latestValue < firstValue
-        ? "down"
-        : "flat"
-
-  if (direction === "flat") {
-    return `Trend is flat at ${formatReportNumber(latestValue)}.`
+  if (datasetNames.length === 1) {
+    return datasetNames[0]
   }
 
-  const changeText =
-    firstValue !== 0
-      ? ` (${formatReportNumber(
-        ((latestValue - firstValue) /
-          Math.abs(firstValue)) *
-          100
-      )}%)`
-      : ""
-
-  return `Trend is ${direction} from ${formatReportNumber(firstValue)} to ${formatReportNumber(latestValue)}${changeText}.`
-}
-
-function getMetricTrendDirection(
-  dataset: ReportDatasetDetails,
-  column: string
-) {
-  const values =
-    getMetricSeriesValues(
-      dataset,
-      column
-    )
-
-  if (values.length < 2) {
-    return "flat"
+  if (datasetNames.length === 2) {
+    return datasetNames.join(" and ")
   }
 
-  const firstValue = values[0]
-  const latestValue =
-    values[values.length - 1]
-
-  if (latestValue > firstValue) {
-    return "up"
-  }
-
-  if (latestValue < firstValue) {
-    return "down"
-  }
-
-  return "flat"
-}
-
-function getMetricSeriesValues(
-  dataset: ReportDatasetDetails,
-  column: string
-) {
-  const rows =
-    dataset.preview?.length
-      ? dataset.preview
-      : dataset.chart?.data ?? []
-
-  return rows
-    .map((row) =>
-      getNumericCellValue(row[column])
-    )
-    .filter(
-      (value): value is number =>
-        typeof value === "number" &&
-        Number.isFinite(value)
-    )
-}
-
-function getNumericCellValue(
-  value: string | number | boolean | null | undefined
-) {
-  if (typeof value === "number") {
-    return value
-  }
-
-  if (typeof value !== "string") {
-    return null
-  }
-
-  const numericValue =
-    Number(
-      value.replace(/[$,%\s,]/g, "")
-    )
-
-  return Number.isFinite(numericValue)
-    ? numericValue
-    : null
-}
-
-function formatMetricTotal(
-  metric: ReportDatasetMetric
-) {
-  if (typeof metric.total === "number") {
-    return `total ${formatReportNumber(metric.total)}`
-  }
-
-  if (typeof metric.average === "number") {
-    return `average ${formatReportNumber(metric.average)}`
-  }
-
-  return "summary values available"
+  return `${datasetNames[0]} and ${datasetNames.length - 1} more datasets`
 }
 
 function formatMetricName(
   metric: string
 ) {
-  return metric
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) =>
-      letter.toUpperCase()
-    )
+  return formatMetricLabel(metric)
 }
 
-function formatReportNumber(
-  value: number
+function formatMetricValue(
+  value: number | null | undefined
 ) {
-  return new Intl.NumberFormat(
-    undefined,
-    {
-      maximumFractionDigits: 1,
-    }
-  ).format(value)
-}
-
-function getDecisionActionCount(
-  summary: DecisionSummary | null
-) {
-  if (!summary) {
-    return 0
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return "—"
   }
 
-  return (
-    summary.attention_required +
-    summary.outcomes_pending +
-    summary.learning_pending +
-    summary.reviews_overdue
+  return value.toLocaleString(
+    undefined,
+    {
+      maximumFractionDigits: 2,
+    }
   )
 }
 
-function needsConnectionAttention(
-  connection: DataSourceConnection
+function formatDeliveryStatus(
+  preference: WeeklyReportPreference
 ) {
-  return (
-    connection.status !== "connected" ||
-    !connection.has_config ||
-    connection.environment_configured === false
+  if (preference.last_send_status === "sent") {
+    return preference.last_sent_at
+      ? `Sent ${formatDateTime(preference.last_sent_at)}`
+      : "Sent"
+  }
+
+  if (preference.last_send_status === "failed") {
+    return "Last send failed"
+  }
+
+  if (preference.last_send_status === "test_sent") {
+    return "Test sent"
+  }
+
+  if (preference.last_send_status === "test_failed") {
+    return "Last test failed"
+  }
+
+  if (preference.last_send_status === "configured") {
+    return "Configured"
+  }
+
+  if (preference.last_send_status === "disabled") {
+    return "Disabled"
+  }
+
+  return "Not sent yet"
+}
+
+function formatDateTime(
+  value: string
+) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleString(
+    undefined,
+    {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }
   )
 }
 

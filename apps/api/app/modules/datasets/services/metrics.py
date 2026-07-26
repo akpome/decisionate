@@ -1,5 +1,8 @@
 import pandas as pd
 
+from app.modules.datasets.services.numeric import (
+    get_numeric_columns,
+)
 from app.modules.datasets.services.serialization import (
     to_json_number,
 )
@@ -16,27 +19,21 @@ def generate_metrics(
 
     metrics = []
 
-    numeric_columns = (
+    for column, numeric_series in get_numeric_columns(
         dataframe
-        .select_dtypes(
-            include=["number"]
-        )
-        .columns
-    )
-
-    for column in numeric_columns:
+    ):
         column_label = str(column)
         total = to_json_number(
-            dataframe[column].sum()
+            numeric_series.sum()
         )
         average = to_json_number(
-            dataframe[column].mean()
+            numeric_series.mean()
         )
         minimum = to_json_number(
-            dataframe[column].min()
+            numeric_series.min()
         )
         maximum = to_json_number(
-            dataframe[column].max()
+            numeric_series.max()
         )
 
         metrics.append({

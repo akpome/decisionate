@@ -1,6 +1,12 @@
 "use client"
 
 import {
+  CircleAlert,
+  CircleCheck,
+  RotateCcw,
+} from "lucide-react"
+import {
+  type ChangeEvent,
   useEffect,
   useState,
 } from "react"
@@ -13,6 +19,7 @@ import {
   getOrganizationInvites,
   getOrganizationMembers,
   getOrganizationWorkspaces,
+  getAIStatus,
   removeOrganizationInvite,
   removeOrganizationMember,
   updateOrganizationMemberRole,
@@ -21,7 +28,23 @@ import {
   type OrganizationMemberRecord,
   type OrganizationRecord,
   type OrganizationWorkspaceRecord,
+  type AIStatus,
 } from "@/lib/api"
+import {
+  defaultBrandAccentColor,
+  defaultBrandPrimaryColor,
+  getReadableBrandTextColor,
+  isInlineBrandLogoUrl,
+  isValidBrandColor,
+  isValidBrandLogoUrl,
+  maxBrandLogoUploadBytes,
+  maxBrandLogoUrlLength,
+  supportedBrandLogoMimeTypes,
+} from "@/lib/workspace-brand"
+import {
+  WorkspaceBrandMark,
+} from "@/app/dashboard/workspace-brand-mark"
+import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 
 type SettingsClientProps = {
   userId: string
@@ -40,13 +63,12 @@ function getSettingsErrorMessage(
 }
 
 /* =========================
-   Settings Client Form For Profile Display And Workspace Rename
+   Settings Client Form For Workspace Branding And Access
 ========================= */
 
 export function SettingsClient({
   userId,
   fullName,
-  emailAddress,
 }: SettingsClientProps) {
   const [organization, setOrganization] =
     useState<OrganizationRecord | null>(null)
@@ -59,9 +81,9 @@ export function SettingsClient({
   const [logoUrl, setLogoUrl] =
     useState("")
   const [primaryColor, setPrimaryColor] =
-    useState("#2563EB")
+    useState(defaultBrandPrimaryColor)
   const [accentColor, setAccentColor] =
-    useState("#14B8A6")
+    useState(defaultBrandAccentColor)
   const [reportDisplayName, setReportDisplayName] =
     useState("")
   const [memberUserId, setMemberUserId] =
@@ -78,9 +100,23 @@ export function SettingsClient({
     useState(false)
   const [addingMember, setAddingMember] =
     useState(false)
+  const [accessRetrying, setAccessRetrying] =
+    useState(false)
+  const [organizationLoadRetryKey, setOrganizationLoadRetryKey] =
+    useState(0)
   const [memberActionId, setMemberActionId] =
     useState<number | null>(null)
+  const [organizationLoadError, setOrganizationLoadError] =
+    useState("")
+  const [aiStatus, setAiStatus] =
+    useState<AIStatus | null>(null)
+  const [aiStatusError, setAiStatusError] =
+    useState("")
+  const [aiStatusRetryKey, setAiStatusRetryKey] =
+    useState(0)
   const [saveError, setSaveError] =
+    useState("")
+  const [logoUploadError, setLogoUploadError] =
     useState("")
   const [memberError, setMemberError] =
     useState("")
@@ -91,36 +127,68 @@ export function SettingsClient({
   const [saved, setSaved] =
     useState(false)
 
-  const agencyDisplayName =
+  const workspaceDisplayName =
     reportDisplayName.trim() ||
     organizationName.trim() ||
     organization?.name ||
-    "your agency"
+    "your workspace"
+  const primaryColorValid =
+    isValidBrandColor(primaryColor)
+  const accentColorValid =
+    isValidBrandColor(accentColor)
+  const brandColorsValid =
+    primaryColorValid && accentColorValid
+  const logoUrlValid =
+    isValidBrandLogoUrl(logoUrl)
+  const logoUrlIsUploadedData =
+    isInlineBrandLogoUrl(logoUrl)
+  const previewLogoUrl =
+    logoUrlValid
+      ? logoUrl.trim()
+      : ""
+  const previewPrimaryColor =
+    primaryColorValid
+      ? primaryColor
+      : defaultBrandPrimaryColor
+  const previewAccentColor =
+    accentColorValid
+      ? accentColor
+      : defaultBrandAccentColor
+  const previewPrimaryTextColor =
+    getReadableBrandTextColor(
+      previewPrimaryColor,
+      defaultBrandPrimaryColor
+    )
+  const previewAccentTextColor =
+    getReadableBrandTextColor(
+      previewAccentColor,
+      defaultBrandAccentColor
+    )
   const organizationChanged =
     organizationName.trim() !==
       (organization?.name ?? "") ||
     logoUrl.trim() !==
       (organization?.logo_url ?? "") ||
     primaryColor.trim() !==
-      (organization?.primary_color ?? "#2563EB") ||
+      (organization?.primary_color ?? defaultBrandPrimaryColor) ||
     accentColor.trim() !==
-      (organization?.accent_color ?? "#14B8A6") ||
+      (organization?.accent_color ?? defaultBrandAccentColor) ||
     reportDisplayName.trim() !==
       (organization?.report_display_name ?? "")
-  const clientMemberCount =
-    organizationMembers.filter(
-      (member) =>
-        member.role === "client"
-    ).length
-  const sharedWorkspaces =
+  const brandResetChanged =
+    Boolean(logoUrl.trim()) ||
+    primaryColor !== defaultBrandPrimaryColor ||
+    accentColor !== defaultBrandAccentColor ||
+    Boolean(reportDisplayName.trim())
+  const sharedWorkspaceCount =
     organizationWorkspaces.filter(
       (workspace) =>
         workspace.owner_user_id !== userId
-    )
-  const sharedWorkspaceCount =
-    sharedWorkspaces.length
+    ).length
   const isClientPortalUser =
+    !loadingOrganization &&
     !organization &&
+    !organizationLoadError &&
     sharedWorkspaceCount > 0
   const canAddMember =
     Boolean(organization) &&
@@ -132,22 +200,41 @@ export function SettingsClient({
 
     async function loadOrganization() {
       setLoadingOrganization(true)
+      setOrganizationLoadError("")
       setSaveError("")
+      setMemberError("")
+      setInviteError("")
+      setAiStatusError("")
 
-      try {
-        const [
-          organizationData,
-          memberData,
-          workspaceData,
-          inviteData,
-        ] = await Promise.all([
-          getMyOrganization(
-            userId
-          ),
+      const [
+        organizationResult,
+        workspaceResult,
+        aiStatusResult,
+      ] = await Promise.allSettled([
+        getMyOrganization(
+          userId
+        ),
+        getOrganizationWorkspaces(
+          userId
+        ),
+        getAIStatus(
+          userId
+        ),
+      ])
+
+      let memberResult:
+        | PromiseSettledResult<OrganizationMemberRecord[]>
+        | null = null
+      let inviteResult:
+        | PromiseSettledResult<OrganizationInviteRecord[]>
+        | null = null
+
+      if (
+        organizationResult.status === "fulfilled" &&
+        organizationResult.value
+      ) {
+        const accessResults = await Promise.allSettled([
           getOrganizationMembers(
-            userId
-          ),
-          getOrganizationWorkspaces(
             userId
           ),
           getOrganizationInvites(
@@ -155,38 +242,97 @@ export function SettingsClient({
           ),
         ])
 
-        if (!ignoreResult) {
+        memberResult = accessResults[0]
+        inviteResult = accessResults[1]
+      }
+
+      if (!ignoreResult) {
+        if (organizationResult.status === "fulfilled") {
+          const organizationData =
+            organizationResult.value
+
           setOrganization(organizationData)
           setOrganizationName(organizationData?.name ?? "")
           setLogoUrl(organizationData?.logo_url ?? "")
           setPrimaryColor(
-            organizationData?.primary_color ?? "#2563EB"
+            organizationData?.primary_color ?? defaultBrandPrimaryColor
           )
           setAccentColor(
-            organizationData?.accent_color ?? "#14B8A6"
+            organizationData?.accent_color ?? defaultBrandAccentColor
           )
           setReportDisplayName(
             organizationData?.report_display_name ?? ""
           )
-          setOrganizationMembers(memberData)
-          setOrganizationWorkspaces(workspaceData)
-          setPendingClientInvites(inviteData)
-        }
-      } catch (error) {
-        console.error(error)
 
-        if (!ignoreResult) {
-          setSaveError(
+          if (!organizationData) {
+            setOrganizationMembers([])
+            setPendingClientInvites([])
+          }
+        } else {
+          setOrganizationLoadError(
             getSettingsErrorMessage(
-              error,
-              "Unable to load organization settings."
+              organizationResult.reason,
+              "Unable to load workspace settings."
             )
           )
         }
-      } finally {
-        if (!ignoreResult) {
-          setLoadingOrganization(false)
+
+        if (memberResult?.status === "fulfilled") {
+          setOrganizationMembers(
+            memberResult.value
+          )
+        } else if (memberResult) {
+          setMemberError(
+            getSettingsErrorMessage(
+              memberResult.reason,
+              "Unable to load organization members."
+            )
+          )
         }
+
+        if (workspaceResult.status === "fulfilled") {
+          setOrganizationWorkspaces(
+            workspaceResult.value
+          )
+        } else {
+          setSaveError(
+            getSettingsErrorMessage(
+              workspaceResult.reason,
+              "Unable to load workspace settings."
+            )
+          )
+        }
+
+        if (
+          aiStatusResult.status ===
+          "fulfilled"
+        ) {
+          setAiStatus(
+            aiStatusResult.value
+          )
+        } else {
+          setAiStatusError(
+            getSettingsErrorMessage(
+              aiStatusResult.reason,
+              "Unable to load AI readiness."
+            )
+          )
+        }
+
+        if (inviteResult?.status === "fulfilled") {
+          setPendingClientInvites(
+            inviteResult.value
+          )
+        } else if (inviteResult) {
+          setInviteError(
+            getSettingsErrorMessage(
+              inviteResult.reason,
+              "Unable to load organization invites."
+            )
+          )
+        }
+
+        setLoadingOrganization(false)
       }
     }
 
@@ -195,19 +341,23 @@ export function SettingsClient({
     return () => {
       ignoreResult = true
     }
-  }, [userId])
+  }, [aiStatusRetryKey, organizationLoadRetryKey, userId])
 
   async function handleSaveOrganization() {
     if (
       savingOrganization ||
       !organizationChanged ||
-      !organizationName.trim()
+      !organizationName.trim() ||
+      !brandColorsValid ||
+      !logoUrlValid
     ) {
       return
     }
 
     setSavingOrganization(true)
     setSaveError("")
+    setMemberError("")
+    setInviteError("")
     setSaved(false)
 
     try {
@@ -231,34 +381,19 @@ export function SettingsClient({
             organizationPayload,
             userId
           )
-      const memberData =
-        await getOrganizationMembers(
-          userId
-        )
-      const workspaceData =
-        await getOrganizationWorkspaces(
-          userId
-        )
-      const inviteData =
-        await getOrganizationInvites(
-          userId
-        )
 
       setOrganization(data)
       setOrganizationName(data.name)
       setLogoUrl(data.logo_url ?? "")
       setPrimaryColor(
-        data.primary_color ?? "#2563EB"
+        data.primary_color ?? defaultBrandPrimaryColor
       )
       setAccentColor(
-        data.accent_color ?? "#14B8A6"
+        data.accent_color ?? defaultBrandAccentColor
       )
       setReportDisplayName(
         data.report_display_name ?? ""
       )
-      setOrganizationMembers(memberData)
-      setOrganizationWorkspaces(workspaceData)
-      setPendingClientInvites(inviteData)
       window.dispatchEvent(
         new CustomEvent(
           "decisionate:organization-updated",
@@ -267,6 +402,62 @@ export function SettingsClient({
           }
         )
       )
+
+      const [
+        memberResult,
+        workspaceResult,
+        inviteResult,
+      ] = await Promise.allSettled([
+        getOrganizationMembers(
+          userId
+        ),
+        getOrganizationWorkspaces(
+          userId
+        ),
+        getOrganizationInvites(
+          userId
+        ),
+      ])
+
+      if (memberResult.status === "fulfilled") {
+        setOrganizationMembers(
+          memberResult.value
+        )
+        setMemberError("")
+      } else {
+        setMemberError(
+          getSettingsErrorMessage(
+            memberResult.reason,
+            "Unable to refresh organization members."
+          )
+        )
+      }
+
+      if (workspaceResult.status === "fulfilled") {
+        setOrganizationWorkspaces(
+          workspaceResult.value
+        )
+        setSaveError("")
+      } else {
+        setSaveError(
+          "Workspace saved, but workspace access data could not be refreshed."
+        )
+      }
+
+      if (inviteResult.status === "fulfilled") {
+        setPendingClientInvites(
+          inviteResult.value
+        )
+        setInviteError("")
+      } else {
+        setInviteError(
+          getSettingsErrorMessage(
+            inviteResult.reason,
+            "Unable to refresh organization invites."
+          )
+        )
+      }
+
       setSaved(true)
 
       setTimeout(() => {
@@ -277,12 +468,134 @@ export function SettingsClient({
       setSaveError(
         getSettingsErrorMessage(
           error,
-          "Organization could not be saved."
+          "Workspace settings could not be saved."
         )
       )
     } finally {
       setSavingOrganization(false)
     }
+  }
+
+  function handleResetBranding() {
+    if (
+      loadingOrganization ||
+      savingOrganization ||
+      !brandResetChanged
+    ) {
+      return
+    }
+
+    setLogoUrl("")
+    setPrimaryColor(defaultBrandPrimaryColor)
+    setAccentColor(defaultBrandAccentColor)
+    setReportDisplayName("")
+    setSaveError("")
+    setLogoUploadError("")
+    setSaved(false)
+  }
+
+  async function handleLogoUpload(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const file =
+      event.currentTarget.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    setSaveError("")
+    setLogoUploadError("")
+    setSaved(false)
+
+    if (
+      !supportedBrandLogoMimeTypes.includes(
+        file.type as (typeof supportedBrandLogoMimeTypes)[number]
+      )
+    ) {
+      setLogoUploadError(
+        "Upload a PNG, JPG, WebP, GIF, or SVG logo."
+      )
+      event.currentTarget.value = ""
+      return
+    }
+
+    if (file.size > maxBrandLogoUploadBytes) {
+      setLogoUploadError(
+        `Logo upload must be ${formatFileSize(maxBrandLogoUploadBytes)} or smaller.`
+      )
+      event.currentTarget.value = ""
+      return
+    }
+
+    try {
+      const dataUrl =
+        await readFileAsDataUrl(file)
+
+      if (!isValidBrandLogoUrl(dataUrl)) {
+        setLogoUploadError(
+          "That logo image could not be saved. Try a smaller image or paste an HTTPS logo link."
+        )
+        event.currentTarget.value = ""
+        return
+      }
+
+      setLogoUrl(dataUrl)
+    } catch {
+      setLogoUploadError(
+        "That logo image could not be read. Try another file or paste an HTTPS logo link."
+      )
+    } finally {
+      event.currentTarget.value = ""
+    }
+  }
+
+  async function handleRetryOrganizationAccess() {
+    if (accessRetrying) {
+      return
+    }
+
+    setAccessRetrying(true)
+    setMemberError("")
+    setInviteError("")
+
+    const [memberResult, inviteResult] =
+      await Promise.allSettled([
+        getOrganizationMembers(
+          userId
+        ),
+        getOrganizationInvites(
+          userId
+        ),
+      ])
+
+    if (memberResult.status === "fulfilled") {
+      setOrganizationMembers(
+        memberResult.value
+      )
+    } else {
+      setMemberError(
+        getSettingsErrorMessage(
+          memberResult.reason,
+          "Unable to load organization members."
+        )
+      )
+    }
+
+    if (inviteResult.status === "fulfilled") {
+      setPendingClientInvites(
+        inviteResult.value
+      )
+    } else {
+      setInviteError(
+        getSettingsErrorMessage(
+          inviteResult.reason,
+          "Unable to load organization invites."
+        )
+      )
+    }
+
+    setAccessRetrying(false)
   }
 
   async function handleAddMember() {
@@ -292,35 +605,57 @@ export function SettingsClient({
     setMemberError("")
 
     try {
-      await addOrganizationMember(
-        {
-          clerk_user_id: memberUserId.trim(),
-          role: memberRole,
-        },
-        userId
-      )
-
-      const memberData =
-        await getOrganizationMembers(
+      try {
+        await addOrganizationMember(
+          {
+            clerk_user_id: memberUserId.trim(),
+            role: memberRole,
+          },
           userId
         )
-      const workspaceData =
-        await getOrganizationWorkspaces(
-          userId
+        setMemberUserId("")
+        setMemberRole("member")
+      } catch (error) {
+        console.error(error)
+        setMemberError(
+          getSettingsErrorMessage(
+            error,
+            "Member could not be added."
+          )
         )
+        return
+      }
 
-      setOrganizationMembers(memberData)
-      setOrganizationWorkspaces(workspaceData)
-      setMemberUserId("")
-      setMemberRole("member")
-    } catch (error) {
-      console.error(error)
-      setMemberError(
-        getSettingsErrorMessage(
-          error,
-          "Member could not be added."
+      const [memberResult, workspaceResult] =
+        await Promise.allSettled([
+          getOrganizationMembers(userId),
+          getOrganizationWorkspaces(userId),
+        ])
+
+      if (memberResult.status === "fulfilled") {
+        setOrganizationMembers(
+          memberResult.value
         )
-      )
+        setMemberError("")
+      } else {
+        setMemberError(
+          `Member added, but the member list could not be refreshed. ${getSettingsErrorMessage(
+            memberResult.reason,
+            "Retry access data."
+          )}`
+        )
+      }
+
+      if (workspaceResult.status === "fulfilled") {
+        setOrganizationWorkspaces(
+          workspaceResult.value
+        )
+        setSaveError("")
+      } else {
+        setSaveError(
+          "Member added, but workspace access data could not be refreshed."
+        )
+      }
     } finally {
       setAddingMember(false)
     }
@@ -334,7 +669,7 @@ export function SettingsClient({
         ? "/dashboard"
         : `${window.location.origin}/dashboard`
     const message =
-      `Hi — ${agencyDisplayName} has added you to Decisionate as a client user.\n\n` +
+      `Hi — ${workspaceDisplayName} has shared a client workspace with you.\n\n` +
       `Sign in here: ${portalUrl}\n\n` +
       "Once you sign in, your shared client workspace will open in the sidebar. You can review dashboards, datasets, reports, forecasts, alerts, and decisions from that workspace."
 
@@ -545,165 +880,120 @@ export function SettingsClient({
           Settings Page Header For Account And Workspace Management
       ========================= */}
 
-      <div>
-        <h1 className="text-3xl font-bold">
-          Settings
-        </h1>
+      <DashboardPageHeader
+        title="Settings"
+        description={
+          isClientPortalUser
+            ? "Review the workspaces that have been shared with you."
+            : "Manage your workspace profile, branding, team access, and optional client handoff settings."
+        }
+      />
 
-        <p className="mt-2 text-gray-500">
-          {isClientPortalUser
-            ? "Review the client workspaces your agency has shared with you."
-            : "Manage your agency profile, client access, and workspace handoff settings."}
-        </p>
-      </div>
-
-      {/* =========================
-          Agency Client Portal Overview For Go To Market Positioning
-      ========================= */}
-
-      <div className="rounded-2xl border bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      {isClientPortalUser && (
+        <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
           <div>
             <h2 className="text-xl font-semibold">
-              {isClientPortalUser
-                ? "Client Portal Access"
-                : "Agency Client Portal"}
+              Shared Workspaces
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
-              {isClientPortalUser
-                ? "Your agency has invited you into branded workspaces where you can use Decisionate directly."
-                : "Set up Decisionate as a managed client workspace your agency can operate and hand over to client users."}
+              Workspaces shared with your account.
             </p>
           </div>
 
-          <span className="w-fit rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-            {isClientPortalUser
-              ? "Client Portal"
-              : "Agency MVP"}
-          </span>
-        </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {organizationWorkspaces
+              .filter(
+                workspace =>
+                  workspace.owner_user_id !== userId
+              )
+              .map(workspace => (
+                <div
+                  key={workspace.id}
+                  className="flex min-w-0 items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3"
+                >
+                  <WorkspaceBrandMark
+                    name={workspace.name}
+                    logoUrl={workspace.logo_url}
+                    primaryColor={workspace.primary_color}
+                    className="h-10 w-10 shrink-0 rounded-xl text-sm"
+                  />
 
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <AgencyPortalStep
-            title={
-              isClientPortalUser
-                ? "Agency-managed"
-                : "Agency profile"
-            }
-            description={
-              isClientPortalUser
-                ? "The agency manages branding, setup, and workspace access for you."
-                : "Use your agency name as the anchor for workspace ownership and client handoff."
-            }
-            status={
-              isClientPortalUser
-                ? "Active"
-                : organization
-                  ? "Started"
-                  : "Needs setup"
-            }
-          />
-
-          <AgencyPortalStep
-            title={
-              isClientPortalUser
-                ? "Your role"
-                : "Client access"
-            }
-            description={
-              isClientPortalUser
-                ? "You can work in the shared client workspaces assigned to this account."
-                : "Invite client users with the Client role so they can use their workspace directly."
-            }
-            status={
-              isClientPortalUser
-                ? "Client"
-                : `${clientMemberCount} client${clientMemberCount === 1 ? "" : "s"}`
-            }
-          />
-
-          <AgencyPortalStep
-            title="Workspace handoff"
-            description={
-              isClientPortalUser
-                ? "Use the sidebar switcher to move between workspaces shared with you."
-                : "Client and agency workspaces appear in the sidebar switcher based on membership."
-            }
-            status={`${sharedWorkspaceCount} shared`}
-          />
-        </div>
-      </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-gray-900">
+                      {workspace.name}
+                    </p>
+                    <p className="mt-0.5 text-xs capitalize text-gray-500">
+                      {workspace.role} access
+                    </p>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
 
       {/* =========================
-          Read Only Clerk Profile Summary Section
-      ========================= */}
-
-      <div className="rounded-2xl border bg-white p-6 shadow-sm">
-        <h2 className="mb-6 text-xl font-semibold">
-          Profile
-        </h2>
-
-        <div className="space-y-5">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-600">
-              Full Name
-            </label>
-
-            <input
-              type="text"
-              value={fullName}
-              readOnly
-              className="w-full rounded-xl border bg-gray-50 p-3 text-gray-700"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-600">
-              Email Address
-            </label>
-
-            <input
-              type="email"
-              value={emailAddress}
-              readOnly
-              className="w-full rounded-xl border bg-gray-50 p-3 text-gray-700"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* =========================
-          Workspace Organization Rename Section For Agency Readiness
+          Workspace Profile And Branding Section
       ========================= */}
 
       {!isClientPortalUser && (
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
-        <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold">
-              Agency Profile
+              Workspace Profile
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
-              This name anchors the agency workspace clients will recognize when they are invited into the app.
+              This name anchors the workspace people will recognize in the app, reports, and shared dashboards.
             </p>
           </div>
 
           {saved && (
-            <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+            <span
+              role="status"
+              aria-live="polite"
+              className="w-fit rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700"
+            >
               Saved
             </span>
           )}
         </div>
 
+        {organizationLoadError && (
+          <div
+            role="alert"
+            className="mb-5 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span>{organizationLoadError}</span>
+
+            <button
+              type="button"
+              onClick={() =>
+                setOrganizationLoadRetryKey(currentKey => currentKey + 1)
+              }
+              disabled={loadingOrganization}
+              className="w-fit shrink-0 rounded-lg border border-red-200 bg-white px-3 py-2 font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loadingOrganization
+                ? "Retrying..."
+                : "Retry workspace load"}
+            </button>
+          </div>
+        )}
+
         <div className="space-y-5">
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-600">
-              Agency Name
+            <label
+              htmlFor="workspace-name"
+              className="mb-2 block text-sm font-medium text-gray-600"
+            >
+              Workspace Name
             </label>
 
             <input
+              id="workspace-name"
               type="text"
               value={organizationName}
               onChange={(event) => {
@@ -715,8 +1005,8 @@ export function SettingsClient({
               }}
               placeholder={
                 loadingOrganization
-                  ? "Loading organization..."
-                  : "Decisionate Workspace"
+                  ? "Loading workspace..."
+                  : "My Workspace"
               }
               disabled={loadingOrganization}
               className="w-full rounded-xl border p-3 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
@@ -724,74 +1014,162 @@ export function SettingsClient({
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-600">
-              Logo URL
+            <label
+              htmlFor="workspace-logo-url"
+              className="mb-2 block text-sm font-medium text-gray-600"
+            >
+              Logo link or upload
             </label>
 
             <input
-              type="url"
-              value={logoUrl}
+              id="workspace-logo-url"
+              type="text"
+              value={
+                logoUrlIsUploadedData
+                  ? ""
+                  : logoUrl
+              }
               onChange={(event) => {
                 setLogoUrl(
                   event.target.value
                 )
                 setSaveError("")
+                setLogoUploadError("")
                 setSaved(false)
               }}
-              placeholder="https://example.com/logo.png"
+              onBlur={() => {
+                if (logoUrlIsUploadedData) {
+                  return
+                }
+
+                const cleanLogoUrl = logoUrl.trim()
+
+                if (cleanLogoUrl !== logoUrl) {
+                  setLogoUrl(cleanLogoUrl)
+                }
+              }}
+              placeholder={
+                logoUrlIsUploadedData
+                  ? "Uploaded logo selected. Paste a URL to replace it."
+                  : "https://example.com/logo.png"
+              }
+              maxLength={maxBrandLogoUrlLength}
+              aria-invalid={!logoUrlValid}
+              aria-describedby={
+                !logoUrlValid
+                  ? "workspace-logo-url-error"
+                  : undefined
+              }
               disabled={loadingOrganization}
-              className="w-full rounded-xl border p-3 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+              className={`w-full rounded-xl border p-3 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 ${
+                logoUrlValid
+                  ? "border-gray-200"
+                  : "border-red-300 bg-red-50"
+              }`}
             />
+
+            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">
+                    Upload logo image
+                  </p>
+
+                  <p className="mt-1 text-xs text-gray-500">
+                    Use a small PNG, JPG, WebP, GIF, or SVG up to {formatFileSize(maxBrandLogoUploadBytes)}. This logo appears in the app, shared dashboards, and print/PDF exports.
+                  </p>
+                </div>
+
+                <label className="inline-flex w-full cursor-pointer items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto">
+                  Choose file
+                  <input
+                    type="file"
+                    accept={supportedBrandLogoMimeTypes.join(",")}
+                    className="sr-only"
+                    disabled={loadingOrganization}
+                    onChange={handleLogoUpload}
+                  />
+                </label>
+              </div>
+
+              {logoUrlIsUploadedData && (
+                <p className="mt-3 text-xs font-medium text-[var(--decisionate-brand-primary-text)]">
+                  Uploaded logo selected. Save changes to use it everywhere.
+                </p>
+              )}
+
+              {logoUrl.trim() && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLogoUrl("")
+                    setLogoUploadError("")
+                    setSaveError("")
+                    setSaved(false)
+                  }}
+                  className="mt-3 text-xs font-medium text-gray-600 underline-offset-4 hover:underline"
+                >
+                  Remove logo
+                </button>
+              )}
+            </div>
+
+            {!logoUrlValid && (
+              <p
+                id="workspace-logo-url-error"
+                role="alert"
+                className="mt-1.5 text-xs font-medium text-red-600"
+              >
+                Enter an HTTP(S) image URL, upload a supported logo image, or leave it blank.
+              </p>
+            )}
+
+            {logoUploadError && (
+              <p
+                role="alert"
+                className="mt-1.5 text-xs font-medium text-red-600"
+              >
+                {logoUploadError}
+              </p>
+            )}
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-600">
-                Primary Color
-              </label>
+            <BrandColorField
+              label="Primary Color"
+              value={primaryColor}
+              fallbackColor={defaultBrandPrimaryColor}
+              disabled={loadingOrganization}
+              onChange={(value) => {
+                setPrimaryColor(value)
+                setSaveError("")
+                setSaved(false)
+              }}
+            />
 
-              <input
-                type="color"
-                value={primaryColor}
-                onChange={(event) => {
-                  setPrimaryColor(
-                    event.target.value.toUpperCase()
-                  )
-                  setSaveError("")
-                  setSaved(false)
-                }}
-                disabled={loadingOrganization}
-                className="h-12 w-full rounded-xl border p-1 disabled:cursor-not-allowed disabled:bg-gray-50"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-600">
-                Accent Color
-              </label>
-
-              <input
-                type="color"
-                value={accentColor}
-                onChange={(event) => {
-                  setAccentColor(
-                    event.target.value.toUpperCase()
-                  )
-                  setSaveError("")
-                  setSaved(false)
-                }}
-                disabled={loadingOrganization}
-                className="h-12 w-full rounded-xl border p-1 disabled:cursor-not-allowed disabled:bg-gray-50"
-              />
-            </div>
+            <BrandColorField
+              label="Accent Color"
+              value={accentColor}
+              fallbackColor={defaultBrandAccentColor}
+              disabled={loadingOrganization}
+              onChange={(value) => {
+                setAccentColor(value)
+                setSaveError("")
+                setSaved(false)
+              }}
+            />
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-600">
+            <label
+              htmlFor="workspace-report-display-name"
+              className="mb-2 block text-sm font-medium text-gray-600"
+            >
               Report Display Name
             </label>
 
             <input
+              id="workspace-report-display-name"
               type="text"
               value={reportDisplayName}
               onChange={(event) => {
@@ -801,7 +1179,7 @@ export function SettingsClient({
                 setSaveError("")
                 setSaved(false)
               }}
-              placeholder={organizationName || "Agency name shown on client reports"}
+              placeholder={organizationName || "Optional display name for reports"}
               disabled={loadingOrganization}
               className="w-full rounded-xl border p-3 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
             />
@@ -809,173 +1187,215 @@ export function SettingsClient({
 
           <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-              Client-facing preview
+              Shared view preview
             </p>
 
-            <div className="mt-3 flex items-center gap-3">
-              <div
-                className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl text-sm font-bold text-white"
-                style={{
-                  backgroundColor: primaryColor,
-                }}
-              >
-                {logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={logoUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  (reportDisplayName || organizationName || "A")
-                    .charAt(0)
-                    .toUpperCase()
-                )}
-              </div>
+            <div className="mt-3 flex min-w-0 items-center gap-3">
+              <WorkspaceBrandMark
+                name={
+                  reportDisplayName ||
+                  organizationName ||
+                  "Workspace Brand"
+                }
+                logoUrl={previewLogoUrl}
+                primaryColor={previewPrimaryColor}
+                className="h-12 w-12 rounded-xl text-sm"
+              />
 
-              <div>
-                <p className="font-medium text-gray-900">
+              <div className="min-w-0">
+                <p
+                  className="truncate font-medium"
+                  style={{
+                    color: previewPrimaryTextColor,
+                  }}
+                >
                   {reportDisplayName ||
                     organizationName ||
-                    "Agency Brand"}
+                    "Workspace Brand"}
                 </p>
 
                 <p
                   className="text-sm"
                   style={{
-                    color: accentColor,
+                    color: previewAccentTextColor,
                   }}
                 >
-                  Client decision workspace
+                  Decision workspace
                 </p>
               </div>
             </div>
           </div>
 
           {saveError && (
-            <p className="text-sm font-medium text-red-600">
+            <p
+              role="alert"
+              className="text-sm font-medium text-red-600"
+            >
               {saveError}
             </p>
           )}
 
-          <button
-            type="button"
-            onClick={handleSaveOrganization}
-            disabled={
-              loadingOrganization ||
-              savingOrganization ||
-              !organizationChanged ||
-              !organizationName.trim()
-            }
-            className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
-          >
-            {savingOrganization
-              ? "Saving..."
-              : "Save Changes"}
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <button
+              type="button"
+              onClick={handleSaveOrganization}
+              disabled={
+                loadingOrganization ||
+                savingOrganization ||
+                !organizationChanged ||
+                !organizationName.trim() ||
+                !brandColorsValid ||
+                !logoUrlValid
+              }
+              className="w-full rounded-xl bg-[var(--decisionate-brand-primary)] px-5 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-white sm:w-auto"
+            >
+              {savingOrganization
+                ? "Saving..."
+                : "Save Changes"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleResetBranding}
+              disabled={
+                loadingOrganization ||
+                savingOrganization ||
+                !brandResetChanged
+              }
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 sm:w-auto"
+            >
+              <RotateCcw size={16} />
+              Reset Branding
+            </button>
+          </div>
         </div>
       </div>
       )}
 
-      {/* =========================
-          Workspace Access Summary For Personal And Shared Organizations
-      ========================= */}
+      {!isClientPortalUser && (
+        <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">
+                Decision Intelligence
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                AI analysis uses recorded decision outcomes and lessons as evidence when a provider is configured.
+              </p>
+            </div>
 
-      <div className="rounded-2xl border bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">
-          Client Workspace Access
-        </h2>
+            {aiStatusError ? (
+              <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                <CircleAlert size={14} />
+                Status unavailable
+              </span>
+            ) : aiStatus === null ? (
+              <span className="inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600">
+                Checking AI...
+              </span>
+            ) : aiStatus.configured ? (
+              <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+                <CircleCheck size={14} />
+                AI ready
+              </span>
+            ) : (
+              <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                <CircleAlert size={14} />
+                Rules fallback
+              </span>
+            )}
+          </div>
 
-        <p className="mt-1 text-sm text-gray-500">
-          {isClientPortalUser
-            ? "Workspaces your agency has shared with this account."
-            : "Workspaces available in the sidebar switcher for agency staff and client users."}
-        </p>
-
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
-          {!isClientPortalUser && (
-            <WorkspaceAccessRow
-              name={
-                reportDisplayName ||
-                organization?.name ||
-                fullName ||
-                "My Workspace"
-              }
-              subtitle={
-                reportDisplayName && organization?.name
-                  ? organization.name
-                  : undefined
-              }
-              role="owner"
-              currentUser
-              logoUrl={logoUrl}
-              brandColor={primaryColor}
-            />
+          {aiStatusError ? (
+            <div
+              role="status"
+              className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <span>
+                AI readiness is temporarily unavailable. Analysis will continue using the configured fallback rules.
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setAiStatusRetryKey(
+                    currentKey => currentKey + 1
+                  )
+                }
+                disabled={loadingOrganization}
+                className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-amber-300 bg-white px-3 text-xs font-medium text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingOrganization
+                  ? "Retrying..."
+                  : "Retry AI status"}
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Provider
+                </p>
+                <p className="mt-1 text-sm font-semibold text-gray-800">
+                  {aiStatus?.provider || "Checking..."}
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Model
+                </p>
+                <p className="mt-1 truncate text-sm font-semibold text-gray-800">
+                  {aiStatus?.model || "Deterministic rules"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Learning input
+                </p>
+                <p className="mt-1 text-sm font-semibold text-gray-800">
+                  Outcomes + lessons
+                </p>
+              </div>
+            </div>
           )}
-
-          {sharedWorkspaces.map((workspace) => (
-              <WorkspaceAccessRow
-                key={workspace.owner_user_id}
-                name={
-                  workspace.report_display_name ||
-                  workspace.name
-                }
-                subtitle={
-                  workspace.report_display_name
-                    ? workspace.name
-                    : undefined
-                }
-                role={workspace.role}
-                logoUrl={workspace.logo_url}
-                brandColor={workspace.primary_color}
-              />
-          ))}
-        </div>
-      </div>
+        </section>
+      )}
 
       {/* =========================
-          Workspace Members Management Section For Future Agency Roles
+          Workspace Members Management Section For Team And Client Roles
       ========================= */}
 
       {!isClientPortalUser && (
-      <div className="rounded-2xl border bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
         <h2 className="text-xl font-semibold">
-          Client & Team Access
+          Team & Client Access
         </h2>
 
         <p className="mt-1 text-sm text-gray-500">
-          Add agency teammates as members or client users with the Client role. For this MVP, clients should sign in once, then you can add their Clerk user ID.
+          Add teammates with the Member role. Use the Client role only for external users who should review a shared workspace without managing data setup.
         </p>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <HandoffChecklistItem
-            title="Agency profile"
-            description="Brand and workspace name are saved."
-            ready={Boolean(organization)}
-          />
+        {(memberError || inviteError) && (
+          <button
+            type="button"
+            onClick={handleRetryOrganizationAccess}
+            disabled={accessRetrying}
+            className="mt-4 inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
+          >
+            {accessRetrying
+              ? "Retrying access data..."
+              : "Retry access data"}
+          </button>
+        )}
 
-          <HandoffChecklistItem
-            title="Client user"
-            description="At least one client role is assigned."
-            ready={clientMemberCount > 0}
-          />
-
-          <HandoffChecklistItem
-            title="Portal handoff"
-            description="Copy a client-ready sign-in note."
-            ready={Boolean(organization)}
-          />
-        </div>
-
-        <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
+        <div className="mt-5 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-blue-950">
-                Client portal handoff
+              <h3 className="text-sm font-semibold text-[var(--decisionate-brand-primary-text)]">
+                Optional client handoff
               </h3>
 
-              <p className="mt-1 text-sm text-blue-700">
-                Send clients a short note after their Client role is added so they know where to sign in and what to expect.
+              <p className="mt-1 text-sm text-[var(--decisionate-brand-primary-text)]">
+                Use this when you give a client access to a shared workspace and want a short sign-in note.
               </p>
             </div>
 
@@ -983,14 +1403,18 @@ export function SettingsClient({
               type="button"
               onClick={handleCopyClientHandoffNote}
               disabled={!organization}
-              className="shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-200"
+              className="w-full shrink-0 rounded-xl bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 md:w-auto"
             >
               Copy Handoff Note
             </button>
           </div>
 
           {handoffStatus && (
-            <p className="mt-3 whitespace-pre-line text-sm font-medium text-blue-800">
+            <p
+              role="status"
+              aria-live="polite"
+              className="mt-3 whitespace-pre-line break-words text-sm font-medium text-[var(--decisionate-brand-primary-text)]"
+            >
               {handoffStatus}
             </p>
           )}
@@ -998,15 +1422,16 @@ export function SettingsClient({
 
         <div className="mt-5 rounded-xl border border-gray-100 bg-gray-50 p-4">
           <h3 className="text-sm font-semibold text-gray-900">
-            Pending client invites
+            Optional client invite tracking
           </h3>
 
           <p className="mt-1 text-sm text-gray-500">
-            Track client emails while you wait for them to sign in. Once they sign in, add their Clerk user ID below and remove the email from this list.
+            Track client emails only when you are preparing external client access. Once they sign in, add their user ID below and remove the email from this list.
           </p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
             <input
+              aria-label="Client email to track"
               type="email"
               value={inviteEmail}
               onChange={(event) => {
@@ -1024,14 +1449,17 @@ export function SettingsClient({
               type="button"
               onClick={handleTrackClientInvite}
               disabled={!organization || !inviteEmail.trim()}
-              className="h-10 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400"
+              className="h-10 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400 md:w-auto"
             >
               Track Invite
             </button>
           </div>
 
           {inviteError && (
-            <p className="mt-3 text-sm font-medium text-red-600">
+            <p
+              role="alert"
+              className="mt-3 text-sm font-medium text-red-600"
+            >
               {inviteError}
             </p>
           )}
@@ -1043,12 +1471,12 @@ export function SettingsClient({
                   key={invite.id}
                   className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-medium text-gray-900">
                       {invite.email}
                     </p>
 
-                    <p className="text-xs text-gray-500">
+                    <p className="break-words text-xs text-gray-500">
                       Waiting for client sign-in · {formatRoleLabel(invite.role)}
                     </p>
                   </div>
@@ -1060,7 +1488,7 @@ export function SettingsClient({
                         invite
                       )
                     }
-                    className="w-fit rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition hover:bg-gray-50 md:w-fit"
                   >
                     Mark Added
                   </button>
@@ -1076,6 +1504,7 @@ export function SettingsClient({
 
         <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem_auto]">
           <input
+            aria-label="Teammate or client user ID"
             type="text"
             value={memberUserId}
             onChange={(event) => {
@@ -1084,18 +1513,19 @@ export function SettingsClient({
               )
               setMemberError("")
             }}
-            placeholder="Client or teammate Clerk user ID"
+            placeholder="Teammate or client user ID"
             disabled={!organization || addingMember}
-            className="h-10 rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+            className="h-10 w-full min-w-0 rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
           />
 
           <select
+            aria-label="New member role"
             value={memberRole}
             onChange={(event) =>
               setMemberRole(event.target.value)
             }
             disabled={!organization || addingMember}
-            className="h-10 rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+            className="h-10 w-full min-w-0 rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
           >
             <option value="member">Member</option>
             <option value="client">Client</option>
@@ -1105,7 +1535,7 @@ export function SettingsClient({
             type="button"
             onClick={handleAddMember}
             disabled={!canAddMember}
-            className="h-10 rounded-xl border border-blue-200 px-4 text-sm font-medium text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
+            className="h-10 w-full rounded-xl border border-[var(--decisionate-brand-primary-ring)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 md:w-auto"
           >
             {addingMember
               ? "Adding..."
@@ -1114,13 +1544,16 @@ export function SettingsClient({
         </div>
 
         {memberError && (
-          <p className="mt-3 text-sm font-medium text-red-600">
+          <p
+            role="alert"
+            className="mt-3 text-sm font-medium text-red-600"
+          >
             {memberError}
           </p>
         )}
 
         <p className="mt-3 text-xs text-gray-500">
-          Use Member for agency teammates. Use Client when handing over access to a client user.
+          Use Member for teammates. Use Client only when handing over a shared workspace to an external client.
         </p>
 
         <div className="mt-5 divide-y divide-gray-100 rounded-xl border border-gray-100">
@@ -1131,25 +1564,26 @@ export function SettingsClient({
                 className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-gray-900">
+                  <p className="break-words text-sm font-medium text-gray-900">
                     {member.clerk_user_id === userId
                       ? fullName || "Current user"
                       : member.clerk_user_id}
                   </p>
 
-                  <p className="truncate text-xs text-gray-500">
+                  <p className="break-all text-xs text-gray-500">
                     {member.clerk_user_id}
                   </p>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:shrink-0">
                   {member.role === "owner" ? (
-                    <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                    <span className="w-fit rounded-full border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1 text-xs font-medium text-[var(--decisionate-brand-primary-text)]">
                       Owner
                     </span>
                   ) : (
                     <>
                       <select
+                        aria-label={`Role for ${member.clerk_user_id}`}
                         value={member.role}
                         onChange={(event) =>
                           handleUpdateMemberRole(
@@ -1158,7 +1592,7 @@ export function SettingsClient({
                           )
                         }
                         disabled={memberActionId === member.id}
-                        className="h-9 rounded-lg border border-gray-200 px-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                        className="h-9 w-full rounded-lg border border-gray-200 px-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 sm:w-auto"
                       >
                         <option value="member">
                           Member
@@ -1176,7 +1610,7 @@ export function SettingsClient({
                           )
                         }
                         disabled={memberActionId === member.id}
-                        className="h-9 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
+                        className="h-9 w-full rounded-lg border border-red-200 px-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 sm:w-auto"
                       >
                         {memberActionId === member.id
                           ? "Saving..."
@@ -1189,161 +1623,153 @@ export function SettingsClient({
             ))
           ) : (
             <p className="px-4 py-3 text-sm text-gray-500">
-              Save an agency name to initialize client and team access.
+              Save a workspace name to initialize team and client access.
             </p>
           )}
         </div>
       </div>
       )}
 
-      {/* =========================
-          Workspace Danger Zone Placeholder For Future Data Controls
-      ========================= */}
-
-      {!isClientPortalUser && (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
-        <h2 className="mb-4 text-xl font-semibold text-red-600">
-          Danger Zone
-        </h2>
-
-        <p className="mb-6 text-sm text-red-500">
-          Permanently delete your workspace and associated data.
-        </p>
-
-        <button className="rounded-xl border border-red-300 px-5 py-3 text-sm font-medium text-red-600 transition hover:bg-red-100">
-          Delete Workspace
-        </button>
-      </div>
-      )}
     </div>
   )
 }
 
-function AgencyPortalStep({
-  title,
-  description,
-  status,
+function BrandColorField({
+  label,
+  value,
+  fallbackColor,
+  disabled,
+  onChange,
 }: {
-  title: string
-  description: string
-  status: string
+  label: string
+  value: string
+  fallbackColor: string
+  disabled: boolean
+  onChange: (value: string) => void
 }) {
+  const valid = isValidBrandColor(value)
+  const fieldId =
+    `workspace-${label.toLowerCase().replaceAll(" ", "-")}`
+  const errorId = `${fieldId}-error`
+
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-gray-900">
-          {title}
-        </h3>
+    <div>
+      <label
+        htmlFor={fieldId}
+        className="mb-2 block text-sm font-medium text-gray-600"
+      >
+        {label}
+      </label>
 
-        <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600">
-          {status}
-        </span>
-      </div>
-
-      <p className="mt-2 text-sm text-gray-500">
-        {description}
-      </p>
-    </div>
-  )
-}
-
-function HandoffChecklistItem({
-  title,
-  description,
-  ready,
-}: {
-  title: string
-  description: string
-  ready: boolean
-}) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-gray-900">
-          {title}
-        </h3>
-
-        <span
-          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-            ready
-              ? "border-green-200 bg-green-50 text-green-700"
-              : "border-amber-200 bg-amber-50 text-amber-700"
-          }`}
-        >
-          {ready ? "Ready" : "Needed"}
-        </span>
-      </div>
-
-      <p className="mt-2 text-sm text-gray-500">
-        {description}
-      </p>
-    </div>
-  )
-}
-
-function WorkspaceAccessRow({
-  name,
-  subtitle,
-  role,
-  currentUser = false,
-  logoUrl,
-  brandColor,
-}: {
-  name: string
-  subtitle?: string
-  role: string
-  currentUser?: boolean
-  logoUrl?: string | null
-  brandColor?: string | null
-}) {
-  return (
-    <div className="rounded-xl border border-gray-100 px-4 py-3">
-      <div className="flex items-start gap-3">
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl text-sm font-bold text-white"
-          style={{
-            backgroundColor:
-              brandColor || "#2563EB",
+      <div className="flex gap-2">
+        <input
+          type="color"
+          value={valid ? value : fallbackColor}
+          onChange={(event) => {
+            onChange(
+              event.target.value.toUpperCase()
+            )
           }}
-        >
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoUrl}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            name.charAt(0).toUpperCase()
-          )}
-        </div>
+          aria-label={`${label} picker`}
+          disabled={disabled}
+          className="h-12 w-16 shrink-0 rounded-xl border p-1 disabled:cursor-not-allowed disabled:bg-gray-50"
+        />
 
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-gray-900">
-            {name}
-          </p>
+        <input
+          id={fieldId}
+          type="text"
+          value={value}
+          onChange={(event) => {
+            onChange(
+              event.target.value.toUpperCase()
+            )
+          }}
+          onBlur={() => {
+            const normalizedValue =
+              normalizeBrandColorInput(value)
 
-          {subtitle && (
-            <p className="truncate text-xs text-gray-500">
-              {subtitle}
-            </p>
-          )}
-
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-              {formatRoleLabel(role)}
-            </span>
-
-            {currentUser && (
-              <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600">
-                Current account
-              </span>
-            )}
-          </div>
-        </div>
+            if (normalizedValue !== value) {
+              onChange(normalizedValue)
+            }
+          }}
+          placeholder={fallbackColor}
+          maxLength={7}
+          spellCheck={false}
+          aria-invalid={!valid}
+          aria-describedby={!valid ? errorId : undefined}
+          disabled={disabled}
+          className={`h-12 min-w-0 flex-1 rounded-xl border px-3 font-mono text-sm uppercase disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 ${
+            valid
+              ? "border-gray-200"
+              : "border-red-300 bg-red-50"
+          }`}
+        />
       </div>
+
+      {!valid && (
+        <p
+          id={errorId}
+          role="alert"
+          className="mt-1.5 text-xs font-medium text-red-600"
+        >
+          Enter a six-digit hex color such as {fallbackColor}.
+        </p>
+      )}
     </div>
   )
+}
+
+function normalizeBrandColorInput(
+  value: string
+) {
+  const cleanValue =
+    value.trim().toUpperCase()
+
+  return /^[0-9A-F]{6}$/.test(cleanValue)
+    ? `#${cleanValue}`
+    : cleanValue
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>(
+    (resolve, reject) => {
+      const reader = new FileReader()
+
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result)
+          return
+        }
+
+        reject(
+          new Error("Logo file could not be read.")
+        )
+      }
+
+      reader.onerror = () => {
+        reject(
+          reader.error ??
+            new Error("Logo file could not be read.")
+        )
+      }
+
+      reader.readAsDataURL(file)
+    }
+  )
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+
+  const kilobytes = bytes / 1024
+
+  if (kilobytes < 1024) {
+    return `${Math.round(kilobytes)} KB`
+  }
+
+  return `${(kilobytes / 1024).toFixed(1)} MB`
 }
 
 function formatRoleLabel(

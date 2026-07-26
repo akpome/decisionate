@@ -5,6 +5,8 @@ from typing import get_args
 
 from pydantic import BaseModel
 
+from app.modules.ai.schemas import AIAnalysis
+
 
 DecisionStatus = Literal[
     "planned",
@@ -40,6 +42,11 @@ DecisionConfidenceScore = Literal[
     "high",
     "medium",
     "low",
+]
+
+AIAnalysisSource = Literal[
+    "openai",
+    "rules",
 ]
 
 DecisionActivityType = Literal[
@@ -220,6 +227,7 @@ DECISION_LIST_SORT_PATTERN = build_literal_pattern(
 
 class DecisionCreate(BaseModel):
     dataset_id: int
+    metric_column: str | None = None
     title: str
     description: str | None = None
     expected_outcome: str | None = None
@@ -248,6 +256,7 @@ class DecisionOverviewUpdate(BaseModel):
 class DecisionDetailsUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
+    metric_column: str | None = None
 
 
 # =========================
@@ -258,6 +267,7 @@ class DecisionResponse(BaseModel):
     id: int
     workspace_id: str | None = None
     dataset_id: int
+    metric_column: str | None = None
     title: str
     description: str | None
     notes: str | None
@@ -308,6 +318,15 @@ class DecisionActivityFeedResponse(BaseModel):
 # Decision Portfolio Summary Metrics Response Schema
 # =========================
 
+class DecisionAIAnalysis(AIAnalysis):
+    pass
+
+
+class DecisionOutcomeAnalysisResponse(BaseModel):
+    decision_id: int
+    ai_analysis: DecisionAIAnalysis
+
+
 class DecisionSummaryResponse(BaseModel):
     total: int
     active: int
@@ -328,6 +347,7 @@ class DecisionSummaryResponse(BaseModel):
     by_status: dict[str, int]
     by_outcome_status: dict[str, int]
     by_category: dict[str, int]
+    ai_analysis: DecisionAIAnalysis | None = None
 
 
 # =========================

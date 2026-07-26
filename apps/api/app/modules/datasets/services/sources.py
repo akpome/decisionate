@@ -133,6 +133,20 @@ DATASET_SOURCES = [
         ),
     },
     {
+        "type": "xero",
+        "label": "Xero",
+        "category": "accounting",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["tenant_id"],
+        "description": (
+            "Connect accounting, invoices, bills, contacts, payments, and "
+            "cash flow data. The tenant ID identifies the Xero organization; "
+            "OAuth app credentials are added when configuring the connection."
+        ),
+    },
+    {
         "type": "google_analytics",
         "label": "Google Analytics",
         "category": "analytics",
@@ -189,6 +203,91 @@ DATASET_SOURCES = [
         ),
     },
     {
+        "type": "snowflake",
+        "label": "Snowflake",
+        "category": "data_warehouses",
+        "status": "planned",
+        "connection_type": "data_warehouse",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["warehouse", "database", "schema", "query"],
+        "description": (
+            "Query warehouse data from Snowflake. Warehouse, database, schema, "
+            "and query identify the dataset; Snowflake account credentials "
+            "are added when configuring the connection."
+        ),
+    },
+    {
+        "type": "bigquery",
+        "label": "BigQuery",
+        "category": "data_warehouses",
+        "status": "planned",
+        "connection_type": "data_warehouse",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["project_id", "dataset", "query"],
+        "description": (
+            "Query warehouse data from Google BigQuery. Project, dataset, "
+            "and query identify the dataset; service account credentials "
+            "are added when configuring the connection."
+        ),
+    },
+    {
+        "type": "gcs",
+        "label": "Google Cloud Storage",
+        "category": "cloud_object_storage",
+        "status": "planned",
+        "connection_type": "object_storage",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["bucket", "prefix", "file_pattern"],
+        "description": (
+            "Import CSV, JSON, Excel, or Parquet files stored in Google "
+            "Cloud Storage. Bucket, prefix, and file pattern select the "
+            "objects to import; service account credentials are added when "
+            "configuring the connection."
+        ),
+    },
+    {
+        "type": "azure_blob_storage",
+        "label": "Azure Blob Storage",
+        "category": "cloud_object_storage",
+        "status": "planned",
+        "connection_type": "object_storage",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["container", "path_prefix", "file_pattern"],
+        "description": (
+            "Import CSV, JSON, Excel, or Parquet files stored in Azure Blob "
+            "Storage. Container, path prefix, and file pattern select the "
+            "blobs to import; storage credentials are added when configuring "
+            "the connection."
+        ),
+    },
+    {
+        "type": "s3",
+        "label": "Amazon S3",
+        "category": "cloud_object_storage",
+        "status": "planned",
+        "connection_type": "object_storage",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["bucket", "prefix", "file_pattern"],
+        "description": (
+            "Import CSV, JSON, Excel, or Parquet files stored in Amazon S3. "
+            "Bucket, prefix, and file pattern select the objects to import; "
+            "AWS credentials are added when configuring the connection."
+        ),
+    },
+    {
+        "type": "crm",
+        "label": "CRM",
+        "category": "business_apps",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["provider", "object_type"],
+        "description": (
+            "Connect sales and customer relationship data from supported CRM "
+            "systems. Provider and object type select what records to import."
+        ),
+    },
+    {
         "type": "hubspot",
         "label": "HubSpot",
         "category": "business_apps",
@@ -231,6 +330,20 @@ DATASET_SOURCES = [
         ),
     },
     {
+        "type": "marketing_platform",
+        "label": "Marketing Platform",
+        "category": "business_apps",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["provider", "account_id"],
+        "description": (
+            "Connect campaign, audience, and channel performance from "
+            "supported marketing platforms. Provider and account ID identify "
+            "the source account."
+        ),
+    },
+    {
         "type": "meta_ads",
         "label": "Meta Ads",
         "category": "business_apps",
@@ -242,6 +355,33 @@ DATASET_SOURCES = [
             "Connect Facebook and Instagram ad performance for SMB campaigns. "
             "The ad account ID identifies the Meta Ads account; OAuth app "
             "credentials are added when configuring the connection."
+        ),
+    },
+    {
+        "type": "rest_api",
+        "label": "REST API",
+        "category": "custom",
+        "status": "planned",
+        "connection_type": "api_key",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["base_url", "endpoint", "method"],
+        "description": (
+            "Connect custom REST endpoints for operational data. Base URL, "
+            "endpoint, and method define the import request; API credentials "
+            "are added when configuring the connection."
+        ),
+    },
+    {
+        "type": "webhook",
+        "label": "Webhook",
+        "category": "custom",
+        "status": "planned",
+        "connection_type": "webhook",
+        "sync_modes": ["webhook"],
+        "config_keys": ["event_name"],
+        "description": (
+            "Receive event payloads from external systems through a signed "
+            "Decisionate webhook endpoint."
         ),
     },
 ]
@@ -273,6 +413,10 @@ DATASET_SOURCE_ENV_KEYS = {
         "FRESHBOOKS_CLIENT_ID",
         "FRESHBOOKS_CLIENT_SECRET",
     ],
+    "xero": [
+        "XERO_CLIENT_ID",
+        "XERO_CLIENT_SECRET",
+    ],
     "google_analytics": [
         "GOOGLE_ANALYTICS_CLIENT_ID",
         "GOOGLE_ANALYTICS_CLIENT_SECRET",
@@ -286,6 +430,36 @@ DATASET_SOURCE_ENV_KEYS = {
     "sql_server": [
         "SQL_SERVER_SOURCE_URL",
     ],
+    "snowflake": [
+        "SNOWFLAKE_ACCOUNT",
+        "SNOWFLAKE_USER",
+        "SNOWFLAKE_PASSWORD",
+        "SNOWFLAKE_WAREHOUSE",
+        "SNOWFLAKE_DATABASE",
+        "SNOWFLAKE_SCHEMA",
+    ],
+    "bigquery": [
+        "BIGQUERY_SOURCE_PROJECT_ID",
+        "BIGQUERY_SOURCE_DATASET",
+        "BIGQUERY_SOURCE_CREDENTIALS_JSON",
+    ],
+    "gcs": [
+        "GCS_PROJECT_ID",
+        "GCS_CREDENTIALS_JSON",
+    ],
+    "azure_blob_storage": [
+        "AZURE_STORAGE_ACCOUNT_URL",
+        "AZURE_STORAGE_CONNECTION_STRING",
+    ],
+    "s3": [
+        "AWS_REGION",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+    ],
+    "crm": [
+        "CRM_CLIENT_ID",
+        "CRM_CLIENT_SECRET",
+    ],
     "hubspot": [
         "HUBSPOT_CLIENT_ID",
         "HUBSPOT_CLIENT_SECRET",
@@ -297,9 +471,20 @@ DATASET_SOURCE_ENV_KEYS = {
         "MAILCHIMP_API_KEY",
         "MAILCHIMP_SERVER_PREFIX",
     ],
+    "marketing_platform": [
+        "MARKETING_PLATFORM_CLIENT_ID",
+        "MARKETING_PLATFORM_CLIENT_SECRET",
+    ],
     "meta_ads": [
         "META_ADS_APP_ID",
         "META_ADS_APP_SECRET",
+    ],
+    "rest_api": [
+        "CUSTOM_REST_API_BASE_URL",
+        "CUSTOM_REST_API_KEY",
+    ],
+    "webhook": [
+        "DATASET_WEBHOOK_SIGNING_SECRET",
     ],
 }
 

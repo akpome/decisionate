@@ -38,7 +38,7 @@ class DecisionActivity(
     )
 
     # =========================
-    # Decision Activity Workspace Ownership For Agency Client History
+    # Decision Activity Workspace Ownership For Shared Workspace History
     # =========================
 
     workspace_id = Column(

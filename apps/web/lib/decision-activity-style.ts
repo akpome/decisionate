@@ -24,9 +24,11 @@ type DecisionActivityStyle = {
 }
 
 const blueActivityStyle: DecisionActivityStyle = {
-  dotClass: "bg-blue-500",
-  badgeClass: "bg-blue-50 text-blue-700",
-  titleClass: "text-blue-700",
+  dotClass: "bg-[var(--decisionate-brand-primary)]",
+  badgeClass:
+    "bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]",
+  titleClass:
+    "text-[var(--decisionate-brand-primary-text)]",
 }
 
 const greenActivityStyle: DecisionActivityStyle = {

@@ -20,6 +20,7 @@ from app.modules.decisions.router import (
     apply_decision_list_sort,
     clean_optional_multiline_text,
     clean_optional_single_line_text,
+    clean_required_decision_expected_outcome,
     clean_required_decision_title,
     ensure_decision_is_editable,
     filter_dataset_for_workspace,
@@ -703,6 +704,7 @@ class DecisionFilterTests(unittest.TestCase):
                     DecisionCreate(
                         dataset_id=1,
                         title="Launch pricing",
+                        expected_outcome="Improve margin by 4 points",
                     ),
                     x_user_id="  user-1  ",
                     x_workspace_id="   ",
@@ -755,6 +757,7 @@ class DecisionFilterTests(unittest.TestCase):
                         DecisionCreate(
                             dataset_id=1,
                             title="Launch pricing",
+                            expected_outcome="Improve margin by 4 points",
                         ),
                         x_user_id="user-1",
                         x_workspace_id="workspace-1",
@@ -2170,6 +2173,37 @@ class DecisionFilterTests(unittest.TestCase):
         self.assertIsNone(
             clean_optional_single_line_text(None),
         )
+
+    def test_required_expected_outcome_trims_text(self):
+        self.assertEqual(
+            clean_required_decision_expected_outcome(
+                "  Improve margin by 4 points  ",
+            ),
+            "Improve margin by 4 points",
+        )
+
+    def test_required_expected_outcome_rejects_blank_values(self):
+        for value in (
+            None,
+            "   ",
+            "\n  ",
+        ):
+            with self.subTest(
+                value=value,
+            ):
+                with self.assertRaises(HTTPException) as context:
+                    clean_required_decision_expected_outcome(
+                        value,
+                    )
+
+                self.assertEqual(
+                    context.exception.status_code,
+                    400,
+                )
+                self.assertEqual(
+                    context.exception.detail,
+                    "Expected outcome is required",
+                )
 
     def test_optional_text_cleaners_reject_non_string_values(self):
         for cleaner in (

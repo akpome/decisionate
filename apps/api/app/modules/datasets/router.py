@@ -1,3 +1,4 @@
+import asyncio
 import json
 import math
 import os
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import SessionLocal
 from app.db.models import DataSourceConnection
+from app.db.models import DashboardShare
 from app.db.models import Dataset
 from app.db.models import UserPreference
 
@@ -45,17 +47,29 @@ from app.modules.datasets.services.preview import (
 from app.modules.datasets.services.metrics import (
     generate_metrics,
 )
+from app.modules.datasets.services.numeric import (
+    get_numeric_columns,
+)
 
 from app.modules.datasets.services.charts import (
     generate_chart_data,
 )
 
 from app.modules.datasets.services.insights import (
+    generate_dataset_ai_analysis,
     generate_insights,
+)
+from app.modules.ai.learning import (
+    build_dataset_decision_learning_filter,
+    build_workspace_decision_learning_context,
 )
 
 from app.modules.datasets.services.ownership import (
     verify_dataset_owner,
+)
+from app.modules.organizations.router import (
+    DEFAULT_SELECTED_DASHBOARD,
+    VALID_SELECTED_DASHBOARDS,
 )
 from app.modules.datasets.services.analytics_storage import (
     build_dataset_analytics_manifest,
@@ -210,6 +224,7 @@ def build_dataset_summary_response(
 def build_dataset_details_response(
     dataset,
     dataframe,
+    learning_context: dict | None = None,
 ):
     return {
         **build_dataset_summary_response(
@@ -218,6 +233,11 @@ def build_dataset_details_response(
         "preview": generate_preview(dataframe),
         "metrics": generate_metrics(dataframe),
         "insights": generate_insights(dataframe),
+        "ai_analysis": generate_dataset_ai_analysis(
+            dataframe,
+            None,
+            learning_context,
+        ),
         "chart": generate_chart_data(dataframe),
     }
 
@@ -605,7 +625,7 @@ def sanitize_source_connection_config(
 
 
 # =========================
-# Dataset Workspace Ownership Filter For Agency And Legacy Personal Rows
+# Dataset Workspace Ownership Filter For Shared And Legacy Personal Rows
 # =========================
 
 def filter_datasets_for_workspace(
@@ -673,6 +693,100 @@ def build_dataset_share_result(dataset):
     }
 
 
+def clean_dashboard_share_key(
+    dashboard: str | None,
+):
+    clean_value = str(
+        dashboard or DEFAULT_SELECTED_DASHBOARD
+    ).strip()
+
+    if clean_value not in VALID_SELECTED_DASHBOARDS:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid dashboard selection",
+        )
+
+    return clean_value
+
+
+def build_dashboard_share_result(
+    dataset,
+    dashboard_key: str,
+    dashboard_share: DashboardShare | None,
+):
+    return {
+        "dataset_id": dataset.id,
+        "dashboard": dashboard_key,
+        "share_token": (
+            dashboard_share.share_token
+            if dashboard_share
+            else None
+        ),
+        "share_enabled": bool(dashboard_share),
+    }
+
+
+def build_dashboard_share_status(
+    dataset,
+    dashboard_key: str,
+    dashboard_share: DashboardShare | None,
+):
+    return {
+        "dataset_id": dataset.id,
+        "dashboard": dashboard_key,
+        "share_enabled": bool(dashboard_share),
+    }
+
+
+def get_workspace_share_counts(
+    db,
+    datasets,
+):
+    dataset_ids = [
+        dataset.id
+        for dataset in datasets
+    ]
+    legacy_shares = sum(
+        1
+        for dataset in datasets
+        if dataset.share_token
+    )
+    dashboard_shares = 0
+
+    if dataset_ids:
+        dashboard_shares = (
+            db.query(DashboardShare)
+            .filter(
+                DashboardShare.dataset_id.in_(
+                    dataset_ids
+                )
+            )
+            .count()
+        )
+
+    return {
+        "dataset_ids": dataset_ids,
+        "legacy_shares": legacy_shares,
+        "dashboard_shares": dashboard_shares,
+        "shares_active": legacy_shares + dashboard_shares,
+    }
+
+
+def find_dashboard_share(
+    db,
+    dataset_id: int,
+    dashboard_key: str,
+):
+    return (
+        db.query(DashboardShare)
+        .filter(
+            DashboardShare.dataset_id == dataset_id,
+            DashboardShare.dashboard_key == dashboard_key,
+        )
+        .first()
+    )
+
+
 def build_dataset_share_status(dataset):
     return {
         "dataset_id": dataset.id,
@@ -697,6 +811,41 @@ def ensure_dataset_share_token(
         except IntegrityError:
             db.rollback()
             dataset.share_token = None
+
+    raise HTTPException(
+        status_code=500,
+        detail="Unable to create share link",
+    )
+
+
+def ensure_dashboard_share_token(
+    db,
+    dataset,
+    dashboard_key: str,
+):
+    dashboard_share = find_dashboard_share(
+        db,
+        dataset.id,
+        dashboard_key,
+    )
+
+    if dashboard_share:
+        return dashboard_share
+
+    for _ in range(3):
+        dashboard_share = DashboardShare(
+            dataset_id=dataset.id,
+            dashboard_key=dashboard_key,
+            share_token=generate_share_token(),
+        )
+        db.add(dashboard_share)
+
+        try:
+            db.commit()
+            db.refresh(dashboard_share)
+            return dashboard_share
+        except IntegrityError:
+            db.rollback()
 
     raise HTTPException(
         status_code=500,
@@ -851,7 +1000,10 @@ async def get_datasets(
                     workspace_id,
                 )
             )
-            .order_by(Dataset.created_at.desc())
+            .order_by(
+                Dataset.created_at.desc(),
+                Dataset.id.desc(),
+            )
             .all()
         )
 
@@ -907,7 +1059,10 @@ async def get_source_connections(
                     workspace_id,
                 )
             )
-            .order_by(DataSourceConnection.created_at.desc())
+            .order_by(
+                DataSourceConnection.created_at.desc(),
+                DataSourceConnection.id.desc(),
+            )
             .all()
         )
 
@@ -1253,10 +1408,29 @@ async def dataset_insights(
             workspace_id,
         )
 
+        learning_context = (
+            build_workspace_decision_learning_context(
+                db,
+                user_id,
+                workspace_id,
+                base_filter=build_dataset_decision_learning_filter(
+                    dataset.id,
+                ),
+                learning_scope="dataset",
+            )
+        )
+        ai_analysis = await asyncio.to_thread(
+            generate_dataset_ai_analysis,
+            dataframe,
+            None,
+            learning_context,
+        )
+
         return {
             "dataset_id": dataset.id,
             "file_name": dataset.file_name,
             "insights": generate_insights(dataframe),
+            "ai_analysis": ai_analysis,
         }
 
     finally:
@@ -1323,10 +1497,225 @@ async def dataset_details(
             workspace_id,
         )
 
-        return build_dataset_details_response(
+        learning_context = (
+            build_workspace_decision_learning_context(
+                db,
+                user_id,
+                workspace_id,
+                base_filter=build_dataset_decision_learning_filter(
+                    dataset.id,
+                ),
+                learning_scope="dataset",
+            )
+        )
+        return await asyncio.to_thread(
+            build_dataset_details_response,
             dataset,
             dataframe,
+            learning_context,
         )
+
+    finally:
+        db.close()
+
+
+@router.get("/{dataset_id}/ai-analysis")
+async def dataset_ai_analysis(
+    request: Request,
+    dataset_id: int,
+    metric: str | None = None,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+
+    db = SessionLocal()
+
+    try:
+        dataset, dataframe = load_dataframe(
+            db,
+            dataset_id,
+        )
+
+        verify_dataset_owner(
+            dataset,
+            user_id,
+            workspace_id,
+        )
+
+        clean_metric = (
+            str(metric).strip()
+            if metric is not None
+            else ""
+        )
+        numeric_columns = {
+            str(column)
+            for column, _ in get_numeric_columns(dataframe)
+        }
+
+        if clean_metric and clean_metric not in numeric_columns:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Metric '{clean_metric}' is not numeric or was not found",
+            )
+
+        learning_context = (
+            build_workspace_decision_learning_context(
+                db,
+                user_id,
+                workspace_id,
+                base_filter=build_dataset_decision_learning_filter(
+                    dataset.id,
+                    clean_metric,
+                ),
+                learning_scope=(
+                    "metric"
+                    if clean_metric
+                    else "dataset"
+                ),
+            )
+        )
+        ai_analysis = await asyncio.to_thread(
+            generate_dataset_ai_analysis,
+            dataframe,
+            clean_metric or None,
+            learning_context,
+        )
+
+        return {
+            "dataset_id": dataset.id,
+            "metric": clean_metric or None,
+            "ai_analysis": ai_analysis,
+        }
+
+    finally:
+        db.close()
+
+
+@router.delete("/share/all")
+async def stop_all_dataset_sharing(
+    request: Request,
+    response: Response,
+):
+    response.headers["Cache-Control"] = "no-store"
+
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    require_workspace_data_manager(
+        request,
+    )
+
+    db = SessionLocal()
+
+    try:
+        datasets = (
+            db.query(Dataset)
+            .filter(
+                filter_datasets_for_workspace(
+                    user_id,
+                    workspace_id,
+                )
+            )
+            .all()
+        )
+        share_counts = get_workspace_share_counts(
+            db,
+            datasets,
+        )
+        dataset_ids = share_counts["dataset_ids"]
+        deleted_dashboard_shares = 0
+
+        for dataset in datasets:
+            dataset.share_token = None
+
+        if dataset_ids:
+            deleted_dashboard_shares = (
+                db.query(DashboardShare)
+                .filter(
+                    DashboardShare.dataset_id.in_(
+                        dataset_ids
+                    )
+                )
+                .delete(
+                    synchronize_session=False
+                )
+            )
+
+        db.commit()
+
+        return {
+            "datasets_updated": len(dataset_ids),
+            "legacy_shares_cleared": share_counts[
+                "legacy_shares"
+            ],
+            "dashboard_shares_deleted": deleted_dashboard_shares,
+            "shares_stopped": (
+                share_counts["legacy_shares"] +
+                deleted_dashboard_shares
+            ),
+            "share_enabled": False,
+        }
+
+    finally:
+        db.close()
+
+
+@router.get("/share/status/all")
+async def get_all_dataset_sharing_status(
+    request: Request,
+    response: Response,
+):
+    response.headers["Cache-Control"] = "no-store"
+
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    require_workspace_data_manager(
+        request,
+    )
+
+    db = SessionLocal()
+
+    try:
+        datasets = (
+            db.query(Dataset)
+            .filter(
+                filter_datasets_for_workspace(
+                    user_id,
+                    workspace_id,
+                )
+            )
+            .all()
+        )
+        share_counts = get_workspace_share_counts(
+            db,
+            datasets,
+        )
+
+        return {
+            "datasets_checked": len(
+                share_counts["dataset_ids"]
+            ),
+            "legacy_shares": share_counts[
+                "legacy_shares"
+            ],
+            "dashboard_shares": share_counts[
+                "dashboard_shares"
+            ],
+            "shares_active": share_counts[
+                "shares_active"
+            ],
+            "share_enabled": (
+                share_counts["shares_active"] > 0
+            ),
+        }
 
     finally:
         db.close()
@@ -1337,6 +1726,7 @@ async def create_dataset_share_link(
     request: Request,
     response: Response,
     dataset_id: int,
+    dashboard: str | None = None,
 ):
     response.headers["Cache-Control"] = "no-store"
 
@@ -1363,12 +1753,26 @@ async def create_dataset_share_link(
             workspace_id,
         )
 
-        ensure_dataset_share_token(
+        if dashboard is None:
+            ensure_dataset_share_token(
+                db,
+                dataset,
+            )
+
+            return build_dataset_share_result(dataset)
+
+        dashboard_key = clean_dashboard_share_key(dashboard)
+        dashboard_share = ensure_dashboard_share_token(
             db,
             dataset,
+            dashboard_key,
         )
 
-        return build_dataset_share_result(dataset)
+        return build_dashboard_share_result(
+            dataset,
+            dashboard_key,
+            dashboard_share,
+        )
 
     finally:
         db.close()
@@ -1379,6 +1783,7 @@ async def get_dataset_share_status(
     request: Request,
     response: Response,
     dataset_id: int,
+    dashboard: str | None = None,
 ):
     response.headers["Cache-Control"] = "no-store"
 
@@ -1402,7 +1807,21 @@ async def get_dataset_share_status(
             workspace_id,
         )
 
-        return build_dataset_share_status(dataset)
+        if dashboard is None:
+            return build_dataset_share_status(dataset)
+
+        dashboard_key = clean_dashboard_share_key(dashboard)
+        dashboard_share = find_dashboard_share(
+            db,
+            dataset.id,
+            dashboard_key,
+        )
+
+        return build_dashboard_share_status(
+            dataset,
+            dashboard_key,
+            dashboard_share,
+        )
 
     finally:
         db.close()
@@ -1413,6 +1832,7 @@ async def stop_dataset_sharing(
     request: Request,
     response: Response,
     dataset_id: int,
+    dashboard: str | None = None,
 ):
     response.headers["Cache-Control"] = "no-store"
 
@@ -1439,11 +1859,31 @@ async def stop_dataset_sharing(
             workspace_id,
         )
 
-        dataset.share_token = None
+        if dashboard is None:
+            dataset.share_token = None
+            db.commit()
+            db.refresh(dataset)
+
+            return build_dataset_share_result(dataset)
+
+        dashboard_key = clean_dashboard_share_key(dashboard)
+        dashboard_share = find_dashboard_share(
+            db,
+            dataset.id,
+            dashboard_key,
+        )
+
+        if dashboard_share:
+            db.delete(dashboard_share)
+
         db.commit()
         db.refresh(dataset)
 
-        return build_dataset_share_result(dataset)
+        return build_dashboard_share_result(
+            dataset,
+            dashboard_key,
+            None,
+        )
 
     finally:
         db.close()

@@ -92,6 +92,8 @@ export function CsvUpload({
     formatUploadSourceLabels(
       setupUploadSources
     )
+  const uploadHelpId =
+    "dataset-upload-help"
 
   async function handleFileUpload(
     event: React.ChangeEvent<HTMLInputElement>
@@ -139,24 +141,32 @@ export function CsvUpload({
   return (
     <div className="space-y-6">
       {/* Upload Area */}
-      <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center transition hover:bg-gray-100">
+      <label
+        htmlFor="dataset-file-upload"
+        className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-10 text-center transition hover:bg-gray-100 focus-within:border-[var(--decisionate-brand-primary)] focus-within:outline-none focus-within:ring-2 focus-within:ring-[var(--decisionate-brand-primary-ring)] sm:px-6 sm:py-12"
+      >
         <div className="space-y-2">
           <p className="text-lg font-medium">
             Upload Data File
           </p>
 
-          <p className="text-sm text-gray-500">
+          <p
+            id={uploadHelpId}
+            className="text-sm text-gray-500"
+          >
             {acceptedFormatLabel}
           </p>
         </div>
 
         <input
+          id="dataset-file-upload"
           ref={fileInputRef}
           type="file"
           accept={acceptedExtensions.join(
             ","
           )}
-          className="hidden"
+          aria-describedby={uploadHelpId}
+          className="sr-only"
           onChange={handleFileUpload}
         />
       </label>
@@ -164,7 +174,7 @@ export function CsvUpload({
       {setupFormatLabel && (
         <div className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <p>
-            {setupFormatLabel} need setup on the API server before upload.
+            {setupFormatLabel} need workspace setup before upload.
           </p>
 
           {setupUploadSources.map(
@@ -186,13 +196,20 @@ export function CsvUpload({
 
       {/* Upload State */}
       {loading && (
-        <div className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-600">
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-600"
+        >
           Uploading data file...
         </div>
       )}
 
       {errorMessage && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+        >
           {errorMessage}
         </div>
       )}
@@ -204,7 +221,7 @@ export function CsvUpload({
             Uploaded File
           </p>
 
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 break-all text-sm text-gray-500">
             {fileName}
           </p>
         </div>

@@ -45,7 +45,7 @@ class WorkspacePermissionTests(unittest.TestCase):
         )
         self.assertEqual(
             context.exception.detail,
-            "Client users cannot modify agency workspace data setup",
+            "Client users cannot modify workspace data setup",
         )
 
     def test_member_role_can_modify_workspace_data_setup(self):

@@ -1,6 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 from fastapi import HTTPException
@@ -241,7 +241,7 @@ class AnalyticsEngineTests(unittest.TestCase):
             dataframe,
         )
 
-    def test_bigquery_adapter_fails_explicitly_until_implemented(self):
+    def test_bigquery_adapter_requires_optional_dependency(self):
         config = AnalyticsEngineConfig(
             engine="bigquery",
             duckdb_path="analytics.duckdb",
@@ -254,7 +254,101 @@ class AnalyticsEngineTests(unittest.TestCase):
 
         with self.assertRaises(
             AnalyticsAdapterUnavailable,
+        ) as context:
+            with patch(
+                "importlib.import_module",
+                side_effect=ModuleNotFoundError(
+                    "google.cloud.bigquery"
+                ),
+            ):
+                get_analytics_adapter(
+                    config,
+                ).load_dataframe(
+                    SimpleNamespace(
+                        id=1,
+                    )
+                )
+
+        self.assertIn(
+            "google-cloud-bigquery",
+            str(context.exception),
+        )
+
+    def test_bigquery_adapter_loads_configured_table(self):
+        config = AnalyticsEngineConfig(
+            engine="bigquery",
+            duckdb_path="analytics.duckdb",
+            analytics_storage_dir="analytics/datasets",
+            storage_format="parquet",
+            bigquery_project_id="project",
+            bigquery_dataset="dataset",
+            bigquery_location="US",
+        )
+        dataset = SimpleNamespace(
+            id=1,
+            workspace_id="workspace-1",
+            user_id="user-1",
+        )
+        dataframe = pd.DataFrame({
+            "revenue": [
+                100,
+            ],
+        })
+        row_iterator = MagicMock()
+        row_iterator.to_dataframe.return_value = (
+            dataframe
+        )
+        query_job = MagicMock()
+        query_job.result.return_value = (
+            row_iterator
+        )
+        client = MagicMock()
+        client.query.return_value = query_job
+        bigquery = SimpleNamespace(
+            Client=MagicMock(
+                return_value=client
+            )
+        )
+
+        with patch(
+            "importlib.import_module",
+            return_value=bigquery,
         ):
+            result = (
+                get_analytics_adapter(
+                    config,
+                )
+                .load_dataframe(dataset)
+            )
+
+        self.assertIs(
+            result,
+            dataframe,
+        )
+        bigquery.Client.assert_called_once_with(
+            project="project",
+        )
+        client.query.assert_called_once_with(
+            "SELECT * FROM `project.dataset.workspace_1_dataset_1`",
+            location="US",
+        )
+        query_job.result.assert_called_once_with()
+        row_iterator.to_dataframe.assert_called_once_with()
+
+    def test_bigquery_adapter_requires_project_and_dataset(self):
+        config = AnalyticsEngineConfig(
+            engine="bigquery",
+            duckdb_path="analytics.duckdb",
+            analytics_storage_dir="analytics/datasets",
+            storage_format="parquet",
+            bigquery_project_id=None,
+            bigquery_dataset=None,
+            bigquery_location="US",
+        )
+
+        with self.assertRaises(
+            AnalyticsAdapterUnavailable,
+        ) as context:
             get_analytics_adapter(
                 config,
             ).load_dataframe(
@@ -262,6 +356,11 @@ class AnalyticsEngineTests(unittest.TestCase):
                     id=1,
                 )
             )
+
+        self.assertIn(
+            "BIGQUERY_PROJECT_ID",
+            str(context.exception),
+        )
 
     def test_dataset_loader_maps_unavailable_adapter_to_service_error(self):
         dataset = SimpleNamespace(
@@ -271,7 +370,7 @@ class AnalyticsEngineTests(unittest.TestCase):
         with patch(
             "app.modules.datasets.services.dataset_loader.load_dataset_dataframe",
             side_effect=AnalyticsAdapterUnavailable(
-                "BigQuery analytics adapter is not implemented yet"
+                "BigQuery analytics adapter unavailable"
             ),
         ):
             with self.assertRaises(
@@ -287,7 +386,7 @@ class AnalyticsEngineTests(unittest.TestCase):
         )
         self.assertEqual(
             context.exception.detail,
-            "BigQuery analytics adapter is not implemented yet",
+            "BigQuery analytics adapter unavailable",
         )
 
     def test_analytics_identifier_is_bigquery_safe(self):

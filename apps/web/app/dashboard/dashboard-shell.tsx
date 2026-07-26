@@ -10,6 +10,7 @@ import {
   Database,
   FileText,
   Home,
+  LayoutDashboard,
   LineChart,
   Plug,
   Settings,
@@ -45,59 +46,89 @@ type DashboardNavItem = {
   icon: ReactNode
 }
 
+type DashboardNavGroup = {
+  label: string
+  items: DashboardNavItem[]
+}
+
 type OrganizationUpdatedEvent =
   CustomEvent<OrganizationRecord>
 
-const dashboardNavItems: DashboardNavItem[] = [
+const dashboardNavGroups: DashboardNavGroup[] = [
   {
-    href: "/dashboard",
-    label: "Dashboard",
-    icon: <Home size={18} />,
+    label: "Workspace",
+    items: [
+      {
+        href: "/dashboard",
+        label: "Dashboard",
+        icon: <Home size={18} />,
+      },
+      {
+        href: "/dashboard/dashboards",
+        label: "Dashboards",
+        icon: <LayoutDashboard size={18} />,
+      },
+      {
+        href: "/dashboard/decisions",
+        label: "Decisions",
+        icon: <Target size={18} />,
+      },
+      {
+        href: "/dashboard/action-needed",
+        label: "Action Needed",
+        icon: <AlertCircle size={18} />,
+      },
+    ],
   },
   {
-    href: "/dashboard/insights",
-    label: "Insights",
-    icon: <BarChart3 size={18} />,
+    label: "Analysis",
+    items: [
+      {
+        href: "/dashboard/insights",
+        label: "Insights",
+        icon: <BarChart3 size={18} />,
+      },
+      {
+        href: "/dashboard/forecasts",
+        label: "Forecasts",
+        icon: <LineChart size={18} />,
+      },
+      {
+        href: "/dashboard/reports",
+        label: "Reports",
+        icon: <FileText size={18} />,
+      },
+    ],
   },
   {
-    href: "/dashboard/datasets",
-    label: "Datasets",
-    icon: <Database size={18} />,
+    label: "Data",
+    items: [
+      {
+        href: "/dashboard/datasets",
+        label: "Datasets",
+        icon: <Database size={18} />,
+      },
+      {
+        href: "/dashboard/connections",
+        label: "Connections",
+        icon: <Plug size={18} />,
+      },
+    ],
   },
   {
-    href: "/dashboard/connections",
-    label: "Connections",
-    icon: <Plug size={18} />,
-  },
-  {
-    href: "/dashboard/forecasts",
-    label: "Forecasts",
-    icon: <LineChart size={18} />,
-  },
-  {
-    href: "/dashboard/decisions",
-    label: "Decisions",
-    icon: <Target size={18} />,
-  },
-  {
-    href: "/dashboard/action-needed",
-    label: "Action Needed",
-    icon: <AlertCircle size={18} />,
-  },
-  {
-    href: "/dashboard/reports",
-    label: "Reports",
-    icon: <FileText size={18} />,
-  },
-  {
-    href: "/dashboard/alerts",
-    label: "Alerts",
-    icon: <Bell size={18} />,
-  },
-  {
-    href: "/dashboard/settings",
-    label: "Settings",
-    icon: <Settings size={18} />,
+    label: "Manage",
+    items: [
+      {
+        href: "/dashboard/alerts",
+        label: "Alerts",
+        icon: <Bell size={18} />,
+      },
+      {
+        href: "/dashboard/settings",
+        label: "Settings",
+        icon: <Settings size={18} />,
+      },
+    ],
   },
 ]
 
@@ -262,12 +293,12 @@ export function DashboardShell({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="dashboard-shell-layout flex h-screen overflow-hidden bg-gray-50">
       {/* =========================
           Dashboard Sidebar Brand Workspace And Primary Navigation
       ========================= */}
 
-      <aside className="flex h-screen w-64 shrink-0 flex-col border-r bg-white">
+      <aside className="dashboard-print-hidden flex h-screen w-64 shrink-0 flex-col border-r bg-white">
         <div className="shrink-0 border-b p-6">
           <div className="flex items-center gap-3">
             <div
@@ -340,21 +371,31 @@ export function DashboardShell({
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto p-4">
-          <div className="space-y-1">
-            {dashboardNavItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={getNavLinkClass(
-                  isActiveDashboardPath(
-                    pathname,
-                    item.href
-                  )
-                )}
-              >
-                {item.icon}
-                {item.label}
-              </Link>
+          <div className="space-y-5">
+            {dashboardNavGroups.map((group) => (
+              <div key={group.label}>
+                <p className="mb-2 px-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  {group.label}
+                </p>
+
+                <div className="space-y-1">
+                  {group.items.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={getNavLinkClass(
+                        isActiveDashboardPath(
+                          pathname,
+                          item.href
+                        )
+                      )}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </nav>
@@ -386,7 +427,7 @@ export function DashboardShell({
           Dashboard Main Content Area For Nested Product Pages
       ========================= */}
 
-      <main className="h-screen flex-1 overflow-y-auto p-8">
+      <main className="dashboard-print-main h-screen flex-1 overflow-y-auto p-8">
         {children}
       </main>
     </div>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Decisionate maskable icon</title>
+  <defs>
+    <linearGradient id="decisionate-maskable-gradient" x1="64" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4f46e5" />
+      <stop offset="1" stop-color="#0891b2" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="#2563EB" />
+  <rect x="48" y="48" width="416" height="416" rx="104" fill="#ffffff" />
+  <rect x="96" y="96" width="320" height="320" rx="80" fill="url(#decisionate-maskable-gradient)" />
+  <path d="M156 366V146h88c70 0 118 44 118 110s-48 110-118 110h-88Zm64-58h25c36 0 53-22 53-52s-17-52-53-52h-25v104Z" fill="#fff" />
+  <circle cx="368" cy="154" r="25" fill="#ccfbf1" />
+</svg>
