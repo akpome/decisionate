@@ -15,15 +15,29 @@ const workspaceFaviconAttribute =
 const workspaceFaviconSelector =
   'link[rel~="icon"]'
 
+type WorkspaceBrowserBrandOptions = {
+  manageFavicon?: boolean
+  manageManifest?: boolean
+}
+
 export function useWorkspaceBrowserBrand(
-  title: string,
-  brand: WorkspaceBrand
+  title: string | undefined,
+  brand: WorkspaceBrand,
+  options: WorkspaceBrowserBrandOptions = {}
 ) {
   const brandName = brand.name
   const brandLogoUrl = brand.logoUrl
   const brandPrimaryColor = brand.primaryColor
+  const manageFavicon =
+    options.manageFavicon ?? true
+  const manageManifest =
+    options.manageManifest ?? true
 
   useEffect(() => {
+    if (!title) {
+      return
+    }
+
     const previousTitle = document.title
 
     document.title = title
@@ -36,6 +50,10 @@ export function useWorkspaceBrowserBrand(
   }, [title])
 
   useEffect(() => {
+    if (!manageManifest) {
+      return
+    }
+
     const manifestLink =
       document.head.querySelector<HTMLLinkElement>(
         'link[rel="manifest"]'
@@ -45,9 +63,6 @@ export function useWorkspaceBrowserBrand(
       return
     }
 
-    const previousHref =
-      manifestLink.getAttribute("href")
-
     manifestLink.href =
       getWorkspaceManifestHref({
         name: brandName,
@@ -55,21 +70,21 @@ export function useWorkspaceBrowserBrand(
         primaryColor: brandPrimaryColor,
       })
 
-    return () => {
-      if (previousHref) {
-        manifestLink.setAttribute(
-          "href",
-          previousHref
-        )
-      }
-    }
+    // Keep the active workspace manifest in place while the next brand loads.
+    // Restoring the previous default here makes the browser briefly switch
+    // back to Decisionate during normal workspace and route transitions.
   }, [
     brandLogoUrl,
     brandName,
     brandPrimaryColor,
+    manageManifest,
   ])
 
   useEffect(() => {
+    if (!manageFavicon) {
+      return
+    }
+
     const cleanLogoUrl = brandLogoUrl.trim()
     const generatedLogoUrl =
       getGeneratedWorkspaceIconDataUrl(
@@ -88,21 +103,19 @@ export function useWorkspaceBrowserBrand(
     const applyFavicon = (url: string) => {
       if (cancelled) return
 
-      const existingIconLinks = Array.from(
-        document.head.querySelectorAll<HTMLLinkElement>(
-          workspaceFaviconSelector
-        )
-      )
+      const managedIconSelector =
+        `${workspaceFaviconSelector}[${workspaceFaviconAttribute}="true"]`
       const iconLink =
-        existingIconLinks[0] ??
+        document.head.querySelector<HTMLLinkElement>(
+          managedIconSelector
+        ) ??
+        document.head.querySelector<HTMLLinkElement>(
+          workspaceFaviconSelector
+        ) ??
         document.createElement("link")
 
-      if (existingIconLinks.length === 0) {
+      if (!iconLink.parentNode) {
         document.head.appendChild(iconLink)
-      } else {
-        existingIconLinks.slice(1).forEach(link => {
-          link.remove()
-        })
       }
 
       const type = getWorkspaceFaviconType(url)
@@ -130,15 +143,6 @@ export function useWorkspaceBrowserBrand(
 
     applyFavicon(activeFaviconUrl)
 
-    const headObserver = new MutationObserver(() => {
-      applyFavicon(activeFaviconUrl)
-    })
-
-    headObserver.observe(document.head, {
-      childList: true,
-      subtree: true,
-    })
-
     logoImage.onload = () => {
       activeFaviconUrl = cleanLogoUrl
       applyFavicon(activeFaviconUrl)
@@ -156,34 +160,14 @@ export function useWorkspaceBrowserBrand(
 
     return () => {
       cancelled = true
-      headObserver.disconnect()
       logoImage.onload = null
       logoImage.onerror = null
-
-      document.head
-        .querySelectorAll<HTMLLinkElement>(
-          workspaceFaviconSelector
-        )
-        .forEach(link => {
-          if (
-            link.getAttribute(
-              workspaceFaviconAttribute
-            ) !== "true"
-          ) {
-            return
-          }
-
-          link.removeAttribute(
-            workspaceFaviconAttribute
-          )
-          link.href = defaultLogoUrl
-          link.type = "image/svg+xml"
-        })
     }
   }, [
     brandLogoUrl,
     brandName,
     brandPrimaryColor,
+    manageFavicon,
   ])
 }
 

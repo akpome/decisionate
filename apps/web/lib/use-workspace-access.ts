@@ -147,10 +147,15 @@ export function useWorkspaceAccess(
     workspaceAccessReady
       ? workspaceRoleFromData
       : "unknown"
+  const canConfigureWorkspace =
+    workspaceAccessReady &&
+    !loadingWorkspaceAccess &&
+    workspaceRole === "owner"
 
   return {
     activeWorkspace,
     activeWorkspaceId,
+    canConfigureWorkspace,
     canManageWorkspaceData:
       workspaceAccessReady &&
       !loadingWorkspaceAccess &&

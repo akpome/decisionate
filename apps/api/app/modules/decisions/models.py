@@ -53,6 +53,21 @@ class Decision(Base):
         nullable=True,
     )
 
+    recommendation_text = Column(
+        Text,
+        nullable=True,
+    )
+
+    recommendation_source = Column(
+        String,
+        nullable=True,
+    )
+
+    recommendation_context = Column(
+        Text,
+        nullable=True,
+    )
+
     title = Column(
         String,
         nullable=False,

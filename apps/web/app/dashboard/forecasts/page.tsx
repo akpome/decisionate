@@ -448,7 +448,6 @@ export default function ForecastsPage() {
 
     return () => {
       ignoreResult = true
-      setDatasetsLoading(false)
     }
   }, [
     activeWorkspaceId,
@@ -942,6 +941,19 @@ export default function ForecastsPage() {
     selectedDataset?.file_name ??
     forecast?.file_name ??
     "selected dataset"
+  const forecastModelEvidence =
+    forecast?.forecast.model_quality
+      ? [
+        `Forecast model: ${forecast.forecast.model_quality.method.replaceAll("_", " ")}`,
+        `${forecast.forecast.model_quality.validation_periods} holdout validation period${forecast.forecast.model_quality.validation_periods === 1 ? "" : "s"}`,
+        `Reliability: ${forecast.forecast.model_quality.reliability ?? "limited"}`,
+        forecast.forecast.model_quality.mape !== null
+          ? `MAPE: ${forecast.forecast.model_quality.mape.toLocaleString()}%`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("; ")
+      : ""
 
   // Decision creation flow: saves the forecast recommendation and opens its detail page.
   async function handleCreateDecision() {
@@ -974,6 +986,16 @@ export default function ForecastsPage() {
               selectedMetric ||
               forecast.forecast.value_column,
 
+            recommendation_text:
+              recommendationReason || undefined,
+
+            recommendation_source:
+              forecast.forecast.ai_analysis?.source ||
+              undefined,
+
+            recommendation_context:
+              `${metricName || selectedMetric || "selected metric"} forecast (${decisionDatasetName})`,
+
             title: recommendationTitle,
 
                 description:
@@ -981,6 +1003,7 @@ export default function ForecastsPage() {
                 decisionBrief,
                 `Recommendation: ${recommendationTitle}`,
                 `Decision target: ${metricName || selectedMetric || "selected metric"} (${decisionDatasetName})`,
+                forecastModelEvidence,
                 learningContext,
                 `Decisionate AI source: ${recommendationSource}`,
               ]

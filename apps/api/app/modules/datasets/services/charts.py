@@ -9,7 +9,8 @@ from app.modules.datasets.services.serialization import (
 
 
 def generate_chart_data(
-    dataframe: pd.DataFrame
+    dataframe: pd.DataFrame,
+    limit: int | None = 50,
 ):
     if not isinstance(
         dataframe,
@@ -49,13 +50,12 @@ def generate_chart_data(
             if column != x_column
         ],
     ]
-    chart_frame = (
-        dataframe[
-            chart_columns
-        ]
-        .tail(50)
-        .copy()
-    )
+    chart_frame = dataframe[chart_columns]
+
+    if limit is not None:
+        chart_frame = chart_frame.tail(limit)
+
+    chart_frame = chart_frame.copy()
 
     numeric_series_by_column = dict(
         numeric_column_pairs

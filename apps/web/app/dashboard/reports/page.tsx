@@ -356,7 +356,6 @@ export default function ReportsPage() {
 
     return () => {
       ignoreResult = true
-      setLoadingDatasets(false)
     }
   }, [
     user?.id,

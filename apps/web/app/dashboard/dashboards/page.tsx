@@ -65,7 +65,7 @@ export default function DashboardsPage() {
     workspaceVersion,
   } = useActiveWorkspace(userId)
   const {
-    canManageWorkspaceData,
+    canConfigureWorkspace,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(userId)
   const [selectedDashboard, setSelectedDashboard] =
@@ -190,7 +190,7 @@ export default function DashboardsPage() {
   const loadSharingStatus =
     useCallback(
       async (isCurrent: () => boolean) => {
-        if (!userId || !canManageWorkspaceData) {
+        if (!userId || !canConfigureWorkspace) {
           setDashboardSharingEnabled(false)
           setActiveSharingCount(0)
           setSharingStatusError("")
@@ -233,7 +233,7 @@ export default function DashboardsPage() {
       },
       [
         activeWorkspaceId,
-        canManageWorkspaceData,
+        canConfigureWorkspace,
         userId,
       ]
     )
@@ -293,7 +293,7 @@ export default function DashboardsPage() {
     }
   }, [
     loadSharingStatus,
-    canManageWorkspaceData,
+    canConfigureWorkspace,
     userId,
     sharingStatusRetryKey,
     workspaceVersion,
@@ -345,7 +345,7 @@ export default function DashboardsPage() {
   async function handleStopAllSharing() {
     if (
       !userId ||
-      !canManageWorkspaceData ||
+      !canConfigureWorkspace ||
       stoppingAllSharing
     ) {
       return
@@ -424,7 +424,7 @@ export default function DashboardsPage() {
         description="Choose the professionally designed dashboard that becomes your main workspace view."
         actions={
           userId &&
-          canManageWorkspaceData &&
+          canConfigureWorkspace &&
           dashboardSharingEnabled &&
           activeSharingCount > 0 ? (
           <button
@@ -472,7 +472,7 @@ export default function DashboardsPage() {
         </div>
       )}
 
-      {canManageWorkspaceData && sharingStatusError && (
+      {canConfigureWorkspace && sharingStatusError && (
         <div
           role="alert"
           className="flex flex-col gap-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
@@ -495,12 +495,12 @@ export default function DashboardsPage() {
 
       <WorkspaceAccessNotice
         loading={loadingWorkspaceAccess}
-        canManageWorkspaceData={canManageWorkspaceData}
-        message="Dashboard selection is personal to your shared workspace view. Workspace managers handle dashboard sharing."
+        canManageWorkspaceData={canConfigureWorkspace}
+        message="Dashboard selection is personal to your shared workspace view. The business owner handles dashboard sharing."
         className="print:hidden"
       />
 
-      {canManageWorkspaceData && shareStatus && (
+      {canConfigureWorkspace && shareStatus && (
         <div
           role="status"
           aria-live="polite"

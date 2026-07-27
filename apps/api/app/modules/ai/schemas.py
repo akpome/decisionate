@@ -12,6 +12,7 @@ class AILearningContext(BaseModel):
     ] = "workspace"
     recorded_lesson_count: int = 0
     recorded_outcome_count: int = 0
+    recorded_recommendation_count: int = 0
     sampled_lesson_count: int = 0
     sampled_evidence_count: int = 0
 

@@ -10,6 +10,8 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import Request
 from sqlalchemy import and_
+from sqlalchemy import false
+from sqlalchemy import func
 from sqlalchemy import or_
 
 from app.db.database import SessionLocal
@@ -44,6 +46,7 @@ from app.modules.datasets.services.dataset_loader import (
 from app.modules.datasets.services.metrics import (
     generate_metrics,
 )
+from app.modules.decisions.models import Decision
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -345,6 +348,46 @@ def normalize_metric_key(
     ).strip().lower()
 
 
+def parse_metric_focus_key(
+    metric: str,
+):
+    clean_metric = normalize_metric_key(metric)
+    if ":" not in clean_metric:
+        return None, clean_metric
+
+    dataset_id_text, column = clean_metric.split(
+        ":",
+        1,
+    )
+    if not dataset_id_text.isdigit():
+        return None, clean_metric
+
+    return int(dataset_id_text), column
+
+
+def metric_focus_matches(
+    focus_keys: set[str],
+    dataset_id: int,
+    column: str,
+) -> bool:
+    column_key = normalize_metric_key(column)
+
+    for focus_key in focus_keys:
+        scoped_dataset_id, focus_column = parse_metric_focus_key(
+            focus_key
+        )
+        if focus_column != column_key:
+            continue
+
+        if (
+            scoped_dataset_id is None or
+            scoped_dataset_id == dataset_id
+        ):
+            return True
+
+    return False
+
+
 def get_metric_number(
     metric,
     *keys,
@@ -483,11 +526,10 @@ def build_weekly_report_digest(
             if not column:
                 continue
 
-            if (
-                focus_keys
-                and normalize_metric_key(
-                    column
-                ) not in focus_keys
+            if focus_keys and not metric_focus_matches(
+                focus_keys,
+                dataset.id,
+                column,
             ):
                 continue
 
@@ -612,6 +654,63 @@ def get_alert_datasets(
     )
 
 
+def build_weekly_report_learning_filter(
+    preference: WeeklyReportPreferenceResponse,
+    datasets,
+):
+    focus_keys = {
+        normalize_metric_key(metric)
+        for metric in preference.metric_focus
+        if normalize_metric_key(metric)
+    }
+    dataset_filters = []
+
+    for dataset in datasets:
+        dataset_filter = [
+            Decision.dataset_id == dataset.id,
+        ]
+
+        if focus_keys:
+            metric_filters = [
+                Decision.metric_column.is_(None),
+            ]
+            matching_focus = False
+
+            for focus_key in focus_keys:
+                scoped_dataset_id, focus_column = parse_metric_focus_key(
+                    focus_key
+                )
+                if (
+                    scoped_dataset_id is not None and
+                    scoped_dataset_id != dataset.id
+                ):
+                    continue
+
+                matching_focus = True
+                metric_filters.append(
+                    func.lower(
+                        func.trim(Decision.metric_column)
+                    ) == focus_column
+                )
+
+            if not matching_focus:
+                continue
+
+            dataset_filter.append(
+                or_(*metric_filters)
+            )
+
+        dataset_filters.append(
+            and_(*dataset_filter)
+        )
+
+    return (
+        or_(*dataset_filters)
+        if dataset_filters
+        else false()
+    )
+
+
 def get_weekly_report_preference_record(
     db,
     workspace_id: str,
@@ -632,15 +731,18 @@ def build_weekly_report_digest_for_workspace(
     workspace_id: str,
     preference: WeeklyReportPreference | None,
 ) -> WeeklyReportDigestResponse:
+    preference_response = build_weekly_report_preference_response(
+        preference
+    )
+    datasets = get_alert_datasets(
+        db,
+        user_id,
+        workspace_id,
+    )
+
     return build_weekly_report_digest(
-        build_weekly_report_preference_response(
-            preference
-        ),
-        get_alert_datasets(
-            db,
-            user_id,
-            workspace_id,
-        ),
+        preference_response,
+        datasets,
         get_weekly_report_brand_name(
             db,
             workspace_id,
@@ -649,6 +751,11 @@ def build_weekly_report_digest_for_workspace(
             db,
             user_id,
             workspace_id,
+            base_filter=build_weekly_report_learning_filter(
+                preference_response,
+                datasets,
+            ),
+            learning_scope="dataset",
         ),
     )
 
@@ -667,6 +774,9 @@ async def build_weekly_report_digest_for_workspace_async(
         user_id,
         workspace_id,
     )
+    preference_response = build_weekly_report_preference_response(
+        preference
+    )
     brand_name = get_weekly_report_brand_name(
         db,
         workspace_id,
@@ -676,6 +786,11 @@ async def build_weekly_report_digest_for_workspace_async(
             db,
             user_id,
             workspace_id,
+            base_filter=build_weekly_report_learning_filter(
+                preference_response,
+                datasets,
+            ),
+            learning_scope="dataset",
         )
     )
 
@@ -901,10 +1016,10 @@ def require_alerts_scheduler_secret(
 def require_weekly_report_manager(
     workspace_role: str,
 ):
-    if workspace_role == "client":
+    if workspace_role != "owner":
         raise HTTPException(
             status_code=403,
-            detail="Client users cannot change weekly email report setup",
+            detail="Only workspace owners can change weekly email report setup",
         )
 
 
@@ -1069,14 +1184,13 @@ async def send_weekly_report_now(
             db,
             auth_context.workspace_id,
         )
-        digest = await build_weekly_report_digest_for_workspace_async(
-            db,
-            auth_context.user_id,
-            auth_context.workspace_id,
-            preference,
-        )
-
         try:
+            digest = await build_weekly_report_digest_for_workspace_async(
+                db,
+                auth_context.user_id,
+                auth_context.workspace_id,
+                preference,
+            )
             validate_weekly_report_digest_for_delivery(
                 digest
             )
@@ -1110,6 +1224,25 @@ async def send_weekly_report_now(
             )
             db.commit()
             raise error
+        except Exception:
+            logger.exception(
+                "Manual weekly report failed for workspace %s",
+                auth_context.workspace_id,
+            )
+            db.rollback()
+            failure_detail = (
+                "Weekly report could not be generated or sent."
+            )
+            update_weekly_report_delivery_status(
+                preference,
+                "failed",
+                failure_detail,
+            )
+            db.commit()
+            raise HTTPException(
+                status_code=502,
+                detail=failure_detail,
+            ) from None
 
     finally:
         db.close()
@@ -1136,15 +1269,14 @@ async def send_weekly_report_test_email(
             db,
             auth_context.workspace_id,
         )
-        digest = build_weekly_report_test_digest(
-            preference,
-            get_weekly_report_brand_name(
-                db,
-                auth_context.workspace_id,
-            ),
-        )
-
         try:
+            digest = build_weekly_report_test_digest(
+                preference,
+                get_weekly_report_brand_name(
+                    db,
+                    auth_context.workspace_id,
+                ),
+            )
             delivery_result = await asyncio.to_thread(
                 send_weekly_report_email,
                 digest,
@@ -1174,6 +1306,25 @@ async def send_weekly_report_test_email(
             )
             db.commit()
             raise error
+        except Exception:
+            logger.exception(
+                "Weekly report test email failed for workspace %s",
+                auth_context.workspace_id,
+            )
+            db.rollback()
+            failure_detail = (
+                "Weekly report test email could not be sent."
+            )
+            update_weekly_report_delivery_status(
+                preference,
+                "test_failed",
+                failure_detail,
+            )
+            db.commit()
+            raise HTTPException(
+                status_code=502,
+                detail=failure_detail,
+            ) from None
 
     finally:
         db.close()

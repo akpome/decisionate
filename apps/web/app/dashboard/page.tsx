@@ -75,6 +75,7 @@ import {
   type DashboardChartTitleField,
   type DashboardChartTitleKey,
   type DashboardChartTitles,
+  type DashboardAggregation,
   type DashboardMetricMapping,
 } from "@/features/dashboards/dashboard-registry"
 import {
@@ -92,8 +93,10 @@ import {
   FileDown,
   Gauge,
   LineChart as LineChartIcon,
+  Maximize2,
   Share2,
   Unlink,
+  X,
 } from "lucide-react"
 
 import {
@@ -130,6 +133,8 @@ type PeriodFilter =
   | "3y"
   | "5y"
   | "all"
+
+type MetricAggregation = DashboardAggregation
 
 type DashboardCellValue =
   | string
@@ -178,6 +183,7 @@ type ReportSectionProps = {
   chartType: ChartType
   scaleMode: ScaleMode
   periodFilter: PeriodFilter
+  aggregation: MetricAggregation
   startDate: string
   primaryMetric: string
   selectedTarget: number
@@ -189,6 +195,7 @@ type ReportSectionProps = {
   setChartType: (value: ChartType) => void
   setScaleMode: (value: ScaleMode) => void
   setPeriodFilter: (value: PeriodFilter) => void
+  setAggregation: (value: MetricAggregation) => void
   setStartDate: (value: string) => void
   onResetView: () => void
 }
@@ -278,6 +285,7 @@ export default function DashboardPage() {
   } =
     useActiveWorkspace(userId || undefined)
   const {
+    canConfigureWorkspace,
     canManageWorkspaceData,
     loadingWorkspaceAccess,
   } =
@@ -302,6 +310,9 @@ export default function DashboardPage() {
 
   const [periodFilter, setPeriodFilter] =
     useState<PeriodFilter>("1y")
+
+  const [aggregation, setAggregation] =
+    useState<MetricAggregation>("monthly")
 
   const [dashboardTemplate, setDashboardTemplate] =
     useState<DashboardTemplate>("executive")
@@ -339,9 +350,6 @@ export default function DashboardPage() {
     useState(false)
   const shareStatusTimeoutRef =
     useRef<number | null>(null)
-  const dashboardReportRef =
-    useRef<HTMLDivElement | null>(null)
-
   const [sharedConfig] =
     useState<SharedDashboardConfig>(
       () => getSharedDashboardConfig()
@@ -358,7 +366,7 @@ export default function DashboardPage() {
   const [
     datasetsLoading,
     setDatasetsLoading,
-  ] = useState(false)
+  ] = useState(true)
   const [dashboardError, setDashboardError] =
     useState("")
   const [datasetPreferenceError, setDatasetPreferenceError] =
@@ -650,13 +658,14 @@ export default function DashboardPage() {
           getDatasetDetails(
             datasetId,
             userId,
-            activeWorkspaceId
+            activeWorkspaceId,
+            { includeAllRows: true }
           ),
           getDatasetPreference(
             userId,
             activeWorkspaceId
           ),
-          canManageWorkspaceData
+          canConfigureWorkspace
             ? getDatasetShareStatus(
                 datasetId,
                 userId,
@@ -752,6 +761,10 @@ export default function DashboardPage() {
           getSavedPeriodFilter(
             savedDashboardPreference.periodFilter
           )
+        const safeAggregation =
+          getSavedAggregation(
+            savedDashboardPreference.aggregation
+          )
         const savedChartRows =
           data?.chart?.data?.length
             ? data.chart.data
@@ -803,6 +816,8 @@ export default function DashboardPage() {
         setPeriodFilter(
           safePeriodFilter
         )
+
+        setAggregation(safeAggregation)
 
         setDashboardTemplate(
           getSavedDashboardTemplate(
@@ -863,12 +878,11 @@ export default function DashboardPage() {
 
     return () => {
       isCurrent = false
-      setDatasetsLoading(false)
     }
   }, [
     selectedDatasetId,
     activeWorkspaceId,
-    canManageWorkspaceData,
+    canConfigureWorkspace,
     datasetLoadRetryKey,
     selectedDashboard,
     sharedConfig,
@@ -1186,6 +1200,53 @@ export default function DashboardPage() {
       startDate,
       periodFilter
     )
+  const aggregatedRows = useMemo(
+    () =>
+      aggregateRowsByDate(
+        rows,
+        xKey,
+        aggregation,
+        metrics.map(metric => metric.column)
+      ),
+    [
+      aggregation,
+      metrics,
+      rows,
+      xKey,
+    ]
+  )
+  const selectedDashboardDataset = useMemo(() => {
+    if (
+      !dataset ||
+      getDashboardDefinition(selectedDashboard).dataBasis !==
+        "dataset"
+    ) {
+      return dataset
+    }
+
+    const filteredRows =
+      filterRowsByPeriod(
+        allRows,
+        xKey,
+        startDate,
+        periodFilter
+      )
+
+    return {
+      ...dataset,
+      chart: {
+        ...(dataset.chart ?? {}),
+        data: filteredRows,
+      },
+    }
+  }, [
+    allRows,
+    dataset,
+    periodFilter,
+    selectedDashboard,
+    startDate,
+    xKey,
+  ])
 
   const primaryMetric =
     selectedMetrics[0] ??
@@ -1297,7 +1358,10 @@ export default function DashboardPage() {
     targets[primaryMetric] ?? 0
 
   const latestValue =
-    getLatestValue(rows, primaryMetric)
+    getLatestValue(
+      aggregatedRows,
+      primaryMetric
+    )
 
   const targetProgress =
     getTargetProgress(
@@ -1374,11 +1438,11 @@ export default function DashboardPage() {
     scaleMode === "indexed" &&
     selectedMetrics.length > 1
       ? buildIndexedRows(
-          rows,
+          aggregatedRows,
           selectedMetrics,
           xKey
         )
-      : rows
+      : aggregatedRows
   const activeBrand = useMemo(
     () =>
       getWorkspaceBrand(
@@ -1410,7 +1474,11 @@ export default function DashboardPage() {
     )
   useWorkspaceBrowserBrand(
     `${effectiveDashboardTitle} | ${activeBrand.name}`,
-    activeBrand
+    activeBrand,
+    {
+      manageFavicon: false,
+      manageManifest: false,
+    }
   )
   const selectedDashboardDefinition =
     getDashboardDefinition(selectedDashboard)
@@ -1479,6 +1547,7 @@ export default function DashboardPage() {
             selectedMetrics,
             availableMetricColumns
           ),
+        aggregation,
         chartType,
         scaleMode,
         periodFilter,
@@ -1503,6 +1572,7 @@ export default function DashboardPage() {
       }),
       [
         availableMetricColumns,
+        aggregation,
         chartType,
         dashboardSubtitle,
         dashboardTemplate,
@@ -1665,6 +1735,7 @@ export default function DashboardPage() {
       window.clearTimeout(saveViewTimeout)
     }
   }, [
+    aggregation,
     chartType,
     dashboardTemplate,
     dataset,
@@ -1690,6 +1761,7 @@ export default function DashboardPage() {
     chartType,
     scaleMode,
     periodFilter,
+    aggregation,
     startDate,
     primaryMetric,
     selectedTarget,
@@ -1701,6 +1773,7 @@ export default function DashboardPage() {
     setChartType,
     setScaleMode,
     setPeriodFilter,
+    setAggregation,
     setStartDate,
     onResetView: handleResetView,
   }
@@ -1745,6 +1818,7 @@ export default function DashboardPage() {
 
   function handleResetView() {
     setPeriodFilter("1y")
+    setAggregation("monthly")
     setStartDate("")
     setScaleMode("actual")
     setChartType("line")
@@ -1798,7 +1872,7 @@ export default function DashboardPage() {
   async function handleShareDashboard() {
     if (
       shareAction ||
-      !canManageWorkspaceData
+      !canConfigureWorkspace
     ) {
       return
     }
@@ -1862,7 +1936,7 @@ export default function DashboardPage() {
   async function handleStopSharing() {
     if (
       shareAction ||
-      !canManageWorkspaceData
+      !canConfigureWorkspace
     ) {
       return
     }
@@ -1923,7 +1997,7 @@ export default function DashboardPage() {
     !selectedDatasetId ||
     !userId ||
     shareAction !== null ||
-    !canManageWorkspaceData
+    !canConfigureWorkspace
   const stopSharingDisabled =
     shareControlsDisabled ||
     !shareEnabled
@@ -2057,13 +2131,13 @@ export default function DashboardPage() {
       }
     }
     const dashboardControls = usesDatasetSelection ? (
-      <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:w-[34rem] sm:grid-cols-2 lg:w-[30rem]">
+      <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="min-w-0 space-y-1">
             <DatasetSelector
               ariaLabel="Select dashboard dataset"
               datasets={datasets}
               emptyMessage={
-                canManageWorkspaceData
+                canConfigureWorkspace
                   ? undefined
                   : "Ask the workspace team to share a dataset to populate this dashboard."
               }
@@ -2141,57 +2215,131 @@ export default function DashboardPage() {
               : "Select a dataset"}
           </p>
         )}
+
+        <div className="col-span-full grid min-w-0 gap-2 rounded-lg border border-gray-200 bg-gray-50 px-0 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+          <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+            <span className="block">Start date</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={event =>
+                setStartDate(event.target.value)
+              }
+              className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+            />
+          </label>
+
+          <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+            <span className="block">Duration</span>
+            <select
+              value={periodFilter}
+              onChange={event =>
+                setPeriodFilter(
+                  event.target.value as PeriodFilter
+                )
+              }
+              className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+            >
+              <option value="1m">1 month</option>
+              <option value="1q">1 quarter</option>
+              <option value="6m">6 months</option>
+              <option value="1y">1 year</option>
+              <option value="2y">2 years</option>
+              <option value="3y">3 years</option>
+              <option value="5y">5 years</option>
+              <option value="all">All data</option>
+            </select>
+          </label>
+
+          <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+            <span className="block">Sum by</span>
+            <select
+              value={aggregation}
+              onChange={event =>
+                setAggregation(
+                  event.target.value as MetricAggregation
+                )
+              }
+              className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+            </select>
+          </label>
+
+          <button
+            type="button"
+            onClick={handleResetView}
+            className="h-9 rounded-md border border-gray-200 bg-white px-3 text-xs font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
+          >
+            Reset range
+          </button>
+
+          <p className="col-span-full truncate text-xs text-gray-500">
+            Showing {formatPeriodLabel(periodFilter)} from {startDate
+              ? formatMonthYear(startDate)
+              : "first available period"}
+          </p>
+        </div>
       </div>
     ) : undefined
 
     return (
       <div className="screen-page space-y-3">
-        <div
-          aria-hidden="true"
-          className="dashboard-print-page"
-        >
-          <SelectedDashboard
-            name={selectedDashboardDefinition.name}
-            description={selectedDashboardDefinition.description}
-            highlights={selectedDashboardDefinition.highlights}
-            dataset={dataset}
-            datasetName={dataset?.file_name}
-            datasetId={selectedDatasetId}
-            canManageWorkspaceData={canManageWorkspaceData}
-            analysisMetric={dashboardAnalysisMetric}
-            analysisLoading={metricAnalysisLoading}
-            analysisError={metricAnalysisError}
-            onRetryAnalysis={() =>
-              setMetricAnalysisRetryKey(
-                currentKey => currentKey + 1
-              )
-            }
-            manualMapping={
-              usesDatasetMetricMapping
-                ? currentMetricMapping
-                : undefined
-            }
-            chartTitles={currentDashboardChartTitles}
-            brand={activeBrand}
-            showActions={false}
-            exportMode
-          />
-        </div>
+        {pdfExporting && (
+          <div
+            aria-hidden="true"
+            className="dashboard-print-page"
+          >
+            <SelectedDashboard
+              key={`print-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
+              name={selectedDashboardDefinition.name}
+              description={selectedDashboardDefinition.description}
+              highlights={selectedDashboardDefinition.highlights}
+              dataset={selectedDashboardDataset}
+              datasetName={dataset?.file_name}
+              datasetId={selectedDatasetId}
+              aggregation={aggregation}
+              canManageWorkspaceData={canManageWorkspaceData}
+              analysisMetric={dashboardAnalysisMetric}
+              analysisLoading={metricAnalysisLoading}
+              analysisError={metricAnalysisError}
+              onRetryAnalysis={() =>
+                setMetricAnalysisRetryKey(
+                  currentKey => currentKey + 1
+                )
+              }
+              manualMapping={
+                usesDatasetMetricMapping
+                  ? currentMetricMapping
+                  : undefined
+              }
+              chartTitles={currentDashboardChartTitles}
+              brand={activeBrand}
+              showActions={false}
+              exportMode
+            />
+          </div>
+        )}
 
         <WorkspaceAccessNotice
           loading={loadingWorkspaceAccess}
-          canManageWorkspaceData={canManageWorkspaceData}
-          message="Analysis and metric selection are available in this shared workspace. Workspace managers handle data changes and dashboard sharing."
+          canManageWorkspaceData={canConfigureWorkspace}
+          message="Analysis and metric selection are available in this shared workspace. The business owner handles data changes and dashboard sharing."
           className="rounded-lg print:hidden"
         />
 
         <SelectedDashboard
+          key={`screen-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
           name={selectedDashboardDefinition.name}
           description={selectedDashboardDefinition.description}
           highlights={selectedDashboardDefinition.highlights}
-          dataset={dataset}
+          dataset={selectedDashboardDataset}
           datasetName={dataset?.file_name}
           datasetId={selectedDatasetId}
+          aggregation={aggregation}
           canManageWorkspaceData={canManageWorkspaceData}
           analysisMetric={dashboardAnalysisMetric}
           analysisLoading={metricAnalysisLoading}
@@ -2225,7 +2373,7 @@ export default function DashboardPage() {
             creatingDashboardRecommendation
           }
           status={
-            canManageWorkspaceData && shareStatus ? (
+            canConfigureWorkspace && shareStatus ? (
               <div
                 className={getShareStatusClassName(shareStatus)}
                 role="status"
@@ -2241,7 +2389,7 @@ export default function DashboardPage() {
           onDownloadPdf={handleDownloadDashboardPdf}
           onShare={handleShareDashboard}
           onStopSharing={
-            canManageWorkspaceData
+            canConfigureWorkspace
               ? handleStopSharing
               : undefined
           }
@@ -2331,7 +2479,7 @@ export default function DashboardPage() {
           !dashboardError &&
           datasets.length === 0 && (
             <div className="print:hidden rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {canManageWorkspaceData ? (
+              {canConfigureWorkspace ? (
                 <>
                   No datasets available.{" "}
                   <Link
@@ -2353,7 +2501,7 @@ export default function DashboardPage() {
 
   return (
     <div className="screen-page space-y-4">
-      {dataset && !loading && (
+      {dataset && !loading && pdfExporting && (
         <div
           aria-hidden="true"
           className="dashboard-print-page"
@@ -2449,7 +2597,7 @@ export default function DashboardPage() {
             className="w-full sm:w-auto"
           />
 
-          {canManageWorkspaceData && (
+          {canConfigureWorkspace && (
             <>
               <DashboardActionButton
                 icon={<Share2 size={16} />}
@@ -2513,7 +2661,7 @@ export default function DashboardPage() {
               ariaLabel="Select dashboard dataset"
               datasets={datasets}
               emptyMessage={
-                canManageWorkspaceData
+                canConfigureWorkspace
                   ? undefined
                   : "Ask the workspace team to share a dataset to populate this dashboard."
               }
@@ -2568,8 +2716,8 @@ export default function DashboardPage() {
 
       <WorkspaceAccessNotice
         loading={loadingWorkspaceAccess}
-        canManageWorkspaceData={canManageWorkspaceData}
-        message="Analysis and metric selection are available in this shared workspace. Workspace managers handle data changes and dashboard sharing."
+        canManageWorkspaceData={canConfigureWorkspace}
+        message="Analysis and metric selection are available in this shared workspace. The business owner handles data changes and dashboard sharing."
         className="rounded-lg print:hidden"
       />
 
@@ -2612,7 +2760,7 @@ export default function DashboardPage() {
         />
       )}
 
-      {canManageWorkspaceData && shareStatus && (
+      {canConfigureWorkspace && shareStatus && (
         <div
           className={getShareStatusClassName(shareStatus)}
           role="status"
@@ -2723,12 +2871,12 @@ export default function DashboardPage() {
             </h2>
 
             <p className="mt-2 max-w-md text-sm text-gray-500">
-              {canManageWorkspaceData
+              {canConfigureWorkspace
                 ? "Upload or connect a dataset to populate the General Business dashboard."
                 : "Ask the workspace team to share a dataset to populate this dashboard."}
             </p>
 
-            {canManageWorkspaceData && (
+            {canConfigureWorkspace && (
               <Link
                 href="/dashboard/datasets"
                 className="mt-4 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
@@ -2779,72 +2927,8 @@ export default function DashboardPage() {
       {dataset && !loading && (
         <>
           <div
-            ref={dashboardReportRef}
             className="dashboard-report space-y-4 bg-white"
           >
-            <div
-              className="dashboard-export-header hidden rounded-2xl border bg-white p-5 shadow-sm"
-              style={{
-                borderColor:
-                  activeBrand.primaryColor,
-              }}
-            >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-center gap-4">
-                  <WorkspaceBrandMark
-                    name={activeBrand.name}
-                    logoUrl={activeBrand.logoUrl}
-                    primaryColor={
-                      activeBrand.primaryColor
-                    }
-                    className="h-14 w-14 rounded-2xl text-lg"
-                  />
-
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                      Shared by
-                    </p>
-
-                    <p
-                      className="break-words text-xl font-semibold"
-                      style={{
-                        color:
-                          "var(--decisionate-brand-primary-text)",
-                      }}
-                    >
-                      {activeBrand.name}
-                    </p>
-
-                    <p
-                      className="text-sm"
-                      style={{
-                        color:
-                          "var(--decisionate-brand-accent-text)",
-                      }}
-                    >
-                      Reporting workspace
-                    </p>
-                  </div>
-                </div>
-
-                <div className="min-w-0 sm:text-right">
-                  <h2 className="break-words text-2xl font-bold text-gray-950">
-                    {effectiveDashboardTitle}
-                  </h2>
-
-                  <p className="mt-1 break-words text-sm font-medium text-gray-600">
-                    {effectiveDashboardSubtitle}
-                  </p>
-
-                  <p className="mt-1 break-words text-xs text-gray-500">
-                    {getDashboardDatasetDescription(
-                      dataset
-                    )}
-                  </p>
-                </div>
-              </div>
-            </div>
-
             {dashboardTemplate === "executive" && (
               <ExecutiveTemplate {...templateProps} />
             )}
@@ -2943,10 +3027,7 @@ function DashboardPrintPage({
   return (
     <div className="dashboard-print-one-page">
       <div
-        className="dashboard-print-header rounded-2xl border bg-white p-4 shadow-sm"
-        style={{
-          borderColor: brand.primaryColor,
-        }}
+        className="dashboard-print-header rounded-2xl bg-white p-4 shadow-sm"
       >
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -3094,6 +3175,7 @@ function DashboardPrintPage({
                   showTarget={
                     props.scaleMode === "actual"
                   }
+                  exportMode
                 />
               </ResponsiveContainer>
             </div>
@@ -3289,20 +3371,22 @@ function PerformanceTemplate(
             chartType={props.chartType}
             scaleMode={props.scaleMode}
             periodFilter={props.periodFilter}
+            aggregation={props.aggregation}
             startDate={props.startDate}
             selectedMetrics={props.selectedMetrics}
             setChartType={props.setChartType}
             setScaleMode={props.setScaleMode}
             setPeriodFilter={props.setPeriodFilter}
+            setAggregation={props.setAggregation}
             setStartDate={props.setStartDate}
             onResetView={props.onResetView}
           />
 
           {hasChartData ? (
-            <div
+            <FullscreenChartArea
+              title={`${formatMetricName(props.primaryMetric)} Trend`}
+              ariaLabel={chartDescription}
               className="dashboard-print-chart-area mt-4 h-[320px] flex-none xl:h-auto xl:min-h-[320px] xl:flex-1"
-              role="img"
-              aria-label={chartDescription}
             >
               <ResponsiveContainer
                 width="100%"
@@ -3321,7 +3405,7 @@ function PerformanceTemplate(
                   }
                 />
               </ResponsiveContainer>
-            </div>
+            </FullscreenChartArea>
           ) : (
             <ChartEmptyState className="dashboard-print-chart-area mt-4 h-[320px] flex-none xl:h-auto xl:min-h-[320px] xl:flex-1" />
           )}
@@ -3345,12 +3429,14 @@ function ComparisonTemplate({
   chartType,
   scaleMode,
   periodFilter,
+  aggregation,
   startDate,
   primaryMetric,
   selectedTarget,
   setChartType,
   setScaleMode,
   setPeriodFilter,
+  setAggregation,
   setStartDate,
   onResetView,
 }: ReportSectionProps) {
@@ -3398,20 +3484,28 @@ function ComparisonTemplate({
           chartType={chartType}
           scaleMode={scaleMode}
           periodFilter={periodFilter}
+          aggregation={aggregation}
           startDate={startDate}
           selectedMetrics={selectedMetrics}
           setChartType={setChartType}
           setScaleMode={setScaleMode}
           setPeriodFilter={setPeriodFilter}
+          setAggregation={setAggregation}
           setStartDate={setStartDate}
           onResetView={onResetView}
         />
 
         {hasChartData ? (
-          <div
+          <FullscreenChartArea
+            title={
+              selectedMetrics.length > 1
+                ? selectedMetrics
+                    .map(formatMetricName)
+                    .join(" vs ")
+                : `${formatMetricName(primaryMetric)} Performance`
+            }
+            ariaLabel={chartDescription}
             className="mt-4 h-[360px] flex-none xl:h-auto xl:min-h-[360px] xl:flex-1"
-            role="img"
-            aria-label={chartDescription}
           >
             <ResponsiveContainer
               width="100%"
@@ -3430,7 +3524,7 @@ function ComparisonTemplate({
                 }
               />
             </ResponsiveContainer>
-          </div>
+          </FullscreenChartArea>
         ) : (
           <ChartEmptyState className="mt-4 h-[360px] flex-none xl:h-auto xl:min-h-[360px] xl:flex-1" />
         )}
@@ -3452,6 +3546,7 @@ function ReportSection({
   chartType,
   scaleMode,
   periodFilter,
+  aggregation,
   startDate,
   primaryMetric,
   selectedTarget,
@@ -3463,6 +3558,7 @@ function ReportSection({
   setChartType,
   setScaleMode,
   setPeriodFilter,
+  setAggregation,
   setStartDate,
   onResetView,
 }: ReportSectionProps) {
@@ -3551,20 +3647,28 @@ function ReportSection({
             chartType={chartType}
             scaleMode={scaleMode}
             periodFilter={periodFilter}
+            aggregation={aggregation}
             startDate={startDate}
             selectedMetrics={selectedMetrics}
             setChartType={setChartType}
             setScaleMode={setScaleMode}
             setPeriodFilter={setPeriodFilter}
+            setAggregation={setAggregation}
             setStartDate={setStartDate}
             onResetView={onResetView}
           />
 
           {hasChartData ? (
-            <div
+            <FullscreenChartArea
+              title={
+                selectedMetrics.length > 1
+                  ? selectedMetrics
+                      .map(formatMetricName)
+                      .join(" vs ")
+                  : `${formatMetricName(primaryMetric)} Performance`
+              }
+              ariaLabel={chartDescription}
               className="dashboard-print-chart-area mt-4 h-[320px] flex-none xl:h-auto xl:min-h-[320px] xl:flex-1"
-              role="img"
-              aria-label={chartDescription}
             >
               <ResponsiveContainer
                 width="100%"
@@ -3583,7 +3687,7 @@ function ReportSection({
                   }
                 />
               </ResponsiveContainer>
-            </div>
+            </FullscreenChartArea>
           ) : (
             <ChartEmptyState className="dashboard-print-chart-area mt-4 h-[320px] flex-none xl:h-auto xl:min-h-[320px] xl:flex-1" />
           )}
@@ -3666,22 +3770,26 @@ function DashboardControls({
   chartType,
   scaleMode,
   periodFilter,
+  aggregation,
   startDate,
   selectedMetrics,
   setChartType,
   setScaleMode,
   setPeriodFilter,
+  setAggregation,
   setStartDate,
   onResetView,
 }: {
   chartType: ChartType
   scaleMode: ScaleMode
   periodFilter: PeriodFilter
+  aggregation: MetricAggregation
   startDate: string
   selectedMetrics: string[]
   setChartType: (value: ChartType) => void
   setScaleMode: (value: ScaleMode) => void
   setPeriodFilter: (value: PeriodFilter) => void
+  setAggregation: (value: MetricAggregation) => void
   setStartDate: (value: string) => void
   onResetView: () => void
 }) {
@@ -3730,6 +3838,20 @@ function DashboardControls({
           ["3y", "3Y"],
           ["5y", "5Y"],
           ["all", "All"],
+        ]}
+      />
+
+      <CompactSelect
+        label="Sum"
+        value={aggregation}
+        onChange={value =>
+          setAggregation(value as MetricAggregation)
+        }
+        options={[
+          ["daily", "Daily"],
+          ["weekly", "Weekly"],
+          ["monthly", "Monthly"],
+          ["quarterly", "Quarterly"],
         ]}
       />
 
@@ -3799,6 +3921,7 @@ function MainChart({
   yAxisWidth = 70,
   target,
   showTarget,
+  exportMode = false,
 }: {
   chartType: ChartType
   rows: DashboardRow[]
@@ -3814,25 +3937,36 @@ function MainChart({
   yAxisWidth?: number
   target: number
   showTarget: boolean
+  exportMode?: boolean
 }) {
   const margin = chartMargin ?? {
-    top: 20,
+    top: 0,
     right: 32,
     left: 8,
-    bottom: 16,
+    bottom: 42,
   }
 
   const common = (
     <>
       <CartesianGrid strokeDasharray="3 3" />
-      <XAxis dataKey={xKey} tickLine={false} />
+      <XAxis
+        dataKey={xKey}
+        angle={-35}
+        textAnchor="end"
+        height={48}
+        tickLine={false}
+        tickMargin={8}
+      />
       <YAxis
         width={yAxisWidth}
         tickLine={false}
         domain={["auto", "auto"]}
       />
       <Tooltip />
-      <Legend />
+      <Legend
+        verticalAlign="top"
+        height={28}
+      />
 
       {showTarget && target > 0 && (
         <ReferenceLine
@@ -3864,6 +3998,7 @@ function MainChart({
               getMetricIndex(allMetrics, metric)
             )}
             radius={[8, 8, 0, 0]}
+            isAnimationActive={!exportMode}
           />
         ))}
       </BarChart>
@@ -3894,6 +4029,7 @@ function MainChart({
               index === 0 ? 4 : 3
             }
             dot={false}
+            isAnimationActive={!exportMode}
           />
         ))}
       </AreaChart>
@@ -3916,8 +4052,9 @@ function MainChart({
           strokeWidth={
             index === 0 ? 5 : 4
           }
-          dot={{ r: index === 0 ? 4 : 3 }}
+          dot={false}
           activeDot={{ r: 7 }}
+          isAnimationActive={!exportMode}
         />
       ))}
     </LineChart>
@@ -4378,6 +4515,106 @@ function ChartEmptyState({
         No chartable metrics are available for this dashboard.
       </p>
     </div>
+  )
+}
+
+function FullscreenChartArea({
+  title,
+  ariaLabel,
+  className,
+  children,
+}: {
+  title: string
+  ariaLabel: string
+  className: string
+  children: React.ReactNode
+}) {
+  const [isFullscreen, setIsFullscreen] =
+    useState(false)
+
+  useEffect(() => {
+    if (!isFullscreen) {
+      return
+    }
+
+    const previousOverflow =
+      document.body.style.overflow
+    document.body.style.overflow = "hidden"
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsFullscreen(false)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [isFullscreen])
+
+  return (
+    <>
+      <div
+        className={`relative ${className}`}
+        role="img"
+        aria-label={ariaLabel}
+      >
+        {!isFullscreen && (
+          <button
+            type="button"
+            onClick={() => setIsFullscreen(true)}
+            title={`View ${title} full screen`}
+            aria-label={`View ${title} full screen`}
+            className="dashboard-print-hidden absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900"
+          >
+            <Maximize2 size={15} />
+          </button>
+        )}
+
+        {!isFullscreen && children}
+      </div>
+
+      {isFullscreen && (
+        <div
+          className="dashboard-print-hidden fixed inset-0 z-[80] flex items-center justify-center bg-gray-950/60 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${title} full screen chart`}
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) {
+              setIsFullscreen(false)
+            }
+          }}
+        >
+          <div className="flex h-full w-full max-w-[96rem] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
+              <h2 className="truncate text-base font-semibold text-gray-950 sm:text-lg">
+                {title}
+              </h2>
+
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(false)}
+                title="Close full screen chart"
+                aria-label="Close full screen chart"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 p-4 sm:p-8">
+              <div className="h-full min-h-0 w-full">
+                {children}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -4912,6 +5149,14 @@ function getSavedPeriodFilter(
     : "1y"
 }
 
+function getSavedAggregation(
+  savedAggregation: unknown
+): MetricAggregation {
+  return isSavedAggregation(savedAggregation)
+    ? savedAggregation
+    : "monthly"
+}
+
 function getSavedDashboardTemplate(
   savedDashboardTemplate: unknown
 ): DashboardTemplate {
@@ -4973,6 +5218,17 @@ function isSavedPeriodFilter(
   return (
     typeof value === "string" &&
     periodFilters.includes(value as PeriodFilter)
+  )
+}
+
+function isSavedAggregation(
+  value: unknown
+): value is MetricAggregation {
+  return (
+    value === "daily" ||
+    value === "weekly" ||
+    value === "quarterly" ||
+    value === "monthly"
   )
 }
 
@@ -5099,7 +5355,9 @@ function buildDashboardShareUrl(
 function waitForNextFrame() {
   return new Promise<void>((resolve) => {
     window.requestAnimationFrame(() => {
-      resolve()
+      window.requestAnimationFrame(() => {
+        resolve()
+      })
     })
   })
 }
@@ -5204,6 +5462,120 @@ function filterRowsByPeriod(
   })
 }
 
+function aggregateRowsByDate(
+  rows: DashboardRow[],
+  xKey: string,
+  aggregation: MetricAggregation,
+  metricColumns: string[]
+) {
+  const buckets = new Map<
+    string,
+    {
+      date: Date
+      values: Record<string, number>
+    }
+  >()
+
+  rows.forEach((row, index) => {
+    const rowDate =
+      row.__periodDate instanceof Date
+        ? row.__periodDate
+        : getRowPeriodStartDate(
+            row,
+            xKey,
+            index
+          )
+    const bucketDate =
+      getAggregationBucketDate(
+        rowDate,
+        aggregation
+      )
+    const bucketKey = formatDateKey(bucketDate)
+    const bucket =
+      buckets.get(bucketKey) ?? {
+        date: bucketDate,
+        values: {},
+      }
+
+    metricColumns.forEach(metric => {
+      bucket.values[metric] =
+        (bucket.values[metric] ?? 0) +
+        (toFiniteDashboardNumber(row[metric]) ?? 0)
+    })
+
+    buckets.set(bucketKey, bucket)
+  })
+
+  return Array.from(buckets.values())
+    .sort((first, second) =>
+      first.date.getTime() - second.date.getTime()
+    )
+    .map(bucket => ({
+      [xKey]: formatAggregationLabel(
+        bucket.date,
+        aggregation
+      ),
+      ...bucket.values,
+    }))
+}
+
+function getAggregationBucketDate(
+  value: Date,
+  aggregation: MetricAggregation
+) {
+  const date = new Date(
+    value.getFullYear(),
+    value.getMonth(),
+    value.getDate()
+  )
+
+  if (aggregation === "monthly") {
+    date.setDate(1)
+    return date
+  }
+
+  if (aggregation === "quarterly") {
+    date.setDate(1)
+    date.setMonth(
+      Math.floor(date.getMonth() / 3) * 3
+    )
+    return date
+  }
+
+  if (aggregation === "weekly") {
+    const daysFromMonday =
+      (date.getDay() + 6) % 7
+    date.setDate(
+      date.getDate() - daysFromMonday
+    )
+  }
+
+  return date
+}
+
+function formatDateKey(value: Date) {
+  return [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, "0"),
+    String(value.getDate()).padStart(2, "0"),
+  ].join("-")
+}
+
+function formatAggregationLabel(
+  value: Date,
+  aggregation: MetricAggregation
+) {
+  const dateKey = formatDateKey(value)
+
+  return aggregation === "weekly"
+    ? `Week of ${dateKey}`
+    : aggregation === "quarterly"
+      ? `${value.getFullYear()} Q${Math.floor(value.getMonth() / 3) + 1}`
+    : aggregation === "monthly"
+      ? dateKey.slice(0, 7)
+      : dateKey
+}
+
 function getRowPeriodStartDate(
   row: DashboardRow,
   xKey: string,
@@ -5251,7 +5623,7 @@ function getRowPeriodStartDate(
       return new Date(
         parsed.getFullYear(),
         parsed.getMonth(),
-        1
+        parsed.getDate()
       )
     }
 
@@ -5933,7 +6305,13 @@ function copyTextWithSelection(text: string) {
   textarea.style.left = "-9999px"
   textarea.style.top = "0"
 
-  document.body.appendChild(textarea)
+  const parent = document.body
+
+  if (!parent) {
+    return false
+  }
+
+  parent.appendChild(textarea)
   textarea.select()
 
   try {
@@ -5941,7 +6319,7 @@ function copyTextWithSelection(text: string) {
   } catch {
     return false
   } finally {
-    document.body.removeChild(textarea)
+    textarea.parentNode?.removeChild(textarea)
   }
 }
 

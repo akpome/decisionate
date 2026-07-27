@@ -33,6 +33,58 @@ function getErrorMessage(
 }
 
 export default function ConnectionsPage() {
+  const { user } = useUser()
+  const {
+    canConfigureWorkspace,
+    loadingWorkspaceAccess,
+  } = useWorkspaceAccess(user?.id)
+
+  if (loadingWorkspaceAccess) {
+    return (
+      <div className="space-y-6">
+        <DashboardPageHeader
+          title="Connections"
+          description="Data source configuration is available to the business owner."
+        />
+        <div
+          role="status"
+          className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500"
+        >
+          Checking workspace access...
+        </div>
+      </div>
+    )
+  }
+
+  if (!canConfigureWorkspace) {
+    return (
+      <div className="space-y-6">
+        <DashboardPageHeader
+          title="Connections"
+          description="Data source configuration is available to the business owner."
+        />
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          Only the business owner can configure external data source connections for this workspace.
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <ConnectionsPageContent
+      canConfigureWorkspace={canConfigureWorkspace}
+      loadingWorkspaceAccess={loadingWorkspaceAccess}
+    />
+  )
+}
+
+function ConnectionsPageContent({
+  canConfigureWorkspace,
+  loadingWorkspaceAccess,
+}: {
+  canConfigureWorkspace: boolean
+  loadingWorkspaceAccess: boolean
+}) {
   const [sources, setSources] =
     useState<DatasetSourceOption[]>([])
   const [
@@ -64,16 +116,8 @@ export default function ConnectionsPage() {
     workspaceVersion,
   } =
     useActiveWorkspace(user?.id)
-  const {
-    canManageWorkspaceData,
-    isClientWorkspace,
-    loadingWorkspaceAccess,
-    workspaceRole,
-  } =
-    useWorkspaceAccess(user?.id)
   const readOnlyWorkspace =
-    isClientWorkspace ||
-    workspaceRole === "unknown"
+    !canConfigureWorkspace
   const savedSourceTypes =
     sourceConnections.map(
       (connection) =>
@@ -263,7 +307,7 @@ export default function ConnectionsPage() {
   useEffect(() => {
     if (
       !user?.id ||
-      !canManageWorkspaceData
+      !canConfigureWorkspace
     ) {
       return
     }
@@ -339,7 +383,7 @@ export default function ConnectionsPage() {
   }, [
     user?.id,
     activeWorkspaceId,
-    canManageWorkspaceData,
+    canConfigureWorkspace,
     workspaceVersion,
     loadRetryKey,
   ])
@@ -351,7 +395,7 @@ export default function ConnectionsPage() {
         description="Configure external business systems that can feed datasets, forecasts, reports, alerts, and decisions."
       />
 
-      {canManageWorkspaceData && connectionError && (
+      {canConfigureWorkspace && connectionError && (
         <div
           role="alert"
           className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
@@ -375,7 +419,7 @@ export default function ConnectionsPage() {
       )}
 
       {!loadingWorkspaceAccess &&
-        canManageWorkspaceData && (
+        canConfigureWorkspace && (
         <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
           <h2 className="mb-4 text-xl font-semibold">
             Data Sources
@@ -410,9 +454,7 @@ export default function ConnectionsPage() {
         </div>
       ) : readOnlyWorkspace ? (
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          {isClientWorkspace
-            ? "Data source connections are managed by the workspace team. Use the shared datasets and analysis pages to review available results."
-            : "Workspace access could not be confirmed. Connection management is temporarily unavailable."}
+          Only the business owner can configure data source connections for this workspace.
         </div>
       ) : (
         <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
@@ -437,17 +479,17 @@ export default function ConnectionsPage() {
               updatingConnectionId
             }
             onDeleteConnection={
-              canManageWorkspaceData
+              canConfigureWorkspace
                 ? handleDeleteSourceConnection
                 : undefined
             }
             onRenameConnection={
-              canManageWorkspaceData
+              canConfigureWorkspace
                 ? handleRenameSourceConnection
                 : undefined
             }
             onConfigureConnection={
-              canManageWorkspaceData
+              canConfigureWorkspace
                 ? handleConfigureSourceConnection
                 : undefined
             }

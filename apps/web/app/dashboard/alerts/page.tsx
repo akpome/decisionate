@@ -93,8 +93,9 @@ type DatasetDetails = {
 
 type DatasetMetricOption = {
   value: string
+  column: string
   label: string
-  datasetNames: string[]
+  datasetName: string
 }
 
 function getErrorMessage(
@@ -108,6 +109,58 @@ function getErrorMessage(
 }
 
 export default function AlertsPage() {
+  const { user } = useUser()
+  const {
+    canConfigureWorkspace,
+    loadingWorkspaceAccess,
+  } = useWorkspaceAccess(user?.id)
+
+  if (loadingWorkspaceAccess) {
+    return (
+      <div className="space-y-6">
+        <DashboardPageHeader
+          title="Alerts"
+          description="Notification configuration is available to the business owner."
+        />
+        <div
+          role="status"
+          className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500"
+        >
+          Checking workspace access...
+        </div>
+      </div>
+    )
+  }
+
+  if (!canConfigureWorkspace) {
+    return (
+      <div className="space-y-6">
+        <DashboardPageHeader
+          title="Alerts"
+          description="Notification configuration is available to the business owner."
+        />
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          Only the business owner can configure alert recipients, KPI focus, delivery settings, and report sending.
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <AlertsPageContent
+      canManageWorkspaceData={canConfigureWorkspace}
+      loadingWorkspaceAccess={loadingWorkspaceAccess}
+    />
+  )
+}
+
+function AlertsPageContent({
+  canManageWorkspaceData,
+  loadingWorkspaceAccess,
+}: {
+  canManageWorkspaceData: boolean
+  loadingWorkspaceAccess: boolean
+}) {
   const {
     user,
     isLoaded: authLoaded,
@@ -118,10 +171,6 @@ export default function AlertsPage() {
     activeWorkspaceId,
     workspaceVersion,
   } = useActiveWorkspace(user?.id)
-  const {
-    canManageWorkspaceData,
-    loadingWorkspaceAccess,
-  } = useWorkspaceAccess(user?.id)
 
   const [
     weeklyReportPreference,
@@ -271,10 +320,12 @@ export default function AlertsPage() {
     }
 
     if (!isSignedIn || !user?.id) {
-      setLoading(false)
-      setErrorMessage(
-        "Sign in to load notification setup."
-      )
+      queueMicrotask(() => {
+        setLoading(false)
+        setErrorMessage(
+          "Sign in to load notification setup."
+        )
+      })
       return
     }
 
@@ -397,7 +448,6 @@ export default function AlertsPage() {
 
     return () => {
       ignoreResult = true
-      setLoading(false)
     }
   }, [
     activeWorkspaceId,
@@ -792,11 +842,11 @@ export default function AlertsPage() {
             <div className="mt-5 space-y-4">
               <div>
                 <p className="text-sm font-medium text-gray-700">
-                  KPI focus
+                  KPI focus by dataset
                 </p>
 
                 <p className="mt-1 text-xs text-gray-500">
-                  Metrics are pulled from the datasets in this workspace.
+                  Select the specific dataset metrics that should shape the digest.
                 </p>
 
                 {metricOptions.length > 0 ? (
@@ -824,10 +874,7 @@ export default function AlertsPage() {
                             {option.label}
                           </span>
                           <span className="mt-1 block truncate text-xs text-gray-500">
-                            Source:{" "}
-                            {formatMetricDatasetNames(
-                              option.datasetNames
-                            )}
+                            Dataset: {option.datasetName}
                           </span>
                         </span>
                       </label>
@@ -1861,7 +1908,7 @@ async function loadDatasetMetricOptions(
       )
     )
 
-  const metricOptionsByColumn =
+  const metricOptionsByKey =
     new Map<string, DatasetMetricOption>()
 
   detailResults.forEach((result, index) => {
@@ -1882,44 +1929,30 @@ async function loadDatasetMetricOptions(
         return
       }
 
-      const metricKey =
-        metricColumn.toLowerCase()
-      const existingOption =
-        metricOptionsByColumn.get(metricKey)
-
-      if (existingOption) {
-        if (
-          !existingOption.datasetNames.includes(
-            datasetName
-          )
-        ) {
-          existingOption.datasetNames.push(
-            datasetName
-          )
-        }
-
+      const datasetId = datasets[index]?.id
+      if (!datasetId) {
         return
       }
 
-      metricOptionsByColumn.set(
-        metricKey,
+      const metricKey = `${datasetId}:${metricColumn}`
+
+      metricOptionsByKey.set(
+        metricKey.toLowerCase(),
         {
-          value: metricColumn,
+          value: metricKey,
+          column: metricColumn,
           label: formatMetricName(metricColumn),
-          datasetNames: [
-            datasetName,
-          ],
+          datasetName,
         }
       )
     })
   })
 
   return Array.from(
-    metricOptionsByColumn.values()
+    metricOptionsByKey.values()
   ).sort((firstOption, secondOption) =>
-    firstOption.label.localeCompare(
-      secondOption.label
-    )
+    firstOption.label.localeCompare(secondOption.label) ||
+    firstOption.datasetName.localeCompare(secondOption.datasetName)
   )
 }
 
@@ -1944,17 +1977,29 @@ function reconcileMetricFocusWithOptions(
   const reconciledMetricFocus: string[] = []
 
   preference.metric_focus.forEach((metric) => {
-    const metricValue =
+    const exactMetricValue =
       metricOptionsByKey.get(
         metric.toLowerCase()
       )
 
-    if (
-      metricValue &&
-      !reconciledMetricFocus.includes(metricValue)
-    ) {
-      reconciledMetricFocus.push(metricValue)
+    if (exactMetricValue) {
+      if (!reconciledMetricFocus.includes(exactMetricValue)) {
+        reconciledMetricFocus.push(exactMetricValue)
+      }
+      return
     }
+
+    metricOptions
+      .filter(
+        option =>
+          option.column.toLowerCase() ===
+          metric.toLowerCase()
+      )
+      .forEach(option => {
+        if (!reconciledMetricFocus.includes(option.value)) {
+          reconciledMetricFocus.push(option.value)
+        }
+      })
   })
 
   return {
@@ -1967,31 +2012,15 @@ function getMetricOptionLabel(
   metric: string,
   metricOptions: DatasetMetricOption[]
 ) {
-  return (
-    metricOptions.find(
-      (option) =>
-        option.value.toLowerCase() ===
-        metric.toLowerCase()
-    )?.label ?? formatMetricName(metric)
+  const option = metricOptions.find(
+    candidate =>
+      candidate.value.toLowerCase() ===
+      metric.toLowerCase()
   )
-}
 
-function formatMetricDatasetNames(
-  datasetNames: string[]
-) {
-  if (datasetNames.length === 0) {
-    return "Dataset metric"
-  }
-
-  if (datasetNames.length === 1) {
-    return datasetNames[0]
-  }
-
-  if (datasetNames.length === 2) {
-    return datasetNames.join(" and ")
-  }
-
-  return `${datasetNames[0]} and ${datasetNames.length - 1} more datasets`
+  return option
+    ? `${option.label} · ${option.datasetName}`
+    : formatMetricName(metric)
 }
 
 function formatMetricName(

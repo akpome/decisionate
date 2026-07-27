@@ -24,9 +24,16 @@ from app.modules.alerts.router import (
 from app.modules.ai.router import (
     router as ai_router,
 )
+from app.modules.ai.service import (
+    build_ai_status,
+)
 
 from app.modules.forecasting.router import (
     router as forecasting_router,
+)
+
+from app.modules.datasets.services.analytics_engine import (
+    build_analytics_engine_status,
 )
 
 from app.modules.public_dashboard import (
@@ -281,6 +288,19 @@ def ensure_decision_optional_columns():
                 )
             )
 
+        for column_name, column_type in [
+            ("recommendation_text", "TEXT"),
+            ("recommendation_source", "VARCHAR"),
+            ("recommendation_context", "TEXT"),
+        ]:
+            if column_name not in column_names:
+                connection.execute(
+                    text(
+                        f"ALTER TABLE decisions "
+                        f"ADD COLUMN {column_name} {column_type}"
+                    )
+                )
+
 
 ensure_decision_optional_columns()
 
@@ -382,6 +402,8 @@ def normalize_existing_decision_text_columns():
         "expected_outcome",
         "actual_outcome",
         "lessons_learned",
+        "recommendation_text",
+        "recommendation_context",
         "confidence_score",
     ]
 
@@ -1013,7 +1035,14 @@ def root():
 
 @app.get("/health")
 def health():
-    return {
-        "status": "ok",
-        "service": "decisionate-api",
-    }
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "service": "decisionate-api",
+            "capabilities": {
+                "ai": build_ai_status(),
+                "analytics": build_analytics_engine_status(),
+            },
+        },
+        headers={"Cache-Control": "no-store"},
+    )

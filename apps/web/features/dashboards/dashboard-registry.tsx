@@ -9,8 +9,10 @@ import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import {
   FileDown,
+  Maximize2,
   Share2,
   Unlink,
+  X,
 } from "lucide-react"
 import {
   Bar,
@@ -38,6 +40,7 @@ import {
   buildAIRecommendationDecisionPayload,
 } from "@/features/decisions/lib/ai-decision-handoff"
 import type {
+  DashboardAggregation,
   DashboardChartTitleKey,
   DashboardChartTitles,
   DashboardMetricMapping,
@@ -71,6 +74,7 @@ type DashboardPlaceholderProps = {
   dataset?: DashboardDatasetInput | null
   datasetName?: string
   datasetId?: number
+  aggregation?: DashboardAggregation
   analysisMetric?: string
   analysisLoading?: boolean
   analysisError?: boolean
@@ -103,6 +107,7 @@ type DashboardPlaceholderProps = {
 }
 
 export type {
+  DashboardAggregation,
   DashboardChartTitleKey,
   DashboardChartTitles,
   DashboardMetricMapping,
@@ -927,7 +932,8 @@ export function getDashboardAutoMetricMapping(
 function buildMappedIndustryDashboard(
   config: IndustryDashboardConfig,
   dataset?: DashboardDatasetInput | null,
-  manualMapping?: DashboardMetricMapping
+  manualMapping?: DashboardMetricMapping,
+  aggregation: DashboardAggregation = "monthly"
 ): IndustryDashboardConfig {
   const rows =
     dataset?.chart?.data?.length
@@ -1131,7 +1137,9 @@ function buildMappedIndustryDashboard(
     ? buildTrendData(
         rows,
         dateColumn,
-        mappedPrimaryColumn
+        mappedPrimaryColumn,
+        undefined,
+        aggregation
       )
     : []
   const mixData = mappedCategoryColumn
@@ -1220,6 +1228,7 @@ function IndustryDashboard({
   name,
   description,
   dataset,
+  aggregation = "monthly",
   analysisMetric,
   analysisLoading,
   analysisError,
@@ -1255,7 +1264,8 @@ function IndustryDashboard({
     buildMappedIndustryDashboard(
       config,
       dataset,
-      manualMapping
+      manualMapping,
+      aggregation
     )
   const dashboardMixData =
     dashboardConfig.mixData.map((item, index) => ({
@@ -1282,7 +1292,6 @@ function IndustryDashboard({
       <DashboardHeader
         name={name}
         description={description}
-        controls={controls}
         status={status}
         brand={brand}
         onDownloadPdf={onDownloadPdf}
@@ -1303,29 +1312,41 @@ function IndustryDashboard({
         exportMode={exportMode}
       />
 
-      {analysisLoading && (
-        <AnalysisStatus kind="loading" />
-      )}
+      {!exportMode && (
+        <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(30rem,1fr)]">
+          <div className="min-w-0">
+            {analysisLoading && (
+              <AnalysisStatus kind="loading" />
+            )}
 
-      {analysisError && (
-        <AnalysisStatus
-          kind="unavailable"
-          onRetry={onRetryAnalysis}
-        />
-      )}
+            {analysisError && (
+              <AnalysisStatus
+                kind="unavailable"
+                onRetry={onRetryAnalysis}
+              />
+            )}
 
-      {!analysisLoading &&
-        dataset?.ai_analysis &&
-        (!analysisMetric ||
-          dataset.ai_analysis.metric === analysisMetric) && (
-        <AIAnalysisPanel
-          analysis={dataset.ai_analysis}
-          title="Dashboard analysis"
-          metric={analysisMetric}
-          className="print:hidden"
-          onCreateDecision={onCreateRecommendation}
-          creatingDecision={creatingRecommendation}
-        />
+            {!analysisLoading &&
+              dataset?.ai_analysis &&
+              (!analysisMetric ||
+                dataset.ai_analysis.metric === analysisMetric) && (
+              <AIAnalysisPanel
+                analysis={dataset.ai_analysis}
+                title="Dashboard analysis"
+                metric={analysisMetric}
+                className="print:hidden !p-3"
+                onCreateDecision={onCreateRecommendation}
+                creatingDecision={creatingRecommendation}
+              />
+            )}
+          </div>
+
+          {showActions !== false && controls && (
+            <div className="min-w-0 self-start print:hidden">
+              {controls}
+            </div>
+          )}
+        </div>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 print:grid-cols-4 print:gap-1.5">
@@ -1352,6 +1373,7 @@ function IndustryDashboard({
           title={resolvedChartTitles.trend}
           description={dashboardConfig.trendDescription}
           status={dashboardConfig.trendStatus}
+          canFullscreen={dashboardConfig.trendData.length > 0}
           exportMode={exportMode}
         >
           {dashboardConfig.trendData.length > 0 ? (
@@ -1359,24 +1381,34 @@ function IndustryDashboard({
               <LineChart
                 data={dashboardConfig.trendData}
                 margin={{
-                  top: 6,
+                  top: 0,
                   right: 10,
-                  bottom: 18,
+                  bottom: 42,
                   left: 0,
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tickMargin={6} />
+                <XAxis
+                  dataKey="name"
+                  angle={-35}
+                  textAnchor="end"
+                  height={48}
+                  tickMargin={8}
+                />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
-                <Legend />
+                <Legend
+                  verticalAlign="top"
+                  height={24}
+                />
                 <Line
                   type="monotone"
                   dataKey="value"
                   name={dashboardConfig.trendLabel}
                   stroke={dashboardChartPalette[0]}
                   strokeWidth={3}
-                  dot={{ r: 4 }}
+                  dot={false}
+                  isAnimationActive={!exportMode}
                 />
                 {dashboardConfig.secondaryTrendLabel && (
                   <Line
@@ -1385,7 +1417,8 @@ function IndustryDashboard({
                     name={dashboardConfig.secondaryTrendLabel}
                     stroke={dashboardChartPalette[1]}
                     strokeWidth={3}
-                    dot={{ r: 4 }}
+                    dot={false}
+                    isAnimationActive={!exportMode}
                   />
                 )}
               </LineChart>
@@ -1400,6 +1433,7 @@ function IndustryDashboard({
           description={dashboardConfig.mixDescription}
           status={dashboardConfig.mixStatus}
           className="dashboard-export-donut-card"
+          canFullscreen={dashboardMixData.length > 0}
           exportMode={exportMode}
         >
           {dashboardMixData.length > 0 ? (
@@ -1427,6 +1461,7 @@ function IndustryDashboard({
           title={resolvedChartTitles.operations}
           description={dashboardConfig.operationsDescription}
           status={dashboardConfig.operationsStatus}
+          canFullscreen={dashboardConfig.operationsData.length > 0}
           exportMode={exportMode}
         >
           {dashboardConfig.operationsData.length > 0 ? (
@@ -1436,12 +1471,18 @@ function IndustryDashboard({
                 margin={{
                   top: 6,
                   right: 10,
-                  bottom: 18,
+                  bottom: 42,
                   left: 0,
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tickMargin={6} />
+                <XAxis
+                  dataKey="name"
+                  angle={-35}
+                  textAnchor="end"
+                  height={48}
+                  tickMargin={8}
+                />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Bar
@@ -1449,6 +1490,7 @@ function IndustryDashboard({
                   name={dashboardConfig.operationsLabel}
                   fill={dashboardChartPalette[1]}
                   radius={[6, 6, 0, 0]}
+                  isAnimationActive={!exportMode}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -1905,12 +1947,18 @@ function DecisionPerformanceDashboard({
                 margin={{
                   top: 6,
                   right: 10,
-                  bottom: 18,
+                  bottom: 42,
                   left: 0,
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" tickMargin={6} />
+                <XAxis
+                  dataKey="month"
+                  angle={-35}
+                  textAnchor="end"
+                  height={48}
+                  tickMargin={8}
+                />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Line
@@ -1919,7 +1967,8 @@ function DecisionPerformanceDashboard({
                   name="New decisions"
                   stroke="var(--decisionate-brand-primary)"
                   strokeWidth={3}
-                  dot={{ r: 4 }}
+                  dot={false}
+                  isAnimationActive={!exportMode}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -1967,12 +2016,18 @@ function DecisionPerformanceDashboard({
                 margin={{
                   top: 6,
                   right: 10,
-                  bottom: 18,
+                  bottom: 42,
                   left: 0,
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tickMargin={6} />
+                <XAxis
+                  dataKey="name"
+                  angle={-35}
+                  textAnchor="end"
+                  height={48}
+                  tickMargin={8}
+                />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Bar
@@ -1980,6 +2035,7 @@ function DecisionPerformanceDashboard({
                   name="Outcomes"
                   fill="var(--decisionate-brand-accent)"
                   radius={[6, 6, 0, 0]}
+                  isAnimationActive={!exportMode}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -2082,14 +2138,11 @@ function DashboardHeader({
     <div className="space-y-2 print:space-y-1">
       {brand && showBrandHeader && (
         <div
-          className={`items-center justify-between gap-4 rounded-xl border bg-white p-3 print:flex print:p-2 ${
+          className={`items-center justify-between gap-4 rounded-xl bg-white p-3 print:flex print:p-2 ${
             showBrandHeader
               ? "flex"
               : "hidden"
           }`}
-          style={{
-            borderColor: brand.primaryColor,
-          }}
         >
           <div className="flex min-w-0 items-center gap-3">
             <WorkspaceBrandMark
@@ -2188,6 +2241,7 @@ function DashboardChartCard({
   status,
   children,
   className = "",
+  canFullscreen = false,
   exportMode,
 }: {
   title: string
@@ -2195,60 +2249,153 @@ function DashboardChartCard({
   status?: string
   children: ReactNode
   className?: string
+  canFullscreen?: boolean
   exportMode?: boolean
 }) {
+  const [isFullscreen, setIsFullscreen] =
+    useState(false)
+
+  useEffect(() => {
+    if (!isFullscreen) {
+      return
+    }
+
+    const previousOverflow =
+      document.body.style.overflow
+
+    document.body.style.overflow = "hidden"
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsFullscreen(false)
+      }
+    }
+
+    window.addEventListener(
+      "keydown",
+      handleKeyDown
+    )
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown
+      )
+    }
+  }, [isFullscreen])
+
   return (
-    <div
+    <>
+      <div
         className={`dashboard-export-chart-card ${className} flex flex-col break-inside-avoid rounded-2xl border border-gray-200 bg-white shadow-sm ${
           exportMode
             ? "h-[1.88in] overflow-hidden p-[0.12in]"
             : "h-[20rem] overflow-hidden p-4 print:h-44 print:min-h-0 print:rounded-xl print:p-1.5"
-      }`}
-    >
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <h2
-          className={`min-w-0 truncate font-semibold leading-tight ${
-            exportMode
-              ? "text-[11px]"
-              : "text-lg print:text-xs"
-          }`}
-        >
-          {title}
-        </h2>
-
-        {status && (
-          <span
-            className={`shrink-0 rounded-full border border-amber-200 bg-amber-50 font-semibold uppercase tracking-wide text-amber-700 ${
+        }`}
+      >
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <h2
+            className={`min-w-0 truncate font-semibold leading-tight ${
               exportMode
-                ? "px-[0.04in] py-[0.01in] text-[8px]"
-                : "px-2 py-0.5 text-[10px] print:px-1 print:py-0 print:text-[8px]"
+                ? "text-[11px]"
+                : "text-lg print:text-xs"
             }`}
           >
-            {status}
-          </span>
-        )}
+            {title}
+          </h2>
+
+          <div className="flex shrink-0 items-center gap-1">
+            {status && (
+              <span
+                className={`rounded-full border border-amber-200 bg-amber-50 font-semibold uppercase tracking-wide text-amber-700 ${
+                  exportMode
+                    ? "px-[0.04in] py-[0.01in] text-[8px]"
+                    : "px-2 py-0.5 text-[10px] print:px-1 print:py-0 print:text-[8px]"
+                }`}
+              >
+                {status}
+              </span>
+            )}
+
+            {canFullscreen && !exportMode && (
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(true)}
+                title={`View ${title} full screen`}
+                aria-label={`View ${title} full screen`}
+                className="dashboard-print-hidden inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900"
+              >
+                <Maximize2 size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <p
+          className={`text-gray-500 ${
+            exportMode
+              ? "mt-[0.03in] truncate text-[9px] leading-[0.11in]"
+              : "mt-1 text-xs leading-4 print:mt-0.5 print:truncate print:text-[10px] print:leading-3"
+          }`}
+        >
+          {description}
+        </p>
+
+        <div
+          className={`dashboard-export-chart-body min-h-0 overflow-hidden ${
+            exportMode
+              ? "mt-[0.04in] h-[1.5in] flex-none"
+              : "mt-1 flex-1 print:mt-1 print:h-32 print:flex-none"
+          }`}
+        >
+          {!isFullscreen && children}
+        </div>
       </div>
 
-      <p
-        className={`text-gray-500 ${
-          exportMode
-            ? "mt-[0.03in] truncate text-[9px] leading-[0.11in]"
-            : "mt-1 text-xs leading-4 print:mt-0.5 print:truncate print:text-[10px] print:leading-3"
-        }`}
-      >
-        {description}
-      </p>
+      {isFullscreen && canFullscreen && !exportMode && (
+        <div
+          className="dashboard-print-hidden fixed inset-0 z-[80] flex items-center justify-center bg-gray-950/60 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${title} full screen chart`}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsFullscreen(false)
+            }
+          }}
+        >
+          <div className="flex h-full w-full max-w-[96rem] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
+              <div className="min-w-0">
+                <h2 className="truncate text-base font-semibold text-gray-950 sm:text-lg">
+                  {title}
+                </h2>
+                <p className="mt-1 truncate text-xs text-gray-500 sm:text-sm">
+                  {description}
+                </p>
+              </div>
 
-      <div
-        className={`dashboard-export-chart-body min-h-0 overflow-hidden ${
-          exportMode
-            ? "mt-[0.04in] h-[1.5in] flex-none"
-            : "mt-3 flex-1 print:mt-1 print:h-32 print:flex-none"
-        }`}
-      >
-        {children}
-      </div>
-    </div>
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(false)}
+                title="Close full screen chart"
+                aria-label="Close full screen chart"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 p-4 sm:p-8">
+              <div className="h-full min-h-0 w-full">
+                {isFullscreen && children}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -2324,6 +2471,7 @@ function DashboardCategoricalChart({
             dataKey="value"
             name={barLabel}
             radius={[0, 6, 6, 0]}
+            isAnimationActive={!exportMode}
           >
             {items.map(item => (
               <Cell
@@ -2343,6 +2491,7 @@ function DashboardCategoricalChart({
               innerRadius="44%"
               outerRadius="72%"
               paddingAngle={3}
+              isAnimationActive={!exportMode}
               labelLine={!exportMode}
               label={
                 exportMode
@@ -2786,7 +2935,8 @@ function buildTrendData(
   rows: DashboardDatasetRow[],
   dateColumn: string,
   primaryColumn: string,
-  secondaryColumn?: string
+  secondaryColumn?: string,
+  aggregation: DashboardAggregation = "monthly"
 ) {
   const grouped = new Map<
     string,
@@ -2797,10 +2947,24 @@ function buildTrendData(
   >()
 
   rows.forEach((row, index) => {
-    const name = getGroupKey(
-      row[dateColumn],
-      `P${index + 1}`
-    )
+    const date =
+      row.__periodDate instanceof Date
+        ? row.__periodDate
+        : parseDashboardDate(
+            row[dateColumn]
+          )
+    const name = date
+      ? formatDashboardAggregationLabel(
+          getDashboardAggregationBucketDate(
+            date,
+            aggregation
+          ),
+          aggregation
+        )
+      : getGroupKey(
+          row[dateColumn],
+          `P${index + 1}`
+        )
     const current =
       grouped.get(name) ?? {
         value: 0,
@@ -2823,7 +2987,6 @@ function buildTrendData(
         secondName
       )
     )
-    .slice(-8)
     .map(([name, values]) => ({
       name,
       value: Math.round(values.value),
@@ -2831,6 +2994,85 @@ function buildTrendData(
         ? Math.round(values.secondary)
         : undefined,
     }))
+}
+
+function parseDashboardDate(
+  value: DashboardDatasetCell
+) {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime())
+      ? undefined
+      : value
+  }
+
+  if (typeof value !== "string" || !value.trim()) {
+    return undefined
+  }
+
+  const parsed = new Date(
+    `${value.trim()}T00:00:00`
+  )
+
+  return Number.isNaN(parsed.getTime())
+    ? undefined
+    : new Date(
+        parsed.getFullYear(),
+        parsed.getMonth(),
+        parsed.getDate()
+      )
+}
+
+function getDashboardAggregationBucketDate(
+  value: Date,
+  aggregation: DashboardAggregation
+) {
+  const date = new Date(
+    value.getFullYear(),
+    value.getMonth(),
+    value.getDate()
+  )
+
+  if (aggregation === "monthly") {
+    date.setDate(1)
+    return date
+  }
+
+  if (aggregation === "quarterly") {
+    date.setDate(1)
+    date.setMonth(
+      Math.floor(date.getMonth() / 3) * 3
+    )
+    return date
+  }
+
+  if (aggregation === "weekly") {
+    const daysFromMonday =
+      (date.getDay() + 6) % 7
+    date.setDate(
+      date.getDate() - daysFromMonday
+    )
+  }
+
+  return date
+}
+
+function formatDashboardAggregationLabel(
+  value: Date,
+  aggregation: DashboardAggregation
+) {
+  const dateKey = [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, "0"),
+    String(value.getDate()).padStart(2, "0"),
+  ].join("-")
+
+  return aggregation === "weekly"
+    ? `Week of ${dateKey}`
+    : aggregation === "quarterly"
+      ? `${value.getFullYear()} Q${Math.floor(value.getMonth() / 3) + 1}`
+    : aggregation === "monthly"
+      ? dateKey.slice(0, 7)
+      : dateKey
 }
 
 function compareDashboardPeriods(

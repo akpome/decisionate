@@ -298,7 +298,6 @@ export default function DatasetDetailsPage() {
 
     return () => {
       ignoreResult = true
-      setLoading(false)
     }
   }, [
     params.id,

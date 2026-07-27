@@ -49,6 +49,7 @@ def build_workspace_decision_learning_context(
         return {
             "recorded_lesson_count": 0,
             "recorded_outcome_count": 0,
+            "recorded_recommendation_count": 0,
             "sampled_lesson_count": 0,
             "sampled_evidence_count": 0,
             "learning_scope": clean_learning_scope,
@@ -107,6 +108,20 @@ def build_workspace_decision_learning_context(
             and_(
                 *filter_parts,
                 has_recorded_outcome,
+            )
+        )
+        .scalar()
+        or 0
+    )
+    recommendation_count = (
+        db.query(func.count(Decision.id))
+        .filter(
+            and_(
+                *filter_parts,
+                has_recorded_outcome,
+                _has_meaningful_text(
+                    Decision.recommendation_text
+                ),
             )
         )
         .scalar()
@@ -176,11 +191,26 @@ def build_workspace_decision_learning_context(
                 decision.lessons_learned,
                 420,
             ),
+            "recommendation": _clean_learning_text(
+                decision.recommendation_text,
+                420,
+            ),
+            "recommendation_source": _clean_learning_text(
+                decision.recommendation_source,
+                40,
+            ),
+            "recommendation_context": _clean_learning_text(
+                decision.recommendation_context,
+                360,
+            ),
         })
 
     return {
         "recorded_lesson_count": int(lesson_count),
         "recorded_outcome_count": int(outcome_count),
+        "recorded_recommendation_count": int(
+            recommendation_count
+        ),
         "sampled_lesson_count": sampled_lesson_count,
         "sampled_evidence_count": len(examples),
         "learning_scope": clean_learning_scope,

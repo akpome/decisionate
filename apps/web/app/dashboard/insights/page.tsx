@@ -363,7 +363,6 @@ export default function InsightsPage() {
 
     return () => {
       ignoreResult = true
-      setDatasetsLoading(false)
     }
   }, [
     user?.id,

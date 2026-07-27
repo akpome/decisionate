@@ -50,6 +50,7 @@ import {
     WorkspaceAccessNotice,
 } from "@/features/dashboard/components/workspace-access-notice"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { AIAnalysisPanel } from "@/features/ai/components/analysis-panel"
 import { getAIRecommendationSource } from "@/features/decisions/lib/ai-recommendation-source"
 import {
     formatMetricLabel,
@@ -1379,6 +1380,14 @@ export default function DecisionsPage() {
                     </div>
                 </DashboardCard>
             </div>
+
+            {decisionSummary?.ai_analysis && (
+                <AIAnalysisPanel
+                    analysis={decisionSummary.ai_analysis}
+                    title="Portfolio learning signal"
+                    className="rounded-2xl p-4 sm:p-5"
+                />
+            )}
 
             {/* =========================
                 Workspace Recent Decision Activity Feed Section

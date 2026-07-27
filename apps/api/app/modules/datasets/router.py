@@ -9,6 +9,7 @@ from secrets import token_urlsafe
 from fastapi import APIRouter
 from fastapi import File
 from fastapi import HTTPException
+from fastapi import Query
 from fastapi import UploadFile
 from fastapi import Request
 from fastapi import Response
@@ -225,6 +226,7 @@ def build_dataset_details_response(
     dataset,
     dataframe,
     learning_context: dict | None = None,
+    chart_limit: int | None = 50,
 ):
     return {
         **build_dataset_summary_response(
@@ -238,7 +240,10 @@ def build_dataset_details_response(
             None,
             learning_context,
         ),
-        "chart": generate_chart_data(dataframe),
+        "chart": generate_chart_data(
+            dataframe,
+            limit=chart_limit,
+        ),
     }
 
 
@@ -1476,6 +1481,10 @@ async def dataset_chart_data(
 async def dataset_details(
     request: Request,
     dataset_id: int,
+    include_all_rows: bool = Query(
+        default=False,
+        description="Include all dataset rows in chart data.",
+    ),
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -1513,6 +1522,7 @@ async def dataset_details(
             dataset,
             dataframe,
             learning_context,
+            chart_limit=None if include_all_rows else 50,
         )
 
     finally:

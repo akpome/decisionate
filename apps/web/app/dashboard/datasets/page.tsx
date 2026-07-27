@@ -44,6 +44,8 @@ export default function DatasetsPage() {
     useState<DataSourceConnection[]>([])
   const [datasetError, setDatasetError] =
     useState("")
+  const [loadingDatasets, setLoadingDatasets] =
+    useState(true)
   const [sourceError, setSourceError] =
     useState("")
   const [connectionError, setConnectionError] =
@@ -58,13 +60,15 @@ export default function DatasetsPage() {
   } =
     useActiveWorkspace(user?.id)
   const {
-    canManageWorkspaceData,
+    canConfigureWorkspace,
     loadingWorkspaceAccess,
   } =
     useWorkspaceAccess(user?.id)
 
   async function loadDatasets() {
     if (!user?.id) return
+
+    setLoadingDatasets(true)
 
     try {
       const data =
@@ -82,6 +86,8 @@ export default function DatasetsPage() {
           "Could not load datasets."
         )
       )
+    } finally {
+      setLoadingDatasets(false)
     }
   }
 
@@ -95,6 +101,7 @@ export default function DatasetsPage() {
     ) {
       setDatasets([])
       setDatasetError("")
+      setLoadingDatasets(true)
 
       const [datasetsResult] =
         await Promise.allSettled([
@@ -120,6 +127,8 @@ export default function DatasetsPage() {
         )
       }
 
+      setLoadingDatasets(false)
+
     }
 
     void loadInitialData(user.id)
@@ -137,7 +146,7 @@ export default function DatasetsPage() {
   useEffect(() => {
     if (
       !user?.id ||
-      !canManageWorkspaceData
+      !canConfigureWorkspace
     ) {
       return
     }
@@ -204,7 +213,7 @@ export default function DatasetsPage() {
     }
   }, [
     activeWorkspaceId,
-    canManageWorkspaceData,
+    canConfigureWorkspace,
     initialDataRetryKey,
     user?.id,
     workspaceVersion,
@@ -217,7 +226,7 @@ export default function DatasetsPage() {
         description={
           loadingWorkspaceAccess
             ? "Loading workspace data access..."
-            : canManageWorkspaceData
+            : canConfigureWorkspace
               ? "Upload and manage datasets used for dashboards, insights, forecasts, and decisions."
               : "Review datasets shared by the workspace team for dashboards, insights, forecasts, and decisions."
         }
@@ -225,8 +234,8 @@ export default function DatasetsPage() {
 
       <WorkspaceAccessNotice
         loading={loadingWorkspaceAccess}
-        canManageWorkspaceData={canManageWorkspaceData}
-        message="This shared workspace is read-only. Workspace managers handle dataset uploads, connections, and changes."
+        canManageWorkspaceData={canConfigureWorkspace}
+        message="This shared workspace is read-only. The business owner handles dataset uploads, connections, and changes."
         className="rounded-xl"
       />
 
@@ -271,7 +280,7 @@ export default function DatasetsPage() {
         </button>
       )}
 
-      {canManageWorkspaceData && (
+      {canConfigureWorkspace && (
         <>
           <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
             <p className="mb-6 text-sm text-gray-500">
@@ -298,15 +307,24 @@ export default function DatasetsPage() {
           Saved Datasets
         </h2>
 
-        <DatasetList
-          datasets={datasets}
-          canDelete={canManageWorkspaceData}
-          canManage={canManageWorkspaceData}
-          loadError={Boolean(datasetError)}
-          onRefresh={
-            loadDatasets
-          }
-        />
+        {loadingDatasets ? (
+          <div
+            role="status"
+            className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500"
+          >
+            Loading datasets...
+          </div>
+        ) : (
+          <DatasetList
+            datasets={datasets}
+            canDelete={canConfigureWorkspace}
+            canManage={canConfigureWorkspace}
+            loadError={Boolean(datasetError)}
+            onRefresh={
+              loadDatasets
+            }
+          />
+        )}
       </div>
     </div>
   )

@@ -228,6 +228,9 @@ DECISION_LIST_SORT_PATTERN = build_literal_pattern(
 class DecisionCreate(BaseModel):
     dataset_id: int
     metric_column: str | None = None
+    recommendation_text: str | None = None
+    recommendation_source: AIAnalysisSource | None = None
+    recommendation_context: str | None = None
     title: str
     description: str | None = None
     expected_outcome: str | None = None
@@ -268,6 +271,9 @@ class DecisionResponse(BaseModel):
     workspace_id: str | None = None
     dataset_id: int
     metric_column: str | None = None
+    recommendation_text: str | None
+    recommendation_source: AIAnalysisSource | None
+    recommendation_context: str | None
     title: str
     description: str | None
     notes: str | None

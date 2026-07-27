@@ -454,10 +454,18 @@ export default function DecisionPage() {
           return
         }
 
+        const datasetUnavailable =
+          datasetResult.status === "rejected" &&
+          isMissingDatasetError(
+            datasetResult.reason
+          )
+
         if (datasetResult.status === "fulfilled") {
           setDataset(datasetResult.value)
         } else {
-          console.error(datasetResult.reason)
+          if (!datasetUnavailable) {
+            console.error(datasetResult.reason)
+          }
           setDataset(null)
         }
 
@@ -469,13 +477,23 @@ export default function DecisionPage() {
           )
           setMetricLoadError("")
         } else {
-          console.error(metricsResult.reason)
+          const metricsUnavailable =
+            datasetUnavailable ||
+            isMissingDatasetError(
+              metricsResult.reason
+            )
+
+          if (!metricsUnavailable) {
+            console.error(metricsResult.reason)
+          }
           setMetricColumns([])
           setMetricLoadError(
-            metricsResult.reason instanceof Error &&
-              metricsResult.reason.message
-              ? metricsResult.reason.message
-              : "Could not load metrics for this decision."
+            metricsUnavailable
+              ? "The dataset linked to this decision is no longer available. Metric selection is unavailable."
+              : metricsResult.reason instanceof Error &&
+                  metricsResult.reason.message
+                ? metricsResult.reason.message
+                : "Could not load metrics for this decision."
           )
         }
         setMetricsLoading(false)
@@ -521,13 +539,14 @@ export default function DecisionPage() {
       decision?.expected_outcome?.trim()
     const actualOutcome =
       decision?.actual_outcome?.trim()
+    const outcomeStatus =
+      decision?.outcome_status?.trim()
 
     if (
       !user?.id ||
       !decision?.id ||
-      !canManageWorkspaceData ||
       !expectedOutcome ||
-      !actualOutcome
+      (!actualOutcome && !outcomeStatus)
     ) {
       queueMicrotask(() => {
         setOutcomeAnalysis(null)
@@ -583,7 +602,6 @@ export default function DecisionPage() {
     decision?.expected_outcome,
     decision?.id,
     decision?.outcome_status,
-    canManageWorkspaceData,
     outcomeAnalysisRetryKey,
     user?.id,
   ])
@@ -1464,14 +1482,22 @@ export default function DecisionPage() {
       ? "Back to Action Needed"
       : "Back to Decisions"
   const decisionDatasetLabel =
-    formatDecisionDatasetLabel(
-      dataset,
-      decision.dataset_id
-    )
+    dataset
+      ? formatDecisionDatasetLabel(
+          dataset,
+          decision.dataset_id
+        )
+      : `Unavailable (#${decision.dataset_id})`
   const aiRecommendationSource =
     getAIRecommendationSource(
       decision.description
     )
+  const recommendationSourceLabel =
+    decision.recommendation_source === "openai"
+      ? "AI analysis"
+      : decision.recommendation_source === "rules"
+        ? "Rules-based analysis"
+        : aiRecommendationSource
 
   return (
     <div className="space-y-6">
@@ -1520,14 +1546,24 @@ export default function DecisionPage() {
             {reviewUrgency}
           </Badge>
 
-          <Link
-            href={`/dashboard/datasets/${decision.dataset_id}`}
-            title={decisionDatasetLabel}
-            className="inline-block max-w-full truncate rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:bg-[var(--decisionate-brand-primary-soft)] hover:text-[var(--decisionate-brand-primary-text)]"
-          >
-            Dataset:{" "}
-            {decisionDatasetLabel}
-          </Link>
+          {dataset ? (
+            <Link
+              href={`/dashboard/datasets/${decision.dataset_id}`}
+              title={decisionDatasetLabel}
+              className="inline-block max-w-full truncate rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:bg-[var(--decisionate-brand-primary-soft)] hover:text-[var(--decisionate-brand-primary-text)]"
+            >
+              Dataset:{" "}
+              {decisionDatasetLabel}
+            </Link>
+          ) : (
+            <span
+              title="The dataset linked to this decision is unavailable."
+              className="inline-block max-w-full truncate rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800"
+            >
+              Dataset:{" "}
+              {decisionDatasetLabel}
+            </span>
+          )}
 
           {decision.metric_column && (
             <Badge className="border-gray-200 bg-gray-50 text-gray-700">
@@ -1535,13 +1571,46 @@ export default function DecisionPage() {
             </Badge>
           )}
 
-          {aiRecommendationSource && (
+          {recommendationSourceLabel && (
             <Badge className="border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]">
-              Analysis source: {aiRecommendationSource}
+              Analysis source: {recommendationSourceLabel}
             </Badge>
           )}
         </div>
       </DashboardCard>
+
+      {decision.recommendation_text && (
+        <DashboardCard>
+          <CardHeader
+            title="Recommendation Evidence"
+            description="The recommendation that led to this decision and the context used at creation time."
+            icon={
+              <IconBadge
+                className="bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
+                icon={<Lightbulb size={22} />}
+              />
+            }
+          />
+
+          <div className="mt-4 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4">
+            <p className="text-sm leading-6 text-gray-800">
+              {decision.recommendation_text}
+            </p>
+
+            {decision.recommendation_context && (
+              <p className="mt-3 text-xs font-medium text-gray-600">
+                Context: {decision.recommendation_context}
+              </p>
+            )}
+
+            {(decision.recommendation_source || recommendationSourceLabel) && (
+              <p className="mt-2 text-xs text-gray-500">
+                Source: {recommendationSourceLabel || decision.recommendation_source}
+              </p>
+            )}
+          </div>
+        </DashboardCard>
+      )}
 
       {/* =========================
           Decision Lifecycle Card For Archive And Restore Actions
@@ -2686,6 +2755,11 @@ function isDecisionUnavailableError(
 
   return error instanceof Error &&
     error.message === "Decision not found"
+}
+
+function isMissingDatasetError(error: unknown) {
+  return error instanceof ApiError &&
+    error.status === 404
 }
 
 function SaveFeedback({

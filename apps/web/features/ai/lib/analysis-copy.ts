@@ -51,6 +51,8 @@ export function getAIAnalysisLearningContext(
     learningContext.recorded_outcome_count || 0
   const lessonCount =
     learningContext.recorded_lesson_count || 0
+  const recommendationCount =
+    learningContext.recorded_recommendation_count || 0
   const scopeCopy = {
     workspace: "workspace decisions",
     dataset: "this dataset's decisions",
@@ -68,6 +70,12 @@ export function getAIAnalysisLearningContext(
   if (lessonCount > 0) {
     evidenceParts.push(
       `${lessonCount} recorded decision lesson${lessonCount === 1 ? "" : "s"}`
+    )
+  }
+
+  if (recommendationCount > 0) {
+    evidenceParts.push(
+      `${recommendationCount} prior recommendation${recommendationCount === 1 ? "" : "s"} with recorded results`
     )
   }
 

@@ -16,6 +16,8 @@ const configuredApiUrl =
 
 export const API_URL =
   configuredApiUrl || "http://localhost:8000"
+export const apiAvailabilityChangedEvent =
+  "decisionate:api-availability-changed"
 const maxDashboardTitleLength = 120
 const maxDashboardSubtitleLength = 220
 const maxDashboardChartTitleLength = 80
@@ -219,10 +221,17 @@ export type DataSourceConnectionUpdatePayload = {
   connection_config?: Record<string, unknown>
 }
 
+export type DashboardAggregation =
+  | "daily"
+  | "weekly"
+  | "quarterly"
+  | "monthly"
+
 export type DashboardPreferencePayload = {
   title?: string
   subtitle?: string
   selectedMetrics?: string[]
+  aggregation?: DashboardAggregation
   chartType?: "line" | "bar" | "area"
   scaleMode?: "actual" | "indexed"
   periodFilter?:
@@ -370,6 +379,7 @@ export type AIAnalysis = {
       | "decision"
     recorded_lesson_count: number
     recorded_outcome_count: number
+    recorded_recommendation_count: number
     sampled_lesson_count: number
     sampled_evidence_count: number
   } | null
@@ -431,6 +441,15 @@ export type AIStatus = {
   model?: string | null
 }
 
+export type ApiHealthStatus = {
+  status: string
+  service: string
+  capabilities?: {
+    ai?: AIStatus
+    analytics?: AnalyticsEngineStatus
+  }
+}
+
 export type PublicSharedDashboardResponse = {
   branding: {
     name: string
@@ -477,6 +496,7 @@ export type PublicSharedDashboardResponse = {
         title?: string
         subtitle?: string
         selectedMetrics?: string[]
+        aggregation?: DashboardAggregation
         chartType?: "line" | "bar" | "area"
         scaleMode?: "actual" | "indexed"
         periodFilter?:
@@ -611,6 +631,9 @@ export type DecisionRecord = {
   workspace_id?: string | null
   dataset_id: number
   metric_column?: string | null
+  recommendation_text?: string | null
+  recommendation_source?: "openai" | "rules" | null
+  recommendation_context?: string | null
   title: string
   description?: string | null
   notes?: string | null
@@ -673,6 +696,9 @@ export type DecisionActivityFeedItem =
 export type DecisionCreatePayload = {
   dataset_id: number
   metric_column?: string
+  recommendation_text?: string | null
+  recommendation_source?: "openai" | "rules" | null
+  recommendation_context?: string | null
   title: string
   description?: string
   expected_outcome: string
@@ -781,6 +807,19 @@ type ApiReadCacheEntry<T> = {
   promise: Promise<T>
 }
 
+export type ApiAvailabilityEventDetail = {
+  available: boolean
+  message?: string
+}
+
+let apiAvailabilitySnapshot:
+  | ApiAvailabilityEventDetail
+  | null = null
+
+export function getApiAvailabilitySnapshot() {
+  return apiAvailabilitySnapshot
+}
+
 const apiReadCache =
   new Map<string, ApiReadCacheEntry<unknown>>()
 
@@ -838,12 +877,55 @@ async function apiFetch(
   init?: RequestInit
 ) {
   if (typeof window === "undefined") {
+    const controller = new AbortController()
+    const callerSignal = init?.signal
+    let timedOut = false
+    const abortFromCaller = () => {
+      controller.abort()
+    }
+
+    if (callerSignal) {
+      if (callerSignal.aborted) {
+        controller.abort()
+      } else {
+        callerSignal.addEventListener(
+          "abort",
+          abortFromCaller,
+          { once: true }
+        )
+      }
+    }
+
+    const timeoutId = setTimeout(
+      () => {
+        timedOut = true
+        controller.abort()
+      },
+      apiRequestTimeoutMs
+    )
+
     try {
       return await fetch(
         input,
-        init
+        {
+          ...init,
+          signal: controller.signal,
+        }
       )
     } catch (error) {
+      if (
+        error instanceof DOMException &&
+        error.name === "AbortError"
+      ) {
+        if (!timedOut) {
+          throw error
+        }
+
+        throw new Error(
+          "API request timed out. Check that the backend is running and responding."
+        )
+      }
+
       if (error instanceof TypeError) {
         throw new Error(
           "API service is unavailable. Check that the backend is running and reachable."
@@ -851,6 +933,12 @@ async function apiFetch(
       }
 
       throw error
+    } finally {
+      clearTimeout(timeoutId)
+      callerSignal?.removeEventListener(
+        "abort",
+        abortFromCaller
+      )
     }
   }
 
@@ -884,28 +972,50 @@ async function apiFetch(
     )
 
   try {
-    return await fetch(
+    const response = await fetch(
       input,
       {
         ...init,
         signal: controller.signal,
       }
     )
+
+    if (response.status >= 500) {
+      notifyApiAvailability({
+        available: false,
+        message:
+          "The API service returned an error. Check the backend logs and try again.",
+      })
+    } else {
+      notifyApiAvailability({
+        available: true,
+      })
+    }
+
+    return response
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       if (!timedOut) {
         throw error
       }
 
-      throw new Error(
+      const message =
         "API request timed out. Check that the backend is running and responding."
-      )
+      notifyApiAvailability({
+        available: false,
+        message,
+      })
+      throw new Error(message)
     }
 
     if (error instanceof TypeError) {
-      throw new Error(
+      const message =
         "API service is unavailable. Check that the backend is running and reachable."
-      )
+      notifyApiAvailability({
+        available: false,
+        message,
+      })
+      throw new Error(message)
     }
 
     throw error
@@ -916,6 +1026,23 @@ async function apiFetch(
       abortFromCaller
     )
   }
+}
+
+function notifyApiAvailability(
+  detail: ApiAvailabilityEventDetail
+) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  apiAvailabilitySnapshot = detail
+
+  window.dispatchEvent(
+    new CustomEvent<ApiAvailabilityEventDetail>(
+      apiAvailabilityChangedEvent,
+      { detail }
+    )
+  )
 }
 
 async function decisionHeaders(
@@ -1444,6 +1571,11 @@ function cleanDashboardPreference(
       preference.chartType
   }
 
+  if (isDashboardAggregation(preference.aggregation)) {
+    cleanPreference.aggregation =
+      preference.aggregation
+  }
+
   if (isScaleMode(preference.scaleMode)) {
     cleanPreference.scaleMode =
       preference.scaleMode
@@ -1652,6 +1784,17 @@ function isChartType(
     value === "line" ||
     value === "bar" ||
     value === "area"
+  )
+}
+
+function isDashboardAggregation(
+  value: unknown
+): value is DashboardPreferencePayload["aggregation"] {
+  return (
+    value === "daily" ||
+    value === "weekly" ||
+    value === "quarterly" ||
+    value === "monthly"
   )
 }
 
@@ -2172,6 +2315,25 @@ export async function getAIStatus(
   return response.json()
 }
 
+export async function getApiHealthStatus(): Promise<ApiHealthStatus> {
+  const response =
+    await apiFetch(
+      `${API_URL}/health`,
+      {
+        cache: "no-store",
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to load API health status"
+    )
+  }
+
+  return response.json()
+}
+
 export async function updateWeeklyReportPreference(
   payload: WeeklyReportPreference,
   userId: string,
@@ -2366,7 +2528,10 @@ export async function deleteDataSourceConnection(
 export async function getDatasetDetails(
   id: number,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  options?: {
+    includeAllRows?: boolean
+  }
 ) {
   const cleanDatasetId =
     cleanPositiveIntegerId(
@@ -2374,9 +2539,14 @@ export async function getDatasetDetails(
       "Dataset id"
     )
 
+  const query =
+    options?.includeAllRows
+      ? "?include_all_rows=true"
+      : ""
+
   const response =
     await apiFetch(
-      `${API_URL}/datasets/${cleanDatasetId}/details`,
+      `${API_URL}/datasets/${cleanDatasetId}/details${query}`,
       {
         headers: await workspaceHeaders(
           userId,

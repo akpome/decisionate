@@ -6,6 +6,10 @@ import {
   getAIAnalysisLearningContext,
   getAIAnalysisSourceLabel,
 } from "@/features/ai/lib/analysis-copy"
+
+export {
+  getAIRecommendationSource,
+} from "./ai-recommendation-source"
 function formatMetricLabel(
   column: string
 ) {
@@ -47,6 +51,9 @@ export function buildAIRecommendationDecisionPayload(
   return {
     dataset_id: datasetId,
     metric_column: metricColumn || undefined,
+    recommendation_text: recommendation,
+    recommendation_source: analysis.source,
+    recommendation_context: metricContext,
     title: `Review ${metricContext} recommendation`,
     description: [
       analysis.summary,

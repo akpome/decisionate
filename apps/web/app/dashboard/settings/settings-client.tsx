@@ -15,6 +15,8 @@ import {
   addOrganizationInvite,
   addOrganizationMember,
   createOrganization,
+  getAnalyticsEngineStatus,
+  getApiHealthStatus,
   getMyOrganization,
   getOrganizationInvites,
   getOrganizationMembers,
@@ -29,6 +31,8 @@ import {
   type OrganizationRecord,
   type OrganizationWorkspaceRecord,
   type AIStatus,
+  type ApiHealthStatus,
+  type AnalyticsEngineStatus,
 } from "@/lib/api"
 import {
   defaultBrandAccentColor,
@@ -45,6 +49,9 @@ import {
   WorkspaceBrandMark,
 } from "@/app/dashboard/workspace-brand-mark"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import {
+  useWorkspaceAccess,
+} from "@/lib/use-workspace-access"
 
 type SettingsClientProps = {
   userId: string
@@ -70,6 +77,10 @@ export function SettingsClient({
   userId,
   fullName,
 }: SettingsClientProps) {
+  const {
+    canConfigureWorkspace,
+    loadingWorkspaceAccess,
+  } = useWorkspaceAccess(userId)
   const [organization, setOrganization] =
     useState<OrganizationRecord | null>(null)
   const [organizationMembers, setOrganizationMembers] =
@@ -110,9 +121,17 @@ export function SettingsClient({
     useState("")
   const [aiStatus, setAiStatus] =
     useState<AIStatus | null>(null)
+  const [analyticsStatus, setAnalyticsStatus] =
+    useState<AnalyticsEngineStatus | null>(null)
+  const [apiHealthStatus, setApiHealthStatus] =
+    useState<ApiHealthStatus | null>(null)
   const [aiStatusError, setAiStatusError] =
     useState("")
-  const [aiStatusRetryKey, setAiStatusRetryKey] =
+  const [analyticsStatusError, setAnalyticsStatusError] =
+    useState("")
+  const [apiHealthError, setApiHealthError] =
+    useState("")
+  const [statusRetryKey, setStatusRetryKey] =
     useState(0)
   const [saveError, setSaveError] =
     useState("")
@@ -199,25 +218,25 @@ export function SettingsClient({
     let ignoreResult = false
 
     async function loadOrganization() {
+      if (!canConfigureWorkspace) {
+        setLoadingOrganization(false)
+        return
+      }
+
       setLoadingOrganization(true)
       setOrganizationLoadError("")
       setSaveError("")
       setMemberError("")
       setInviteError("")
-      setAiStatusError("")
 
       const [
         organizationResult,
         workspaceResult,
-        aiStatusResult,
       ] = await Promise.allSettled([
         getMyOrganization(
           userId
         ),
         getOrganizationWorkspaces(
-          userId
-        ),
-        getAIStatus(
           userId
         ),
       ])
@@ -303,22 +322,6 @@ export function SettingsClient({
           )
         }
 
-        if (
-          aiStatusResult.status ===
-          "fulfilled"
-        ) {
-          setAiStatus(
-            aiStatusResult.value
-          )
-        } else {
-          setAiStatusError(
-            getSettingsErrorMessage(
-              aiStatusResult.reason,
-              "Unable to load AI readiness."
-            )
-          )
-        }
-
         if (inviteResult?.status === "fulfilled") {
           setPendingClientInvites(
             inviteResult.value
@@ -341,7 +344,87 @@ export function SettingsClient({
     return () => {
       ignoreResult = true
     }
-  }, [aiStatusRetryKey, organizationLoadRetryKey, userId])
+  }, [
+    canConfigureWorkspace,
+    organizationLoadRetryKey,
+    userId,
+  ])
+
+  useEffect(() => {
+    let ignoreResult = false
+
+    async function loadServiceStatus() {
+      if (!canConfigureWorkspace) {
+        return
+      }
+
+      setAiStatus(null)
+      setAnalyticsStatus(null)
+      setApiHealthStatus(null)
+      setAiStatusError("")
+      setAnalyticsStatusError("")
+      setApiHealthError("")
+
+      const [
+        aiStatusResult,
+        analyticsStatusResult,
+        apiHealthResult,
+      ] = await Promise.allSettled([
+        getAIStatus(userId),
+        getAnalyticsEngineStatus(userId),
+        getApiHealthStatus(),
+      ])
+
+      if (ignoreResult) {
+        return
+      }
+
+      if (aiStatusResult.status === "fulfilled") {
+        setAiStatus(aiStatusResult.value)
+      } else {
+        setAiStatusError(
+          getSettingsErrorMessage(
+            aiStatusResult.reason,
+            "Unable to load AI readiness."
+          )
+        )
+      }
+
+      if (analyticsStatusResult.status === "fulfilled") {
+        setAnalyticsStatus(
+          analyticsStatusResult.value
+        )
+      } else {
+        setAnalyticsStatusError(
+          getSettingsErrorMessage(
+            analyticsStatusResult.reason,
+            "Unable to load analytics readiness."
+          )
+        )
+      }
+
+      if (apiHealthResult.status === "fulfilled") {
+        setApiHealthStatus(apiHealthResult.value)
+      } else {
+        setApiHealthError(
+          getSettingsErrorMessage(
+            apiHealthResult.reason,
+            "Unable to reach the API service."
+          )
+        )
+      }
+    }
+
+    void loadServiceStatus()
+
+    return () => {
+      ignoreResult = true
+    }
+  }, [
+    canConfigureWorkspace,
+    statusRetryKey,
+    userId,
+  ])
 
   async function handleSaveOrganization() {
     if (
@@ -874,6 +957,37 @@ export function SettingsClient({
     }
   }
 
+  if (loadingWorkspaceAccess) {
+    return (
+      <div className="space-y-6">
+        <DashboardPageHeader
+          title="Settings"
+          description="Workspace configuration is available to the business owner."
+        />
+        <div
+          role="status"
+          className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500"
+        >
+          Checking workspace access...
+        </div>
+      </div>
+    )
+  }
+
+  if (!canConfigureWorkspace) {
+    return (
+      <div className="space-y-6">
+        <DashboardPageHeader
+          title="Settings"
+          description="Workspace configuration is available to the business owner."
+        />
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          Only the business owner can manage workspace settings, branding, members, and service configuration.
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8">
       {/* =========================
@@ -1279,9 +1393,32 @@ export function SettingsClient({
               <h2 className="text-xl font-semibold">
                 Decision Intelligence
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                AI analysis uses recorded decision outcomes and lessons as evidence when a provider is configured.
-              </p>
+          <p className="mt-1 text-sm text-gray-500">
+            AI analysis uses recorded decision outcomes and lessons as evidence when a provider is configured.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+            <span>
+              API service: {apiHealthError
+                ? "Unavailable"
+                : apiHealthStatus
+                  ? "Reachable"
+                  : "Checking..."}
+            </span>
+            {apiHealthError && (
+              <button
+                type="button"
+                onClick={() =>
+                  setStatusRetryKey(
+                    currentKey => currentKey + 1
+                  )
+                }
+                disabled={loadingOrganization}
+                className="font-medium text-[var(--decisionate-brand-primary-text)] underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Retry API status
+              </button>
+            )}
+          </div>
             </div>
 
             {aiStatusError ? (
@@ -1317,7 +1454,7 @@ export function SettingsClient({
               <button
                 type="button"
                 onClick={() =>
-                  setAiStatusRetryKey(
+                  setStatusRetryKey(
                     currentKey => currentKey + 1
                   )
                 }
@@ -1330,7 +1467,7 @@ export function SettingsClient({
               </button>
             </div>
           ) : (
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-4">
               <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                   Provider
@@ -1353,6 +1490,18 @@ export function SettingsClient({
                 </p>
                 <p className="mt-1 text-sm font-semibold text-gray-800">
                   Outcomes + lessons
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Analytics engine
+                </p>
+                <p className="mt-1 truncate text-sm font-semibold text-gray-800">
+                  {analyticsStatusError
+                    ? "Unavailable"
+                    : analyticsStatus
+                      ? `${analyticsStatus.engine} · ${analyticsStatus.storage_format}`
+                      : "Checking..."}
                 </p>
               </div>
             </div>

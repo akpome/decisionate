@@ -25,6 +25,9 @@ import {
 import {
   getMyOrganization,
   getOrganizationWorkspaces,
+  getApiAvailabilitySnapshot,
+  apiAvailabilityChangedEvent,
+  type ApiAvailabilityEventDetail,
   type OrganizationRecord,
   type OrganizationWorkspaceRecord,
 } from "@/lib/api"
@@ -35,6 +38,9 @@ import {
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
+import {
+  useWorkspaceBrowserBrand,
+} from "@/lib/use-workspace-browser-brand"
 
 type DashboardShellProps = {
   children: ReactNode
@@ -44,6 +50,7 @@ type DashboardNavItem = {
   href: string
   label: string
   icon: ReactNode
+  ownerOnly?: boolean
 }
 
 type DashboardNavGroup = {
@@ -112,6 +119,7 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/dashboard/connections",
         label: "Connections",
         icon: <Plug size={18} />,
+        ownerOnly: true,
       },
     ],
   },
@@ -122,11 +130,13 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/dashboard/alerts",
         label: "Alerts",
         icon: <Bell size={18} />,
+        ownerOnly: true,
       },
       {
         href: "/dashboard/settings",
         label: "Settings",
         icon: <Settings size={18} />,
+        ownerOnly: true,
       },
     ],
   },
@@ -145,6 +155,16 @@ export function DashboardShell({
     useState<OrganizationRecord | null>(null)
   const [workspaces, setWorkspaces] =
     useState<OrganizationWorkspaceRecord[]>([])
+  const [apiUnavailableMessage, setApiUnavailableMessage] =
+    useState(() => {
+      const initialDetail =
+        getApiAvailabilitySnapshot()
+
+      return initialDetail && !initialDetail.available
+        ? initialDetail.message ||
+            "The API service is unavailable."
+        : ""
+    })
   const { activeWorkspaceId } =
     useActiveWorkspace(user?.id)
 
@@ -224,6 +244,38 @@ export function DashboardShell({
   }, [user?.id])
 
   useEffect(() => {
+    function handleApiAvailabilityChanged(
+      event: Event
+    ) {
+      const detail = (
+        event as CustomEvent<ApiAvailabilityEventDetail>
+      ).detail
+
+      if (detail?.available) {
+        setApiUnavailableMessage("")
+        return
+      }
+
+      setApiUnavailableMessage(
+        detail?.message ||
+          "The API service is unavailable."
+      )
+    }
+
+    window.addEventListener(
+      apiAvailabilityChangedEvent,
+      handleApiAvailabilityChanged
+    )
+
+    return () => {
+      window.removeEventListener(
+        apiAvailabilityChangedEvent,
+        handleApiAvailabilityChanged
+      )
+    }
+  }, [])
+
+  useEffect(() => {
     function handleOrganizationUpdated(
       event: Event
     ) {
@@ -266,6 +318,11 @@ export function DashboardShell({
       workspaces,
       user?.fullName
     )
+
+  useWorkspaceBrowserBrand(
+    undefined,
+    activeBrand,
+  )
   const activeSharedWorkspace =
     getActiveSharedWorkspace(
       activeWorkspaceId,
@@ -280,6 +337,18 @@ export function DashboardShell({
       workspaces,
       user?.fullName
     )
+  const activeWorkspaceRecord =
+    workspaces.find(
+      workspace =>
+        workspace.owner_user_id ===
+        activeWorkspaceId
+    )
+  const canConfigureWorkspace =
+    Boolean(user?.id) &&
+    (!activeWorkspaceId ||
+      activeWorkspaceId === user?.id ||
+      activeWorkspaceRecord?.role?.toLowerCase() ===
+        "owner")
 
   function handleWorkspaceChange(
     nextWorkspaceId: string
@@ -294,6 +363,34 @@ export function DashboardShell({
 
   return (
     <div className="dashboard-shell-layout flex h-screen overflow-hidden bg-gray-50">
+      {apiUnavailableMessage && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="dashboard-print-hidden fixed inset-x-4 top-4 z-50 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-lg md:left-auto md:max-w-xl"
+        >
+          <span className="min-w-0 break-words">
+            {apiUnavailableMessage}
+          </span>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100"
+            >
+              Reload
+            </button>
+            <button
+              type="button"
+              onClick={() => setApiUnavailableMessage("")}
+              className="rounded-lg px-2 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       {/* =========================
           Dashboard Sidebar Brand Workspace And Primary Navigation
       ========================= */}
@@ -372,14 +469,26 @@ export function DashboardShell({
 
         <nav className="min-h-0 flex-1 overflow-y-auto p-4">
           <div className="space-y-5">
-            {dashboardNavGroups.map((group) => (
+            {dashboardNavGroups.map((group) => {
+              const visibleItems =
+                group.items.filter(
+                  item =>
+                    !item.ownerOnly ||
+                    canConfigureWorkspace
+                )
+
+              if (visibleItems.length === 0) {
+                return null
+              }
+
+              return (
               <div key={group.label}>
                 <p className="mb-2 px-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                   {group.label}
                 </p>
 
                 <div className="space-y-1">
-                  {group.items.map((item) => (
+                  {visibleItems.map((item) => (
                     <Link
                       key={item.href}
                       href={item.href}
@@ -396,7 +505,8 @@ export function DashboardShell({
                   ))}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </nav>
 

@@ -320,19 +320,80 @@ def build_fallback_analysis(
     summary: str,
     recommendations: list[str],
     risks: list[str],
-    learning_context: dict[str, int] | None = None,
+    learning_context: dict[str, Any] | None = None,
     fallback_reason: str = FALLBACK_NOT_CONFIGURED,
 ):
+    learning_recommendations = build_learning_fallback_recommendations(
+        learning_context
+    )
+
     return {
         "source": "rules",
         "model": None,
         "fallback_reason": fallback_reason,
         "summary": clean_analysis_text(summary),
-        "recommendations": clean_analysis_items(recommendations),
+        "recommendations": clean_analysis_items(
+            [
+                *recommendations,
+                *learning_recommendations,
+            ]
+        ),
         "risks": clean_analysis_items(risks),
         "confidence": "low",
         "learning_context": learning_context,
     }
+
+
+def build_learning_fallback_recommendations(
+    learning_context: dict[str, Any] | None,
+):
+    if not isinstance(learning_context, dict):
+        return []
+
+    recorded_lesson_count = clean_learning_count(
+        learning_context.get("recorded_lesson_count")
+    )
+    recorded_outcome_count = clean_learning_count(
+        learning_context.get("recorded_outcome_count")
+    )
+    recorded_recommendation_count = clean_learning_count(
+        learning_context.get(
+            "recorded_recommendation_count"
+        )
+    )
+    recommendations = []
+
+    if recorded_lesson_count > 0:
+        lesson_label = (
+            "lesson"
+            if recorded_lesson_count == 1
+            else "lessons"
+        )
+        recommendations.append(
+            f"Review the {recorded_lesson_count} recorded decision {lesson_label} before repeating this course of action."
+        )
+
+    if recorded_outcome_count > 0:
+        outcome_label = (
+            "outcome"
+            if recorded_outcome_count == 1
+            else "outcomes"
+        )
+        recommendations.append(
+            f"Compare this recommendation with the {recorded_outcome_count} recorded decision {outcome_label} in this learning scope."
+        )
+
+    if recorded_recommendation_count > 0:
+        recommendation_label = (
+            "recommendation"
+            if recorded_recommendation_count == 1
+            else "recommendations"
+        )
+        recommendations.append(
+            f"Review the {recorded_recommendation_count} prior AI {recommendation_label} with recorded results before acting."
+        )
+
+    return recommendations
 
 
 def normalize_analysis(
@@ -359,6 +420,21 @@ def normalize_analysis(
     if not isinstance(risks, list):
         risks = []
 
+    clean_recommendations = clean_analysis_items(
+        recommendations
+    )
+    if not clean_recommendations:
+        clean_recommendations = fallback.get(
+            "recommendations",
+            [],
+        )
+    clean_risks = clean_analysis_items(risks)
+    if not clean_risks:
+        clean_risks = fallback.get(
+            "risks",
+            [],
+        )
+
     clean_confidence = (
         confidence
         if confidence in AI_CONFIDENCE_VALUES
@@ -370,8 +446,8 @@ def normalize_analysis(
         "model": model,
         "fallback_reason": None,
         "summary": clean_analysis_text(summary),
-        "recommendations": clean_analysis_items(recommendations),
-        "risks": clean_analysis_items(risks),
+        "recommendations": clean_recommendations,
+        "risks": clean_risks,
         "confidence": clean_confidence,
         "learning_context": fallback.get(
             "learning_context"
@@ -415,6 +491,12 @@ def build_learning_context_metadata(
         "recorded_outcome_count": clean_learning_count(
             learning_context.get(
                 "recorded_outcome_count",
+                0,
+            )
+        ),
+        "recorded_recommendation_count": clean_learning_count(
+            learning_context.get(
+                "recorded_recommendation_count",
                 0,
             )
         ),

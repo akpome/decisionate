@@ -688,10 +688,6 @@ body {
     background: #ffffff !important;
   }
 
-  .dashboard-report .dashboard-export-header {
-    display: block !important;
-  }
-
   .dashboard-report [data-dashboard-export-control] {
     display: none !important;
   }

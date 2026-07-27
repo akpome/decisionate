@@ -306,6 +306,12 @@ def clean_dashboard_preferences(
                 clean_preference["selectedMetrics"] = clean_metrics
 
         controlled_fields = {
+            "aggregation": {
+                "daily",
+                "weekly",
+                "quarterly",
+                "monthly",
+            },
             "chartType": {
                 "line",
                 "bar",

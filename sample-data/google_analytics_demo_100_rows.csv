@@ -1,0 +1,101 @@
+date,default_channel_group,source_medium,campaign,landing_page,sessions,total_users,new_users,engaged_sessions,engagement_rate,average_engagement_time_seconds,screen_page_views,event_count,conversions,conversion_rate,total_revenue
+2025-01-01,Organic Search,google / organic,seo-brand,/pricing,288,222,135,161,0.5590,74,677,1958,5,0.0174,550.00
+2025-01-02,Paid Search,google / cpc,spring-search,/demo,260,203,129,150,0.5769,80,642,1885,5,0.0192,445.00
+2025-01-03,Paid Social,meta / paid,spring-social,/features,280,222,147,167,0.5964,86,725,2156,6,0.0214,576.00
+2025-01-04,Direct,(direct) / (none),(direct),/,300,242,166,184,0.6133,92,813,2445,8,0.0267,824.00
+2025-01-05,Email,newsletter / email,product-update,/case-studies,320,262,160,202,0.6312,98,752,2752,9,0.0281,990.00
+2025-01-06,Organic Search,google / organic,seo-brand,/pricing,340,262,166,221,0.6500,104,840,2312,10,0.0294,820.00
+2025-01-07,Paid Search,google / cpc,spring-search,/demo,360,282,186,202,0.5611,110,932,2610,12,0.0333,1068.00
+2025-01-08,Paid Social,meta / paid,spring-social,/features,261,207,142,151,0.5785,116,707,2010,5,0.0192,480.00
+2025-01-09,Direct,(direct) / (none),(direct),/,281,226,138,167,0.5943,122,660,2290,6,0.0214,618.00
+2025-01-10,Email,newsletter / email,product-update,/case-studies,301,246,156,185,0.6146,74,743,2589,7,0.0233,770.00
+2025-01-11,Organic Search,google / organic,seo-brand,/pricing,321,247,163,203,0.6324,80,831,2183,8,0.0249,796.00
+2025-01-12,Paid Search,google / cpc,spring-search,/demo,389,304,208,253,0.6504,86,1054,2820,11,0.0283,979.00
+2025-01-13,Paid Social,meta / paid,spring-social,/features,361,287,175,202,0.5596,92,848,2780,11,0.0305,1056.00
+2025-01-14,Direct,(direct) / (none),(direct),/,381,307,195,220,0.5774,99,941,3105,13,0.0341,1339.00
+2025-01-15,Email,newsletter / email,product-update,/case-studies,282,231,152,168,0.5957,105,730,2425,5,0.0177,550.00
+2025-01-16,Organic Search,google / organic,seo-brand,/pricing,302,233,160,185,0.6126,111,818,2054,6,0.0199,492.00
+2025-01-17,Paid Search,google / cpc,spring-search,/demo,322,252,154,204,0.6335,117,757,2335,7,0.0217,623.00
+2025-01-18,Paid Social,meta / paid,spring-social,/features,342,272,173,222,0.6491,123,845,2633,9,0.0263,864.00
+2025-01-19,Direct,(direct) / (none),(direct),/,362,292,193,203,0.5608,75,938,2950,10,0.0276,1030.00
+2025-01-20,Email,newsletter / email,product-update,/case-studies,382,312,214,221,0.5785,81,1035,3285,12,0.0314,1320.00
+2025-01-21,Organic Search,google / organic,seo-brand,/pricing,402,310,189,240,0.5970,87,945,2734,13,0.0323,1206.00
+2025-01-22,Paid Search,google / cpc,spring-search,/demo,303,237,150,186,0.6139,93,748,2197,5,0.0165,445.00
+2025-01-23,Paid Social,meta / paid,spring-social,/features,371,295,195,234,0.6307,99,961,2857,8,0.0216,768.00
+2025-01-24,Direct,(direct) / (none),(direct),/,343,276,189,223,0.6501,105,930,2795,8,0.0233,824.00
+2025-01-25,Email,newsletter / email,product-update,/case-studies,363,297,181,203,0.5592,111,853,3122,9,0.0248,990.00
+2025-01-26,Organic Search,google / organic,seo-brand,/pricing,383,295,187,221,0.5770,117,946,2604,11,0.0287,902.00
+2025-01-27,Paid Search,google / cpc,spring-search,/demo,403,315,208,240,0.5955,123,1044,2922,12,0.0298,1068.00
+2025-01-28,Paid Social,meta / paid,spring-social,/features,423,336,230,260,0.6147,75,1146,3257,14,0.0331,1344.00
+2025-01-29,Direct,(direct) / (none),(direct),/,324,261,159,205,0.6327,81,761,2641,6,0.0185,618.00
+2025-01-30,Email,newsletter / email,product-update,/case-studies,344,281,178,224,0.6512,87,850,2958,7,0.0203,770.00
+2025-01-31,Organic Search,google / organic,seo-brand,/pricing,364,280,185,204,0.5604,93,943,2475,8,0.0220,796.00
+2025-02-01,Paid Search,google / cpc,spring-search,/demo,384,300,206,222,0.5781,99,1041,2784,10,0.0260,890.00
+2025-02-02,Paid Social,meta / paid,spring-social,/features,404,321,196,241,0.5965,105,949,3111,11,0.0272,1056.00
+2025-02-03,Direct,(direct) / (none),(direct),/,472,380,241,290,0.6144,111,1166,3847,14,0.0297,1442.00
+2025-02-04,Email,newsletter / email,product-update,/case-studies,444,363,240,281,0.6329,117,1150,3818,15,0.0338,1650.00
+2025-02-05,Organic Search,google / organic,seo-brand,/pricing,345,266,182,224,0.6493,123,935,2346,6,0.0174,492.00
+2025-02-06,Paid Search,google / cpc,spring-search,/demo,365,285,174,204,0.5589,75,858,2646,7,0.0192,623.00
+2025-02-07,Paid Social,meta / paid,spring-social,/features,385,306,194,223,0.5792,81,951,2965,9,0.0234,864.00
+2025-02-08,Direct,(direct) / (none),(direct),/,405,326,215,241,0.5951,88,1049,3301,10,0.0247,1030.00
+2025-02-09,Email,newsletter / email,product-update,/case-studies,425,348,238,261,0.6141,94,1152,3655,12,0.0282,1320.00
+2025-02-10,Organic Search,google / organic,seo-brand,/pricing,445,343,209,281,0.6315,100,1046,3026,14,0.0315,1288.00
+2025-02-11,Paid Search,google / cpc,spring-search,/demo,465,364,231,302,0.6495,106,1149,3371,15,0.0323,1335.00
+2025-02-12,Paid Social,meta / paid,spring-social,/features,366,291,192,205,0.5601,112,948,2818,7,0.0191,672.00
+2025-02-13,Direct,(direct) / (none),(direct),/,386,311,213,223,0.5777,118,1046,3146,8,0.0207,824.00
+2025-02-14,Email,newsletter / email,product-update,/case-studies,454,371,226,271,0.5969,124,1067,3904,10,0.0220,1100.00
+2025-02-15,Organic Search,google / organic,seo-brand,/pricing,426,328,208,262,0.6150,76,1052,2897,11,0.0258,902.00
+2025-02-16,Paid Search,google / cpc,spring-search,/demo,446,349,230,282,0.6323,82,1155,3234,12,0.0269,1068.00
+2025-02-17,Paid Social,meta / paid,spring-social,/features,466,370,253,303,0.6502,88,1263,3588,14,0.0300,1344.00
+2025-02-18,Direct,(direct) / (none),(direct),/,486,392,239,272,0.5597,94,1142,3961,16,0.0329,1648.00
+2025-02-19,Email,newsletter / email,product-update,/case-studies,387,317,201,224,0.5788,100,956,3328,7,0.0181,770.00
+2025-02-20,Organic Search,google / organic,seo-brand,/pricing,407,313,207,243,0.5971,106,1054,2768,8,0.0197,796.00
+2025-02-21,Paid Search,google / cpc,spring-search,/demo,427,334,229,262,0.6136,112,1157,3096,10,0.0234,890.00
+2025-02-22,Paid Social,meta / paid,spring-social,/features,447,355,217,283,0.6331,118,1050,3442,11,0.0246,1056.00
+2025-02-23,Direct,(direct) / (none),(direct),/,467,376,239,304,0.6510,124,1153,3806,13,0.0278,1339.00
+2025-02-24,Email,newsletter / email,product-update,/case-studies,487,398,263,273,0.5606,76,1261,4188,15,0.0308,1650.00
+2025-02-25,Organic Search,google / organic,seo-brand,/pricing,555,427,292,321,0.5784,82,1504,3774,18,0.0324,1476.00
+2025-02-26,Paid Search,google / cpc,spring-search,/demo,408,319,195,243,0.5956,88,959,2958,7,0.0172,623.00
+2025-02-27,Paid Social,meta / paid,spring-social,/features,428,340,216,263,0.6145,94,1057,3296,9,0.0210,864.00
+2025-02-28,Direct,(direct) / (none),(direct),/,448,361,238,283,0.6317,100,1160,3651,10,0.0223,1030.00
+2025-03-01,Email,newsletter / email,product-update,/case-studies,468,383,262,304,0.6496,106,1268,4025,12,0.0256,1320.00
+2025-03-02,Organic Search,google / organic,seo-brand,/pricing,488,376,229,273,0.5594,112,1147,3318,14,0.0287,1288.00
+2025-03-03,Paid Search,google / cpc,spring-search,/demo,508,397,252,294,0.5787,118,1255,3683,15,0.0295,1335.00
+2025-03-04,Paid Social,meta / paid,spring-social,/features,528,419,277,315,0.5966,124,1368,4066,17,0.0322,1632.00
+2025-03-05,Direct,(direct) / (none),(direct),/,429,346,237,263,0.6131,77,1163,3496,8,0.0186,824.00
+2025-03-06,Email,newsletter / email,product-update,/case-studies,449,367,224,284,0.6325,83,1055,3861,9,0.0200,990.00
+2025-03-07,Organic Search,google / organic,seo-brand,/pricing,469,361,229,305,0.6503,89,1158,3189,11,0.0235,902.00
+2025-03-08,Paid Search,google / cpc,spring-search,/demo,537,420,277,301,0.5605,95,1391,3893,14,0.0261,1246.00
+2025-03-09,Paid Social,meta / paid,spring-social,/features,509,404,277,294,0.5776,101,1379,3919,14,0.0275,1344.00
+2025-03-10,Direct,(direct) / (none),(direct),/,529,426,260,315,0.5955,107,1243,4311,16,0.0302,1648.00
+2025-03-11,Email,newsletter / email,product-update,/case-studies,549,449,285,337,0.6138,113,1356,4721,18,0.0328,1980.00
+2025-03-12,Organic Search,google / organic,seo-brand,/pricing,450,347,229,284,0.6311,119,1166,3060,8,0.0178,796.00
+2025-03-13,Paid Search,google / cpc,spring-search,/demo,470,368,252,306,0.6511,125,1274,3408,10,0.0213,890.00
+2025-03-14,Paid Social,meta / paid,spring-social,/features,490,389,237,274,0.5592,77,1152,3773,11,0.0224,1056.00
+2025-03-15,Direct,(direct) / (none),(direct),/,510,411,261,295,0.5784,83,1260,4157,13,0.0255,1339.00
+2025-03-16,Email,newsletter / email,product-update,/case-studies,530,434,286,316,0.5962,89,1373,4558,15,0.0283,1650.00
+2025-03-17,Organic Search,google / organic,seo-brand,/pricing,550,424,290,338,0.6145,95,1491,3740,17,0.0309,1394.00
+2025-03-18,Paid Search,google / cpc,spring-search,/demo,570,446,272,360,0.6316,101,1340,4133,19,0.0333,1691.00
+2025-03-19,Paid Social,meta / paid,spring-social,/features,519,412,262,337,0.6493,107,1282,3996,9,0.0173,864.00
+2025-03-20,Direct,(direct) / (none),(direct),/,491,396,261,275,0.5601,113,1272,4002,10,0.0204,1030.00
+2025-03-21,Email,newsletter / email,product-update,/case-studies,511,418,286,295,0.5773,119,1385,4395,12,0.0235,1320.00
+2025-03-22,Organic Search,google / organic,seo-brand,/pricing,531,409,249,316,0.5951,125,1248,3611,14,0.0264,1288.00
+2025-03-23,Paid Search,google / cpc,spring-search,/demo,551,431,274,338,0.6134,77,1361,3995,15,0.0272,1335.00
+2025-03-24,Paid Social,meta / paid,spring-social,/features,571,453,299,361,0.6322,83,1479,4397,17,0.0298,1632.00
+2025-03-25,Direct,(direct) / (none),(direct),/,591,476,326,384,0.6497,89,1602,4817,20,0.0338,2060.00
+2025-03-26,Email,newsletter / email,product-update,/case-studies,492,402,245,276,0.5610,95,1156,4231,9,0.0183,990.00
+2025-03-27,Organic Search,google / organic,seo-brand,/pricing,512,394,250,296,0.5781,101,1265,3482,10,0.0195,820.00
+2025-03-28,Paid Search,google / cpc,spring-search,/demo,532,416,275,317,0.5959,107,1378,3857,12,0.0226,1068.00
+2025-03-29,Paid Social,meta / paid,spring-social,/features,552,438,300,339,0.6141,113,1496,4250,14,0.0254,1344.00
+2025-03-30,Direct,(direct) / (none),(direct),/,620,500,305,392,0.6323,120,1457,5053,17,0.0274,1751.00
+2025-03-31,Email,newsletter / email,product-update,/case-studies,592,484,307,385,0.6503,126,1462,5091,18,0.0304,1980.00
+2025-04-01,Organic Search,google / organic,seo-brand,/pricing,612,471,311,343,0.5605,78,1585,4162,20,0.0327,1780.00
+2025-04-02,Paid Search,google / cpc,spring-search,/demo,513,401,275,297,0.5789,84,1390,3719,9,0.0175,801.00
+2025-04-03,Paid Social,meta / paid,spring-social,/features,533,423,258,318,0.5966,90,1253,4104,11,0.0206,1056.00
+2025-04-04,Direct,(direct) / (none),(direct),/,553,446,283,340,0.6148,96,1366,4507,13,0.0235,1339.00
+2025-04-05,Email,newsletter / email,product-update,/case-studies,573,469,310,362,0.6318,102,1484,4928,15,0.0262,1650.00
+2025-04-06,Organic Search,google / organic,seo-brand,/pricing,593,457,313,385,0.6492,108,1607,4032,17,0.0287,1394.00
+2025-04-07,Paid Search,google / cpc,spring-search,/demo,613,479,292,343,0.5595,114,1441,4444,19,0.0310,1691.00
+2025-04-08,Paid Social,meta / paid,spring-social,/features,633,503,319,366,0.5782,120,1564,4874,21,0.0332,2016.00
+2025-04-09,Direct,(direct) / (none),(direct),/,534,430,284,318,0.5955,126,1383,4352,10,0.0187,1030.00
+2025-04-10,Email,newsletter / email,product-update,/case-studies,602,492,337,370,0.6146,78,1631,5177,12,0.0199,1320.00

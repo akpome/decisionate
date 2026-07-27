@@ -29,6 +29,7 @@ import {
 
 import {
   getPublicSharedDashboard,
+  type DashboardAggregation,
   type DecisionSummary,
 } from "@/lib/api"
 import {
@@ -65,6 +66,7 @@ import {
 
 type ChartType = "line" | "bar" | "area"
 type ScaleMode = "actual" | "indexed"
+type MetricAggregation = DashboardAggregation
 type DashboardTemplate =
   | "executive"
   | "performance"
@@ -225,6 +227,8 @@ function SharedDashboardContent() {
     useState<ScaleMode>("actual")
   const [periodFilter, setPeriodFilter] =
     useState<PeriodFilter>("1y")
+  const [aggregation, setAggregation] =
+    useState<MetricAggregation>("monthly")
   const [dashboardTemplate, setDashboardTemplate] =
     useState<DashboardTemplate>("executive")
   const [dashboardTitle, setDashboardTitle] =
@@ -313,6 +317,7 @@ function SharedDashboardContent() {
       setDashboardTitle("")
       setDashboardSubtitle("")
       setStartDate("")
+      setAggregation("monthly")
     }
 
     async function loadSharedDashboard() {
@@ -394,6 +399,10 @@ function SharedDashboardContent() {
           getSavedPeriodFilter(
             dashboardPreference.periodFilter
           )
+        const safeAggregation =
+          getSavedAggregation(
+            dashboardPreference.aggregation
+          )
         const savedChartRows =
           data.chart?.data?.length
             ? data.chart.data
@@ -429,6 +438,7 @@ function SharedDashboardContent() {
           )
         )
         setPeriodFilter(safePeriodFilter)
+        setAggregation(safeAggregation)
         setDashboardTemplate(
           getSavedDashboardTemplate(
             dashboardPreference.dashboardTemplate ??
@@ -566,6 +576,21 @@ function SharedDashboardContent() {
       startDate,
       periodFilter
     )
+  const aggregatedRows = useMemo(
+    () =>
+      aggregateRowsByDate(
+        rows,
+        xKey,
+        aggregation,
+        metrics.map(metric => metric.column)
+      ),
+    [
+      aggregation,
+      metrics,
+      rows,
+      xKey,
+    ]
+  )
   const primaryMetric =
     selectedMetrics[0] ??
     metrics[0]?.column ??
@@ -573,7 +598,10 @@ function SharedDashboardContent() {
   const selectedTarget =
     targets[primaryMetric] ?? 0
   const latestValue =
-    getLatestValue(rows, primaryMetric)
+    getLatestValue(
+      aggregatedRows,
+      primaryMetric
+    )
   const targetProgress =
     getTargetProgress(
       latestValue,
@@ -583,11 +611,11 @@ function SharedDashboardContent() {
     scaleMode === "indexed" &&
     selectedMetrics.length > 1
       ? buildIndexedRows(
-          rows,
+          aggregatedRows,
           selectedMetrics,
           xKey
         )
-      : rows
+      : aggregatedRows
 
   if (loading) {
     return (
@@ -660,15 +688,21 @@ function SharedDashboardContent() {
       dashboardRegistry[
         selectedDashboardDefinition.componentKey
       ]
-
     return (
       <SharedPageShell brand={sharedBrand}>
         <SelectedDashboard
           name={selectedDashboardDefinition.name}
           description={selectedDashboardDefinition.description}
           highlights={selectedDashboardDefinition.highlights}
-          dataset={dataset}
+          dataset={{
+            ...dataset,
+            chart: {
+              ...(dataset.chart ?? {}),
+              data: rows,
+            },
+          }}
           datasetId={sharedDatasetId}
+          aggregation={aggregation}
           manualMapping={
             dashboardUsesDatasetMetricMapping(
               selectedDashboardDefinition.componentKey
@@ -681,6 +715,15 @@ function SharedDashboardContent() {
           brand={sharedBrand}
           showActions={false}
         />
+
+        <SharedDashboardControls
+          periodFilter={periodFilter}
+          setPeriodFilter={setPeriodFilter}
+          aggregation={aggregation}
+          setAggregation={setAggregation}
+          startDate={startDate}
+          setStartDate={setStartDate}
+        />
       </SharedPageShell>
     )
   }
@@ -689,10 +732,7 @@ function SharedDashboardContent() {
     <SharedPageShell brand={sharedBrand}>
       <div className="space-y-5">
         <div
-          className="rounded-2xl border bg-white p-5 shadow-sm"
-          style={{
-            borderColor: sharedBrand.primaryColor,
-          }}
+          className="rounded-2xl bg-white p-5 shadow-sm"
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-4">
@@ -746,6 +786,7 @@ function SharedDashboardContent() {
                 )}
             </div>
           </div>
+
         </div>
 
         {effectiveDashboardTemplate === "executive" && (
@@ -820,8 +861,147 @@ function SharedDashboardContent() {
             chartAreaClassName="mt-4 h-[520px] flex-none xl:h-auto xl:min-h-[560px] xl:flex-1"
           />
         )}
+
+        <SharedDashboardControls
+          chartType={chartType}
+          setChartType={setChartType}
+          scaleMode={scaleMode}
+          setScaleMode={setScaleMode}
+          periodFilter={periodFilter}
+          setPeriodFilter={setPeriodFilter}
+          aggregation={aggregation}
+          setAggregation={setAggregation}
+          startDate={startDate}
+          setStartDate={setStartDate}
+          showChartControls
+        />
       </div>
     </SharedPageShell>
+  )
+}
+
+function SharedDashboardControls({
+  chartType,
+  setChartType,
+  scaleMode,
+  setScaleMode,
+  periodFilter,
+  setPeriodFilter,
+  aggregation,
+  setAggregation,
+  startDate,
+  setStartDate,
+  showChartControls = false,
+}: {
+  chartType?: ChartType
+  setChartType?: (value: ChartType) => void
+  scaleMode?: ScaleMode
+  setScaleMode?: (value: ScaleMode) => void
+  periodFilter: PeriodFilter
+  setPeriodFilter: (value: PeriodFilter) => void
+  aggregation: MetricAggregation
+  setAggregation: (value: MetricAggregation) => void
+  startDate: string
+  setStartDate: (value: string) => void
+  showChartControls?: boolean
+}) {
+  return (
+    <div className="mt-4 grid min-w-0 gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2 sm:grid-cols-2 lg:grid-cols-5">
+      {showChartControls && (
+        <>
+          <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+            <span className="block">Chart</span>
+            <select
+              value={chartType}
+              onChange={event =>
+                setChartType?.(
+                  event.target.value as ChartType
+                )
+              }
+              className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+            >
+              <option value="line">Line</option>
+              <option value="bar">Bar</option>
+              <option value="area">Area</option>
+            </select>
+          </label>
+
+          <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+            <span className="block">Scale</span>
+            <select
+              value={scaleMode}
+              onChange={event =>
+                setScaleMode?.(
+                  event.target.value as ScaleMode
+                )
+              }
+              className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+            >
+              <option value="actual">Actual</option>
+              <option value="indexed">Indexed</option>
+            </select>
+          </label>
+        </>
+      )}
+
+      <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+        <span className="block">Start date</span>
+        <input
+          type="date"
+          value={startDate}
+          onChange={event =>
+            setStartDate(event.target.value)
+          }
+          className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+        />
+      </label>
+
+      <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+        <span className="block">Duration</span>
+        <select
+          value={periodFilter}
+          onChange={event =>
+            setPeriodFilter(
+              event.target.value as PeriodFilter
+            )
+          }
+          className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+        >
+          <option value="1m">1 month</option>
+          <option value="1q">1 quarter</option>
+          <option value="6m">6 months</option>
+          <option value="1y">1 year</option>
+          <option value="2y">2 years</option>
+          <option value="3y">3 years</option>
+          <option value="5y">5 years</option>
+          <option value="all">All data</option>
+        </select>
+      </label>
+
+      <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+        <span className="block">Sum by</span>
+        <select
+          value={aggregation}
+          onChange={event =>
+            setAggregation(
+              event.target.value as MetricAggregation
+            )
+          }
+          className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+        >
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+        </select>
+      </label>
+
+      <p className="col-span-full truncate self-end text-xs text-gray-500 lg:col-span-1 lg:pb-2">
+        Showing {formatPeriodLabel(periodFilter)} from {startDate
+          ? formatMonthYear(startDate)
+          : "first available period"}
+      </p>
+    </div>
   )
 }
 
@@ -1186,23 +1366,33 @@ function MainChart({
   colorPalette: string[]
 }) {
   const margin = {
-    top: 20,
+    top: 0,
     right: 32,
     left: 8,
-    bottom: 16,
+    bottom: 42,
   }
 
   const common = (
     <>
       <CartesianGrid strokeDasharray="3 3" />
-      <XAxis dataKey={xKey} tickLine={false} />
+      <XAxis
+        dataKey={xKey}
+        angle={-35}
+        textAnchor="end"
+        height={48}
+        tickLine={false}
+        tickMargin={8}
+      />
       <YAxis
         width={70}
         tickLine={false}
         domain={["auto", "auto"]}
       />
       <Tooltip />
-      <Legend />
+      <Legend
+        verticalAlign="top"
+        height={28}
+      />
 
       {showTarget && target > 0 && (
         <ReferenceLine
@@ -1290,7 +1480,7 @@ function MainChart({
           strokeWidth={
             index === 0 ? 5 : 4
           }
-          dot={{ r: index === 0 ? 4 : 3 }}
+          dot={false}
           activeDot={{ r: 7 }}
         />
       ))}
@@ -1753,6 +1943,14 @@ function getSavedPeriodFilter(
     : "1y"
 }
 
+function getSavedAggregation(
+  savedAggregation: unknown
+): MetricAggregation {
+  return isSavedAggregation(savedAggregation)
+    ? savedAggregation
+    : "monthly"
+}
+
 function getSavedDashboardTemplate(
   savedDashboardTemplate: unknown
 ): DashboardTemplate {
@@ -1787,6 +1985,17 @@ function isSavedPeriodFilter(
   return (
     typeof value === "string" &&
     periodFilters.includes(value as PeriodFilter)
+  )
+}
+
+function isSavedAggregation(
+  value: unknown
+): value is MetricAggregation {
+  return (
+    value === "daily" ||
+    value === "weekly" ||
+    value === "quarterly" ||
+    value === "monthly"
   )
 }
 
@@ -1891,6 +2100,120 @@ function filterRowsByPeriod(
       rowDate < endDate
     )
   })
+}
+
+function aggregateRowsByDate(
+  rows: DashboardRow[],
+  xKey: string,
+  aggregation: MetricAggregation,
+  metricColumns: string[]
+) {
+  const buckets = new Map<
+    string,
+    {
+      date: Date
+      values: Record<string, number>
+    }
+  >()
+
+  rows.forEach((row, index) => {
+    const rowDate =
+      row.__periodDate instanceof Date
+        ? row.__periodDate
+        : getRowPeriodStartDate(
+            row,
+            xKey,
+            index
+          )
+    const bucketDate =
+      getAggregationBucketDate(
+        rowDate,
+        aggregation
+      )
+    const bucketKey = formatDateKey(bucketDate)
+    const bucket =
+      buckets.get(bucketKey) ?? {
+        date: bucketDate,
+        values: {},
+      }
+
+    metricColumns.forEach(metric => {
+      bucket.values[metric] =
+        (bucket.values[metric] ?? 0) +
+        (toFiniteDashboardNumber(row[metric]) ?? 0)
+    })
+
+    buckets.set(bucketKey, bucket)
+  })
+
+  return Array.from(buckets.values())
+    .sort((first, second) =>
+      first.date.getTime() - second.date.getTime()
+    )
+    .map(bucket => ({
+      [xKey]: formatAggregationLabel(
+        bucket.date,
+        aggregation
+      ),
+      ...bucket.values,
+    }))
+}
+
+function getAggregationBucketDate(
+  value: Date,
+  aggregation: MetricAggregation
+) {
+  const date = new Date(
+    value.getFullYear(),
+    value.getMonth(),
+    value.getDate()
+  )
+
+  if (aggregation === "monthly") {
+    date.setDate(1)
+    return date
+  }
+
+  if (aggregation === "quarterly") {
+    date.setDate(1)
+    date.setMonth(
+      Math.floor(date.getMonth() / 3) * 3
+    )
+    return date
+  }
+
+  if (aggregation === "weekly") {
+    const daysFromMonday =
+      (date.getDay() + 6) % 7
+    date.setDate(
+      date.getDate() - daysFromMonday
+    )
+  }
+
+  return date
+}
+
+function formatDateKey(value: Date) {
+  return [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, "0"),
+    String(value.getDate()).padStart(2, "0"),
+  ].join("-")
+}
+
+function formatAggregationLabel(
+  value: Date,
+  aggregation: MetricAggregation
+) {
+  const dateKey = formatDateKey(value)
+
+  return aggregation === "weekly"
+    ? `Week of ${dateKey}`
+    : aggregation === "quarterly"
+      ? `${value.getFullYear()} Q${Math.floor(value.getMonth() / 3) + 1}`
+    : aggregation === "monthly"
+      ? dateKey.slice(0, 7)
+      : dateKey
 }
 
 function getRowPeriodStartDate(
@@ -2141,6 +2464,32 @@ function isAbortError(error: unknown) {
 
 function formatMetricName(metric: string) {
   return formatMetricLabel(metric)
+}
+
+function formatPeriodLabel(period: PeriodFilter) {
+  const labels: Record<PeriodFilter, string> = {
+    "1m": "1 month",
+    "1q": "1 quarter",
+    "6m": "6 months",
+    "1y": "1 year",
+    "2y": "2 years",
+    "3y": "3 years",
+    "5y": "5 years",
+    all: "All data",
+  }
+
+  return labels[period]
+}
+
+function formatMonthYear(value: string) {
+  const date = new Date(`${value}T00:00:00`)
+
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(undefined, {
+        month: "short",
+        year: "numeric",
+      })
 }
 
 function formatNumber(value: number) {

@@ -97,10 +97,10 @@ def require_workspace_data_manager(
         request,
     )
 
-    if workspace_role == "client":
+    if workspace_role != "owner":
         from fastapi import HTTPException
 
         raise HTTPException(
             status_code=403,
-            detail="Client users cannot modify workspace data setup",
+            detail="Only workspace owners can modify workspace data setup",
         )

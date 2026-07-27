@@ -399,7 +399,10 @@ def build_public_dashboard_dataset_response(
         ),
         "preview": [],
         "metrics": generate_metrics(dataframe),
-        "chart": generate_chart_data(dataframe),
+        "chart": generate_chart_data(
+            dataframe,
+            limit=None,
+        ),
     }
 
 

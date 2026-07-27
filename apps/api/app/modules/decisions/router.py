@@ -955,6 +955,17 @@ async def create_decision(
             metric_column=clean_optional_single_line_text(
                 payload.metric_column,
             ),
+            recommendation_text=clean_optional_multiline_text(
+                payload.recommendation_text,
+            ),
+            recommendation_source=validate_optional_decision_controlled_value(
+                payload.recommendation_source,
+                {"openai", "rules"},
+                "recommendation source",
+            ),
+            recommendation_context=clean_optional_multiline_text(
+                payload.recommendation_context,
+            ),
             title=clean_title,
             description=clean_optional_single_line_text(
                 payload.description,
@@ -2057,25 +2068,23 @@ async def get_decision(
 
 @router.get(
     "/{decision_id}/outcome-analysis",
-    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionOutcomeAnalysisResponse,
 )
 async def get_decision_outcome_analysis(
+    request: Request,
     decision_id: int,
-    x_user_id: str = Header(alias="X-User-Id"),
-    x_workspace_id: str | None = Header(
-        default=None,
-        alias="X-Workspace-Id",
-    ),
 ):
+    auth_context = get_auth_context(request)
+    user_id = auth_context.user_id
+    workspace_id = auth_context.workspace_id
     db = SessionLocal()
 
     try:
         decision = get_accessible_decision_or_404(
             db,
             decision_id,
-            x_user_id,
-            x_workspace_id,
+            user_id,
+            workspace_id,
         )
 
         expected_outcome = (
@@ -2085,11 +2094,15 @@ async def get_decision_outcome_analysis(
             decision.actual_outcome or ""
         ).strip()
 
-        if not expected_outcome or not actual_outcome:
+        if not expected_outcome or (
+            not actual_outcome and
+            not decision.outcome_status
+        ):
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "Expected and actual outcomes are required "
+                    "An expected outcome and either actual outcome "
+                    "evidence or an outcome status are required "
                     "before generating an AI outcome review"
                 ),
             )
@@ -2099,11 +2112,8 @@ async def get_decision_outcome_analysis(
         )
         historical_learning = build_workspace_decision_learning_context(
             db,
-            x_user_id,
-            get_active_workspace_id(
-                x_user_id,
-                x_workspace_id,
-            ),
+            user_id,
+            workspace_id,
             base_filter=build_dataset_decision_learning_filter(
                 decision.dataset_id,
                 decision.metric_column,

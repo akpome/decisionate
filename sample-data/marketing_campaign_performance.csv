@@ -1,0 +1,121 @@
+date,campaign,channel,region,audience_segment,impressions,clicks,leads,conversions,spend_usd,revenue_usd,roas
+2025-01-01,Spring Launch,Paid Search,North America,SMB,20739,1431,394,91,426,12922,30.33
+2025-01-02,Customer Retention,Paid Social,Western Europe,Mid-Market,17445,733,158,30,490,4770,9.73
+2025-01-03,Product Education,Email,Southeast Asia,Enterprise,11808,1322,483,155,441,34720,78.73
+2025-01-04,Webinar Nurture,Display,United Kingdom,Returning Customers,16542,447,78,10,581,1930,3.32
+2025-01-05,Demand Generation,Organic Social,Australia,SMB,11129,668,157,33,313,6930,22.14
+2025-01-06,Brand Awareness,Affiliate,North America,Mid-Market,21660,1018,270,76,784,17252,22.01
+2025-01-07,Spring Launch,Paid Search,Western Europe,Enterprise,30743,2152,635,146,1414,42632,30.15
+2025-01-08,Customer Retention,Paid Social,Southeast Asia,Returning Customers,25303,1088,256,49,1058,7644,7.22
+2025-01-09,Product Education,Email,United Kingdom,SMB,16799,1898,655,210,548,36330,66.30
+2025-01-10,Webinar Nurture,Display,Australia,Mid-Market,23131,648,100,13,342,2470,7.22
+2025-01-11,Demand Generation,Organic Social,United Kingdom,Enterprise,15320,858,219,46,317,11730,37.00
+2025-01-12,Brand Awareness,Affiliate,Australia,Returning Customers,29401,1411,402,113,595,25312,42.54
+2025-01-13,Spring Launch,Paid Search,North America,SMB,41198,2925,804,185,692,44585,64.43
+2025-01-14,Customer Retention,Paid Social,Western Europe,Mid-Market,33513,1475,317,60,744,9180,12.34
+2025-01-15,Webinar Nurture,Email,Southeast Asia,Enterprise,22012,2509,916,293,637,63874,100.27
+2025-01-16,Demand Generation,Display,United Kingdom,Returning Customers,30010,720,126,16,807,2992,3.71
+2025-01-17,Brand Awareness,Organic Social,Australia,SMB,9256,528,124,26,422,5304,12.57
+2025-01-18,Spring Launch,Affiliate,North America,Mid-Market,18267,895,237,66,1027,14586,14.20
+2025-01-19,Customer Retention,Paid Search,Western Europe,Enterprise,26245,1890,558,128,660,36608,55.47
+2025-01-20,Product Education,Paid Social,Southeast Asia,Returning Customers,21837,983,231,44,541,6600,12.20
+2025-01-21,Webinar Nurture,Email,Western Europe,SMB,14640,1610,555,178,301,29726,98.76
+2025-01-22,Demand Generation,Display,Southeast Asia,Enterprise,20336,508,79,10,552,2320,4.20
+2025-01-23,Brand Awareness,Organic Social,United Kingdom,Returning Customers,13576,787,201,42,479,8442,17.62
+2025-01-24,Spring Launch,Affiliate,Australia,SMB,26243,1312,374,105,856,22890,26.74
+2025-01-25,Customer Retention,Paid Search,North America,Mid-Market,37016,2702,743,171,957,40185,41.99
+2025-01-26,Product Education,Paid Social,Western Europe,Enterprise,30293,1242,267,51,999,9945,9.95
+2025-01-27,Webinar Nurture,Email,Southeast Asia,Returning Customers,20008,2221,811,260,833,42640,51.19
+2025-01-28,Demand Generation,Display,United Kingdom,SMB,27418,713,125,16,380,2896,7.62
+2025-01-29,Spring Launch,Organic Social,Australia,Mid-Market,16239,958,225,47,217,9306,42.88
+2025-01-30,Customer Retention,Affiliate,North America,Enterprise,31050,1584,420,118,567,31034,54.73
+2025-01-31,Product Education,Paid Search,Australia,Returning Customers,43361,2992,883,203,1059,47096,44.47
+2025-02-01,Webinar Nurture,Paid Social,North America,SMB,35163,1477,347,66,814,9504,11.68
+2025-02-02,Demand Generation,Email,Western Europe,Mid-Market,10990,1231,425,136,432,21896,50.69
+2025-02-03,Brand Awareness,Display,Southeast Asia,Enterprise,15474,418,65,8,763,1808,2.37
+2025-02-04,Spring Launch,Organic Social,United Kingdom,Returning Customers,10456,627,160,34,641,6630,10.34
+2025-02-05,Customer Retention,Affiliate,Australia,SMB,20431,960,274,77,1118,16324,14.60
+2025-02-06,Product Education,Paid Search,North America,Mid-Market,29099,2037,560,129,455,29541,64.93
+2025-02-07,Webinar Nurture,Paid Social,Western Europe,Enterprise,24026,1033,222,42,518,12348,23.84
+2025-02-08,Demand Generation,Email,Southeast Asia,Returning Customers,15996,1808,660,211,462,33338,72.16
+2025-02-09,Brand Awareness,Display,United Kingdom,SMB,22082,618,108,14,606,2450,4.04
+2025-02-10,Spring Launch,Organic Social,Southeast Asia,Mid-Market,14660,821,193,41,325,7872,24.22
+2025-02-11,Customer Retention,Affiliate,United Kingdom,Enterprise,28194,1353,359,101,811,25957,32.01
+2025-02-12,Webinar Nurture,Paid Search,Australia,SMB,39585,2811,829,191,1458,43166,29.61
+2025-02-13,Demand Generation,Paid Social,North America,Mid-Market,32259,1419,333,63,1087,15309,14.08
+2025-02-14,Brand Awareness,Email,Western Europe,Enterprise,21224,2420,835,267,562,54201,96.44
+2025-02-15,Spring Launch,Display,Southeast Asia,Returning Customers,28981,696,108,14,365,2408,6.60
+2025-02-16,Customer Retention,Organic Social,United Kingdom,SMB,19048,1086,277,58,335,10962,32.72
+2025-02-17,Product Education,Affiliate,Australia,Mid-Market,16937,830,237,66,624,13596,21.79
+2025-02-18,Webinar Nurture,Paid Search,North America,Enterprise,24468,1762,485,112,721,30352,42.10
+2025-02-19,Demand Generation,Paid Social,Western Europe,Returning Customers,20456,921,198,38,772,9120,11.81
+2025-02-20,Brand Awareness,Email,North America,SMB,13772,1515,553,177,658,26904,40.89
+2025-02-21,Spring Launch,Display,Western Europe,Mid-Market,19201,480,84,11,831,1859,2.24
+2025-02-22,Customer Retention,Organic Social,Southeast Asia,Enterprise,12862,746,175,37,433,8658,20.00
+2025-02-23,Product Education,Affiliate,United Kingdom,Returning Customers,24937,1247,330,92,1054,18676,17.72
+2025-02-24,Webinar Nurture,Paid Search,Australia,SMB,35269,2575,760,175,704,38500,54.69
+2025-02-25,Demand Generation,Paid Social,North America,Mid-Market,28936,1186,279,53,571,12561,22.00
+2025-02-26,Spring Launch,Email,Western Europe,Enterprise,17204,1910,659,211,315,41567,131.96
+2025-02-27,Customer Retention,Display,Southeast Asia,Returning Customers,23635,615,95,12,575,1992,3.46
+2025-02-28,Product Education,Organic Social,United Kingdom,SMB,15621,922,235,49,497,8967,18.04
+2025-03-01,Webinar Nurture,Affiliate,Australia,Mid-Market,29921,1526,435,122,885,24400,27.57
+2025-03-02,Demand Generation,Paid Search,United Kingdom,Enterprise,41853,2888,794,183,986,48495,49.18
+2025-03-03,Brand Awareness,Paid Social,Australia,Returning Customers,33990,1428,307,58,1026,13572,13.23
+2025-03-04,Spring Launch,Email,North America,SMB,22292,2497,911,292,854,42632,49.92
+2025-03-05,Customer Retention,Display,Western Europe,Enterprise,14387,388,68,9,405,1899,4.69
+2025-03-06,Product Education,Organic Social,Southeast Asia,Returning Customers,9771,586,138,29,229,5220,22.79
+2025-03-07,Webinar Nurture,Affiliate,United Kingdom,SMB,19179,901,239,67,594,13199,22.22
+2025-03-08,Demand Generation,Paid Search,Australia,Mid-Market,27426,1920,566,130,1103,27820,25.22
+2025-03-09,Brand Awareness,Paid Social,North America,Enterprise,22725,977,230,44,844,12276,14.55
+2025-03-10,Spring Launch,Email,Western Europe,Returning Customers,15179,1715,592,189,446,27027,60.60
+2025-03-11,Customer Retention,Display,Southeast Asia,SMB,21015,588,91,12,786,1920,2.44
+2025-03-12,Webinar Nurture,Organic Social,Western Europe,Mid-Market,13988,783,200,42,659,7434,11.28
+2025-03-13,Demand Generation,Affiliate,Southeast Asia,Enterprise,26966,1294,369,103,1146,24926,21.75
+2025-03-14,Brand Awareness,Paid Search,United Kingdom,Returning Customers,37943,2694,741,170,484,35870,74.11
+2025-03-15,Spring Launch,Paid Social,Australia,SMB,30983,1363,293,56,545,12768,23.43
+2025-03-16,Customer Retention,Email,North America,Mid-Market,20422,2328,850,272,484,66640,137.69
+2025-03-17,Product Education,Display,Western Europe,Enterprise,27933,670,117,15,630,3075,4.88
+2025-03-18,Webinar Nurture,Organic Social,Southeast Asia,Returning Customers,18388,1048,246,52,337,9048,26.85
+2025-03-19,Demand Generation,Affiliate,United Kingdom,SMB,35088,1719,456,128,837,24448,29.21
+2025-03-20,Brand Awareness,Paid Search,Australia,Mid-Market,22661,1632,481,111,1502,23088,15.37
+2025-03-21,Spring Launch,Paid Social,North America,Enterprise,19051,857,201,38,1117,10374,9.29
+2025-03-22,Customer Retention,Email,Australia,Returning Customers,12889,1418,489,156,577,37752,65.43
+2025-03-23,Product Education,Display,North America,SMB,18047,451,70,9,388,1386,3.57
+2025-03-24,Webinar Nurture,Organic Social,Western Europe,Mid-Market,12135,704,180,38,352,6498,18.46
+2025-03-25,Demand Generation,Affiliate,Southeast Asia,Enterprise,23608,1180,336,94,652,22184,34.02
+2025-03-26,Spring Launch,Paid Search,United Kingdom,SMB,30083,2196,604,139,750,28495,37.99
+2025-03-27,Customer Retention,Paid Social,Australia,Mid-Market,24760,1015,218,41,800,9102,11.38
+2025-03-28,Product Education,Email,North America,Enterprise,16438,1825,666,213,680,61131,89.90
+2025-03-29,Webinar Nurture,Display,Western Europe,Returning Customers,22634,588,103,13,856,1963,2.29
+2025-03-30,Demand Generation,Organic Social,Southeast Asia,SMB,14991,884,208,44,445,7392,16.61
+2025-03-31,Brand Awareness,Affiliate,United Kingdom,Mid-Market,28770,1467,389,109,1081,20165,18.65
+2025-04-01,Spring Launch,Paid Search,Southeast Asia,Enterprise,40314,2782,821,189,748,47250,63.17
+2025-04-02,Customer Retention,Paid Social,United Kingdom,Returning Customers,32795,1377,324,62,601,13578,22.59
+2025-04-03,Product Education,Email,Australia,SMB,21541,2413,832,266,330,62776,190.23
+2025-04-04,Webinar Nurture,Display,North America,Mid-Market,29369,793,123,16,598,2368,3.96
+2025-04-05,Demand Generation,Organic Social,Western Europe,Enterprise,9075,545,139,29,514,6177,12.02
+2025-04-06,Brand Awareness,Affiliate,Southeast Asia,Returning Customers,17906,842,240,67,914,12194,13.34
+2025-04-07,Spring Launch,Paid Search,United Kingdom,SMB,25724,1801,495,114,1016,22686,22.33
+2025-04-08,Customer Retention,Paid Social,Australia,Mid-Market,21402,920,198,38,1054,8208,7.79
+2025-04-09,Webinar Nurture,Email,North America,Enterprise,14347,1621,592,189,876,53109,60.63
+2025-04-10,Demand Generation,Display,Western Europe,Returning Customers,19928,558,98,13,429,1885,4.39
+2025-04-11,Brand Awareness,Organic Social,North America,SMB,13304,745,175,37,241,5994,24.87
+2025-04-12,Spring Launch,Affiliate,Western Europe,Mid-Market,25715,1234,327,92,621,16468,26.52
+2025-04-13,Customer Retention,Paid Search,Southeast Asia,Enterprise,36271,2575,760,175,1146,42700,37.26
+2025-04-14,Product Education,Paid Social,United Kingdom,Returning Customers,29684,1306,307,58,874,12354,14.14
+2025-04-15,Webinar Nurture,Email,Australia,SMB,19605,2235,771,247,460,56810,123.50
+2025-04-16,Demand Generation,Display,North America,Enterprise,26866,645,100,13,808,2470,3.06
+2025-04-17,Brand Awareness,Organic Social,Western Europe,Returning Customers,17716,1010,258,54,677,8586,12.68
+2025-04-18,Spring Launch,Affiliate,Southeast Asia,SMB,33861,1659,473,132,420,23232,55.31
+2025-04-19,Customer Retention,Paid Search,United Kingdom,Mid-Market,47268,3403,936,215,513,41495,80.89
+2025-04-20,Product Education,Paid Social,Australia,Enterprise,38317,1724,371,70,573,18060,31.52
+2025-04-21,Webinar Nurture,Email,United Kingdom,Returning Customers,11991,1319,481,154,505,34958,69.22
+2025-04-22,Demand Generation,Display,Australia,SMB,16875,422,74,10,655,2440,3.73
+2025-04-23,Spring Launch,Organic Social,North America,Mid-Market,10236,594,140,29,349,4524,12.96
+2025-04-24,Customer Retention,Affiliate,Western Europe,Enterprise,20000,1000,265,74,864,16354,18.93
+2025-04-25,Product Education,Paid Search,Southeast Asia,Returning Customers,28485,2079,613,141,1545,26790,17.34
+2025-04-26,Webinar Nurture,Paid Social,United Kingdom,SMB,23518,964,227,43,1147,8901,7.76
+2025-04-27,Demand Generation,Email,Australia,Mid-Market,15658,1738,600,192,213,43008,201.92
+2025-04-28,Brand Awareness,Display,North America,Enterprise,21615,562,87,11,411,3179,7.73
+2025-04-29,Spring Launch,Organic Social,Western Europe,Returning Customers,14350,847,216,45,370,6885,18.61
+2025-04-30,Customer Retention,Affiliate,Southeast Asia,SMB,27597,1407,401,112,681,19040,27.96

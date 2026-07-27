@@ -178,7 +178,6 @@ export function DatasetSelector({
 
     return () => {
       cancelled = true
-      setLoadingDatasets(false)
     }
   }, [
     activeWorkspaceId,

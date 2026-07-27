@@ -19,7 +19,7 @@ Install the base API dependencies:
 Run the API from `apps/api` with the local virtual environment:
 
 ```bash
-.venv/bin/python -m uvicorn app.main:app --reload --port 8000
+.venv/bin/python -m uvicorn app.main:app --reload --port 8000 --env-file .env
 ```
 
 The web app defaults to `http://localhost:8000`. Set `NEXT_PUBLIC_API_URL` in

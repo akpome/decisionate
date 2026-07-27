@@ -228,9 +228,7 @@ export function ForecastChart({
               name="Historical"
               stroke="var(--decisionate-brand-primary)"
               strokeWidth={3}
-              dot={{
-                r: 3,
-              }}
+              dot={false}
               activeDot={{
                 r: 5,
               }}
@@ -244,9 +242,7 @@ export function ForecastChart({
               stroke="var(--decisionate-brand-accent)"
               strokeWidth={3}
               strokeDasharray="6 4"
-              dot={{
-                r: 3,
-              }}
+              dot={false}
               activeDot={{
                 r: 5,
               }}
