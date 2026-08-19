@@ -10,6 +10,7 @@ from app.modules.auth_context import (
     get_verified_user_id,
     get_verified_workspace_id,
     verify_clerk_bearer_token,
+    verify_clerk_bearer_token_identity,
 )
 
 
@@ -71,14 +72,13 @@ class AuthContextTests(unittest.TestCase):
             {},
             clear=True,
         ):
-            self.assertEqual(
-                get_verified_user_id(
-                    FakeRequest({
-                        "X-User-Id": "  user-1  ",
-                    })
-                ),
-                "user-1",
+            user_id = get_verified_user_id(
+                FakeRequest({
+                    "X-User-Id": "  user-1  ",
+                })
             )
+
+        self.assertTrue(user_id.startswith("usr_"))
 
     def test_verified_user_id_coerces_non_string_header_value(self):
         with patch.dict(
@@ -86,14 +86,13 @@ class AuthContextTests(unittest.TestCase):
             {},
             clear=True,
         ):
-            self.assertEqual(
-                get_verified_user_id(
-                    FakeRequest({
-                        "X-User-Id": 123,
-                    })
-                ),
-                "123",
+            user_id = get_verified_user_id(
+                FakeRequest({
+                    "X-User-Id": 123,
+                })
             )
+
+        self.assertTrue(user_id.startswith("usr_"))
 
     def test_verified_user_id_rejects_blank_header_value(self):
         with patch.dict(
@@ -125,14 +124,13 @@ class AuthContextTests(unittest.TestCase):
             },
             clear=True,
         ):
-            self.assertEqual(
-                get_verified_user_id(
-                    FakeRequest({
-                        "X-User-Id": " user-1 ",
-                    })
-                ),
-                "user-1",
+            user_id = get_verified_user_id(
+                FakeRequest({
+                    "X-User-Id": " user-1 ",
+                })
             )
+
+        self.assertTrue(user_id.startswith("usr_"))
 
     def test_verified_workspace_id_trims_and_defaults_blank_values(self):
         with patch(
@@ -198,15 +196,70 @@ class AuthContextTests(unittest.TestCase):
                 })
             )
 
-        self.assertEqual(
-            context.user_id,
-            "user-1",
-        )
-        self.assertEqual(
-            context.workspace_id,
-            "user-1",
-        )
+        self.assertTrue(context.user_id.startswith("usr_"))
+        self.assertEqual(context.workspace_id, context.user_id)
         verify_membership.assert_not_called()
+
+    def test_auth_context_rejects_unverified_workspace(self):
+        with patch.dict(
+            "os.environ",
+            {},
+            clear=True,
+        ), patch(
+            "app.modules.auth_context.verify_workspace_membership",
+            side_effect=HTTPException(
+                status_code=403,
+                detail="Workspace not available",
+            ),
+        ):
+            with self.assertRaises(HTTPException) as context:
+                get_auth_context(
+                    FakeRequest({
+                        "X-User-Id": "user-1",
+                        "X-Workspace-Id": "workspace-2",
+                    })
+                )
+
+        self.assertEqual(context.exception.status_code, 403)
+
+    def test_legacy_client_workspace_owner_is_client_scoped(self):
+        with patch.dict(
+            "os.environ",
+            {},
+            clear=True,
+        ), patch(
+            "app.modules.auth_context.verify_workspace_membership",
+            return_value="owner",
+        ):
+            context = get_auth_context(
+                FakeRequest({
+                    "X-User-Id": "client-user",
+                    "X-Workspace-Id": "agency-user:client:workspace-1",
+                })
+            )
+
+        self.assertEqual(
+            context.workspace_role,
+            "client",
+        )
+
+    def test_dev_auth_context_returns_trimmed_email(self):
+        with patch.dict(
+            "os.environ",
+            {},
+            clear=True,
+        ):
+            context = get_auth_context(
+                FakeRequest({
+                    "X-User-Id": "user-1",
+                    "X-User-Email": " Invitee@Example.com ",
+                })
+            )
+
+        self.assertEqual(
+            context.email,
+            "Invitee@Example.com",
+        )
 
     def test_verify_clerk_bearer_token_cleans_optional_decode_settings(self):
         signing_key = type(
@@ -261,6 +314,48 @@ class AuthContextTests(unittest.TestCase):
                 "verify_iss": True,
             },
         )
+
+    def test_verified_token_identity_returns_email_claim(self):
+        signing_key = type(
+            "SigningKey",
+            (),
+            {
+                "key": "public-key",
+            },
+        )()
+        jwks_client = type(
+            "JwksClient",
+            (),
+            {
+                "get_signing_key_from_jwt": lambda self, token: signing_key,
+            },
+        )()
+
+        with patch.dict(
+            "os.environ",
+            {
+                "CLERK_JWKS_URL": "https://clerk.example/.well-known/jwks.json",
+            },
+            clear=True,
+        ), patch(
+            "app.modules.auth_context.get_jwks_client",
+            return_value=jwks_client,
+        ), patch(
+            "app.modules.auth_context.jwt.decode",
+            return_value={
+                "sub": "user-1",
+                "email": "invitee@example.com",
+            },
+        ):
+            self.assertEqual(
+                verify_clerk_bearer_token_identity(
+                    "Bearer token-123",
+                ),
+                (
+                    "user-1",
+                    "invitee@example.com",
+                ),
+            )
 
 
 if __name__ == "__main__":

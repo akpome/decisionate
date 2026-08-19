@@ -14,10 +14,17 @@ const workspaceFaviconAttribute =
   "data-decisionate-workspace-favicon"
 const workspaceFaviconSelector =
   'link[rel~="icon"]'
+const workspaceBrandStoragePrefix =
+  "decisionate:workspace-brand:"
+const pendingWorkspaceIconUrl =
+  "/icons/workspace-pending.svg"
 
 type WorkspaceBrowserBrandOptions = {
   manageFavicon?: boolean
   manageManifest?: boolean
+  keepFaviconStable?: boolean
+  workspaceKey?: string
+  brandReady?: boolean
 }
 
 export function useWorkspaceBrowserBrand(
@@ -32,6 +39,31 @@ export function useWorkspaceBrowserBrand(
     options.manageFavicon ?? true
   const manageManifest =
     options.manageManifest ?? true
+  const keepFaviconStable =
+    options.keepFaviconStable ?? false
+  const workspaceKey =
+    options.workspaceKey?.trim() || ""
+  const brandReady =
+    options.brandReady ?? true
+
+  useEffect(() => {
+    if (!brandReady || !workspaceKey) {
+      return
+    }
+
+    try {
+      window.localStorage.setItem(
+        `${workspaceBrandStoragePrefix}${workspaceKey}`,
+        JSON.stringify(brand)
+      )
+    } catch {
+      // Browser branding cache is best-effort.
+    }
+  }, [
+    brand,
+    brandReady,
+    workspaceKey,
+  ])
 
   useEffect(() => {
     if (!title) {
@@ -54,6 +86,12 @@ export function useWorkspaceBrowserBrand(
       return
     }
 
+    const cachedBrand =
+      readCachedWorkspaceBrand(workspaceKey)
+    const effectiveBrand =
+      brandReady
+        ? brand
+        : cachedBrand
     const manifestLink =
       document.head.querySelector<HTMLLinkElement>(
         'link[rel="manifest"]'
@@ -65,19 +103,23 @@ export function useWorkspaceBrowserBrand(
 
     manifestLink.href =
       getWorkspaceManifestHref({
-        name: brandName,
-        logoUrl: brandLogoUrl,
-        primaryColor: brandPrimaryColor,
+        name: effectiveBrand?.name || "Workspace",
+        logoUrl: effectiveBrand?.logoUrl || pendingWorkspaceIconUrl,
+        primaryColor:
+          effectiveBrand?.primaryColor || brandPrimaryColor,
       })
 
     // Keep the active workspace manifest in place while the next brand loads.
     // Restoring the previous default here makes the browser briefly switch
     // back to Decisionate during normal workspace and route transitions.
   }, [
+    brand,
     brandLogoUrl,
     brandName,
     brandPrimaryColor,
+    brandReady,
     manageManifest,
+    workspaceKey,
   ])
 
   useEffect(() => {
@@ -85,24 +127,47 @@ export function useWorkspaceBrowserBrand(
       return
     }
 
-    const cleanLogoUrl = brandLogoUrl.trim()
+    const cachedBrand =
+      readCachedWorkspaceBrand(workspaceKey)
+    const effectiveBrand =
+      brandReady
+        ? brand
+        : cachedBrand
+    const effectiveBrandName =
+      effectiveBrand?.name?.trim() || "Workspace"
+    const effectiveBrandLogoUrl =
+      effectiveBrand?.logoUrl?.trim() || ""
+    const effectiveBrandPrimaryColor =
+      effectiveBrand?.primaryColor || brandPrimaryColor
+    const cleanLogoUrl = effectiveBrandLogoUrl
     const generatedLogoUrl =
-      getGeneratedWorkspaceIconDataUrl(
-        brandName,
-        brandPrimaryColor
-      )
+      effectiveBrand
+        ? getGeneratedWorkspaceIconDataUrl(
+            effectiveBrandName,
+            effectiveBrandPrimaryColor
+          )
+        : ""
     const defaultLogoUrl =
       "/icons/decisionate-icon.svg"
+    const unresolvedLogoUrl =
+      pendingWorkspaceIconUrl
     let activeFaviconUrl =
       cleanLogoUrl ||
       generatedLogoUrl ||
-      defaultLogoUrl
+      (brandReady ? defaultLogoUrl : unresolvedLogoUrl)
     const logoImage = new Image()
     let cancelled = false
+    let faviconHeadObserver:
+      MutationObserver | null = null
 
     const applyFavicon = (url: string) => {
       if (cancelled) return
 
+      const iconLinks = Array.from(
+        document.head.querySelectorAll<HTMLLinkElement>(
+          workspaceFaviconSelector
+        )
+      )
       const managedIconSelector =
         `${workspaceFaviconSelector}[${workspaceFaviconAttribute}="true"]`
       const iconLink =
@@ -118,27 +183,45 @@ export function useWorkspaceBrowserBrand(
         document.head.appendChild(iconLink)
       }
 
+      const linksToUpdate = keepFaviconStable
+        ? Array.from(
+          new Set([
+            ...iconLinks,
+            iconLink,
+          ])
+        )
+        : [iconLink]
+
       const type = getWorkspaceFaviconType(url)
 
-      iconLink.rel = "icon"
-      iconLink.setAttribute(
-        workspaceFaviconAttribute,
-        "true"
-      )
-
-      if (iconLink.getAttribute("href") !== url) {
-        iconLink.href = url
-      }
-
-      if (type) {
-        if (iconLink.getAttribute("type") !== type) {
-          iconLink.type = type
+      linksToUpdate.forEach(link => {
+        if (link.rel !== "icon") {
+          link.rel = "icon"
         }
-      } else {
-        if (iconLink.hasAttribute("type")) {
-          iconLink.removeAttribute("type")
+
+        if (
+          link.getAttribute(
+            workspaceFaviconAttribute
+          ) !== "true"
+        ) {
+          link.setAttribute(
+            workspaceFaviconAttribute,
+            "true"
+          )
         }
-      }
+
+        if (link.getAttribute("href") !== url) {
+          link.href = url
+        }
+
+        if (type) {
+          if (link.getAttribute("type") !== type) {
+            link.type = type
+          }
+        } else if (link.hasAttribute("type")) {
+          link.removeAttribute("type")
+        }
+      })
     }
 
     applyFavicon(activeFaviconUrl)
@@ -150,7 +233,8 @@ export function useWorkspaceBrowserBrand(
 
     logoImage.onerror = () => {
       activeFaviconUrl =
-        generatedLogoUrl || defaultLogoUrl
+        generatedLogoUrl ||
+        (brandReady ? defaultLogoUrl : unresolvedLogoUrl)
       applyFavicon(activeFaviconUrl)
     }
 
@@ -158,17 +242,100 @@ export function useWorkspaceBrowserBrand(
       logoImage.src = cleanLogoUrl
     }
 
+    const refreshFavicon = () => {
+      applyFavicon(activeFaviconUrl)
+    }
+    const faviconInterval =
+      keepFaviconStable
+        ? window.setInterval(
+          refreshFavicon,
+          1000
+        )
+        : null
+
+    if (keepFaviconStable) {
+      faviconHeadObserver =
+        new MutationObserver(() => {
+          applyFavicon(activeFaviconUrl)
+        })
+      faviconHeadObserver.observe(
+        document.head,
+        { childList: true }
+      )
+      window.addEventListener(
+        "focus",
+        refreshFavicon
+      )
+      window.addEventListener(
+        "pageshow",
+        refreshFavicon
+      )
+    }
+
     return () => {
       cancelled = true
+      if (faviconInterval !== null) {
+        window.clearInterval(
+          faviconInterval
+        )
+      }
+      if (keepFaviconStable) {
+        faviconHeadObserver?.disconnect()
+        window.removeEventListener(
+          "focus",
+          refreshFavicon
+        )
+        window.removeEventListener(
+          "pageshow",
+          refreshFavicon
+        )
+      }
       logoImage.onload = null
       logoImage.onerror = null
     }
   }, [
+    brand,
     brandLogoUrl,
     brandName,
     brandPrimaryColor,
+    brandReady,
+    keepFaviconStable,
     manageFavicon,
+    workspaceKey,
   ])
+}
+
+function readCachedWorkspaceBrand(
+  workspaceKey: string
+): WorkspaceBrand | null {
+  if (!workspaceKey || typeof window === "undefined") {
+    return null
+  }
+
+  try {
+    const value = window.localStorage.getItem(
+      `${workspaceBrandStoragePrefix}${workspaceKey}`
+    )
+    if (!value) {
+      return null
+    }
+
+    const parsed = JSON.parse(value)
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      typeof parsed.name !== "string" ||
+      typeof parsed.logoUrl !== "string" ||
+      typeof parsed.primaryColor !== "string" ||
+      typeof parsed.accentColor !== "string"
+    ) {
+      return null
+    }
+
+    return parsed as WorkspaceBrand
+  } catch {
+    return null
+  }
 }
 
 function getWorkspaceManifestHref(

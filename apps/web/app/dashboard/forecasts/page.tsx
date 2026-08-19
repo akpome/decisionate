@@ -17,11 +17,12 @@ import {
   type DatasetSummary,
   type DecisionConfidenceScore,
   type ForecastResponse,
+  type ForecastPeriodFilter,
+  type DashboardAggregation,
+  type DashboardValueAggregation,
   getDatasets,
   getDatasetMetrics,
   getForecast,
-  getDatasetPreference,
-  updateDatasetPreference,
   createDecision,
 } from "@/lib/api"
 import {
@@ -84,6 +85,10 @@ function getForecastUnavailableMessage(
 
   if (message.includes("not found")) {
     return "The selected metric is not available in this dataset anymore. Choose another metric from this dataset."
+  }
+
+  if (message === "Not enough data") {
+    return "This forecast window does not contain enough grouped periods to model a trend. Choose a longer duration or a finer group-by interval."
   }
 
   return ""
@@ -161,6 +166,62 @@ function getInitialForecastDatasetId() {
     : undefined
 }
 
+function formatForecastPeriodLabel(
+  period: ForecastPeriodFilter
+) {
+  const labels: Record<ForecastPeriodFilter, string> = {
+    "1m": "1 month",
+    "1q": "1 quarter",
+    "6m": "6 months",
+    "1y": "1 year",
+    "2y": "2 years",
+    "3y": "3 years",
+    "5y": "5 years",
+    all: "all available data",
+  }
+
+  return labels[period]
+}
+
+function formatForecastStartDate(value: string) {
+  if (!value) {
+    return "first available period"
+  }
+
+  const [year, month, day] = value.split("-")
+
+  return year && month && day
+    ? `${month}/${day}/${year}`
+    : value
+}
+
+function formatForecastAggregationLabel(
+  aggregation: DashboardAggregation
+) {
+  const labels: Record<DashboardAggregation, string> = {
+    daily: "daily",
+    weekly: "weekly",
+    monthly: "monthly",
+    quarterly: "quarterly",
+  }
+
+  return labels[aggregation]
+}
+
+function formatForecastValueAggregationLabel(
+  aggregationType: DashboardValueAggregation
+) {
+  const labels: Record<DashboardValueAggregation, string> = {
+    sum: "summed",
+    count: "counted",
+    avg: "averaged",
+    min: "minimum",
+    max: "maximum",
+  }
+
+  return labels[aggregationType]
+}
+
 function getForecastModelQualityStatus(
   modelQuality: NonNullable<
     ForecastResponse["forecast"]["model_quality"]
@@ -213,10 +274,6 @@ export default function ForecastsPage() {
   // Dataset and forecast state: controls which dataset metric is being forecasted.
   const [selectedDatasetId, setSelectedDatasetId] =
     useState<number>()
-  const [initialDatasetId] =
-    useState<number | undefined>(
-      () => getInitialForecastDatasetId()
-    )
 
   const [datasets, setDatasets] =
     useState<DatasetSummary[]>([])
@@ -238,6 +295,14 @@ export default function ForecastsPage() {
 
   const [selectedMetric, setSelectedMetric] =
     useState<string>()
+  const [periodFilter, setPeriodFilter] =
+    useState<ForecastPeriodFilter>("all")
+  const [aggregation, setAggregation] =
+    useState<DashboardAggregation>("monthly")
+  const [aggregationType, setAggregationType] =
+    useState<DashboardValueAggregation>("sum")
+  const [startDate, setStartDate] =
+    useState("")
 
   const [loading, setLoading] =
     useState(false)
@@ -265,8 +330,6 @@ export default function ForecastsPage() {
     useState(false)
 
   const [pageError, setPageError] =
-    useState("")
-  const [preferenceWarning, setPreferenceWarning] =
     useState("")
   const [
     forecastUnavailableMessage,
@@ -315,7 +378,7 @@ export default function ForecastsPage() {
       ? "are"
       : "is"
 
-  // Default dataset loading: restores the user's preferred dataset and metric.
+  // Load datasets for this page; only an explicit URL dataset is preselected.
   useEffect(() => {
     if (!user?.id) return
     const userId = user.id
@@ -324,10 +387,13 @@ export default function ForecastsPage() {
     async function loadDefaultDataset() {
       try {
         setPageError("")
-        setPreferenceWarning("")
         setDatasets([])
         setSelectedDatasetId(undefined)
         setSelectedMetric(undefined)
+        setPeriodFilter("all")
+        setAggregation("monthly")
+        setAggregationType("sum")
+        setStartDate("")
         setDatasetMetricColumns([])
         setMetricsDatasetId(undefined)
         setMetricsLoadFailedDatasetId(
@@ -338,13 +404,6 @@ export default function ForecastsPage() {
         setForecast(null)
         setDatasetsLoading(true)
 
-        const preferencePromise =
-          Promise.allSettled([
-            getDatasetPreference(
-              userId,
-              activeWorkspaceId
-            ),
-          ])
         const [datasetsResult] =
           await Promise.allSettled([
             getDatasets(
@@ -367,6 +426,9 @@ export default function ForecastsPage() {
         setDatasets(datasetSummaries)
         setDatasetsLoading(false)
 
+        const initialDatasetId =
+          getInitialForecastDatasetId()
+
         const initialDataset =
           initialDatasetId
             ? datasetSummaries.find(
@@ -380,57 +442,14 @@ export default function ForecastsPage() {
           setSelectedDatasetId(
             initialDataset.id
           )
-        } else if (datasetSummaries.length > 0) {
-          setSelectedDatasetId(
-            datasetSummaries[0].id
-          )
         }
 
-        const [preferenceResult] =
-          await preferencePromise
-        if (!ignoreResult) {
-          const preference =
-            preferenceResult.status === "fulfilled"
-              ? preferenceResult.value
-              : undefined
-
-          if (preferenceResult.status === "rejected") {
-            setPreferenceWarning(
-              `${getForecastPageErrorMessage(
-                preferenceResult.reason,
-                "Dataset preference service is unavailable."
-              )} Using the first available dataset.`
-            )
-          } else {
-            setPreferenceWarning("")
-          }
-
-          const preferredDataset =
-            preference?.selected_dataset_id
-              ? datasetSummaries.find(
-                  (dataset) =>
-                    dataset.id ===
-                    preference.selected_dataset_id
-                )
-              : undefined
-
-          if (!initialDataset && preferredDataset) {
-            setSelectedDatasetId(
-              preferredDataset.id
-            )
-            setSelectedMetric(
-              preference?.selected_metric ??
-                undefined
-            )
-          }
-        }
       } catch (error) {
         if (ignoreResult) {
           return
         }
 
         console.error(error)
-        setPreferenceWarning("")
         setPageError(
           getForecastPageErrorMessage(
             error,
@@ -452,12 +471,11 @@ export default function ForecastsPage() {
   }, [
     activeWorkspaceId,
     datasetLoadRetryKey,
-    initialDatasetId,
     user?.id,
     workspaceVersion,
   ])
 
-  // Dataset metrics loading: validates saved metric choices before forecasting.
+  // Load metrics only after this page has a selected dataset.
   useEffect(() => {
     if (!selectedDatasetId) {
       return
@@ -582,19 +600,6 @@ export default function ForecastsPage() {
         setSelectedMetric(undefined)
         setForecast(null)
         setForecastUnavailableMessage("")
-
-        try {
-          await updateDatasetPreference(
-            datasetId,
-            userId,
-            "",
-            undefined,
-            undefined,
-            activeWorkspaceId
-          )
-        } catch {
-          // A stale saved metric should not block the user from forecasting.
-        }
       }
 
       void clearStaleSelectedMetric()
@@ -613,7 +618,13 @@ export default function ForecastsPage() {
             datasetId,
             userId,
             selectedMetric,
-            activeWorkspaceId
+            activeWorkspaceId,
+            {
+              startDate: startDate || undefined,
+              periodFilter,
+              aggregation,
+              aggregationType,
+            }
           )
 
         if (ignoreResult) {
@@ -627,24 +638,6 @@ export default function ForecastsPage() {
             data.forecast.value_column
 
           setSelectedMetric(defaultMetric)
-
-          void updateDatasetPreference(
-            datasetId,
-            userId,
-            defaultMetric,
-            undefined,
-            undefined,
-            activeWorkspaceId
-          ).catch(error => {
-            if (!ignoreResult) {
-              setPreferenceWarning(
-                getForecastPageErrorMessage(
-                  error,
-                  "Forecast metric preference could not be saved."
-                )
-              )
-            }
-          })
         }
       } catch (error) {
         const errorMessage =
@@ -673,17 +666,6 @@ export default function ForecastsPage() {
             )
           ) {
             setSelectedMetric(undefined)
-
-            void updateDatasetPreference(
-              datasetId,
-              userId,
-              "",
-              undefined,
-              undefined,
-              activeWorkspaceId
-            ).catch(() => {
-              // Clearing a stale metric preference should not block recovery.
-            })
           }
         } else {
           console.error(error)
@@ -714,9 +696,13 @@ export default function ForecastsPage() {
     metricsDatasetId,
     metricsLoadFailedDatasetId,
     activeWorkspaceId,
+    aggregation,
+    aggregationType,
     user?.id,
     workspaceVersion,
     forecastRefreshVersion,
+    periodFilter,
+    startDate,
   ])
 
   // Chart data preparation: combines historical values with forecasted periods.
@@ -902,9 +888,12 @@ export default function ForecastsPage() {
 
   const forecastRecommendation =
     forecast?.forecast.recommendation
+  const forecastAIAnalysis =
+    forecast?.forecast.ai_analysis
   const aiRecommendation =
-    forecast?.forecast.ai_analysis?.source === "openai"
-      ? forecast.forecast.ai_analysis.recommendations[0]
+    forecastAIAnalysis?.source &&
+    forecastAIAnalysis.source !== "rules"
+      ? forecastAIAnalysis.recommendations[0]
       : undefined
   const recommendationTitle =
     aiRecommendation
@@ -915,10 +904,11 @@ export default function ForecastsPage() {
     forecastRecommendation?.reason ||
     ""
   const recommendationConfidence =
-    forecast?.forecast.ai_analysis?.source === "openai"
+    forecastAIAnalysis?.source &&
+    forecastAIAnalysis.source !== "rules"
       ? getConservativeConfidence(
         forecastRecommendation?.confidence ?? "low",
-        forecast.forecast.ai_analysis.confidence,
+        forecastAIAnalysis.confidence,
       )
       : forecastRecommendation?.confidence ?? "low"
   const recommendationSource =
@@ -991,7 +981,9 @@ export default function ForecastsPage() {
 
             recommendation_source:
               forecast.forecast.ai_analysis?.source ||
-              undefined,
+              (recommendationReason
+                ? "rules"
+                : undefined),
 
             recommendation_context:
               `${metricName || selectedMetric || "selected metric"} forecast (${decisionDatasetName})`,
@@ -1038,15 +1030,17 @@ export default function ForecastsPage() {
     }
   }
 
-  async function handleDatasetChange(
+  function handleDatasetChange(
     datasetId: number | undefined
   ) {
-    const previousDatasetId = selectedDatasetId
-    const previousMetric = selectedMetric
     setPageError("")
     setForecastUnavailableMessage("")
     setForecast(null)
     setSelectedMetric(undefined)
+    setPeriodFilter("all")
+    setAggregation("monthly")
+    setAggregationType("sum")
+    setStartDate("")
     setDatasetMetricColumns([])
     setMetricsDatasetId(undefined)
     setMetricsLoadFailedDatasetId(undefined)
@@ -1074,48 +1068,6 @@ export default function ForecastsPage() {
       )
     }
 
-    if (datasetId && user?.id) {
-      try {
-        await updateDatasetPreference(
-          datasetId,
-          user.id,
-          "",
-          undefined,
-          undefined,
-          activeWorkspaceId
-        )
-        setPreferenceWarning("")
-      } catch (error) {
-        console.error(error)
-        setSelectedDatasetId(previousDatasetId)
-        setSelectedMetric(previousMetric)
-        if (typeof window !== "undefined") {
-          const url = new URL(window.location.href)
-
-          if (previousDatasetId) {
-            url.searchParams.set(
-              "dataset",
-              String(previousDatasetId)
-            )
-          } else {
-            url.searchParams.delete("dataset")
-          }
-
-          window.history.replaceState(
-            null,
-            "",
-            url.toString()
-          )
-        }
-
-        setPageError(
-          getForecastPageErrorMessage(
-            error,
-            "Unable to save your selected forecast dataset."
-          )
-        )
-      }
-    }
   }
 
   function refreshForecast() {
@@ -1144,7 +1096,7 @@ export default function ForecastsPage() {
 
   return (
     <div className="space-y-8">
-      {/* Forecast controls section: dataset and metric selectors drive the forecast request. */}
+      {/* Forecast controls section: every control drives the forecast request. */}
       <div>
         <DashboardPageHeader
           title="Forecasts"
@@ -1175,7 +1127,7 @@ export default function ForecastsPage() {
               </h2>
 
               <p className="text-sm text-gray-500">
-                Choose the dataset and numeric metric to forecast.
+                Choose a dataset, metric, time window, and aggregation for the forecast.
               </p>
             </div>
 
@@ -1248,9 +1200,7 @@ export default function ForecastsPage() {
                         ? "No numeric metrics"
                       : "Select Metric"
                 }
-                onChange={async (metric) => {
-                  const previousMetric =
-                    selectedMetric
+                onChange={metric => {
                   setPageError("")
                   setForecastUnavailableMessage("")
 
@@ -1258,34 +1208,6 @@ export default function ForecastsPage() {
                     metric
                   )
 
-                  if (
-                    user?.id &&
-                    selectedDatasetId
-                  ) {
-                    try {
-                      await updateDatasetPreference(
-                        selectedDatasetId,
-                        user.id,
-                        metric ?? "",
-                        undefined,
-                        undefined,
-                        activeWorkspaceId
-                      )
-                      setPreferenceWarning("")
-                    } catch (error) {
-                      console.error(error)
-                      setSelectedMetric(
-                        previousMetric
-                      )
-
-                      setPageError(
-                        getForecastPageErrorMessage(
-                          error,
-                          "Unable to save your selected metric."
-                        )
-                      )
-                    }
-                  }
                 }}
               />
 
@@ -1308,6 +1230,103 @@ export default function ForecastsPage() {
                 </div>
               )}
             </label>
+          </div>
+
+          <div className="mt-4 grid min-w-0 gap-3 rounded-lg border border-gray-200 bg-gray-50 px-0 py-2 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
+            <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+              <span className="block">Start date</span>
+              <input
+                type="date"
+                value={startDate}
+                disabled={!selectedDataset || loading}
+                onChange={event =>
+                  setStartDate(event.target.value)
+                }
+                className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-100"
+              />
+            </label>
+
+            <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+              <span className="block">Period</span>
+              <select
+                value={periodFilter}
+                disabled={!selectedDataset || loading}
+                onChange={event =>
+                  setPeriodFilter(
+                    event.target.value as ForecastPeriodFilter
+                  )
+                }
+                className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-100"
+              >
+                <option value="1m">1 month</option>
+                <option value="1q">1 quarter</option>
+                <option value="6m">6 months</option>
+                <option value="1y">1 year</option>
+                <option value="2y">2 years</option>
+                <option value="3y">3 years</option>
+                <option value="5y">5 years</option>
+                <option value="all">All data</option>
+              </select>
+            </label>
+
+            <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+              <span className="block">Group by</span>
+              <select
+                value={aggregation}
+                disabled={!selectedDataset || loading}
+                onChange={event =>
+                  setAggregation(
+                    event.target.value as DashboardAggregation
+                  )
+                }
+                className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-100"
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+              </select>
+            </label>
+
+            <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+              <span className="block">Aggregate</span>
+              <select
+                value={aggregationType}
+                disabled={!selectedDataset || loading}
+                onChange={event =>
+                  setAggregationType(
+                    event.target.value as DashboardValueAggregation
+                  )
+                }
+                className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-100"
+              >
+                <option value="sum">Sum</option>
+                <option value="count">Count</option>
+                <option value="avg">Average</option>
+                <option value="min">Minimum</option>
+                <option value="max">Maximum</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              disabled={!selectedDataset || loading}
+              onClick={() => {
+                setPeriodFilter("all")
+                setAggregation("monthly")
+                setAggregationType("sum")
+                setStartDate("")
+              }}
+              className="h-9 rounded-md border border-gray-200 bg-white px-3 text-xs font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-400"
+            >
+              Reset range
+            </button>
+
+            <p className="col-span-full truncate text-xs text-gray-500">
+              Showing {formatForecastPeriodLabel(periodFilter)} from {formatForecastStartDate(startDate)}
+              {` • grouped ${formatForecastAggregationLabel(aggregation)}`}
+              {` • ${formatForecastValueAggregationLabel(aggregationType)}`}
+            </p>
           </div>
 
           <p className="mt-3 max-w-full break-words text-sm text-gray-500">
@@ -1363,27 +1382,6 @@ export default function ForecastsPage() {
         </div>
       )}
 
-      {preferenceWarning && (
-        <div
-          role="status"
-          className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <span>{preferenceWarning}</span>
-
-          <button
-            type="button"
-            onClick={() =>
-              setDatasetLoadRetryKey(
-                currentKey => currentKey + 1
-              )
-            }
-            className="w-fit rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
-          >
-            Retry preference
-          </button>
-        </div>
-      )}
-
       <WorkspaceAccessNotice
         loading={loadingWorkspaceAccess}
         canManageWorkspaceData={canManageWorkspaceData}
@@ -1392,21 +1390,17 @@ export default function ForecastsPage() {
 
       {user?.id &&
         !datasetsLoading &&
-        !selectedDatasetId &&
+        datasets.length === 0 &&
         !pageError && (
           <div className="rounded-2xl border border-dashed bg-white p-6 text-center sm:p-12">
             <h2 className="text-xl font-semibold">
-              {datasets.length === 0
-                ? "No datasets available"
-                : "No dataset selected"}
+              No datasets available
             </h2>
 
             <p className="mt-2 text-gray-500">
-              {datasets.length === 0
-                ? canManageWorkspaceData
-                  ? "Upload or pull a dataset first to create a forecast."
-                  : "Ask the workspace team to share a dataset before creating a forecast."
-                : "Select a dataset to create a forecast."}
+              {canManageWorkspaceData
+                ? "Upload or pull a dataset first to create a forecast."
+                : "Ask the workspace team to share a dataset before creating a forecast."}
             </p>
 
             <Link

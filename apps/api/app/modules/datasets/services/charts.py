@@ -42,15 +42,10 @@ def generate_chart_data(
     )
 
     y_column = numeric_columns[0]
-    chart_columns = [
-        x_column,
-        *[
-            column
-            for column in numeric_columns
-            if column != x_column
-        ],
-    ]
-    chart_frame = dataframe[chart_columns]
+    # Keep every source column in the bounded chart sample. Industry
+    # dashboards need text dimensions (for example, HubSpot channel/source)
+    # alongside numeric metrics when a chart is manually mapped.
+    chart_frame = dataframe.copy()
 
     if limit is not None:
         chart_frame = chart_frame.tail(limit)

@@ -91,12 +91,17 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             ],
         )
 
-    def test_client_cannot_change_weekly_report_setup(self):
+    def test_client_can_change_weekly_report_setup(self):
+        require_weekly_report_manager(
+            "client",
+        )
+
+    def test_member_cannot_change_weekly_report_setup(self):
         with self.assertRaises(
             HTTPException,
         ) as context:
             require_weekly_report_manager(
-                "client",
+                "member",
             )
 
         self.assertEqual(
@@ -358,6 +363,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
                     "learning_scope": "workspace",
                     "recorded_lesson_count": 1,
                     "recorded_outcome_count": 1,
+                    "historical_success_rate": 0.5,
                     "sampled_lesson_count": 1,
                     "sampled_evidence_count": 1,
                 },
@@ -378,6 +384,10 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         )
         self.assertIn(
             "from workspace decisions.",
+            email_text,
+        )
+        self.assertIn(
+            "Weighted historical success signal: 50%",
             email_text,
         )
         self.assertIn(
@@ -618,6 +628,93 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             400,
         )
 
+    def test_weekly_report_email_reports_refused_recipients(self):
+        digest = WeeklyReportDigestResponse(
+            enabled=True,
+            cadence="weekly",
+            delivery_day="monday",
+            recipient_emails=[
+                "client@example.com",
+                "blocked@example.com",
+            ],
+            metric_focus=[],
+            sender_email="reports@example.com",
+            subject="Decisionate KPI digest",
+            preview_text="1 dataset KPI metric ready for review.",
+            dataset_count=1,
+            metrics=[
+                WeeklyReportDigestMetric(
+                    dataset_id=1,
+                    dataset_name="Demo",
+                    column="Revenue",
+                    total=100,
+                    average=100,
+                    minimum=100,
+                    maximum=100,
+                ),
+            ],
+            recommendations=[],
+            unavailable_datasets=[],
+        )
+
+        class FakeSMTP:
+            def __init__(self, host, port, timeout):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+            def starttls(self):
+                pass
+
+            def send_message(self, message):
+                if message["To"] == "blocked@example.com":
+                    return {
+                        "blocked@example.com": (
+                            550,
+                            b"mailbox unavailable",
+                        ),
+                    }
+                return {}
+
+        with patch.dict(
+            "os.environ",
+            {},
+            clear=True,
+        ), patch(
+            "app.modules.alerts.email_delivery.smtplib.SMTP",
+            FakeSMTP,
+        ):
+            with self.assertRaises(HTTPException) as context:
+                send_weekly_report_email(
+                    digest,
+                    {
+                        "smtp_host": "smtp.workspace.example",
+                        "smtp_port": 2525,
+                        "smtp_use_tls": True,
+                        "smtp_use_ssl": False,
+                    },
+                )
+
+        self.assertEqual(
+            context.exception.status_code,
+            502,
+        )
+        self.assertEqual(
+            context.exception.delivered_recipients,
+            ["client@example.com"],
+        )
+        self.assertEqual(
+            context.exception.delivery_recipients,
+            [
+                "client@example.com",
+                "blocked@example.com",
+            ],
+        )
+
     def test_alert_scheduler_secret_is_required(self):
         request = SimpleNamespace(
             headers={
@@ -694,6 +791,10 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             clear=True,
         ), patch(
             "app.modules.alerts.router.get_auth_context",
+            return_value=SimpleNamespace(
+                workspace_id="workspace-1",
+                workspace_role="owner",
+            ),
         ):
             config = asyncio.run(
                 get_weekly_report_delivery_config(
@@ -727,6 +828,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             "app.modules.alerts.router.get_auth_context",
             return_value=SimpleNamespace(
                 workspace_id="workspace-1",
+                workspace_role="owner",
             ),
         ), patch(
             "app.modules.alerts.router.get_weekly_report_preference_record",

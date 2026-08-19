@@ -1,28 +1,61 @@
 import json
 import math
 import re
+from datetime import timedelta
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 
 from app.db.database import SessionLocal
 from app.db.models import (
+    AppUser,
+    AuthIdentity,
     Organization,
     OrganizationInvite,
     OrganizationMember,
     UserPreference,
+    WorkspaceSubscription,
+    utc_now,
 )
 from app.modules.auth_context import (
     get_auth_context,
 )
+from app.modules.billing.service import (
+    BillingProviderUnavailable,
+    FREE_PLAN,
+    PROFESSIONAL_PLAN,
+    AGENCY_PLAN,
+    TRIAL_PERIOD_DAYS,
+    get_billing_plan_definition,
+    get_client_workspace_limit,
+    is_agency_plan,
+    normalize_billing_plan,
+    get_billing_config,
+    add_deferred_client_workspace_capacity,
+)
+from app.modules.billing.lifecycle import (
+    build_subscription_access_state,
+)
+from app.modules.identity.service import (
+    resolve_user_reference,
+)
+from app.modules.datasets.services.joins import (
+    JOIN_RESULT_VERSION,
+)
+from app.modules.platform_admin import delete_workspace_records
 
 from app.modules.organizations.schemas import (
     OrganizationCreate,
+    ClientWorkspaceCreate,
+    ClientWorkspaceDeleteResponse,
     OrganizationInviteCreate,
     OrganizationInviteResponse,
     OrganizationMemberCreate,
     OrganizationMemberResponse,
     OrganizationMemberRoleUpdate,
     OrganizationWorkspaceResponse,
+    OrganizationResponse,
+    AgencyOwnerAccessUpdate,
     OrganizationUpdate,
     DashboardPreferenceUpdate,
     DashboardPreferenceResponse,
@@ -42,10 +75,13 @@ VALID_SELECTED_DASHBOARDS = {
     "decision-performance",
     "retail-performance",
     "restaurant-performance",
+    "hotels-hospitality-performance",
     "professional-services",
     "healthcare-practice",
     "real-estate",
     "nonprofit-performance",
+    "construction-performance",
+    "law-firm-performance",
 }
 DATASET_METRIC_MAPPING_DASHBOARDS = VALID_SELECTED_DASHBOARDS - {
     DEFAULT_SELECTED_DASHBOARD,
@@ -181,6 +217,28 @@ def clean_preference_dataset_id(
     return dataset_id
 
 
+def clean_dashboard_dataset_ids(
+    dashboard_dataset_ids: dict[str, int] | None,
+):
+    if dashboard_dataset_ids is None:
+        return None
+
+    clean_ids = {}
+
+    for dashboard_key, dataset_id in dashboard_dataset_ids.items():
+        if dashboard_key not in VALID_SELECTED_DASHBOARDS:
+            continue
+
+        try:
+            clean_ids[dashboard_key] = clean_preference_dataset_id(
+                dataset_id
+            )
+        except HTTPException:
+            continue
+
+    return clean_ids or None
+
+
 def clean_preference_dataset_key(
     dataset_key: str,
 ) -> str | None:
@@ -312,6 +370,13 @@ def clean_dashboard_preferences(
                 "quarterly",
                 "monthly",
             },
+            "aggregationType": {
+                "sum",
+                "avg",
+                "min",
+                "max",
+                "count",
+            },
             "chartType": {
                 "line",
                 "bar",
@@ -428,9 +493,82 @@ def clean_dashboard_preferences(
             if clean_chart_titles:
                 clean_preference["chartTitles"] = clean_chart_titles
 
+        joined_dataset_result = preference.get(
+            "joinedDatasetResult"
+        )
+        if (
+            isinstance(joined_dataset_result, dict)
+            and joined_dataset_result.get("join_version")
+            == JOIN_RESULT_VERSION
+            and isinstance(
+                joined_dataset_result.get("primary_dataset_id"),
+                int,
+            )
+            and isinstance(
+                joined_dataset_result.get("dataset_ids"),
+                list,
+            )
+            and isinstance(
+                joined_dataset_result.get("datasets"),
+                list,
+            )
+            and isinstance(
+                joined_dataset_result.get("rows"),
+                list,
+            )
+        ):
+            clean_preference[
+                "joinedDatasetResult"
+            ] = joined_dataset_result
+
         clean_preferences[clean_dataset_key] = clean_preference
 
     return clean_preferences or None
+
+
+def clean_dashboard_views(
+    dashboard_views: dict[str, dict[str, dict]] | None,
+):
+    if dashboard_views is None:
+        return None
+
+    clean_views = {}
+
+    for dataset_key, dashboard_preferences in dashboard_views.items():
+        clean_dataset_key = clean_preference_dataset_key(
+            dataset_key
+        )
+
+        if not clean_dataset_key or not isinstance(
+            dashboard_preferences,
+            dict,
+        ):
+            continue
+
+        clean_dataset_views = {}
+
+        for dashboard_key, preference in dashboard_preferences.items():
+            if (
+                dashboard_key not in VALID_SELECTED_DASHBOARDS
+                or not isinstance(preference, dict)
+            ):
+                continue
+
+            clean_preference = clean_dashboard_preferences(
+                {
+                    clean_dataset_key: preference,
+                }
+            )
+
+            if clean_preference:
+                clean_dataset_views[dashboard_key] = clean_preference[
+                    clean_dataset_key
+                ]
+
+        if clean_dataset_views:
+            clean_views[clean_dataset_key] = clean_dataset_views
+
+    return clean_views or None
 
 
 def clean_dashboard_metric_mapping(
@@ -440,6 +578,8 @@ def clean_dashboard_metric_mapping(
 
     for key in (
         "primary",
+        "secondary",
+        "operationsValue",
         "category",
         "stage",
         "date",
@@ -501,6 +641,20 @@ def serialize_user_preference(
             else None
         ),
         "dashboard_preferences": dashboard_preferences,
+        "dashboard_dataset_ids": clean_dashboard_dataset_ids(
+            parse_preference_json_object(
+                preference.dashboard_dataset_ids
+                if preference
+                else None
+            )
+        ),
+        "dashboard_views": clean_dashboard_views(
+            parse_preference_json_object(
+                preference.dashboard_views
+                if preference
+                else None
+            )
+        ),
     }
 
 
@@ -679,16 +833,44 @@ def apply_organization_branding(
     )
 
 
+def sync_client_workspace_branding(
+    db,
+    agency_user_id: str,
+    agency_organization: Organization,
+):
+    client_workspaces = (
+        db.query(Organization)
+        .filter(
+            Organization.owner_user_id.like(
+                f"{agency_user_id}:client:%"
+            )
+        )
+        .all()
+    )
+
+    for client_workspace in client_workspaces:
+        client_workspace.logo_url = agency_organization.logo_url
+        client_workspace.primary_color = agency_organization.primary_color
+        client_workspace.accent_color = agency_organization.accent_color
+        client_workspace.report_display_name = (
+            agency_organization.report_display_name
+        )
+
+
 def build_organization_response(
     organization: Organization,
 ):
     return {
         "id": organization.id,
         "name": organization.name,
+        "owner_user_id": organization.owner_user_id,
         "logo_url": organization.logo_url,
         "primary_color": organization.primary_color,
         "accent_color": organization.accent_color,
         "report_display_name": organization.report_display_name,
+        "agency_owner_access_enabled": bool(
+            organization.agency_owner_access_enabled
+        ),
     }
 
 
@@ -723,6 +905,89 @@ def ensure_owner_membership(
     return member
 
 
+def serialize_organization_member(
+    db,
+    member: OrganizationMember,
+):
+    user = (
+        db.query(AppUser)
+        .filter(AppUser.id == member.clerk_user_id)
+        .first()
+    )
+    email = user.email if user else None
+
+    if not email:
+        identity = (
+            db.query(AuthIdentity)
+            .filter(
+                AuthIdentity.user_id == member.clerk_user_id,
+                AuthIdentity.email.isnot(None),
+            )
+            .order_by(AuthIdentity.id.asc())
+            .first()
+        )
+        email = identity.email if identity else None
+
+    return {
+        "id": member.id,
+        "organization_id": member.organization_id,
+        "clerk_user_id": member.clerk_user_id,
+        "role": member.role,
+        "email": email,
+    }
+
+
+def build_client_workspace_owner_id(
+    agency_user_id: str,
+) -> str:
+    # Existing workspace-scoped records use owner_user_id as their legacy key.
+    # Keep that contract while giving each agency client workspace a unique key.
+    return f"{agency_user_id}:client:{uuid4().hex}"
+
+
+def claim_pending_invites(
+    db,
+    user_id: str,
+    user_email: str | None,
+):
+    clean_email = str(user_email or "").strip().lower()
+    if not clean_email:
+        return 0
+
+    pending_invites = (
+        db.query(OrganizationInvite)
+        .filter(
+            OrganizationInvite.email == clean_email,
+            OrganizationInvite.status == "pending",
+        )
+        .all()
+    )
+    claimed_count = 0
+
+    for invite in pending_invites:
+        existing_member = (
+            db.query(OrganizationMember)
+            .filter(
+                OrganizationMember.organization_id == invite.organization_id,
+                OrganizationMember.clerk_user_id == user_id,
+            )
+            .first()
+        )
+        if not existing_member:
+            db.add(
+                OrganizationMember(
+                    organization_id=invite.organization_id,
+                    clerk_user_id=user_id,
+                    role=invite.role,
+                )
+            )
+
+        invite.status = "accepted"
+        claimed_count += 1
+
+    return claimed_count
+
+
 def get_owned_organization_or_404(
     db,
     user_id: str,
@@ -742,6 +1007,73 @@ def get_owned_organization_or_404(
         )
 
     return organization
+
+
+def get_managed_organization_or_404(
+    db,
+    auth_context,
+):
+    if auth_context.workspace_role != "owner":
+        raise HTTPException(
+            status_code=403,
+            detail="Only workspace owners can manage workspace members",
+        )
+
+    organization = (
+        db.query(Organization)
+        .filter(
+            Organization.owner_user_id == auth_context.workspace_id,
+        )
+        .first()
+    )
+
+    if not organization:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace not found",
+        )
+
+    if ":client:" in organization.owner_user_id:
+        agency_owner_id = organization.owner_user_id.split(
+            ":client:",
+            1,
+        )[0]
+        if auth_context.user_id != agency_owner_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Only the agency workspace owner can manage client members",
+            )
+
+    return organization
+
+
+def require_agency_client_access(
+    db,
+    auth_context,
+    organization: Organization,
+    detail: str,
+):
+    if ":client:" in organization.owner_user_id:
+        return
+
+    subscription = (
+        db.query(WorkspaceSubscription)
+        .filter(
+            WorkspaceSubscription.workspace_id == auth_context.user_id,
+        )
+        .first()
+    )
+    access_state = build_subscription_access_state(subscription)
+    plan = normalize_billing_plan(
+        subscription.plan
+        if subscription and access_state.access_allowed
+        else FREE_PLAN
+    )
+    if not is_agency_plan(plan):
+        raise HTTPException(
+            status_code=403,
+            detail=detail,
+        )
 
 
 def clean_member_user_id(
@@ -815,6 +1147,7 @@ def clean_member_role(
     allowed_roles = {
         "member",
         "client",
+        "owner",
     }
 
     if clean_role not in allowed_roles:
@@ -837,29 +1170,25 @@ def clean_member_role(
 )
 async def get_accessible_workspaces(
     request: Request,
+    include_managed_client_workspaces: bool = False,
 ):
     auth_context = get_auth_context(
         request,
     )
     user_id = auth_context.user_id
+    current_external_user_id = (
+        auth_context.external_user_id or user_id
+    )
 
     db = SessionLocal()
 
     try:
-        owned_organization = (
-            db.query(Organization)
-            .filter(
-                Organization.owner_user_id == user_id
-            )
-            .first()
+        claimed_invite_count = claim_pending_invites(
+            db,
+            user_id,
+            auth_context.email,
         )
-
-        if owned_organization:
-            ensure_owner_membership(
-                db,
-                owned_organization,
-                user_id,
-            )
+        if claimed_invite_count:
             db.commit()
 
         memberships = (
@@ -883,19 +1212,105 @@ async def get_accessible_workspaces(
 
         workspaces_by_owner: dict[str, OrganizationWorkspaceResponse] = {}
 
-        for organization, membership in memberships:
-            workspaces_by_owner[organization.owner_user_id] = (
+        owned_organizations = (
+            db.query(Organization)
+            .filter(
+                Organization.owner_user_id == user_id,
+            )
+            .order_by(
+                Organization.name.asc(),
+                Organization.id.asc(),
+            )
+            .all()
+        )
+
+        for organization in owned_organizations:
+            workspaces_by_owner[current_external_user_id] = (
                 OrganizationWorkspaceResponse(
                     id=organization.id,
                     name=organization.name,
-                    owner_user_id=organization.owner_user_id,
-                    role=membership.role,
+                    owner_user_id=current_external_user_id,
+                    role="owner",
                     logo_url=organization.logo_url,
                     primary_color=organization.primary_color,
                     accent_color=organization.accent_color,
                     report_display_name=organization.report_display_name,
+                    agency_owner_access_enabled=bool(
+                        organization.agency_owner_access_enabled
+                    ),
                 )
             )
+
+        for organization, membership in memberships:
+            if organization.owner_user_id.startswith(
+                f"{user_id}:client:"
+            ):
+                continue
+
+            owner_reference = (
+                current_external_user_id
+                if organization.owner_user_id == user_id
+                else organization.owner_user_id
+            )
+            role = (
+                "owner"
+                if organization.owner_user_id == user_id
+                else (
+                    "member"
+                    if (
+                        membership.role == "client"
+                        and ":client:" not in organization.owner_user_id
+                    )
+                    else membership.role
+                )
+            )
+            workspaces_by_owner[owner_reference] = (
+                OrganizationWorkspaceResponse(
+                    id=organization.id,
+                    name=organization.name,
+                    owner_user_id=owner_reference,
+                    role=role,
+                    logo_url=organization.logo_url,
+                    primary_color=organization.primary_color,
+                    accent_color=organization.accent_color,
+                    report_display_name=organization.report_display_name,
+                    agency_owner_access_enabled=bool(
+                        organization.agency_owner_access_enabled
+                    ),
+                )
+            )
+
+        if include_managed_client_workspaces and owned_organizations:
+            managed_client_workspaces = (
+                db.query(Organization)
+                .filter(
+                    Organization.owner_user_id.like(
+                        f"{user_id}:client:%"
+                    )
+                )
+                .order_by(
+                    Organization.name.asc(),
+                    Organization.id.asc(),
+                )
+                .all()
+            )
+
+            for client_workspace in managed_client_workspaces:
+                workspaces_by_owner[client_workspace.owner_user_id] = (
+                    OrganizationWorkspaceResponse(
+                        id=client_workspace.id,
+                        name=client_workspace.name,
+                        owner_user_id=client_workspace.owner_user_id,
+                        role="managed_client",
+                        logo_url=client_workspace.logo_url,
+                        primary_color=client_workspace.primary_color,
+                        accent_color=client_workspace.accent_color,
+                        report_display_name=client_workspace.report_display_name,
+                        agency_owner_access_enabled=bool(
+                            client_workspace.agency_owner_access_enabled
+                        ),
+                    )
+                )
 
         return list(
             workspaces_by_owner.values()
@@ -913,7 +1328,29 @@ async def create_organization(
     auth_context = get_auth_context(
         request,
     )
+
+    if (
+        auth_context.workspace_id != auth_context.user_id or
+        auth_context.workspace_role != "owner"
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Client workspaces use agency branding",
+        )
+
     user_id = auth_context.user_id
+
+    selected_plan = normalize_billing_plan(
+        organization.plan,
+    )
+    if selected_plan not in {
+        PROFESSIONAL_PLAN,
+        AGENCY_PLAN,
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail="Choose Professional or Agency for your free trial",
+        )
 
     db = SessionLocal()
 
@@ -949,6 +1386,20 @@ async def create_organization(
             user_id,
         )
 
+        trial_start = utc_now()
+        db.add(
+            WorkspaceSubscription(
+                workspace_id=user_id,
+                provider=get_billing_config()["provider"],
+                plan=selected_plan,
+                status="trialing",
+                current_period_start=trial_start,
+                current_period_end=(
+                    trial_start + timedelta(days=TRIAL_PERIOD_DAYS)
+                ),
+            )
+        )
+
         db.commit()
 
         db.refresh(organization_record)
@@ -961,6 +1412,227 @@ async def create_organization(
         db.close()
 
 
+@router.post(
+    "/client-workspaces",
+    response_model=OrganizationWorkspaceResponse,
+)
+async def create_client_workspace(
+    request: Request,
+    payload: ClientWorkspaceCreate,
+):
+    auth_context = get_auth_context(
+        request,
+    )
+    user_id = auth_context.user_id
+
+    if (
+        auth_context.workspace_id != user_id or
+        auth_context.workspace_role != "owner"
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Create client workspaces from the agency workspace",
+        )
+
+    client_name = clean_organization_name(
+        payload.name,
+    )
+    client_email = clean_invite_email(
+        payload.client_email,
+    )
+
+    db = SessionLocal()
+
+    try:
+        billing_notice = None
+        agency_organization = get_owned_organization_or_404(
+            db,
+            user_id,
+        )
+        subscription = (
+            db.query(WorkspaceSubscription)
+            .filter(
+                WorkspaceSubscription.workspace_id == user_id,
+            )
+            .first()
+        )
+        access_state = build_subscription_access_state(subscription)
+        plan = normalize_billing_plan(
+            subscription.plan
+            if subscription and access_state.access_allowed
+            else FREE_PLAN
+        )
+        if not is_agency_plan(plan):
+            raise HTTPException(
+                status_code=403,
+                detail="Client workspaces are available only on Agency plans",
+            )
+        additional_client_workspaces = int(
+            subscription.additional_client_workspaces
+            if subscription
+            else 0
+        )
+        client_workspace_limit = get_client_workspace_limit(
+            plan,
+            additional_client_workspaces,
+        )
+        client_workspace_count = (
+            db.query(Organization)
+            .filter(
+                Organization.owner_user_id.like(
+                    f"{user_id}:client:%"
+                )
+            )
+            .count()
+        )
+        if (
+            client_workspace_limit is not None
+            and client_workspace_count >= client_workspace_limit
+        ):
+            try:
+                additional_client_workspaces, addon_item_id = (
+                    add_deferred_client_workspace_capacity(
+                        provider_subscription_id=(
+                            subscription.provider_subscription_id
+                            if subscription
+                            else None
+                        ),
+                        current_additional_client_workspaces=(
+                            additional_client_workspaces
+                        ),
+                    )
+                )
+            except BillingProviderUnavailable as error:
+                plan_name = get_billing_plan_definition(plan)["name"]
+                raise HTTPException(
+                    status_code=402,
+                    detail=(
+                        f"{plan_name} includes {client_workspace_limit} client "
+                        "workspace"
+                        f"{'s' if client_workspace_limit != 1 else ''}. "
+                        "Additional capacity could not be added. "
+                        f"{error}"
+                    ),
+                ) from error
+
+            if subscription:
+                subscription.additional_client_workspaces = (
+                    additional_client_workspaces
+                )
+                subscription.provider_addon_subscription_item_id = (
+                    addon_item_id
+                )
+            client_workspace_limit = get_client_workspace_limit(
+                plan,
+                additional_client_workspaces,
+            )
+            billing_notice = (
+                "One additional client workspace was added to your Agency "
+                "subscription. The deferred prorated adjustment and the "
+                "recurring add-on will appear on your next billing invoice."
+            )
+        workspace_owner_id = build_client_workspace_owner_id(
+            user_id,
+        )
+        client_workspace = Organization(
+            name=client_name,
+            owner_user_id=workspace_owner_id,
+            logo_url=agency_organization.logo_url,
+            primary_color=agency_organization.primary_color,
+            accent_color=agency_organization.accent_color,
+            report_display_name=agency_organization.report_display_name,
+        )
+
+        db.add(client_workspace)
+        db.flush()
+
+        db.add(
+            OrganizationInvite(
+                organization_id=client_workspace.id,
+                email=client_email,
+                role="client",
+                status="pending",
+            )
+        )
+
+        db.commit()
+        db.refresh(client_workspace)
+
+        return OrganizationWorkspaceResponse(
+            id=client_workspace.id,
+            name=client_workspace.name,
+            owner_user_id=client_workspace.owner_user_id,
+            role="managed_client",
+            logo_url=client_workspace.logo_url,
+            primary_color=client_workspace.primary_color,
+            accent_color=client_workspace.accent_color,
+            report_display_name=client_workspace.report_display_name,
+            agency_owner_access_enabled=bool(
+                client_workspace.agency_owner_access_enabled
+            ),
+            billing_notice=billing_notice,
+        )
+
+    finally:
+        db.close()
+
+
+@router.delete(
+    "/client-workspaces/{organization_id}",
+    response_model=ClientWorkspaceDeleteResponse,
+)
+async def delete_client_workspace(
+    organization_id: int,
+    request: Request,
+):
+    auth_context = get_auth_context(request)
+    db = SessionLocal()
+
+    try:
+        agency_organization = get_managed_organization_or_404(
+            db,
+            auth_context,
+        )
+
+        if agency_organization.owner_user_id != auth_context.user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Only the agency workspace owner can delete client workspaces",
+            )
+
+        client_workspace = (
+            db.query(Organization)
+            .filter(Organization.id == organization_id)
+            .first()
+        )
+        if client_workspace is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Client workspace not found",
+            )
+
+        client_owner_prefix = f"{agency_organization.owner_user_id}:client:"
+        if not client_workspace.owner_user_id.startswith(client_owner_prefix):
+            raise HTTPException(
+                status_code=403,
+                detail="Only client workspaces managed by this agency can be deleted",
+            )
+
+        summary = delete_workspace_records(
+            db,
+            client_workspace.owner_user_id,
+            client_workspace.id,
+        )
+        db.commit()
+
+        return ClientWorkspaceDeleteResponse(
+            deleted=True,
+            summary=summary,
+        )
+    finally:
+        db.close()
+
+
 @router.get("/me")
 async def get_my_organization(
     request: Request,
@@ -968,30 +1640,88 @@ async def get_my_organization(
     auth_context = get_auth_context(
         request,
     )
-    user_id = auth_context.user_id
-
     db = SessionLocal()
 
     try:
+        if auth_context.workspace_role not in {
+            "owner",
+            "client",
+            "managed_client",
+        }:
+            return None
+
         organization = (
-            db.query(Organization).filter(Organization.owner_user_id == user_id).first()
+            db.query(Organization)
+            .filter(
+                Organization.owner_user_id == auth_context.workspace_id,
+            )
+            .first()
         )
 
         if not organization:
             return None
 
-        ensure_owner_membership(
-            db,
-            organization,
-            user_id,
-        )
-
-        db.commit()
-
         return build_organization_response(
             organization,
         )
 
+    finally:
+        db.close()
+
+
+@router.patch(
+    "/agency-owner-access",
+    response_model=OrganizationResponse,
+)
+async def update_agency_owner_access(
+    request: Request,
+    payload: AgencyOwnerAccessUpdate,
+):
+    auth_context = get_auth_context(request)
+
+    if auth_context.workspace_role != "client":
+        raise HTTPException(
+            status_code=403,
+            detail="Only the client workspace owner can grant agency access",
+        )
+
+    db = SessionLocal()
+
+    try:
+        organization = (
+            db.query(Organization)
+            .filter(
+                Organization.owner_user_id == auth_context.workspace_id,
+            )
+            .first()
+        )
+
+        if not organization or ":client:" not in organization.owner_user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Agency access can only be configured in a client workspace",
+            )
+
+        client_owner_membership = (
+            db.query(OrganizationMember)
+            .filter(
+                OrganizationMember.organization_id == organization.id,
+                OrganizationMember.clerk_user_id == auth_context.user_id,
+                OrganizationMember.role == "client",
+            )
+            .first()
+        )
+        if not client_owner_membership:
+            raise HTTPException(
+                status_code=403,
+                detail="Only the client workspace owner can grant agency access",
+            )
+
+        organization.agency_owner_access_enabled = payload.enabled
+        db.commit()
+        db.refresh(organization)
+
+        return build_organization_response(organization)
     finally:
         db.close()
 
@@ -1005,32 +1735,19 @@ async def get_organization_members(
 ):
     auth_context = get_auth_context(
         request,
+        allow_managed_client_workspace=True,
     )
     user_id = auth_context.user_id
 
     db = SessionLocal()
 
     try:
-        organization = (
-            db.query(Organization)
-            .filter(
-                Organization.owner_user_id == user_id
-            )
-            .first()
-        )
-
-        if not organization:
-            return []
-
-        ensure_owner_membership(
+        organization = get_managed_organization_or_404(
             db,
-            organization,
-            user_id,
+            auth_context,
         )
 
-        db.commit()
-
-        return (
+        members = (
             db.query(OrganizationMember)
             .filter(
                 OrganizationMember.organization_id == organization.id,
@@ -1041,6 +1758,10 @@ async def get_organization_members(
             )
             .all()
         )
+        return [
+            serialize_organization_member(db, member)
+            for member in members
+        ]
 
     finally:
         db.close()
@@ -1056,22 +1777,59 @@ async def add_organization_member(
 ):
     auth_context = get_auth_context(
         request,
+        allow_managed_client_workspace=True,
     )
     user_id = auth_context.user_id
 
     db = SessionLocal()
 
     try:
-        organization = get_owned_organization_or_404(
+        organization = get_managed_organization_or_404(
             db,
-            user_id,
+            auth_context,
         )
-        member_user_id = clean_member_user_id(
+        member_reference = clean_member_user_id(
             payload.clerk_user_id,
         )
+        try:
+            member_user_id = resolve_user_reference(
+                member_reference,
+            )
+        except ValueError as error:
+            raise HTTPException(
+                status_code=400,
+                detail=str(error),
+            ) from error
         member_role = clean_member_role(
             payload.role,
         )
+
+        if (
+            member_role == "owner"
+            and member_user_id != user_id
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Promote an existing agency member to assign ownership",
+            )
+
+        if (
+            member_role == "owner"
+            and ":client:" in organization.owner_user_id
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Client workspace members cannot be agency owners",
+            )
+
+        if (
+            member_role == "client"
+            and ":client:" not in organization.owner_user_id
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Client members must belong to a client workspace",
+            )
 
         if member_user_id == user_id:
             member_role = "owner"
@@ -1086,11 +1844,23 @@ async def add_organization_member(
         )
 
         if existing_member:
+            if (
+                existing_member.role == "client"
+                and member_role in {"member", "owner"}
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Client role cannot be changed to member or owner",
+                )
+
             existing_member.role = member_role
             db.commit()
             db.refresh(existing_member)
 
-            return existing_member
+            return serialize_organization_member(
+                db,
+                existing_member,
+            )
 
         member = OrganizationMember(
             organization_id=organization.id,
@@ -1104,7 +1874,10 @@ async def add_organization_member(
 
         db.refresh(member)
 
-        return member
+        return serialize_organization_member(
+            db,
+            member,
+        )
 
     finally:
         db.close()
@@ -1119,22 +1892,17 @@ async def get_organization_invites(
 ):
     auth_context = get_auth_context(
         request,
+        allow_managed_client_workspace=True,
     )
     user_id = auth_context.user_id
 
     db = SessionLocal()
 
     try:
-        organization = (
-            db.query(Organization)
-            .filter(
-                Organization.owner_user_id == user_id
-            )
-            .first()
+        organization = get_managed_organization_or_404(
+            db,
+            auth_context,
         )
-
-        if not organization:
-            return []
 
         return (
             db.query(OrganizationInvite)
@@ -1163,15 +1931,16 @@ async def add_organization_invite(
 ):
     auth_context = get_auth_context(
         request,
+        allow_managed_client_workspace=True,
     )
     user_id = auth_context.user_id
 
     db = SessionLocal()
 
     try:
-        organization = get_owned_organization_or_404(
+        organization = get_managed_organization_or_404(
             db,
-            user_id,
+            auth_context,
         )
         invite_email = clean_invite_email(
             payload.email,
@@ -1179,6 +1948,21 @@ async def add_organization_invite(
         invite_role = clean_member_role(
             payload.role,
         )
+
+        if invite_role == "owner":
+            raise HTTPException(
+                status_code=400,
+                detail="Invite the user as a member, then assign ownership",
+            )
+
+        if (
+            invite_role == "client"
+            and ":client:" not in organization.owner_user_id
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Client invitations must belong to a client workspace",
+            )
 
         existing_invite = (
             db.query(OrganizationInvite)
@@ -1231,15 +2015,16 @@ async def update_organization_member_role(
 ):
     auth_context = get_auth_context(
         request,
+        allow_managed_client_workspace=True,
     )
     user_id = auth_context.user_id
 
     db = SessionLocal()
 
     try:
-        organization = get_owned_organization_or_404(
+        organization = get_managed_organization_or_404(
             db,
-            user_id,
+            auth_context,
         )
         member = (
             db.query(OrganizationMember)
@@ -1262,14 +2047,33 @@ async def update_organization_member_role(
                 detail="Owner role cannot be changed",
             )
 
-        member.role = clean_member_role(
+        next_role = clean_member_role(
             payload.role,
         )
+        is_client_workspace = ":client:" in organization.owner_user_id
+        if is_client_workspace and next_role == "owner":
+            # Client workspace owners use the client role so they receive
+            # client-scoped access without inheriting agency ownership.
+            next_role = "client"
+        if (
+            is_client_workspace
+            and member.role == "client"
+            and next_role == "member"
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Client owners cannot be changed to members",
+            )
+
+        member.role = next_role
 
         db.commit()
         db.refresh(member)
 
-        return member
+        return serialize_organization_member(
+            db,
+            member,
+        )
 
     finally:
         db.close()
@@ -1284,15 +2088,16 @@ async def remove_organization_invite(
 ):
     auth_context = get_auth_context(
         request,
+        allow_managed_client_workspace=True,
     )
     user_id = auth_context.user_id
 
     db = SessionLocal()
 
     try:
-        organization = get_owned_organization_or_404(
+        organization = get_managed_organization_or_404(
             db,
-            user_id,
+            auth_context,
         )
         invite = (
             db.query(OrganizationInvite)
@@ -1329,15 +2134,16 @@ async def remove_organization_member(
 ):
     auth_context = get_auth_context(
         request,
+        allow_managed_client_workspace=True,
     )
     user_id = auth_context.user_id
 
     db = SessionLocal()
 
     try:
-        organization = get_owned_organization_or_404(
+        organization = get_managed_organization_or_404(
             db,
-            user_id,
+            auth_context,
         )
         member = (
             db.query(OrganizationMember)
@@ -1379,7 +2185,12 @@ async def update_my_organization(
     auth_context = get_auth_context(
         request,
     )
-    user_id = auth_context.user_id
+
+    if auth_context.workspace_role != "owner":
+        raise HTTPException(
+            status_code=403,
+            detail="Client workspaces use agency branding",
+        )
 
     db = SessionLocal()
 
@@ -1387,7 +2198,7 @@ async def update_my_organization(
         organization = (
             db.query(Organization)
             .filter(
-                Organization.owner_user_id == user_id
+                Organization.owner_user_id == auth_context.workspace_id,
             )
             .first()
         )
@@ -1404,6 +2215,11 @@ async def update_my_organization(
         apply_organization_branding(
             organization,
             payload,
+        )
+        sync_client_workspace_branding(
+            db,
+            auth_context.workspace_id,
+            organization,
         )
 
         db.commit()
@@ -1544,6 +2360,12 @@ async def update_dataset_preference(
         clean_dashboard_preferences_value = clean_dashboard_preferences(
             payload.dashboard_preferences
         )
+        clean_dashboard_dataset_ids_value = clean_dashboard_dataset_ids(
+            payload.dashboard_dataset_ids
+        )
+        clean_dashboard_views_value = clean_dashboard_views(
+            payload.dashboard_views
+        )
 
         preference = find_exact_user_preference(
             db,
@@ -1569,6 +2391,16 @@ async def update_dataset_preference(
                     if clean_dashboard_preferences_value is not None
                     else None
                 ),
+                dashboard_dataset_ids=(
+                    json.dumps(clean_dashboard_dataset_ids_value)
+                    if clean_dashboard_dataset_ids_value is not None
+                    else None
+                ),
+                dashboard_views=(
+                    json.dumps(clean_dashboard_views_value)
+                    if clean_dashboard_views_value is not None
+                    else None
+                ),
             )
 
             db.add(preference)
@@ -1592,6 +2424,20 @@ async def update_dataset_preference(
                 preference.dashboard_preferences = (
                     json.dumps(clean_dashboard_preferences_value)
                     if clean_dashboard_preferences_value is not None
+                    else None
+                )
+
+            if "dashboard_dataset_ids" in payload.model_fields_set:
+                preference.dashboard_dataset_ids = (
+                    json.dumps(clean_dashboard_dataset_ids_value)
+                    if clean_dashboard_dataset_ids_value is not None
+                    else None
+                )
+
+            if "dashboard_views" in payload.model_fields_set:
+                preference.dashboard_views = (
+                    json.dumps(clean_dashboard_views_value)
+                    if clean_dashboard_views_value is not None
                     else None
                 )
 

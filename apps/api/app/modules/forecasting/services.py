@@ -16,6 +16,12 @@ from app.modules.ai.service import (
 from app.modules.datasets.services.numeric import (
     get_numeric_columns,
 )
+from app.modules.datasets.services.serialization import (
+    dataframe_to_json_records,
+)
+from app.modules.datasets.services.summary_query import (
+    aggregate_summary_aware_dataframe,
+)
 
 
 def to_finite_forecast_number(
@@ -258,6 +264,179 @@ def identify_forecast_columns(
     )
 
 
+def prepare_forecast_dataframe(
+    dataframe: pd.DataFrame,
+    date_column,
+    start_date: str | None = None,
+    period_filter: str | None = None,
+    aggregation: str | None = None,
+    aggregation_type: str | None = None,
+):
+    """Apply the selected forecast window and calendar grain before modeling."""
+    if not date_column:
+        return dataframe
+
+    with warnings.catch_warnings():
+        warnings.simplefilter(
+            "ignore",
+            UserWarning,
+        )
+        parsed_dates = pd.to_datetime(
+            dataframe[date_column],
+            errors="coerce",
+        )
+
+    valid_dates = parsed_dates.notna()
+    scoped_dataframe = dataframe.loc[valid_dates].copy()
+
+    if scoped_dataframe.empty:
+        return scoped_dataframe
+
+    scoped_dates = parsed_dates.loc[
+        scoped_dataframe.index
+    ]
+    scoped_dataframe[date_column] = scoped_dates
+
+    parsed_start_date = None
+    if str(start_date or "").strip():
+        with warnings.catch_warnings():
+            warnings.simplefilter(
+                "ignore",
+                UserWarning,
+            )
+            parsed_start_date = pd.to_datetime(
+                str(start_date).strip(),
+                errors="coerce",
+            )
+
+        if pd.isna(parsed_start_date):
+            parsed_start_date = None
+
+    period_months = {
+        "1m": 1,
+        "1q": 3,
+        "6m": 6,
+        "1y": 12,
+        "2y": 24,
+        "3y": 36,
+        "5y": 60,
+    }
+    clean_period_filter = str(
+        period_filter or "all"
+    ).strip().lower()
+    window_start = parsed_start_date
+
+    if window_start is None and clean_period_filter in period_months:
+        window_start = scoped_dataframe[
+            date_column
+        ].min()
+
+    if window_start is not None:
+        scoped_dataframe = scoped_dataframe.loc[
+            scoped_dataframe[date_column] >= window_start
+        ]
+
+    window_months = period_months.get(
+        clean_period_filter
+    )
+    if window_start is not None and window_months:
+        window_end = window_start + pd.DateOffset(
+            months=window_months
+        )
+        scoped_dataframe = scoped_dataframe.loc[
+            scoped_dataframe[date_column] < window_end
+        ]
+
+    if not aggregation or scoped_dataframe.empty:
+        return scoped_dataframe
+
+    clean_aggregation = str(
+        aggregation
+    ).strip().lower()
+    summary_aware_dataframe = aggregate_summary_aware_dataframe(
+        scoped_dataframe,
+        date_column,
+        clean_aggregation,
+        str(aggregation_type or "sum").strip().lower(),
+    )
+    if summary_aware_dataframe is not None:
+        return summary_aware_dataframe
+
+    aggregation_map = {
+        "sum": "sum",
+        "count": "count",
+        "avg": "mean",
+        "min": "min",
+        "max": "max",
+    }
+    aggregation_function = aggregation_map.get(
+        str(aggregation_type or "sum")
+            .strip()
+            .lower(),
+        "sum",
+    )
+
+    if clean_aggregation == "daily":
+        buckets = scoped_dataframe[
+            date_column
+        ].dt.normalize()
+    elif clean_aggregation == "weekly":
+        buckets = (
+            scoped_dataframe[date_column]
+            .dt.to_period("W-SUN")
+            .dt.start_time
+        )
+    elif clean_aggregation == "quarterly":
+        buckets = (
+            scoped_dataframe[date_column]
+            .dt.to_period("Q")
+            .dt.start_time
+        )
+    else:
+        buckets = (
+            scoped_dataframe[date_column]
+            .dt.to_period("M")
+            .dt.start_time
+        )
+
+    numeric_columns = get_numeric_columns(
+        scoped_dataframe
+    )
+    if not numeric_columns:
+        return scoped_dataframe
+
+    grouped_dataframe = pd.DataFrame(
+        {
+            date_column: buckets.groupby(
+                buckets,
+                sort=True,
+            ).first().index,
+        }
+    )
+
+    for column, numeric_series in numeric_columns:
+        grouped_series = (
+            numeric_series.loc[
+                scoped_dataframe.index
+            ]
+            .groupby(
+                buckets,
+                sort=True,
+            )
+            .agg(aggregation_function)
+        )
+        grouped_dataframe[column] = (
+            grouped_series.reindex(
+                grouped_dataframe[date_column]
+            )
+            .to_numpy()
+        )
+
+    return grouped_dataframe.sort_values(
+        date_column
+    ).reset_index(drop=True)
+
+
 def build_model_forecast(
     values: list[float],
     method: str,
@@ -439,6 +618,12 @@ def generate_forecast(
     dataframe: pd.DataFrame,
     metric: str | None = None,
     learning_context: dict | None = None,
+    workspace_id: str | None = None,
+    start_date: str | None = None,
+    period_filter: str | None = None,
+    aggregation: str | None = None,
+    aggregation_type: str | None = None,
+    actor_user_id: str | None = None,
 ):
     if not isinstance(
         dataframe,
@@ -449,6 +634,25 @@ def generate_forecast(
         }
 
     date_column, value_column = identify_forecast_columns(dataframe)
+
+    if not date_column:
+        return {"error": "No date column found"}
+
+    dataframe = prepare_forecast_dataframe(
+        dataframe,
+        date_column,
+        start_date,
+        period_filter,
+        aggregation,
+        aggregation_type,
+    )
+
+    if dataframe.empty:
+        return {"error": "Not enough data"}
+
+    date_column, value_column = identify_forecast_columns(
+        dataframe
+    )
 
     numeric_column_pairs = get_numeric_columns(
         dataframe
@@ -473,9 +677,6 @@ def generate_forecast(
         if metric is not None
         else None
     )
-
-    if not date_column:
-        return {"error": "No date column found"}
 
     if clean_metric:
         if clean_metric not in dataframe_columns_by_label:
@@ -586,15 +787,44 @@ def generate_forecast(
             if summary["direction"] == "decrease"
             else []
         ),
+        workspace_id=workspace_id,
+        actor_user_id=actor_user_id,
     )
     ai_analysis = apply_model_quality_to_analysis(
         ai_analysis,
         model_quality,
     )
 
+    if ai_analysis.get("source") == "rules":
+        learning_recommendations = [
+            str(item).strip()
+            for item in ai_analysis.get(
+                "recommendations",
+                [],
+            )[1:]
+            if str(item).strip()
+        ]
+        if learning_recommendations:
+            recommendation = {
+                **recommendation,
+                "reason": (
+                    f"{recommendation['reason']} "
+                    "Historical learning: "
+                    f"{learning_recommendations[0]}"
+                ),
+            }
+
     return {
         "date_column": date_column,
         "value_column": value_column,
+        "historical": dataframe_to_json_records(
+            working_dataframe[
+                [
+                    date_column,
+                    value_column,
+                ]
+            ].tail(12)
+        ),
         "available_metrics": numeric_columns,
         "forecast": forecasts,
         "forecast_periods": forecast_periods,

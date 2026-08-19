@@ -6,25 +6,20 @@ import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import {
   Bell,
-  CalendarDays,
-  Mail,
   PlusCircle,
   Save,
-  Send,
 } from "lucide-react"
 
 import {
   getDatasetDetails,
+  getDatasetRelationships,
   getDatasets,
   createDecision,
-  getWeeklyReportDeliveryConfig,
   getWeeklyReportDigest,
   getWeeklyReportPreference,
-  sendWeeklyReportTestEmail,
-  sendWeeklyReportNow,
   updateWeeklyReportPreference,
   type DatasetSummary,
-  type WeeklyReportDeliveryConfig,
+  type DatasetRelationship,
   type WeeklyReportDigest,
   type WeeklyReportPreference,
 } from "@/lib/api"
@@ -54,6 +49,8 @@ const defaultWeeklyReportPreference: WeeklyReportPreference = {
   delivery_day: "monday",
   recipient_emails: [],
   metric_focus: [],
+  metric_targets: {},
+  relationship_focus: [],
   include_recommendations: true,
   sender_name: "",
   sender_email: "",
@@ -71,14 +68,6 @@ const defaultWeeklyReportPreference: WeeklyReportPreference = {
   last_send_status: null,
   last_send_error: null,
 }
-
-const deliveryDays: WeeklyReportPreference["delivery_day"][] = [
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-]
 
 type DatasetMetric = {
   column: string
@@ -111,7 +100,8 @@ function getErrorMessage(
 export default function AlertsPage() {
   const { user } = useUser()
   const {
-    canConfigureWorkspace,
+    canManageAlerts,
+    canManageWorkspaceData,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
 
@@ -120,7 +110,7 @@ export default function AlertsPage() {
       <div className="space-y-6">
         <DashboardPageHeader
           title="Alerts"
-          description="Notification configuration is available to the business owner."
+          description="Select the data and relationships that should shape alert analysis."
         />
         <div
           role="status"
@@ -132,15 +122,15 @@ export default function AlertsPage() {
     )
   }
 
-  if (!canConfigureWorkspace) {
+  if (!canManageAlerts) {
     return (
       <div className="space-y-6">
         <DashboardPageHeader
           title="Alerts"
-          description="Notification configuration is available to the business owner."
+          description="Select the data and relationships that should shape alert analysis."
         />
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          Only the business owner can configure alert recipients, KPI focus, delivery settings, and report sending.
+          Only workspace owners, client workspace owners, and approved agency owners can configure alert analysis. Delivery settings are managed in agency Settings.
         </div>
       </div>
     )
@@ -148,16 +138,19 @@ export default function AlertsPage() {
 
   return (
     <AlertsPageContent
-      canManageWorkspaceData={canConfigureWorkspace}
+      canManageAlertAnalysis={canManageAlerts}
+      canManageWorkspaceData={canManageWorkspaceData}
       loadingWorkspaceAccess={loadingWorkspaceAccess}
     />
   )
 }
 
 function AlertsPageContent({
+  canManageAlertAnalysis,
   canManageWorkspaceData,
   loadingWorkspaceAccess,
 }: {
+  canManageAlertAnalysis: boolean
   canManageWorkspaceData: boolean
   loadingWorkspaceAccess: boolean
 }) {
@@ -178,32 +171,16 @@ function AlertsPageContent({
   ] = useState<WeeklyReportPreference>(
     defaultWeeklyReportPreference
   )
-  const [
-    recipientEmailText,
-    setRecipientEmailText,
-  ] = useState("")
   const [metricOptions, setMetricOptions] =
     useState<DatasetMetricOption[]>([])
+  const [relationshipOptions, setRelationshipOptions] =
+    useState<DatasetRelationship[]>([])
   const [weeklyReportDigest, setWeeklyReportDigest] =
     useState<WeeklyReportDigest | null>(null)
-  const [
-    weeklyReportDeliveryConfig,
-    setWeeklyReportDeliveryConfig,
-  ] = useState<WeeklyReportDeliveryConfig | null>(
-    null
-  )
   const [loading, setLoading] =
     useState(true)
   const [saving, setSaving] =
     useState(false)
-  const [sending, setSending] =
-    useState(false)
-  const [sendingTestEmail, setSendingTestEmail] =
-    useState(false)
-  const [
-    deliverySettingsDirty,
-    setDeliverySettingsDirty,
-  ] = useState(false)
   const [statusMessage, setStatusMessage] =
     useState("")
   const [errorMessage, setErrorMessage] =
@@ -215,10 +192,6 @@ function AlertsPageContent({
   const [selectedDecisionMetricKey, setSelectedDecisionMetricKey] =
     useState("")
 
-  const recipientEmails = useMemo(
-    () => parseRecipientEmailText(recipientEmailText),
-    [recipientEmailText]
-  )
   const selectedMetricLabels =
     weeklyReportPreference.metric_focus.map(
       (metric) =>
@@ -226,6 +199,17 @@ function AlertsPageContent({
           metric,
           metricOptions
       )
+    )
+  const selectedRelationshipLabels =
+    weeklyReportPreference.relationship_focus.map(
+      relationshipId => {
+        const relationship = relationshipOptions.find(
+          option => option.id === relationshipId
+        )
+        return relationship
+          ? `${relationship.name} · ${relationship.left.metric_column} → ${relationship.right.metric_column}`
+          : `Relationship ${relationshipId}`
+      }
     )
   const effectiveSelectedDecisionMetricKey = useMemo(() => {
     const metrics = weeklyReportDigest?.metrics ?? []
@@ -258,17 +242,22 @@ function AlertsPageContent({
     effectiveSelectedDecisionMetricKey,
     weeklyReportDigest,
   ])
+  const selectedDecisionRelationship = useMemo(
+    () => weeklyReportDigest?.relationships?.[0],
+    [weeklyReportDigest]
+  )
 
   async function handleCreateDigestDecision() {
     const digest = weeklyReportDigest
     const metric = selectedDecisionMetric
+    const relationship = selectedDecisionRelationship
     const recommendation =
       digest?.ai_analysis?.recommendations[0]
 
     if (
       !user?.id ||
       !canManageWorkspaceData ||
-      !metric ||
+      (!metric && !relationship) ||
       !recommendation ||
       !digest?.ai_analysis ||
       creatingDecision
@@ -278,10 +267,10 @@ function AlertsPageContent({
 
     const decisionPayload =
       buildAIRecommendationDecisionPayload(
-        metric.dataset_id,
-        metric.column,
+        metric?.dataset_id ?? relationship?.left_dataset_id ?? 0,
+        metric?.column ?? relationship?.left_metric,
         digest.ai_analysis,
-        metric.dataset_name
+        metric?.dataset_name ?? relationship?.left_dataset_name
       )
 
     if (!decisionPayload) {
@@ -338,10 +327,9 @@ function AlertsPageContent({
         setWeeklyReportPreference(
           defaultWeeklyReportPreference
         )
-        setRecipientEmailText("")
         setMetricOptions([])
+        setRelationshipOptions([])
         setWeeklyReportDigest(null)
-        setWeeklyReportDeliveryConfig(null)
         setStatusMessage("")
         setLoading(true)
         setErrorMessage("")
@@ -349,8 +337,8 @@ function AlertsPageContent({
         const [
           preferenceResult,
           datasetsResult,
+          relationshipsResult,
           digestResult,
-          deliveryConfigResult,
         ] = await Promise.allSettled([
           getWeeklyReportPreference(
             userId,
@@ -360,11 +348,11 @@ function AlertsPageContent({
             userId,
             activeWorkspaceId
           ),
-          getWeeklyReportDigest(
+          getDatasetRelationships(
             userId,
             activeWorkspaceId
           ),
-          getWeeklyReportDeliveryConfig(
+          getWeeklyReportDigest(
             userId,
             activeWorkspaceId
           ),
@@ -394,20 +382,18 @@ function AlertsPageContent({
 
         const supportingDataUnavailable =
           datasetsResult.status === "rejected" ||
-          digestResult.status === "rejected" ||
-          deliveryConfigResult.status ===
-            "rejected"
+          relationshipsResult.status === "rejected" ||
+          digestResult.status === "rejected"
 
         setMetricOptions(nextMetricOptions)
+        setRelationshipOptions(
+          relationshipsResult.status === "fulfilled"
+            ? relationshipsResult.value
+            : []
+        )
         setWeeklyReportDigest(
           digestResult.status === "fulfilled"
             ? digestResult.value
-            : null
-        )
-        setWeeklyReportDeliveryConfig(
-          deliveryConfigResult.status ===
-            "fulfilled"
-            ? deliveryConfigResult.value
             : null
         )
         setWeeklyReportPreference(
@@ -418,11 +404,6 @@ function AlertsPageContent({
             nextMetricOptions
           )
         )
-        setRecipientEmailText(
-          preference.recipient_emails.join("\n")
-        )
-        setDeliverySettingsDirty(false)
-
         if (supportingDataUnavailable) {
           setErrorMessage(
             "Notification setup loaded, but some supporting status data is temporarily unavailable."
@@ -472,14 +453,7 @@ function AlertsPageContent({
     setErrorMessage("")
   }
 
-  function updateDeliverySettingsDraft(
-    patch: Partial<WeeklyReportPreference>
-  ) {
-    updateWeeklyReportDraft(patch)
-    setDeliverySettingsDirty(true)
-  }
-
-  function toggleMetricFocus(
+function toggleMetricFocus(
     metric: string
   ) {
     const currentFocus =
@@ -494,39 +468,63 @@ function AlertsPageContent({
           metric,
         ]
 
+    const nextTargets = {
+      ...weeklyReportPreference.metric_targets,
+    }
+
+    if (currentFocus.includes(metric)) {
+      delete nextTargets[metric]
+    }
+
     updateWeeklyReportDraft({
-      metric_focus: nextFocus.length
-        ? nextFocus
-        : defaultWeeklyReportPreference.metric_focus,
+      metric_focus: nextFocus,
+      metric_targets: nextTargets,
+    })
+  }
+
+  function updateMetricTarget(
+    metric: string,
+    value: string
+  ) {
+    const nextTargets = {
+      ...weeklyReportPreference.metric_targets,
+    }
+
+    if (!value.trim()) {
+      delete nextTargets[metric]
+    } else {
+      const numericValue = Number(value)
+      if (!Number.isFinite(numericValue)) {
+        return
+      }
+      nextTargets[metric] = numericValue
+    }
+
+    updateWeeklyReportDraft({
+      metric_targets: nextTargets,
+    })
+  }
+
+  function toggleRelationshipFocus(
+    relationshipId: number
+  ) {
+    const currentFocus =
+      weeklyReportPreference.relationship_focus
+    const nextFocus = currentFocus.includes(relationshipId)
+      ? currentFocus.filter(item => item !== relationshipId)
+      : [...currentFocus, relationshipId]
+
+    updateWeeklyReportDraft({
+      relationship_focus: nextFocus,
     })
   }
 
   async function handleSave() {
     if (
       !user?.id ||
-      !canManageWorkspaceData ||
+      !canManageAlertAnalysis ||
       saving
     ) {
-      return
-    }
-
-    if (
-      weeklyReportPreference.enabled &&
-      recipientEmails.length === 0
-    ) {
-      setErrorMessage(
-        "Add at least one recipient before enabling KPI email notifications."
-      )
-      return
-    }
-
-    if (
-      weeklyReportPreference.enabled &&
-      weeklyReportPreference.metric_focus.length === 0
-    ) {
-      setErrorMessage(
-        "Select at least one KPI metric from your datasets before enabling notifications."
-      )
       return
     }
 
@@ -540,7 +538,7 @@ function AlertsPageContent({
           {
             ...weeklyReportPreference,
             cadence: "weekly",
-            recipient_emails: recipientEmails,
+            recipient_emails: weeklyReportPreference.recipient_emails,
           },
           user.id,
           activeWorkspaceId
@@ -554,47 +552,20 @@ function AlertsPageContent({
       setWeeklyReportPreference(
         normalizedPreference
       )
-      setRecipientEmailText(
-        normalizedPreference.recipient_emails.join(
-          "\n"
+
+      try {
+        setWeeklyReportDigest(
+          await getWeeklyReportDigest(
+            user.id,
+            activeWorkspaceId
+          )
         )
-      )
-      setDeliverySettingsDirty(false)
-
-      const [
-        digestResult,
-        deliveryConfigResult,
-      ] = await Promise.allSettled([
-        getWeeklyReportDigest(
-          user.id,
-          activeWorkspaceId
-        ),
-        getWeeklyReportDeliveryConfig(
-          user.id,
-          activeWorkspaceId
-        ),
-      ])
-
-      if (digestResult.status === "fulfilled") {
-        setWeeklyReportDigest(digestResult.value)
-      }
-
-      if (
-        deliveryConfigResult.status ===
-        "fulfilled"
-      ) {
-        setWeeklyReportDeliveryConfig(
-          deliveryConfigResult.value
+        setStatusMessage("Notification setup saved.")
+      } catch {
+        setStatusMessage(
+          "Notification setup saved. Digest preview is temporarily unavailable."
         )
       }
-
-      setStatusMessage(
-        digestResult.status === "fulfilled" &&
-          deliveryConfigResult.status ===
-            "fulfilled"
-          ? "Notification setup saved."
-          : "Notification setup saved. Status refresh is temporarily unavailable."
-      )
     } catch (error) {
       setErrorMessage(
         getErrorMessage(
@@ -604,141 +575,6 @@ function AlertsPageContent({
       )
     } finally {
       setSaving(false)
-    }
-  }
-
-  async function handleSendNow() {
-    if (
-      !user?.id ||
-      !canManageWorkspaceData ||
-      sending ||
-      !weeklyReportPreference.enabled ||
-      deliverySettingsDirty ||
-      weeklyReportPreference.recipient_emails.length === 0 ||
-      weeklyReportPreference.recipient_emails.join("\n") !==
-        recipientEmails.join("\n") ||
-      !weeklyReportDeliveryConfig?.email_delivery_configured
-    ) {
-      return
-    }
-
-    try {
-      setSending(true)
-      setErrorMessage("")
-      setStatusMessage("")
-
-      const deliveryResult =
-        await sendWeeklyReportNow(
-          user.id,
-          activeWorkspaceId
-        )
-
-      setWeeklyReportPreference(
-        (currentPreference) =>
-          normalizeWeeklyReportPreference({
-            ...currentPreference,
-            last_send_status: "sent",
-            last_send_error: null,
-            last_sent_at: deliveryResult.sent_at,
-          })
-      )
-
-      try {
-        setWeeklyReportDigest(
-          await getWeeklyReportDigest(
-            user.id,
-            activeWorkspaceId
-          )
-        )
-      } catch {
-        // Delivery already succeeded; keep the local sent status.
-      }
-
-      setStatusMessage(
-        `KPI digest sent to ${deliveryResult.delivered_count} recipient${deliveryResult.delivered_count === 1 ? "" : "s"}.`
-      )
-    } catch (error) {
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          "KPI digest could not be sent. Check email delivery configuration."
-        )
-      )
-      try {
-        setWeeklyReportPreference(
-          normalizeWeeklyReportPreference(
-            await getWeeklyReportPreference(
-              user.id,
-              activeWorkspaceId
-            )
-          )
-        )
-      } catch {
-        // Keep the draft in place when status refresh fails.
-      }
-    } finally {
-      setSending(false)
-    }
-  }
-
-  async function handleSendTestEmail() {
-    if (
-      !user?.id ||
-      !canManageWorkspaceData ||
-      sendingTestEmail ||
-      saving ||
-      !weeklyReportDeliveryConfig?.email_delivery_configured ||
-      deliverySettingsDirty ||
-      weeklyReportPreference.recipient_emails.length === 0 ||
-      weeklyReportPreference.recipient_emails.join("\n") !==
-        recipientEmails.join("\n")
-    ) {
-      return
-    }
-
-    try {
-      setSendingTestEmail(true)
-      setErrorMessage("")
-      setStatusMessage("")
-
-      const deliveryResult =
-        await sendWeeklyReportTestEmail(
-          user.id,
-          activeWorkspaceId
-        )
-
-      setWeeklyReportPreference(
-        (currentPreference) =>
-          normalizeWeeklyReportPreference({
-            ...currentPreference,
-            last_send_status: "test_sent",
-            last_send_error: null,
-          })
-      )
-      setStatusMessage(
-        `Test KPI email sent to ${deliveryResult.delivered_count} recipient${deliveryResult.delivered_count === 1 ? "" : "s"} at ${formatDateTime(deliveryResult.sent_at)}.`
-      )
-    } catch (error) {
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          "Test KPI email could not be sent. Check delivery configuration and saved recipients."
-        )
-      )
-      try {
-        setWeeklyReportPreference(
-          normalizeWeeklyReportPreference(
-            await getWeeklyReportPreference(
-              user.id,
-              activeWorkspaceId
-            )
-          )
-        )
-      } catch {
-        // Keep the draft in place when status refresh fails.
-      }
-    } finally {
-      setSendingTestEmail(false)
     }
   }
 
@@ -790,8 +626,8 @@ function AlertsPageContent({
 
       <WorkspaceAccessNotice
         loading={loadingWorkspaceAccess}
-        canManageWorkspaceData={canManageWorkspaceData}
-        message="Notification setup is managed by workspace managers. Shared workspace users can review the current digest status."
+        canManageWorkspaceData={canManageAlertAnalysis}
+        message="Notification setup is managed by workspace owners and approved agency owners."
         className="print:hidden"
       />
 
@@ -833,10 +669,11 @@ function AlertsPageContent({
             >
               Loading notification setup...
             </div>
-          ) : !canManageWorkspaceData ? (
+          ) : !canManageAlertAnalysis ? (
             <ReadOnlyNotificationSummary
               preference={weeklyReportPreference}
               selectedMetricLabels={selectedMetricLabels}
+              selectedRelationshipLabels={selectedRelationshipLabels}
             />
           ) : (
             <div className="mt-5 space-y-4">
@@ -852,32 +689,66 @@ function AlertsPageContent({
                 {metricOptions.length > 0 ? (
                   <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     {metricOptions.map((option) => (
-                      <label
+                      <div
                         key={option.value}
-                        className="flex min-w-0 items-start gap-2.5 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
+                        className="min-w-0 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
                       >
-                        <input
-                          type="checkbox"
-                          checked={weeklyReportPreference.metric_focus.includes(
-                            option.value
-                          )}
-                          onChange={() =>
-                            toggleMetricFocus(
+                        <label className="flex min-w-0 items-start gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={weeklyReportPreference.metric_focus.includes(
                               option.value
-                            )
-                          }
-                          className="mt-0.5 h-4 w-4 accent-[var(--decisionate-brand-primary)]"
-                        />
+                            )}
+                            onChange={() =>
+                              toggleMetricFocus(
+                                option.value
+                              )
+                            }
+                            className="mt-0.5 h-4 w-4 accent-[var(--decisionate-brand-primary)]"
+                          />
 
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium text-gray-900">
-                            {option.label}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium text-gray-900">
+                              {option.label}
+                            </span>
+                            <span className="mt-1 block truncate text-xs text-gray-500">
+                              Dataset: {option.datasetName}
+                            </span>
                           </span>
-                          <span className="mt-1 block truncate text-xs text-gray-500">
-                            Dataset: {option.datasetName}
-                          </span>
-                        </span>
-                      </label>
+                        </label>
+
+                        {weeklyReportPreference.metric_focus.includes(
+                          option.value
+                        ) && (
+                          <div className="mt-2 pl-6">
+                            <label
+                              htmlFor={`alert-target-${option.value.replace(/[^a-zA-Z0-9_-]/g, "-")}`}
+                              className="mb-1 block text-xs font-medium text-gray-600"
+                            >
+                              Optional KPI target
+                            </label>
+                            <input
+                              id={`alert-target-${option.value.replace(/[^a-zA-Z0-9_-]/g, "-")}`}
+                              type="number"
+                              inputMode="decimal"
+                              step="any"
+                              value={
+                                weeklyReportPreference.metric_targets[
+                                  option.value
+                                ] ?? ""
+                              }
+                              onChange={(event) =>
+                                updateMetricTarget(
+                                  option.value,
+                                  event.target.value
+                                )
+                              }
+                              placeholder="e.g. 10000"
+                              className="h-9 w-full rounded-lg border border-gray-200 bg-white px-2.5 text-sm text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                            />
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -897,6 +768,60 @@ function AlertsPageContent({
                       Add dataset
                     </Link>
                   </div>
+                )}
+              </div>
+
+              <div>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-sm font-medium text-gray-700">
+                    Cross-source relationships
+                  </p>
+                  <Link
+                    href="/dashboard/relationships"
+                    className="text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
+                  >
+                    Define relationships
+                  </Link>
+                </div>
+
+                <p className="mt-1 text-xs text-gray-500">
+                  Add confirmed relationships to this digest so AI can explain movement across datasets.
+                </p>
+
+                {relationshipOptions.length > 0 ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {relationshipOptions.map((relationship) => (
+                      <label
+                        key={relationship.id}
+                        className="flex min-w-0 items-start gap-2.5 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={weeklyReportPreference.relationship_focus.includes(
+                            relationship.id ?? -1
+                          )}
+                          onChange={() => {
+                            if (relationship.id) {
+                              toggleRelationshipFocus(relationship.id)
+                            }
+                          }}
+                          className="mt-0.5 h-4 w-4 accent-[var(--decisionate-brand-primary)]"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium text-gray-900">
+                            {relationship.name}
+                          </span>
+                          <span className="mt-1 block truncate text-xs text-gray-500">
+                            {relationship.left_dataset_name} · {relationship.left.metric_column} → {relationship.right_dataset_name} · {relationship.right.metric_column}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 text-xs text-gray-500">
+                    No saved relationships yet. Define one to monitor cross-source evidence in this alert.
+                  </p>
                 )}
               </div>
 
@@ -938,13 +863,20 @@ function AlertsPageContent({
               </div>
 
               <p className="text-xs text-gray-500">
-                Delivery settings, recipients, and manual sending are managed in the Delivery configuration card.
+                Delivery settings, recipients, and manual sending are managed in Settings.
+                {" "}
+                <Link
+                  href="/dashboard/settings"
+                  className="font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
+                >
+                  Open alert delivery settings
+                </Link>
               </p>
             </div>
           )}
         </div>
 
-        <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div>
           <WeeklyReportDigestPreview
             digest={weeklyReportDigest}
             loading={loading}
@@ -952,7 +884,7 @@ function AlertsPageContent({
             onCreateDecision={
               canManageWorkspaceData &&
               Boolean(
-                selectedDecisionMetric &&
+                (selectedDecisionMetric || selectedDecisionRelationship) &&
                 weeklyReportDigest?.ai_analysis?.recommendations.length
               )
                 ? () => {
@@ -963,36 +895,17 @@ function AlertsPageContent({
             selectedMetricKey={
               effectiveSelectedDecisionMetricKey
             }
-            selectedDecisionMetricLabel={
-              selectedDecisionMetric
-                ? `${formatMetricName(selectedDecisionMetric.column)} · ${selectedDecisionMetric.dataset_name}`
-                : undefined
+              selectedDecisionMetricLabel={
+                selectedDecisionMetric
+                  ? `${formatMetricName(selectedDecisionMetric.column)} · ${selectedDecisionMetric.dataset_name}`
+                  : selectedDecisionRelationship
+                    ? `${formatMetricName(selectedDecisionRelationship.left_metric)} · ${selectedDecisionRelationship.left_dataset_name} relationship`
+                    : undefined
             }
             onSelectMetric={setSelectedDecisionMetricKey}
             creatingDecision={creatingDecision}
           />
 
-          {canManageWorkspaceData && (
-            <DeliveryConfigurationStatus
-              config={weeklyReportDeliveryConfig}
-              loading={loading}
-              preference={weeklyReportPreference}
-              recipientEmailText={recipientEmailText}
-              saving={saving}
-              sending={sending}
-              sendingTestEmail={sendingTestEmail}
-              deliverySettingsDirty={deliverySettingsDirty}
-              onPreferenceChange={updateDeliverySettingsDraft}
-              onRecipientEmailTextChange={(value) => {
-                setRecipientEmailText(value)
-                setStatusMessage("")
-                setErrorMessage("")
-              }}
-              onSave={handleSave}
-              onSendTestEmail={handleSendTestEmail}
-              onSendNow={handleSendNow}
-            />
-          )}
         </div>
       </div>
     </div>
@@ -1052,6 +965,15 @@ function WeeklyReportDigestPreview({
         {digest.preview_text}
       </p>
 
+      {digest.decision_template_url && (
+        <Link
+          href={digest.decision_template_url}
+          className="mt-3 inline-flex items-center rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:opacity-80"
+        >
+          Start from a decision template
+        </Link>
+      )}
+
       {digest.ai_analysis && (
         <AIAnalysisPanel
           analysis={digest.ai_analysis}
@@ -1089,46 +1011,92 @@ function WeeklyReportDigestPreview({
               {formatMetricValue(metric.minimum)} · Max{" "}
               {formatMetricValue(metric.maximum)}
             </p>
+
+            {metric.target !== null &&
+              metric.target !== undefined && (
+                <p className="mt-1 text-xs font-medium text-[var(--decisionate-brand-primary-text)]">
+                  KPI target: {formatMetricValue(metric.target)}
+                </p>
+              )}
           </div>
         ))}
       </div>
 
-      {digest.metrics.length === 0 && (
-        <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">
-          No saved KPI metrics match the current datasets yet.
+      {digest.relationships.length > 0 && (
+        <div className="mt-4 space-y-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+            Cross-source evidence
+          </p>
+          {digest.relationships.map((relationship) => (
+            <div
+              key={relationship.id}
+              className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5"
+            >
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                <p className="text-sm font-medium text-blue-950">
+                  {relationship.name}
+                </p>
+                <p className="text-sm font-semibold capitalize text-blue-900">
+                  {relationship.correlation === null || relationship.correlation === undefined
+                    ? relationship.relationship_strength
+                    : `${relationship.direction} ${relationship.correlation.toFixed(2)}`}
+                </p>
+              </div>
+              <p className="mt-1 text-xs text-blue-800">
+                {relationship.left_dataset_name} · {relationship.left_metric} → {relationship.right_dataset_name} · {relationship.right_metric}
+              </p>
+              <p className="mt-2 text-xs text-blue-900">
+                {relationship.matched_period_count} shared {relationship.period} periods · {relationship.method} · {relationship.aggregation}
+              </p>
+            </div>
+          ))}
         </div>
       )}
 
-      {onCreateDecision && digest.metrics.length > 0 && (
-        <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
-          <label
-            htmlFor="alert-decision-metric"
-            className="text-xs font-semibold uppercase tracking-wide text-gray-600"
-          >
-            Decision metric
-          </label>
-          <select
-            id="alert-decision-metric"
-            value={selectedMetricKey}
-            onChange={(event) => onSelectMetric(event.target.value)}
-            className="mt-2 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-          >
-            {digest.metrics.map((metric) => {
-              const metricKey = `${metric.dataset_id}:${metric.column}`
+      {digest.metrics.length === 0 && digest.relationships.length === 0 && (
+        <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">
+          No saved KPI metrics or relationships match the current datasets yet.
+        </div>
+      )}
 
-              return (
-                <option
-                  key={metricKey}
-                  value={metricKey}
-                >
-                  {formatMetricName(metric.column)} · {metric.dataset_name}
-                </option>
-              )
-            })}
-          </select>
-          <p className="mt-1.5 text-xs text-gray-500">
-            Choose the KPI that will receive this analysis as a decision.
-          </p>
+      {onCreateDecision && (digest.metrics.length > 0 || digest.relationships.length > 0) && (
+        <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
+          {digest.metrics.length > 0 ? (
+            <>
+              <label
+                htmlFor="alert-decision-metric"
+                className="text-xs font-semibold uppercase tracking-wide text-gray-600"
+              >
+                Decision metric
+              </label>
+              <select
+                id="alert-decision-metric"
+                value={selectedMetricKey}
+                onChange={(event) => onSelectMetric(event.target.value)}
+                className="mt-2 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+              >
+                {digest.metrics.map((metric) => {
+                  const metricKey = `${metric.dataset_id}:${metric.column}`
+
+                  return (
+                    <option
+                      key={metricKey}
+                      value={metricKey}
+                    >
+                      {formatMetricName(metric.column)} · {metric.dataset_name}
+                    </option>
+                  )
+                })}
+              </select>
+              <p className="mt-1.5 text-xs text-gray-500">
+                Choose the KPI that will receive this analysis as a decision.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-gray-600">
+              This decision will use the selected cross-source relationship as its evidence target.
+            </p>
+          )}
         </div>
       )}
 
@@ -1160,724 +1128,29 @@ function WeeklyReportDigestPreview({
   )
 }
 
-function DeliveryConfigurationStatus({
-  config,
-  loading,
-  preference,
-  recipientEmailText,
-  saving,
-  sending,
-  sendingTestEmail,
-  deliverySettingsDirty,
-  onPreferenceChange,
-  onRecipientEmailTextChange,
-  onSave,
-  onSendTestEmail,
-  onSendNow,
-}: {
-  config: WeeklyReportDeliveryConfig | null
-  loading: boolean
-  preference: WeeklyReportPreference
-  recipientEmailText: string
-  saving: boolean
-  sending: boolean
-  sendingTestEmail: boolean
-  deliverySettingsDirty: boolean
-  onPreferenceChange: (
-    patch: Partial<WeeklyReportPreference>
-  ) => void
-  onRecipientEmailTextChange: (
-    value: string
-  ) => void
-  onSave: () => void
-  onSendTestEmail: () => void
-  onSendNow: () => void
-}) {
-  if (loading) {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="h-full rounded-2xl border bg-white p-5 text-sm text-gray-500 shadow-sm"
-      >
-        Loading delivery configuration...
-      </div>
-    )
-  }
-
-  const emailDeliveryConfigured =
-    Boolean(config?.email_delivery_configured)
-  const schedulerConfigured =
-    Boolean(config?.scheduler_configured)
-  const draftWorkspaceEmailConfigured =
-    Boolean(preference.sender_email.trim()) &&
-    Boolean(preference.smtp_host.trim())
-  const draftEmailDeliveryConfigured =
-    emailDeliveryConfigured ||
-    draftWorkspaceEmailConfigured
-  const draftEmailDeliveryPendingSave =
-    draftWorkspaceEmailConfigured &&
-    !emailDeliveryConfigured
-  const emailSenderReadyText =
-    draftEmailDeliveryPendingSave
-      ? "Ready after save"
-      : deliverySettingsDirty && emailDeliveryConfigured
-        ? "Saved settings ready"
-        : "Ready"
-  const draftRecipientEmails =
-    parseRecipientEmailText(
-      recipientEmailText
-    )
-  const recipientChangesPendingSave =
-    preference.recipient_emails.join("\n") !==
-    draftRecipientEmails.join("\n")
-  const hasSavedRecipients =
-    preference.recipient_emails.length > 0
-
-  return (
-    <div className="h-full rounded-2xl border bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">
-            Delivery configuration
-          </h2>
-
-          <p className="mt-1 text-sm text-gray-500">
-            Manage email delivery, schedule, and recipients.
-          </p>
-        </div>
-
-        <span
-          className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${
-            preference.enabled
-              ? "border-green-200 bg-green-50 text-green-700"
-              : "border-gray-200 bg-gray-50 text-gray-600"
-          }`}
-        >
-          {preference.enabled
-            ? "Enabled"
-            : "Disabled"}
-        </span>
-      </div>
-
-      <div className="mt-4 space-y-4">
-        <label className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-          <input
-            type="checkbox"
-            checked={preference.enabled}
-            onChange={(event) =>
-              onPreferenceChange({
-                enabled: event.target.checked,
-              })
-            }
-            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
-          />
-
-          <span>
-            <span className="block text-sm font-medium text-gray-900">
-              Email delivery
-            </span>
-            <span className="mt-1 block text-sm text-gray-500">
-              Send the saved KPI digest to the recipients below.
-            </span>
-          </span>
-        </label>
-
-        <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-          <p className="text-sm font-medium text-gray-800">
-            Email send details
-          </p>
-
-          <p className="mt-1 text-xs text-gray-500">
-            These fields control the sender identity and subject line used for outgoing KPI emails.
-          </p>
-
-          <div className="mt-3 grid gap-3">
-            <div>
-              <label
-                htmlFor="weekly-report-sender-name"
-                className="mb-1.5 block text-xs font-medium text-gray-600"
-              >
-                Sender name
-              </label>
-
-              <input
-                id="weekly-report-sender-name"
-                value={preference.sender_name}
-                onChange={(event) =>
-                  onPreferenceChange({
-                    sender_name: event.target.value,
-                  })
-                }
-                placeholder="Your workspace"
-                className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="weekly-report-sender-email"
-                className="mb-1.5 block text-xs font-medium text-gray-600"
-              >
-                Sender email
-              </label>
-
-              <input
-                id="weekly-report-sender-email"
-                type="email"
-                value={preference.sender_email}
-                onChange={(event) =>
-                  onPreferenceChange({
-                    sender_email: event.target.value,
-                  })
-                }
-                placeholder="reports@example.com"
-                className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-              />
-
-              <p className="mt-1 text-xs text-gray-500">
-                Used as the From address. If left blank, the server SMTP sender is used.
-              </p>
-            </div>
-
-            <div>
-              <label
-                htmlFor="weekly-report-reply-to-email"
-                className="mb-1.5 block text-xs font-medium text-gray-600"
-              >
-                Reply-to email
-              </label>
-
-              <input
-                id="weekly-report-reply-to-email"
-                type="email"
-                value={preference.reply_to_email}
-                onChange={(event) =>
-                  onPreferenceChange({
-                    reply_to_email: event.target.value,
-                  })
-                }
-                placeholder="support@example.com"
-                className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="weekly-report-subject-prefix"
-                className="mb-1.5 block text-xs font-medium text-gray-600"
-              >
-                Subject prefix
-              </label>
-
-              <input
-                id="weekly-report-subject-prefix"
-                value={preference.subject_prefix}
-                onChange={(event) =>
-                  onPreferenceChange({
-                    subject_prefix: event.target.value,
-                  })
-                }
-                placeholder="[Weekly KPI]"
-                className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-              />
-            </div>
-
-            <div className="rounded-lg border border-gray-100 bg-white p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                SMTP setup
-              </p>
-
-              <div className="mt-3 grid gap-3">
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_6rem]">
-                  <div>
-                    <label
-                      htmlFor="weekly-report-smtp-host"
-                      className="mb-1.5 block text-xs font-medium text-gray-600"
-                    >
-                      SMTP host
-                    </label>
-
-                    <input
-                      id="weekly-report-smtp-host"
-                      value={preference.smtp_host}
-                      onChange={(event) =>
-                        onPreferenceChange({
-                          smtp_host: event.target.value,
-                        })
-                      }
-                      placeholder="smtp.example.com"
-                      className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="weekly-report-smtp-port"
-                      className="mb-1.5 block text-xs font-medium text-gray-600"
-                    >
-                      Port
-                    </label>
-
-                    <input
-                      id="weekly-report-smtp-port"
-                      type="number"
-                      min={1}
-                      max={65535}
-                      value={preference.smtp_port ?? ""}
-                      onChange={(event) =>
-                        onPreferenceChange({
-                          smtp_port: event.target.value
-                            ? Number(event.target.value)
-                            : null,
-                        })
-                      }
-                      placeholder="587"
-                      className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="weekly-report-smtp-username"
-                    className="mb-1.5 block text-xs font-medium text-gray-600"
-                  >
-                    SMTP username
-                  </label>
-
-                  <input
-                    id="weekly-report-smtp-username"
-                    value={preference.smtp_username}
-                    onChange={(event) =>
-                      onPreferenceChange({
-                        smtp_username: event.target.value,
-                      })
-                    }
-                    placeholder="apikey or user@example.com"
-                    className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="weekly-report-smtp-password"
-                    className="mb-1.5 block text-xs font-medium text-gray-600"
-                  >
-                    SMTP password
-                  </label>
-
-                  <input
-                    id="weekly-report-smtp-password"
-                    type="password"
-                    value={preference.smtp_password ?? ""}
-                    onChange={(event) =>
-                      onPreferenceChange({
-                        smtp_password: event.target.value,
-                      })
-                    }
-                    placeholder={
-                      preference.smtp_password_set
-                        ? "Password saved — enter a new one to replace it"
-                        : "SMTP password or API key"
-                    }
-                    className="h-10 w-full rounded-lg border bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-                  />
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    {preference.smtp_password_set
-                      ? "A password is saved. Leave this blank to keep it."
-                      : "Needed only when your SMTP provider requires authentication."}
-                  </p>
-
-                  {preference.smtp_password_set && (
-                    <label className="mt-2 flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(
-                          preference.smtp_clear_password
-                        )}
-                        onChange={(event) =>
-                          onPreferenceChange({
-                            smtp_clear_password: event.target.checked,
-                            smtp_password: event.target.checked
-                              ? ""
-                              : preference.smtp_password,
-                          })
-                        }
-                        className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
-                      />
-                      Clear saved SMTP password on next save
-                    </label>
-                  )}
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label className="flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                    <input
-                      type="checkbox"
-                      checked={preference.smtp_use_tls}
-                      onChange={(event) =>
-                        onPreferenceChange({
-                          smtp_use_tls: event.target.checked,
-                          smtp_use_ssl: event.target.checked
-                            ? false
-                            : preference.smtp_use_ssl,
-                        })
-                      }
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
-                    />
-                    Use TLS / STARTTLS
-                  </label>
-
-                  <label className="flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                    <input
-                      type="checkbox"
-                      checked={preference.smtp_use_ssl}
-                      onChange={(event) =>
-                        onPreferenceChange({
-                          smtp_use_ssl: event.target.checked,
-                          smtp_use_tls: event.target.checked
-                            ? false
-                            : preference.smtp_use_tls,
-                        })
-                      }
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
-                    />
-                    Use SSL
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label
-            htmlFor="weekly-report-delivery-day"
-            className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700"
-          >
-            <CalendarDays
-              size={16}
-              className="shrink-0"
-            />
-            Scheduled sending
-          </label>
-
-          <select
-            id="weekly-report-delivery-day"
-            value={preference.delivery_day}
-            onChange={(event) =>
-              onPreferenceChange({
-                delivery_day:
-                  event.target.value as WeeklyReportPreference["delivery_day"],
-              })
-            }
-            className="h-11 w-full rounded-xl border px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-          >
-            {deliveryDays.map((day) => (
-              <option
-                key={day}
-                value={day}
-              >
-                {formatDeliveryDay(day)}
-              </option>
-            ))}
-          </select>
-
-          <p className="mt-1 text-xs text-gray-500">
-            Runs weekly on the selected day when email delivery is enabled.
-          </p>
-        </div>
-
-        <div>
-          <label
-            htmlFor="weekly-report-recipients"
-            className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700"
-          >
-            <Mail
-              size={16}
-              className="shrink-0"
-            />
-            Recipient emails
-          </label>
-
-          <textarea
-            id="weekly-report-recipients"
-            value={recipientEmailText}
-            onChange={(event) =>
-              onRecipientEmailTextChange(
-                event.target.value
-              )
-            }
-            rows={4}
-            placeholder="owner@example.com&#10;client@example.com"
-            className="w-full rounded-xl border px-3 py-2 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-          />
-
-          <p className="mt-1 text-xs text-gray-500">
-            Add one email per line or separate addresses with commas.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--decisionate-brand-primary)] px-5 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
-          >
-            <Save
-              size={16}
-              className="shrink-0"
-            />
-            {saving
-              ? "Saving..."
-              : "Save Delivery Settings"}
-          </button>
-
-          <button
-            type="button"
-            onClick={onSendNow}
-            disabled={
-              sending ||
-              sendingTestEmail ||
-              saving ||
-              deliverySettingsDirty ||
-              recipientChangesPendingSave ||
-              !hasSavedRecipients ||
-              !preference.enabled ||
-              !emailDeliveryConfigured
-            }
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
-          >
-            <Send
-              size={16}
-              className="shrink-0"
-            />
-            {sending
-              ? "Sending..."
-              : "Send Digest Now"}
-          </button>
-
-          <button
-            type="button"
-            onClick={onSendTestEmail}
-            disabled={
-              sendingTestEmail ||
-              sending ||
-              saving ||
-              deliverySettingsDirty ||
-              !emailDeliveryConfigured ||
-              !hasSavedRecipients ||
-              recipientChangesPendingSave
-            }
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-white px-5 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-text)] shadow-sm transition hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
-          >
-            <Send
-              size={16}
-              className="shrink-0"
-            />
-            {sendingTestEmail
-              ? "Sending test..."
-              : "Send Test Email"}
-          </button>
-        </div>
-
-        <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-          <p className="text-sm font-medium text-gray-800">
-            Delivery readiness
-          </p>
-
-          <div className="mt-3 space-y-2.5">
-            {config ? (
-              <>
-                <ConfigurationStatusRow
-                  label="Email sender"
-                  ready={draftEmailDeliveryConfigured}
-                  readyText={emailSenderReadyText}
-                  missingText="Needs setup"
-                />
-
-                <ConfigurationStatusRow
-                  label="Schedule runner"
-                  ready={schedulerConfigured}
-                  readyText="Ready"
-                  missingText="Needs setup"
-                />
-
-                <ConfigurationStatusRow
-                  label="AI analysis"
-                  ready={Boolean(config.ai_provider_configured)}
-                  readyText={
-                    config.ai_model
-                      ? `Ready (${config.ai_model})`
-                      : "Ready"
-                  }
-                  missingText="Fallback rules"
-                />
-              </>
-            ) : (
-              <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Delivery configuration status could not be loaded.
-              </p>
-            )}
-          </div>
-
-          <p className="mt-3 break-words text-xs text-gray-500">
-            Current delivery status:{" "}
-            <span className="font-medium text-gray-700">
-              {formatDeliveryStatus(preference)}
-            </span>
-          </p>
-
-          {!draftEmailDeliveryConfigured && (
-            <p className="mt-2 break-words rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Add a sender email and SMTP host above, or complete server SMTP environment setup, then save delivery settings.
-            </p>
-          )}
-
-          {draftEmailDeliveryPendingSave && (
-            <p className="mt-2 break-words rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-xs text-[var(--decisionate-brand-primary-text)]">
-              Sender details look complete. Save delivery settings before sending a digest.
-            </p>
-          )}
-
-          {emailDeliveryConfigured && (
-            <p className="mt-2 break-words text-xs text-gray-500">
-              Test email uses the saved delivery settings and saved recipients.
-            </p>
-          )}
-
-          {emailDeliveryConfigured && !hasSavedRecipients && (
-            <p className="mt-2 break-words rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Save at least one recipient before sending or testing email.
-            </p>
-          )}
-
-          {emailDeliveryConfigured && !preference.enabled && (
-            <p className="mt-2 break-words rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Enable email delivery before sending the full KPI digest. You can still send a test email after recipients are saved.
-            </p>
-          )}
-
-          {emailDeliveryConfigured && recipientChangesPendingSave && (
-            <p className="mt-2 break-words rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-xs text-[var(--decisionate-brand-primary-text)]">
-              Recipient changes need to be saved before sending or testing email.
-            </p>
-          )}
-
-          {emailDeliveryConfigured && deliverySettingsDirty && (
-            <p className="mt-2 break-words rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-xs text-[var(--decisionate-brand-primary-text)]">
-              Delivery settings have unsaved changes. Save before sending or testing email.
-            </p>
-          )}
-
-          {preference.last_send_error && (
-            <p className="mt-2 break-words text-xs text-red-600">
-              Last error: {preference.last_send_error}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {config && (
-        <details className="mt-4 rounded-xl bg-gray-50 p-3 text-xs text-gray-600">
-          <summary className="cursor-pointer font-medium text-gray-800">
-            Administrator setup details
-          </summary>
-
-          <div className="mt-3 space-y-3">
-            <div>
-              <p className="font-medium text-gray-800">
-                Required email settings
-              </p>
-
-              <p className="mt-1 break-words font-mono">
-                {config.required_email_environment_keys.length > 0
-                  ? config.required_email_environment_keys.join(
-                    ", "
-                  )
-                  : "No server email environment settings required when workspace SMTP is saved."}
-              </p>
-            </div>
-
-            <div>
-              <p className="font-medium text-gray-800">
-                Scheduler
-              </p>
-
-              <p className="mt-1 break-words">
-                Call{" "}
-                <span className="break-all font-mono">
-                  POST {config.send_due_endpoint}
-                </span>{" "}
-                with{" "}
-                <span className="break-all font-mono">
-                  {config.scheduler_header_name}
-                </span>
-                .
-              </p>
-
-              <p className="mt-1 break-words font-mono">
-                {config.scheduler_environment_key}
-              </p>
-            </div>
-          </div>
-        </details>
-      )}
-    </div>
-  )
-}
-
-function ConfigurationStatusRow({
-  label,
-  ready,
-  readyText,
-  missingText,
-}: {
-  label: string
-  ready: boolean
-  readyText: string
-  missingText: string
-}) {
-  return (
-    <div className="flex flex-col items-start gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <span className="font-medium text-gray-700">
-        {label}
-      </span>
-
-      <span
-        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-          ready
-            ? "bg-green-50 text-green-700"
-            : "bg-amber-50 text-amber-700"
-        }`}
-      >
-        {ready ? readyText : missingText}
-      </span>
-    </div>
-  )
-}
-
 function ReadOnlyNotificationSummary({
   preference,
   selectedMetricLabels,
+  selectedRelationshipLabels,
 }: {
   preference: WeeklyReportPreference
   selectedMetricLabels: string[]
+  selectedRelationshipLabels: string[]
 }) {
+  const focusLabels = [
+    ...selectedMetricLabels,
+    ...selectedRelationshipLabels,
+  ]
   return (
     <div className="mt-6 break-words rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4 text-sm text-[var(--decisionate-brand-primary-text)]">
       The workspace owner manages notification setup. Current setup:{" "}
       {preference.enabled
-        ? `${preference.recipient_emails.length} recipient${preference.recipient_emails.length === 1 ? "" : "s"} every ${formatDeliveryDay(preference.delivery_day)} for ${selectedMetricLabels.join(", ") || "no selected dataset metrics"}`
+        ? `${preference.recipient_emails.length} recipient${preference.recipient_emails.length === 1 ? "" : "s"} every ${formatDeliveryDay(preference.delivery_day)} for ${focusLabels.join(", ") || "no selected metrics or relationships"}`
         : "not enabled"}
       .
     </div>
   )
 }
-
 function normalizeWeeklyReportPreference(
   preference: WeeklyReportPreference
 ): WeeklyReportPreference {
@@ -1885,10 +1158,12 @@ function normalizeWeeklyReportPreference(
     ...defaultWeeklyReportPreference,
     ...preference,
     cadence: "weekly",
+    metric_targets: preference.metric_targets ?? {},
     metric_focus:
       preference.metric_focus.length > 0
         ? preference.metric_focus
         : defaultWeeklyReportPreference.metric_focus,
+    relationship_focus: preference.relationship_focus ?? [],
   }
 }
 
@@ -1964,6 +1239,7 @@ function reconcileMetricFocusWithOptions(
     return {
       ...preference,
       metric_focus: [],
+      metric_targets: {},
     }
   }
 
@@ -2002,9 +1278,38 @@ function reconcileMetricFocusWithOptions(
       })
   })
 
+  const focusKeys = new Set(
+    reconciledMetricFocus.map(metric => metric.toLowerCase())
+  )
+  const metricValuesByKey = new Map(
+    metricOptions.map(option => [
+      option.value.toLowerCase(),
+      option.value,
+    ])
+  )
+  const reconciledMetricTargets: Record<string, number> = {}
+
+  Object.entries(preference.metric_targets).forEach(
+    ([metric, target]) => {
+      const canonicalMetric = metricValuesByKey.get(
+        metric.toLowerCase()
+      )
+
+      if (
+        canonicalMetric &&
+        focusKeys.has(canonicalMetric.toLowerCase()) &&
+        target !== null &&
+        Number.isFinite(target)
+      ) {
+        reconciledMetricTargets[canonicalMetric] = target
+      }
+    }
+  )
+
   return {
     ...preference,
     metric_focus: reconciledMetricFocus,
+    metric_targets: reconciledMetricTargets,
   }
 }
 
@@ -2044,73 +1349,6 @@ function formatMetricValue(
     {
       maximumFractionDigits: 2,
     }
-  )
-}
-
-function formatDeliveryStatus(
-  preference: WeeklyReportPreference
-) {
-  if (preference.last_send_status === "sent") {
-    return preference.last_sent_at
-      ? `Sent ${formatDateTime(preference.last_sent_at)}`
-      : "Sent"
-  }
-
-  if (preference.last_send_status === "failed") {
-    return "Last send failed"
-  }
-
-  if (preference.last_send_status === "test_sent") {
-    return "Test sent"
-  }
-
-  if (preference.last_send_status === "test_failed") {
-    return "Last test failed"
-  }
-
-  if (preference.last_send_status === "configured") {
-    return "Configured"
-  }
-
-  if (preference.last_send_status === "disabled") {
-    return "Disabled"
-  }
-
-  return "Not sent yet"
-}
-
-function formatDateTime(
-  value: string
-) {
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return date.toLocaleString(
-    undefined,
-    {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }
-  )
-}
-
-function parseRecipientEmailText(
-  value: string
-) {
-  return Array.from(
-    new Set(
-      value
-        .split(/[\n,]+/)
-        .map((email) =>
-          email.trim().toLowerCase()
-        )
-        .filter(Boolean)
-    )
   )
 }
 

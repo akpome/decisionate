@@ -1,17 +1,25 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import {
+  usePathname,
+  useRouter,
+} from "next/navigation"
 import { UserButton, useUser } from "@clerk/nextjs"
 import {
   AlertCircle,
   BarChart3,
   Bell,
+  CreditCard,
   Database,
+  ChevronDown,
+  ChevronRight,
   FileText,
+  GitCompare,
   Home,
   LayoutDashboard,
   LineChart,
+  LifeBuoy,
   Plug,
   Settings,
   Target,
@@ -19,6 +27,7 @@ import {
 import {
   useEffect,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react"
 
@@ -27,7 +36,9 @@ import {
   getOrganizationWorkspaces,
   getApiAvailabilitySnapshot,
   apiAvailabilityChangedEvent,
+  getBillingAccessStatus,
   type ApiAvailabilityEventDetail,
+  type BillingAccessStatus,
   type OrganizationRecord,
   type OrganizationWorkspaceRecord,
 } from "@/lib/api"
@@ -41,6 +52,9 @@ import {
 import {
   useWorkspaceBrowserBrand,
 } from "@/lib/use-workspace-browser-brand"
+import {
+  getWorkspaceBrand,
+} from "@/lib/workspace-brand"
 
 type DashboardShellProps = {
   children: ReactNode
@@ -51,15 +65,22 @@ type DashboardNavItem = {
   label: string
   icon: ReactNode
   ownerOnly?: boolean
+  roles?: Array<"owner" | "member" | "client" | "managed_client">
 }
 
 type DashboardNavGroup = {
   label: string
   items: DashboardNavItem[]
+  collapsible?: boolean
+  roles?: Array<"owner" | "member" | "client" | "managed_client">
 }
 
 type OrganizationUpdatedEvent =
   CustomEvent<OrganizationRecord>
+
+const subscribeToClientMount = () => () => {}
+const getClientMountSnapshot = () => true
+const getServerMountSnapshot = () => false
 
 const dashboardNavGroups: DashboardNavGroup[] = [
   {
@@ -85,10 +106,17 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         label: "Action Needed",
         icon: <AlertCircle size={18} />,
       },
+      {
+        href: "/dashboard/settings",
+        label: "Workspace Access",
+        icon: <Settings size={18} />,
+        roles: ["client"],
+      },
     ],
   },
   {
     label: "Analysis",
+    collapsible: true,
     items: [
       {
         href: "/dashboard/insights",
@@ -105,10 +133,23 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         label: "Reports",
         icon: <FileText size={18} />,
       },
+      {
+        href: "/dashboard/alerts",
+        label: "Alerts",
+        icon: <Bell size={18} />,
+        roles: ["owner", "client", "managed_client"],
+      },
+      {
+        href: "/dashboard/relationships",
+        label: "Relationships",
+        icon: <GitCompare size={18} />,
+      },
     ],
   },
   {
     label: "Data",
+    collapsible: true,
+    roles: ["owner", "client"],
     items: [
       {
         href: "/dashboard/datasets",
@@ -119,24 +160,38 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/dashboard/connections",
         label: "Connections",
         icon: <Plug size={18} />,
-        ownerOnly: true,
+        roles: ["owner", "client"],
       },
     ],
   },
   {
     label: "Manage",
+    collapsible: true,
+    roles: ["owner"],
     items: [
-      {
-        href: "/dashboard/alerts",
-        label: "Alerts",
-        icon: <Bell size={18} />,
-        ownerOnly: true,
-      },
       {
         href: "/dashboard/settings",
         label: "Settings",
         icon: <Settings size={18} />,
         ownerOnly: true,
+        roles: ["owner"],
+      },
+      {
+        href: "/dashboard/billing",
+        label: "Billing",
+        icon: <CreditCard size={18} />,
+        ownerOnly: true,
+        roles: ["owner"],
+      },
+    ],
+  },
+  {
+    label: "Support",
+    items: [
+      {
+        href: "/dashboard/help",
+        label: "Help & Support",
+        icon: <LifeBuoy size={18} />,
       },
     ],
   },
@@ -150,11 +205,18 @@ export function DashboardShell({
   children,
 }: DashboardShellProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const { user } = useUser()
   const [organization, setOrganization] =
     useState<OrganizationRecord | null>(null)
   const [workspaces, setWorkspaces] =
     useState<OrganizationWorkspaceRecord[]>([])
+  const [workspaceAccessUserId, setWorkspaceAccessUserId] =
+    useState("")
+  const [workspaceSetupUserId, setWorkspaceSetupUserId] =
+    useState("")
+  const [expandedNavGroups, setExpandedNavGroups] =
+    useState<Record<string, boolean>>({})
   const [apiUnavailableMessage, setApiUnavailableMessage] =
     useState(() => {
       const initialDetail =
@@ -165,11 +227,34 @@ export function DashboardShell({
             "The API service is unavailable."
         : ""
     })
+  const [subscriptionAccess, setSubscriptionAccess] =
+    useState<BillingAccessStatus | null>(null)
+  const [subscriptionAccessKey, setSubscriptionAccessKey] =
+    useState("")
   const { activeWorkspaceId } =
     useActiveWorkspace(user?.id)
+  const clerkButtonMounted = useSyncExternalStore(
+    subscribeToClientMount,
+    getClientMountSnapshot,
+    getServerMountSnapshot
+  )
+
+  const activeCollapsibleGroupLabel =
+    dashboardNavGroups.find(
+      group =>
+        group.collapsible &&
+        group.items.some(item =>
+          isActiveDashboardPath(pathname, item.href)
+        )
+    )?.label
 
   useEffect(() => {
-    if (!user?.id) return
+    if (
+      !user?.id ||
+      pathname === "/dashboard/billing"
+    ) {
+      return
+    }
 
     let ignoreResult = false
 
@@ -178,48 +263,98 @@ export function DashboardShell({
     ) {
       try {
         const [
-          organizationData,
-          workspaceData,
-        ] = await Promise.all([
+          organizationResult,
+          workspaceResult,
+        ] = await Promise.allSettled([
           getMyOrganization(
             userId
           ),
           getOrganizationWorkspaces(
-            userId
+            userId,
+            user?.primaryEmailAddress?.emailAddress,
+            {
+              includeManagedClientWorkspaces: true,
+            }
           ),
         ])
 
+        if (
+          organizationResult.status === "rejected" &&
+          workspaceResult.status === "rejected"
+        ) {
+          throw organizationResult.reason
+        }
+
+        const organizationData =
+          organizationResult.status === "fulfilled"
+            ? organizationResult.value
+            : null
+        const workspaceData =
+          workspaceResult.status === "fulfilled"
+            ? workspaceResult.value
+            : []
+        const selectableWorkspaces =
+          workspaceData.filter(
+            workspace =>
+              workspace.role.toLowerCase() !==
+                "managed_client" ||
+              workspace.agency_owner_access_enabled === true
+          )
+
         if (!ignoreResult) {
           setOrganization(organizationData)
-          setWorkspaces(workspaceData)
+          setWorkspaces(selectableWorkspaces)
+          setWorkspaceAccessUserId(userId)
+          if (
+            organizationResult.status === "fulfilled" &&
+            workspaceResult.status === "fulfilled"
+          ) {
+            setWorkspaceSetupUserId(userId)
+          }
 
           const storedWorkspaceId =
             getActiveWorkspaceId(
               userId
             )
           const sharedWorkspaces =
-            workspaceData.filter(
+            selectableWorkspaces.filter(
               (workspace) =>
                 workspace.owner_user_id !== userId
             )
-          const defaultWorkspaceId =
-            organizationData ||
-            sharedWorkspaces.length === 0
-              ? userId
-              : sharedWorkspaces[0].owner_user_id
+          const clientWorkspaces =
+            sharedWorkspaces.filter(
+              (workspace) =>
+                workspace.role.toLowerCase() ===
+                "client"
+            )
+          let defaultWorkspaceId = userId
+
+          if (clientWorkspaces.length > 0) {
+            defaultWorkspaceId =
+              clientWorkspaces[0].owner_user_id
+          } else if (
+            !organizationData &&
+            sharedWorkspaces.length > 0
+          ) {
+            defaultWorkspaceId =
+              sharedWorkspaces[0].owner_user_id
+          }
           const workspaceAvailable =
             (
               storedWorkspaceId === userId &&
               Boolean(organizationData)
             ) ||
-            workspaceData.some(
+            selectableWorkspaces.some(
               (workspace) =>
                 workspace.owner_user_id === storedWorkspaceId
             )
           const nextWorkspaceId =
-            workspaceAvailable
-              ? storedWorkspaceId
-              : defaultWorkspaceId
+            clientWorkspaces.length > 0 &&
+            storedWorkspaceId === userId
+              ? defaultWorkspaceId
+              : workspaceAvailable
+                ? storedWorkspaceId
+                : defaultWorkspaceId
 
           if (nextWorkspaceId !== storedWorkspaceId) {
             setActiveWorkspaceId(
@@ -241,7 +376,76 @@ export function DashboardShell({
     return () => {
       ignoreResult = true
     }
-  }, [user?.id])
+  }, [
+    pathname,
+    user?.id,
+    user?.primaryEmailAddress?.emailAddress,
+  ])
+
+  useEffect(() => {
+    if (
+      !user?.id ||
+      pathname === "/dashboard/billing" ||
+      pathname === "/dashboard/help"
+    ) {
+      return
+    }
+
+    let ignoreResult = false
+    const userId = user.id
+
+    async function loadSubscriptionAccess() {
+      try {
+        const access = await getBillingAccessStatus(
+          userId,
+          activeWorkspaceId,
+        )
+        if (!ignoreResult) {
+          setSubscriptionAccess(access)
+          setSubscriptionAccessKey(
+            `${userId}:${activeWorkspaceId || ""}`
+          )
+        }
+      } catch {
+        if (!ignoreResult) {
+          setSubscriptionAccess(null)
+        }
+      }
+    }
+
+    void loadSubscriptionAccess()
+
+    return () => {
+      ignoreResult = true
+    }
+  }, [
+    activeWorkspaceId,
+    pathname,
+    user?.id,
+  ])
+
+  useEffect(() => {
+    if (
+      !user?.id ||
+      pathname === "/onboarding" ||
+      workspaceSetupUserId !== user.id ||
+      workspaceAccessUserId !== user.id ||
+      organization ||
+      workspaces.length > 0
+    ) {
+      return
+    }
+
+    router.replace("/onboarding")
+  }, [
+    organization,
+    pathname,
+    router,
+    user?.id,
+    workspaceAccessUserId,
+    workspaceSetupUserId,
+    workspaces.length,
+  ])
 
   useEffect(() => {
     function handleApiAvailabilityChanged(
@@ -300,12 +504,23 @@ export function DashboardShell({
     }
   }, [])
 
+  const workspaceDataBelongsToUser =
+    Boolean(user?.id) &&
+    workspaceAccessUserId === user?.id
+  const visibleOrganization =
+    workspaceDataBelongsToUser
+      ? organization
+      : null
+  const visibleWorkspaces =
+    workspaceDataBelongsToUser
+      ? workspaces
+      : []
   const workspaceName =
     getWorkspaceDisplayName(
       activeWorkspaceId,
       user?.id,
-      organization,
-      workspaces,
+      visibleOrganization,
+      visibleWorkspaces,
       user?.fullName
     ) ??
     user?.fullName ??
@@ -314,41 +529,119 @@ export function DashboardShell({
     getWorkspaceBrand(
       activeWorkspaceId,
       user?.id,
-      organization,
-      workspaces,
+      visibleOrganization,
+      visibleWorkspaces,
       user?.fullName
     )
+  const activeBrandReady =
+    Boolean(
+      user?.id &&
+      activeWorkspaceId &&
+      (
+        activeWorkspaceId === user.id
+          ? visibleOrganization !== null
+          : visibleWorkspaces.some(
+              workspace =>
+                workspace.owner_user_id === activeWorkspaceId
+            )
+      )
+    )
+  const displayBrand =
+    activeBrandReady
+      ? activeBrand
+      : {
+          name: "Loading workspace",
+          logoUrl: "",
+          primaryColor: "#CBD5E1",
+          accentColor: "#E2E8F0",
+        }
+  const displayWorkspaceName =
+    activeBrandReady
+      ? workspaceName
+      : "Loading workspace..."
 
   useWorkspaceBrowserBrand(
-    undefined,
+    activeBrand.name,
     activeBrand,
+    {
+      keepFaviconStable: true,
+      workspaceKey: `${user?.id || ""}:${activeWorkspaceId || ""}`,
+      brandReady: activeBrandReady,
+    }
   )
   const activeSharedWorkspace =
     getActiveSharedWorkspace(
       activeWorkspaceId,
       user?.id,
-      workspaces
+      visibleWorkspaces
     )
 
   const workspaceOptions =
     getWorkspaceOptions(
       user?.id,
-      organization,
-      workspaces,
+      activeWorkspaceId,
+      visibleOrganization,
+      visibleWorkspaces,
       user?.fullName
     )
   const activeWorkspaceRecord =
-    workspaces.find(
+    visibleWorkspaces.find(
       workspace =>
         workspace.owner_user_id ===
         activeWorkspaceId
     )
+  const isCurrentUserOwnerWorkspace =
+    activeWorkspaceId === user?.id &&
+    visibleOrganization !== null
+  const activeWorkspaceRole =
+    !user?.id ||
+    !activeWorkspaceId
+      ? "unknown"
+      : activeWorkspaceId === user.id
+        ? isCurrentUserOwnerWorkspace
+          ? "owner"
+          : activeWorkspaceRecord?.role?.toLowerCase() ??
+            "unknown"
+        : activeWorkspaceRecord?.role?.toLowerCase() ??
+          "unknown"
+  const isClientWorkspaceContext =
+    Boolean(
+      activeWorkspaceRecord?.owner_user_id.includes(":client:") ||
+      activeWorkspaceId.includes(":client:")
+    )
+  const isBusinessOwnerWorkspace =
+    activeWorkspaceRole === "owner" &&
+    !isClientWorkspaceContext &&
+    (
+      Boolean(activeWorkspaceRecord) ||
+      (
+        activeWorkspaceId === user?.id &&
+        visibleOrganization !== null
+      )
+    )
+  const hasOwnerWorkspaceMembership =
+    workspaceAccessUserId === user?.id &&
+    isBusinessOwnerWorkspace
+  const isOrganizationOwner =
+    workspaceAccessUserId === user?.id &&
+    isBusinessOwnerWorkspace
   const canConfigureWorkspace =
-    Boolean(user?.id) &&
-    (!activeWorkspaceId ||
-      activeWorkspaceId === user?.id ||
-      activeWorkspaceRecord?.role?.toLowerCase() ===
-        "owner")
+    isBusinessOwnerWorkspace &&
+    hasOwnerWorkspaceMembership &&
+    isOrganizationOwner
+  const canSwitchWorkspaces =
+    activeWorkspaceRole === "owner" ||
+    activeWorkspaceRole === "managed_client"
+
+  const subscriptionAccessBlocked =
+    Boolean(
+      pathname !== "/dashboard/billing" &&
+      pathname !== "/dashboard/help" &&
+      subscriptionAccessKey ===
+        `${user?.id || ""}:${activeWorkspaceId || ""}` &&
+      subscriptionAccess &&
+      !subscriptionAccess.access_allowed
+    )
 
   function handleWorkspaceChange(
     nextWorkspaceId: string
@@ -402,18 +695,18 @@ export function DashboardShell({
               className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl text-sm font-bold text-white"
               style={{
                 backgroundColor:
-                  activeBrand.primaryColor,
+                  displayBrand.primaryColor,
               }}
             >
-              {activeBrand.logoUrl ? (
+              {displayBrand.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={activeBrand.logoUrl}
+                  src={displayBrand.logoUrl}
                   alt=""
                   className="h-full w-full object-cover"
                 />
               ) : (
-                activeBrand.name
+                displayBrand.name
                   .charAt(0)
                   .toUpperCase()
               )}
@@ -423,10 +716,10 @@ export function DashboardShell({
               <h1
                 className="truncate text-xl font-bold"
                 style={{
-                  color: activeBrand.primaryColor,
+                  color: displayBrand.primaryColor,
                 }}
               >
-                {activeBrand.name}
+                {displayBrand.name}
               </h1>
 
               <p className="truncate text-xs text-gray-400">
@@ -434,18 +727,18 @@ export function DashboardShell({
                   ? `${formatWorkspaceRole(
                     activeSharedWorkspace.role
                   )} portal`
-                  : organization
-                    ? "Agency workspace"
+                  : visibleOrganization
+                    ? "Business workspace"
                     : "Workspace"}
               </p>
             </div>
           </div>
 
           <p className="mt-1 truncate text-sm text-gray-500">
-            {workspaceName}
+            {displayWorkspaceName}
           </p>
 
-          {workspaceOptions.length > 1 && (
+          {canSwitchWorkspaces && workspaceOptions.length > 1 && (
             <select
               value={activeWorkspaceId || user?.id || ""}
               onChange={(event) =>
@@ -470,41 +763,124 @@ export function DashboardShell({
         <nav className="min-h-0 flex-1 overflow-y-auto p-4">
           <div className="space-y-5">
             {dashboardNavGroups.map((group) => {
+              const groupRoleVisible =
+                !group.roles ||
+                group.roles.includes(
+                  activeWorkspaceRole as
+                    | "owner"
+                    | "member"
+                    | "client"
+                    | "managed_client"
+                )
+              const agencyManageGroupVisible =
+                group.label !== "Manage" ||
+                (
+                  activeWorkspaceRole === "owner" &&
+                  isBusinessOwnerWorkspace &&
+                  canConfigureWorkspace &&
+                  !isClientWorkspaceContext
+                )
+
+              if (
+                !groupRoleVisible ||
+                !agencyManageGroupVisible
+              ) {
+                return null
+              }
+
               const visibleItems =
                 group.items.filter(
                   item =>
                     !item.ownerOnly ||
                     canConfigureWorkspace
+                ).filter(
+                  item =>
+                    !item.roles ||
+                    item.roles.includes(
+                      activeWorkspaceRole as
+                        | "owner"
+                        | "member"
+                        | "client"
+                        | "managed_client"
+                    )
                 )
 
               if (visibleItems.length === 0) {
                 return null
               }
 
-              return (
-              <div key={group.label}>
-                <p className="mb-2 px-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  {group.label}
-                </p>
+              const isExpanded =
+                !group.collapsible ||
+                (
+                  expandedNavGroups[group.label] ??
+                  group.label === activeCollapsibleGroupLabel
+                )
 
-                <div className="space-y-1">
-                  {visibleItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={getNavLinkClass(
-                        isActiveDashboardPath(
-                          pathname,
-                          item.href
-                        )
-                      )}
+              return (
+                <div key={group.label}>
+                  {group.collapsible ? (
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      aria-controls={`dashboard-nav-${group.label.toLowerCase()}`}
+                      onClick={() =>
+                        setExpandedNavGroups(() => {
+                          const nextExpandedNavGroups: Record<
+                            string,
+                            boolean
+                          > = {}
+
+                          dashboardNavGroups.forEach(navGroup => {
+                            if (navGroup.collapsible) {
+                              nextExpandedNavGroups[navGroup.label] =
+                                false
+                            }
+                          })
+
+                          nextExpandedNavGroups[group.label] =
+                            !isExpanded
+
+                          return nextExpandedNavGroups
+                        })
+                      }
+                      className="flex w-full items-center justify-between rounded-lg px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
                     >
-                      {item.icon}
-                      {item.label}
-                    </Link>
-                  ))}
+                      <span>{group.label}</span>
+                      {isExpanded ? (
+                        <ChevronDown size={15} aria-hidden="true" />
+                      ) : (
+                        <ChevronRight size={15} aria-hidden="true" />
+                      )}
+                    </button>
+                  ) : (
+                    <p className="mb-2 px-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                      {group.label}
+                    </p>
+                  )}
+
+                  {isExpanded && (
+                    <div
+                      id={`dashboard-nav-${group.label.toLowerCase()}`}
+                      className="space-y-1"
+                    >
+                      {visibleItems.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={getNavLinkClass(
+                            isActiveDashboardPath(
+                              pathname,
+                              item.href
+                            )
+                          )}
+                        >
+                          {item.icon}
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
               )
             })}
           </div>
@@ -527,7 +903,14 @@ export function DashboardShell({
             </div>
 
             <div className="shrink-0">
-              <UserButton />
+              {clerkButtonMounted ? (
+                <UserButton />
+              ) : (
+                <div
+                  aria-hidden="true"
+                  className="h-8 w-8 rounded-full bg-gray-200"
+                />
+              )}
             </div>
           </div>
         </div>
@@ -538,9 +921,76 @@ export function DashboardShell({
       ========================= */}
 
       <main className="dashboard-print-main h-screen flex-1 overflow-y-auto p-8">
-        {children}
+        {subscriptionAccessBlocked && subscriptionAccess ? (
+          <SubscriptionRequiredPanel
+            access={subscriptionAccess}
+            canManageBilling={canConfigureWorkspace}
+          />
+        ) : (
+          children
+        )}
       </main>
     </div>
+  )
+}
+
+function SubscriptionRequiredPanel({
+  access,
+  canManageBilling,
+}: {
+  access: BillingAccessStatus
+  canManageBilling: boolean
+}) {
+  const title =
+    access.status === "grace_period"
+      ? "Payment needs attention"
+      : "Subscription required"
+  const description =
+    access.status === "grace_period"
+      ? "Your workspace remains available during the billing grace period, but billing details must be updated to keep access."
+      : access.reason || "Renew your plan to continue using this workspace."
+
+  return (
+    <section className="mx-auto mt-8 max-w-2xl rounded-2xl border border-amber-200 bg-white p-6 shadow-sm sm:p-8">
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg bg-amber-100 p-2 text-amber-700">
+          <CreditCard size={20} aria-hidden="true" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
+            Billing action required
+          </p>
+          <h2 className="mt-1 text-xl font-semibold text-gray-900">
+            {title}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            {description}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        {canManageBilling ? (
+          <Link
+            href="/dashboard/billing"
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          >
+            <CreditCard size={16} aria-hidden="true" />
+            Open billing
+          </Link>
+        ) : (
+          <p className="text-sm font-medium text-gray-700">
+            Ask the workspace owner to update billing.
+          </p>
+        )}
+        <Link
+          href="/dashboard/help"
+          className="text-sm font-medium text-gray-600 underline underline-offset-4 hover:text-gray-900"
+        >
+          Contact support
+        </Link>
+      </div>
+    </section>
   )
 }
 
@@ -550,6 +1000,7 @@ export function DashboardShell({
 
 function getWorkspaceOptions(
   userId: string | undefined,
+  activeWorkspaceId: string,
   organization: OrganizationRecord | null,
   workspaces: OrganizationWorkspaceRecord[],
   fullName: string | null | undefined
@@ -570,6 +1021,20 @@ function getWorkspaceOptions(
           workspace.role
         )}: ${workspace.name}`,
       }))
+
+  // A client portal is backed by its agency-managed workspace. The personal
+  // option is only a local fallback for users who own an organization.
+  const activeWorkspace =
+    workspaces.find(
+      workspace =>
+        workspace.owner_user_id === activeWorkspaceId
+    )
+  const isClientPortalWorkspace =
+    activeWorkspace?.role.toLowerCase() === "client"
+
+  if (isClientPortalWorkspace) {
+    return sharedWorkspaces
+  }
 
   if (
     !organization &&
@@ -610,49 +1075,6 @@ function getWorkspaceDisplayName(
         workspace.owner_user_id === activeWorkspaceId
     )?.name ?? fullName
   )
-}
-
-function getWorkspaceBrand(
-  activeWorkspaceId: string,
-  userId: string | undefined,
-  organization: OrganizationRecord | null,
-  workspaces: OrganizationWorkspaceRecord[],
-  fullName: string | null | undefined
-) {
-  const fallbackName =
-    organization?.report_display_name ||
-    organization?.name ||
-    fullName ||
-    "Decisionate"
-
-  if (!userId || !activeWorkspaceId || activeWorkspaceId === userId) {
-    return {
-      name: fallbackName,
-      logoUrl: organization?.logo_url ?? "",
-      primaryColor:
-        organization?.primary_color ?? "#2563EB",
-      accentColor:
-        organization?.accent_color ?? "#14B8A6",
-    }
-  }
-
-  const workspace =
-    workspaces.find(
-      (item) =>
-        item.owner_user_id === activeWorkspaceId
-    )
-
-  return {
-    name:
-      workspace?.report_display_name ||
-      workspace?.name ||
-      fallbackName,
-    logoUrl: workspace?.logo_url ?? "",
-    primaryColor:
-      workspace?.primary_color ?? "#2563EB",
-    accentColor:
-      workspace?.accent_color ?? "#14B8A6",
-  }
 }
 
 function getActiveSharedWorkspace(

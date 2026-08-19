@@ -1,6 +1,6 @@
 export const dashboardChartPalette = [
-  "var(--decisionate-brand-primary)",
-  "var(--decisionate-brand-accent)",
+  "#2563eb",
+  "#14b8a6",
   "#f97316",
   "#9333ea",
   "#dc2626",

@@ -5,8 +5,27 @@ from app.modules.datasets.services.file_loader import (
     get_dataset_file_source_setup_note,
     is_dataset_file_source_available,
 )
+from app.modules.datasets.services.google_analytics import (
+    is_google_analytics_connector_available,
+)
+from app.modules.oauth.service import (
+    is_oauth_provider_configured,
+)
 
 
+IMPLEMENTED_CONNECTOR_TYPES = {
+    "hubspot",
+    "stripe",
+    "shopify",
+    "meta_ads",
+    "quickbooks",
+    "freshbooks",
+    "sage",
+    "xero",
+    "postgresql",
+    "mysql",
+    "sql_server",
+}
 DATASET_SOURCES = [
     {
         "type": "csv",
@@ -49,104 +68,6 @@ DATASET_SOURCES = [
         "description": "Import columnar Parquet data files.",
     },
     {
-        "type": "google_drive",
-        "label": "Google Drive",
-        "category": "cloud_files",
-        "status": "planned",
-        "connection_type": "oauth",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["folder_id", "file_id"],
-        "description": (
-            "Connect files stored in Google Drive. Folder and file IDs "
-            "identify what to import; Google OAuth app credentials are added "
-            "when configuring the connection."
-        ),
-    },
-    {
-        "type": "onedrive",
-        "label": "OneDrive",
-        "category": "cloud_files",
-        "status": "planned",
-        "connection_type": "oauth",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["drive_id", "item_id"],
-        "description": (
-            "Connect files stored in Microsoft OneDrive. Drive and item IDs "
-            "identify what to import; Microsoft OAuth app credentials are "
-            "added when configuring the connection."
-        ),
-    },
-    {
-        "type": "shopify",
-        "label": "Shopify",
-        "category": "commerce",
-        "status": "planned",
-        "connection_type": "oauth",
-        "sync_modes": ["manual", "scheduled", "webhook"],
-        "config_keys": ["shop_domain"],
-        "description": (
-            "Connect store orders, products, and customer data. "
-            "The shop domain identifies the store; OAuth app credentials "
-            "are added when configuring the connection."
-        ),
-    },
-    {
-        "type": "stripe",
-        "label": "Stripe",
-        "category": "payments",
-        "status": "planned",
-        "connection_type": "api_key",
-        "sync_modes": ["manual", "scheduled", "webhook"],
-        "config_keys": ["account_id"],
-        "description": (
-            "Connect payments, customers, subscriptions, and invoices. "
-            "The account ID identifies the Stripe account; API and webhook "
-            "secrets are added when configuring the connection."
-        ),
-    },
-    {
-        "type": "quickbooks",
-        "label": "QuickBooks",
-        "category": "accounting",
-        "status": "planned",
-        "connection_type": "oauth",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["company_id"],
-        "description": (
-            "Connect accounting, revenue, expense, and invoice data. "
-            "The company ID identifies the QuickBooks company; OAuth app "
-            "credentials are added when configuring the connection."
-        ),
-    },
-    {
-        "type": "freshbooks",
-        "label": "FreshBooks",
-        "category": "accounting",
-        "status": "planned",
-        "connection_type": "oauth",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["account_id"],
-        "description": (
-            "Connect invoices, clients, payments, expenses, and time tracking "
-            "data. The account ID identifies the FreshBooks account; OAuth app "
-            "credentials are added when configuring the connection."
-        ),
-    },
-    {
-        "type": "xero",
-        "label": "Xero",
-        "category": "accounting",
-        "status": "planned",
-        "connection_type": "oauth",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["tenant_id"],
-        "description": (
-            "Connect accounting, invoices, bills, contacts, payments, and "
-            "cash flow data. The tenant ID identifies the Xero organization; "
-            "OAuth app credentials are added when configuring the connection."
-        ),
-    },
-    {
         "type": "google_analytics",
         "label": "Google Analytics",
         "category": "analytics",
@@ -156,8 +77,8 @@ DATASET_SOURCES = [
         "config_keys": ["property_id"],
         "description": (
             "Connect website and campaign performance data. The property ID "
-            "identifies the analytics property; Google OAuth app credentials "
-            "are added when configuring the connection."
+            "identifies the analytics property; the API service account is "
+            "configured on the Decisionate server."
         ),
     },
     {
@@ -169,9 +90,7 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["connection_name", "query"],
         "description": (
-            "Connect transactional PostgreSQL data for operational reporting. "
-            "The connection name and query select the dataset; database "
-            "credentials are added when configuring the connection."
+            "Connect transactional PostgreSQL data for operational reporting."
         ),
     },
     {
@@ -183,9 +102,7 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["connection_name", "query"],
         "description": (
-            "Query operational data from MySQL databases. The connection name "
-            "and query select the dataset; database credentials are managed "
-            "by configuring the connection."
+            "Connect MySQL operational data for analysis and decision support."
         ),
     },
     {
@@ -197,94 +114,79 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["connection_name", "query"],
         "description": (
-            "Query operational data from Microsoft SQL Server. The connection "
-            "name and query select the dataset; database credentials are "
-            "added when configuring the connection."
+            "Connect Microsoft SQL Server data for operational reporting."
         ),
     },
     {
-        "type": "snowflake",
-        "label": "Snowflake",
-        "category": "data_warehouses",
+        "type": "stripe",
+        "label": "Stripe",
+        "category": "payments",
         "status": "planned",
-        "connection_type": "data_warehouse",
+        "connection_type": "api_key",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["warehouse", "database", "schema", "query"],
+        "config_keys": ["account_id"],
         "description": (
-            "Query warehouse data from Snowflake. Warehouse, database, schema, "
-            "and query identify the dataset; Snowflake account credentials "
-            "are added when configuring the connection."
+            "Connect payments, subscriptions, customers, and invoices."
         ),
     },
     {
-        "type": "bigquery",
-        "label": "BigQuery",
-        "category": "data_warehouses",
-        "status": "planned",
-        "connection_type": "data_warehouse",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["project_id", "dataset", "query"],
-        "description": (
-            "Query warehouse data from Google BigQuery. Project, dataset, "
-            "and query identify the dataset; service account credentials "
-            "are added when configuring the connection."
-        ),
-    },
-    {
-        "type": "gcs",
-        "label": "Google Cloud Storage",
-        "category": "cloud_object_storage",
-        "status": "planned",
-        "connection_type": "object_storage",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["bucket", "prefix", "file_pattern"],
-        "description": (
-            "Import CSV, JSON, Excel, or Parquet files stored in Google "
-            "Cloud Storage. Bucket, prefix, and file pattern select the "
-            "objects to import; service account credentials are added when "
-            "configuring the connection."
-        ),
-    },
-    {
-        "type": "azure_blob_storage",
-        "label": "Azure Blob Storage",
-        "category": "cloud_object_storage",
-        "status": "planned",
-        "connection_type": "object_storage",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["container", "path_prefix", "file_pattern"],
-        "description": (
-            "Import CSV, JSON, Excel, or Parquet files stored in Azure Blob "
-            "Storage. Container, path prefix, and file pattern select the "
-            "blobs to import; storage credentials are added when configuring "
-            "the connection."
-        ),
-    },
-    {
-        "type": "s3",
-        "label": "Amazon S3",
-        "category": "cloud_object_storage",
-        "status": "planned",
-        "connection_type": "object_storage",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["bucket", "prefix", "file_pattern"],
-        "description": (
-            "Import CSV, JSON, Excel, or Parquet files stored in Amazon S3. "
-            "Bucket, prefix, and file pattern select the objects to import; "
-            "AWS credentials are added when configuring the connection."
-        ),
-    },
-    {
-        "type": "crm",
-        "label": "CRM",
-        "category": "business_apps",
+        "type": "shopify",
+        "label": "Shopify",
+        "category": "commerce",
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["provider", "object_type"],
+        "config_keys": ["shop_domain"],
         "description": (
-            "Connect sales and customer relationship data from supported CRM "
-            "systems. Provider and object type select what records to import."
+            "Connect store orders, products, and customer data."
+        ),
+    },
+    {
+        "type": "quickbooks",
+        "label": "QuickBooks",
+        "category": "accounting",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["company_id"],
+        "description": (
+            "Connect accounting, revenue, expense, and invoice data."
+        ),
+    },
+    {
+        "type": "freshbooks",
+        "label": "FreshBooks",
+        "category": "accounting",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["account_id"],
+        "description": (
+            "Connect invoices, clients, payments, expenses, and time tracking."
+        ),
+    },
+    {
+        "type": "sage",
+        "label": "Sage Cloud Accounting",
+        "category": "accounting",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["business_id"],
+        "description": (
+            "Connect Sage Cloud Accounting sales invoice data."
+        ),
+    },
+    {
+        "type": "xero",
+        "label": "Xero",
+        "category": "accounting",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["tenant_id"],
+        "description": (
+            "Connect Xero invoices, customers, payments, and accounting data."
         ),
     },
     {
@@ -296,51 +198,7 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["object_type"],
         "description": (
-            "Connect SMB CRM contacts, companies, deals, and pipeline data. "
-            "The object type identifies the HubSpot records to import; OAuth "
-            "app credentials are added when configuring the connection."
-        ),
-    },
-    {
-        "type": "pipedrive",
-        "label": "Pipedrive",
-        "category": "business_apps",
-        "status": "planned",
-        "connection_type": "api_key",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["object_type"],
-        "description": (
-            "Connect SMB sales pipeline, deals, people, and organization data. "
-            "The object type identifies the Pipedrive records to import; API "
-            "credentials are added when configuring the connection."
-        ),
-    },
-    {
-        "type": "mailchimp",
-        "label": "Mailchimp",
-        "category": "business_apps",
-        "status": "planned",
-        "connection_type": "api_key",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["audience_id"],
-        "description": (
-            "Connect SMB email marketing audience, campaign, and engagement "
-            "data. The audience ID identifies the Mailchimp list to import; "
-            "API credentials are added when configuring the connection."
-        ),
-    },
-    {
-        "type": "marketing_platform",
-        "label": "Marketing Platform",
-        "category": "business_apps",
-        "status": "planned",
-        "connection_type": "oauth",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["provider", "account_id"],
-        "description": (
-            "Connect campaign, audience, and channel performance from "
-            "supported marketing platforms. Provider and account ID identify "
-            "the source account."
+            "Connect contacts, companies, deals, and sales pipeline data."
         ),
     },
     {
@@ -352,75 +210,13 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["ad_account_id"],
         "description": (
-            "Connect Facebook and Instagram ad performance for SMB campaigns. "
-            "The ad account ID identifies the Meta Ads account; OAuth app "
-            "credentials are added when configuring the connection."
-        ),
-    },
-    {
-        "type": "rest_api",
-        "label": "REST API",
-        "category": "custom",
-        "status": "planned",
-        "connection_type": "api_key",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["base_url", "endpoint", "method"],
-        "description": (
-            "Connect custom REST endpoints for operational data. Base URL, "
-            "endpoint, and method define the import request; API credentials "
-            "are added when configuring the connection."
-        ),
-    },
-    {
-        "type": "webhook",
-        "label": "Webhook",
-        "category": "custom",
-        "status": "planned",
-        "connection_type": "webhook",
-        "sync_modes": ["webhook"],
-        "config_keys": ["event_name"],
-        "description": (
-            "Receive event payloads from external systems through a signed "
-            "Decisionate webhook endpoint."
+            "Connect Facebook and Instagram campaign performance data."
         ),
     },
 ]
 
 
 DATASET_SOURCE_ENV_KEYS = {
-    "google_drive": [
-        "GOOGLE_DRIVE_CLIENT_ID",
-        "GOOGLE_DRIVE_CLIENT_SECRET",
-    ],
-    "onedrive": [
-        "ONEDRIVE_CLIENT_ID",
-        "ONEDRIVE_CLIENT_SECRET",
-    ],
-    "shopify": [
-        "SHOPIFY_CLIENT_ID",
-        "SHOPIFY_CLIENT_SECRET",
-        "SHOPIFY_WEBHOOK_SECRET",
-    ],
-    "stripe": [
-        "STRIPE_API_KEY",
-        "STRIPE_WEBHOOK_SECRET",
-    ],
-    "quickbooks": [
-        "QUICKBOOKS_CLIENT_ID",
-        "QUICKBOOKS_CLIENT_SECRET",
-    ],
-    "freshbooks": [
-        "FRESHBOOKS_CLIENT_ID",
-        "FRESHBOOKS_CLIENT_SECRET",
-    ],
-    "xero": [
-        "XERO_CLIENT_ID",
-        "XERO_CLIENT_SECRET",
-    ],
-    "google_analytics": [
-        "GOOGLE_ANALYTICS_CLIENT_ID",
-        "GOOGLE_ANALYTICS_CLIENT_SECRET",
-    ],
     "postgresql": [
         "POSTGRESQL_SOURCE_URL",
     ],
@@ -430,61 +226,37 @@ DATASET_SOURCE_ENV_KEYS = {
     "sql_server": [
         "SQL_SERVER_SOURCE_URL",
     ],
-    "snowflake": [
-        "SNOWFLAKE_ACCOUNT",
-        "SNOWFLAKE_USER",
-        "SNOWFLAKE_PASSWORD",
-        "SNOWFLAKE_WAREHOUSE",
-        "SNOWFLAKE_DATABASE",
-        "SNOWFLAKE_SCHEMA",
+    "stripe": [
+        "STRIPE_API_KEY",
     ],
-    "bigquery": [
-        "BIGQUERY_SOURCE_PROJECT_ID",
-        "BIGQUERY_SOURCE_DATASET",
-        "BIGQUERY_SOURCE_CREDENTIALS_JSON",
+    "shopify": [
+        "SHOPIFY_CLIENT_ID",
+        "SHOPIFY_CLIENT_SECRET",
     ],
-    "gcs": [
-        "GCS_PROJECT_ID",
-        "GCS_CREDENTIALS_JSON",
+    "quickbooks": [
+        "QUICKBOOKS_CLIENT_ID",
+        "QUICKBOOKS_CLIENT_SECRET",
     ],
-    "azure_blob_storage": [
-        "AZURE_STORAGE_ACCOUNT_URL",
-        "AZURE_STORAGE_CONNECTION_STRING",
+    "freshbooks": [
+        "FRESHBOOKS_CLIENT_ID",
+        "FRESHBOOKS_CLIENT_SECRET",
     ],
-    "s3": [
-        "AWS_REGION",
-        "AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY",
+    "sage": [
+        "SAGE_CLIENT_ID",
+        "SAGE_CLIENT_SECRET",
+        "SAGE_API_SUBSCRIPTION_KEY",
     ],
-    "crm": [
-        "CRM_CLIENT_ID",
-        "CRM_CLIENT_SECRET",
+    "xero": [
+        "XERO_CLIENT_ID",
+        "XERO_CLIENT_SECRET",
     ],
     "hubspot": [
         "HUBSPOT_CLIENT_ID",
         "HUBSPOT_CLIENT_SECRET",
     ],
-    "pipedrive": [
-        "PIPEDRIVE_API_TOKEN",
-    ],
-    "mailchimp": [
-        "MAILCHIMP_API_KEY",
-        "MAILCHIMP_SERVER_PREFIX",
-    ],
-    "marketing_platform": [
-        "MARKETING_PLATFORM_CLIENT_ID",
-        "MARKETING_PLATFORM_CLIENT_SECRET",
-    ],
     "meta_ads": [
         "META_ADS_APP_ID",
         "META_ADS_APP_SECRET",
-    ],
-    "rest_api": [
-        "CUSTOM_REST_API_BASE_URL",
-        "CUSTOM_REST_API_KEY",
-    ],
-    "webhook": [
-        "DATASET_WEBHOOK_SIGNING_SECRET",
     ],
 }
 
@@ -505,21 +277,6 @@ def normalize_dataset_source_type(
     return normalized_source_type or "csv"
 
 
-def get_configured_env_keys(
-    env_keys,
-):
-    return [
-        env_key
-        for env_key in env_keys
-        if str(
-            os.getenv(
-                env_key,
-                "",
-            )
-        ).strip()
-    ]
-
-
 def clone_dataset_source(source):
     cloned_source = {
         **source,
@@ -536,15 +293,16 @@ def clone_dataset_source(source):
     )
 
     if env_keys:
-        configured_env_keys = get_configured_env_keys(
-            env_keys
-        )
+        configured_env_keys = [
+            env_key
+            for env_key in env_keys
+            if str(os.getenv(env_key, "") or "").strip()
+        ]
         cloned_source["environment_keys"] = [
             *env_keys,
         ]
         cloned_source["environment_configured"] = (
-            len(configured_env_keys)
-            == len(env_keys)
+            len(configured_env_keys) == len(env_keys)
         )
         cloned_source["configured_environment_keys"] = [
             *configured_env_keys,
@@ -569,6 +327,82 @@ def clone_dataset_source(source):
                 get_dataset_file_source_setup_note(
                     source["type"]
                 )
+            )
+
+    if source["type"] == "google_analytics":
+        if is_google_analytics_connector_available():
+            cloned_source["status"] = "available"
+        else:
+            cloned_source["status"] = "needs_setup"
+            cloned_source["availability_note"] = (
+                "Install google-analytics-data and configure a server-side "
+                "Google Analytics service account to enable manual sync."
+            )
+
+    if source["type"] == "hubspot":
+        if is_oauth_provider_configured("hubspot"):
+            cloned_source["status"] = "available"
+        else:
+            cloned_source["status"] = "needs_setup"
+            cloned_source["availability_note"] = (
+                "Configure HubSpot OAuth credentials and token encryption "
+                "on the Decisionate server to enable sync."
+            )
+
+    if source["type"] == "stripe":
+        if str(os.getenv("STRIPE_API_KEY", "") or "").strip():
+            cloned_source["status"] = "available"
+        else:
+            cloned_source["status"] = "needs_setup"
+            cloned_source["availability_note"] = (
+                "Configure STRIPE_API_KEY on the Decisionate server to "
+                "enable sync."
+            )
+
+    if source["type"] in {
+        "shopify",
+        "meta_ads",
+        "quickbooks",
+        "freshbooks",
+        "xero",
+    }:
+        if is_oauth_provider_configured(source["type"]):
+            cloned_source["status"] = "available"
+        else:
+            cloned_source["status"] = "needs_setup"
+            cloned_source["availability_note"] = (
+                f"Configure {source['label']} OAuth credentials and token "
+                "encryption on the Decisionate server to enable sync."
+            )
+
+    if source["type"] == "sage":
+        if (
+            is_oauth_provider_configured("sage")
+            and str(os.getenv("SAGE_API_SUBSCRIPTION_KEY", "") or "").strip()
+        ):
+            cloned_source["status"] = "available"
+        else:
+            cloned_source["status"] = "needs_setup"
+            cloned_source["availability_note"] = (
+                "Configure Sage OAuth credentials, the Sage API subscription "
+                "key, and token encryption on the Decisionate server to "
+                "enable sync."
+            )
+
+    database_environment_keys = {
+        "postgresql": "POSTGRESQL_SOURCE_URL",
+        "mysql": "MYSQL_SOURCE_URL",
+        "sql_server": "SQL_SERVER_SOURCE_URL",
+    }
+    if source["type"] in database_environment_keys:
+        environment_key = database_environment_keys[source["type"]]
+        if str(os.getenv(environment_key, "") or "").strip():
+            cloned_source["status"] = "available"
+        else:
+            cloned_source["status"] = "needs_setup"
+            cloned_source["availability_note"] = (
+                f"Configure {environment_key} on the Decisionate server "
+                "before running a read-only query."
             )
 
     return cloned_source

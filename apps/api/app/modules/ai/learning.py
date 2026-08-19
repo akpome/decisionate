@@ -82,6 +82,13 @@ def build_workspace_decision_learning_context(
         has_actual_outcome,
         has_outcome_status,
     )
+    has_expected_outcome = _has_meaningful_text(
+        Decision.expected_outcome
+    )
+    has_complete_outcome = and_(
+        has_expected_outcome,
+        has_recorded_outcome,
+    )
     has_lesson = _has_meaningful_text(
         Decision.lessons_learned
     )
@@ -92,7 +99,7 @@ def build_workspace_decision_learning_context(
     evidence_filter = and_(
         *filter_parts,
         or_(
-            has_recorded_outcome,
+            has_complete_outcome,
             has_lesson,
         ),
     )
@@ -107,7 +114,7 @@ def build_workspace_decision_learning_context(
         .filter(
             and_(
                 *filter_parts,
-                has_recorded_outcome,
+                has_complete_outcome,
             )
         )
         .scalar()
@@ -118,7 +125,7 @@ def build_workspace_decision_learning_context(
         .filter(
             and_(
                 *filter_parts,
-                has_recorded_outcome,
+                has_complete_outcome,
                 _has_meaningful_text(
                     Decision.recommendation_text
                 ),
@@ -153,6 +160,15 @@ def build_workspace_decision_learning_context(
             decision.outcome_status,
             100,
         )
+        expected_outcome = _clean_learning_text(
+            decision.expected_outcome,
+            360,
+        )
+        if not expected_outcome or not (
+            actual_outcome or outcome_status
+        ):
+            actual_outcome = ""
+            outcome_status = ""
         if actual_outcome or outcome_status:
             normalized_outcome_status = (
                 outcome_status or "unclassified"
@@ -182,10 +198,7 @@ def build_workspace_decision_learning_context(
                 120,
             ),
             "outcome_status": outcome_status or "unclassified",
-            "expected_outcome": _clean_learning_text(
-                decision.expected_outcome,
-                360,
-            ),
+            "expected_outcome": expected_outcome,
             "actual_outcome": actual_outcome,
             "lesson_learned": _clean_learning_text(
                 decision.lessons_learned,

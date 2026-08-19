@@ -32,9 +32,10 @@ class DecisionActivity(
     decision_id = Column(
         Integer,
         ForeignKey(
-            "decisions.id"
+            "decisions.id",
+            ondelete="SET NULL",
         ),
-        nullable=False,
+        nullable=True,
     )
 
     # =========================
@@ -47,9 +48,20 @@ class DecisionActivity(
         index=True,
     )
 
+    actor_user_id = Column(
+        String,
+        nullable=True,
+        index=True,
+    )
+
     activity_type = Column(
         String,
         nullable=False,
+    )
+
+    decision_title = Column(
+        String,
+        nullable=True,
     )
 
     message = Column(

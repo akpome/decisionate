@@ -5,10 +5,20 @@ from pydantic import BaseModel
 
 class OrganizationCreate(BaseModel):
     name: str
+    plan: str = "professional"
     logo_url: str | None = None
     primary_color: str | None = None
     accent_color: str | None = None
     report_display_name: str | None = None
+
+
+class ClientWorkspaceCreate(BaseModel):
+    name: str
+    client_email: str
+
+
+class AgencyOwnerAccessUpdate(BaseModel):
+    enabled: bool
 
 
 class OrganizationUpdate(BaseModel):
@@ -22,10 +32,12 @@ class OrganizationUpdate(BaseModel):
 class OrganizationResponse(BaseModel):
     id: int
     name: str
+    owner_user_id: str | None = None
     logo_url: str | None = None
     primary_color: str | None = None
     accent_color: str | None = None
     report_display_name: str | None = None
+    agency_owner_access_enabled: bool = False
 
 
 class OrganizationWorkspaceResponse(BaseModel):
@@ -37,6 +49,13 @@ class OrganizationWorkspaceResponse(BaseModel):
     primary_color: str | None = None
     accent_color: str | None = None
     report_display_name: str | None = None
+    agency_owner_access_enabled: bool = False
+    billing_notice: str | None = None
+
+
+class ClientWorkspaceDeleteResponse(BaseModel):
+    deleted: bool
+    summary: dict[str, int]
 
 
 class OrganizationMemberResponse(BaseModel):
@@ -44,6 +63,7 @@ class OrganizationMemberResponse(BaseModel):
     organization_id: int
     clerk_user_id: str
     role: str
+    email: str | None = None
 
 
 class OrganizationInviteResponse(BaseModel):
@@ -77,6 +97,10 @@ class DatasetPreferenceUpdate(BaseModel):
 
     dashboard_preferences: dict[str, dict[str, Any]] | None = None
 
+    dashboard_dataset_ids: dict[str, int] | None = None
+
+    dashboard_views: dict[str, dict[str, dict[str, Any]]] | None = None
+
 
 class DatasetPreferenceResponse(BaseModel):
     selected_dataset_id: int | None
@@ -86,6 +110,10 @@ class DatasetPreferenceResponse(BaseModel):
     metric_targets: dict[str, dict[str, float]] | None = None
 
     dashboard_preferences: dict[str, dict[str, Any]] | None = None
+
+    dashboard_dataset_ids: dict[str, int] | None = None
+
+    dashboard_views: dict[str, dict[str, dict[str, Any]]] | None = None
 
 
 class DashboardPreferenceUpdate(BaseModel):

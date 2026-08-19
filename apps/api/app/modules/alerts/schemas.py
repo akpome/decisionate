@@ -1,6 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel
+from pydantic import Field
 
 from app.modules.ai.schemas import AIAnalysis
 
@@ -11,6 +12,10 @@ class WeeklyReportPreferenceUpdate(BaseModel):
     delivery_day: str = "monday"
     recipient_emails: list[str] = []
     metric_focus: list[str] = []
+    metric_targets: dict[str, float | None] = Field(
+        default_factory=dict
+    )
+    relationship_focus: list[int] = []
     include_recommendations: bool = True
     sender_name: str = ""
     sender_email: str = ""
@@ -31,6 +36,10 @@ class WeeklyReportPreferenceResponse(BaseModel):
     delivery_day: str
     recipient_emails: list[str]
     metric_focus: list[str]
+    metric_targets: dict[str, float] = Field(
+        default_factory=dict
+    )
+    relationship_focus: list[int] = []
     include_recommendations: bool
     sender_name: str = ""
     sender_email: str = ""
@@ -55,6 +64,30 @@ class WeeklyReportDigestMetric(BaseModel):
     average: float | None = None
     minimum: float | None = None
     maximum: float | None = None
+    target: float | None = None
+
+
+class WeeklyReportDigestRelationship(BaseModel):
+    id: int
+    name: str
+    left_dataset_id: int
+    right_dataset_id: int
+    left_dataset_name: str
+    right_dataset_name: str
+    left_metric: str
+    right_metric: str
+    period: str
+    aggregation: str
+    method: str
+    lag_periods: int = 0
+    matched_period_count: int
+    correlation: float | None = None
+    relationship_strength: str
+    direction: str
+    decision_context: str
+    lag_mode: str = "manual"
+    delay_description: str | None = None
+    lag_credibility: str = "unknown"
 
 
 class WeeklyReportAIAnalysis(AIAnalysis):
@@ -67,6 +100,7 @@ class WeeklyReportDigestResponse(BaseModel):
     delivery_day: str
     recipient_emails: list[str]
     metric_focus: list[str]
+    relationship_focus: list[int] = []
     sender_name: str = ""
     sender_email: str = ""
     reply_to_email: str = ""
@@ -76,8 +110,12 @@ class WeeklyReportDigestResponse(BaseModel):
     preview_text: str
     dataset_count: int
     metrics: list[WeeklyReportDigestMetric]
+    relationships: list[WeeklyReportDigestRelationship] = Field(
+        default_factory=list
+    )
     recommendations: list[str]
     unavailable_datasets: list[str]
+    decision_template_url: str | None = None
     ai_analysis: WeeklyReportAIAnalysis | None = None
 
 
@@ -91,8 +129,21 @@ class WeeklyReportDeliveryResponse(BaseModel):
     sent_at: str
 
 
+class WeeklyReportDeliveryLogResponse(BaseModel):
+    id: int
+    status: str
+    recipients: list[str]
+    subject: str
+    delivered_count: int
+    metrics_count: int
+    error: str | None = None
+    attempted_at: str
+
+
 class WeeklyReportDeliveryConfigResponse(BaseModel):
     email_delivery_configured: bool
+    email_delivery_source: str = "unconfigured"
+    workspace_smtp_configured: bool = False
     scheduler_configured: bool
     required_email_environment_keys: list[str]
     optional_email_environment_keys: list[str]
@@ -100,7 +151,7 @@ class WeeklyReportDeliveryConfigResponse(BaseModel):
     scheduler_header_name: str
     send_due_endpoint: str
     ai_provider_configured: bool = False
-    ai_provider: str = "openai"
+    ai_provider: str = ""
     ai_model: str | None = None
 
 

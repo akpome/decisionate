@@ -19,6 +19,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Line,
   LineChart,
   Pie,
@@ -41,6 +42,7 @@ import {
 } from "@/features/decisions/lib/ai-decision-handoff"
 import type {
   DashboardAggregation,
+  DashboardValueAggregation,
   DashboardChartTitleKey,
   DashboardChartTitles,
   DashboardMetricMapping,
@@ -66,6 +68,11 @@ import {
 import {
   dashboardChartPalette,
 } from "@/features/dashboard/lib/chart-palette"
+import {
+  aggregateSummaryAwareValues,
+  isInternalSummaryColumn,
+  isHistoricalSummaryRow,
+} from "@/features/dashboard/lib/summary-aggregation"
 
 type DashboardPlaceholderProps = {
   name: string
@@ -75,6 +82,7 @@ type DashboardPlaceholderProps = {
   datasetName?: string
   datasetId?: number
   aggregation?: DashboardAggregation
+  aggregationType?: DashboardValueAggregation
   analysisMetric?: string
   analysisLoading?: boolean
   analysisError?: boolean
@@ -86,6 +94,8 @@ type DashboardPlaceholderProps = {
   status?: ReactNode
   brand?: WorkspaceBrand
   canManageWorkspaceData?: boolean
+  canCreateDecisions?: boolean
+  onCreateDecision?: () => void
   onDownloadPdf?: () => void
   onShare?: () => void
   onStopSharing?: () => void
@@ -108,6 +118,7 @@ type DashboardPlaceholderProps = {
 
 export type {
   DashboardAggregation,
+  DashboardValueAggregation,
   DashboardChartTitleKey,
   DashboardChartTitles,
   DashboardMetricMapping,
@@ -125,6 +136,7 @@ type DashboardDatasetRow =
 
 type DashboardDatasetMetric = {
   column: string
+  count?: number
   total?: number
   average?: number
   min?: number
@@ -154,15 +166,20 @@ type IndustryChartPoint = {
   name: string
   value: number
   secondary?: number
+  valueColumn?: string
 }
 
 type IndustryMixPoint = {
   name: string
   value: number
   color: string
+  rawValue?: number
+  percentage?: number
+  valueColumn?: string
 }
 
 type IndustryDashboardConfig = {
+  kpiMode?: "sales"
   metrics: IndustryMetric[]
   trendTitle: string
   trendDescription: string
@@ -182,6 +199,9 @@ type IndustryDashboardConfig = {
   signalTitle: string
   roleHints: {
     primary: string[]
+    secondary?: string[]
+    conversion?: string[]
+    dealCount?: string[]
     category?: string[]
     stage?: string[]
     date?: string[]
@@ -336,6 +356,94 @@ const industryDashboardConfigs: Record<
       { label: "Wait time", value: "14 min", tone: "green" },
       { label: "Void rate", value: "1.8%", tone: "blue" },
       { label: "Labor gap", value: "Fri PM", tone: "amber" },
+    ],
+  },
+  hotelHospitality: {
+    metrics: [
+      {
+        label: "Occupancy",
+        value: "78%",
+        detail: "+6 pts versus last period",
+      },
+      {
+        label: "ADR",
+        value: "$164",
+        detail: "Average daily rate",
+      },
+      {
+        label: "RevPAR",
+        value: "$128",
+        detail: "Revenue per available room",
+      },
+      {
+        label: "Guest Satisfaction",
+        value: "4.6/5",
+        detail: "Strong review momentum",
+      },
+    ],
+    trendTitle: "Occupancy and RevPAR Trend",
+    trendDescription:
+      "Room occupancy compared with revenue per available room.",
+    trendData: [
+      { name: "Jan", value: 68, secondary: 104 },
+      { name: "Feb", value: 72, secondary: 112 },
+      { name: "Mar", value: 75, secondary: 119 },
+      { name: "Apr", value: 73, secondary: 116 },
+      { name: "May", value: 78, secondary: 128 },
+    ],
+    trendLabel: "Occupancy",
+    secondaryTrendLabel: "RevPAR",
+    mixTitle: "Room Revenue Mix",
+    mixDescription:
+      "Room revenue contribution by room type.",
+    mixData: [
+      { name: "Standard", value: 36, color: "#0f766e" },
+      { name: "Deluxe", value: 28, color: "#2563eb" },
+      { name: "Suite", value: 22, color: "#f97316" },
+      { name: "Group rooms", value: 14, color: "#9333ea" },
+    ],
+    operationsTitle: "Booking Channel Performance",
+    operationsDescription:
+      "Room nights by booking and distribution channel.",
+    operationsData: [
+      { name: "Direct", value: 84 },
+      { name: "OTA", value: 72 },
+      { name: "Corporate", value: 61 },
+      { name: "Group", value: 48 },
+    ],
+    operationsLabel: "Room nights",
+    signalTitle: "Hotel Highlights",
+    roleHints: {
+      primary: [
+        "revenue",
+        "room revenue",
+        "adr",
+        "average daily rate",
+        "revpar",
+        "room",
+        "booking",
+      ],
+      category: [
+        "room type",
+        "room",
+        "segment",
+        "channel",
+        "property",
+        "rate",
+      ],
+      stage: [
+        "booking",
+        "reservation",
+        "status",
+        "occupancy",
+        "cancellation",
+      ],
+      date: ["date", "day", "week", "month", "check-in", "booking"],
+    },
+    signals: [
+      { label: "Best channel", value: "Direct", tone: "green" },
+      { label: "Cancellation rate", value: "8.4%", tone: "amber" },
+      { label: "Peak demand", value: "Fri-Sat", tone: "blue" },
     ],
   },
   professionalServices: {
@@ -606,6 +714,140 @@ const industryDashboardConfigs: Record<
       { label: "Grant due", value: "12 days", tone: "amber" },
     ],
   },
+  constructionPerformance: {
+    metrics: [
+      {
+        label: "Contracted Revenue",
+        value: "$2.4M",
+        detail: "+11% new work secured",
+      },
+      {
+        label: "Gross Margin",
+        value: "24%",
+        detail: "1.8 pts above target",
+      },
+      {
+        label: "Schedule Health",
+        value: "92%",
+        detail: "Projects on planned pace",
+      },
+      {
+        label: "Cost to Complete",
+        value: "$418K",
+        detail: "Needs weekly review",
+      },
+    ],
+    trendTitle: "Project Progress and Cost Trend",
+    trendDescription:
+      "Planned delivery progress compared with cost burn.",
+    trendData: [
+      { name: "Jan", value: 58, secondary: 42 },
+      { name: "Feb", value: 64, secondary: 48 },
+      { name: "Mar", value: 71, secondary: 55 },
+      { name: "Apr", value: 78, secondary: 61 },
+      { name: "May", value: 86, secondary: 66 },
+    ],
+    trendLabel: "Progress",
+    secondaryTrendLabel: "Cost burn",
+    mixTitle: "Project Mix",
+    mixDescription:
+      "Contracted value by project type.",
+    mixData: [
+      { name: "Commercial", value: 38, color: "#ca8a04" },
+      { name: "Residential", value: 29, color: "#2563eb" },
+      { name: "Renovation", value: 19, color: "#16a34a" },
+      { name: "Infrastructure", value: 14, color: "#9333ea" },
+    ],
+    operationsTitle: "Project Delivery Status",
+    operationsDescription:
+      "Active projects by schedule and delivery status.",
+    operationsData: [
+      { name: "On track", value: 62 },
+      { name: "Watch", value: 22 },
+      { name: "At risk", value: 11 },
+      { name: "Complete", value: 5 },
+    ],
+    operationsLabel: "Projects",
+    signalTitle: "Project Highlights",
+    roleHints: {
+      primary: ["revenue", "contract", "budget", "cost", "amount", "value"],
+      category: ["project", "type", "sector", "building", "client"],
+      stage: ["status", "phase", "stage", "progress", "schedule"],
+      date: ["date", "month", "week", "start", "completion"],
+    },
+    signals: [
+      { label: "Best margin", value: "Commercial", tone: "green" },
+      { label: "Schedule risk", value: "2 projects", tone: "amber" },
+      { label: "Open change orders", value: "7", tone: "blue" },
+    ],
+  },
+  lawFirmPerformance: {
+    metrics: [
+      {
+        label: "Billable Revenue",
+        value: "$486K",
+        detail: "+13% this period",
+      },
+      {
+        label: "Realization",
+        value: "87%",
+        detail: "3 pts above target",
+      },
+      {
+        label: "Utilization",
+        value: "74%",
+        detail: "Healthy team capacity",
+      },
+      {
+        label: "Open Matters",
+        value: "128",
+        detail: "18 need partner review",
+      },
+    ],
+    trendTitle: "Matter Revenue and Realization",
+    trendDescription:
+      "Billable revenue compared with collected realization.",
+    trendData: [
+      { name: "Jan", value: 312, secondary: 72 },
+      { name: "Feb", value: 338, secondary: 75 },
+      { name: "Mar", value: 402, secondary: 78 },
+      { name: "Apr", value: 451, secondary: 82 },
+      { name: "May", value: 486, secondary: 87 },
+    ],
+    trendLabel: "Revenue",
+    secondaryTrendLabel: "Realization",
+    mixTitle: "Matter Mix",
+    mixDescription:
+      "Open matter distribution by practice area.",
+    mixData: [
+      { name: "Litigation", value: 34, color: "#7c3aed" },
+      { name: "Corporate", value: 28, color: "#2563eb" },
+      { name: "Real estate", value: 21, color: "#16a34a" },
+      { name: "Employment", value: 17, color: "#f97316" },
+    ],
+    operationsTitle: "Matter Workflow",
+    operationsDescription:
+      "Matters by their current delivery stage.",
+    operationsData: [
+      { name: "Intake", value: 24 },
+      { name: "Active", value: 68 },
+      { name: "Awaiting client", value: 19 },
+      { name: "Closing", value: 17 },
+    ],
+    operationsLabel: "Matters",
+    signalTitle: "Practice Highlights",
+    roleHints: {
+      primary: ["revenue", "billable", "fee", "amount", "hours", "billing"],
+      category: ["matter", "practice", "area", "client", "type"],
+      stage: ["status", "stage", "matter", "workflow"],
+      date: ["date", "month", "opened", "close", "billing"],
+    },
+    signals: [
+      { label: "Top practice", value: "Litigation", tone: "purple" },
+      { label: "Collection gap", value: "$38K", tone: "amber" },
+      { label: "Partner review", value: "18 matters", tone: "blue" },
+    ],
+  },
 }
 
 const marketingDashboardConfig: IndustryDashboardConfig = {
@@ -678,6 +920,7 @@ const marketingDashboardConfig: IndustryDashboardConfig = {
 }
 
 const salesDashboardConfig: IndustryDashboardConfig = {
+  kpiMode: "sales",
   metrics: [
     {
       label: "Booked Revenue",
@@ -735,6 +978,9 @@ const salesDashboardConfig: IndustryDashboardConfig = {
   signalTitle: "Sales Highlights",
   roleHints: {
     primary: ["booked", "revenue", "amount", "deal", "opportunity"],
+    secondary: ["pipeline", "forecast", "open opportunity", "qualified pipeline"],
+    conversion: ["conversion", "win rate", "close rate", "won rate"],
+    dealCount: ["deal count", "deals", "opportunities", "bookings"],
     category: ["source", "rep", "segment", "account", "customer"],
     stage: ["stage", "status", "funnel", "forecast"],
     date: ["date", "close", "month", "created"],
@@ -903,29 +1149,57 @@ export function getDashboardAutoMetricMapping(
     dataset.metrics
   )
 
+  const dateColumn =
+    findColumnByHints(
+      columns,
+      industryConfig.roleHints.date ?? [],
+      rows
+    ) ??
+    dataset.chart?.x_key ??
+    getFirstNonNumericColumn(columns, rows)
+  const categoryColumn =
+    findColumnByHints(
+      columns,
+      industryConfig.roleHints.category ?? [],
+      rows,
+      false,
+      true
+    ) ??
+    getFirstNonNumericColumn(
+      columns,
+      rows,
+      dateColumn ? [dateColumn] : []
+    )
+
+  const primaryColumn = findColumnByHints(
+    columns,
+    industryConfig.roleHints.primary,
+    rows,
+    true
+  )
+  const secondaryColumn = findColumnByHints(
+    columns.filter(column => column !== primaryColumn),
+    industryConfig.roleHints.secondary ?? [],
+    rows,
+    true
+  )
+
   return {
-    primary:
-      findColumnByHints(
-        columns,
-        industryConfig.roleHints.primary,
-        rows,
-        true
-      ),
+    primary: primaryColumn,
+    secondary: secondaryColumn,
+    operationsValue: primaryColumn,
     category:
-      findColumnByHints(
-        columns,
-        industryConfig.roleHints.category ?? []
-      ),
+      categoryColumn,
     stage:
       findColumnByHints(
         columns,
-        industryConfig.roleHints.stage ?? []
+        industryConfig.roleHints.stage ?? [],
+        rows,
+        false,
+        true
       ),
     date:
-      findColumnByHints(
-        columns,
-        industryConfig.roleHints.date ?? []
-      ) ?? dataset.chart?.x_key,
+      dateColumn,
   }
 }
 
@@ -933,7 +1207,8 @@ function buildMappedIndustryDashboard(
   config: IndustryDashboardConfig,
   dataset?: DashboardDatasetInput | null,
   manualMapping?: DashboardMetricMapping,
-  aggregation: DashboardAggregation = "monthly"
+  aggregation: DashboardAggregation = "monthly",
+  aggregationType: DashboardValueAggregation = "sum"
 ): IndustryDashboardConfig {
   const rows =
     dataset?.chart?.data?.length
@@ -948,12 +1223,15 @@ function buildMappedIndustryDashboard(
   )
   const getValidManualColumn = (
     value: string | undefined,
-    requireNumeric = false
+    requireNumeric = false,
+    requireNonNumeric = false
   ) =>
     value &&
       columns.includes(value) &&
       (!requireNumeric ||
-        columnHasNumericValues(rows, value))
+        columnHasNumericValues(rows, value)) &&
+      (!requireNonNumeric ||
+        !columnHasNumericValues(rows, value))
       ? value
       : undefined
   const mappedPrimaryColumn =
@@ -961,33 +1239,67 @@ function buildMappedIndustryDashboard(
       manualMapping?.primary,
       true
     ) || primaryColumn
-  const categoryColumn = findColumnByHints(
-    columns,
-    config.roleHints.category ?? []
+  const secondaryColumn = findColumnByHints(
+    columns.filter(column => column !== mappedPrimaryColumn),
+    config.roleHints.secondary ?? [],
+    rows,
+    true
   )
-  const mappedCategoryColumn =
+  const mappedSecondaryColumn =
     getValidManualColumn(
-      manualMapping?.category
-    ) || categoryColumn
-  const stageColumn = findColumnByHints(
-    columns,
-    config.roleHints.stage ?? []
-  )
-  const mappedStageColumn =
+      manualMapping?.secondary,
+      true
+    ) || secondaryColumn
+  const mappedOperationsValueColumn =
     getValidManualColumn(
-      manualMapping?.stage
-    ) || stageColumn
+      manualMapping?.operationsValue,
+      true
+    ) || mappedPrimaryColumn
   const dateColumn =
     getValidManualColumn(
       manualMapping?.date
     ) ||
     findColumnByHints(
       columns,
-      config.roleHints.date ?? []
+      config.roleHints.date ?? [],
+      rows
     ) ||
     getValidManualColumn(
       dataset?.chart?.x_key
+    ) ||
+    getFirstNonNumericColumn(columns, rows)
+  const categoryColumn = findColumnByHints(
+    columns,
+    config.roleHints.category ?? [],
+    rows,
+    false,
+    true
+  )
+  const mappedCategoryColumn =
+    getValidManualColumn(
+      manualMapping?.category,
+      false,
+      true
+    ) ||
+    categoryColumn ||
+    getFirstNonNumericColumn(
+      columns,
+      rows,
+      dateColumn ? [dateColumn] : []
     )
+  const stageColumn = findColumnByHints(
+    columns,
+    config.roleHints.stage ?? [],
+    rows,
+    false,
+    true
+  )
+  const mappedStageColumn =
+    getValidManualColumn(
+      manualMapping?.stage,
+      false,
+      true
+    ) || stageColumn
   const datasetRowCount =
     typeof dataset?.row_count === "number" &&
     Number.isFinite(dataset.row_count)
@@ -1002,7 +1314,10 @@ function buildMappedIndustryDashboard(
         ? "Selected dataset"
         : "Available chart rows"
 
-  if (!rows.length || !mappedPrimaryColumn) {
+  if (
+    !rows.length ||
+    (!mappedPrimaryColumn && !mappedOperationsValueColumn)
+  ) {
     const hasDataset = Boolean(dataset)
     const numericColumnCount =
       dataset?.metrics?.length ??
@@ -1065,7 +1380,10 @@ function buildMappedIndustryDashboard(
         },
         {
           label: "Value field",
-          value: mappedPrimaryColumn ?? "Needs mapping",
+          value:
+            mappedPrimaryColumn ??
+            mappedOperationsValueColumn ??
+            "Needs mapping",
           tone: "amber" as const,
         },
         {
@@ -1077,43 +1395,35 @@ function buildMappedIndustryDashboard(
     }
   }
 
+  const displayValueColumn =
+    (mappedPrimaryColumn ?? mappedOperationsValueColumn)!
   const primaryMetric = dataset?.metrics?.find(
-    metric => metric.column === mappedPrimaryColumn
+    metric => metric.column === displayValueColumn
   )
-  const primaryMetricName = normalizeColumnName(
-    mappedPrimaryColumn
+  const primaryValue = getNumericAggregate(
+    primaryMetric,
+    rows,
+    displayValueColumn,
+    aggregationType
   )
-  const usesAverage = isAverageLikeMetric(
-    primaryMetricName
-  )
-  const primaryValue = usesAverage
-    ? getNumericAverage(
-        primaryMetric?.average,
-        rows,
-        mappedPrimaryColumn
-      )
-    : getNumericTotal(
-        primaryMetric?.total,
-        rows,
-        mappedPrimaryColumn
-      )
   const primaryLabel = formatDashboardLabel(
-    mappedPrimaryColumn
+    displayValueColumn
+  )
+  const operationsPrimaryLabel = formatDashboardLabel(
+    mappedOperationsValueColumn ?? displayValueColumn
   )
   const mappedMetrics = [
     {
       label: primaryLabel,
       value: formatMappedMetricValue(
         primaryValue,
-        mappedPrimaryColumn
+        displayValueColumn
       ),
-      detail: usesAverage
-        ? primaryMetric?.average !== undefined
-          ? "Dataset average"
-          : `Average from ${formatInteger(rows.length)} rows`
-        : primaryMetric?.total !== undefined
-          ? "Dataset total"
-          : `Total from ${formatInteger(rows.length)} rows`,
+      detail: getAggregationDetail(
+        primaryMetric,
+        rows.length,
+        aggregationType
+      ),
     },
     {
       label: "Rows in Chart",
@@ -1125,6 +1435,8 @@ function buildMappedIndustryDashboard(
       value: formatInteger(
         [
           mappedPrimaryColumn,
+          mappedSecondaryColumn,
+          mappedOperationsValueColumn,
           mappedCategoryColumn,
           mappedStageColumn,
           dateColumn,
@@ -1133,31 +1445,78 @@ function buildMappedIndustryDashboard(
       detail: "Chart columns detected",
     },
   ]
-  const trendData = dateColumn
+  const trendData = dateColumn && mappedPrimaryColumn
     ? buildTrendData(
         rows,
         dateColumn,
         mappedPrimaryColumn,
-        undefined,
-        aggregation
+        mappedSecondaryColumn,
+        aggregation,
+        aggregationType
       )
     : []
-  const mixData = mappedCategoryColumn
+  const mixData =
+    mappedCategoryColumn && mappedPrimaryColumn
     ? buildMixData(
         rows,
         mappedCategoryColumn,
-        mappedPrimaryColumn
+        mappedPrimaryColumn,
+        aggregationType
       )
     : []
-  const operationsData = mappedStageColumn
+  const operationsData =
+    mappedStageColumn && mappedOperationsValueColumn
     ? buildCategoryBarData(
         rows,
         mappedStageColumn,
-        mappedPrimaryColumn
+        mappedOperationsValueColumn,
+        aggregationType
       )
     : []
   const leadingGroup =
     mixData[0] ?? operationsData[0]
+
+  const conversionColumn = findColumnByHints(
+    columns.filter(
+      column =>
+        column !== mappedPrimaryColumn &&
+        column !== mappedSecondaryColumn
+    ),
+    config.roleHints.conversion ?? [],
+    rows,
+    true
+  )
+  const dealCountColumn = findColumnByHints(
+    columns.filter(
+      column =>
+        column !== mappedPrimaryColumn &&
+        column !== mappedSecondaryColumn &&
+        column !== conversionColumn
+    ),
+    config.roleHints.dealCount ?? [],
+    rows,
+    true
+  )
+  const salesMetrics = config.kpiMode === "sales"
+    ? buildSalesKpiMetrics({
+      rows,
+      metrics: dataset?.metrics ?? [],
+      primaryColumn: mappedPrimaryColumn,
+      secondaryColumn: mappedSecondaryColumn,
+      conversionColumn,
+      dealCountColumn,
+      aggregationType,
+      trendData,
+    })
+    : mappedMetrics
+  const salesSignals = config.kpiMode === "sales"
+    ? buildSalesSignals({
+      metrics: salesMetrics,
+      conversionColumn,
+      secondaryColumn: mappedSecondaryColumn,
+      operationsData,
+    })
+    : config.signals
 
   mappedMetrics.push({
     label: mappedCategoryColumn
@@ -1173,37 +1532,39 @@ function buildMappedIndustryDashboard(
 
   return {
     ...config,
-    metrics: mappedMetrics,
-    trendDescription: dateColumn
-      ? `${config.trendDescription} Tracking ${primaryLabel} by ${formatDashboardLabel(dateColumn)}.`
+    metrics: salesMetrics,
+    trendDescription: dateColumn && mappedPrimaryColumn
+      ? `${config.trendDescription} Tracking ${primaryLabel} by ${formatDashboardLabel(dateColumn)}${config.kpiMode === "sales" && mappedSecondaryColumn ? ` with ${formatDashboardLabel(mappedSecondaryColumn)} as pipeline context` : ""}.`
       : "Map a date or period column to render this trend with real data.",
     trendData,
     trendLabel: primaryLabel,
-    secondaryTrendLabel: undefined,
-    trendStatus: dateColumn
+    secondaryTrendLabel: mappedSecondaryColumn
+      ? formatDashboardLabel(mappedSecondaryColumn)
+      : undefined,
+    trendStatus: dateColumn && mappedPrimaryColumn
       ? undefined
       : "Needs mapping",
     mixDescription:
-      mappedCategoryColumn
+      mappedCategoryColumn && mappedPrimaryColumn
         ? `${config.mixDescription} Grouped by ${formatDashboardLabel(mappedCategoryColumn)}.`
         : "Map a category, source, or segment column to render this mix with real data.",
-    mixStatus: mappedCategoryColumn
+    mixStatus: mappedCategoryColumn && mappedPrimaryColumn
       ? undefined
       : "Needs mapping",
     mixData,
     operationsDescription:
-      mappedStageColumn
-        ? `${config.operationsDescription} Grouped by ${formatDashboardLabel(mappedStageColumn)}.`
-        : "Map a stage or status column to render this breakdown with real data.",
-    operationsStatus: mappedStageColumn
+      mappedStageColumn && mappedOperationsValueColumn
+        ? `${config.operationsDescription} Grouped by ${formatDashboardLabel(mappedStageColumn)} using ${operationsPrimaryLabel}.`
+        : "Map a stage or status column and a numeric Y-axis value to render this breakdown with real data.",
+    operationsStatus: mappedStageColumn && mappedOperationsValueColumn
       ? undefined
       : "Needs mapping",
     operationsData,
-    operationsLabel: primaryLabel,
-    signals: [
+    operationsLabel: operationsPrimaryLabel,
+    signals: config.kpiMode === "sales" ? salesSignals : [
       {
         label: "Tracked value",
-        value: formatDashboardLabel(mappedPrimaryColumn),
+        value: formatDashboardLabel(displayValueColumn),
         tone: "green",
       },
       {
@@ -1224,11 +1585,128 @@ function buildMappedIndustryDashboard(
   }
 }
 
+function SalesDecisionateAnalysis({
+  dashboard,
+  analysis,
+  analysisLoading = false,
+  analysisError = false,
+  onRetryAnalysis,
+  onCreateRecommendation,
+  onCreateDecision,
+  creatingRecommendation = false,
+}: {
+  dashboard: IndustryDashboardConfig
+  analysis?: AIAnalysis | null
+  analysisLoading?: boolean
+  analysisError?: boolean
+  onRetryAnalysis?: () => void
+  onCreateRecommendation?: () => void
+  onCreateDecision?: () => void
+  creatingRecommendation?: boolean
+}) {
+  const trendData = dashboard.trendData
+  const latest = trendData[trendData.length - 1]
+  const previous = trendData[trendData.length - 2]
+  const revenueSignal = dashboard.signals.find(
+    signal => signal.label === "Revenue"
+  )
+  const conversionSignal = dashboard.signals.find(
+    signal => signal.label === "Conversion rate"
+  )
+  const pipelineSignal = dashboard.signals.find(
+    signal => signal.label === "Pipeline"
+  )
+  const whatChanged = latest && previous
+    ? `${dashboard.trendLabel} is ${revenueSignal?.value.toLowerCase() ?? "being compared with the prior period"}; the latest value is ${formatInteger(latest.value)} versus ${formatInteger(previous.value)} previously${latest.secondary !== undefined ? `, with ${dashboard.secondaryTrendLabel ?? "pipeline"} at ${formatInteger(latest.secondary)}` : ""}.`
+    : "A recent comparison is not available for the selected period."
+  const attention = analysis?.risks[0]
+    ?? (conversionSignal?.value === "Needs mapping"
+      ? "Conversion rate is not mapped. Add a conversion or win-rate field before relying on funnel performance."
+      : pipelineSignal?.value === "Needs mapping"
+        ? "Pipeline value is not mapped. Add a pipeline or forecast field to put bookings in context."
+        : "Review pipeline coverage and movement through the sales stages for the selected period.")
+  const recommendation = analysisLoading
+    ? "Updating the recommendation for the selected sales metrics..."
+    : analysis?.recommendations[0]
+      ?? (analysisError
+        ? "AI analysis is unavailable. Review the evidence and record a decision when the next sales action is clear."
+        : "Review pipeline coverage and stage movement, then record the action and expected outcome as a decision.")
+
+  return (
+    <section className="flex h-full flex-col rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-3 text-[var(--decisionate-brand-primary-text)] sm:px-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">Decisionate Analysis</p>
+
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+              {analysis?.confidence
+                ? `${analysis.confidence} confidence`
+                : "Sales attention"}
+          </span>
+
+          {analysisError && onRetryAnalysis && (
+            <button
+              type="button"
+              onClick={onRetryAnalysis}
+              className="text-xs font-semibold underline decoration-current/30 underline-offset-4 hover:opacity-80"
+            >
+              Retry analysis
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-3 border-t border-[var(--decisionate-brand-primary-ring)]/70 pt-3 text-xs sm:grid-cols-3">
+        <div>
+          <p className="font-semibold uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]/70">
+            What changed
+          </p>
+          <p className="mt-1 leading-5 text-gray-700">{whatChanged}</p>
+        </div>
+        <div>
+          <p className="font-semibold uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]/70">
+            What needs attention
+          </p>
+          <p className="mt-1 leading-5 text-gray-700">{attention}</p>
+        </div>
+        <div>
+          <p className="font-semibold uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]/70">
+            Recommendation
+          </p>
+          <p className="mt-1 leading-5 text-gray-700">{recommendation}</p>
+        </div>
+      </div>
+
+      {(onCreateRecommendation && analysis?.recommendations.length) ||
+        onCreateDecision ? (
+        <div className="mt-auto flex items-center justify-start pt-4">
+          <button
+            type="button"
+            onClick={
+              analysis?.recommendations.length &&
+              onCreateRecommendation
+                ? onCreateRecommendation
+                : onCreateDecision
+            }
+            disabled={creatingRecommendation}
+            className="inline-flex items-center rounded-md bg-[var(--decisionate-brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {creatingRecommendation
+              ? "Creating decision..."
+              : "Create decision"}
+          </button>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 function IndustryDashboard({
   name,
   description,
   dataset,
   aggregation = "monthly",
+  aggregationType = "sum",
   analysisMetric,
   analysisLoading,
   analysisError,
@@ -1243,6 +1721,7 @@ function IndustryDashboard({
   onShare,
   onStopSharing,
   onCreateRecommendation,
+  onCreateDecision,
   creatingRecommendation,
   pdfDisabled,
   shareDisabled,
@@ -1265,15 +1744,16 @@ function IndustryDashboard({
       config,
       dataset,
       manualMapping,
-      aggregation
+      aggregation,
+      aggregationType
     )
   const dashboardMixData =
     dashboardConfig.mixData.map((item, index) => ({
       ...item,
       color:
         dashboardChartPalette[
-          index % dashboardChartPalette.length
-        ],
+        index % dashboardChartPalette.length
+      ],
     }))
   const resolvedChartTitles = {
     trend:
@@ -1286,6 +1766,12 @@ function IndustryDashboard({
       chartTitles?.operations?.trim() ||
       dashboardConfig.operationsTitle,
   }
+  const hasMatchingAnalysis = Boolean(
+    !analysisLoading &&
+    dataset?.ai_analysis &&
+    (!analysisMetric ||
+      dataset.ai_analysis.metric === analysisMetric)
+  )
 
   return (
     <div className="dashboard-export-dashboard space-y-4 print:space-y-1.5">
@@ -1308,46 +1794,10 @@ function IndustryDashboard({
         stopSharingTitle={stopSharingTitle}
         stopSharingAriaLabel={stopSharingAriaLabel}
         shareEnabled={shareEnabled}
+        showStopSharing={false}
         showActions={showActions}
         exportMode={exportMode}
       />
-
-      {!exportMode && (
-        <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(30rem,1fr)]">
-          <div className="min-w-0">
-            {analysisLoading && (
-              <AnalysisStatus kind="loading" />
-            )}
-
-            {analysisError && (
-              <AnalysisStatus
-                kind="unavailable"
-                onRetry={onRetryAnalysis}
-              />
-            )}
-
-            {!analysisLoading &&
-              dataset?.ai_analysis &&
-              (!analysisMetric ||
-                dataset.ai_analysis.metric === analysisMetric) && (
-              <AIAnalysisPanel
-                analysis={dataset.ai_analysis}
-                title="Dashboard analysis"
-                metric={analysisMetric}
-                className="print:hidden !p-3"
-                onCreateDecision={onCreateRecommendation}
-                creatingDecision={creatingRecommendation}
-              />
-            )}
-          </div>
-
-          {showActions !== false && controls && (
-            <div className="min-w-0 self-start print:hidden">
-              {controls}
-            </div>
-          )}
-        </div>
-      )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 print:grid-cols-4 print:gap-1.5">
         {dashboardConfig.metrics.map(metric => (
@@ -1435,6 +1885,17 @@ function IndustryDashboard({
           className="dashboard-export-donut-card"
           canFullscreen={dashboardMixData.length > 0}
           exportMode={exportMode}
+          fullscreenChildren={
+            dashboardMixData.length > 0 ? (
+              <div className="h-full min-h-0 overflow-hidden">
+                <DashboardCategoricalChart
+                  items={dashboardMixData}
+                  barLabel="Share"
+                  barOrientation="vertical"
+                />
+              </div>
+            ) : undefined
+          }
         >
           {dashboardMixData.length > 0 ? (
             <div className="h-full min-h-0 overflow-hidden">
@@ -1529,6 +1990,83 @@ function IndustryDashboard({
           </div>
         </div>
       </div>
+
+      {!exportMode && (
+        <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(30rem,1fr)]">
+          {dashboardConfig.kpiMode === "sales" ? (
+            <SalesDecisionateAnalysis
+              dashboard={dashboardConfig}
+              analysis={
+                !analysisMetric ||
+                dataset?.ai_analysis?.metric === analysisMetric
+                  ? dataset?.ai_analysis
+                  : null
+              }
+              analysisLoading={analysisLoading}
+              analysisError={analysisError}
+              onRetryAnalysis={onRetryAnalysis}
+              onCreateRecommendation={onCreateRecommendation}
+              onCreateDecision={onCreateDecision}
+              creatingRecommendation={creatingRecommendation}
+            />
+          ) : (
+            <div className="min-w-0">
+              {analysisLoading && (
+                <AnalysisStatus kind="loading" />
+              )}
+
+              {analysisError && (
+                <AnalysisStatus
+                  kind="unavailable"
+                  onRetry={onRetryAnalysis}
+                />
+              )}
+
+              {!analysisLoading &&
+                dataset?.ai_analysis &&
+                (!analysisMetric ||
+                  dataset.ai_analysis.metric === analysisMetric) && (
+                <AIAnalysisPanel
+                  analysis={dataset.ai_analysis}
+                  title="Decisionate Analysis"
+                  metric={analysisMetric}
+                  className="h-full print:hidden !p-3"
+                  onCreateDecision={
+                    onCreateRecommendation ?? onCreateDecision
+                  }
+                  creatingDecision={creatingRecommendation}
+                />
+              )}
+
+              {!hasMatchingAnalysis && onCreateDecision && (
+                <div className="flex h-full flex-col rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 print:hidden">
+                  <p className="font-semibold text-gray-900">
+                    Create a decision from this dashboard
+                  </p>
+                  <p className="mt-1">
+                    Capture the selected dataset and metric, then define the action and expected outcome.
+                  </p>
+                  <div className="mt-auto flex items-center justify-start pt-4">
+                    <button
+                      type="button"
+                      onClick={onCreateDecision}
+                      className="inline-flex items-center rounded-xl bg-[var(--decisionate-brand-primary)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
+                    >
+                      Create decision
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {showActions !== false && controls && (
+            <div className="h-full min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm print:hidden">
+              {controls}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1540,7 +2078,8 @@ function DecisionPerformanceDashboard({
   controls,
   status,
   brand,
-  canManageWorkspaceData = false,
+  canCreateDecisions = false,
+  onCreateDecision,
   datasetName,
   chartTitles,
   onDownloadPdf,
@@ -1646,7 +2185,7 @@ function DecisionPerformanceDashboard({
       !datasetId ||
       !analysis ||
       !analysis.recommendations.length ||
-      !canManageWorkspaceData ||
+      !canCreateDecisions ||
       creatingRecommendation
     ) {
       return
@@ -1816,7 +2355,6 @@ function DecisionPerformanceDashboard({
       <DashboardHeader
         name={name}
         description={description}
-        controls={controls}
         status={status}
         brand={brand}
         onDownloadPdf={onDownloadPdf}
@@ -1833,6 +2371,7 @@ function DecisionPerformanceDashboard({
         stopSharingTitle={stopSharingTitle}
         stopSharingAriaLabel={stopSharingAriaLabel}
         shareEnabled={shareEnabled}
+        showStopSharing={false}
         showActions={showActions}
         exportMode={exportMode}
       />
@@ -1863,24 +2402,6 @@ function DecisionPerformanceDashboard({
             Retry decision metrics
           </button>
         </div>
-      )}
-
-      {displayedSummary?.ai_analysis && (
-        <AIAnalysisPanel
-          analysis={displayedSummary.ai_analysis}
-          title="Decision analysis"
-          className="print:hidden"
-          onCreateDecision={
-            canManageWorkspaceData &&
-            Boolean(datasetId) &&
-            displayedSummary.ai_analysis.recommendations.length > 0
-              ? () => {
-                void handleCreateRecommendation()
-              }
-              : undefined
-          }
-          creatingDecision={creatingRecommendation}
-        />
       )}
 
       {recommendationError && (
@@ -1919,6 +2440,18 @@ function DecisionPerformanceDashboard({
               : ""
           }`}
           exportMode={exportMode}
+          fullscreenChildren={
+            categoryData.length > 0 ? (
+              <div className="h-full min-h-0 overflow-hidden">
+                <DashboardCategoricalChart
+                  items={categoryData}
+                  barLabel="Decisions"
+                  chartType={categoryChartType}
+                  barOrientation="vertical"
+                />
+              </div>
+            ) : undefined
+          }
         >
           {categoryData.length > 0 ? (
             <div className="h-full min-h-0 overflow-hidden">
@@ -1988,6 +2521,18 @@ function DecisionPerformanceDashboard({
               : ""
           }`}
           exportMode={exportMode}
+          fullscreenChildren={
+            outcomeData.length > 0 ? (
+              <div className="h-full min-h-0 overflow-hidden">
+                <DashboardCategoricalChart
+                  items={outcomeData}
+                  barLabel="Outcomes"
+                  chartType={outcomeChartType}
+                  barOrientation="vertical"
+                />
+              </div>
+            ) : undefined
+          }
         >
           {outcomeData.length > 0 ? (
             <div className="h-full min-h-0 overflow-hidden">
@@ -2044,6 +2589,56 @@ function DecisionPerformanceDashboard({
           )}
         </DashboardChartCard>
       </div>
+
+      {!exportMode && (
+        <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(30rem,1fr)]">
+          <div className="min-w-0">
+            {displayedSummary?.ai_analysis ? (
+              <AIAnalysisPanel
+                analysis={displayedSummary.ai_analysis}
+                title="Decisionate Analysis"
+                className="h-full print:hidden"
+                onCreateDecision={
+                  canCreateDecisions && Boolean(datasetId)
+                    ? displayedSummary.ai_analysis.recommendations.length > 0
+                      ? () => {
+                        void handleCreateRecommendation()
+                      }
+                      : onCreateDecision
+                    : undefined
+                }
+                creatingDecision={creatingRecommendation}
+              />
+            ) : (
+              <div className="flex h-full flex-col rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 print:hidden">
+                <p className="font-semibold text-gray-900">
+                  Decisionate Analysis
+                </p>
+                <p className="mt-1">
+                  Decision analysis will appear when decision history is available.
+                </p>
+                {onCreateDecision && (
+                  <div className="mt-auto flex items-center justify-start pt-4">
+                    <button
+                      type="button"
+                      onClick={onCreateDecision}
+                      className="inline-flex items-center rounded-xl bg-[var(--decisionate-brand-primary)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
+                    >
+                      Create decision
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {showActions && controls && (
+            <div className="h-full min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm print:hidden">
+              {controls}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -2106,6 +2701,7 @@ function DashboardHeader({
   stopSharingTitle,
   stopSharingAriaLabel,
   shareEnabled,
+  showStopSharing = true,
   showActions = true,
   exportMode,
 }: {
@@ -2128,6 +2724,7 @@ function DashboardHeader({
   stopSharingTitle?: string
   stopSharingAriaLabel?: string
   shareEnabled?: boolean
+  showStopSharing?: boolean
   showActions?: boolean
   exportMode?: boolean
 }) {
@@ -2210,7 +2807,7 @@ function DashboardHeader({
               title={shareTitle}
               ariaLabel={shareAriaLabel}
             />
-            {shareEnabled && onStopSharing && (
+            {showStopSharing && shareEnabled && onStopSharing && (
               <DashboardActionButton
                 icon={<Unlink size={16} />}
                 label={stopSharingLabel}
@@ -2240,6 +2837,7 @@ function DashboardChartCard({
   description,
   status,
   children,
+  fullscreenChildren,
   className = "",
   canFullscreen = false,
   exportMode,
@@ -2248,6 +2846,7 @@ function DashboardChartCard({
   description: string
   status?: string
   children: ReactNode
+  fullscreenChildren?: ReactNode
   className?: string
   canFullscreen?: boolean
   exportMode?: boolean
@@ -2389,7 +2988,7 @@ function DashboardChartCard({
 
             <div className="min-h-0 flex-1 p-4 sm:p-8">
               <div className="h-full min-h-0 w-full">
-                {isFullscreen && children}
+                {isFullscreen && (fullscreenChildren ?? children)}
               </div>
             </div>
           </div>
@@ -2416,15 +3015,56 @@ function DashboardCategoricalChart({
   barLabel,
   exportMode,
   chartType,
+  barOrientation,
 }: {
   items: IndustryMixPoint[]
   barLabel: string
   exportMode?: boolean
   chartType?: "bar" | "donut"
+  barOrientation?: "horizontal" | "vertical"
 }) {
   const useHorizontalBars =
     chartType === "bar" ||
     (chartType === undefined && items.length > 5)
+  const useVerticalBars =
+    useHorizontalBars && barOrientation === "vertical"
+  const barTotalValue = items.reduce(
+    (total, item) =>
+      total + (item.rawValue ?? item.value),
+    0
+  )
+  const totalPieValue = items.reduce(
+    (total, item) => total + item.value,
+    0
+  )
+  const getPiePercentage = (item: IndustryMixPoint) =>
+    item.percentage ??
+    (totalPieValue > 0
+      ? (item.value / totalPieValue) * 100
+      : 0)
+  const getPieValueLabel = (item: IndustryMixPoint) =>
+    item.valueColumn && item.rawValue !== undefined
+      ? formatMappedMetricValue(
+        item.rawValue,
+        item.valueColumn
+      )
+      : formatInteger(
+        item.rawValue ?? item.value
+      )
+  const getPieLabel = (item: IndustryMixPoint) =>
+    `${item.name}: ${getPieValueLabel(item)} (${new Intl.NumberFormat(
+      "en-US",
+      { maximumFractionDigits: 1 }
+    ).format(getPiePercentage(item))}%)`
+  const barItems = items.map(item => ({
+    ...item,
+    value: item.rawValue ?? item.value,
+    displayLabel: formatCategoryChartLabel(
+      item.rawValue ?? item.value,
+      barTotalValue,
+      item.valueColumn
+    ),
+  }))
 
   return (
     <div
@@ -2444,24 +3084,29 @@ function DashboardCategoricalChart({
         <ResponsiveContainer width="100%" height="100%">
           {useHorizontalBars ? (
         <BarChart
-          data={items}
-          layout="vertical"
+          data={barItems}
+          layout={useVerticalBars ? "horizontal" : "vertical"}
           margin={{
             top: 6,
             right: 10,
-            bottom: 6,
+            bottom: useVerticalBars ? 54 : 6,
             left: 8,
           }}
         >
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
-            type="number"
+            type={useVerticalBars ? "category" : "number"}
+            dataKey={useVerticalBars ? "name" : undefined}
+            angle={useVerticalBars ? -35 : undefined}
+            textAnchor={useVerticalBars ? "end" : undefined}
+            height={useVerticalBars ? 54 : undefined}
+            tickMargin={useVerticalBars ? 8 : undefined}
             allowDecimals={false}
           />
           <YAxis
-            type="category"
-            dataKey="name"
-            width={104}
+            type={useVerticalBars ? "number" : "category"}
+            dataKey={useVerticalBars ? undefined : "name"}
+            width={useVerticalBars ? undefined : 104}
             tick={{
               fontSize: 11,
             }}
@@ -2470,9 +3115,15 @@ function DashboardCategoricalChart({
           <Bar
             dataKey="value"
             name={barLabel}
-            radius={[0, 6, 6, 0]}
+            radius={useVerticalBars ? [6, 6, 0, 0] : [0, 6, 6, 0]}
             isAnimationActive={!exportMode}
           >
+            <LabelList
+              dataKey="displayLabel"
+              position={useVerticalBars ? "top" : "right"}
+              fill="#374151"
+              fontSize={10}
+            />
             {items.map(item => (
               <Cell
                 key={item.name}
@@ -2492,31 +3143,10 @@ function DashboardCategoricalChart({
               outerRadius="72%"
               paddingAngle={3}
               isAnimationActive={!exportMode}
-              labelLine={!exportMode}
-              label={
-                exportMode
-                  ? false
-                  : ({
-                    name,
-                    value,
-                    x,
-                    y,
-                    textAnchor,
-                  }) => (
-                    <text
-                      x={x}
-                      y={y}
-                      fill="#111827"
-                      fontSize={11}
-                      fontWeight={500}
-                      textAnchor={textAnchor}
-                      dominantBaseline="central"
-                      stroke="none"
-                    >
-                      {`${name}: ${value}${barLabel === "Share" ? "%" : ""}`}
-                    </text>
-                  )
-              }
+              animationDuration={700}
+              animationEasing="ease-out"
+              labelLine={false}
+              label={false}
             >
               {items.map(item => (
                 <Cell
@@ -2525,6 +3155,55 @@ function DashboardCategoricalChart({
                 />
               ))}
             </Pie>
+            {!exportMode && (
+              <Pie
+                data={items}
+                dataKey="value"
+                nameKey="name"
+                innerRadius="44%"
+                outerRadius="72%"
+                paddingAngle={3}
+                fill="transparent"
+                stroke="none"
+                className="pointer-events-none"
+                isAnimationActive={false}
+                labelLine={false}
+                label={({
+                  name,
+                  value,
+                  x,
+                  y,
+                  textAnchor,
+                }) => (
+                  <text
+                    x={x}
+                    y={y}
+                    fill="#111827"
+                    fontSize={11}
+                    fontWeight={500}
+                    textAnchor={textAnchor}
+                    dominantBaseline="central"
+                    stroke="none"
+                  >
+                    {getPieLabel(
+                      items.find(item => item.name === name) ?? {
+                        name: String(name ?? ""),
+                        value: Number(value) || 0,
+                        color: "#6b7280",
+                      }
+                    )}
+                  </text>
+                )}
+              >
+                {items.map(item => (
+                  <Cell
+                    key={item.name}
+                    fill="transparent"
+                    stroke="none"
+                  />
+                ))}
+              </Pie>
+            )}
           </PieChart>
         )}
         </ResponsiveContainer>
@@ -2543,7 +3222,7 @@ function DashboardCategoricalChart({
                 style={{ backgroundColor: item.color }}
               />
               <span>
-                {`${item.name}: ${item.value}${barLabel === "Share" ? "%" : ""}`}
+                {getPieLabel(item)}
               </span>
             </span>
           ))}
@@ -2589,7 +3268,9 @@ function getDatasetColumns(
 
   rows.slice(0, 25).forEach(row => {
     Object.keys(row).forEach(column => {
-      columnNames.add(column)
+      if (!isInternalSummaryColumn(column)) {
+        columnNames.add(column)
+      }
     })
   })
 
@@ -2607,7 +3288,8 @@ function findColumnByHints(
   columns: string[],
   hints: string[],
   rows: DashboardDatasetRow[] = [],
-  requireNumeric = false
+  requireNumeric = false,
+  requireNonNumeric = false
 ) {
   if (!hints.length) {
     return undefined
@@ -2631,8 +3313,23 @@ function findColumnByHints(
       return false
     }
 
-    return !requireNumeric || columnHasNumericValues(rows, column)
+    return (
+      (!requireNumeric || columnHasNumericValues(rows, column)) &&
+      (!requireNonNumeric || !columnHasNumericValues(rows, column))
+    )
   })
+}
+
+function getFirstNonNumericColumn(
+  columns: string[],
+  rows: DashboardDatasetRow[],
+  excludedColumns: string[] = []
+) {
+  return columns.find(
+    column =>
+      !excludedColumns.includes(column) &&
+      !columnHasNumericValues(rows, column)
+  )
 }
 
 function columnHasNumericValues(
@@ -2685,92 +3382,259 @@ function parseNumericString(
     : numericValue
 }
 
-function toNumber(value: DashboardDatasetCell) {
-  if (typeof value === "number") {
-    return Number.isFinite(value)
-      ? value
-      : 0
+function getNumericAggregate(
+  metric: DashboardDatasetMetric | undefined,
+  rows: DashboardDatasetRow[],
+  column: string,
+  aggregationType: DashboardValueAggregation
+) {
+  if (rows.length) {
+    return aggregateSummaryAwareValues(
+      rows,
+      column,
+      aggregationType
+    )
   }
 
-  if (typeof value !== "string") {
-    return 0
+  const datasetValue =
+    aggregationType === "sum"
+      ? metric?.total
+      : aggregationType === "avg"
+        ? metric?.average
+        : aggregationType === "min"
+          ? metric?.min ?? metric?.minimum
+        : aggregationType === "max"
+          ? metric?.max ?? metric?.maximum
+          : metric?.count
+
+  if (
+    typeof datasetValue === "number" &&
+    Number.isFinite(datasetValue)
+  ) {
+    return datasetValue
   }
 
-  return parseNumericString(value) ?? 0
+  return 0
 }
 
-function sumNumericColumn(
-  rows: DashboardDatasetRow[],
-  column: string
+function getAggregationDetail(
+  metric: DashboardDatasetMetric | undefined,
+  rowCount: number,
+  aggregationType: DashboardValueAggregation
 ) {
-  return rows.reduce(
-    (total, row) => total + toNumber(row[column]),
-    0
+  const labels: Record<DashboardValueAggregation, string> = {
+    sum: metric?.total !== undefined
+      ? "Dataset total"
+      : `Sum from ${formatInteger(rowCount)} rows`,
+    avg: metric?.average !== undefined
+      ? "Dataset average"
+      : `Average from ${formatInteger(rowCount)} rows`,
+    min: metric?.min !== undefined || metric?.minimum !== undefined
+      ? "Dataset minimum"
+      : `Minimum from ${formatInteger(rowCount)} rows`,
+    max: metric?.max !== undefined || metric?.maximum !== undefined
+      ? "Dataset maximum"
+      : `Maximum from ${formatInteger(rowCount)} rows`,
+    count: metric?.count !== undefined
+      ? "Dataset record count"
+      : `Count from ${formatInteger(rowCount)} rows`,
+  }
+
+  return labels[aggregationType]
+}
+
+function getSalesTrendStatus(
+  trendData: IndustryChartPoint[]
+) {
+  if (trendData.length < 2) {
+    return "No recent comparison"
+  }
+
+  const previous = trendData[trendData.length - 2]?.value ?? 0
+  const latest = trendData[trendData.length - 1]?.value ?? 0
+
+  if (previous === 0) {
+    return latest > 0
+      ? "New activity in latest period"
+      : "No activity in latest period"
+  }
+
+  const change = (latest - previous) / Math.abs(previous)
+
+  if (change >= 0.05) {
+    return "Tracking above recent trend"
+  }
+
+  if (change <= -0.05) {
+    return "Below recent trend"
+  }
+
+  return "Within recent range"
+}
+
+function formatSalesPercentage(value: number) {
+  const percentage = Math.abs(value) <= 1
+    ? value * 100
+    : value
+
+  return `${new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 1,
+  }).format(percentage)}%`
+}
+
+function buildSalesKpiMetrics({
+  rows,
+  metrics,
+  primaryColumn,
+  secondaryColumn,
+  conversionColumn,
+  dealCountColumn,
+  aggregationType,
+  trendData,
+}: {
+  rows: DashboardDatasetRow[]
+  metrics: DashboardDatasetMetric[]
+  primaryColumn?: string
+  secondaryColumn?: string
+  conversionColumn?: string
+  dealCountColumn?: string
+  aggregationType: DashboardValueAggregation
+  trendData: IndustryChartPoint[]
+}): IndustryMetric[] {
+  const revenueMetric = metrics.find(
+    metric => metric.column === primaryColumn
   )
-}
+  const pipelineMetric = metrics.find(
+    metric => metric.column === secondaryColumn
+  )
+  const conversionMetric = metrics.find(
+    metric => metric.column === conversionColumn
+  )
+  const dealCountMetric = metrics.find(
+    metric => metric.column === dealCountColumn
+  )
+  const revenueValue = primaryColumn
+    ? getNumericAggregate(
+      revenueMetric,
+      rows,
+      primaryColumn,
+      aggregationType
+    )
+    : 0
+  const pipelineValue = secondaryColumn
+    ? getNumericAggregate(
+      pipelineMetric,
+      rows,
+      secondaryColumn,
+      aggregationType
+    )
+    : null
+  const conversionValue = conversionColumn
+    ? getNumericAggregate(
+      conversionMetric,
+      rows,
+      conversionColumn,
+      aggregationType
+    )
+    : null
+  const dealCountValue = dealCountColumn
+    ? getNumericAggregate(
+      dealCountMetric,
+      rows,
+      dealCountColumn,
+      aggregationType
+    )
+    : rows.length
 
-function averageNumericColumn(
-  rows: DashboardDatasetRow[],
-  column: string
-) {
-  const numericRows = rows.filter(row => {
-    return isNumericCell(row[column])
-  })
-
-  if (!numericRows.length) {
-    return 0
-  }
-
-  return sumNumericColumn(
-    numericRows,
-    column
-  ) / numericRows.length
-}
-
-function getNumericTotal(
-  datasetTotal: number | undefined,
-  rows: DashboardDatasetRow[],
-  column: string
-) {
-  return typeof datasetTotal === "number" &&
-    Number.isFinite(datasetTotal)
-    ? datasetTotal
-    : sumNumericColumn(rows, column)
-}
-
-function getNumericAverage(
-  datasetAverage: number | undefined,
-  rows: DashboardDatasetRow[],
-  column: string
-) {
-  return typeof datasetAverage === "number" &&
-    Number.isFinite(datasetAverage)
-    ? datasetAverage
-    : averageNumericColumn(rows, column)
-}
-
-function isAverageLikeMetric(
-  normalizedColumn: string
-) {
   return [
-    "average",
-    "avg",
-    "rate",
-    "margin",
-    "percent",
-    "percentage",
-    "ratio",
-    "conversion",
-    "utilization",
-    "capacity",
-    "coverage",
-    "score",
-    "turn",
-    "turns",
-    "price",
-    "check",
-    "cac",
-  ].some(term => normalizedColumn.includes(term))
+    {
+      label: "Revenue",
+      value: primaryColumn
+        ? formatMappedMetricValue(revenueValue, primaryColumn)
+        : "Needs mapping",
+      detail: primaryColumn
+        ? getSalesTrendStatus(trendData)
+        : "Map a revenue or bookings value column",
+    },
+    {
+      label: "Deals to Date",
+      value: formatInteger(dealCountValue),
+      detail: dealCountColumn
+        ? `Based on ${formatDashboardLabel(dealCountColumn)}`
+        : "Count of rows in the selected period",
+    },
+    {
+      label: "Conversion Rate",
+      value: conversionValue === null
+        ? "Needs mapping"
+        : formatSalesPercentage(conversionValue),
+      detail: conversionColumn
+        ? `Based on ${formatDashboardLabel(conversionColumn)}`
+        : "Map a conversion or win-rate value column",
+    },
+    {
+      label: "Pipeline Value",
+      value: pipelineValue === null || !secondaryColumn
+        ? "Needs mapping"
+        : formatMappedMetricValue(pipelineValue, secondaryColumn),
+      detail: secondaryColumn
+        ? `Based on ${formatDashboardLabel(secondaryColumn)}`
+        : "Map a pipeline or forecast value column",
+    },
+  ]
+}
+
+function buildSalesSignals({
+  metrics,
+  conversionColumn,
+  secondaryColumn,
+  operationsData,
+}: {
+  metrics: IndustryMetric[]
+  conversionColumn?: string
+  secondaryColumn?: string
+  operationsData: IndustryChartPoint[]
+}): IndustryDashboardConfig["signals"] {
+  const revenueMetric = metrics.find(
+    metric => metric.label === "Revenue"
+  )
+  const conversionMetric = metrics.find(
+    metric => metric.label === "Conversion Rate"
+  )
+  const pipelineMetric = metrics.find(
+    metric => metric.label === "Pipeline Value"
+  )
+
+  return [
+    {
+      label: "Revenue",
+      value: revenueMetric?.detail ?? "Needs review",
+      tone: revenueMetric?.detail === "Below recent trend"
+        ? "amber"
+        : "green",
+    },
+    {
+      label: "Conversion rate",
+      value: conversionColumn
+        ? conversionMetric?.value ?? "Mapped"
+        : "Needs mapping",
+      tone: conversionColumn ? "blue" : "amber",
+    },
+    {
+      label: "Pipeline",
+      value: secondaryColumn
+        ? pipelineMetric?.value ?? "Mapped"
+        : "Needs mapping",
+      tone: secondaryColumn ? "green" : "amber",
+    },
+    {
+      label: "Sales stage",
+      value: operationsData[0]
+        ? `Largest: ${operationsData[0].name}`
+        : "Needs mapping",
+      tone: operationsData.length > 0 ? "purple" : "amber",
+    },
+  ]
 }
 
 function getGroupKey(
@@ -2790,29 +3654,37 @@ function getGroupKey(
 function buildCategoryBarData(
   rows: DashboardDatasetRow[],
   groupColumn: string,
-  valueColumn: string
+  valueColumn: string,
+  aggregationType: DashboardValueAggregation
 ) {
   const grouped =
     groupRowsByValue(
       rows,
       groupColumn,
       valueColumn,
-      true
+      true,
+      aggregationType
     )
 
-  return grouped.slice(0, 6)
+  return grouped.slice(0, 6).map(item => ({
+    ...item,
+    valueColumn,
+  }))
 }
 
 function buildMixData(
   rows: DashboardDatasetRow[],
   groupColumn: string,
-  valueColumn: string
+  valueColumn: string,
+  aggregationType: DashboardValueAggregation
 ) {
   const grouped =
     groupRowsByValue(
       rows,
       groupColumn,
-      valueColumn
+      valueColumn,
+      false,
+      aggregationType
     )
   const total = grouped.reduce(
     (sum, item) => sum + item.value,
@@ -2841,6 +3713,9 @@ function buildMixData(
   return visibleGroups.map((item, index) => ({
     name: item.name,
     value: percentages[index] ?? item.value,
+    rawValue: item.value,
+    percentage: percentages[index] ?? item.value,
+    valueColumn,
     color:
       dashboardChartPalette[
         index % dashboardChartPalette.length
@@ -2894,17 +3769,27 @@ function groupRowsByValue(
   rows: DashboardDatasetRow[],
   groupColumn: string,
   valueColumn: string,
-  includeNegative = false
+  includeNegative = false,
+  aggregationType: DashboardValueAggregation = "sum"
 ) {
   const grouped = new Map<
     string,
     {
       name: string
-      value: number
+      rows: DashboardDatasetRow[]
     }
   >()
 
   rows.forEach(row => {
+    if (
+      isHistoricalSummaryRow(row) &&
+      (row[groupColumn] === null ||
+        row[groupColumn] === undefined ||
+        row[groupColumn] === "")
+    ) {
+      return
+    }
+
     const groupName = getGroupKey(
       row[groupColumn],
       "Unspecified"
@@ -2913,16 +3798,22 @@ function groupRowsByValue(
     const current =
       grouped.get(groupKey) ?? {
         name: groupName,
-        value: 0,
+        rows: [],
       }
 
-    current.value += toNumber(
-      row[valueColumn]
-    )
+    current.rows.push(row)
     grouped.set(groupKey, current)
   })
 
   return Array.from(grouped.values())
+    .map(item => ({
+      name: item.name,
+      value: aggregateSummaryAwareValues(
+        item.rows,
+        valueColumn,
+        aggregationType
+      ),
+    }))
     .filter(item =>
       includeNegative
         ? item.value !== 0
@@ -2936,13 +3827,13 @@ function buildTrendData(
   dateColumn: string,
   primaryColumn: string,
   secondaryColumn?: string,
-  aggregation: DashboardAggregation = "monthly"
+  aggregation: DashboardAggregation = "monthly",
+  aggregationType: DashboardValueAggregation = "sum"
 ) {
   const grouped = new Map<
     string,
     {
-      value: number
-      secondary: number
+      rows: DashboardDatasetRow[]
     }
   >()
 
@@ -2967,15 +3858,10 @@ function buildTrendData(
         )
     const current =
       grouped.get(name) ?? {
-        value: 0,
-        secondary: 0,
-      }
-
-    current.value += toNumber(row[primaryColumn])
-
-    if (secondaryColumn) {
-      current.secondary += toNumber(row[secondaryColumn])
+      rows: [],
     }
+
+    current.rows.push(row)
 
     grouped.set(name, current)
   })
@@ -2989,9 +3875,21 @@ function buildTrendData(
     )
     .map(([name, values]) => ({
       name,
-      value: Math.round(values.value),
+      value: Math.round(
+        aggregateSummaryAwareValues(
+          values.rows,
+          primaryColumn,
+          aggregationType
+        )
+      ),
       secondary: secondaryColumn
-        ? Math.round(values.secondary)
+        ? Math.round(
+          aggregateSummaryAwareValues(
+            values.rows,
+            secondaryColumn,
+            aggregationType
+          )
+        )
         : undefined,
     }))
 }
@@ -3135,6 +4033,24 @@ function formatMappedMetricValue(
   }).format(value)
 }
 
+function formatCategoryChartLabel(
+  value: number,
+  total: number,
+  valueColumn?: string
+) {
+  const percentage =
+    total > 0 ? (value / total) * 100 : 0
+  const formattedValue = valueColumn
+    ? formatMappedMetricValue(value, valueColumn)
+    : formatInteger(value)
+  const formattedPercentage = new Intl.NumberFormat(
+    "en-US",
+    { maximumFractionDigits: 1 }
+  ).format(percentage)
+
+  return `${formattedValue} (${formattedPercentage}%)`
+}
+
 function formatInteger(value: number) {
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 0,
@@ -3183,6 +4099,12 @@ export const dashboardRegistry: Record<
       config={industryDashboardConfigs.restaurantPerformance}
     />
   ),
+  hotelHospitality: props => (
+    <IndustryDashboard
+      {...props}
+      config={industryDashboardConfigs.hotelHospitality}
+    />
+  ),
   professionalServices: props => (
     <IndustryDashboard
       {...props}
@@ -3205,6 +4127,18 @@ export const dashboardRegistry: Record<
     <IndustryDashboard
       {...props}
       config={industryDashboardConfigs.nonprofitPerformance}
+    />
+  ),
+  constructionPerformance: props => (
+    <IndustryDashboard
+      {...props}
+      config={industryDashboardConfigs.constructionPerformance}
+    />
+  ),
+  lawFirmPerformance: props => (
+    <IndustryDashboard
+      {...props}
+      config={industryDashboardConfigs.lawFirmPerformance}
     />
   ),
 }

@@ -1,22 +1,10 @@
-import {
-  auth,
-} from "@clerk/nextjs/server"
 import Link from "next/link"
-import { redirect } from "next/navigation"
 import type { ReactNode } from "react"
 
 import { AuthCard } from "@/app/auth-card"
 import { ThemeToggle } from "@/app/theme-toggle"
 
-export default async function SignUpPage() {
-  const {
-    userId,
-  } = await auth()
-
-  if (userId) {
-    redirect("/onboarding")
-  }
-
+export default function SignUpPage() {
   return (
     <AuthShell
       title="Create your Decisionate workspace"

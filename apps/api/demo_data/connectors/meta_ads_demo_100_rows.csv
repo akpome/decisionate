@@ -1,0 +1,101 @@
+date,campaign_name,ad_set,objective,spend,impressions,reach,clicks,leads,purchases,purchase_value,ctr,cpc,roas
+2025-01-01,Spring Demand,Broad Audience,Sales,420,18500,13690,333,32,18,1764,0.018,1.26,4.2
+2025-01-02,Retargeting,Lookalike 1%,Leads,463,19960,14770,399,33,19,2090,0.02,1.16,4.51
+2025-01-03,Lead Generation,Website Visitors,Traffic,506,21420,15851,471,34,20,2440,0.022,1.07,4.82
+2025-01-04,Brand Awareness,Customer List,Awareness,549,22880,16931,549,35,21,2814,0.024,1.0,5.13
+2025-01-05,Spring Demand,Broad Audience,Sales,592,24340,18012,633,36,22,3212,0.026,0.94,5.43
+2025-01-06,Retargeting,Lookalike 1%,Leads,635,25800,19092,464,37,23,3634,0.018,1.37,5.72
+2025-01-07,Lead Generation,Website Visitors,Traffic,678,20060,14844,401,38,24,2352,0.02,1.69,3.47
+2025-01-08,Brand Awareness,Customer List,Awareness,455,21520,15925,473,39,25,2750,0.022,0.96,6.04
+2025-01-09,Spring Demand,Broad Audience,Sales,498,22980,17005,552,40,26,3172,0.024,0.9,6.37
+2025-01-10,Retargeting,Lookalike 1%,Leads,541,24440,18086,635,41,18,2412,0.026,0.85,4.46
+2025-01-11,Lead Generation,Website Visitors,Traffic,584,25900,19166,466,42,19,2774,0.018,1.25,4.75
+2025-01-12,Brand Awareness,Customer List,Awareness,627,27360,20246,547,43,20,3160,0.02,1.15,5.04
+2025-01-13,Spring Demand,Broad Audience,Sales,670,21620,15999,476,32,21,2058,0.022,1.41,3.07
+2025-01-14,Retargeting,Lookalike 1%,Leads,713,23080,17079,554,33,22,2420,0.024,1.29,3.39
+2025-01-15,Lead Generation,Website Visitors,Traffic,490,24540,18160,638,34,23,2806,0.026,0.77,5.73
+2025-01-16,Brand Awareness,Customer List,Awareness,533,26000,19240,468,35,24,3216,0.018,1.14,6.03
+2025-01-17,Spring Demand,Broad Audience,Sales,576,27460,20320,549,36,25,3650,0.02,1.05,6.34
+2025-01-18,Retargeting,Lookalike 1%,Leads,619,28920,21401,636,37,26,4108,0.022,0.97,6.64
+2025-01-19,Lead Generation,Website Visitors,Traffic,662,23180,17153,556,38,18,1764,0.024,1.19,2.66
+2025-01-20,Brand Awareness,Customer List,Awareness,705,24640,18234,641,39,19,2090,0.026,1.1,2.96
+2025-01-21,Spring Demand,Broad Audience,Sales,748,26100,19314,470,40,20,2440,0.018,1.59,3.26
+2025-01-22,Retargeting,Lookalike 1%,Leads,525,27560,20394,551,41,21,2814,0.02,0.95,5.36
+2025-01-23,Lead Generation,Website Visitors,Traffic,568,29020,21475,638,42,22,3212,0.022,0.89,5.65
+2025-01-24,Brand Awareness,Customer List,Awareness,611,30480,22555,732,43,23,3634,0.024,0.83,5.95
+2025-01-25,Spring Demand,Broad Audience,Sales,654,24740,18308,643,32,24,2352,0.026,1.02,3.6
+2025-01-26,Retargeting,Lookalike 1%,Leads,697,26200,19388,472,33,25,2750,0.018,1.48,3.95
+2025-01-27,Lead Generation,Website Visitors,Traffic,740,27660,20468,553,34,26,3172,0.02,1.34,4.29
+2025-01-28,Brand Awareness,Customer List,Awareness,783,29120,21549,641,35,18,2412,0.022,1.22,3.08
+2025-01-29,Spring Demand,Broad Audience,Sales,560,30580,22629,734,36,19,2774,0.024,0.76,4.95
+2025-01-30,Retargeting,Lookalike 1%,Leads,603,32040,23710,833,37,20,3160,0.026,0.72,5.24
+2025-01-31,Lead Generation,Website Visitors,Traffic,646,26300,19462,473,38,21,2058,0.018,1.37,3.19
+2025-02-01,Brand Awareness,Customer List,Awareness,689,27760,20542,555,39,22,2420,0.02,1.24,3.51
+2025-02-02,Spring Demand,Broad Audience,Sales,732,29220,21623,643,40,23,2806,0.022,1.14,3.83
+2025-02-03,Retargeting,Lookalike 1%,Leads,775,30680,22703,736,41,24,3216,0.024,1.05,4.15
+2025-02-04,Lead Generation,Website Visitors,Traffic,818,32140,23784,836,42,25,3650,0.026,0.98,4.46
+2025-02-05,Brand Awareness,Customer List,Awareness,595,33600,24864,605,43,26,4108,0.018,0.98,6.9
+2025-02-06,Spring Demand,Broad Audience,Sales,638,27860,20616,557,32,18,1764,0.02,1.15,2.76
+2025-02-07,Retargeting,Lookalike 1%,Leads,681,29320,21697,645,33,19,2090,0.022,1.06,3.07
+2025-02-08,Lead Generation,Website Visitors,Traffic,724,30780,22777,739,34,20,2440,0.024,0.98,3.37
+2025-02-09,Brand Awareness,Customer List,Awareness,767,32240,23858,838,35,21,2814,0.026,0.92,3.67
+2025-02-10,Spring Demand,Broad Audience,Sales,810,33700,24938,607,36,22,3212,0.018,1.33,3.97
+2025-02-11,Retargeting,Lookalike 1%,Leads,853,35160,26018,703,37,23,3634,0.02,1.21,4.26
+2025-02-12,Lead Generation,Website Visitors,Traffic,630,29420,21771,647,38,24,2352,0.022,0.97,3.73
+2025-02-13,Brand Awareness,Customer List,Awareness,673,30880,22851,741,39,25,2750,0.024,0.91,4.09
+2025-02-14,Spring Demand,Broad Audience,Sales,716,32340,23932,841,40,26,3172,0.026,0.85,4.43
+2025-02-15,Retargeting,Lookalike 1%,Leads,759,33800,25012,608,41,18,2412,0.018,1.25,3.18
+2025-02-16,Lead Generation,Website Visitors,Traffic,802,35260,26092,705,42,19,2774,0.02,1.14,3.46
+2025-02-17,Brand Awareness,Customer List,Awareness,845,36720,27173,808,43,20,3160,0.022,1.05,3.74
+2025-02-18,Spring Demand,Broad Audience,Sales,888,30980,22925,744,32,21,2058,0.024,1.19,2.32
+2025-02-19,Retargeting,Lookalike 1%,Leads,665,32440,24006,843,33,22,2420,0.026,0.79,3.64
+2025-02-20,Lead Generation,Website Visitors,Traffic,708,33900,25086,610,34,23,2806,0.018,1.16,3.96
+2025-02-21,Brand Awareness,Customer List,Awareness,751,35360,26166,707,35,24,3216,0.02,1.06,4.28
+2025-02-22,Spring Demand,Broad Audience,Sales,794,36820,27247,810,36,25,3650,0.022,0.98,4.6
+2025-02-23,Retargeting,Lookalike 1%,Leads,837,38280,28327,919,37,26,4108,0.024,0.91,4.91
+2025-02-24,Lead Generation,Website Visitors,Traffic,880,32540,24080,846,38,18,1764,0.026,1.04,2.0
+2025-02-25,Brand Awareness,Customer List,Awareness,923,34000,25160,612,39,19,2090,0.018,1.51,2.26
+2025-02-26,Spring Demand,Broad Audience,Sales,700,35460,26240,709,40,20,2440,0.02,0.99,3.49
+2025-02-27,Retargeting,Lookalike 1%,Leads,743,36920,27321,812,41,21,2814,0.022,0.92,3.79
+2025-02-28,Lead Generation,Website Visitors,Traffic,786,38380,28401,921,42,22,3212,0.024,0.85,4.09
+2025-03-01,Brand Awareness,Customer List,Awareness,829,39840,29482,1036,43,23,3634,0.026,0.8,4.38
+2025-03-02,Spring Demand,Broad Audience,Sales,872,34100,25234,614,32,24,2352,0.018,1.42,2.7
+2025-03-03,Retargeting,Lookalike 1%,Leads,915,35560,26314,711,33,25,2750,0.02,1.29,3.01
+2025-03-04,Lead Generation,Website Visitors,Traffic,958,37020,27395,814,34,26,3172,0.022,1.18,3.31
+2025-03-05,Brand Awareness,Customer List,Awareness,735,38480,28475,924,35,18,2412,0.024,0.8,3.28
+2025-03-06,Spring Demand,Broad Audience,Sales,778,39940,29556,1038,36,19,2774,0.026,0.75,3.57
+2025-03-07,Retargeting,Lookalike 1%,Leads,821,41400,30636,745,37,20,3160,0.018,1.1,3.85
+2025-03-08,Lead Generation,Website Visitors,Traffic,864,35660,26388,713,38,21,2058,0.02,1.21,2.38
+2025-03-09,Brand Awareness,Customer List,Awareness,907,37120,27469,817,39,22,2420,0.022,1.11,2.67
+2025-03-10,Spring Demand,Broad Audience,Sales,950,38580,28549,926,40,23,2806,0.024,1.03,2.95
+2025-03-11,Retargeting,Lookalike 1%,Leads,993,40040,29630,1041,41,24,3216,0.026,0.95,3.24
+2025-03-12,Lead Generation,Website Visitors,Traffic,770,41500,30710,747,42,25,3650,0.018,1.03,4.74
+2025-03-13,Brand Awareness,Customer List,Awareness,813,42960,31790,859,43,26,4108,0.02,0.95,5.05
+2025-03-14,Spring Demand,Broad Audience,Sales,856,37220,27543,819,32,18,1764,0.022,1.05,2.06
+2025-03-15,Retargeting,Lookalike 1%,Leads,899,38680,28623,928,33,19,2090,0.024,0.97,2.32
+2025-03-16,Lead Generation,Website Visitors,Traffic,942,40140,29704,1044,34,20,2440,0.026,0.9,2.59
+2025-03-17,Brand Awareness,Customer List,Awareness,985,41600,30784,749,35,21,2814,0.018,1.32,2.86
+2025-03-18,Spring Demand,Broad Audience,Sales,1028,43060,31864,861,36,22,3212,0.02,1.19,3.12
+2025-03-19,Retargeting,Lookalike 1%,Leads,805,44520,32945,979,37,23,3634,0.022,0.82,4.51
+2025-03-20,Lead Generation,Website Visitors,Traffic,848,38780,28697,931,38,24,2352,0.024,0.91,2.77
+2025-03-21,Brand Awareness,Customer List,Awareness,891,40240,29778,1046,39,25,2750,0.026,0.85,3.09
+2025-03-22,Spring Demand,Broad Audience,Sales,934,41700,30858,751,40,26,3172,0.018,1.24,3.4
+2025-03-23,Retargeting,Lookalike 1%,Leads,977,43160,31938,863,41,18,2412,0.02,1.13,2.47
+2025-03-24,Lead Generation,Website Visitors,Traffic,1020,44620,33019,982,42,19,2774,0.022,1.04,2.72
+2025-03-25,Brand Awareness,Customer List,Awareness,1063,46080,34099,1106,43,20,3160,0.024,0.96,2.97
+2025-03-26,Spring Demand,Broad Audience,Sales,840,40340,29852,1049,32,21,2058,0.026,0.8,2.45
+2025-03-27,Retargeting,Lookalike 1%,Leads,883,41800,30932,752,33,22,2420,0.018,1.17,2.74
+2025-03-28,Lead Generation,Website Visitors,Traffic,926,43260,32012,865,34,23,2806,0.02,1.07,3.03
+2025-03-29,Brand Awareness,Customer List,Awareness,969,44720,33093,984,35,24,3216,0.022,0.98,3.32
+2025-03-30,Spring Demand,Broad Audience,Sales,1012,46180,34173,1108,36,25,3650,0.024,0.91,3.61
+2025-03-31,Retargeting,Lookalike 1%,Leads,1055,47640,35254,1239,37,26,4108,0.026,0.85,3.89
+2025-04-01,Lead Generation,Website Visitors,Traffic,1098,41900,31006,754,38,18,1764,0.018,1.46,1.61
+2025-04-02,Brand Awareness,Customer List,Awareness,875,43360,32086,867,39,19,2090,0.02,1.01,2.39
+2025-04-03,Spring Demand,Broad Audience,Sales,918,44820,33167,986,40,20,2440,0.022,0.93,2.66
+2025-04-04,Retargeting,Lookalike 1%,Leads,961,46280,34247,1111,41,21,2814,0.024,0.86,2.93
+2025-04-05,Lead Generation,Website Visitors,Traffic,1004,47740,35328,1241,42,22,3212,0.026,0.81,3.2
+2025-04-06,Brand Awareness,Customer List,Awareness,1047,49200,36408,886,43,23,3634,0.018,1.18,3.47
+2025-04-07,Spring Demand,Broad Audience,Sales,1090,43460,32160,869,32,24,2352,0.02,1.25,2.16
+2025-04-08,Retargeting,Lookalike 1%,Leads,1133,44920,33241,988,33,25,2750,0.022,1.15,2.43
+2025-04-09,Lead Generation,Website Visitors,Traffic,910,46380,34321,1113,34,26,3172,0.024,0.82,3.49
+2025-04-10,Brand Awareness,Customer List,Awareness,953,47840,35402,1244,35,18,2412,0.026,0.77,2.53

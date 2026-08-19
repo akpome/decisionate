@@ -46,9 +46,30 @@ class AIServiceTests(unittest.TestCase):
                 "learning_scope": "metric",
                 "recorded_lesson_count": 0,
                 "recorded_outcome_count": 0,
+                "recorded_recommendation_count": 0,
                 "sampled_lesson_count": 0,
                 "sampled_evidence_count": 3,
+                "successful_outcome_count": 0,
+                "partially_successful_outcome_count": 0,
+                "unsuccessful_outcome_count": 0,
+                "historical_success_rate": None,
             },
+        )
+
+    def test_learning_metadata_calculates_weighted_success_rate(self):
+        metadata = service.build_learning_context_metadata({
+            "historical_decision_learning": {
+                "outcome_counts": {
+                    "successful": 2,
+                    "partially_successful": 1,
+                    "unsuccessful": 1,
+                },
+            },
+        })
+
+        self.assertEqual(
+            metadata["historical_success_rate"],
+            0.62,
         )
 
     def test_missing_key_returns_explicit_fallback(self):
@@ -71,6 +92,62 @@ class AIServiceTests(unittest.TestCase):
         self.assertEqual(
             result["fallback_reason"],
             service.FALLBACK_NOT_CONFIGURED,
+        )
+
+    def test_fallback_recommendations_use_historical_outcome_pattern(self):
+        result = service.build_fallback_analysis(
+            summary="Baseline summary",
+            recommendations=["Review the metric"],
+            risks=[],
+            learning_context={
+                "recorded_lesson_count": 1,
+                "recorded_outcome_count": 2,
+                "recorded_recommendation_count": 1,
+                "outcome_counts": {
+                    "unsuccessful": 2,
+                    "successful": 0,
+                },
+                "examples": [
+                    {
+                        "lesson_learned": "Use a smaller test group first.",
+                    },
+                ],
+            },
+        )
+
+        self.assertTrue(
+            any(
+                "skew unsuccessful" in recommendation
+                for recommendation in result["recommendations"]
+            )
+        )
+        self.assertTrue(
+            any(
+                "smaller test group" in recommendation
+                for recommendation in result["recommendations"]
+            )
+        )
+
+    def test_fallback_recommendations_flag_mixed_outcomes(self):
+        result = service.build_fallback_analysis(
+            summary="Baseline summary",
+            recommendations=[],
+            risks=[],
+            learning_context={
+                "recorded_outcome_count": 3,
+                "outcome_counts": {
+                    "successful": 1,
+                    "partially_successful": 1,
+                    "unsuccessful": 1,
+                },
+            },
+        )
+
+        self.assertTrue(
+            any(
+                "outcomes are mixed" in recommendation
+                for recommendation in result["recommendations"]
+            )
         )
 
     def test_unsupported_provider_returns_explicit_fallback(self):
@@ -149,6 +226,14 @@ class AIServiceTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0]["max_tokens"], 500)
+        self.assertEqual(
+            set(json.loads(calls[0]["messages"][1]["content"])),
+            {"context", "facts"},
+        )
+        self.assertEqual(
+            json.loads(calls[0]["messages"][1]["content"])["facts"],
+            {"value": 1},
+        )
         self.assertEqual(first["source"], "openai")
 
 

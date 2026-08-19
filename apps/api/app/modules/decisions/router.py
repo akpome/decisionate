@@ -1,8 +1,14 @@
 import asyncio
+import csv
+import io
+import json
 
+from app.configuration import get_runtime_configuration
 from app.db.database import SessionLocal
 from app.db.models import (
     Dataset,
+    Organization,
+    OrganizationMember,
 )
 from app.modules.decisions.models import (
     Decision,
@@ -37,6 +43,8 @@ from app.modules.decisions.schemas import (
     DEFAULT_DECISION_STATUS,
     CREATED_ASC_DECISION_LIST_SORT,
     DETAILS_DECISION_ACTIVITY,
+    DELETE_DECISION_ACTIVITY,
+    EXPORT_DECISION_ACTIVITY,
     DecisionActivityFeedResponse,
     DecisionActivityResponse,
     DecisionActivityType,
@@ -53,6 +61,7 @@ from app.modules.decisions.schemas import (
     DecisionListSort,
     DecisionOverviewUpdate,
     DecisionResponse,
+    DecisionTemplateResponse,
     DecisionReviewUpdate,
     DecisionSummaryResponse,
     DecisionUpdate,
@@ -60,6 +69,7 @@ from app.modules.decisions.schemas import (
     DecisionOutcomeUpdate,
     DecisionOutcomeAnalysisResponse,
     DecisionLearningUpdate,
+    DecisionLifecycleAccessResponse,
     DecisionPriorityUpdate,
     DecisionNotesWorkflowState,
     DecisionStatus,
@@ -96,11 +106,19 @@ from fastapi import (
     HTTPException,
     Query,
     Request,
+    Response,
 )
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, extract, func, or_
 
 from app.modules.auth_context import (
     get_auth_context,
+)
+from app.modules.identity.service import (
+    resolve_user_reference,
+    resolve_workspace_reference,
+)
+from app.modules.decisions.templates import (
+    list_decision_templates,
 )
 
 router = APIRouter(
@@ -117,6 +135,7 @@ def require_decision_manager(
             status_code=403,
             detail="Client users can review decisions but cannot modify them",
         )
+
 
 DECISION_ACTIVITY_MESSAGES: dict[DecisionActivityType, str] = {
     CREATED_DECISION_ACTIVITY:
@@ -145,6 +164,8 @@ DECISION_ACTIVITY_MESSAGES: dict[DecisionActivityType, str] = {
         "Category updated",
     CONFIDENCE_DECISION_ACTIVITY:
         "Confidence updated",
+    DELETE_DECISION_ACTIVITY:
+        "Decision deleted",
 }
 
 
@@ -170,7 +191,15 @@ def get_active_user_id(
             detail="User id is required",
         )
 
-    return clean_user_id
+    try:
+        return resolve_user_reference(
+            clean_user_id,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
 
 
 def get_active_workspace_id(
@@ -186,7 +215,11 @@ def get_active_workspace_id(
         else ""
     )
 
-    return clean_workspace_id or clean_user_id
+    return resolve_workspace_reference(
+        clean_workspace_id,
+        clean_user_id,
+        external_subject=x_user_id,
+    )
 
 
 def filter_decision_for_workspace(
@@ -198,7 +231,7 @@ def filter_decision_for_workspace(
         x_user_id
     )
     workspace_id = get_active_workspace_id(
-        clean_user_id,
+        x_user_id,
         x_workspace_id,
     )
 
@@ -222,7 +255,7 @@ def filter_decisions_for_workspace(
         x_user_id
     )
     workspace_id = get_active_workspace_id(
-        clean_user_id,
+        x_user_id,
         x_workspace_id,
     )
 
@@ -249,7 +282,7 @@ def filter_decision_activities_for_workspace(
         x_user_id
     )
     workspace_id = get_active_workspace_id(
-        clean_user_id,
+        x_user_id,
         x_workspace_id,
     )
 
@@ -263,14 +296,28 @@ def filter_decision_activity_feed_for_workspace(
     x_user_id: str,
     x_workspace_id: str | None,
 ):
+    clean_user_id = get_active_user_id(
+        x_user_id
+    )
+    workspace_id = get_active_workspace_id(
+        x_user_id,
+        x_workspace_id,
+    )
+
     return and_(
-        filter_decisions_for_workspace(
-            x_user_id,
-            x_workspace_id,
-        ),
         filter_decision_activities_for_workspace(
             x_user_id,
             x_workspace_id,
+        ),
+        or_(
+            filter_decisions_for_workspace(
+                x_user_id,
+                x_workspace_id,
+            ),
+            and_(
+                Decision.id.is_(None),
+                DecisionActivity.workspace_id == workspace_id,
+            ),
         ),
     )
 
@@ -284,7 +331,7 @@ def filter_dataset_for_workspace(
         x_user_id
     )
     workspace_id = get_active_workspace_id(
-        clean_user_id,
+        x_user_id,
         x_workspace_id,
     )
 
@@ -350,6 +397,76 @@ def get_accessible_decision_or_404(
     return decision
 
 
+def is_workspace_owner(
+    db,
+    request: Request,
+) -> bool:
+    auth_context = get_auth_context(request)
+    organization = (
+        db.query(Organization)
+        .filter(
+            Organization.owner_user_id == auth_context.workspace_id,
+        )
+        .first()
+    )
+
+    if not organization:
+        return auth_context.workspace_id == auth_context.user_id
+
+    if organization.owner_user_id == auth_context.user_id:
+        return True
+
+    membership = (
+        db.query(OrganizationMember)
+        .filter(
+            OrganizationMember.organization_id == organization.id,
+            OrganizationMember.clerk_user_id == auth_context.user_id,
+        )
+        .first()
+    )
+
+    if membership and membership.role == "owner":
+        return True
+
+    # Client workspace owners use the client role so they remain client-scoped.
+    return bool(
+        ":client:" in str(organization.owner_user_id or "")
+        and membership
+        and membership.role == "client"
+    )
+
+
+def require_decision_owner_or_workspace_owner(
+    db,
+    decision: Decision,
+    request: Request,
+):
+    auth_context = get_auth_context(request)
+    if auth_context.workspace_role == "managed_client":
+        raise HTTPException(
+            status_code=403,
+            detail="Agency owners cannot archive or delete client decisions",
+        )
+
+    current_user_ids = {
+        str(auth_context.external_user_id or "").strip(),
+        str(auth_context.user_id or "").strip(),
+    }
+    if str(decision.clerk_user_id or "").strip() in current_user_ids:
+        return
+
+    if is_workspace_owner(db, request):
+        return
+
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "Only the decision owner or workspace owner can archive or "
+            "delete this decision"
+        ),
+    )
+
+
 # =========================
 # Archived Decision Edit Guard For Historical Record Protection
 # =========================
@@ -373,6 +490,7 @@ def record_decision_activity(
     decision: Decision,
     activity_type: DecisionActivityType,
     message: str,
+    actor_user_id: str | None = None,
     touch_decision_record: bool = True,
 ):
     if activity_type not in VALID_DECISION_ACTIVITY_TYPES:
@@ -386,6 +504,8 @@ def record_decision_activity(
     activity = DecisionActivity(
         decision_id=decision.id,
         workspace_id=decision.workspace_id,
+        actor_user_id=actor_user_id,
+        decision_title=decision.title,
         activity_type=activity_type,
         message=message,
     )
@@ -507,6 +627,21 @@ def clean_required_decision_expected_outcome(
     return clean_value
 
 
+def validate_decision_outcome_evidence(
+    expected_outcome: str | None,
+    actual_outcome: str | None,
+    outcome_status: str | None,
+):
+    if (actual_outcome or outcome_status) and not expected_outcome:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Expected outcome is required before recording "
+                "actual outcome or status"
+            ),
+        )
+
+
 # =========================
 # Decision Controlled Value Validators For Metrics And Filters
 # =========================
@@ -553,6 +688,23 @@ def validate_optional_decision_controlled_value(
         clean_value,
         allowed_values,
         field_label,
+    )
+
+
+def validate_recommendation_source(value: str | None) -> str | None:
+    clean_value = clean_optional_single_line_text(value)
+    if clean_value is None:
+        return None
+
+    allowed_values = {"rules"}
+    configured_provider = get_runtime_configuration().ai_provider
+    if configured_provider:
+        allowed_values.add(configured_provider)
+
+    return validate_decision_controlled_value(
+        clean_value,
+        allowed_values,
+        "recommendation source",
     )
 
 
@@ -613,9 +765,7 @@ def apply_decision_list_filters(
         )
     elif outcome_state == "evaluated":
         query = query.filter(
-            has_meaningful_text(
-                Decision.outcome_status,
-            )
+            has_evaluated_outcome(),
         )
 
     if learning_state == "captured":
@@ -670,6 +820,7 @@ def apply_decision_list_filters(
                 Decision.priority.ilike(search_pattern),
                 Decision.category.ilike(search_pattern),
                 Decision.outcome_status.ilike(search_pattern),
+                Decision.action.ilike(search_pattern),
             )
         )
 
@@ -754,12 +905,28 @@ def has_meaningful_text(field):
 
 
 def has_recorded_outcome():
-    return or_(
+    return and_(
         has_meaningful_text(
-            Decision.outcome_status,
+            Decision.expected_outcome,
+        ),
+        or_(
+            has_meaningful_text(
+                Decision.outcome_status,
+            ),
+            has_meaningful_text(
+                Decision.actual_outcome,
+            ),
+        ),
+    )
+
+
+def has_evaluated_outcome():
+    return and_(
+        has_meaningful_text(
+            Decision.expected_outcome,
         ),
         has_meaningful_text(
-            Decision.actual_outcome,
+            Decision.outcome_status,
         ),
     )
 
@@ -829,6 +996,8 @@ def get_decision_count_map(
     field,
     allowed_values: set[str] | None = None,
     dataset_id: int | None = None,
+    additional_filter=None,
+    owner_user_ids: set[str] | None = None,
 ):
     filters = [
         filter_decisions_for_workspace(
@@ -842,6 +1011,14 @@ def get_decision_count_map(
         filters.append(
             Decision.dataset_id == dataset_id,
         )
+
+    if owner_user_ids:
+        filters.append(
+            Decision.clerk_user_id.in_(owner_user_ids),
+        )
+
+    if additional_filter is not None:
+        filters.append(additional_filter)
 
     if allowed_values:
         filters.append(
@@ -869,9 +1046,14 @@ def get_decision_month_count_map(
     x_user_id: str,
     x_workspace_id: str | None,
     dataset_id: int | None = None,
+    owner_user_ids: set[str] | None = None,
 ):
-    month_key = func.strftime(
-        "%Y-%m",
+    year_key = extract(
+        "year",
+        Decision.created_at,
+    )
+    month_key = extract(
+        "month",
         Decision.created_at,
     )
 
@@ -888,26 +1070,39 @@ def get_decision_month_count_map(
             Decision.dataset_id == dataset_id,
         )
 
+    if owner_user_ids:
+        filters.append(
+            Decision.clerk_user_id.in_(owner_user_ids),
+        )
+
     rows = (
         db.query(
+            year_key,
             month_key,
             func.count(Decision.id),
         )
         .filter(*filters)
-        .group_by(month_key)
-        .order_by(month_key)
+        .group_by(year_key, month_key)
+        .order_by(year_key, month_key)
         .all()
     )
 
     return {
-        value: count
-        for value, count in rows
+        f"{int(year):04d}-{int(month):02d}": count
+        for year, month, count in rows
     }
 
 
 # =========================
 # Decision Create And List Routes
 # =========================
+
+@router.get(
+    "/templates",
+    response_model=list[DecisionTemplateResponse],
+)
+async def get_decision_templates():
+    return list_decision_templates()
 
 @router.post(
     "/",
@@ -931,7 +1126,7 @@ async def create_decision(
         dataset = get_accessible_dataset(
             db,
             payload.dataset_id,
-            clean_user_id,
+            x_user_id,
             x_workspace_id,
         )
 
@@ -948,7 +1143,7 @@ async def create_decision(
         decision = Decision(
             clerk_user_id=clean_user_id,
             workspace_id=get_active_workspace_id(
-                clean_user_id,
+                x_user_id,
                 x_workspace_id,
             ),
             dataset_id=payload.dataset_id,
@@ -958,15 +1153,18 @@ async def create_decision(
             recommendation_text=clean_optional_multiline_text(
                 payload.recommendation_text,
             ),
-            recommendation_source=validate_optional_decision_controlled_value(
+            recommendation_source=validate_recommendation_source(
                 payload.recommendation_source,
-                {"openai", "rules"},
-                "recommendation source",
             ),
             recommendation_context=clean_optional_multiline_text(
                 payload.recommendation_context,
             ),
             title=clean_title,
+            action=clean_optional_multiline_text(
+                payload.action,
+            ) or clean_optional_multiline_text(
+                payload.recommendation_text,
+            ) or clean_title,
             description=clean_optional_single_line_text(
                 payload.description,
             ),
@@ -1002,6 +1200,7 @@ async def create_decision(
             decision,
             CREATED_DECISION_ACTIVITY,
             DECISION_ACTIVITY_MESSAGES[CREATED_DECISION_ACTIVITY],
+            actor_user_id=x_user_id,
             touch_decision_record=False,
         )
 
@@ -1055,6 +1254,9 @@ async def get_decisions(
         default=None,
         pattern=DECISION_REVIEW_WORKFLOW_STATE_PATTERN,
     ),
+    mine: bool = Query(
+        default=False,
+    ),
     search: str | None = Query(
         default=None,
     ),
@@ -1084,6 +1286,15 @@ async def get_decisions(
                 )
             )
         )
+
+        if mine:
+            owner_user_ids = {
+                get_active_user_id(x_user_id),
+                str(x_user_id).strip(),
+            }
+            query = query.filter(
+                Decision.clerk_user_id.in_(owner_user_ids),
+            )
 
         clean_status = (
             validate_decision_controlled_value(
@@ -1187,6 +1398,250 @@ async def get_decisions(
 
 
 # =========================
+# Decision Portfolio Export For Filtered CSV And JSON Records
+# =========================
+
+@router.get("/export")
+async def export_decisions(
+    request: Request,
+    format: str = Query(
+        default="csv",
+        pattern="^(csv|json)$",
+    ),
+    x_user_id: str = Header(alias="X-User-Id"),
+    x_workspace_id: str | None = Header(
+        default=None,
+        alias="X-Workspace-Id",
+    ),
+    status: DecisionStatus | None = Query(default=None),
+    lifecycle: DecisionListLifecycle = Query(
+        default=DEFAULT_DECISION_LIST_LIFECYCLE,
+        pattern=DECISION_LIST_LIFECYCLE_PATTERN,
+    ),
+    category: DecisionCategory | None = Query(default=None),
+    attention_state: DecisionAttentionWorkflowState | None = Query(
+        default=None,
+        pattern=DECISION_ATTENTION_WORKFLOW_STATE_PATTERN,
+    ),
+    outcome_state: DecisionOutcomeWorkflowState | None = Query(
+        default=None,
+        pattern=DECISION_OUTCOME_WORKFLOW_STATE_PATTERN,
+    ),
+    learning_state: DecisionLearningWorkflowState | None = Query(
+        default=None,
+        pattern=DECISION_LEARNING_WORKFLOW_STATE_PATTERN,
+    ),
+    notes_state: DecisionNotesWorkflowState | None = Query(
+        default=None,
+        pattern=DECISION_NOTES_WORKFLOW_STATE_PATTERN,
+    ),
+    review_state: DecisionReviewWorkflowState | None = Query(
+        default=None,
+        pattern=DECISION_REVIEW_WORKFLOW_STATE_PATTERN,
+    ),
+    mine: bool = Query(default=False),
+    search: str | None = Query(default=None),
+    sort: DecisionListSort = Query(
+        default=DEFAULT_DECISION_LIST_SORT,
+        pattern=DECISION_LIST_SORT_PATTERN,
+    ),
+):
+    if get_auth_context(request).workspace_role not in {
+        "owner",
+        "client",
+    }:
+        raise HTTPException(
+            status_code=403,
+            detail="Only workspace owners can export decisions",
+        )
+
+    decisions = await get_decisions(
+        x_user_id=x_user_id,
+        x_workspace_id=x_workspace_id,
+        status=status,
+        lifecycle=lifecycle,
+        category=category,
+        attention_state=attention_state,
+        outcome_state=outcome_state,
+        learning_state=learning_state,
+        notes_state=notes_state,
+        review_state=review_state,
+        mine=mine,
+        search=search,
+        sort=sort,
+        limit=None,
+        offset=0,
+    )
+
+    db = SessionLocal()
+    try:
+        decision_ids = [decision.id for decision in decisions]
+        activities_by_decision: dict[int, list[dict]] = {
+            decision_id: []
+            for decision_id in decision_ids
+        }
+        if decision_ids:
+            activities = (
+                db.query(DecisionActivity)
+                .filter(
+                    DecisionActivity.decision_id.in_(decision_ids),
+                    filter_decision_activities_for_workspace(
+                        x_user_id,
+                        x_workspace_id,
+                    ),
+                )
+                .order_by(
+                    DecisionActivity.created_at.asc(),
+                    DecisionActivity.id.asc(),
+                )
+                .all()
+            )
+            for activity in activities:
+                if activity.decision_id in activities_by_decision:
+                    activities_by_decision[activity.decision_id].append({
+                        "id": activity.id,
+                        "actor_user_id": activity.actor_user_id,
+                        "activity_type": activity.activity_type,
+                        "message": activity.message,
+                        "created_at": (
+                            activity.created_at.isoformat()
+                            if activity.created_at
+                            else None
+                        ),
+                    })
+
+        export_rows = []
+        for decision in decisions:
+            export_rows.append({
+                "id": decision.id,
+                "workspace_id": decision.workspace_id,
+                "owner_user_id": decision.owner_user_id,
+                "dataset_id": decision.dataset_id,
+                "metric_column": decision.metric_column,
+                "recommendation_text": decision.recommendation_text,
+                "recommendation_source": decision.recommendation_source,
+                "recommendation_context": decision.recommendation_context,
+                "title": decision.title,
+                "action": decision.action,
+                "description": decision.description,
+                "notes": decision.notes,
+                "expected_outcome": decision.expected_outcome,
+                "actual_outcome": decision.actual_outcome,
+                "outcome_status": decision.outcome_status,
+                "lessons_learned": decision.lessons_learned,
+                "review_date": (
+                    decision.review_date.isoformat()
+                    if decision.review_date
+                    else None
+                ),
+                "priority": decision.priority,
+                "category": decision.category,
+                "confidence_score": decision.confidence_score,
+                "status": decision.status,
+                "created_at": (
+                    decision.created_at.isoformat()
+                    if decision.created_at
+                    else None
+                ),
+                "updated_at": (
+                    decision.updated_at.isoformat()
+                    if decision.updated_at
+                    else None
+                ),
+                "activity_history": activities_by_decision.get(
+                    decision.id,
+                    [],
+                ),
+            })
+
+        db.add(
+            DecisionActivity(
+                decision_id=None,
+                workspace_id=get_active_workspace_id(
+                    x_user_id,
+                    x_workspace_id,
+                ),
+                actor_user_id=x_user_id,
+                decision_title="Decision portfolio export",
+                activity_type=EXPORT_DECISION_ACTIVITY,
+                message=(
+                    f"Decision portfolio exported as {format.upper()}"
+                ),
+            )
+        )
+        db.commit()
+
+        clean_format = format.lower()
+        headers = {
+            "Content-Disposition": (
+                f'attachment; filename="decisionate-decisions.{clean_format}"'
+            )
+        }
+        if clean_format == "json":
+            return Response(
+                content=json.dumps(
+                    export_rows,
+                    ensure_ascii=False,
+                ),
+                media_type="application/json",
+                headers=headers,
+            )
+
+        csv_buffer = io.StringIO(newline="")
+        fieldnames = [
+            key
+            for key in export_rows[0].keys()
+            if key != "activity_history"
+        ] if export_rows else [
+            "id",
+            "workspace_id",
+            "owner_user_id",
+            "dataset_id",
+            "metric_column",
+            "recommendation_text",
+            "recommendation_source",
+            "recommendation_context",
+            "title",
+            "action",
+            "description",
+            "notes",
+            "expected_outcome",
+            "actual_outcome",
+            "outcome_status",
+            "lessons_learned",
+            "review_date",
+            "priority",
+            "category",
+            "confidence_score",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        fieldnames.append("activity_history_json")
+        writer = csv.DictWriter(
+            csv_buffer,
+            fieldnames=fieldnames,
+            extrasaction="ignore",
+        )
+        writer.writeheader()
+        for row in export_rows:
+            csv_row = dict(row)
+            csv_row["activity_history_json"] = json.dumps(
+                csv_row.pop("activity_history"),
+                ensure_ascii=False,
+            )
+            writer.writerow(csv_row)
+
+        return Response(
+            content=csv_buffer.getvalue(),
+            media_type="text/csv",
+            headers=headers,
+        )
+    finally:
+        db.close()
+
+
+# =========================
 # Decision Summary Route For Portfolio Metrics And Counts
 # =========================
 
@@ -1204,6 +1659,9 @@ async def get_decision_summary(
         default=None,
         ge=1,
     ),
+    mine: bool = Query(
+        default=False,
+    ),
 ):
     db = SessionLocal()
 
@@ -1217,6 +1675,17 @@ async def get_decision_summary(
             base_filter = and_(
                 base_filter,
                 Decision.dataset_id == dataset_id,
+            )
+
+        owner_user_ids = None
+        if mine:
+            owner_user_ids = {
+                get_active_user_id(x_user_id),
+                str(x_user_id).strip(),
+            }
+            base_filter = and_(
+                base_filter,
+                Decision.clerk_user_id.in_(owner_user_ids),
             )
 
         total = (
@@ -1308,9 +1777,7 @@ async def get_decision_summary(
             db.query(Decision)
             .filter(
                 base_filter,
-                has_meaningful_text(
-                    Decision.outcome_status,
-                ),
+                has_evaluated_outcome(),
             )
             .count()
         )
@@ -1366,6 +1833,7 @@ async def get_decision_summary(
             Decision.status,
             VALID_DECISION_STATUSES,
             dataset_id,
+            owner_user_ids=owner_user_ids,
         )
         by_outcome_status = get_decision_count_map(
             db,
@@ -1374,6 +1842,8 @@ async def get_decision_summary(
             Decision.outcome_status,
             VALID_DECISION_OUTCOME_STATUSES,
             dataset_id,
+            additional_filter=has_recorded_outcome(),
+            owner_user_ids=owner_user_ids,
         )
         by_category = get_decision_count_map(
             db,
@@ -1382,6 +1852,7 @@ async def get_decision_summary(
             Decision.category,
             VALID_DECISION_CATEGORIES,
             dataset_id,
+            owner_user_ids=owner_user_ids,
         )
         learning_context = build_workspace_decision_learning_context(
             db,
@@ -1453,6 +1924,8 @@ async def get_decision_summary(
                 if reviews_overdue
                 else []
             ),
+            workspace_id=x_workspace_id or x_user_id,
+            actor_user_id=x_user_id,
         )
 
         return DecisionSummaryResponse(
@@ -1476,6 +1949,7 @@ async def get_decision_summary(
                 x_user_id,
                 x_workspace_id,
                 dataset_id,
+                owner_user_ids=owner_user_ids,
             ),
             by_status=by_status,
             by_outcome_status=by_outcome_status,
@@ -1519,6 +1993,7 @@ async def get_decision_activity_feed(
             db.query(
                 DecisionActivity,
                 Decision.title,
+                DecisionActivity.decision_title,
                 Decision.id,
             )
             .outerjoin(
@@ -1545,13 +2020,23 @@ async def get_decision_activity_feed(
                 id=activity.id,
                 decision_id=activity.decision_id,
                 workspace_id=activity.workspace_id,
-                decision_title=decision_title or "Unavailable decision",
+                actor_user_id=activity.actor_user_id,
+                decision_title=(
+                    decision_title
+                    or activity_title
+                    or "Unavailable decision"
+                ),
                 decision_available=decision_id is not None,
                 activity_type=activity.activity_type,
                 message=activity.message,
                 created_at=activity.created_at,
             )
-            for activity, decision_title, decision_id in rows
+            for (
+                activity,
+                decision_title,
+                activity_title,
+                decision_id,
+            ) in rows
         ]
 
     finally:
@@ -1564,12 +2049,12 @@ async def get_decision_activity_feed(
 
 @router.patch(
     "/{decision_id}",
-    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def update_decision(
     decision_id: int,
     payload: DecisionUpdate,
+    request: Request,
     x_user_id: str = Header(alias="X-User-Id"),
     x_workspace_id: str | None = Header(
         default=None,
@@ -1592,6 +2077,19 @@ async def update_decision(
             "status",
         )
 
+        archived_from_active = (
+            decision.status != ARCHIVED_DECISION_STATUS
+            and clean_status == ARCHIVED_DECISION_STATUS
+        )
+        if archived_from_active:
+            require_decision_owner_or_workspace_owner(
+                db,
+                decision,
+                request,
+            )
+        else:
+            require_decision_manager(request)
+
         if (
             decision.status == ARCHIVED_DECISION_STATUS
             and clean_status == ARCHIVED_DECISION_STATUS
@@ -1608,11 +2106,6 @@ async def update_decision(
             decision.status == ARCHIVED_DECISION_STATUS
             and clean_status != ARCHIVED_DECISION_STATUS
         )
-        archived_from_active = (
-            decision.status != ARCHIVED_DECISION_STATUS
-            and clean_status == ARCHIVED_DECISION_STATUS
-        )
-
         decision.status = clean_status
 
         if changed:
@@ -1629,6 +2122,7 @@ async def update_decision(
                 decision,
                 activity_type,
                 DECISION_ACTIVITY_MESSAGES[activity_type],
+                actor_user_id=x_user_id,
             )
 
         db.commit()
@@ -1653,6 +2147,7 @@ async def update_decision(
 async def update_decision_overview(
     decision_id: int,
     payload: DecisionOverviewUpdate,
+    request: Request,
     x_user_id: str = Header(alias="X-User-Id"),
     x_workspace_id: str | None = Header(
         default=None,
@@ -1685,6 +2180,12 @@ async def update_decision_overview(
                 decision.status,
                 clean_status,
             ):
+                if clean_status == ARCHIVED_DECISION_STATUS:
+                    require_decision_owner_or_workspace_owner(
+                        db,
+                        decision,
+                        request,
+                    )
                 status_activity_type = (
                     ARCHIVE_DECISION_ACTIVITY
                     if clean_status == ARCHIVED_DECISION_STATUS
@@ -1773,6 +2274,7 @@ async def update_decision_overview(
                 decision,
                 activity_type,
                 activity_message,
+                actor_user_id=x_user_id,
             )
 
         db.commit()
@@ -1830,6 +2332,18 @@ async def update_decision_details(
                 decision.title = clean_title
                 changed = True
 
+        if "action" in payload.model_fields_set:
+            clean_action = clean_optional_multiline_text(
+                payload.action,
+            )
+
+            if values_differ(
+                decision.action,
+                clean_action,
+            ):
+                decision.action = clean_action
+                changed = True
+
         if "description" in payload.model_fields_set:
             clean_description = clean_optional_single_line_text(
                 payload.description,
@@ -1860,6 +2374,7 @@ async def update_decision_details(
                 decision,
                 DETAILS_DECISION_ACTIVITY,
                 DECISION_ACTIVITY_MESSAGES[DETAILS_DECISION_ACTIVITY],
+                actor_user_id=x_user_id,
             )
 
         db.commit()
@@ -1936,11 +2451,11 @@ async def get_decision_activities(
 
 @router.patch(
     "/{decision_id}/archive",
-    dependencies=[Depends(require_decision_manager)],
     response_model=DecisionResponse,
 )
 async def archive_decision(
     decision_id: int,
+    request: Request,
     x_user_id: str = Header(alias="X-User-Id"),
     x_workspace_id: str | None = Header(
         default=None,
@@ -1956,6 +2471,11 @@ async def archive_decision(
             x_user_id,
             x_workspace_id,
         )
+        require_decision_owner_or_workspace_owner(
+            db,
+            decision,
+            request,
+        )
 
         changed = values_differ(
             decision.status,
@@ -1970,6 +2490,7 @@ async def archive_decision(
                 decision,
                 ARCHIVE_DECISION_ACTIVITY,
                 DECISION_ACTIVITY_MESSAGES[ARCHIVE_DECISION_ACTIVITY],
+                actor_user_id=x_user_id,
             )
 
         db.commit()
@@ -2018,6 +2539,7 @@ async def restore_decision(
                 decision,
                 RESTORE_DECISION_ACTIVITY,
                 DECISION_ACTIVITY_MESSAGES[RESTORE_DECISION_ACTIVITY],
+                actor_user_id=x_user_id,
             )
 
         db.commit()
@@ -2026,6 +2548,128 @@ async def restore_decision(
 
         return decision
 
+    finally:
+        db.close()
+
+
+# =========================
+# Archived Decision Destructive Delete Route
+# =========================
+
+@router.delete(
+    "/{decision_id}",
+    status_code=204,
+)
+async def delete_decision(
+    decision_id: int,
+    request: Request,
+    x_user_id: str = Header(alias="X-User-Id"),
+    x_workspace_id: str | None = Header(
+        default=None,
+        alias="X-Workspace-Id",
+    ),
+):
+    db = SessionLocal()
+
+    try:
+        decision = get_accessible_decision_or_404(
+            db,
+            decision_id,
+            x_user_id,
+            x_workspace_id,
+        )
+        require_decision_owner_or_workspace_owner(
+            db,
+            decision,
+            request,
+        )
+
+        if decision.status != ARCHIVED_DECISION_STATUS:
+            raise HTTPException(
+                status_code=400,
+                detail="Archive the decision before deleting it",
+            )
+
+        db.query(DecisionActivity).filter(
+            DecisionActivity.decision_id == decision.id,
+        ).update(
+            {
+                "decision_title": decision.title,
+            },
+            synchronize_session=False,
+        )
+        record_decision_activity(
+            db,
+            decision,
+            DELETE_DECISION_ACTIVITY,
+            DECISION_ACTIVITY_MESSAGES[DELETE_DECISION_ACTIVITY],
+            actor_user_id=x_user_id,
+            touch_decision_record=False,
+        )
+
+        # Preserve the audit trail after the decision is removed. The activity
+        # rows retain their title, workspace, actor, and message, but no longer
+        # point at a deleted decision.
+        db.flush()
+        db.query(DecisionActivity).filter(
+            DecisionActivity.decision_id == decision.id,
+        ).update(
+            {"decision_id": None},
+            synchronize_session=False,
+        )
+        db.delete(decision)
+        db.commit()
+
+        return Response(status_code=204)
+
+    finally:
+        db.close()
+
+
+@router.get(
+    "/{decision_id}/lifecycle-access",
+    response_model=DecisionLifecycleAccessResponse,
+)
+async def get_decision_lifecycle_access(
+    decision_id: int,
+    request: Request,
+    x_user_id: str = Header(alias="X-User-Id"),
+    x_workspace_id: str | None = Header(
+        default=None,
+        alias="X-Workspace-Id",
+    ),
+):
+    db = SessionLocal()
+
+    try:
+        decision = get_accessible_decision_or_404(
+            db,
+            decision_id,
+            x_user_id,
+            x_workspace_id,
+        )
+        auth_context = get_auth_context(request)
+        current_user_ids = {
+            str(auth_context.external_user_id or "").strip(),
+            str(auth_context.user_id or "").strip(),
+        }
+        is_decision_owner = (
+            str(decision.clerk_user_id or "").strip()
+            in current_user_ids
+        )
+        is_owner = is_workspace_owner(db, request)
+        can_manage_lifecycle = (
+            auth_context.workspace_role != "managed_client"
+            and (is_decision_owner or is_owner)
+        )
+
+        return DecisionLifecycleAccessResponse(
+            owner_user_id=str(decision.clerk_user_id),
+            is_decision_owner=is_decision_owner,
+            is_workspace_owner=is_owner,
+            can_archive=can_manage_lifecycle,
+            can_delete=can_manage_lifecycle,
+        )
     finally:
         db.close()
 
@@ -2073,6 +2717,10 @@ async def get_decision(
 async def get_decision_outcome_analysis(
     request: Request,
     decision_id: int,
+    metric_column: str | None = Query(
+        default=None,
+        max_length=120,
+    ),
 ):
     auth_context = get_auth_context(request)
     user_id = auth_context.user_id
@@ -2110,24 +2758,62 @@ async def get_decision_outcome_analysis(
         outcome_status = (
             decision.outcome_status or "not classified"
         )
+        selected_metric = (
+            clean_optional_single_line_text(
+                metric_column,
+            )
+            if metric_column is not None
+            else decision.metric_column
+        )
+        recommendation_text = (
+            decision.recommendation_text or ""
+        ).strip()
+        recommendation_context = (
+            decision.recommendation_context or ""
+        ).strip()
+        recommendation_source = (
+            decision.recommendation_source or ""
+        ).strip()
         historical_learning = build_workspace_decision_learning_context(
             db,
             user_id,
             workspace_id,
             base_filter=build_dataset_decision_learning_filter(
                 decision.dataset_id,
-                decision.metric_column,
+                selected_metric,
             ),
             exclude_decision_id=decision.id,
-            learning_scope="decision",
+            learning_scope=(
+                "metric"
+                if selected_metric
+                else "dataset"
+            ),
         )
+        fallback_recommendations = [
+            "Capture the evidence that explains the gap between expected and actual results.",
+            "Record one lesson learned before closing the decision follow-up.",
+        ]
+        if recommendation_text:
+            fallback_recommendations.insert(
+                0,
+                "Compare the recorded result with the original recommendation before deciding whether to repeat, revise, or retire it.",
+            )
+        if selected_metric:
+            fallback_recommendations.insert(
+                0,
+                f"Review the expected and actual outcome specifically for the selected metric: {selected_metric}.",
+            )
         outcome_analysis = await asyncio.to_thread(
             generate_structured_analysis,
             context="decision outcome comparison and learning review",
             facts={
                 "decision_title": decision.title,
+                "action": decision.action,
                 "category": decision.category,
-                "metric_column": decision.metric_column,
+                "metric_column": selected_metric,
+                "recommendation": recommendation_text,
+                "recommendation_context": recommendation_context,
+                "recommendation_source": recommendation_source,
                 "expected_outcome": expected_outcome,
                 "actual_outcome": actual_outcome,
                 "outcome_status": outcome_status,
@@ -2135,14 +2821,12 @@ async def get_decision_outcome_analysis(
                 "historical_decision_learning": historical_learning,
             },
             fallback_summary=(
-                f"The recorded outcome is classified as {outcome_status}. "
+                f"The recorded outcome for {selected_metric or 'the selected metric'} "
+                f"is classified as {outcome_status}. "
                 "Compare the evidence with the original success criteria "
                 "before closing the learning follow-up."
             ),
-            fallback_recommendations=[
-                "Capture the evidence that explains the gap between expected and actual results.",
-                "Record one lesson learned before closing the decision follow-up.",
-            ],
+            fallback_recommendations=fallback_recommendations,
             fallback_risks=(
                 [
                     "The outcome is unsuccessful; review the original assumptions before repeating the decision."
@@ -2150,6 +2834,8 @@ async def get_decision_outcome_analysis(
                 if outcome_status == "unsuccessful"
                 else []
             ),
+            workspace_id=workspace_id,
+            actor_user_id=user_id,
         )
 
         return DecisionOutcomeAnalysisResponse(
@@ -2209,6 +2895,7 @@ async def update_decision_notes(
                 decision,
                 NOTES_DECISION_ACTIVITY,
                 DECISION_ACTIVITY_MESSAGES[NOTES_DECISION_ACTIVITY],
+                actor_user_id=x_user_id,
             )
 
         db.commit()
@@ -2253,30 +2940,27 @@ async def update_decision_outcome(
         )
 
         changed = False
+        clean_expected_outcome = clean_optional_multiline_text(
+            decision.expected_outcome,
+        )
+        clean_actual_outcome = clean_optional_multiline_text(
+            decision.actual_outcome,
+        )
+        clean_outcome_status = validate_optional_decision_controlled_value(
+            decision.outcome_status,
+            VALID_DECISION_OUTCOME_STATUSES,
+            "outcome status",
+        )
 
         if "expected_outcome" in payload.model_fields_set:
             clean_expected_outcome = clean_optional_multiline_text(
                 payload.expected_outcome,
             )
 
-            if values_differ(
-                decision.expected_outcome,
-                clean_expected_outcome,
-            ):
-                decision.expected_outcome = clean_expected_outcome
-                changed = True
-
         if "actual_outcome" in payload.model_fields_set:
             clean_actual_outcome = clean_optional_multiline_text(
                 payload.actual_outcome,
             )
-
-            if values_differ(
-                decision.actual_outcome,
-                clean_actual_outcome,
-            ):
-                decision.actual_outcome = clean_actual_outcome
-                changed = True
 
         if "outcome_status" in payload.model_fields_set:
             clean_outcome_status = validate_optional_decision_controlled_value(
@@ -2285,12 +2969,32 @@ async def update_decision_outcome(
                 "outcome status",
             )
 
-            if values_differ(
-                decision.outcome_status,
-                clean_outcome_status,
-            ):
-                decision.outcome_status = clean_outcome_status
-                changed = True
+        validate_decision_outcome_evidence(
+            clean_expected_outcome,
+            clean_actual_outcome,
+            clean_outcome_status,
+        )
+
+        if values_differ(
+            decision.expected_outcome,
+            clean_expected_outcome,
+        ):
+            decision.expected_outcome = clean_expected_outcome
+            changed = True
+
+        if values_differ(
+            decision.actual_outcome,
+            clean_actual_outcome,
+        ):
+            decision.actual_outcome = clean_actual_outcome
+            changed = True
+
+        if values_differ(
+            decision.outcome_status,
+            clean_outcome_status,
+        ):
+            decision.outcome_status = clean_outcome_status
+            changed = True
 
         if changed:
             record_decision_activity(
@@ -2298,6 +3002,7 @@ async def update_decision_outcome(
                 decision,
                 OUTCOME_DECISION_ACTIVITY,
                 DECISION_ACTIVITY_MESSAGES[OUTCOME_DECISION_ACTIVITY],
+                actor_user_id=x_user_id,
             )
 
         db.commit()
@@ -2358,6 +3063,7 @@ async def update_decision_learning(
                 decision,
                 LEARNING_DECISION_ACTIVITY,
                 DECISION_ACTIVITY_MESSAGES[LEARNING_DECISION_ACTIVITY],
+                actor_user_id=x_user_id,
             )
 
         db.commit()
@@ -2422,6 +3128,7 @@ async def update_review_date(
                 decision,
                 REVIEW_DECISION_ACTIVITY,
                 DECISION_ACTIVITY_MESSAGES[REVIEW_DECISION_ACTIVITY],
+                actor_user_id=x_user_id,
             )
 
         db.commit()
@@ -2484,6 +3191,7 @@ async def update_decision_priority(
                 decision,
                 PRIORITY_DECISION_ACTIVITY,
                 DECISION_ACTIVITY_MESSAGES[PRIORITY_DECISION_ACTIVITY],
+                actor_user_id=x_user_id,
             )
 
         db.commit()
@@ -2546,6 +3254,7 @@ async def update_decision_category(
                 decision,
                 CATEGORY_DECISION_ACTIVITY,
                 DECISION_ACTIVITY_MESSAGES[CATEGORY_DECISION_ACTIVITY],
+                actor_user_id=x_user_id,
             )
 
         db.commit()
@@ -2610,6 +3319,7 @@ async def update_decision_confidence(
                 decision,
                 CONFIDENCE_DECISION_ACTIVITY,
                 DECISION_ACTIVITY_MESSAGES[CONFIDENCE_DECISION_ACTIVITY],
+                actor_user_id=x_user_id,
             )
 
         db.commit()

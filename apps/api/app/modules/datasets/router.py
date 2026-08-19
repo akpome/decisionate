@@ -4,8 +4,19 @@ import math
 import os
 import shutil
 import uuid
+from datetime import date
+from datetime import datetime
+from datetime import timedelta
+from pathlib import Path
 from secrets import token_urlsafe
+from typing import Literal
+from urllib.error import HTTPError
+from urllib.error import URLError
+from urllib.parse import urlparse
+from urllib.request import Request as UrlRequest
+from urllib.request import urlopen
 
+import pandas as pd
 from fastapi import APIRouter
 from fastapi import File
 from fastapi import HTTPException
@@ -22,11 +33,22 @@ from app.db.database import SessionLocal
 from app.db.models import DataSourceConnection
 from app.db.models import DashboardShare
 from app.db.models import Dataset
+from app.db.models import DatasetJoinCache
+from app.db.models import DatasetRelationship
 from app.db.models import UserPreference
+from app.db.models import WeeklyReportPreference
+from app.db.models import utc_now
+from app.infrastructure.object_storage import get_object_storage
 
 from app.modules.datasets.schemas import DataSourceConnectionCreate
 from app.modules.datasets.schemas import DataSourceConnectionUpdate
+from app.modules.datasets.schemas import DataSourceConnectionSync
+from app.modules.datasets.schemas import DataSourceConnectionSchedule
 from app.modules.datasets.schemas import DatasetCreate
+from app.modules.datasets.schemas import DatasetSignedUrlImport
+from app.modules.datasets.schemas import DatasetJoinRequest
+from app.modules.datasets.schemas import DatasetRelationshipRequest
+from app.modules.datasets.schemas import DatasetMultiMetricAnalysisRequest
 
 from app.modules.datasets.services.dataset_loader import (
     load_dataset,
@@ -34,12 +56,17 @@ from app.modules.datasets.services.dataset_loader import (
 )
 from app.modules.datasets.services.file_loader import (
     build_upload_source_config,
+    convert_dataframe_to_parquet,
     load_dataset_file,
+    get_dataset_file_type,
     sanitize_upload_filename,
 )
 
 from app.modules.datasets.services.analytics_engine import (
     build_analytics_engine_status,
+)
+from app.modules.datasets.services.analytics_storage import (
+    normalize_analytics_identifier,
 )
 from app.modules.datasets.services.preview import (
     generate_preview,
@@ -60,6 +87,9 @@ from app.modules.datasets.services.insights import (
     generate_dataset_ai_analysis,
     generate_insights,
 )
+from app.modules.datasets.services.anomalies import (
+    detect_dataset_anomalies,
+)
 from app.modules.ai.learning import (
     build_dataset_decision_learning_filter,
     build_workspace_decision_learning_context,
@@ -75,22 +105,83 @@ from app.modules.organizations.router import (
 from app.modules.datasets.services.analytics_storage import (
     build_dataset_analytics_manifest,
 )
+from app.modules.datasets.services.joins import (
+    build_join_dataset_metadata,
+    build_joined_dataset,
+)
+from app.modules.datasets.services.relationships import (
+    build_dataset_relationship,
+)
+from app.modules.datasets.services.join_cache import (
+    build_dataset_source_fingerprint,
+    build_join_cache_dataset_ids_json,
+    build_join_cache_definition_json,
+    build_join_definition,
+)
+from app.modules.datasets.services.multi_metric_analysis import (
+    build_multi_metric_analysis,
+    generate_multi_metric_ai_analysis,
+)
 from app.modules.datasets.services.source_metadata import (
     build_dataset_source_metadata,
 )
+from app.modules.forecasting.services import (
+    identify_forecast_columns,
+    prepare_forecast_dataframe,
+)
 from app.modules.datasets.services.sources import (
+    IMPLEMENTED_CONNECTOR_TYPES,
     get_dataset_source,
     is_dataset_source_available,
     list_dataset_sources,
     normalize_dataset_source_type,
 )
+from app.modules.datasets.services.google_analytics import (
+    GoogleAnalyticsConnectorUnavailable,
+    load_google_analytics_report,
+)
+from app.modules.datasets.services.connectors import (
+    ConnectorUnavailable,
+    load_connector_dataframe,
+)
+from app.modules.datasets.services.scheduling import (
+    SYNC_TIMEZONE_KEY,
+    connection_sync_is_due,
+    parse_connection_config as parse_schedule_config,
+    read_connection_schedule_details,
+    write_connection_schedule,
+)
+from app.modules.datasets.services.retention import (
+    CONNECTOR_DATA_RETENTION_MONTHS,
+    CONNECTOR_DATA_RETENTION_YEARS,
+    connector_retention_cutoff_month,
+    filter_connector_summary_by_retention,
+    has_expired_connector_month,
+)
 from app.modules.datasets.services.auth import (
     get_user_id,
     get_workspace_id,
+    require_workspace_connection_viewer,
     require_workspace_data_manager,
 )
 
 router = APIRouter()
+
+INITIAL_CONNECTOR_SYNC_DAYS = 30
+CONNECTOR_INCREMENTAL_LOOKBACK_DAYS = 1
+CONNECTOR_DEDUP_KEYS = {
+    "hubspot": ["record_id"],
+    "stripe": ["charge_id"],
+    "shopify": ["order_id"],
+    "meta_ads": ["date_start", "campaign_id"],
+    "quickbooks": ["invoice_id"],
+    "freshbooks": ["invoice_id"],
+    "xero": ["invoice_id"],
+}
+REMOVED_FILE_STORAGE_CONNECTORS = {
+    "google_drive",
+    "onedrive",
+}
 
 
 def get_dataset_upload_dir():
@@ -118,6 +209,211 @@ def build_dataset_upload_path(
     )
 
 
+SIGNED_FILE_URL_MAX_BYTES = 100 * 1024 * 1024
+SIGNED_FILE_URL_HOST_SUFFIXES = (
+    "googleusercontent.com",
+    "usercontent.google.com",
+    "googleapis.com",
+    "drive.google.com",
+    "docs.google.com",
+    "1drv.com",
+    "sharepoint.com",
+    "onedrive.live.com",
+    "onedrive.com",
+    "microsoft.com",
+)
+SIGNED_FILE_CONTENT_TYPE_EXTENSIONS = {
+    "text/csv": ".csv",
+    "application/json": ".json",
+    "application/x-ndjson": ".jsonl",
+    "application/vnd.apache.parquet": ".parquet",
+    "application/octet-stream": ".csv",
+    "application/vnd.ms-excel": ".xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+}
+
+
+def validate_signed_file_url(value: str):
+    parsed_url = urlparse(str(value or "").strip())
+    hostname = (parsed_url.hostname or "").lower().rstrip(".")
+
+    if parsed_url.scheme != "https" or not hostname:
+        raise HTTPException(
+            status_code=422,
+            detail="Signed file URLs must use HTTPS.",
+        )
+
+    if parsed_url.username or parsed_url.password:
+        raise HTTPException(
+            status_code=422,
+            detail="Signed file URLs must not contain embedded credentials.",
+        )
+
+    if not any(
+        hostname == suffix
+        or hostname.endswith(f".{suffix}")
+        for suffix in SIGNED_FILE_URL_HOST_SUFFIXES
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Only Google Drive and OneDrive signed file URLs are supported."
+            ),
+        )
+
+    return parsed_url
+
+
+def infer_signed_file_name(
+    url: str,
+    requested_file_name: str | None,
+    content_type: str | None,
+):
+    parsed_url = urlparse(url)
+    candidate = requested_file_name or os.path.basename(
+        parsed_url.path.rstrip("/")
+    )
+    candidate = sanitize_upload_filename(candidate)
+
+    if get_dataset_file_type(candidate):
+        return candidate
+
+    normalized_content_type = str(
+        content_type or ""
+    ).split(";", 1)[0].strip().lower()
+    extension = SIGNED_FILE_CONTENT_TYPE_EXTENSIONS.get(
+        normalized_content_type
+    )
+    if extension:
+        return (
+            os.path.splitext(candidate)[0]
+            + extension
+        )
+
+    raise HTTPException(
+        status_code=422,
+        detail=(
+            "Provide a file name ending in .csv, .json, .jsonl, .parquet, "
+            ".xls, or .xlsx when the signed URL has no recognizable file type."
+        ),
+    )
+
+
+def download_signed_file(
+    url: str,
+    file_path: str,
+):
+    validate_signed_file_url(url)
+    request = UrlRequest(
+        url,
+        headers={"User-Agent": "Decisionate signed file importer"},
+        method="GET",
+    )
+
+    try:
+        with urlopen(request, timeout=60) as response:
+            validate_signed_file_url(response.geturl())
+            content_length = response.headers.get("Content-Length")
+            if content_length and int(content_length) > SIGNED_FILE_URL_MAX_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail="Signed file exceeds the 100 MB import limit.",
+                )
+
+            bytes_written = 0
+            with open(file_path, "wb") as output:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    bytes_written += len(chunk)
+                    if bytes_written > SIGNED_FILE_URL_MAX_BYTES:
+                        raise HTTPException(
+                            status_code=413,
+                            detail="Signed file exceeds the 100 MB import limit.",
+                        )
+                    output.write(chunk)
+
+            return response.headers.get("Content-Type")
+    except HTTPException:
+        raise
+    except HTTPError as error:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Signed file could not be downloaded (HTTP {error.code}).",
+        ) from error
+    except (URLError, TimeoutError, OSError, ValueError) as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Signed file could not be downloaded.",
+        ) from error
+
+
+def persist_dataset_file(
+    db,
+    user_id: str,
+    workspace_id: str,
+    file_path: str,
+    upload_filename: str,
+    source_config: dict,
+):
+    parquet_path = None
+    stored_file_path = file_path
+    storage = get_object_storage()
+    try:
+        source_type, dataframe = load_dataset_file(
+            file_path,
+            upload_filename,
+        )
+        parquet_path = convert_dataframe_to_parquet(
+            dataframe,
+            file_path,
+        )
+
+        if parquet_path != file_path:
+            remove_dataset_file(file_path)
+            file_path = parquet_path
+
+        if storage.is_remote:
+            stored_file_path = storage.put_file(
+                file_path,
+                key=(
+                    "datasets/"
+                    f"workspace={normalize_analytics_identifier(workspace_id, 'workspace')}/"
+                    f"dataset-{uuid.uuid4().hex}.parquet"
+                ),
+            )
+        else:
+            stored_file_path = file_path
+
+        dataset = Dataset(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            source_type=source_type,
+            source_config=json.dumps(
+                source_config,
+                sort_keys=True,
+            ),
+            file_name=upload_filename,
+            file_path=stored_file_path,
+            row_count=len(dataframe),
+            column_count=len(dataframe.columns),
+        )
+
+        db.add(dataset)
+        db.commit()
+        db.refresh(dataset)
+        if stored_file_path != file_path:
+            remove_dataset_file(file_path)
+        return dataset
+    except Exception:
+        remove_dataset_file(stored_file_path)
+        remove_dataset_file(file_path)
+        if parquet_path and parquet_path != file_path:
+            remove_dataset_file(parquet_path)
+        raise
+
+
 def remove_dataset_file(
     file_path: str | None,
 ):
@@ -125,7 +421,7 @@ def remove_dataset_file(
         return
 
     try:
-        os.remove(file_path)
+        get_object_storage().delete(file_path)
     except FileNotFoundError:
         return
 
@@ -165,6 +461,60 @@ def remove_dataset_preference_entry(
     )
 
 
+def remove_dashboard_dataset_id_entry(
+    preference_json: str | None,
+    dataset_id: int,
+):
+    if not preference_json:
+        return preference_json
+
+    try:
+        dashboard_dataset_ids = json.loads(
+            preference_json
+        )
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(dashboard_dataset_ids, dict):
+        return None
+
+    next_dashboard_dataset_ids = {
+        key: value
+        for key, value in dashboard_dataset_ids.items()
+        if value != dataset_id
+    }
+
+    return (
+        json.dumps(next_dashboard_dataset_ids)
+        if next_dashboard_dataset_ids
+        else None
+    )
+
+
+def remove_dashboard_view_dataset_entry(
+    preference_json: str | None,
+    dataset_id: int,
+):
+    if not preference_json:
+        return preference_json
+
+    try:
+        dashboard_views = json.loads(preference_json)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(dashboard_views, dict):
+        return None
+
+    dashboard_views.pop(str(dataset_id), None)
+
+    return (
+        json.dumps(dashboard_views)
+        if dashboard_views
+        else None
+    )
+
+
 def cleanup_deleted_dataset_preferences(
     db,
     dataset,
@@ -200,6 +550,59 @@ def cleanup_deleted_dataset_preferences(
             preference.dashboard_preferences,
             dataset.id,
         )
+        preference.dashboard_dataset_ids = remove_dashboard_dataset_id_entry(
+            preference.dashboard_dataset_ids,
+            dataset.id,
+        )
+        preference.dashboard_views = remove_dashboard_view_dataset_entry(
+            preference.dashboard_views,
+            dataset.id,
+        )
+
+
+def cleanup_deleted_dataset_join_caches(
+    db,
+    dataset,
+):
+    caches = (
+        db.query(DatasetJoinCache)
+        .filter(
+            DatasetJoinCache.workspace_id == dataset.workspace_id,
+        )
+        .all()
+    )
+
+    for cache in caches:
+        try:
+            dataset_ids = {
+                int(dataset_id)
+                for dataset_id in json.loads(cache.dataset_ids)
+            }
+        except (TypeError, ValueError, json.JSONDecodeError):
+            dataset_ids = set()
+
+        if dataset.id in dataset_ids:
+            db.delete(cache)
+
+
+def cleanup_deleted_dataset_relationships(
+    db,
+    dataset,
+):
+    filters = [
+        DatasetRelationship.left_dataset_id == dataset.id,
+        DatasetRelationship.right_dataset_id == dataset.id,
+    ]
+    relationships = (
+        db.query(DatasetRelationship)
+        .filter(
+            or_(*filters),
+            DatasetRelationship.workspace_id == dataset.workspace_id,
+        )
+        .all()
+    )
+    for relationship in relationships:
+        db.delete(relationship)
 
 
 def build_dataset_summary_response(
@@ -227,21 +630,52 @@ def build_dataset_details_response(
     dataframe,
     learning_context: dict | None = None,
     chart_limit: int | None = 50,
+    workspace_id: str | None = None,
+    actor_user_id: str | None = None,
+    start_date: str | None = None,
+    period_filter: str | None = None,
+    aggregation: str | None = None,
+    aggregation_type: str | None = None,
 ):
+    report_dataframe = dataframe
+
+    if any(
+        value is not None
+        for value in (
+            start_date,
+            period_filter,
+            aggregation,
+            aggregation_type,
+        )
+    ):
+        date_column, _ = identify_forecast_columns(
+            dataframe
+        )
+        report_dataframe = prepare_forecast_dataframe(
+            dataframe,
+            date_column,
+            start_date,
+            period_filter,
+            aggregation,
+            aggregation_type,
+        )
+
     return {
         **build_dataset_summary_response(
             dataset
         ),
-        "preview": generate_preview(dataframe),
-        "metrics": generate_metrics(dataframe),
-        "insights": generate_insights(dataframe),
+        "preview": generate_preview(report_dataframe),
+        "metrics": generate_metrics(report_dataframe),
+        "insights": generate_insights(report_dataframe),
         "ai_analysis": generate_dataset_ai_analysis(
-            dataframe,
+            report_dataframe,
             None,
             learning_context,
+            workspace_id,
+            actor_user_id,
         ),
         "chart": generate_chart_data(
-            dataframe,
+            report_dataframe,
             limit=chart_limit,
         ),
     }
@@ -255,6 +689,18 @@ def build_source_connection_response(
     )
     source = get_dataset_source(
         source_type
+    )
+    (
+        sync_enabled,
+        sync_interval_hours,
+        sync_time_of_day,
+        _,
+        _,
+    ) = read_connection_schedule_details(
+        connection.connection_config
+    )
+    schedule_config = parse_schedule_config(
+        connection.connection_config
     )
 
     return {
@@ -289,6 +735,10 @@ def build_source_connection_response(
             connection.connection_config
         ),
         "last_synced_at": connection.last_synced_at,
+        "sync_enabled": sync_enabled,
+        "sync_interval_hours": sync_interval_hours,
+        "sync_time_of_day": sync_time_of_day,
+        "sync_timezone": schedule_config.get(SYNC_TIMEZONE_KEY),
         "created_at": connection.created_at,
         "updated_at": connection.updated_at,
     }
@@ -328,7 +778,8 @@ def has_source_connection_config(
             has_config_value(
                 value
             )
-            for value in connection_config.values()
+            for key, value in connection_config.items()
+            if not str(key).startswith("_")
         )
 
     return has_config_value(
@@ -495,6 +946,16 @@ def build_source_connection_status(
         return "needs_setup"
 
     return "planned"
+
+
+def require_source_connection_available(source):
+    if source["status"] == "planned":
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f'{source["label"]} connector is planned and is not available yet'
+            ),
+        )
 
 
 def sanitize_source_connection_display_name(
@@ -928,39 +1389,19 @@ async def upload_dataset(request: Request, file: UploadFile = File(...)):
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    try:
-        source_type, dataframe = load_dataset_file(
-            file_path,
-            upload_filename,
-        )
-    except HTTPException as error:
-        remove_dataset_file(
-            file_path
-        )
-        raise error
-
     db = SessionLocal()
 
     try:
-        dataset = Dataset(
-            user_id=user_id,
-            workspace_id=workspace_id,
-            source_type=source_type,
-            source_config=json.dumps(
-                build_upload_source_config(
-                    upload_filename
-                ),
-                sort_keys=True,
+        dataset = persist_dataset_file(
+            db,
+            user_id,
+            workspace_id,
+            file_path,
+            upload_filename,
+            build_upload_source_config(
+                upload_filename
             ),
-            file_name=upload_filename,
-            file_path=file_path,
-            row_count=len(dataframe),
-            column_count=len(dataframe.columns),
         )
-
-        db.add(dataset)
-        db.commit()
-        db.refresh(dataset)
 
         return {
             "id": dataset.id,
@@ -974,14 +1415,83 @@ async def upload_dataset(request: Request, file: UploadFile = File(...)):
             "column_count": dataset.column_count,
         }
 
-    except Exception:
-        remove_dataset_file(
-            file_path
-        )
-        raise
-
     finally:
         db.close()
+
+
+@router.post("/import-url")
+async def import_dataset_from_signed_url(
+    request: Request,
+    payload: DatasetSignedUrlImport,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    require_workspace_data_manager(request)
+    signed_url = str(payload.url).strip()
+    parsed_url = validate_signed_file_url(signed_url)
+    upload_dir = get_dataset_upload_dir()
+    os.makedirs(upload_dir, exist_ok=True)
+    temporary_path = os.path.join(
+        upload_dir,
+        f"{uuid.uuid4()}-signed-download",
+    )
+    file_path = None
+
+    try:
+        content_type = download_signed_file(
+            signed_url,
+            temporary_path,
+        )
+        upload_filename = infer_signed_file_name(
+            signed_url,
+            payload.file_name,
+            content_type,
+        )
+        file_path = build_dataset_upload_path(
+            upload_filename,
+        )
+        os.replace(
+            temporary_path,
+            file_path,
+        )
+
+        source_config = build_upload_source_config(
+            upload_filename
+        )
+        source_config.update({
+            "ingestion_mode": "signed_url_import",
+            "source_provider": parsed_url.hostname,
+        })
+        db = SessionLocal()
+        try:
+            dataset = persist_dataset_file(
+                db,
+                user_id,
+                workspace_id,
+                file_path,
+                upload_filename,
+                source_config,
+            )
+        finally:
+            db.close()
+
+        return {
+            "id": dataset.id,
+            "workspace_id": dataset.workspace_id,
+            **build_dataset_source_metadata(dataset),
+            "file_name": dataset.file_name,
+            "file_path": dataset.file_path,
+            "row_count": dataset.row_count,
+            "column_count": dataset.column_count,
+        }
+    except Exception:
+        remove_dataset_file(temporary_path)
+        if file_path:
+            remove_dataset_file(file_path)
+        raise
 
 
 @router.get("/")
@@ -1043,6 +1553,676 @@ async def get_analytics_status(
     return build_analytics_engine_status()
 
 
+@router.get("/join/metadata")
+async def get_dataset_join_metadata(
+    request: Request,
+    dataset_ids: list[int] = Query(...),
+):
+    if len(dataset_ids) < 1 or len(dataset_ids) > 5:
+        raise HTTPException(
+            status_code=400,
+            detail="Select between one and five datasets to inspect",
+        )
+
+    clean_dataset_ids = list(dict.fromkeys(dataset_ids))
+    if len(clean_dataset_ids) != len(dataset_ids):
+        raise HTTPException(
+            status_code=400,
+            detail="Each dataset can only be selected once",
+        )
+
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    db = SessionLocal()
+
+    try:
+        metadata = []
+        for dataset_id in clean_dataset_ids:
+            dataset, dataframe = load_dataframe(
+                db,
+                dataset_id,
+            )
+            verify_dataset_owner(
+                dataset,
+                user_id,
+                workspace_id,
+            )
+            metadata.append(
+                build_join_dataset_metadata(
+                    dataset,
+                    dataframe,
+                )
+            )
+
+        return {"datasets": metadata}
+    finally:
+        db.close()
+
+
+@router.post("/multi-metric-analysis")
+async def analyze_multiple_dataset_metrics(
+    request: Request,
+    payload: DatasetMultiMetricAnalysisRequest,
+):
+    """Analyze selected metrics without joining source tables."""
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    selected_dataset_ids = list(dict.fromkeys(
+        item.dataset_id
+        for item in payload.metrics
+    ))
+    db = SessionLocal()
+
+    try:
+        dataset_frames = []
+        for dataset_id in selected_dataset_ids:
+            dataset, dataframe = load_dataframe(
+                db,
+                dataset_id,
+            )
+            verify_dataset_owner(
+                dataset,
+                user_id,
+                workspace_id,
+            )
+            dataset_frames.append((dataset, dataframe))
+
+        definition = payload.model_dump()
+        result = await asyncio.to_thread(
+            build_multi_metric_analysis,
+            dataset_frames,
+            definition,
+        )
+        learning_context = build_workspace_decision_learning_context(
+            db,
+            user_id,
+            workspace_id,
+            learning_scope="workspace",
+        )
+        result["ai_analysis"] = await asyncio.to_thread(
+            generate_multi_metric_ai_analysis,
+            result,
+            learning_context,
+            workspace_id,
+            user_id,
+        )
+        return result
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+    finally:
+        db.close()
+
+
+@router.get("/join/cache")
+async def get_dataset_join_cache(
+    request: Request,
+    dataset_id: int = Query(..., ge=1),
+    dashboard: str | None = Query(None),
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    dashboard_key = clean_dashboard_share_key(dashboard)
+    db = SessionLocal()
+
+    try:
+        cache = (
+            db.query(DatasetJoinCache)
+            .filter(
+                DatasetJoinCache.user_id == user_id,
+                DatasetJoinCache.workspace_id == workspace_id,
+                DatasetJoinCache.dashboard_key == dashboard_key,
+            )
+            .first()
+        )
+        if not cache:
+            return None
+
+        definition = json.loads(cache.definition)
+        selections = definition.get("selections", [])
+        cached_dataset_ids = {
+            int(dataset_id)
+            for dataset_id in json.loads(cache.dataset_ids)
+        }
+        if dataset_id not in cached_dataset_ids:
+            return None
+
+        dataset_frames = []
+        for selection in selections:
+            dataset, dataframe = load_dataframe(
+                db,
+                int(selection["dataset_id"]),
+            )
+            verify_dataset_owner(
+                dataset,
+                user_id,
+                workspace_id,
+            )
+            dataset_frames.append(
+                (
+                    dataset,
+                    dataframe,
+                    build_join_dataset_metadata(
+                        dataset,
+                        dataframe,
+                    ),
+                )
+            )
+
+        source_fingerprint = build_dataset_source_fingerprint(
+            [frame[0] for frame in dataset_frames]
+        )
+        if source_fingerprint != cache.source_fingerprint:
+            result = await asyncio.to_thread(
+                build_joined_dataset,
+                dataset_frames,
+                selections,
+                definition.get("start_date"),
+                definition.get("period_filter", "all"),
+                definition.get("aggregation", "monthly"),
+                definition.get("aggregation_type", "sum"),
+            )
+            cache.result = json.dumps(
+                result,
+                sort_keys=True,
+            )
+            cache.source_fingerprint = source_fingerprint
+            cache.dataset_ids = build_join_cache_dataset_ids_json(
+                result["dataset_ids"]
+            )
+            db.commit()
+            return result
+
+        return json.loads(cache.result)
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        db.rollback()
+        return None
+    finally:
+        db.close()
+
+
+@router.delete("/join/cache")
+async def delete_dataset_join_cache(
+    request: Request,
+    dataset_id: int = Query(..., ge=1),
+    dashboard: str | None = Query(None),
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    dashboard_key = clean_dashboard_share_key(dashboard)
+    db = SessionLocal()
+
+    try:
+        cache = (
+            db.query(DatasetJoinCache)
+            .filter(
+                DatasetJoinCache.user_id == user_id,
+                DatasetJoinCache.workspace_id == workspace_id,
+                DatasetJoinCache.dashboard_key == dashboard_key,
+            )
+            .first()
+        )
+        if cache:
+            cached_dataset_ids = {
+                int(cached_id)
+                for cached_id in json.loads(cache.dataset_ids)
+            }
+            if dataset_id in cached_dataset_ids:
+                db.delete(cache)
+                db.commit()
+
+        return {"deleted": bool(cache)}
+    finally:
+        db.close()
+
+
+@router.post("/join")
+async def join_datasets(
+    request: Request,
+    payload: DatasetJoinRequest,
+):
+    clean_dataset_ids = [
+        selection.dataset_id
+        for selection in payload.selections
+    ]
+    if len(set(clean_dataset_ids)) != len(clean_dataset_ids):
+        raise HTTPException(
+            status_code=400,
+            detail="Each dataset can only be selected once",
+        )
+
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    db = SessionLocal()
+
+    try:
+        dataset_frames = []
+        for selection in payload.selections:
+            dataset, dataframe = load_dataframe(
+                db,
+                selection.dataset_id,
+            )
+            verify_dataset_owner(
+                dataset,
+                user_id,
+                workspace_id,
+            )
+            dataset_frames.append(
+                (
+                    dataset,
+                    dataframe,
+                    build_join_dataset_metadata(
+                        dataset,
+                        dataframe,
+                    ),
+                )
+            )
+
+        result = await asyncio.to_thread(
+            build_joined_dataset,
+            dataset_frames,
+            [
+                selection.model_dump()
+                for selection in payload.selections
+            ],
+            str(payload.start_date)
+            if payload.start_date
+            else None,
+            payload.period_filter,
+            payload.aggregation,
+            payload.aggregation_type,
+        )
+
+        if payload.dashboard_key:
+            dashboard_key = clean_dashboard_share_key(
+                payload.dashboard_key
+            )
+            definition = build_join_definition(
+                [
+                    selection.model_dump()
+                    for selection in payload.selections
+                ],
+                str(payload.start_date)
+                if payload.start_date
+                else None,
+                payload.period_filter,
+                payload.aggregation,
+                payload.aggregation_type,
+            )
+            source_fingerprint = build_dataset_source_fingerprint(
+                [frame[0] for frame in dataset_frames]
+            )
+            cache = (
+                db.query(DatasetJoinCache)
+                .filter(
+                    DatasetJoinCache.user_id == user_id,
+                    DatasetJoinCache.workspace_id == workspace_id,
+                    DatasetJoinCache.dashboard_key == dashboard_key,
+                )
+                .first()
+            )
+            if not cache:
+                cache = DatasetJoinCache(
+                    user_id=user_id,
+                    workspace_id=workspace_id,
+                    dashboard_key=dashboard_key,
+                    created_at=utc_now(),
+                )
+                db.add(cache)
+
+            cache.dataset_ids = build_join_cache_dataset_ids_json(
+                result["dataset_ids"]
+            )
+            cache.definition = build_join_cache_definition_json(
+                definition
+            )
+            cache.result = json.dumps(
+                result,
+                sort_keys=True,
+            )
+            cache.source_fingerprint = source_fingerprint
+            cache.updated_at = utc_now()
+            db.commit()
+
+        return result
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+    finally:
+        db.close()
+
+
+def _relationship_workspace_filter(
+    user_id: str,
+    workspace_id: str | None,
+):
+    if workspace_id:
+        return (
+            DatasetRelationship.workspace_id == workspace_id,
+        )
+
+    return (
+        DatasetRelationship.user_id == user_id,
+        DatasetRelationship.workspace_id.is_(None),
+    )
+
+
+def _relationship_definition_from_record(
+    relationship: DatasetRelationship,
+):
+    return {
+        "name": relationship.name,
+        "left": {
+            "dataset_id": relationship.left_dataset_id,
+            "date_column": relationship.left_date_column,
+            "metric_column": relationship.left_metric,
+        },
+        "right": {
+            "dataset_id": relationship.right_dataset_id,
+            "date_column": relationship.right_date_column,
+            "metric_column": relationship.right_metric,
+        },
+        "period": relationship.period,
+        "aggregation": relationship.aggregation,
+        "method": relationship.method,
+        "lag_mode": getattr(relationship, "lag_mode", None) or "manual",
+        "lag_periods": relationship.lag_periods,
+    }
+
+
+def _load_relationship_frames(
+    db,
+    relationship_definition: dict,
+    user_id: str,
+    workspace_id: str | None,
+):
+    selections = [
+        relationship_definition["left"],
+        relationship_definition["right"],
+    ]
+    frames = []
+    for selection in selections:
+        dataset, dataframe = load_dataframe(
+            db,
+            int(selection["dataset_id"]),
+        )
+        verify_dataset_owner(
+            dataset,
+            user_id,
+            workspace_id,
+        )
+        frames.append((dataset, dataframe))
+
+    return frames
+
+
+async def _calculate_dataset_relationship(
+    db,
+    definition: dict,
+    user_id: str,
+    workspace_id: str | None,
+    relationship_id: int | None = None,
+):
+    frames = _load_relationship_frames(
+        db,
+        definition,
+        user_id,
+        workspace_id,
+    )
+    return build_dataset_relationship(
+        frames,
+        definition,
+        relationship_id,
+    )
+
+
+@router.post("/relationships/preview")
+async def preview_dataset_relationship(
+    request: Request,
+    payload: DatasetRelationshipRequest,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    db = SessionLocal()
+
+    try:
+        return await _calculate_dataset_relationship(
+            db,
+            payload.model_dump(),
+            user_id,
+            workspace_id,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+    finally:
+        db.close()
+
+
+@router.get("/relationships")
+async def get_dataset_relationships(
+    request: Request,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    db = SessionLocal()
+
+    try:
+        relationships = (
+            db.query(DatasetRelationship)
+            .filter(
+                *_relationship_workspace_filter(
+                    user_id,
+                    workspace_id,
+                )
+            )
+            .order_by(
+                DatasetRelationship.updated_at.desc(),
+                DatasetRelationship.id.desc(),
+            )
+            .all()
+        )
+        results = []
+        for relationship in relationships:
+            try:
+                results.append(
+                    await _calculate_dataset_relationship(
+                        db,
+                        _relationship_definition_from_record(
+                            relationship
+                        ),
+                        user_id,
+                        workspace_id,
+                        relationship.id,
+                    )
+                )
+            except (HTTPException, ValueError, OSError):
+                results.append({
+                    **_relationship_definition_from_record(
+                        relationship
+                    ),
+                    "id": relationship.id,
+                    "left_dataset_name": f"Dataset {relationship.left_dataset_id}",
+                    "right_dataset_name": f"Dataset {relationship.right_dataset_id}",
+                    "period": relationship.period,
+                    "aggregation": relationship.aggregation,
+                    "method": relationship.method,
+                    "lag_mode": getattr(relationship, "lag_mode", None) or "manual",
+                    "lag_periods": relationship.lag_periods,
+                    "matched_period_count": 0,
+                    "correlation": None,
+                    "relationship_strength": "unavailable",
+                    "direction": "undetermined",
+                    "evidence": [],
+                    "decision_context": "The source dataset is unavailable.",
+                    "status": "unavailable",
+                })
+
+        return results
+    finally:
+        db.close()
+
+
+@router.post("/relationships")
+async def create_dataset_relationship(
+    request: Request,
+    payload: DatasetRelationshipRequest,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    db = SessionLocal()
+
+    try:
+        definition = payload.model_dump()
+        result = await _calculate_dataset_relationship(
+            db,
+            definition,
+            user_id,
+            workspace_id,
+        )
+        relationship = DatasetRelationship(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            name=result["name"],
+            left_dataset_id=result["left"]["dataset_id"],
+            left_date_column=result["left"]["date_column"],
+            left_metric=result["left"]["metric_column"],
+            right_dataset_id=result["right"]["dataset_id"],
+            right_date_column=result["right"]["date_column"],
+            right_metric=result["right"]["metric_column"],
+            period=result["period"],
+            aggregation=result["aggregation"],
+            method=result["method"],
+            lag_mode=result["lag_mode"],
+            lag_periods=result["lag_periods"],
+            created_at=utc_now(),
+            updated_at=utc_now(),
+        )
+        db.add(relationship)
+        db.commit()
+        db.refresh(relationship)
+        result["id"] = relationship.id
+        return result
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+    finally:
+        db.close()
+
+
+@router.delete("/relationships/{relationship_id}")
+async def delete_dataset_relationship(
+    request: Request,
+    relationship_id: int,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    db = SessionLocal()
+
+    try:
+        relationship = (
+            db.query(DatasetRelationship)
+            .filter(
+                DatasetRelationship.id == relationship_id,
+                *_relationship_workspace_filter(
+                    user_id,
+                    workspace_id,
+                ),
+            )
+            .first()
+        )
+        if not relationship:
+            raise HTTPException(
+                status_code=404,
+                detail="Relationship not found",
+            )
+
+        alert_preference = (
+            db.query(WeeklyReportPreference)
+            .filter(
+                WeeklyReportPreference.workspace_id == workspace_id,
+            )
+            .first()
+        )
+        if alert_preference:
+            try:
+                relationship_focus = json.loads(
+                    alert_preference.relationship_focus or "[]"
+                )
+            except (TypeError, json.JSONDecodeError):
+                relationship_focus = []
+
+            if not isinstance(relationship_focus, list):
+                relationship_focus = []
+
+            remaining_relationships = []
+            for value in relationship_focus:
+                try:
+                    focus_id = int(value)
+                except (TypeError, ValueError):
+                    continue
+                if focus_id != relationship_id:
+                    remaining_relationships.append(focus_id)
+
+            alert_preference.relationship_focus = json.dumps(
+                remaining_relationships,
+                sort_keys=True,
+            )
+            try:
+                metric_focus = json.loads(
+                    alert_preference.metric_focus or "[]"
+                )
+            except (TypeError, json.JSONDecodeError):
+                metric_focus = []
+            if not isinstance(metric_focus, list):
+                metric_focus = []
+
+            if not remaining_relationships and not metric_focus:
+                alert_preference.enabled = 0
+
+        db.delete(relationship)
+        db.commit()
+        return {"deleted": True}
+    finally:
+        db.close()
+
+
 @router.get("/source-connections")
 async def get_source_connections(
     request: Request,
@@ -1051,6 +2231,9 @@ async def get_source_connections(
     workspace_id = get_workspace_id(
         request,
         user_id,
+    )
+    require_workspace_connection_viewer(
+        request,
     )
 
     db = SessionLocal()
@@ -1062,7 +2245,10 @@ async def get_source_connections(
                 filter_source_connections_for_workspace(
                     user_id,
                     workspace_id,
-                )
+                ),
+                ~DataSourceConnection.source_type.in_(
+                    REMOVED_FILE_STORAGE_CONNECTORS
+                ),
             )
             .order_by(
                 DataSourceConnection.created_at.desc(),
@@ -1109,6 +2295,8 @@ async def create_source_connection(
             status_code=400,
             detail="Unknown data source",
         )
+
+    require_source_connection_available(source)
 
     display_name = sanitize_source_connection_display_name(
         payload.display_name,
@@ -1196,11 +2384,25 @@ async def update_source_connection(
             )
 
         if payload.connection_config is not None:
+            existing_config = parse_schedule_config(
+                connection.connection_config
+            )
+            sanitized_config = sanitize_source_connection_config(
+                source,
+                payload.connection_config,
+            )
+            next_config = parse_schedule_config(sanitized_config)
+            for config_key, config_value in existing_config.items():
+                if (
+                    str(config_key).startswith("_")
+                    and config_key != "_connector_retention_months"
+                    and config_key not in next_config
+                ):
+                    next_config[config_key] = config_value
             connection.connection_config = (
-                sanitize_source_connection_config(
-                    source,
-                    payload.connection_config,
-                )
+                json.dumps(next_config, sort_keys=True)
+                if next_config
+                else None
             )
 
         db.commit()
@@ -1245,6 +2447,1387 @@ async def delete_source_connection(
             "message": "Data source connection deleted",
         }
 
+    finally:
+        db.close()
+
+
+@router.patch("/source-connections/{connection_id}/schedule")
+async def update_source_connection_schedule(
+    request: Request,
+    connection_id: int,
+    payload: DataSourceConnectionSchedule,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(request, user_id)
+    require_workspace_data_manager(request)
+    db = SessionLocal()
+    try:
+        connection = get_owned_source_connection(
+            db,
+            connection_id,
+            user_id,
+            workspace_id,
+        )
+        source = get_dataset_source(connection.source_type)
+        if not source or "scheduled" not in source.get("sync_modes", []):
+            raise HTTPException(
+                status_code=400,
+                detail="Scheduled sync is not available for this source",
+            )
+        require_source_connection_available(source)
+        try:
+            connection.connection_config = write_connection_schedule(
+                connection.connection_config,
+                payload.enabled,
+                payload.interval_hours,
+                payload.time_of_day,
+                payload.timezone,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        db.commit()
+        db.refresh(connection)
+        return build_source_connection_response(connection)
+    finally:
+        db.close()
+
+
+def get_incremental_sync_window(
+    connection,
+    payload: DataSourceConnectionSync,
+):
+    start_date = payload.start_date
+    end_date = payload.end_date
+
+    if start_date is None:
+        if connection.last_synced_at:
+            start_date = (
+                connection.last_synced_at.date()
+                - timedelta(days=CONNECTOR_INCREMENTAL_LOOKBACK_DAYS)
+            )
+        else:
+            start_date = date.today() - timedelta(
+                days=INITIAL_CONNECTOR_SYNC_DAYS
+            )
+
+    if end_date is None and start_date is not None:
+        end_date = date.today()
+
+    return start_date, end_date
+
+
+def find_connector_dataset(
+    db,
+    connection,
+):
+    datasets = (
+        db.query(Dataset)
+        .filter(
+            Dataset.workspace_id == connection.workspace_id,
+            Dataset.source_type == connection.source_type,
+        )
+        .order_by(
+            Dataset.created_at.desc(),
+            Dataset.id.desc(),
+        )
+        .all()
+    )
+
+    for dataset in datasets:
+        source_config = parse_source_connection_config(
+            dataset.source_config
+        )
+        if str(source_config.get("connection_id") or "") == str(
+            connection.id
+        ):
+            return dataset
+
+    return None
+
+
+CONNECTOR_PARTITION_DATE_COLUMNS = (
+    "date",
+    "date_start",
+    "created_at",
+    "created_at_utc",
+    "created",
+    "created_date",
+    "transaction_date",
+    "invoice_date",
+    "updated_at",
+    "updated_date",
+    "timestamp",
+)
+CONNECTOR_HOT_MONTHS = 24
+CONNECTOR_HOT_DIRECTORY = "hot"
+CONNECTOR_HISTORICAL_DIRECTORY = "historical"
+CONNECTOR_HISTORICAL_LEGACY_FILENAME = "historical-summary.parquet"
+CONNECTOR_PARQUET_COMPRESSION = "snappy"
+SUMMARY_MONTH_COLUMN = "__decisionate_summary_month__"
+SUMMARY_MARKER_COLUMN = "__decisionate_summary__"
+CONNECTOR_PARTITION_MONTH_COLUMN = "__decisionate_partition_month__"
+MAX_SUMMARY_GROUP_COLUMNS = 4
+MAX_SUMMARY_GROUP_CARDINALITY = 50
+
+
+def build_connector_partition_dir(
+    connection,
+):
+    workspace_namespace = normalize_analytics_identifier(
+        connection.workspace_id or connection.user_id,
+        "workspace",
+    )
+    source_namespace = normalize_analytics_identifier(
+        connection.source_type,
+        "connector",
+    )
+
+    return os.path.join(
+        get_dataset_upload_dir(),
+        "connectors",
+        f"workspace={workspace_namespace}",
+        f"source={source_namespace}",
+        f"connection={connection.id}",
+    )
+
+
+def build_connector_storage_prefix(
+    connection,
+):
+    workspace_namespace = normalize_analytics_identifier(
+        connection.workspace_id or connection.user_id,
+        "workspace",
+    )
+    source_namespace = normalize_analytics_identifier(
+        connection.source_type,
+        "connector",
+    )
+    return (
+        "connectors/"
+        f"workspace={workspace_namespace}/"
+        f"source={source_namespace}/"
+        f"connection={connection.id}/"
+        f"revision={uuid.uuid4().hex}"
+    )
+
+
+def build_connector_hot_dir(
+    partition_dir: str,
+):
+    return os.path.join(
+        partition_dir,
+        CONNECTOR_HOT_DIRECTORY,
+    )
+
+
+def build_connector_historical_dir(
+    partition_dir: str,
+):
+    return os.path.join(
+        partition_dir,
+        CONNECTOR_HISTORICAL_DIRECTORY,
+    )
+
+
+def build_connector_historical_year_path(
+    partition_dir: str,
+    year: str,
+):
+    return os.path.join(
+        build_connector_historical_dir(partition_dir),
+        f"year={year}.parquet",
+    )
+
+
+def build_connector_legacy_summary_path(
+    partition_dir: str,
+):
+    return os.path.join(
+        partition_dir,
+        CONNECTOR_HISTORICAL_LEGACY_FILENAME,
+    )
+
+
+def list_connector_raw_partition_paths(
+    partition_dir: str,
+):
+    paths = []
+    for directory in (
+        partition_dir,
+        build_connector_hot_dir(partition_dir),
+    ):
+        if not os.path.isdir(directory):
+            continue
+        for filename in os.listdir(directory):
+            if not (
+                filename.startswith("month=")
+                and filename.endswith(".parquet")
+            ):
+                continue
+            paths.append(
+                os.path.join(
+                    directory,
+                    filename,
+                )
+            )
+    return sorted(set(paths))
+
+
+def load_connector_raw_dataframe(
+    partition_dir: str,
+):
+    with get_object_storage().materialize(partition_dir) as local_partition_dir:
+        partition_paths = list_connector_raw_partition_paths(
+            local_partition_dir
+        )
+        if not partition_paths:
+            return pd.DataFrame()
+
+        dataframes = []
+        for path in partition_paths:
+            dataframe = pd.read_parquet(path)
+            filename = Path(path).name
+            month = filename.removeprefix("month=").removesuffix(
+                ".parquet"
+            )
+            dataframe[CONNECTOR_PARTITION_MONTH_COLUMN] = month
+            dataframes.append(dataframe)
+
+        return pd.concat(
+            dataframes,
+            ignore_index=True,
+            sort=False,
+        )
+
+
+def load_connector_summary_dataframe(
+    partition_dir: str,
+):
+    with get_object_storage().materialize(partition_dir) as local_partition_dir:
+        historical_dir = build_connector_historical_dir(
+            local_partition_dir
+        )
+        historical_paths = sorted(
+            path
+            for path in Path(historical_dir).glob("year=*.parquet")
+            if path.is_file()
+        ) if os.path.isdir(historical_dir) else []
+        legacy_path = build_connector_legacy_summary_path(
+            local_partition_dir
+        )
+        if os.path.isfile(legacy_path):
+            historical_paths.append(Path(legacy_path))
+
+        if not historical_paths:
+            return pd.DataFrame()
+
+        return pd.concat(
+            [pd.read_parquet(path) for path in historical_paths],
+            ignore_index=True,
+            sort=False,
+        )
+
+
+def find_connector_partition_date_column(
+    dataframe,
+    report_config: dict,
+):
+    configured_column = report_config.get("date_column")
+    candidates = [
+        configured_column,
+        *CONNECTOR_PARTITION_DATE_COLUMNS,
+    ]
+    seen = set()
+
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        if candidate not in dataframe.columns:
+            continue
+
+        parsed = pd.to_datetime(
+            dataframe[candidate],
+            errors="coerce",
+            utc=True,
+        )
+        if parsed.notna().any():
+            return candidate
+
+    for column in dataframe.columns:
+        normalized = str(column).strip().lower()
+        if not any(
+            token in normalized
+            for token in ("date", "time", "created", "updated")
+        ):
+            continue
+
+        parsed = pd.to_datetime(
+            dataframe[column],
+            errors="coerce",
+            utc=True,
+        )
+        if parsed.notna().any():
+            return column
+
+    return None
+
+
+def get_connector_month_index(
+    value: str,
+):
+    parsed_value = datetime.strptime(
+        value,
+        "%Y-%m",
+    )
+    return parsed_value.year * 12 + parsed_value.month - 1
+
+
+def get_connector_summary_group_columns(
+    dataframe,
+    date_column,
+    report_config: dict,
+):
+    preferred_columns = report_config.get("dimensions") or []
+    candidates = [
+        *preferred_columns,
+        *dataframe.select_dtypes(exclude="number").columns.tolist(),
+    ]
+    group_columns = []
+    seen = set()
+
+    for column in candidates:
+        if (
+            column in seen
+            or column not in dataframe.columns
+            or column == date_column
+            or column in {
+                SUMMARY_MONTH_COLUMN,
+                SUMMARY_MARKER_COLUMN,
+            }
+        ):
+            continue
+        seen.add(column)
+        normalized = str(column).strip().lower()
+        if any(
+            token in normalized
+            for token in (
+                "email",
+                "phone",
+                "record_id",
+                "transaction_id",
+                "customer_id",
+                "uuid",
+            )
+        ):
+            continue
+        if dataframe[column].nunique(dropna=False) > MAX_SUMMARY_GROUP_CARDINALITY:
+            continue
+        group_columns.append(column)
+        if len(group_columns) >= MAX_SUMMARY_GROUP_COLUMNS:
+            break
+
+    return group_columns
+
+
+def build_connector_summary_dataframe(
+    dataframe,
+    date_column,
+    report_config: dict,
+):
+    if dataframe.empty:
+        return pd.DataFrame()
+
+    summary_input = dataframe.copy()
+    fallback_month = date.today().strftime("%Y-%m")
+    if date_column:
+        parsed_dates = pd.to_datetime(
+            summary_input[date_column],
+            errors="coerce",
+            utc=True,
+        )
+        summary_months = parsed_dates.dt.strftime("%Y-%m")
+        if CONNECTOR_PARTITION_MONTH_COLUMN in summary_input.columns:
+            summary_months = summary_months.fillna(
+                summary_input[CONNECTOR_PARTITION_MONTH_COLUMN]
+            )
+        summary_input[SUMMARY_MONTH_COLUMN] = summary_months.fillna(
+            fallback_month
+        )
+    elif CONNECTOR_PARTITION_MONTH_COLUMN in summary_input.columns:
+        summary_input[SUMMARY_MONTH_COLUMN] = summary_input[
+            CONNECTOR_PARTITION_MONTH_COLUMN
+        ]
+    else:
+        summary_input[SUMMARY_MONTH_COLUMN] = fallback_month
+
+    group_columns = get_connector_summary_group_columns(
+        summary_input,
+        date_column,
+        report_config,
+    )
+    metric_columns = [
+        column
+        for column in summary_input.select_dtypes(include="number").columns
+        if column not in {
+            SUMMARY_MONTH_COLUMN,
+            SUMMARY_MARKER_COLUMN,
+        }
+    ]
+    if not metric_columns:
+        return pd.DataFrame()
+
+    grouping_columns = [
+        SUMMARY_MONTH_COLUMN,
+        *group_columns,
+    ]
+    aggregated = (
+        summary_input.groupby(
+            grouping_columns,
+            dropna=False,
+            sort=True,
+        )[metric_columns]
+        .agg(["mean", "min", "max", "count", "sum"])
+        .reset_index()
+    )
+
+    flattened_columns = []
+    for column in aggregated.columns:
+        if not isinstance(column, tuple):
+            flattened_columns.append(column)
+            continue
+        metric, statistic = column
+        if not statistic:
+            flattened_columns.append(metric)
+        elif statistic == "sum":
+            flattened_columns.append(metric)
+        else:
+            flattened_columns.append(
+                f"{metric}__{statistic}"
+            )
+    aggregated.columns = flattened_columns
+
+    # Keep an explicit sum statistic alongside the original metric name.
+    # The original name remains the compatibility alias used by dashboards.
+    for metric in metric_columns:
+        if metric in aggregated.columns:
+            aggregated[f"{metric}__sum"] = aggregated[metric]
+
+    if date_column:
+        aggregated[date_column] = (
+            aggregated[SUMMARY_MONTH_COLUMN]
+            + "-01"
+        )
+    aggregated[SUMMARY_MARKER_COLUMN] = True
+    return aggregated
+
+
+def merge_connector_summary_dataframes(
+    existing_summary,
+    new_summary,
+):
+    if new_summary.empty:
+        return existing_summary
+    if existing_summary.empty:
+        return new_summary.reset_index(drop=True)
+
+    summary_months = set(
+        new_summary[SUMMARY_MONTH_COLUMN]
+        .dropna()
+        .astype(str)
+    )
+    retained_summary = existing_summary.loc[
+        ~existing_summary[SUMMARY_MONTH_COLUMN]
+        .astype(str)
+        .isin(summary_months)
+    ]
+    return pd.concat(
+        [retained_summary, new_summary],
+        ignore_index=True,
+        sort=False,
+    ).reset_index(drop=True)
+
+
+def write_connector_monthly_partitions(
+    dataframe,
+    connection,
+    report_config: dict,
+    existing_summary=None,
+):
+    partition_dir = build_connector_partition_dir(
+        connection,
+    )
+    staging_dir = f"{partition_dir}.tmp-{uuid.uuid4().hex}"
+    staging_hot_dir = build_connector_hot_dir(staging_dir)
+    os.makedirs(staging_hot_dir, exist_ok=True)
+
+    date_column = find_connector_partition_date_column(
+        dataframe,
+        report_config,
+    )
+    fallback_month = date.today().strftime("%Y-%m")
+    partition_key = CONNECTOR_PARTITION_MONTH_COLUMN
+    partitioned_dataframe = dataframe.copy()
+
+    if date_column:
+        parsed_dates = pd.to_datetime(
+            partitioned_dataframe[date_column],
+            errors="coerce",
+            utc=True,
+        )
+        partitioned_dataframe[partition_key] = (
+            parsed_dates.dt.strftime("%Y-%m")
+            .fillna(fallback_month)
+        )
+    elif partition_key in partitioned_dataframe.columns:
+        partitioned_dataframe[partition_key] = (
+            partitioned_dataframe[partition_key]
+            .astype(str)
+            .replace("nan", fallback_month)
+        )
+    else:
+        partitioned_dataframe[partition_key] = fallback_month
+
+    current_month_index = (
+        date.today().year * 12
+        + date.today().month
+        - 1
+    )
+    hot_cutoff_month_index = (
+        current_month_index
+        - CONNECTOR_HOT_MONTHS
+        + 1
+    )
+    month_indices = partitioned_dataframe[partition_key].map(
+        get_connector_month_index
+    )
+    hot_dataframe = partitioned_dataframe.loc[
+        month_indices >= hot_cutoff_month_index
+    ]
+    expired_dataframe = partitioned_dataframe.loc[
+        month_indices < hot_cutoff_month_index
+    ]
+    if existing_summary is None:
+        existing_summary = load_connector_summary_dataframe(
+            partition_dir
+        )
+    existing_summary = filter_connector_summary_by_retention(
+        existing_summary,
+        SUMMARY_MONTH_COLUMN,
+    )
+    new_summary = build_connector_summary_dataframe(
+        expired_dataframe.drop(
+            columns=[partition_key],
+        ),
+        date_column,
+        report_config,
+    )
+    merged_summary = merge_connector_summary_dataframes(
+        existing_summary,
+        new_summary,
+    )
+    merged_summary = filter_connector_summary_by_retention(
+        merged_summary,
+        SUMMARY_MONTH_COLUMN,
+    )
+
+    hot_partition_count = 0
+    historical_partition_paths = []
+    try:
+        for month, month_dataframe in hot_dataframe.groupby(
+            partition_key,
+            sort=True,
+        ):
+            output_path = os.path.join(
+                staging_hot_dir,
+                f"month={month}.parquet",
+            )
+            month_dataframe.drop(
+                columns=[partition_key],
+            ).to_parquet(
+                output_path,
+                index=False,
+                compression=CONNECTOR_PARQUET_COMPRESSION,
+            )
+            hot_partition_count += 1
+
+        if not merged_summary.empty:
+            staging_historical_dir = build_connector_historical_dir(
+                staging_dir
+            )
+            os.makedirs(staging_historical_dir, exist_ok=True)
+            summary_years = (
+                merged_summary[SUMMARY_MONTH_COLUMN]
+                .astype(str)
+                .str.slice(0, 4)
+            )
+            for year, year_dataframe in merged_summary.groupby(
+                summary_years,
+                sort=True,
+            ):
+                output_path = build_connector_historical_year_path(
+                    staging_dir,
+                    str(year),
+                )
+                year_dataframe.to_parquet(
+                    output_path,
+                    index=False,
+                    compression=CONNECTOR_PARQUET_COMPRESSION,
+                )
+                historical_partition_paths.append(output_path)
+
+        if os.path.isdir(partition_dir):
+            shutil.rmtree(partition_dir)
+        elif os.path.exists(partition_dir):
+            os.remove(partition_dir)
+
+        os.makedirs(
+            os.path.dirname(partition_dir),
+            exist_ok=True,
+        )
+        os.replace(
+            staging_dir,
+            partition_dir,
+        )
+    except Exception:
+        if os.path.isdir(staging_dir):
+            shutil.rmtree(staging_dir)
+        raise
+
+    return {
+        "partition_dir": partition_dir,
+        "date_column": date_column,
+        "hot_partition_count": hot_partition_count,
+        "hot_row_count": len(hot_dataframe),
+        "historical_summary_row_count": len(merged_summary),
+        "historical_partition_count": len(
+            historical_partition_paths
+        ),
+        "historical_partition_paths": [
+            build_connector_historical_year_path(
+                partition_dir,
+                str(year),
+            )
+            for year in (
+                merged_summary[SUMMARY_MONTH_COLUMN]
+                .astype(str)
+                .str.slice(0, 4)
+                .drop_duplicates()
+                .sort_values()
+                if not merged_summary.empty
+                else []
+            )
+        ],
+        "column_count": len(
+            set(hot_dataframe.columns)
+            | set(merged_summary.columns)
+        ),
+    }
+
+
+def get_connector_dedup_keys(
+    source_type: str,
+    report_config: dict,
+    columns,
+):
+    if source_type == "google_analytics":
+        keys = report_config.get("dimensions") or []
+    else:
+        keys = CONNECTOR_DEDUP_KEYS.get(source_type, [])
+
+    available_keys = [
+        key
+        for key in keys
+        if key in columns
+    ]
+    if available_keys and len(available_keys) == len(keys):
+        return available_keys
+
+    for candidate in (
+        "id",
+        "record_id",
+        "external_id",
+    ):
+        if candidate in columns:
+            return [candidate]
+
+    return []
+
+
+def merge_connector_dataframes(
+    existing_dataframe,
+    incoming_dataframe,
+    source_type: str,
+    report_config: dict,
+):
+    if existing_dataframe is None or existing_dataframe.empty:
+        return incoming_dataframe.reset_index(drop=True)
+
+    combined = pd.concat(
+        [existing_dataframe, incoming_dataframe],
+        ignore_index=True,
+        sort=False,
+    )
+    dedup_keys = get_connector_dedup_keys(
+        source_type,
+        report_config,
+        combined.columns,
+    )
+
+    if not dedup_keys:
+        return combined.drop_duplicates(
+            keep="last"
+        ).reset_index(drop=True)
+
+    has_identity = combined[dedup_keys].notna().all(axis=1)
+    identified = combined.loc[has_identity].drop_duplicates(
+        subset=dedup_keys,
+        keep="last",
+    )
+    unidentified = combined.loc[~has_identity].drop_duplicates(
+        keep="last"
+    )
+
+    return pd.concat(
+        [identified, unidentified],
+        ignore_index=True,
+        sort=False,
+    ).reset_index(drop=True)
+
+
+def run_google_analytics_sync(
+    db,
+    connection,
+    payload: DataSourceConnectionSync,
+):
+    connection_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    property_id = str(connection_config.get("property_id") or "").strip()
+    if not property_id:
+        raise ValueError("Configure a Google Analytics property ID first")
+
+    start_date, end_date = get_incremental_sync_window(
+        connection,
+        payload,
+    )
+    today = date.today()
+    start_date = start_date or today - timedelta(days=365)
+    end_date = end_date or today
+    dataframe, report_config = load_google_analytics_report(
+        property_id=property_id,
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
+        dimensions=payload.dimensions,
+        metrics=payload.metrics,
+    )
+    return persist_connector_dataframe(
+        db,
+        connection,
+        dataframe,
+        report_config,
+    )
+
+
+def persist_connector_dataframe(
+    db,
+    connection,
+    dataframe,
+    report_config,
+):
+    file_path = None
+    replaced_file_path = None
+    try:
+        report_config = report_config or {}
+        existing_dataset = find_connector_dataset(
+            db,
+            connection,
+        )
+
+        storage = get_object_storage()
+        existing_dataframe = None
+        existing_summary = pd.DataFrame()
+        if existing_dataset:
+            if storage.is_directory_reference(existing_dataset.file_path):
+                existing_dataframe = load_connector_raw_dataframe(
+                    existing_dataset.file_path
+                )
+                existing_summary = load_connector_summary_dataframe(
+                    existing_dataset.file_path
+                )
+            else:
+                _, existing_dataframe = load_dataset_file(
+                    existing_dataset.file_path,
+                    existing_dataset.file_name,
+                )
+
+        fetched_row_count = len(dataframe)
+        storage_migration_required = bool(
+            existing_dataset
+            and not storage.is_directory_reference(existing_dataset.file_path)
+        )
+
+        if dataframe.empty:
+            if not existing_dataset:
+                raise ValueError(
+                    f"{connection.source_type} returned no rows for this sync"
+                )
+            dataframe = existing_dataframe
+
+        merged_dataframe = merge_connector_dataframes(
+            existing_dataframe,
+            dataframe,
+            connection.source_type,
+            report_config,
+        )
+        base_filename = (
+            existing_dataset.file_name
+            if existing_dataset
+            else sanitize_upload_filename(
+                f"{connection.source_type}-{connection.id}-"
+                f"{date.today().isoformat()}.csv"
+            )
+        )
+        upload_filename = (
+            os.path.splitext(
+                sanitize_upload_filename(base_filename)
+            )[0]
+            + ".parquet"
+        )
+        try:
+            storage_result = write_connector_monthly_partitions(
+                merged_dataframe,
+                connection,
+                report_config,
+                existing_summary=existing_summary,
+            )
+        except ImportError as error:
+            raise ConnectorUnavailable(
+                "Connector dataset storage requires the pyarrow package"
+            ) from error
+        except Exception as error:
+            raise ConnectorUnavailable(
+                "Connector data could not be stored as Parquet"
+            ) from error
+        local_partition_dir = storage_result["partition_dir"]
+        file_path = storage.put_directory(
+            local_partition_dir,
+            key_prefix=build_connector_storage_prefix(connection),
+        )
+        if file_path != local_partition_dir:
+            remove_dataset_file(local_partition_dir)
+
+        historical_summary_files = []
+        for local_path in storage_result[
+            "historical_partition_paths"
+        ]:
+            relative_path = os.path.relpath(
+                local_path,
+                local_partition_dir,
+            ).replace(os.sep, "/")
+            historical_summary_files.append(
+                f"{file_path.rstrip('/')}/{relative_path}"
+                if storage.is_remote
+                else local_path
+            )
+        historical_directory = (
+            f"{file_path.rstrip('/')}/{CONNECTOR_HISTORICAL_DIRECTORY}/"
+            if storage.is_remote
+            else os.path.join(
+                file_path,
+                CONNECTOR_HISTORICAL_DIRECTORY,
+            )
+        )
+
+        merged_report_config = {
+            **report_config,
+            "incremental_sync": bool(existing_dataset),
+            "source_columns": [
+                str(column)
+                for column in merged_dataframe.columns
+            ],
+            "source_schema": {
+                str(column): str(merged_dataframe[column].dtype)
+                for column in merged_dataframe.columns
+            },
+            "fetched_row_count": fetched_row_count,
+            "row_count": (
+                storage_result["hot_row_count"]
+                + storage_result["historical_summary_row_count"]
+            ),
+            "added_row_count": (
+                0
+                if storage_migration_required
+                else (
+                    len(merged_dataframe)
+                    if existing_dataframe is None
+                    else max(
+                        0,
+                        len(merged_dataframe) - len(existing_dataframe),
+                    )
+                )
+            ),
+            "stored_file_format": "parquet",
+            "partitioned_storage": "monthly_hot_with_yearly_historical_summary",
+            "partition_directory": file_path,
+            "partition_date_column": storage_result["date_column"],
+            "hot_months": CONNECTOR_HOT_MONTHS,
+            "retention_years": CONNECTOR_DATA_RETENTION_YEARS,
+            "retention_months": CONNECTOR_DATA_RETENTION_MONTHS,
+            "retention_cutoff_month": connector_retention_cutoff_month(),
+            "partition_count": storage_result["hot_partition_count"],
+            "hot_partition_count": storage_result["hot_partition_count"],
+            "historical_directory": historical_directory,
+            "historical_summary_files": historical_summary_files,
+            "historical_summary_file": (
+                historical_summary_files[0]
+                if historical_summary_files
+                else None
+            ),
+            "historical_partition_count": storage_result[
+                "historical_partition_count"
+            ],
+            "historical_summary_row_count": storage_result[
+                "historical_summary_row_count"
+            ],
+        }
+        source_config = json.dumps(
+            {
+                "connection_id": connection.id,
+                "ingestion_mode": "connector_sync",
+                **merged_report_config,
+            },
+            sort_keys=True,
+        )
+
+        if existing_dataset:
+            dataset = existing_dataset
+            if dataset.file_path != file_path:
+                replaced_file_path = dataset.file_path
+            dataset.file_name = upload_filename
+            dataset.file_path = file_path
+            dataset.source_config = source_config
+            dataset.row_count = (
+                storage_result["hot_row_count"]
+                + storage_result["historical_summary_row_count"]
+            )
+            dataset.column_count = storage_result["column_count"]
+        else:
+            dataset = Dataset(
+                user_id=connection.user_id,
+                workspace_id=connection.workspace_id,
+                source_type=connection.source_type,
+                source_config=source_config,
+                file_name=upload_filename,
+                file_path=file_path,
+                row_count=(
+                    storage_result["hot_row_count"]
+                    + storage_result["historical_summary_row_count"]
+                ),
+                column_count=storage_result["column_count"],
+            )
+            db.add(dataset)
+
+        connection.status = "connected"
+        connection.last_synced_at = utc_now()
+        db.flush()
+        return dataset, merged_report_config, file_path, replaced_file_path
+    except Exception:
+        if file_path:
+            remove_dataset_file(file_path)
+        raise
+
+
+def connector_dataset_requires_retention_cleanup(
+    dataset,
+) -> bool:
+    """Check partition metadata without rewriting an active connector dataset."""
+    source_config = parse_source_connection_config(
+        dataset.source_config
+    )
+    date_column = source_config.get("partition_date_column")
+    storage = get_object_storage()
+
+    if storage.is_directory_reference(dataset.file_path):
+        with storage.materialize(dataset.file_path) as local_partition_dir:
+            for path in list_connector_raw_partition_paths(
+                local_partition_dir
+            ):
+                filename = Path(path).name
+                month = filename.removeprefix("month=").removesuffix(
+                    ".parquet"
+                )
+                if month and has_expired_connector_month(month):
+                    return True
+
+            historical_dir = build_connector_historical_dir(
+                local_partition_dir
+            )
+            historical_paths = (
+                sorted(
+                    path
+                    for path in Path(historical_dir).glob("year=*.parquet")
+                    if path.is_file()
+                )
+                if os.path.isdir(historical_dir)
+                else []
+            )
+            legacy_path = build_connector_legacy_summary_path(
+                local_partition_dir
+            )
+            if os.path.isfile(legacy_path):
+                historical_paths.append(Path(legacy_path))
+            if not historical_paths:
+                return False
+
+            summary = pd.concat(
+                [pd.read_parquet(path) for path in historical_paths],
+                ignore_index=True,
+                sort=False,
+            )
+            if SUMMARY_MONTH_COLUMN not in summary.columns:
+                return False
+            months = summary[SUMMARY_MONTH_COLUMN].dropna().astype(str)
+            return any(
+                has_expired_connector_month(month)
+                for month in months
+                if len(month) >= 7
+            )
+
+    if not date_column:
+        created_at = dataset.created_at
+        return bool(
+            created_at
+            and created_at.date()
+            < date.fromisoformat(
+                f"{connector_retention_cutoff_month()}-01"
+            )
+        )
+
+    with storage.materialize(dataset.file_path) as local_file_path:
+        try:
+            dataframe = load_dataset_file(
+                local_file_path,
+                dataset.file_name,
+            )[1]
+        except (FileNotFoundError, OSError, ValueError):
+            return False
+    if date_column not in dataframe.columns:
+        return False
+    parsed_dates = pd.to_datetime(
+        dataframe[date_column],
+        errors="coerce",
+        utc=True,
+    )
+    months = parsed_dates.dropna().dt.strftime("%Y-%m")
+    return any(
+        has_expired_connector_month(month)
+        for month in months
+    )
+
+
+def purge_expired_connector_dataset(
+    db,
+    connection,
+):
+    """Rewrite a connector dataset only when its five-year boundary is crossed."""
+    dataset = find_connector_dataset(db, connection)
+    if not dataset or not connector_dataset_requires_retention_cleanup(dataset):
+        return None
+
+    previous_last_synced_at = connection.last_synced_at
+    source_config = parse_source_connection_config(
+        dataset.source_config
+    )
+    _, report_config, _file_path, replaced_file_path = (
+        persist_connector_dataframe(
+            db,
+            connection,
+            pd.DataFrame(),
+            source_config,
+        )
+    )
+    # Retention maintenance is not a source sync and must not move the
+    # connector's next scheduled sync window.
+    connection.last_synced_at = previous_last_synced_at
+    db.flush()
+    return {
+        "dataset_id": dataset.id,
+        "deleted_before_month": report_config.get(
+            "retention_cutoff_month",
+            connector_retention_cutoff_month(),
+        ),
+        "replaced_file_path": replaced_file_path,
+    }
+
+
+def run_data_source_sync(
+    db,
+    connection,
+    payload: DataSourceConnectionSync,
+):
+    if connection.source_type == "google_analytics":
+        return run_google_analytics_sync(db, connection, payload)
+
+    if connection.source_type not in IMPLEMENTED_CONNECTOR_TYPES:
+        raise ConnectorUnavailable(
+            f"{connection.source_type} connector does not have a dataset adapter yet"
+        )
+
+    start_date, end_date = get_incremental_sync_window(
+        connection,
+        payload,
+    )
+    dataframe, report_config = load_connector_dataframe(
+        db,
+        connection,
+        start_date,
+        end_date,
+    )
+    return persist_connector_dataframe(
+        db,
+        connection,
+        dataframe,
+        report_config,
+    )
+
+
+def get_connectors_scheduler_secret():
+    return str(
+        os.getenv("CONNECTORS_SCHEDULER_SECRET", "") or ""
+    ).strip()
+
+
+def require_connectors_scheduler_secret(request: Request):
+    expected_secret = get_connectors_scheduler_secret()
+    if not expected_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="Connector scheduler secret is not configured",
+        )
+    provided_secret = str(
+        request.headers.get("X-Connectors-Scheduler-Secret", "") or ""
+    ).strip()
+    if provided_secret != expected_secret:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid connector scheduler secret",
+        )
+
+
+@router.post("/source-connections/sync-due")
+async def sync_due_source_connections(request: Request):
+    require_connectors_scheduler_secret(request)
+    now = utc_now()
+    db = SessionLocal()
+    results = []
+    retention_results = []
+    try:
+        connections = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.status != "planned")
+            .order_by(DataSourceConnection.id.asc())
+            .all()
+        )
+        for connection in connections:
+            try:
+                retention_result = purge_expired_connector_dataset(
+                    db,
+                    connection,
+                )
+                if retention_result:
+                    db.commit()
+                    remove_dataset_file(
+                        retention_result["replaced_file_path"]
+                    )
+                    retention_results.append({
+                        "connection_id": connection.id,
+                        "status": "retention_pruned",
+                        "dataset_id": retention_result["dataset_id"],
+                        "deleted_before_month": retention_result[
+                            "deleted_before_month"
+                        ],
+                    })
+            except Exception as error:
+                db.rollback()
+                retention_results.append({
+                    "connection_id": connection.id,
+                    "status": "retention_cleanup_failed",
+                    "detail": str(error)[:240],
+                })
+
+            source = get_dataset_source(connection.source_type)
+            if (
+                connection.status != "connected"
+                and not (
+                    has_source_connection_config(
+                        connection.connection_config,
+                    )
+                    or has_source_connection_credentials(
+                        source,
+                        connection.connection_config,
+                    )
+                )
+            ):
+                continue
+
+            (
+                enabled,
+                interval_hours,
+                time_of_day,
+                timezone_name,
+                anchor_date,
+            ) = read_connection_schedule_details(
+                connection.connection_config
+            )
+            if not enabled or not connection_sync_is_due(
+                connection.last_synced_at,
+                now,
+                interval_hours,
+                time_of_day,
+                timezone_name,
+                anchor_date,
+            ):
+                continue
+
+            if connection.source_type not in {
+                "google_analytics",
+                *IMPLEMENTED_CONNECTOR_TYPES,
+            }:
+                results.append({
+                    "connection_id": connection.id,
+                    "status": "unsupported",
+                    "detail": (
+                        "Scheduled sync is enabled, but this connector has "
+                        "no dataset adapter is enabled for this source"
+                    ),
+                })
+                continue
+
+            try:
+                (
+                    dataset,
+                    report_config,
+                    file_path,
+                    replaced_file_path,
+                ) = run_data_source_sync(
+                    db,
+                    connection,
+                    DataSourceConnectionSync(),
+                )
+                db.commit()
+                remove_dataset_file(replaced_file_path)
+                results.append({
+                    "connection_id": connection.id,
+                    "dataset_id": dataset.id,
+                    "status": "synced",
+                    "row_count": dataset.row_count,
+                    "report": report_config,
+                })
+            except (GoogleAnalyticsConnectorUnavailable, ConnectorUnavailable) as error:
+                db.rollback()
+                results.append({
+                    "connection_id": connection.id,
+                    "status": "failed",
+                    "detail": str(error),
+                })
+            except Exception as error:
+                db.rollback()
+                results.append({
+                    "connection_id": connection.id,
+                    "status": "failed",
+                    "detail": str(error)[:240],
+                })
+
+        return {
+            "processed_count": len(results),
+            "synced_count": sum(
+                result["status"] == "synced" for result in results
+            ),
+            "failed_count": sum(
+                result["status"] == "failed" for result in results
+            ),
+            "retention_pruned_count": sum(
+                result["status"] == "retention_pruned"
+                for result in retention_results
+            ),
+            "retention_results": retention_results,
+            "results": results,
+        }
+    finally:
+        db.close()
+
+
+@router.post("/source-connections/{connection_id}/sync")
+async def sync_source_connection(
+    request: Request,
+    connection_id: int,
+    payload: DataSourceConnectionSync,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    require_workspace_data_manager(
+        request,
+    )
+
+    db = SessionLocal()
+    try:
+        connection = get_owned_source_connection(
+            db,
+            connection_id,
+            user_id,
+            workspace_id,
+        )
+
+        if connection.source_type not in {
+            "google_analytics",
+            *IMPLEMENTED_CONNECTOR_TYPES,
+        }:
+            raise HTTPException(
+                status_code=400,
+                detail="Manual sync is not enabled for this source",
+            )
+
+        (
+            dataset,
+            report_config,
+            _file_path,
+            replaced_file_path,
+        ) = run_data_source_sync(
+            db,
+            connection,
+            payload,
+        )
+        db.commit()
+        remove_dataset_file(replaced_file_path)
+        db.refresh(dataset)
+
+        return {
+            "connection_id": connection.id,
+            "dataset_id": dataset.id,
+            "workspace_id": dataset.workspace_id,
+            **build_dataset_source_metadata(dataset),
+            "file_name": dataset.file_name,
+            "file_path": dataset.file_path,
+            "row_count": dataset.row_count,
+            "column_count": dataset.column_count,
+            "report": report_config,
+        }
+    except (GoogleAnalyticsConnectorUnavailable, ConnectorUnavailable) as error:
+        raise HTTPException(
+            status_code=503,
+            detail=str(error),
+        ) from error
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="Connector data could not be loaded",
+        )
     finally:
         db.close()
 
@@ -1429,6 +4012,8 @@ async def dataset_insights(
             dataframe,
             None,
             learning_context,
+            workspace_id,
+            user_id,
         )
 
         return {
@@ -1477,6 +4062,96 @@ async def dataset_chart_data(
         db.close()
 
 
+@router.get("/{dataset_id}/anomalies")
+async def dataset_anomalies(
+    request: Request,
+    dataset_id: int,
+    metric: str | None = Query(None, max_length=120),
+    date_column: str | None = Query(None, max_length=120),
+    start_date: str | None = Query(None, max_length=40),
+    period_filter: Literal[
+        "1m",
+        "1q",
+        "6m",
+        "1y",
+        "2y",
+        "3y",
+        "5y",
+        "all",
+    ] = "all",
+    aggregation: Literal[
+        "daily",
+        "weekly",
+        "monthly",
+        "quarterly",
+    ] = "monthly",
+    aggregation_type: Literal[
+        "sum",
+        "count",
+        "avg",
+        "min",
+        "max",
+    ] = "sum",
+    sensitivity: Literal[
+        "high",
+        "medium",
+        "low",
+    ] = "medium",
+    max_anomalies: int = Query(
+        100,
+        ge=1,
+        le=100,
+    ),
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+
+    db = SessionLocal()
+
+    try:
+        dataset, dataframe = load_dataframe(
+            db,
+            dataset_id,
+        )
+
+        verify_dataset_owner(
+            dataset,
+            user_id,
+            workspace_id,
+        )
+
+        try:
+            result = await asyncio.to_thread(
+                detect_dataset_anomalies,
+                dataframe,
+                metric=metric,
+                date_column=date_column,
+                start_date=start_date,
+                period_filter=period_filter,
+                aggregation=aggregation,
+                aggregation_type=aggregation_type,
+                sensitivity=sensitivity,
+                max_anomalies=max_anomalies,
+            )
+        except ValueError as error:
+            raise HTTPException(
+                status_code=400,
+                detail=str(error),
+            ) from error
+
+        return {
+            "dataset_id": dataset.id,
+            "file_name": dataset.file_name,
+            **result,
+        }
+
+    finally:
+        db.close()
+
+
 @router.get("/{dataset_id}/details")
 async def dataset_details(
     request: Request,
@@ -1485,6 +4160,30 @@ async def dataset_details(
         default=False,
         description="Include all dataset rows in chart data.",
     ),
+    start_date: str | None = Query(None),
+    period_filter: Literal[
+        "1m",
+        "1q",
+        "6m",
+        "1y",
+        "2y",
+        "3y",
+        "5y",
+        "all",
+    ] | None = Query(None),
+    aggregation: Literal[
+        "daily",
+        "weekly",
+        "monthly",
+        "quarterly",
+    ] | None = Query(None),
+    aggregation_type: Literal[
+        "sum",
+        "count",
+        "avg",
+        "min",
+        "max",
+    ] | None = Query(None),
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -1523,6 +4222,12 @@ async def dataset_details(
             dataframe,
             learning_context,
             chart_limit=None if include_all_rows else 50,
+            workspace_id=workspace_id,
+            actor_user_id=user_id,
+            start_date=start_date,
+            period_filter=period_filter,
+            aggregation=aggregation,
+            aggregation_type=aggregation_type,
         )
 
     finally:
@@ -1534,6 +4239,30 @@ async def dataset_ai_analysis(
     request: Request,
     dataset_id: int,
     metric: str | None = None,
+    start_date: str | None = Query(None),
+    period_filter: Literal[
+        "1m",
+        "1q",
+        "6m",
+        "1y",
+        "2y",
+        "3y",
+        "5y",
+        "all",
+    ] | None = Query(None),
+    aggregation: Literal[
+        "daily",
+        "weekly",
+        "monthly",
+        "quarterly",
+    ] | None = Query(None),
+    aggregation_type: Literal[
+        "sum",
+        "count",
+        "avg",
+        "min",
+        "max",
+    ] | None = Query(None),
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -1554,6 +4283,27 @@ async def dataset_ai_analysis(
             user_id,
             workspace_id,
         )
+
+        if any(
+            value is not None
+            for value in (
+                start_date,
+                period_filter,
+                aggregation,
+                aggregation_type,
+            )
+        ):
+            date_column, _ = identify_forecast_columns(
+                dataframe
+            )
+            dataframe = prepare_forecast_dataframe(
+                dataframe,
+                date_column,
+                start_date,
+                period_filter,
+                aggregation,
+                aggregation_type,
+            )
 
         clean_metric = (
             str(metric).strip()
@@ -1592,6 +4342,7 @@ async def dataset_ai_analysis(
             dataframe,
             clean_metric or None,
             learning_context,
+            workspace_id,
         )
 
         return {
@@ -1931,6 +4682,14 @@ async def delete_dataset(
             dataset.file_path
         )
         cleanup_deleted_dataset_preferences(
+            db,
+            dataset,
+        )
+        cleanup_deleted_dataset_join_caches(
+            db,
+            dataset,
+        )
+        cleanup_deleted_dataset_relationships(
             db,
             dataset,
         )

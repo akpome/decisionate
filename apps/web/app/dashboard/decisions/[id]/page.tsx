@@ -10,6 +10,7 @@ import {
 import Link from "next/link"
 import {
   useParams,
+  useRouter,
   useSearchParams,
 } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
@@ -28,10 +29,12 @@ import {
 import {
   ApiError,
   archiveDecision,
+  deleteDecision,
   getDataset,
   getDatasetMetrics,
   getDecisionActivities,
   getDecision,
+  getDecisionLifecycleAccess,
   getDecisionOutcomeAnalysis,
   restoreDecision,
   updateDecisionDetails,
@@ -113,6 +116,7 @@ import type {
   DecisionCategory,
   DecisionConfidenceScore,
   DecisionDetailsPayload,
+  DecisionLifecycleAccess,
   DecisionOutcomePayload,
   DecisionOutcomeStatus,
   DecisionOverviewPayload,
@@ -179,9 +183,12 @@ const decisionNotePrompts = [
   },
 ]
 
+const deleteDecisionSection = "delete" as const
+
 type SaveSection =
   | typeof archiveDecisionActivity
   | typeof restoreDecisionActivity
+  | typeof deleteDecisionSection
   | typeof detailsDecisionActivity
   | typeof overviewDecisionActivity
   | typeof notesDecisionActivity
@@ -208,6 +215,7 @@ type DecisionNextActionTarget = {
 
 export default function DecisionPage() {
   const params = useParams()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useUser()
   const {
@@ -221,6 +229,8 @@ export default function DecisionPage() {
 
   const [decision, setDecision] =
     useState<DecisionRecord | null>(null)
+  const [lifecycleAccess, setLifecycleAccess] =
+    useState<DecisionLifecycleAccess | null>(null)
 
   const [dataset, setDataset] =
     useState<DatasetSummary | null>(null)
@@ -237,6 +247,9 @@ export default function DecisionPage() {
   const [title, setTitle] = useState("")
   const [originalTitle, setOriginalTitle] = useState("")
 
+  const [action, setAction] = useState("")
+  const [originalAction, setOriginalAction] = useState("")
+
   const [description, setDescription] = useState("")
   const [originalDescription, setOriginalDescription] = useState("")
 
@@ -245,6 +258,7 @@ export default function DecisionPage() {
   const [metricColumns, setMetricColumns] = useState<string[]>([])
   const [metricsLoading, setMetricsLoading] = useState(false)
   const [metricLoadError, setMetricLoadError] = useState("")
+  const [metricSaving, setMetricSaving] = useState(false)
 
   const [detailsSaved, setDetailsSaved] = useState(false)
 
@@ -364,6 +378,7 @@ export default function DecisionPage() {
     async function load() {
       try {
         setDecision(null)
+        setLifecycleAccess(null)
         setDataset(null)
         setMetricColumns([])
         setMetricsLoading(false)
@@ -437,6 +452,7 @@ export default function DecisionPage() {
         const [
           datasetResult,
           metricsResult,
+          lifecycleAccessResult,
         ] = await Promise.allSettled([
           getDataset(
             data.dataset_id,
@@ -445,6 +461,11 @@ export default function DecisionPage() {
           ),
           getDatasetMetrics(
             data.dataset_id,
+            userId,
+            activeWorkspaceId
+          ),
+          getDecisionLifecycleAccess(
+            data.id,
             userId,
             activeWorkspaceId
           ),
@@ -496,6 +517,12 @@ export default function DecisionPage() {
                 : "Could not load metrics for this decision."
           )
         }
+        if (lifecycleAccessResult.status === "fulfilled") {
+          setLifecycleAccess(lifecycleAccessResult.value)
+        } else {
+          console.error(lifecycleAccessResult.reason)
+          setLifecycleAccess(null)
+        }
         setMetricsLoading(false)
       } catch (error) {
         if (ignoreResult) {
@@ -534,13 +561,17 @@ export default function DecisionPage() {
     workspaceVersion,
   ])
 
+  const outcomeAnalysisStatusAndMetric =
+    `${decision?.outcome_status ?? ""}\u001f${metricColumn}`
+
   useEffect(() => {
     const expectedOutcome =
       decision?.expected_outcome?.trim()
     const actualOutcome =
       decision?.actual_outcome?.trim()
-    const outcomeStatus =
-      decision?.outcome_status?.trim()
+    const [rawOutcomeStatus, outcomeMetric] =
+      outcomeAnalysisStatusAndMetric.split("\u001f")
+    const outcomeStatus = rawOutcomeStatus?.trim()
 
     if (
       !user?.id ||
@@ -571,7 +602,8 @@ export default function DecisionPage() {
           await getDecisionOutcomeAnalysis(
             decisionId,
             userId,
-            activeWorkspaceId
+            activeWorkspaceId,
+            outcomeMetric ?? ""
           )
 
         if (!ignoreResult) {
@@ -601,7 +633,7 @@ export default function DecisionPage() {
     decision?.actual_outcome,
     decision?.expected_outcome,
     decision?.id,
-    decision?.outcome_status,
+    outcomeAnalysisStatusAndMetric,
     outcomeAnalysisRetryKey,
     user?.id,
   ])
@@ -783,6 +815,8 @@ export default function DecisionPage() {
   ) {
     setTitle(nextDecision.title ?? "")
     setOriginalTitle(nextDecision.title ?? "")
+    setAction(nextDecision.action ?? "")
+    setOriginalAction(nextDecision.action ?? "")
     setDescription(nextDecision.description ?? "")
     setOriginalDescription(nextDecision.description ?? "")
     setMetricColumn(nextDecision.metric_column ?? "")
@@ -843,6 +877,7 @@ export default function DecisionPage() {
 
   const detailsChanged =
     title !== originalTitle ||
+    action !== originalAction ||
     description !== originalDescription ||
     metricColumn !== originalMetricColumn
 
@@ -867,6 +902,70 @@ export default function DecisionPage() {
   const learningChanged =
     lessonsLearned !== originalLessonsLearned
 
+  async function handleMetricChange(
+    nextMetric?: string
+  ) {
+    const nextMetricColumn = nextMetric ?? ""
+    clearSaveErrorForSection(detailsDecisionActivity)
+    setDetailsSaved(false)
+    setMetricColumn(nextMetricColumn)
+
+    if (
+      !user?.id ||
+      !decision ||
+      decisionIsReadOnly ||
+      isArchivedDecision ||
+      nextMetricColumn === originalMetricColumn
+    ) {
+      return
+    }
+
+    setMetricSaving(true)
+    setSaveError(null)
+
+    try {
+      const data = await updateDecisionDetails(
+        decision.id,
+        {
+          metric_column: nextMetricColumn || null,
+        },
+        user.id,
+        activeWorkspaceId
+      )
+
+      setDecision(currentDecision =>
+        currentDecision
+          ? {
+              ...currentDecision,
+              metric_column: data.metric_column,
+            }
+          : data
+      )
+      setMetricColumn(data.metric_column ?? "")
+      setOriginalMetricColumn(data.metric_column ?? "")
+      await loadActivities(
+        data.id,
+        user.id,
+        activeWorkspaceId
+      )
+      showSectionSaved(
+        detailsDecisionActivity,
+        setDetailsSaved
+      )
+    } catch (error) {
+      console.error(error)
+      setSaveError({
+        section: detailsDecisionActivity,
+        message: getSaveErrorMessage(
+          error,
+          "Decision metric could not be saved."
+        ),
+      })
+    } finally {
+      setMetricSaving(false)
+    }
+  }
+
   async function handleSaveDetails() {
     if (!user?.id || !decision) return
 
@@ -878,6 +977,10 @@ export default function DecisionPage() {
 
       if (title !== originalTitle) {
         detailsPayload.title = title
+      }
+
+      if (action !== originalAction) {
+        detailsPayload.action = action
       }
 
       if (description !== originalDescription) {
@@ -1290,6 +1393,44 @@ export default function DecisionPage() {
     }
   }
 
+  async function handleDeleteDecision() {
+    if (
+      !user?.id ||
+      !decision ||
+      decision.status !== archivedDecisionStatus
+    ) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      "Delete this archived decision permanently? Its activity history will also be removed."
+    )
+
+    if (!confirmed) return
+
+    setSavingSection(deleteDecisionSection)
+    setSaveError(null)
+
+    try {
+      await deleteDecision(
+        decision.id,
+        user.id,
+        activeWorkspaceId
+      )
+      router.replace("/dashboard/decisions")
+    } catch (error) {
+      console.error(error)
+      setSaveError({
+        section: deleteDecisionSection,
+        message: getSaveErrorMessage(
+          error,
+          "Decision could not be deleted."
+        ),
+      })
+      setSavingSection(null)
+    }
+  }
+
   const decisionUnavailable =
     loadError === "Decision not available."
   const nextActionTarget =
@@ -1429,6 +1570,10 @@ export default function DecisionPage() {
 
   const isArchivedDecision =
     decision.status === archivedDecisionStatus
+  const canArchiveDecision =
+    lifecycleAccess?.can_archive === true
+  const canDeleteDecision =
+    lifecycleAccess?.can_delete === true
   const decisionIsReadOnly =
     !canManageWorkspaceData
 
@@ -1438,7 +1583,9 @@ export default function DecisionPage() {
       savingSection,
       section: detailsDecisionActivity,
       changed: detailsChanged,
-      invalid: title.trim().length === 0,
+      invalid:
+        title.trim().length === 0 ||
+        action.trim().length === 0,
     })
 
   const outcomeSaveDisabled =
@@ -1493,7 +1640,8 @@ export default function DecisionPage() {
       decision.description
     )
   const recommendationSourceLabel =
-    decision.recommendation_source === "openai"
+    decision.recommendation_source !== "rules" &&
+    Boolean(decision.recommendation_source)
       ? "AI analysis"
       : decision.recommendation_source === "rules"
         ? "Rules-based analysis"
@@ -1512,7 +1660,7 @@ export default function DecisionPage() {
       <WorkspaceAccessNotice
         loading={loadingWorkspaceAccess}
         canManageWorkspaceData={!decisionIsReadOnly}
-        message="This client workspace is read-only. Decision changes are managed by the workspace team."
+        message="Decision lifecycle changes are limited to the decision owner or workspace owner."
         className="rounded-xl"
       />
 
@@ -1565,9 +1713,9 @@ export default function DecisionPage() {
             </span>
           )}
 
-          {decision.metric_column && (
+          {metricColumn && (
             <Badge className="border-gray-200 bg-gray-50 text-gray-700">
-              Metric: {formatMetricLabel(decision.metric_column)}
+              Metric: {formatMetricLabel(metricColumn)}
             </Badge>
           )}
 
@@ -1657,7 +1805,9 @@ export default function DecisionPage() {
                 : handleArchiveDecision
             }
             disabled={
-              decisionIsReadOnly ||
+              (isArchivedDecision
+                ? decisionIsReadOnly
+                : !canArchiveDecision) ||
               savingSection === archiveDecisionActivity ||
               savingSection === restoreDecisionActivity
             }
@@ -1687,6 +1837,39 @@ export default function DecisionPage() {
           savingSection={savingSection}
           saveError={saveError}
         />
+
+        {isArchivedDecision && canDeleteDecision && (
+          <div className="mt-5 flex flex-col gap-3 border-t border-red-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-red-800">
+                Permanently delete this record
+              </p>
+              <p className="mt-1 text-sm text-gray-500">
+                Removes this archived decision and its activity history. This cannot be undone.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleDeleteDecision}
+              disabled={
+                !canDeleteDecision ||
+                savingSection !== null
+              }
+              className="w-fit rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {savingSection === deleteDecisionSection
+                ? "Deleting..."
+                : "Delete permanently"}
+            </button>
+
+            <SaveFeedback
+              section={deleteDecisionSection}
+              savingSection={savingSection}
+              saveError={saveError}
+            />
+          </div>
+        )}
       </DashboardCard>
 
       {/* =========================
@@ -1745,7 +1928,9 @@ export default function DecisionPage() {
               value={metricColumn || undefined}
               loadError={Boolean(metricLoadError)}
               disabled={
+                decisionIsReadOnly ||
                 isArchivedDecision ||
+                metricSaving ||
                 metricsLoading ||
                 metricColumns.length === 0
               }
@@ -1757,11 +1942,26 @@ export default function DecisionPage() {
                     : "No metric selected"
               }
               onChange={(metric) => {
-                clearSaveErrorForSection(detailsDecisionActivity)
-                setDetailsSaved(false)
-                setMetricColumn(metric ?? "")
+                void handleMetricChange(metric)
               }}
             />
+
+            {metricSaving && (
+              <p className="mt-1 text-xs text-gray-500">
+                Saving metric focus...
+              </p>
+            )}
+
+            <p className="mt-2 text-xs text-gray-500">
+              Used to focus the outcome review and compare this decision with learning from past decisions on the same metric.
+            </p>
+
+            {!decision?.actual_outcome?.trim() &&
+              !decision?.outcome_status && (
+                <p className="mt-1 text-xs text-amber-700">
+                  Record an actual outcome or outcome status below to generate metric-specific learning.
+                </p>
+              )}
 
             {metricLoadError && (
               <div
@@ -1783,7 +1983,30 @@ export default function DecisionPage() {
             )}
           </Field>
 
-          <Field label="Description">
+          <Field
+            label="Action"
+            required
+            className="lg:col-span-3"
+          >
+            <textarea
+              aria-label="Decision action"
+              value={action}
+              disabled={decisionIsReadOnly || isArchivedDecision}
+              onChange={(e) => {
+                clearSaveErrorForSection(detailsDecisionActivity)
+                setDetailsSaved(false)
+                setAction(e.target.value)
+              }}
+              placeholder="What will be done? For example: Increase paid search ad spend by 50% for 30 days."
+              rows={3}
+              className={textareaClass}
+            />
+          </Field>
+
+          <Field
+            label="Description"
+            className="lg:col-span-3"
+          >
             <textarea
               aria-label="Decision description"
               value={description}
@@ -1814,6 +2037,14 @@ export default function DecisionPage() {
               Decision title is required.
             </p>
           )}
+
+          {!isArchivedDecision &&
+            title.trim().length > 0 &&
+            action.trim().length === 0 && (
+              <p className="mt-2 text-sm font-medium text-amber-700">
+                Decision action is required.
+              </p>
+            )}
         </SectionSaveActions>
       </DashboardCard>
 
@@ -1995,6 +2226,34 @@ export default function DecisionPage() {
               )
             }
           />
+
+          {decision.recommendation_text && (
+            <div className="mt-4 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
+                Recommendation Under Review
+              </p>
+
+              <p className="mt-2 text-sm leading-6 text-[var(--decisionate-brand-primary-text)]">
+                {decision.recommendation_text}
+              </p>
+
+              {(decision.recommendation_context || decision.recommendation_source) && (
+                <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]/80">
+                  {[
+                    decision.recommendation_context,
+                    decision.recommendation_source !== "rules" &&
+                    Boolean(decision.recommendation_source)
+                      ? "AI analysis"
+                      : decision.recommendation_source === "rules"
+                        ? "Rules-based analysis"
+                        : undefined,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <Field label="Expected Outcome" required>
@@ -2287,11 +2546,29 @@ export default function DecisionPage() {
         />
       )}
 
+      {!outcomeAnalysisLoading &&
+        !outcomeAnalysisError &&
+        !outcomeAnalysis &&
+        decision.expected_outcome?.trim() &&
+        !decision.actual_outcome?.trim() &&
+        !decision.outcome_status && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
+            <p className="font-semibold">
+              Metric-specific outcome review is pending
+            </p>
+            <p className="mt-1">
+              Current metric: {metricColumn
+                ? formatMetricLabel(metricColumn)
+                : "No metric selected"}. Record an actual outcome or status to generate the review for this metric.
+            </p>
+          </div>
+        )}
+
       {!outcomeAnalysisLoading && outcomeAnalysis && (
         <AIAnalysisPanel
           analysis={outcomeAnalysis}
           title="Outcome review"
-          metric={decision.metric_column ?? undefined}
+          metric={metricColumn || undefined}
           className="rounded-2xl p-5 shadow-sm sm:p-6"
           onApplyRecommendation={
             !decisionIsReadOnly && !isArchivedDecision
@@ -2471,6 +2748,7 @@ export default function DecisionPage() {
                     activity.activity_type
                   )}
                   title={activity.message}
+                  actor={activity.actor_user_id}
                   date={formatActivityDateTime(
                     activity.created_at
                   )}
@@ -2952,11 +3230,13 @@ function TimelineEvent({
   color,
   title,
   date,
+  actor,
   titleClassName = "",
 }: {
   color: string
   title: string
   date: string
+  actor?: string | null
   titleClassName?: string
 }) {
   return (
@@ -2972,6 +3252,10 @@ function TimelineEvent({
 
         <p className="text-sm text-gray-500">
           {date}
+        </p>
+
+        <p className="text-xs text-gray-400">
+          By {actor || "workspace user"}
         </p>
       </div>
     </div>

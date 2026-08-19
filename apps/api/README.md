@@ -16,7 +16,16 @@ Install the base API dependencies:
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-Run the API from `apps/api` with the local virtual environment:
+From the repository root, use an explicit app directory so reload mode can
+watch the whole `apps` tree without breaking Python imports:
+
+```bash
+apps/api/.venv/bin/python -m uvicorn app.main:app \
+  --app-dir apps/api --reload --reload-dir apps \
+  --port 8000 --env-file apps/api/.env
+```
+
+Alternatively, run the API from `apps/api` with the local virtual environment:
 
 ```bash
 .venv/bin/python -m uvicorn app.main:app --reload --port 8000 --env-file .env
@@ -24,6 +33,10 @@ Run the API from `apps/api` with the local virtual environment:
 
 The web app defaults to `http://localhost:8000`. Set `NEXT_PUBLIC_API_URL` in
 `apps/web/.env.local` when the API runs on another host or port.
+
+For provider-neutral deployment and migration, use the portable container and
+configuration runbook in `docs/provider-migration.md`. The API container is
+`apps/api/Dockerfile`; the web container is `apps/web/Dockerfile`.
 
 ## Tests
 
@@ -35,27 +48,72 @@ Run the API unit tests from `apps/api`:
 
 ## Environment
 
-`DATABASE_URL` controls the SQLAlchemy database connection. The local default is `sqlite:///./decisionate.db`.
+`DATABASE_URL` controls the SQLAlchemy database connection. The local default is
+`sqlite:///./decisionate.db`. Railway's `postgres://` and `postgresql://` URLs
+are normalized to the portable `psycopg` SQLAlchemy driver automatically.
 
-`DATASET_UPLOAD_DIR` controls where uploaded dataset files are stored. The local default is `uploads`.
+Before switching a deployment, run the migration preflight from `apps/api`:
+
+```bash
+.venv/bin/python scripts/prepare_postgresql_migration.py \
+  --source sqlite:///./decisionate.db \
+  --report postgres-migration-report.json
+```
+
+This creates a SQLite backup, checks database integrity, foreign keys, required
+columns, unique values, and required-field nulls. It exits non-zero when the
+copy is unsafe. After the report is clean, copy into a fresh PostgreSQL
+database with the explicit `--migrate-to` option. The target must be empty and
+the script preserves integer IDs and resets PostgreSQL sequences.
+
+`OBJECT_STORAGE_PROVIDER=local` keeps development data on the local filesystem.
+For Railway, set `OBJECT_STORAGE_PROVIDER=r2` and configure the bucket, endpoint,
+access key, and secret key. R2 references are stored as `s3://` paths and are
+materialized only when a dataset is queried, so switching to AWS S3 later does
+not require changing dataset routes or analytics code.
+
+`DATASET_UPLOAD_DIR` controls local staging files. It is not the source of truth
+when object storage is enabled.
 
 `CORS_ALLOWED_ORIGINS` is a comma-separated list of web origins that can call the API. Include the deployed web app origin so public shared dashboard links can load data in the browser.
 
-`CLERK_JWKS_URL`, `CLERK_JWT_AUDIENCE`, and `CLERK_JWT_ISSUER` enable Clerk JWT verification for protected product routes. If `CLERK_JWKS_URL` is not set, local development can use the existing header-based auth flow.
+`GET /health` reports API, analytics, AI, alert, billing, connector, and
+security-configuration readiness. It does not expose credentials or scheduler
+secrets. In `APP_ENV=production`, the API fails closed at startup when verified
+auth configuration, secret encryption, Sentry, PostgreSQL, remote object
+storage, or HTTPS deployment URLs are missing.
+
+The release readiness command includes the same checks:
+
+```bash
+.venv/bin/python scripts/check_mvp_readiness.py --strict
+```
+
+Run `docs/backup-restore-verification.md` after every provider restore drill.
+The application can verify an isolated restored database, but provider
+snapshot creation and object-storage restoration remain deployment operations.
+
+`CLERK_JWKS_URL`, `CLERK_JWT_AUDIENCE`, and `CLERK_JWT_ISSUER` enable Clerk JWT verification for protected product routes. If `CLERK_JWKS_URL` is not set, local development can use the existing header-based auth flow. For production invitation claiming, configure the verified Clerk session token to include the signed user email claim; the API does not trust a client-supplied email header when bearer verification is enabled.
 
 ## AI Analysis And Forecasting
 
 AI-assisted analysis is part of the MVP. Configure the API server with:
 
-- `AI_PROVIDER=openai`
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL` (defaults to `gpt-4o-mini`)
-- `OPENAI_API_URL` (defaults to the OpenAI Chat Completions endpoint)
+- `AI_PROVIDER` (the configured provider identifier)
+- `AI_API_KEY`, `AI_MODEL`, and `AI_API_URL`
+- `OPENAI_API_KEY`, `OPENAI_MODEL`, and `OPENAI_API_URL` remain supported as
+  compatibility aliases
 - `AI_REQUEST_TIMEOUT_SECONDS` (defaults to `20`)
 - `AI_MAX_OUTPUT_TOKENS` (defaults to `500` and is capped at `1000`)
 - `AI_ANALYSIS_CACHE_TTL_SECONDS` (defaults to `300`)
 
-The API sends bounded aggregate facts rather than raw dataset rows. AI analysis is used by dataset insights, reports, dashboards, decision summaries, forecasts, and weekly alert digests. Forecasts also expose linear-regression holdout quality metrics and a `model_quality.reliability` level (`limited`, `low`, `moderate`, or `good`); recommendation confidence is capped when validation is unavailable or error is high.
+The API sends bounded aggregate facts rather than raw dataset rows. The exact
+current request shape is documented in `docs/openai-data-flow.md` and covered
+by an API test. AI analysis is used by dataset insights, reports, dashboards,
+decision summaries, forecasts, and weekly alert digests. Forecasts also expose
+linear-regression holdout quality metrics and a `model_quality.reliability`
+level (`limited`, `low`, `moderate`, or `good`); recommendation confidence is
+capped when validation is unavailable or error is high.
 
 When the provider is not configured, unavailable, or unsupported, the API returns an explicitly labeled deterministic rules fallback. Fallback results remain usable, but the UI and generated decisions preserve that provenance so users can distinguish model output from baseline guidance.
 
@@ -69,9 +127,21 @@ Decisionate supports a mixed customer base:
 
 Backend routes should preserve this model by scoping product data to the active workspace and checking workspace role permissions before allowing data setup, connector changes, notification setup, or team/client access changes.
 
+## Internal Platform Admin
+
+The separate `/platform-admin` surface is protected by a comma-separated Clerk user ID allowlist:
+
+- `DECISIONATE_PLATFORM_ADMIN_USER_IDS`
+
+Configure the same IDs in `NEXT_PUBLIC_PLATFORM_ADMIN_USER_IDS` in the web app to show the internal navigation link. The API allowlist remains the authoritative access check.
+
 ## Weekly KPI Email Alerts
 
-Alerts can send dataset-derived KPI digests by email. Configure SMTP on the API server before enabling real sends:
+Decisionate system mail (support, signup, subscription, and AI credit notifications) uses the platform email configuration. Platform admins can manage it from `/platform-admin`; the environment variables below remain the deployment bootstrap/fallback. Alerts can send dataset-derived KPI digests by email. Workspace owners can optionally override those customer alert/report messages from the Alerts page with their own SMTP provider:
+
+Set `EMAIL_PROVIDER=resend` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL` to
+use Resend for Decisionate-owned mail. Workspace SMTP overrides remain SMTP-only
+and continue to take precedence for workspace-owned report delivery.
 
 - `SMTP_HOST`
 - `SMTP_FROM_EMAIL`
@@ -80,10 +150,15 @@ Alerts can send dataset-derived KPI digests by email. Configure SMTP on the API 
 - `SMTP_FROM_NAME` (defaults to `Decisionate`)
 - `SMTP_USE_TLS` / `SMTP_USE_SSL`
 
-Decisionate exposes two send paths:
+Decisionate exposes these alert operations:
 
-- `POST /alerts/weekly-report/send` sends the current workspace digest immediately for a workspace manager.
+- `GET /alerts/weekly-report/digest` previews the current workspace digest, including AI analysis and historical decision-learning context.
+- `GET /alerts/weekly-report/delivery-history` returns recent delivery attempts for the workspace owner.
+- `POST /alerts/weekly-report/send` sends the current workspace digest immediately for a workspace owner.
+- `POST /alerts/weekly-report/send-test` sends a configuration test email for a workspace owner.
 - `POST /alerts/weekly-report/send-due` sends all enabled workspace digests due today. This endpoint requires the `X-Alerts-Scheduler-Secret` header to match `ALERTS_SCHEDULER_SECRET`.
+
+Weekly report setup, previews, delivery history, and manual sends are owner-only. Members and client users can use analysis and decision workflows but cannot change notification configuration or send workspace email.
 
 For cron or hosted scheduled jobs, use the included runner from `apps/api`:
 
@@ -93,13 +168,84 @@ ALERTS_SCHEDULER_SECRET=replace-me \
 .venv/bin/python scripts/send_due_weekly_reports.py
 ```
 
+The runner also accepts `ALERTS_SCHEDULER_TIMEOUT_SECONDS` (default `30`) for
+slower hosted API deployments.
+
 Example weekday cron entry:
 
 ```cron
 0 13 * * 1-5 cd /path/to/decisionate/apps/api && DECISIONATE_API_URL=https://api.example.com ALERTS_SCHEDULER_SECRET=replace-me .venv/bin/python scripts/send_due_weekly_reports.py
 ```
 
+Before deployment, run `apps/api/scripts/check_mvp_readiness.py`. It reports AI,
+analytics, portable storage, server email, billing, connector scheduling and
+production security readiness without printing credentials. Add `--strict` in
+CI or a release check; it fails until the required MVP services and production
+security guard are configured. Individual connector provider credentials are
+still verified through staging acceptance tests because availability alone
+cannot prove that a provider account, OAuth flow or sync works.
+
 The runner exits with `0` when all due workspaces are sent or skipped, `1` when the scheduler request itself fails, and `2` when the API processed the request but at least one workspace failed delivery validation or email sending.
+
+## Billing
+
+Billing uses Stripe Checkout and the Stripe customer portal. Configure these
+server-side values before enabling paid plans:
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_PROFESSIONAL_PRICE_ID` for Professional ($79/month)
+- `STRIPE_PROFESSIONAL_ANNUAL_PRICE_ID` for Professional annual billing
+- `STRIPE_AGENCY_PRICE_ID` for Agency ($199/month, 10 clients)
+- `STRIPE_AGENCY_ANNUAL_PRICE_ID` for Agency annual billing
+- `STRIPE_CLIENT_WORKSPACE_ADDON_PRICE_ID` for additional client workspaces ($20/month each)
+- `STRIPE_CLIENT_WORKSPACE_ADDON_ANNUAL_PRICE_ID` for additional client workspaces ($200/year each)
+- `STRIPE_AI_CREDIT_PACK_PRICE_ID` for optional 5,000-credit monthly packs
+- `STRIPE_WEBHOOK_SECRET`
+- `DECISIONATE_WEB_APP_URL`
+
+Professional includes one direct workspace and a 30-day full-access trial. Agency
+includes up to 10 client workspaces, and additional client workspaces are
+priced separately rather than charging per seat. The owner starts
+Checkout from `/dashboard/billing`, while subscription state is updated only from
+signed Stripe webhooks at `/billing/webhook`. Configure the webhook
+for `checkout.session.completed` and `customer.subscription.created`,
+`customer.subscription.updated`, and `customer.subscription.deleted`. The
+webhook endpoint consumes the raw request body and rejects duplicate event IDs.
+
+## OAuth Connectors And Automated Sync
+
+Owner-only OAuth authorization is available for Shopify, QuickBooks, FreshBooks,
+Sage Cloud Accounting, HubSpot, Meta Ads, and Xero. Configure each
+provider's client ID and secret, `OAUTH_CALLBACK_URL`, and a Fernet
+`OAUTH_TOKEN_ENCRYPTION_KEY`.
+OAuth callbacks store encrypted access and refresh tokens in the database; raw
+tokens are never returned to the web app.
+
+Google Analytics and the listed business connectors have dataset adapters.
+Owners can enable an hourly or daily schedule on a connection. A scheduled job calls
+`POST /datasets/source-connections/sync-due` with the
+`X-Connectors-Scheduler-Secret` header. Run the included scheduler with:
+
+```bash
+DECISIONATE_API_URL=https://api.example.com \
+CONNECTORS_SCHEDULER_SECRET=replace-me \
+.venv/bin/python scripts/sync_due_connectors.py
+```
+
+OAuth providers still require their provider application credentials on the API
+server before authorization can begin. Stripe requires `STRIPE_API_KEY`.
+Sage requires `SAGE_CLIENT_ID`, `SAGE_CLIENT_SECRET`,
+`SAGE_API_SUBSCRIPTION_KEY`, and an encrypted OAuth token key. Sage is imported
+with the provider's read-only OAuth consent and the selected business resource
+owner ID returned during authorization. The default adapter targets the Sage
+UK/Ireland Accounting API path; set `SAGE_API_BASE_URL` for another supported
+country or deployment endpoint.
+PostgreSQL, MySQL, and SQL Server require their corresponding read-only source
+URL and a SELECT or WITH query on the connection. Connector source status in
+the Connections page reports which server-side requirement is missing. Use
+provider-native read-only or minimum-scope credentials wherever available;
+SQL validation is an additional guard, not a replacement for a read-only
+database role.
 
 ## Analytics Engine
 
@@ -119,23 +265,34 @@ Keep analytics storage portable and table-oriented. Parquet is the preferred loc
 
 The BigQuery adapter reads from the configured analytics table identity for each dataset. Application code should call analytics services rather than depending directly on DuckDB or BigQuery APIs. That lets the adapter change without rewriting dashboard, forecasting, or sharing routes.
 
+Google Analytics can be pulled manually into a new dataset when the optional
+`google-analytics-data` and `google-auth` packages are installed. Configure a
+server-side service-account file with `GOOGLE_ANALYTICS_SERVICE_ACCOUNT_FILE`
+or inject its JSON through `GOOGLE_ANALYTICS_SERVICE_ACCOUNT_JSON`; do not save
+credential material in a workspace connection. Add a Google Analytics source
+connection with its GA4 `property_id`, then use the connection's manual sync
+action. The service account must have viewer access to that property.
+
 ## Future Data Source Connectors
 
-The dataset source registry already lists the planned connector roadmap. CSV and JSON uploads work with the base API dependencies. Parquet and Excel uploads are wired through the same loader, but require optional pandas reader dependencies on the API server:
+The dataset source registry already lists the planned connector roadmap. CSV,
+JSON, Parquet, and Excel uploads are included in the base API dependencies.
+Additional connector and analytics packages remain optional:
 
-- Parquet: `pyarrow` or `fastparquet`
-- Excel: `openpyxl` or `xlrd`
+- Legacy Excel `.xls`: `xlrd`
 - BigQuery analytics adapter: `google-cloud-bigquery`
+- Google Analytics connector: `google-analytics-data` and `google-auth`
 
-Install the common optional readers with:
+Install optional connector packages with:
 
 ```bash
 .venv/bin/python -m pip install -r requirements-optional.txt
 ```
 
-The commented connector values in `.env.example` are placeholders for future work:
+Connector values in `.env.example` document the supported and planned integrations:
 
-- OAuth apps: Shopify, Google Drive, Google Analytics, OneDrive, QuickBooks, Xero, CRM systems, marketing platforms
+- Manual Google Analytics sync: `google-analytics-data`, `google-auth`, and a server-side service account are supported now
+- OAuth apps: Shopify, Google Drive, OneDrive, QuickBooks, Xero, CRM systems, marketing platforms
 - API-key connectors: Stripe and custom REST APIs
 - Databases: PostgreSQL, MySQL, SQL Server
 - Data warehouses: BigQuery, Snowflake
@@ -145,3 +302,13 @@ The commented connector values in `.env.example` are placeholders for future wor
 The data source registry may report which connector environment variable names are configured, but it must not expose secret values in API responses.
 
 Do not store production connector secrets directly in `.env` long term. These names document the expected local development shape; production should use managed secret storage.
+
+## Deployment Shape
+
+The recommended initial deployment is a Vercel web app, Railway API and
+Postgres, Cloudflare R2 for Parquet, OpenAI for model calls, Stripe for billing,
+Resend for system email, Railway cron for the scheduler, Upstash Redis for
+distributed cache/rate limiting, and Sentry for error monitoring. Provider
+selection lives in environment variables and adapters rather than in product
+routes. Clerk remains the current authentication adapter while the internal
+Decisionate identity records preserve a future migration path.

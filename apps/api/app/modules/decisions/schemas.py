@@ -44,10 +44,7 @@ DecisionConfidenceScore = Literal[
     "low",
 ]
 
-AIAnalysisSource = Literal[
-    "openai",
-    "rules",
-]
+AIAnalysisSource = str
 
 DecisionActivityType = Literal[
     "created",
@@ -63,6 +60,8 @@ DecisionActivityType = Literal[
     "priority",
     "category",
     "confidence",
+    "delete",
+    "export",
 ]
 
 DecisionListLifecycle = Literal[
@@ -198,6 +197,8 @@ REVIEW_DECISION_ACTIVITY: DecisionActivityType = "review"
 PRIORITY_DECISION_ACTIVITY: DecisionActivityType = "priority"
 CATEGORY_DECISION_ACTIVITY: DecisionActivityType = "category"
 CONFIDENCE_DECISION_ACTIVITY: DecisionActivityType = "confidence"
+DELETE_DECISION_ACTIVITY: DecisionActivityType = "delete"
+EXPORT_DECISION_ACTIVITY: DecisionActivityType = "export"
 DECISION_LIST_LIFECYCLE_PATTERN = build_literal_pattern(
     DecisionListLifecycle
 )
@@ -232,12 +233,26 @@ class DecisionCreate(BaseModel):
     recommendation_source: AIAnalysisSource | None = None
     recommendation_context: str | None = None
     title: str
+    action: str | None = None
     description: str | None = None
     expected_outcome: str | None = None
     priority: DecisionPriority | None = None
     category: DecisionCategory | None = None
     confidence_score: DecisionConfidenceScore | None = None
     review_date: datetime | None = None
+
+
+class DecisionTemplateResponse(BaseModel):
+    slug: str
+    name: str
+    description: str
+    category: DecisionCategory
+    priority: DecisionPriority
+    confidence_score: DecisionConfidenceScore
+    title_template: str
+    decision_description: str
+    expected_outcome: str
+    review_days: int
 
 
 class DecisionUpdate(BaseModel):
@@ -258,6 +273,7 @@ class DecisionOverviewUpdate(BaseModel):
 
 class DecisionDetailsUpdate(BaseModel):
     title: str | None = None
+    action: str | None = None
     description: str | None = None
     metric_column: str | None = None
 
@@ -269,12 +285,14 @@ class DecisionDetailsUpdate(BaseModel):
 class DecisionResponse(BaseModel):
     id: int
     workspace_id: str | None = None
+    owner_user_id: str | None = None
     dataset_id: int
     metric_column: str | None = None
     recommendation_text: str | None
     recommendation_source: AIAnalysisSource | None
     recommendation_context: str | None
     title: str
+    action: str | None
     description: str | None
     notes: str | None
     expected_outcome: str | None
@@ -293,14 +311,23 @@ class DecisionResponse(BaseModel):
         from_attributes = True
 
 
+class DecisionLifecycleAccessResponse(BaseModel):
+    owner_user_id: str
+    is_decision_owner: bool
+    is_workspace_owner: bool
+    can_archive: bool
+    can_delete: bool
+
+
 # =========================
 # Decision Detail Timeline And Workspace Activity Feed Schemas
 # =========================
 
 class DecisionActivityResponse(BaseModel):
     id: int
-    decision_id: int
+    decision_id: int | None = None
     workspace_id: str | None = None
+    actor_user_id: str | None = None
     activity_type: DecisionActivityType
     message: str
     created_at: datetime
@@ -311,8 +338,9 @@ class DecisionActivityResponse(BaseModel):
 
 class DecisionActivityFeedResponse(BaseModel):
     id: int
-    decision_id: int
+    decision_id: int | None = None
     workspace_id: str | None = None
+    actor_user_id: str | None = None
     decision_title: str
     decision_available: bool = True
     activity_type: DecisionActivityType

@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs"
 
 import { ConnectionPullWidget } from "@/features/datasets/components/connection-pull-widget"
 import { CsvUpload } from "@/features/datasets/components/csv-upload"
+import { SignedUrlImport } from "@/features/datasets/components/signed-url-import"
 import { DatasetList } from "@/features/datasets/components/dataset-list"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import {
@@ -61,6 +62,7 @@ export default function DatasetsPage() {
     useActiveWorkspace(user?.id)
   const {
     canConfigureWorkspace,
+    canViewConnections,
     loadingWorkspaceAccess,
   } =
     useWorkspaceAccess(user?.id)
@@ -146,7 +148,7 @@ export default function DatasetsPage() {
   useEffect(() => {
     if (
       !user?.id ||
-      !canConfigureWorkspace
+      !canViewConnections
     ) {
       return
     }
@@ -214,6 +216,7 @@ export default function DatasetsPage() {
   }, [
     activeWorkspaceId,
     canConfigureWorkspace,
+    canViewConnections,
     initialDataRetryKey,
     user?.id,
     workspaceVersion,
@@ -293,13 +296,18 @@ export default function DatasetsPage() {
                 loadDatasets
               }
             />
+            <SignedUrlImport
+              onImportSuccess={loadDatasets}
+            />
           </div>
-
-          <ConnectionPullWidget
-            connections={connections}
-            loadError={Boolean(connectionError)}
-          />
         </>
+      )}
+
+      {canViewConnections && (
+        <ConnectionPullWidget
+          connections={connections}
+          loadError={Boolean(connectionError)}
+        />
       )}
 
       <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">

@@ -1,12 +1,9 @@
-# Common optional dataset upload readers.
-pyarrow
-openpyxl
-
-# Alternative dataset upload readers.
-# fastparquet
+# Optional dataset connectors and analytics adapters.
 # xlrd
 
 google-cloud-bigquery
+google-analytics-data
+google-auth
 
 # Future analytics and connector packages.
 # duckdb

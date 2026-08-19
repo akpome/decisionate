@@ -55,6 +55,7 @@ export function buildAIRecommendationDecisionPayload(
     recommendation_source: analysis.source,
     recommendation_context: metricContext,
     title: `Review ${metricContext} recommendation`,
+    action: recommendation,
     description: [
       analysis.summary,
       `Recommendation: ${recommendation}`,
@@ -64,7 +65,7 @@ export function buildAIRecommendationDecisionPayload(
     ]
       .filter(Boolean)
       .join("\n\n"),
-    expected_outcome: `Review and act on the ${metricContext} recommendation.`,
+    expected_outcome: `Measure whether ${metricContext} improves after applying this recommendation, then record the result and lesson learned.`,
     confidence_score: analysis.confidence,
   }
 }

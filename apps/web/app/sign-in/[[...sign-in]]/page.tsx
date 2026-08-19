@@ -1,21 +1,9 @@
-import {
-  auth,
-} from "@clerk/nextjs/server"
 import Link from "next/link"
-import { redirect } from "next/navigation"
 
 import { AuthCard } from "@/app/auth-card"
 import { ThemeToggle } from "@/app/theme-toggle"
 
-export default async function SignInPage() {
-  const {
-    userId,
-  } = await auth()
-
-  if (userId) {
-    redirect("/dashboard")
-  }
-
+export default function SignInPage() {
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-6xl justify-end">
@@ -44,7 +32,19 @@ export default async function SignInPage() {
           aria-label="Sign in"
           className="flex justify-center"
         >
-          <AuthCard mode="sign-in" />
+          <div className="w-full max-w-[24rem]">
+            <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-center text-sm text-blue-900">
+              New user?{" "}
+              <Link
+                href="/sign-up"
+                className="font-semibold underline underline-offset-2"
+              >
+                Create your account
+              </Link>
+            </div>
+
+            <AuthCard mode="sign-in" />
+          </div>
         </section>
       </div>
     </main>

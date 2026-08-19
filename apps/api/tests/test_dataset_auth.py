@@ -173,6 +173,21 @@ class DatasetAuthTests(unittest.TestCase):
             403,
         )
 
+    def test_verify_dataset_owner_rejects_different_workspace(self):
+        dataset = SimpleNamespace(
+            user_id="owner-user",
+            workspace_id="workspace-1",
+        )
+
+        with self.assertRaises(HTTPException) as context:
+            verify_dataset_owner(
+                dataset,
+                "owner-user",
+                "workspace-2",
+            )
+
+        self.assertEqual(context.exception.status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

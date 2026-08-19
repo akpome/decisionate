@@ -3,6 +3,7 @@ type DatasetSourceConfig = {
   original_file_name?: string
   file_extension?: string
   file_format?: string
+  stored_file_format?: string
 }
 
 function cleanStringValue(
@@ -45,6 +46,10 @@ export function parseDatasetSourceConfig(
         file_format:
           cleanStringValue(
             parsedConfig.file_format
+          ),
+        stored_file_format:
+          cleanStringValue(
+            parsedConfig.stored_file_format
           ),
       }
     }
@@ -111,6 +116,9 @@ export function getDatasetSourceDetails(
       null,
     fileExtension:
       parsedConfig?.file_extension ||
+      null,
+    storedFileFormat:
+      parsedConfig?.stored_file_format ||
       null,
   }
 }

@@ -28,8 +28,11 @@ export function hasRecordedOutcome(
   decision: DecisionRecord
 ) {
   return (
-    hasMeaningfulText(decision.outcome_status) ||
-    hasMeaningfulText(decision.actual_outcome)
+    hasMeaningfulText(decision.expected_outcome) &&
+    (
+      hasMeaningfulText(decision.outcome_status) ||
+      hasMeaningfulText(decision.actual_outcome)
+    )
   )
 }
 

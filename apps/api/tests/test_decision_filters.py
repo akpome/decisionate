@@ -29,9 +29,11 @@ from app.modules.decisions.router import (
     filter_decision_for_workspace,
     get_accessible_dataset,
     get_accessible_decision_or_404,
+    get_decision_activity_feed,
     get_active_user_id,
     get_active_workspace_id,
     create_decision as create_decision_route,
+    delete_decision,
     has_meaningful_text,
     has_pending_learning,
     has_pending_notes,
@@ -47,6 +49,7 @@ from app.modules.decisions.router import (
     update_decision as update_decision_route,
     update_decision_outcome,
     utc_now,
+    validate_decision_outcome_evidence,
     validate_optional_decision_controlled_value,
 )
 from app.db.models import Dataset
@@ -63,6 +66,7 @@ from app.modules.decisions.schemas import (
     CATEGORY_DECISION_ACTIVITY,
     CONFIDENCE_DECISION_ACTIVITY,
     CREATED_DECISION_ACTIVITY,
+    DELETE_DECISION_ACTIVITY,
     build_literal_pattern,
     DECISION_ATTENTION_WORKFLOW_STATE_PATTERN,
     DECISION_LEARNING_WORKFLOW_STATE_PATTERN,
@@ -853,6 +857,80 @@ class DecisionFilterTests(unittest.TestCase):
                 )
             )
 
+        finally:
+            db.close()
+
+    def test_delete_decision_preserves_archived_activity_audit(self):
+        Session = self.build_memory_decision_session_factory()
+        db = Session()
+
+        try:
+            decision = Decision(
+                id=1,
+                clerk_user_id="user-1",
+                workspace_id="workspace-1",
+                dataset_id=1,
+                title="Remove test decision",
+                status=ARCHIVED_DECISION_STATUS,
+            )
+            db.add(decision)
+            db.flush()
+            db.add(
+                DecisionActivity(
+                    decision_id=decision.id,
+                    workspace_id=decision.workspace_id,
+                    activity_type=ARCHIVE_DECISION_ACTIVITY,
+                    message="Decision archived",
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        with patch(
+            "app.modules.decisions.router.SessionLocal",
+            Session,
+        ):
+            asyncio.run(
+                delete_decision(
+                    1,
+                    x_user_id="user-1",
+                    x_workspace_id="workspace-1",
+                )
+            )
+            feed = asyncio.run(
+                get_decision_activity_feed(
+                    x_user_id="user-1",
+                    x_workspace_id="workspace-1",
+                    limit=20,
+                    offset=0,
+                )
+            )
+
+        db = Session()
+
+        try:
+            self.assertIsNone(
+                db.query(Decision).filter(Decision.id == 1).first()
+            )
+            self.assertEqual(
+                db.query(DecisionActivity).count(),
+                2,
+            )
+            self.assertEqual(
+                [item.activity_type for item in feed],
+                [
+                    DELETE_DECISION_ACTIVITY,
+                    ARCHIVE_DECISION_ACTIVITY,
+                ],
+            )
+            self.assertTrue(
+                all(
+                    item.decision_title == "Remove test decision"
+                    and item.decision_available is False
+                    for item in feed
+                )
+            )
         finally:
             db.close()
 
@@ -2465,6 +2543,25 @@ class DecisionFilterTests(unittest.TestCase):
         )
         self.assertIsNone(
             payload.outcome_status,
+        )
+
+    def test_outcome_evidence_requires_expected_outcome(self):
+        with self.assertRaises(HTTPException) as context:
+            validate_decision_outcome_evidence(
+                None,
+                "Revenue increased",
+                None,
+            )
+
+        self.assertEqual(
+            context.exception.status_code,
+            400,
+        )
+
+        validate_decision_outcome_evidence(
+            "Increase revenue",
+            "Revenue increased",
+            "successful",
         )
 
     def test_learning_update_accepts_null_for_clearing_learning(self):

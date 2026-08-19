@@ -376,6 +376,15 @@ function ActionNeededDecisionCard({
             {decision.description ||
               "No description provided."}
           </p>
+
+          {decision.action && (
+            <p className="mt-3 break-words border-l-2 border-[var(--decisionate-brand-primary)] pl-3 text-sm text-gray-700 line-clamp-2">
+              <span className="font-medium text-[var(--decisionate-brand-primary-text)]">
+                Action:
+              </span>{" "}
+              {decision.action}
+            </p>
+          )}
         </div>
 
         <span className="w-fit max-w-full shrink-0 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">

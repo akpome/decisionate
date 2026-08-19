@@ -64,6 +64,9 @@ export function ConnectionPullWidget({
       : undefined
   const hasEnvironmentRequirement =
     selectedConnection?.environment_configured != null
+  const isGoogleAnalyticsConnection =
+    selectedConnection?.source_type ===
+    "google_analytics"
 
   function handleSelectionChange(
     connectionId: string
@@ -80,7 +83,7 @@ export function ConnectionPullWidget({
           </h2>
 
           <p className="mt-2 text-sm text-gray-500">
-            Review saved connection setup. External connector pulls are planned; supported files can be uploaded from Datasets.
+            Review saved external connections and their dataset sync status.
           </p>
         </div>
 
@@ -96,7 +99,7 @@ export function ConnectionPullWidget({
         <div className="rounded-xl border border-dashed bg-gray-50 p-5 text-sm text-gray-600">
           {loadError
             ? "Saved connections are unavailable. Retry the data services above."
-            : "No pull-capable connections are configured yet. External connector pulls are planned; upload a CSV, Excel, JSON, or Parquet file from Datasets for now."}
+            : "No external connections have been added yet. Open Connections to add a provider, or upload a file from Datasets."}
         </div>
       ) : (
         <div className="space-y-5">
@@ -189,7 +192,9 @@ export function ConnectionPullWidget({
               </div>
 
               <div className="break-words rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-4 py-3 text-sm text-[var(--decisionate-brand-primary-text)]">
-                Connection ingestion is not enabled in this MVP. Upload a CSV, Excel, JSON, or Parquet file to create a dataset.
+                {isGoogleAnalyticsConnection
+                  ? "Configure the GA4 property and use Sync now from Manage connections to create a dataset."
+                  : "Use Manage connections to finish setup or authorization, then sync the source to create a dataset."}
               </div>
             </>
           )}

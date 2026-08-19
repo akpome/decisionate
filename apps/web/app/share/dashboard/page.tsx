@@ -1,10 +1,7 @@
 "use client"
 
+import Link from "next/link"
 import {
-  useSearchParams,
-} from "next/navigation"
-import {
-  Suspense,
   useEffect,
   useMemo,
   useRef,
@@ -26,11 +23,21 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import {
+  LockKeyhole,
+  Maximize2,
+  X,
+} from "lucide-react"
 
 import {
+  getPublicDemoDashboard,
   getPublicSharedDashboard,
   type DashboardAggregation,
+  type DashboardValueAggregation,
   type DecisionSummary,
+  type DatasetJoinResult,
+  type PublicDemoDashboardResponse,
+  type PublicDemoDatasetOption,
 } from "@/lib/api"
 import {
   getDatasetSourceDetails,
@@ -54,19 +61,33 @@ import {
 } from "@/lib/use-workspace-browser-brand"
 import {
   dashboardRegistry,
+  getDashboardAutoMetricMapping,
+  getDashboardMappingChartTitles,
   type DashboardChartTitles,
   type DashboardMetricMapping,
 } from "@/features/dashboards/dashboard-registry"
 import {
   dashboardUsesDatasetMetricMapping,
+  dashboardDefinitions,
   defaultDashboardKey,
   getDashboardDefinition,
   isDashboardKey,
 } from "@/features/dashboards/dashboard-definitions"
+import {
+  dashboardChartPalette,
+} from "@/features/dashboard/lib/chart-palette"
+import {
+  finalizeSummaryAggregation,
+  getHistoricalDimensionWarning,
+  getSummaryAggregationState,
+  mergeSummaryAggregationState,
+  type SummaryAggregationState,
+} from "@/features/dashboard/lib/summary-aggregation"
 
 type ChartType = "line" | "bar" | "area"
 type ScaleMode = "actual" | "indexed"
 type MetricAggregation = DashboardAggregation
+type ValueAggregation = DashboardValueAggregation
 type DashboardTemplate =
   | "executive"
   | "performance"
@@ -93,6 +114,7 @@ type DashboardRow =
 
 type DashboardMetric = {
   column: string
+  count?: number
   total?: number
   average?: number
   min?: number
@@ -117,6 +139,8 @@ type DashboardDataset = {
 }
 
 type SharedDashboardConfig = {
+  demo?: boolean
+  demoDataset?: string
   datasetId?: number
   dashboardTemplate?: DashboardTemplate
   selectedDashboard?: string
@@ -166,59 +190,149 @@ const dashboardTemplates: DashboardTemplate[] = [
 const maxDashboardKpiCards = 8
 const maxDashboardTitleLength = 120
 const maxDashboardSubtitleLength = 220
+const sharedBrandStoragePrefix =
+  "decisionate:shared-dashboard-brand:"
+const joinedDatasetResultVersion = 6
 
-const defaultColorPalette = [
-  "#2563eb",
-  "#14b8a6",
-  "#f97316",
-  "#9333ea",
-  "#dc2626",
-  "#0891b2",
-  "#ca8a04",
-  "#4f46e5",
-]
+function isCurrentJoinedDatasetResult(
+  result: DatasetJoinResult | null | undefined
+): result is DatasetJoinResult {
+  return result?.join_version === joinedDatasetResultVersion
+}
+
+function getSharedBrandStorageKey(
+  config: SharedDashboardConfig
+) {
+  if (!config.datasetId) {
+    return ""
+  }
+
+  return `${sharedBrandStoragePrefix}${config.datasetId}`
+}
+
+function readCachedSharedBrand(
+  storageKey: string
+) {
+  if (
+    !storageKey ||
+    typeof window === "undefined"
+  ) {
+    return null
+  }
+
+  try {
+    const cachedValue = window.localStorage.getItem(
+      storageKey
+    )
+
+    if (!cachedValue) {
+      return null
+    }
+
+    const parsedValue = JSON.parse(cachedValue)
+
+    if (
+      !parsedValue ||
+      typeof parsedValue !== "object" ||
+      typeof parsedValue.name !== "string" ||
+      typeof parsedValue.logoUrl !== "string" ||
+      typeof parsedValue.primaryColor !== "string" ||
+      typeof parsedValue.accentColor !== "string"
+    ) {
+      return null
+    }
+
+    return parsedValue as WorkspaceBrand
+  } catch {
+    return null
+  }
+}
+
+function cacheSharedBrand(
+  storageKey: string,
+  brand: WorkspaceBrand
+) {
+  if (
+    !storageKey ||
+    typeof window === "undefined"
+  ) {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify(brand)
+    )
+  } catch {
+    // Branding cache is best-effort and must not block the shared page.
+  }
+}
 
 const unavailableSharedDashboardMessage =
   "This shared dashboard link is no longer available."
 
-export default function SharedDashboardPage() {
-  return (
-    <Suspense
-      fallback={
-        <SharedPageShell>
-          <SharedCard
-            role="status"
-            aria-live="polite"
-          >
-            <p className="text-sm text-gray-500">
-              Loading shared dashboard...
-            </p>
-          </SharedCard>
-        </SharedPageShell>
-      }
-    >
-      <SharedDashboardContent />
-    </Suspense>
-  )
+export default function SharedDashboardPage({
+  demo = false,
+}: {
+  demo?: boolean
+}) {
+  return <SharedDashboardContent demoMode={demo} />
 }
 
-function SharedDashboardContent() {
-  const searchParams =
-    useSearchParams()
-  const searchParamString =
-    searchParams.toString()
+function SharedDashboardContent({
+  demoMode = false,
+}: {
+  demoMode?: boolean
+}) {
+  const [searchParamString, setSearchParamString] =
+    useState<string | null>(null)
+
+  useEffect(() => {
+    const updateSearchParams = () => {
+      setSearchParamString(
+        window.location.search.replace(/^\?/, "")
+      )
+    }
+
+    updateSearchParams()
+    window.addEventListener(
+      "popstate",
+      updateSearchParams
+    )
+
+    return () => {
+      window.removeEventListener(
+        "popstate",
+        updateSearchParams
+      )
+    }
+  }, [])
+
   const sharedConfig =
     useMemo(
       () =>
         getSharedDashboardConfig(
-          searchParamString
+          searchParamString ?? "",
+          demoMode
         ),
-      [searchParamString]
+      [demoMode, searchParamString]
+    )
+  const sharedBrandStorageKey =
+    getSharedBrandStorageKey(
+      sharedConfig
     )
   const [dataset, setDataset] =
     useState<DashboardDataset | null>(null)
+  const [joinedDatasetResult, setJoinedDatasetResult] =
+    useState<DatasetJoinResult | null>(null)
   const [sharedBrand, setSharedBrand] =
-    useState<WorkspaceBrand>(defaultWorkspaceBrand)
+    useState<WorkspaceBrand>(
+      () =>
+        readCachedSharedBrand(
+          sharedBrandStorageKey
+        ) ?? defaultWorkspaceBrand
+    )
   const [selectedMetrics, setSelectedMetrics] =
     useState<string[]>([])
   const [chartType, setChartType] =
@@ -226,9 +340,11 @@ function SharedDashboardContent() {
   const [scaleMode, setScaleMode] =
     useState<ScaleMode>("actual")
   const [periodFilter, setPeriodFilter] =
-    useState<PeriodFilter>("1y")
+    useState<PeriodFilter>("1m")
   const [aggregation, setAggregation] =
     useState<MetricAggregation>("monthly")
+  const [aggregationType, setAggregationType] =
+    useState<ValueAggregation>("sum")
   const [dashboardTemplate, setDashboardTemplate] =
     useState<DashboardTemplate>("executive")
   const [dashboardTitle, setDashboardTitle] =
@@ -255,8 +371,17 @@ function SharedDashboardContent() {
     useState("")
   const [sharedLoadRetryKey, setSharedLoadRetryKey] =
     useState(0)
+  const [demoDatasets, setDemoDatasets] =
+    useState<PublicDemoDatasetOption[]>([])
+  const [demoJoinDataset, setDemoJoinDataset] =
+    useState("")
+  const [demoNotice, setDemoNotice] =
+    useState("")
   const sharedDatasetId =
     sharedConfig.datasetId
+  const sharedDemo = Boolean(sharedConfig.demo)
+  const sharedDemoDataset =
+    sharedConfig.demoDataset ?? "google-analytics"
   const sharedDashboardTemplate =
     sharedConfig.dashboardTemplate
   const sharedSelectedDashboard =
@@ -265,21 +390,40 @@ function SharedDashboardContent() {
     sharedConfig.token ?? ""
   const sharedConfigKey =
     [
-      sharedDatasetId ?? "",
+      sharedDemo ? "demo" : sharedDatasetId ?? "",
+      sharedDemoDataset,
       sharedSelectedDashboard,
       sharedDashboardTemplate ?? "",
       sharedToken,
     ].join("|")
 
   useEffect(() => {
+    if (searchParamString === null) {
+      return
+    }
+
     const [
-      datasetIdValue,
+      datasetModeValue,
+      demoDatasetValue,
       selectedDashboardValue,
       dashboardTemplateValue,
       tokenValue,
     ] = sharedConfigKey.split("|")
+    const effectDemo = datasetModeValue === "demo"
     const effectDatasetId =
-      getQueryDatasetId(datasetIdValue)
+      effectDemo
+        ? undefined
+        : getQueryDatasetId(datasetModeValue)
+    const effectDemoDataset =
+      effectDemo
+        ? demoDatasetValue || "google-analytics"
+        : undefined
+    const effectDemoJoinDataset =
+      effectDemo &&
+      demoJoinDataset &&
+      demoJoinDataset !== effectDemoDataset
+        ? demoJoinDataset
+        : undefined
     const effectDashboardTemplate =
       dashboardTemplateValue
         ? getSavedDashboardTemplate(
@@ -290,6 +434,11 @@ function SharedDashboardContent() {
       selectedDashboardValue || undefined
     const effectToken =
       tokenValue || undefined
+    const effectBrandStorageKey =
+      getSharedBrandStorageKey({
+        datasetId: effectDatasetId,
+        selectedDashboard: effectSelectedDashboard,
+      })
     let isCurrent = true
     const abortController =
       new AbortController()
@@ -308,7 +457,13 @@ function SharedDashboardContent() {
       }
 
       setDataset(null)
-      setSharedBrand(defaultWorkspaceBrand)
+      setJoinedDatasetResult(null)
+      setDemoDatasets([])
+      setSharedBrand(
+        readCachedSharedBrand(
+          effectBrandStorageKey
+        ) ?? defaultWorkspaceBrand
+      )
       setSelectedMetrics([])
       setTargets({})
       setDashboardMetricMapping({})
@@ -317,7 +472,9 @@ function SharedDashboardContent() {
       setDashboardTitle("")
       setDashboardSubtitle("")
       setStartDate("")
+      setPeriodFilter("1m")
       setAggregation("monthly")
+      setAggregationType("sum")
     }
 
     async function loadSharedDashboard() {
@@ -331,10 +488,7 @@ function SharedDashboardContent() {
           )
         }
 
-        const datasetId =
-          effectDatasetId
-
-        if (!datasetId) {
+        if (!effectDemo && !effectDatasetId) {
           clearSharedDashboardState()
           setSharedPageError(
             unavailableSharedDashboardMessage
@@ -342,7 +496,7 @@ function SharedDashboardContent() {
           return
         }
 
-        if (!effectToken) {
+        if (!effectDemo && !effectToken) {
           clearSharedDashboardState()
           setSharedPageError(
             unavailableSharedDashboardMessage
@@ -350,13 +504,18 @@ function SharedDashboardContent() {
           return
         }
 
-        const response =
-          await getPublicSharedDashboard(
-            datasetId,
-            effectToken,
-            effectSelectedDashboard,
-            abortController.signal
-          )
+        const response = effectDemo
+          ? await getPublicDemoDashboard(
+              effectDemoDataset ?? "google-analytics",
+              effectSelectedDashboard,
+              abortController.signal
+            )
+          : await getPublicSharedDashboard(
+              effectDatasetId as number,
+              effectToken as string,
+              effectSelectedDashboard,
+              abortController.signal
+            )
 
         if (!response) {
           clearSharedDashboardState()
@@ -370,62 +529,142 @@ function SharedDashboardContent() {
           response.dataset
         const preference =
           response.preference
+        const joinedResponse =
+          effectDemoJoinDataset
+            ? await getPublicDemoDashboard(
+                effectDemoJoinDataset,
+                effectSelectedDashboard,
+                abortController.signal
+              )
+            : null
 
-        const datasetKey =
-          String(datasetId)
-        const dashboardPreference =
+        const datasetKey = effectDemo
+          ? effectDemoDataset ?? "google-analytics"
+          : String(effectDatasetId)
+        const resolvedDashboardKey =
+          effectSelectedDashboard ??
+          defaultDashboardKey
+        const legacyDashboardPreference =
           preference.dashboard_preferences?.[
             datasetKey
           ] ?? {}
+        const dashboardPreference = {
+          ...(resolvedDashboardKey === defaultDashboardKey
+            ? legacyDashboardPreference
+            : {
+              metricMappings:
+                legacyDashboardPreference.metricMappings,
+              chartTitles:
+                legacyDashboardPreference.chartTitles,
+            }),
+          ...(preference.dashboard_views?.[
+            datasetKey
+          ]?.[resolvedDashboardKey] ?? {}),
+        }
         const sharedDashboardMetricMapping =
           getSavedDashboardMetricMapping(
-            effectSelectedDashboard
-              ? dashboardPreference.metricMappings?.[
-                  effectSelectedDashboard
-                ]
-              : undefined
+            dashboardPreference.metricMappings?.[
+              resolvedDashboardKey
+            ]
           )
         const sharedDashboardChartTitles =
-          effectSelectedDashboard
-            ? dashboardPreference.chartTitles?.[
-                effectSelectedDashboard
-              ] ?? {}
-            : {}
+          dashboardPreference.chartTitles?.[
+            resolvedDashboardKey
+          ] ?? {}
+        const nextJoinedDatasetResult =
+          effectDemo
+            ? effectDemoJoinDataset && joinedResponse
+              ? buildDemoJoinedDatasetResult(
+                  effectDemoDataset ?? "google-analytics",
+                  data,
+                  effectDemoJoinDataset,
+                  joinedResponse.dataset
+                )
+              : null
+            : preference.joined_dataset_result ??
+              (isCurrentJoinedDatasetResult(
+                dashboardPreference.joinedDatasetResult
+              )
+                ? dashboardPreference.joinedDatasetResult
+                : null)
         const availableMetrics =
-          data.metrics?.map(
-            (metric) => metric.column
-          ) ?? []
-        const safePeriodFilter =
-          getSavedPeriodFilter(
-            dashboardPreference.periodFilter
+          nextJoinedDatasetResult
+            ? nextJoinedDatasetResult.datasets
+              .filter(
+                column => column.column_type === "numeric"
+              )
+              .map(column => column.label)
+            : data.metrics?.map(
+              (metric) => metric.column
+            ) ?? []
+        const savedDashboardMetrics =
+          getValidSavedSelectedMetrics(
+            dashboardPreference.selectedMetrics,
+            availableMetrics
           )
+        const savedLegacyMetrics =
+          getValidSavedSelectedMetrics(
+            legacyDashboardPreference.selectedMetrics,
+            availableMetrics
+          )
+        const restoredSelectedMetrics =
+          savedDashboardMetrics.length > 0
+            ? savedDashboardMetrics
+            : savedLegacyMetrics.length > 0
+              ? savedLegacyMetrics
+              : getSavedSelectedMetrics(
+                undefined,
+                availableMetrics,
+                preference.selected_metric
+              )
+        const safePeriodFilter =
+          effectDemo
+            ? "1y"
+            : getSavedPeriodFilter(
+                dashboardPreference.periodFilter
+              )
         const safeAggregation =
           getSavedAggregation(
             dashboardPreference.aggregation
           )
+        const safeAggregationType =
+          getSavedAggregationType(
+            dashboardPreference.aggregationType
+          )
         const savedChartRows =
-          data.chart?.data?.length
+          nextJoinedDatasetResult?.rows.length
+            ? nextJoinedDatasetResult.rows
+            : data.chart?.data?.length
             ? data.chart.data
             : data.preview ?? []
+        const nextSharedBrand =
+          getWorkspaceBrandFromPayload(
+            response.branding
+          )
 
         if (!isCurrent) {
           return
         }
 
         setDataset(data)
+        if (effectDemo && "demo_datasets" in response) {
+          setDemoDatasets(
+            (response as PublicDemoDashboardResponse).demo_datasets
+          )
+        }
+        setJoinedDatasetResult(
+          nextJoinedDatasetResult
+        )
         setDecisionSummary(
           response.decision_summary ?? null
         )
-        setSharedBrand(
-          getWorkspaceBrandFromPayload(
-            response.branding
-          )
+        setSharedBrand(nextSharedBrand)
+        cacheSharedBrand(
+          effectBrandStorageKey,
+          nextSharedBrand
         )
         setSelectedMetrics(
-          getSavedSelectedMetrics(
-            dashboardPreference.selectedMetrics,
-            availableMetrics
-          )
+          restoredSelectedMetrics
         )
         setChartType(
           getSavedChartType(
@@ -439,6 +678,7 @@ function SharedDashboardContent() {
         )
         setPeriodFilter(safePeriodFilter)
         setAggregation(safeAggregation)
+        setAggregationType(safeAggregationType)
         setDashboardTemplate(
           getSavedDashboardTemplate(
             dashboardPreference.dashboardTemplate ??
@@ -465,14 +705,24 @@ function SharedDashboardContent() {
         setDashboardChartTitles(
           sharedDashboardChartTitles
         )
-        setStartDate(
-          getSafeStartDate(
-            dashboardPreference.startDate,
-            savedChartRows,
-            data.chart?.x_key ?? "month",
-            safePeriodFilter
-          )
-        )
+        const savedStartDate =
+          nextJoinedDatasetResult?.start_date ??
+          (effectDemo
+            ? getDatasetStartDate(
+                savedChartRows,
+                nextJoinedDatasetResult
+                  ? "period"
+                  : data.chart?.x_key ?? "month"
+              )
+            : getSafeStartDate(
+                dashboardPreference.startDate,
+                savedChartRows,
+                nextJoinedDatasetResult
+                  ? "period"
+                  : data.chart?.x_key ?? "month",
+                safePeriodFilter
+              ))
+        setStartDate(savedStartDate)
         setTargets(
           getSavedMetricTargets(
             preference.metric_targets?.[
@@ -509,6 +759,8 @@ function SharedDashboardContent() {
   }, [
     sharedLoadRetryKey,
     sharedConfigKey,
+    searchParamString,
+    demoJoinDataset,
   ])
 
   const effectiveDashboardTemplate =
@@ -528,28 +780,37 @@ function SharedDashboardContent() {
           ),
           maxDashboardTitleLength
         )
+  const isGeneralBusinessOverview =
+    selectedDashboardDefinition.key ===
+    defaultDashboardKey
 
   useWorkspaceBrowserBrand(
-    `${sharedDashboardTitle} | ${sharedBrand.name}`,
-    sharedBrand
+    sharedBrand.name,
+    sharedBrand,
+    {
+      keepFaviconStable: true,
+      workspaceKey:
+        sharedBrandStorageKey || sharedConfigKey,
+      brandReady:
+        !loading && Boolean(sharedConfigKey),
+    }
   )
 
-  const metrics =
+  const datasetMetrics =
     useMemo(
-      () => dataset?.metrics ?? [],
-      [dataset]
+      () =>
+        joinedDatasetResult
+          ? joinedDatasetResult.datasets
+            .filter(
+              column => column.column_type === "numeric"
+            )
+            .map(column => ({
+              column: column.label,
+            }))
+          : dataset?.metrics ?? [],
+      [dataset, joinedDatasetResult]
     )
-  const dashboardColorPalette =
-    useMemo(
-      () => getDashboardColorPalette(
-        sharedBrand.primaryColor,
-        sharedBrand.accentColor
-      ),
-      [
-        sharedBrand.accentColor,
-        sharedBrand.primaryColor,
-      ]
-    )
+  const dashboardColorPalette = dashboardChartPalette
   const sharedPrimaryTextColor =
     getReadableBrandTextColor(
       sharedBrand.primaryColor
@@ -562,31 +823,79 @@ function SharedDashboardContent() {
   const allRows =
     useMemo(
       () =>
-        dataset?.chart?.data?.length
+        joinedDatasetResult?.rows.length
+          ? joinedDatasetResult.rows
+          : dataset?.chart?.data?.length
           ? dataset.chart.data
           : dataset?.preview ?? [],
-      [dataset]
+      [dataset, joinedDatasetResult]
     )
   const xKey =
-    dataset?.chart?.x_key ?? "month"
-  const rows =
-    filterRowsByPeriod(
+    joinedDatasetResult
+      ? "period"
+      : dataset?.chart?.x_key ?? "month"
+  const rows = useMemo(
+    () =>
+      filterRowsByPeriod(
+        allRows,
+        xKey,
+        startDate,
+        periodFilter
+      ),
+    [
       allRows,
-      xKey,
+      periodFilter,
       startDate,
-      periodFilter
-    )
+      xKey,
+    ]
+  )
+  const historicalDataWarning =
+    (() => {
+      const autoMapping =
+        getDashboardAutoMetricMapping(
+          selectedDashboardDefinition.componentKey,
+          dataset
+        )
+
+      return getHistoricalDimensionWarning(
+        rows,
+        [
+          dashboardMetricMapping.category ||
+            autoMapping.category,
+          dashboardMetricMapping.stage ||
+            autoMapping.stage,
+        ]
+      )
+    })()
+  const metrics = useMemo(
+    () => getSharedDashboardMetrics(
+      datasetMetrics,
+      rows,
+      startDate,
+      periodFilter,
+      aggregationType
+    ),
+    [
+      aggregationType,
+      datasetMetrics,
+      periodFilter,
+      rows,
+      startDate,
+    ]
+  )
   const aggregatedRows = useMemo(
     () =>
       aggregateRowsByDate(
         rows,
         xKey,
         aggregation,
-        metrics.map(metric => metric.column)
+        datasetMetrics.map(metric => metric.column),
+        aggregationType
       ),
     [
       aggregation,
-      metrics,
+      aggregationType,
+      datasetMetrics,
       rows,
       xKey,
     ]
@@ -616,6 +925,123 @@ function SharedDashboardContent() {
           xKey
         )
       : aggregatedRows
+
+  const dashboardMappingDataset = dataset
+    ? {
+        ...dataset,
+        metrics: datasetMetrics,
+        chart: {
+          ...(dataset.chart ?? {}),
+          x_key: xKey,
+          data: allRows,
+        },
+      }
+    : null
+  const dashboardMappingColumns =
+    getDashboardMappingColumns(
+      dashboardMappingDataset,
+      allRows,
+      xKey
+    )
+  const dashboardAutoMetricMapping =
+    getDashboardAutoMetricMapping(
+      selectedDashboardDefinition.componentKey,
+      dashboardMappingDataset
+    )
+  const showDemoMetricMapping =
+    sharedDemo &&
+    !isGeneralBusinessOverview &&
+    dashboardUsesDatasetMetricMapping(
+      selectedDashboardDefinition.componentKey
+    )
+
+  function updateDemoQuery(
+    key: "dataset" | "dashboard",
+    value: string
+  ) {
+    if (!sharedDemo || typeof window === "undefined") {
+      return
+    }
+
+    const url = new URL(window.location.href)
+    url.searchParams.set(key, value)
+    window.history.replaceState(null, "", url.toString())
+    setSearchParamString(url.search.slice(1))
+    setDemoNotice("")
+  }
+
+  const demoBanner = sharedDemo ? (
+    <DemoModeBanner
+      datasets={demoDatasets}
+      selectedDataset={sharedDemoDataset}
+      joinDataset={demoJoinDataset}
+      showMetricSelection={isGeneralBusinessOverview}
+      showMetricMapping={showDemoMetricMapping}
+      mappingChartTitles={getDashboardMappingChartTitles(
+        selectedDashboardDefinition.componentKey
+      )}
+      mappingColumns={dashboardMappingColumns.columns}
+      numericMappingColumns={
+        dashboardMappingColumns.numericColumns
+      }
+      dimensionMappingColumns={
+        dashboardMappingColumns.dimensionColumns
+      }
+      metricMapping={dashboardMetricMapping}
+      autoMetricMapping={dashboardAutoMetricMapping}
+      metricOptions={datasetMetrics.map(
+        metric => metric.column
+      )}
+      selectedMetrics={selectedMetrics}
+      metricTargets={targets}
+      selectedDashboard={
+        sharedSelectedDashboard || defaultDashboardKey
+      }
+      notice={demoNotice}
+      onDatasetChange={value => {
+        setDemoJoinDataset("")
+        updateDemoQuery("dataset", value)
+      }}
+      onJoinChange={value => {
+        setDemoJoinDataset(value)
+        setDemoNotice("")
+      }}
+      onResetJoin={() => {
+        setDemoJoinDataset("")
+        setDemoNotice("")
+      }}
+      onMetricsChange={values => {
+        setSelectedMetrics(
+          values.length > 0
+            ? values
+            : datasetMetrics[0]
+              ? [datasetMetrics[0].column]
+              : []
+        )
+        setDemoNotice("")
+      }}
+      onTargetChange={(metric, value) => {
+        setTargets(current => ({
+          ...current,
+          [metric]: value,
+        }))
+        setDemoNotice("")
+      }}
+      onMappingChange={(role, value) => {
+        setDashboardMetricMapping(current => ({
+          ...current,
+          [role]: value || undefined,
+        }))
+        setDemoNotice("")
+      }}
+      onDashboardChange={value => updateDemoQuery("dashboard", value)}
+      onCreateDecision={() =>
+        setDemoNotice(
+          "This is a live demo. Decisions cannot be created here. Sign up for a free trial to create and track decisions."
+        )
+      }
+    />
+  ) : null
 
   if (loading) {
     return (
@@ -679,6 +1105,16 @@ function SharedDashboardContent() {
       sharedDatasetDescription,
       maxDashboardSubtitleLength
     )
+  const effectiveDashboardMetricMapping =
+    sharedDemo &&
+    isGeneralBusinessOverview &&
+    selectedMetrics[0]
+      ? {
+          ...dashboardMetricMapping,
+          primary: selectedMetrics[0],
+          operationsValue: selectedMetrics[0],
+        }
+      : dashboardMetricMapping
 
   if (
     selectedDashboardDefinition.key !==
@@ -690,24 +1126,37 @@ function SharedDashboardContent() {
       ]
     return (
       <SharedPageShell brand={sharedBrand}>
+        {demoBanner}
+        {historicalDataWarning && (
+          <div
+            className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+            role="status"
+            aria-live="polite"
+          >
+            {historicalDataWarning}
+          </div>
+        )}
         <SelectedDashboard
           name={selectedDashboardDefinition.name}
           description={selectedDashboardDefinition.description}
           highlights={selectedDashboardDefinition.highlights}
           dataset={{
             ...dataset,
+            metrics: datasetMetrics,
             chart: {
               ...(dataset.chart ?? {}),
+              x_key: xKey,
               data: rows,
             },
           }}
           datasetId={sharedDatasetId}
           aggregation={aggregation}
+          aggregationType={aggregationType}
           manualMapping={
             dashboardUsesDatasetMetricMapping(
               selectedDashboardDefinition.componentKey
             )
-              ? dashboardMetricMapping
+              ? effectiveDashboardMetricMapping
               : undefined
           }
           chartTitles={dashboardChartTitles}
@@ -721,6 +1170,8 @@ function SharedDashboardContent() {
           setPeriodFilter={setPeriodFilter}
           aggregation={aggregation}
           setAggregation={setAggregation}
+          aggregationType={aggregationType}
+          setAggregationType={setAggregationType}
           startDate={startDate}
           setStartDate={setStartDate}
         />
@@ -730,7 +1181,17 @@ function SharedDashboardContent() {
 
   return (
     <SharedPageShell brand={sharedBrand}>
+      {demoBanner}
       <div className="space-y-5">
+        {historicalDataWarning && (
+          <div
+            className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+            role="status"
+            aria-live="polite"
+          >
+            {historicalDataWarning}
+          </div>
+        )}
         <div
           className="rounded-2xl bg-white p-5 shadow-sm"
         >
@@ -871,6 +1332,8 @@ function SharedDashboardContent() {
           setPeriodFilter={setPeriodFilter}
           aggregation={aggregation}
           setAggregation={setAggregation}
+          aggregationType={aggregationType}
+          setAggregationType={setAggregationType}
           startDate={startDate}
           setStartDate={setStartDate}
           showChartControls
@@ -889,6 +1352,8 @@ function SharedDashboardControls({
   setPeriodFilter,
   aggregation,
   setAggregation,
+  aggregationType,
+  setAggregationType,
   startDate,
   setStartDate,
   showChartControls = false,
@@ -901,6 +1366,8 @@ function SharedDashboardControls({
   setPeriodFilter: (value: PeriodFilter) => void
   aggregation: MetricAggregation
   setAggregation: (value: MetricAggregation) => void
+  aggregationType: ValueAggregation
+  setAggregationType: (value: ValueAggregation) => void
   startDate: string
   setStartDate: (value: string) => void
   showChartControls?: boolean
@@ -957,7 +1424,7 @@ function SharedDashboardControls({
       </label>
 
       <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
-        <span className="block">Duration</span>
+        <span className="block">Period</span>
         <select
           value={periodFilter}
           onChange={event =>
@@ -979,7 +1446,7 @@ function SharedDashboardControls({
       </label>
 
       <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
-        <span className="block">Sum by</span>
+        <span className="block">Group by</span>
         <select
           value={aggregation}
           onChange={event =>
@@ -993,6 +1460,25 @@ function SharedDashboardControls({
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
           <option value="quarterly">Quarterly</option>
+        </select>
+      </label>
+
+      <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+        <span className="block">Aggregate</span>
+        <select
+          value={aggregationType}
+          onChange={event =>
+            setAggregationType(
+              event.target.value as ValueAggregation
+            )
+          }
+          className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+        >
+          <option value="sum">Sum</option>
+          <option value="count">Count</option>
+          <option value="avg">Average</option>
+          <option value="min">Minimum</option>
+          <option value="max">Maximum</option>
         </select>
       </label>
 
@@ -1108,6 +1594,16 @@ function MainChartCard({
   const hasChartData =
     chartRows.length > 0 &&
     selectedMetrics.length > 0
+  const [isFullscreen, setIsFullscreen] =
+    useState(false)
+  const chartTitle =
+    selectedMetrics.length > 1
+      ? selectedMetrics
+          .map(formatMetricName)
+          .join(" vs ")
+      : `${formatMetricName(
+          primaryMetric
+        )} Performance`
   const chartDescription =
     getSharedDashboardChartDescription({
       chartType,
@@ -1118,58 +1614,141 @@ function MainChartCard({
       showTarget: scaleMode === "actual",
     })
 
-  return (
-    <SharedCard className={`flex min-w-0 flex-col ${className}`}>
-      <CardHeader
-        title={
-          selectedMetrics.length > 1
-            ? selectedMetrics
-                .map(formatMetricName)
-                .join(" vs ")
-            : `${formatMetricName(
-                primaryMetric
-              )} Performance`
-        }
-        description="Main chart"
-      />
+  useEffect(() => {
+    if (!isFullscreen) {
+      return
+    }
 
-      {hasChartData ? (
-        <div
-          className={chartAreaClassName}
-          role="img"
-          aria-label={chartDescription}
-        >
-          <ResponsiveContainer
-            width="100%"
-            height="100%"
-            minWidth={0}
+    const previousOverflow =
+      document.body.style.overflow
+    document.body.style.overflow = "hidden"
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsFullscreen(false)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [isFullscreen])
+
+  const chartContent = hasChartData ? (
+    <ResponsiveContainer
+      width="100%"
+      height="100%"
+      minWidth={0}
+    >
+      <MainChart
+        chartType={chartType}
+        rows={chartRows}
+        xKey={xKey}
+        metrics={selectedMetrics}
+        allMetrics={metrics}
+        target={selectedTarget}
+        showTarget={
+          scaleMode === "actual"
+        }
+        colorPalette={colorPalette}
+      />
+    </ResponsiveContainer>
+  ) : (
+    <div className="flex h-full min-h-0 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center">
+      <p className="max-w-sm text-sm text-gray-500">
+        No chartable metrics are available for this shared dashboard.
+      </p>
+    </div>
+  )
+
+  return (
+    <>
+      <SharedCard className={`flex min-w-0 flex-col ${className}`}>
+        <CardHeader
+          title={chartTitle}
+          description="Main chart"
+          action={
+            hasChartData ? (
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(true)}
+                title={`View ${chartTitle} full screen`}
+                aria-label={`View ${chartTitle} full screen`}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-gray-900"
+              >
+                <Maximize2 size={15} />
+              </button>
+            ) : undefined
+          }
+        />
+
+        {hasChartData ? (
+          <div
+            className={chartAreaClassName}
+            role="img"
+            aria-label={chartDescription}
           >
-            <MainChart
-              chartType={chartType}
-              rows={chartRows}
-              xKey={xKey}
-              metrics={selectedMetrics}
-              allMetrics={metrics}
-              target={selectedTarget}
-              showTarget={
-                scaleMode === "actual"
-              }
-              colorPalette={colorPalette}
-            />
-          </ResponsiveContainer>
-        </div>
-      ) : (
+            {!isFullscreen && chartContent}
+          </div>
+        ) : (
+          <div
+            role="status"
+            aria-live="polite"
+            className={`flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center ${chartAreaClassName}`}
+          >
+            <p className="max-w-sm text-sm text-gray-500">
+              No chartable metrics are available for this shared dashboard.
+            </p>
+          </div>
+        )}
+      </SharedCard>
+
+      {isFullscreen && hasChartData && (
         <div
-          role="status"
-          aria-live="polite"
-          className={`flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center ${chartAreaClassName}`}
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-gray-950/60 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${chartTitle} full screen chart`}
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) {
+              setIsFullscreen(false)
+            }
+          }}
         >
-          <p className="max-w-sm text-sm text-gray-500">
-            No chartable metrics are available for this shared dashboard.
-          </p>
+          <div className="flex h-full w-full max-w-[96rem] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
+              <div className="min-w-0">
+                <h2 className="truncate text-base font-semibold text-gray-950 sm:text-lg">
+                  {chartTitle}
+                </h2>
+                <p className="mt-1 truncate text-xs text-gray-500 sm:text-sm">
+                  Main chart
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(false)}
+                title="Close full screen chart"
+                aria-label="Close full screen chart"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 p-4 sm:p-8">
+              <div className="h-full min-h-0 w-full">
+                {chartContent}
+              </div>
+            </div>
+          </div>
         </div>
       )}
-    </SharedCard>
+    </>
   )
 }
 
@@ -1242,6 +1821,602 @@ function SharedPageShell({
   )
 }
 
+function DemoModeBanner({
+  datasets,
+  selectedDataset,
+  joinDataset,
+  showMetricSelection,
+  showMetricMapping,
+  mappingChartTitles,
+  mappingColumns,
+  numericMappingColumns,
+  dimensionMappingColumns,
+  metricMapping,
+  autoMetricMapping,
+  metricOptions,
+  selectedMetrics,
+  metricTargets,
+  selectedDashboard,
+  notice,
+  onDatasetChange,
+  onJoinChange,
+  onResetJoin,
+  onMetricsChange,
+  onTargetChange,
+  onMappingChange,
+  onDashboardChange,
+  onCreateDecision,
+}: {
+  datasets: PublicDemoDatasetOption[]
+  selectedDataset: string
+  joinDataset: string
+  showMetricSelection: boolean
+  showMetricMapping: boolean
+  mappingChartTitles: {
+    trend: string
+    mix: string
+    operations: string
+  }
+  mappingColumns: string[]
+  numericMappingColumns: string[]
+  dimensionMappingColumns: string[]
+  metricMapping: DashboardMetricMapping
+  autoMetricMapping: DashboardMetricMapping
+  metricOptions: string[]
+  selectedMetrics: string[]
+  metricTargets: Record<string, number>
+  selectedDashboard: string
+  notice: string
+  onDatasetChange: (value: string) => void
+  onJoinChange: (value: string) => void
+  onResetJoin: () => void
+  onMetricsChange: (values: string[]) => void
+  onTargetChange: (metric: string, value: number) => void
+  onMappingChange: (
+    role: keyof DashboardMetricMapping,
+    value: string
+  ) => void
+  onDashboardChange: (value: string) => void
+  onCreateDecision: () => void
+}) {
+  return (
+    <section
+      className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm"
+      aria-labelledby="live-demo-heading"
+    >
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
+            Decisionate live demo
+          </p>
+          <h1
+            id="live-demo-heading"
+            className="mt-1 text-xl font-bold tracking-tight text-blue-950"
+          >
+            Explore real decision-intelligence workflows with sample data
+          </h1>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-blue-800">
+            This read-only demo includes 365 daily rows for each sample
+            connector. Uploading, deleting datasets, and creating decisions
+            are disabled.
+          </p>
+        </div>
+
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:w-[48rem] xl:grid-cols-4">
+          <label className="min-w-0 text-xs font-semibold text-blue-900">
+            <span className="mb-1 block">Sample dataset</span>
+            <select
+              value={selectedDataset}
+              onChange={event => onDatasetChange(event.target.value)}
+              className="h-10 w-full rounded-lg border border-blue-200 bg-white px-3 text-sm font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+              {datasets.map(dataset => (
+                <option key={dataset.key} value={dataset.key}>
+                  {dataset.label} ({dataset.row_count} daily rows)
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="min-w-0 text-xs font-semibold text-blue-900">
+            <span className="mb-1 block">Dashboard</span>
+            <select
+              value={selectedDashboard}
+              onChange={event => onDashboardChange(event.target.value)}
+              className="h-10 w-full rounded-lg border border-blue-200 bg-white px-3 text-sm font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+              {dashboardDefinitions.map(dashboard => (
+                <option key={dashboard.key} value={dashboard.key}>
+                  {dashboard.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="min-w-0 text-xs font-semibold text-blue-900">
+            <span className="mb-1 block">Join with</span>
+            <select
+              value={joinDataset}
+              onChange={event => onJoinChange(event.target.value)}
+              className="h-10 w-full rounded-lg border border-blue-200 bg-white px-3 text-sm font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="">No join</option>
+              {datasets
+                .filter(dataset => dataset.key !== selectedDataset)
+                .map(dataset => (
+                  <option key={dataset.key} value={dataset.key}>
+                    {dataset.label}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          {showMetricSelection && (
+            <fieldset className="min-w-0 text-xs font-semibold text-blue-900 sm:col-span-2 xl:col-span-4">
+              <legend className="mb-1">Metrics &amp; targets</legend>
+              <div className="grid max-h-32 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-blue-200 bg-white px-3 py-2 sm:grid-cols-2 xl:grid-cols-4">
+                {metricOptions.length > 0 ? (
+                  metricOptions.map(metric => (
+                    <div
+                      key={metric}
+                      className="grid min-w-0 grid-cols-[minmax(0,1fr)_5rem] items-center gap-2"
+                    >
+                      <label className="flex min-w-0 items-center gap-2 font-normal text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={selectedMetrics.includes(metric)}
+                          onChange={event => {
+                            const nextMetrics = event.target.checked
+                              ? [...selectedMetrics, metric]
+                              : selectedMetrics.filter(
+                                  selectedMetric => selectedMetric !== metric
+                                )
+                            onMetricsChange(nextMetrics)
+                          }}
+                          className="h-3.5 w-3.5 shrink-0 accent-blue-700"
+                        />
+                        <span
+                          className="truncate"
+                          title={formatMetricName(metric)}
+                        >
+                          {formatMetricName(metric)}
+                        </span>
+                      </label>
+                      <label className="flex min-w-0 items-center gap-1 font-normal text-gray-500">
+                        <span className="sr-only">
+                          {formatMetricName(metric)} target
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={metricTargets[metric] ?? 0}
+                          onChange={event => {
+                            const nextValue = Number(event.target.value)
+                            onTargetChange(
+                              metric,
+                              Number.isFinite(nextValue)
+                                ? Math.max(nextValue, 0)
+                                : 0
+                            )
+                          }}
+                          className="h-8 w-full min-w-0 rounded-md border border-blue-200 bg-white px-2 text-right text-xs text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                        />
+                      </label>
+                    </div>
+                  ))
+                ) : (
+                  <span className="col-span-full font-normal text-blue-700">
+                    Loading metrics...
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 font-normal text-blue-700">
+                Select KPIs for the General Business Overview and set optional targets.
+              </p>
+            </fieldset>
+          )}
+
+          {showMetricMapping && (
+            <DemoMetricMappingPanel
+              chartTitles={mappingChartTitles}
+              columns={mappingColumns}
+              numericColumns={numericMappingColumns}
+              dimensionColumns={dimensionMappingColumns}
+              mapping={metricMapping}
+              autoMapping={autoMetricMapping}
+              onChange={onMappingChange}
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          {joinDataset && (
+            <button
+              type="button"
+              onClick={onResetJoin}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
+            >
+              <X size={15} aria-hidden="true" />
+              Reset join
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onCreateDecision}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-300 bg-white px-3 text-sm font-semibold text-blue-800 transition hover:bg-blue-100"
+          >
+            <LockKeyhole size={15} aria-hidden="true" />
+            Create decision
+          </button>
+          <Link
+            href="/sign-up"
+            className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-700 px-3 text-sm font-semibold text-white transition hover:bg-blue-800"
+          >
+            Start free trial
+          </Link>
+        </div>
+
+        {notice && (
+          <p
+            className="text-sm font-semibold text-blue-900"
+            role="status"
+            aria-live="polite"
+          >
+            {notice}
+          </p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function DemoMetricMappingPanel({
+  chartTitles,
+  columns,
+  numericColumns,
+  dimensionColumns,
+  mapping,
+  autoMapping,
+  onChange,
+}: {
+  chartTitles: {
+    trend: string
+    mix: string
+    operations: string
+  }
+  columns: string[]
+  numericColumns: string[]
+  dimensionColumns: string[]
+  mapping: DashboardMetricMapping
+  autoMapping: DashboardMetricMapping
+  onChange: (
+    role: keyof DashboardMetricMapping,
+    value: string
+  ) => void
+}) {
+  const chartMappings: Array<{
+    chart: string
+    fields: Array<{
+      key: keyof DashboardMetricMapping
+      label: string
+      numericOnly?: boolean
+      dimensionOnly?: boolean
+    }>
+  }> = [
+    {
+      chart: chartTitles.trend,
+      fields: [
+        {
+          key: "primary",
+          label: "Y-axis value",
+          numericOnly: true,
+        },
+      ],
+    },
+    {
+      chart: chartTitles.trend,
+      fields: [
+        {
+          key: "date",
+          label: "Horizontal axis",
+          dimensionOnly: true,
+        },
+      ],
+    },
+    {
+      chart: chartTitles.mix,
+      fields: [
+        {
+          key: "category",
+          label: "Category / channel",
+          dimensionOnly: true,
+        },
+      ],
+    },
+    {
+      chart: chartTitles.operations,
+      fields: [
+        {
+          key: "operationsValue",
+          label: "Y-axis value",
+          numericOnly: true,
+        },
+      ],
+    },
+    {
+      chart: chartTitles.operations,
+      fields: [
+        {
+          key: "stage",
+          label: "Horizontal axis",
+          dimensionOnly: true,
+        },
+      ],
+    },
+  ]
+
+  return (
+    <section className="min-w-0 rounded-xl border border-blue-200 bg-blue-100/50 p-3 sm:col-span-2 xl:col-span-4">
+      <div>
+        <h2 className="text-sm font-semibold text-blue-950">
+          Metric mapping
+        </h2>
+        <p className="mt-1 text-xs font-normal text-blue-800">
+          Choose the dataset columns used by each industry chart. Changes apply only to this demo session.
+        </p>
+      </div>
+
+      <div className="mt-3 grid items-stretch gap-2 lg:grid-cols-5">
+        {chartMappings.map((mappingCard, index) => (
+          <div
+            key={`${mappingCard.chart}-${index}`}
+            className="flex min-w-0 flex-col rounded-lg border border-blue-200 bg-white p-2"
+          >
+            <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-blue-800">
+              {mappingCard.chart}
+            </p>
+
+            {mappingCard.fields.map(field => {
+              const options = field.numericOnly
+                ? numericColumns
+                : field.dimensionOnly
+                  ? dimensionColumns
+                  : columns
+              const selectedValue = mapping[field.key] ?? ""
+              const autoValue = autoMapping[field.key]
+
+              return (
+                <label
+                  key={field.key}
+                  className="mt-2 flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-gray-600"
+                >
+                  <span>{field.label}</span>
+                  <select
+                    value={selectedValue}
+                    onChange={event =>
+                      onChange(field.key, event.target.value)
+                    }
+                    className="h-8 w-full min-w-0 rounded-md border border-blue-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="">Auto</option>
+                    {options.map(option => (
+                      <option key={option} value={option}>
+                        {formatMetricName(option)}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="truncate text-[11px] font-normal text-gray-400">
+                    Auto: {autoValue ? formatMetricName(autoValue) : "Not detected"}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+const demoDatasetNumericIds: Record<string, number> = {
+  "google-analytics": 900001,
+  stripe: 900002,
+  shopify: 900003,
+  quickbooks: 900004,
+  freshbooks: 900005,
+  sage: 900006,
+  xero: 900007,
+  hubspot: 900008,
+  "meta-ads": 900009,
+}
+
+function getDemoDatasetRows(dataset: DashboardDataset) {
+  return dataset.chart?.data?.length
+    ? dataset.chart.data
+    : dataset.preview ?? []
+}
+
+function getDemoDateKey(
+  row: DashboardRow,
+  dateColumn: string
+) {
+  const rawValue = row[dateColumn]
+
+  if (
+    typeof rawValue !== "string" &&
+    typeof rawValue !== "number" &&
+    !(rawValue instanceof Date)
+  ) {
+    return null
+  }
+
+  const textValue = String(rawValue)
+  const isoDate = textValue.match(
+    /^(\d{4}-\d{2}-\d{2})/
+  )?.[1]
+
+  if (isoDate) {
+    return isoDate
+  }
+
+  const parsedDate = new Date(textValue)
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null
+  }
+
+  return formatDateKey(parsedDate)
+}
+
+function getDemoDatasetId(datasetKey: string) {
+  return (
+    demoDatasetNumericIds[datasetKey] ??
+    900000 +
+      Array.from(datasetKey).reduce(
+        (total, character) =>
+          total + character.charCodeAt(0),
+        0
+      )
+  )
+}
+
+function buildDemoJoinedDatasetResult(
+  primaryKey: string,
+  primaryDataset: DashboardDataset,
+  secondaryKey: string,
+  secondaryDataset: DashboardDataset
+): DatasetJoinResult {
+  const sourceDatasets = [
+    {
+      key: primaryKey,
+      dataset: primaryDataset,
+    },
+    {
+      key: secondaryKey,
+      dataset: secondaryDataset,
+    },
+  ]
+  const rowMaps = sourceDatasets.map(({ dataset }) => {
+    const rows = getDemoDatasetRows(dataset)
+    const dateColumn = dataset.chart?.x_key ?? "date"
+    const rowsByDate = new Map<string, DashboardRow>()
+
+    rows.forEach(row => {
+      const dateKey = getDemoDateKey(row, dateColumn)
+
+      if (dateKey) {
+        rowsByDate.set(dateKey, row)
+      }
+    })
+
+    return {
+      rows,
+      dateColumn,
+      rowsByDate,
+    }
+  })
+  const matchedDates = Array.from(
+    rowMaps[0].rowsByDate.keys()
+  )
+    .filter(dateKey => rowMaps[1].rowsByDate.has(dateKey))
+    .sort()
+  const columnDefinitions = sourceDatasets.flatMap(
+    ({ key, dataset }, sourceIndex) => {
+      const rows = rowMaps[sourceIndex].rows
+      const dateColumn = rowMaps[sourceIndex].dateColumn
+      const metricColumns = new Set(
+        (dataset.metrics ?? []).map(metric => metric.column)
+      )
+      const columns = Array.from(
+        new Set(rows.flatMap(row => Object.keys(row)))
+      ).filter(column => column !== dateColumn)
+      const sourceLabel =
+        dataset.source_label?.trim() ||
+        key.replace(/[-_]+/g, " ")
+
+      return columns.map(column => ({
+        datasetId: getDemoDatasetId(key),
+        fileName: dataset.file_name,
+        dateColumn,
+        metricColumn: column,
+        label: `${sourceLabel} · ${formatMetricName(column)}`,
+        columnType: metricColumns.has(column) ||
+          rows.some(row => typeof row[column] === "number")
+          ? "numeric" as const
+          : "categorical" as const,
+        sourceRows: rows.length,
+      }))
+    }
+  )
+  const joinedRows = matchedDates.map(dateKey => {
+    const row: DatasetJoinResult["rows"][number] = {
+      period: dateKey,
+    }
+
+    sourceDatasets.forEach(({ key }, sourceIndex) => {
+      const sourceRow = rowMaps[sourceIndex].rowsByDate.get(dateKey)
+      const datasetId = getDemoDatasetId(key)
+
+      columnDefinitions
+        .filter(column => column.datasetId === datasetId)
+        .forEach(column => {
+          const value =
+            sourceRow?.[column.metricColumn]
+          row[column.label] =
+            value instanceof Date
+              ? formatDateKey(value)
+              : typeof value === "string" ||
+                  typeof value === "number"
+                ? value
+                : null
+        })
+    })
+
+    return row
+  })
+  const datasetIds = sourceDatasets.map(({ key }) =>
+    getDemoDatasetId(key)
+  )
+
+  return {
+    join_version: joinedDatasetResultVersion,
+    primary_dataset_id: datasetIds[0],
+    dataset_ids: datasetIds,
+    join_key: "date",
+    join_type: "inner",
+    period: "daily",
+    aggregation_type: "sum",
+    start_date: matchedDates[0] ?? null,
+    period_filter: "all",
+    matched_period_count: matchedDates.length,
+    available_period_count: Math.max(
+      rowMaps[0].rowsByDate.size,
+      rowMaps[1].rowsByDate.size
+    ),
+    coverage_percent:
+      rowMaps[0].rowsByDate.size > 0
+        ? (matchedDates.length / rowMaps[0].rowsByDate.size) * 100
+        : 0,
+    datasets: columnDefinitions.map(column => ({
+      dataset_id: column.datasetId,
+      file_name: column.fileName,
+      date_column: column.dateColumn,
+      metric_column: column.metricColumn,
+      label: column.label,
+      column_type: column.columnType,
+      source_rows: column.sourceRows,
+      usable_rows: matchedDates.length,
+      period_count: matchedDates.length,
+    })),
+    rows: joinedRows,
+    decision_context:
+      "Live demo join: sample datasets are joined in the browser by normalized date. This result is not saved.",
+  }
+}
+
 function getSharedBrandStyle(
   brand: WorkspaceBrand
 ): SharedBrandStyle {
@@ -1305,21 +2480,27 @@ function SharedCard({
 function CardHeader({
   title,
   description,
+  action,
 }: {
   title: string
   description?: string
+  action?: React.ReactNode
 }) {
   return (
-    <div>
-      <h2 className="break-words text-xl font-semibold tracking-tight">
-        {title}
-      </h2>
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="break-words text-xl font-semibold tracking-tight">
+          {title}
+        </h2>
 
-      {description && (
-        <p className="mt-1 break-words text-sm text-gray-500">
-          {description}
-        </p>
-      )}
+        {description && (
+          <p className="mt-1 break-words text-sm text-gray-500">
+            {description}
+          </p>
+        )}
+      </div>
+
+      {action}
     </div>
   )
 }
@@ -1730,7 +2911,8 @@ function SnapshotRow({
 }
 
 function getSharedDashboardConfig(
-  searchParamString: string
+  searchParamString: string,
+  demoMode = false
 ): SharedDashboardConfig {
   const params =
     new URLSearchParams(
@@ -1748,6 +2930,11 @@ function getSharedDashboardConfig(
     params.get("token")?.trim()
 
   return {
+    demo: demoMode,
+    demoDataset:
+      demoMode
+        ? params.get("dataset")?.trim() || "google-analytics"
+        : undefined,
     datasetId,
     dashboardTemplate:
       template
@@ -1830,25 +3017,49 @@ function getQueryDatasetId(
     : undefined
 }
 
-function getSavedSelectedMetrics(
+function getValidSavedSelectedMetrics(
   savedMetrics: unknown,
   availableMetrics: string[]
 ) {
   if (!Array.isArray(savedMetrics)) {
-    return availableMetrics.length > 0
-      ? [availableMetrics[0]]
-      : []
+    return []
   }
 
+  const availableMetricSet = new Set(
+    availableMetrics
+  )
+  const validSavedMetrics = savedMetrics.filter(
+    (metric): metric is string =>
+      typeof metric === "string" &&
+      availableMetricSet.has(metric.trim())
+  ).map(metric => metric.trim()).filter(
+    (metric, index, metrics) =>
+      metrics.indexOf(metric) === index
+  )
+
+  return validSavedMetrics
+}
+
+function getSavedSelectedMetrics(
+  savedMetrics: unknown,
+  availableMetrics: string[],
+  fallbackMetric?: unknown
+) {
   const validSavedMetrics =
-    savedMetrics.filter(
-      (metric): metric is string =>
-        typeof metric === "string" &&
-        availableMetrics.includes(metric)
+    getValidSavedSelectedMetrics(
+      savedMetrics,
+      availableMetrics
     )
 
   if (validSavedMetrics.length > 0) {
     return validSavedMetrics
+  }
+
+  if (
+    typeof fallbackMetric === "string" &&
+    availableMetrics.includes(fallbackMetric.trim())
+  ) {
+    return [fallbackMetric.trim()]
   }
 
   return availableMetrics.length > 0
@@ -1870,6 +3081,8 @@ function getSavedDashboardMetricMapping(
   return (
     [
       "primary",
+      "secondary",
+      "operationsValue",
       "category",
       "stage",
       "date",
@@ -1940,7 +3153,7 @@ function getSavedPeriodFilter(
 ): PeriodFilter {
   return isSavedPeriodFilter(savedPeriodFilter)
     ? savedPeriodFilter
-    : "1y"
+    : "1m"
 }
 
 function getSavedAggregation(
@@ -1949,6 +3162,14 @@ function getSavedAggregation(
   return isSavedAggregation(savedAggregation)
     ? savedAggregation
     : "monthly"
+}
+
+function getSavedAggregationType(
+  savedAggregationType: unknown
+): ValueAggregation {
+  return isSavedAggregationType(savedAggregationType)
+    ? savedAggregationType
+    : "sum"
 }
 
 function getSavedDashboardTemplate(
@@ -1999,6 +3220,18 @@ function isSavedAggregation(
   )
 }
 
+function isSavedAggregationType(
+  value: unknown
+): value is ValueAggregation {
+  return (
+    value === "sum" ||
+    value === "avg" ||
+    value === "min" ||
+    value === "max" ||
+    value === "count"
+  )
+}
+
 function isSavedDashboardTemplate(
   value: unknown
 ): value is DashboardTemplate {
@@ -2008,6 +3241,35 @@ function isSavedDashboardTemplate(
       value as DashboardTemplate
     )
   )
+}
+
+function getDashboardMappingColumns(
+  dataset: DashboardDataset | null,
+  rows: DashboardRow[],
+  xKey: string
+) {
+  const columns = Array.from(
+    new Set([
+      ...rows.flatMap(row => Object.keys(row)),
+      ...(dataset?.metrics ?? []).map(metric => metric.column),
+      xKey,
+    ])
+  )
+  const numericColumnSet = new Set(
+    (dataset?.metrics ?? []).map(metric => metric.column)
+  )
+  const numericColumns = columns.filter(column =>
+    numericColumnSet.has(column) ||
+    rows.some(row => typeof row[column] === "number")
+  )
+
+  return {
+    columns,
+    numericColumns,
+    dimensionColumns: columns.filter(
+      column => !numericColumns.includes(column)
+    ),
+  }
 }
 
 function getSafeStartDate(
@@ -2033,6 +3295,24 @@ function getSafeStartDate(
 
   return filteredRows.length > 0
     ? savedStartDate
+    : ""
+}
+
+function getDatasetStartDate(
+  rows: DashboardRow[],
+  xKey: string
+) {
+  const dates = rows
+    .map((row, index) =>
+      getRowPeriodStartDate(row, xKey, index)
+    )
+    .filter(date => !Number.isNaN(date.getTime()))
+    .sort((first, second) =>
+      first.getTime() - second.getTime()
+    )
+
+  return dates[0]
+    ? formatDateKey(dates[0])
     : ""
 }
 
@@ -2074,10 +3354,15 @@ function filterRowsByPeriod(
                 ? 36
                 : 60
 
-  const firstDate =
-    startDate
-      ? new Date(`${startDate}T00:00:00`)
-      : normalizedRows[0].__periodDate
+  const firstDate = startDate
+    ? new Date(`${startDate}T00:00:00`)
+    : normalizedRows.reduce(
+        (earliest, row) =>
+          row.__periodDate < earliest
+            ? row.__periodDate
+            : earliest,
+        normalizedRows[0].__periodDate
+      )
 
   if (
     Number.isNaN(firstDate.getTime())
@@ -2106,13 +3391,14 @@ function aggregateRowsByDate(
   rows: DashboardRow[],
   xKey: string,
   aggregation: MetricAggregation,
-  metricColumns: string[]
+  metricColumns: string[],
+  aggregationType: ValueAggregation
 ) {
   const buckets = new Map<
     string,
     {
       date: Date
-      values: Record<string, number>
+      values: Record<string, SummaryAggregationState>
     }
   >()
 
@@ -2135,12 +3421,21 @@ function aggregateRowsByDate(
       buckets.get(bucketKey) ?? {
         date: bucketDate,
         values: {},
-      }
+    }
 
     metricColumns.forEach(metric => {
-      bucket.values[metric] =
-        (bucket.values[metric] ?? 0) +
-        (toFiniteDashboardNumber(row[metric]) ?? 0)
+      const state = getSummaryAggregationState(
+        row,
+        metric
+      )
+
+      if (state) {
+        bucket.values[metric] =
+          mergeSummaryAggregationState(
+            bucket.values[metric],
+            state
+          )
+      }
     })
 
     buckets.set(bucketKey, bucket)
@@ -2155,7 +3450,15 @@ function aggregateRowsByDate(
         bucket.date,
         aggregation
       ),
-      ...bucket.values,
+      ...Object.fromEntries(
+        metricColumns.map(metric => [
+          metric,
+          finalizeSummaryAggregation(
+            bucket.values[metric],
+            aggregationType
+          ),
+        ])
+      ),
     }))
 }
 
@@ -2293,6 +3596,57 @@ function buildIndexedRows(
   })
 }
 
+function getSharedDashboardMetrics(
+  metrics: DashboardMetric[],
+  rows: DashboardRow[],
+  startDate: string,
+  periodFilter: PeriodFilter,
+  aggregationType: ValueAggregation
+) {
+  return metrics.map(metric => {
+    let state: SummaryAggregationState | undefined
+    rows.forEach(row => {
+      const next = getSummaryAggregationState(
+        row,
+        metric.column
+      )
+
+      if (next) {
+        state = mergeSummaryAggregationState(
+          state,
+          next
+        )
+      }
+    })
+    const datasetValue =
+      periodFilter === "all" && !startDate
+        ? aggregationType === "sum"
+          ? metric.total
+          : aggregationType === "avg"
+            ? metric.average
+            : aggregationType === "min"
+              ? metric.min ?? metric.minimum
+              : aggregationType === "max"
+                ? metric.max ?? metric.maximum
+                : metric.count
+        : undefined
+    const value = state
+      ? finalizeSummaryAggregation(
+        state,
+        aggregationType
+      )
+      : typeof datasetValue === "number" &&
+        Number.isFinite(datasetValue)
+        ? datasetValue
+        : 0
+
+    return {
+      ...metric,
+      total: value,
+    }
+  })
+}
+
 function getLatestValue(
   rows: DashboardRow[],
   metric: string
@@ -2424,33 +3778,6 @@ function getMetricColor(
   return colorPalette[
     index % colorPalette.length
   ]
-}
-
-function getDashboardColorPalette(
-  primaryColor: string,
-  accentColor: string
-) {
-  return [
-    primaryColor,
-    accentColor,
-    ...defaultColorPalette,
-  ].reduce<string[]>((palette, color) => {
-    const normalizedColor =
-      color.trim().toLowerCase()
-
-    if (
-      normalizedColor &&
-      !palette.some(
-        (existingColor) =>
-          existingColor.trim().toLowerCase() ===
-          normalizedColor
-      )
-    ) {
-      palette.push(color)
-    }
-
-    return palette
-  }, [])
 }
 
 function isAbortError(error: unknown) {

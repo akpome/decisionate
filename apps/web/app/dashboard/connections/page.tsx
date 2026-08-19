@@ -11,8 +11,12 @@ import {
   deleteDataSourceConnection,
   getDataSourceConnections,
   getDatasetSources,
+  syncDataSourceConnection,
+  startOAuthConnection,
+  updateDataSourceConnectionSchedule,
   updateDataSourceConnection,
   type DataSourceConnection,
+  type DataSourceConnectionSyncPayload,
   type DatasetSourceOption,
 } from "@/lib/api"
 import {
@@ -36,6 +40,7 @@ export default function ConnectionsPage() {
   const { user } = useUser()
   const {
     canConfigureWorkspace,
+    canViewConnections,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
 
@@ -44,7 +49,7 @@ export default function ConnectionsPage() {
       <div className="space-y-6">
         <DashboardPageHeader
           title="Connections"
-          description="Data source configuration is available to the business owner."
+          description="Review external data source connections for this workspace. Configuration and synchronization are managed by the workspace owner."
         />
         <div
           role="status"
@@ -56,15 +61,15 @@ export default function ConnectionsPage() {
     )
   }
 
-  if (!canConfigureWorkspace) {
+  if (!canViewConnections) {
     return (
       <div className="space-y-6">
         <DashboardPageHeader
           title="Connections"
-          description="Data source configuration is available to the business owner."
+          description="Review external data source connections for this workspace. Configuration and synchronization are managed by the workspace owner."
         />
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          Only the business owner can configure external data source connections for this workspace.
+          Connection access is not available to workspace members.
         </div>
       </div>
     )
@@ -73,6 +78,7 @@ export default function ConnectionsPage() {
   return (
     <ConnectionsPageContent
       canConfigureWorkspace={canConfigureWorkspace}
+      canViewConnections={canViewConnections}
       loadingWorkspaceAccess={loadingWorkspaceAccess}
     />
   )
@@ -80,9 +86,11 @@ export default function ConnectionsPage() {
 
 function ConnectionsPageContent({
   canConfigureWorkspace,
+  canViewConnections,
   loadingWorkspaceAccess,
 }: {
   canConfigureWorkspace: boolean
+  canViewConnections: boolean
   loadingWorkspaceAccess: boolean
 }) {
   const [sources, setSources] =
@@ -103,8 +111,16 @@ function ConnectionsPageContent({
     updatingConnectionId,
     setUpdatingConnectionId,
   ] = useState<number | null>(null)
+  const [
+    syncingConnectionId,
+    setSyncingConnectionId,
+  ] = useState<number | null>(null)
   const [connectionError, setConnectionError] =
     useState("")
+  const [connectionNotice, setConnectionNotice] =
+    useState("")
+  const [, setOAuthConnectionId] =
+    useState<number | null>(null)
   const [connectionLoadError, setConnectionLoadError] =
     useState("")
   const [loadRetryKey, setLoadRetryKey] =
@@ -116,8 +132,6 @@ function ConnectionsPageContent({
     workspaceVersion,
   } =
     useActiveWorkspace(user?.id)
-  const readOnlyWorkspace =
-    !canConfigureWorkspace
   const savedSourceTypes =
     sourceConnections.map(
       (connection) =>
@@ -159,6 +173,7 @@ function ConnectionsPageContent({
 
     setCreatingSourceType(source.type)
     setConnectionError("")
+    setConnectionNotice("")
 
     try {
       const connection =
@@ -203,6 +218,7 @@ function ConnectionsPageContent({
 
     setDeletingConnectionId(connection.id)
     setConnectionError("")
+    setConnectionNotice("")
 
     try {
       await deleteDataSourceConnection(
@@ -260,6 +276,112 @@ function ConnectionsPageContent({
     )
   }
 
+  async function handleSyncSourceConnection(
+    connection: DataSourceConnection,
+    payload: DataSourceConnectionSyncPayload
+  ) {
+    if (!user?.id) return
+
+    setSyncingConnectionId(connection.id)
+    setConnectionError("")
+    setConnectionNotice("")
+
+    try {
+      const result =
+        await syncDataSourceConnection(
+          connection.id,
+          user.id,
+          activeWorkspaceId,
+          payload
+        )
+
+      setConnectionNotice(
+        `Created dataset ${result.file_name} with ${result.row_count} rows.`
+      )
+      await loadConnections()
+    } catch (error) {
+      setConnectionError(
+        getErrorMessage(
+          error,
+          "Could not sync connector data."
+        )
+      )
+      console.error(error)
+    } finally {
+      setSyncingConnectionId(null)
+    }
+  }
+
+  async function handleStartOAuthConnection(
+    connection: DataSourceConnection
+  ) {
+    if (!user?.id) return
+
+    setOAuthConnectionId(connection.id)
+    setConnectionError("")
+    setConnectionNotice("")
+    try {
+      const result = await startOAuthConnection(
+        connection.id,
+        user.id,
+        activeWorkspaceId
+      )
+      window.location.assign(result.authorization_url)
+    } catch (error) {
+      setConnectionError(
+        getErrorMessage(
+          error,
+          "Could not start connector authorization."
+        )
+      )
+      console.error(error)
+      setOAuthConnectionId(null)
+    }
+  }
+
+  async function handleUpdateConnectionSchedule(
+    connection: DataSourceConnection,
+    enabled: boolean,
+    intervalHours: number,
+    timeOfDay: string,
+    timezone: string
+  ) {
+    if (!user?.id) return
+    setUpdatingConnectionId(connection.id)
+    setConnectionError("")
+    try {
+      const updatedConnection =
+        await updateDataSourceConnectionSchedule(
+          connection.id,
+          {
+            enabled,
+            interval_hours: intervalHours,
+            time_of_day: timeOfDay,
+            timezone,
+          },
+          user.id,
+          activeWorkspaceId
+        )
+      setSourceConnections((currentConnections) =>
+        currentConnections.map((currentConnection) =>
+          currentConnection.id === updatedConnection.id
+            ? updatedConnection
+            : currentConnection
+        )
+      )
+    } catch (error) {
+      setConnectionError(
+        getErrorMessage(
+          error,
+          "Could not update connector schedule."
+        )
+      )
+      console.error(error)
+    } finally {
+      setUpdatingConnectionId(null)
+    }
+  }
+
   async function updateConnection(
     connection: DataSourceConnection,
     payload: Parameters<typeof updateDataSourceConnection>[1],
@@ -307,7 +429,7 @@ function ConnectionsPageContent({
   useEffect(() => {
     if (
       !user?.id ||
-      !canConfigureWorkspace
+      !canViewConnections
     ) {
       return
     }
@@ -384,6 +506,7 @@ function ConnectionsPageContent({
     user?.id,
     activeWorkspaceId,
     canConfigureWorkspace,
+    canViewConnections,
     workspaceVersion,
     loadRetryKey,
   ])
@@ -395,7 +518,7 @@ function ConnectionsPageContent({
         description="Configure external business systems that can feed datasets, forecasts, reports, alerts, and decisions."
       />
 
-      {canConfigureWorkspace && connectionError && (
+      {canViewConnections && connectionError && (
         <div
           role="alert"
           className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
@@ -418,6 +541,15 @@ function ConnectionsPageContent({
         </div>
       )}
 
+      {canConfigureWorkspace && connectionNotice && (
+        <div
+          role="status"
+          className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+        >
+          {connectionNotice}
+        </div>
+      )}
+
       {!loadingWorkspaceAccess &&
         canConfigureWorkspace && (
         <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
@@ -426,7 +558,7 @@ function ConnectionsPageContent({
           </h2>
 
           <p className="mb-6 text-sm text-gray-500">
-            Choose applications and databases that need setup. CSV, Excel, JSON and Parquet uploads are available from Datasets.
+            Add an external connector, then configure its account details and authorize it before syncing data into a dataset. File uploads are available from Datasets.
           </p>
 
           <DataSourcePanel
@@ -452,18 +584,22 @@ function ConnectionsPageContent({
         >
           Checking workspace access...
         </div>
-      ) : readOnlyWorkspace ? (
+      ) : !canViewConnections ? (
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          Only the business owner can configure data source connections for this workspace.
+          Connection access is not available to workspace members.
         </div>
       ) : (
         <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
           <h2 className="text-xl font-semibold">
-            Configure Added Connections
+            {canConfigureWorkspace
+              ? "Configure Added Connections"
+              : "Available Connections"}
           </h2>
 
           <p className="mb-4 mt-2 text-sm text-gray-500">
-            Finish setup for data sources added to this workspace by providing the account, query, or credential details needed for dataset pulls.
+            {canConfigureWorkspace
+              ? "Finish setup for added connectors by providing the account, query, or authorization details needed for dataset pulls."
+              : "Review the external data source connections available to this workspace. Configuration and synchronization are managed by the business owner."}
           </p>
 
           <DataSourceConnections
@@ -478,6 +614,9 @@ function ConnectionsPageContent({
             updatingConnectionId={
               updatingConnectionId
             }
+            syncingConnectionId={
+              syncingConnectionId
+            }
             onDeleteConnection={
               canConfigureWorkspace
                 ? handleDeleteSourceConnection
@@ -491,6 +630,21 @@ function ConnectionsPageContent({
             onConfigureConnection={
               canConfigureWorkspace
                 ? handleConfigureSourceConnection
+                : undefined
+            }
+            onSyncConnection={
+              canConfigureWorkspace
+                ? handleSyncSourceConnection
+                : undefined
+            }
+            onStartOAuthConnection={
+              canConfigureWorkspace
+                ? handleStartOAuthConnection
+                : undefined
+            }
+            onUpdateSchedule={
+              canConfigureWorkspace
+                ? handleUpdateConnectionSchedule
                 : undefined
             }
           />

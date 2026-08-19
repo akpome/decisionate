@@ -296,6 +296,7 @@ class PublicDashboardTests(unittest.TestCase):
     def test_public_dataset_response_includes_source_metadata(self):
         dataset = SimpleNamespace(
             file_name="sales.json",
+            row_count=1,
             source_type="json",
             source_config='{"ingestion_mode": "upload"}',
         )
@@ -347,6 +348,7 @@ class PublicDashboardTests(unittest.TestCase):
             workspace_id="workspace-1",
             share_token="token",
             file_name="sales.json",
+            row_count=1,
             source_type="json",
             source_config='{"ingestion_mode": "upload"}',
         )
@@ -398,7 +400,7 @@ class PublicDashboardTests(unittest.TestCase):
             "no-store",
         )
 
-    def test_public_dashboard_hides_loader_http_errors(self):
+    def test_public_dashboard_preserves_loader_service_errors(self):
         response = SimpleNamespace(
             headers={},
         )
@@ -438,13 +440,7 @@ class PublicDashboardTests(unittest.TestCase):
 
         self.assertEqual(
             context.exception.status_code,
-            404,
-        )
-        self.assertEqual(
-            context.exception.headers,
-            {
-                "Cache-Control": "no-store",
-            },
+            503,
         )
         self.assertEqual(
             response.headers["Cache-Control"],

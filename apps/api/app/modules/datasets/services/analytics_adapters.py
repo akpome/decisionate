@@ -1,4 +1,5 @@
 import importlib
+from pathlib import Path
 
 from app.modules.datasets.services.analytics_engine import (
     AnalyticsEngineConfig,
@@ -10,6 +11,7 @@ from app.modules.datasets.services.analytics_storage import (
 from app.modules.datasets.services.file_loader import (
     load_dataset_file,
 )
+from app.infrastructure.object_storage import get_object_storage
 
 
 class AnalyticsAdapterUnavailable(
@@ -39,14 +41,77 @@ class DuckDBAnalyticsAdapter(
 ):
     engine_name = "duckdb"
 
+    def _parquet_paths(
+        self,
+        file_path: str,
+    ) -> list[str]:
+        path = Path(file_path)
+        if path.is_dir():
+            return sorted(
+                str(candidate)
+                for candidate in path.rglob("*.parquet")
+                if candidate.is_file()
+            )
+
+        if path.suffix.lower() in (".parquet", ".pq"):
+            return [str(path)]
+
+        return []
+
+    def _open_connection(self):
+        try:
+            duckdb = importlib.import_module("duckdb")
+        except ModuleNotFoundError as error:
+            raise AnalyticsAdapterUnavailable(
+                "DuckDB analytics requires the duckdb package on the API server"
+            ) from error
+
+        database_path = str(
+            self.config.duckdb_path or ":memory:"
+        ).strip() or ":memory:"
+        if database_path != ":memory:":
+            Path(database_path).parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+        return duckdb.connect(database=database_path)
+
     def load_dataframe(
         self,
         dataset,
     ):
-        return load_dataset_file(
-            dataset.file_path,
-            dataset.file_name,
-        )[1]
+        file_path = str(dataset.file_path or "").strip()
+        with get_object_storage().materialize(file_path) as materialized_path:
+            parquet_paths = self._parquet_paths(materialized_path)
+
+            if not parquet_paths:
+                # Keep older CSV/JSON/Excel records readable while all new
+                # uploads and connector syncs use the direct Parquet path.
+                return load_dataset_file(
+                    materialized_path,
+                    dataset.file_name,
+                )[1]
+
+            connection = self._open_connection()
+            try:
+                placeholders = ", ".join("?" for _ in parquet_paths)
+                query = (
+                    "SELECT * FROM read_parquet("
+                    f"[{placeholders}], union_by_name = true)"
+                )
+                return connection.execute(
+                    query,
+                    parquet_paths,
+                ).fetchdf()
+            except FileNotFoundError:
+                raise
+            except Exception as error:
+                raise AnalyticsAdapterUnavailable(
+                    "DuckDB could not query the Parquet dataset"
+                ) from error
+            finally:
+                connection.close()
 
 
 class BigQueryAnalyticsAdapter(

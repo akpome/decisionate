@@ -627,7 +627,7 @@ class DatasetSharingTests(unittest.TestCase):
             "revenue",
         )
 
-    def test_list_dataset_sources_includes_connector_roadmap(self):
+    def test_list_dataset_sources_includes_mvp_sources(self):
         sources = list_dataset_sources()
         source_types = {
             source["type"]
@@ -647,44 +647,31 @@ class DatasetSharingTests(unittest.TestCase):
             "excel",
             "json",
             "parquet",
-            "google_drive",
-            "onedrive",
-            "shopify",
-            "stripe",
-            "quickbooks",
-            "xero",
             "google_analytics",
             "postgresql",
             "mysql",
             "sql_server",
-            "snowflake",
-            "bigquery",
-            "gcs",
-            "azure_blob_storage",
-            "s3",
-            "crm",
-            "marketing_platform",
-            "rest_api",
-            "webhook",
+            "stripe",
+            "shopify",
+            "quickbooks",
+            "freshbooks",
+            "hubspot",
+            "google_drive",
+            "onedrive",
+            "meta_ads",
         ]:
-            self.assertIn(
-                source_type,
-                source_types,
-            )
+            self.assertIn(source_type, source_types)
 
     def test_get_dataset_source_returns_metadata_copy(self):
         source = get_dataset_source(
-            "shopify",
+            "google_analytics",
         )
 
         self.assertEqual(
             source["connection_type"],
             "oauth",
         )
-        self.assertIn(
-            "webhook",
-            source["sync_modes"],
-        )
+        self.assertIn("scheduled", source["sync_modes"])
 
         source["sync_modes"].append(
             "changed",
@@ -696,60 +683,35 @@ class DatasetSharingTests(unittest.TestCase):
         self.assertNotIn(
             "changed",
             get_dataset_source(
-                "shopify",
+                "google_analytics",
             )["sync_modes"],
         )
         self.assertNotIn(
             "changed",
             get_dataset_source(
-                "shopify",
+                "google_analytics",
             )["config_keys"],
             )
 
-    def test_dataset_source_registry_groups_warehouses_and_object_storage(self):
+    def test_dataset_source_registry_excludes_deferred_connectors(self):
         sources = {
             source["type"]: source
             for source in list_dataset_sources()
         }
 
-        self.assertEqual(
-            sources["snowflake"]["category"],
-            "data_warehouses",
-        )
-        self.assertEqual(
-            sources["bigquery"]["category"],
-            "data_warehouses",
-        )
-        self.assertEqual(
-            sources["bigquery"]["connection_type"],
-            "data_warehouse",
-        )
-
         for source_type in [
+            "snowflake",
+            "bigquery",
             "gcs",
             "azure_blob_storage",
             "s3",
+            "pipedrive",
+            "mailchimp",
+            "marketing_platform",
+            "rest_api",
+            "webhook",
         ]:
-            with self.subTest(
-                source_type=source_type,
-            ):
-                self.assertEqual(
-                    sources[source_type]["category"],
-                    "cloud_object_storage",
-                )
-                self.assertEqual(
-                    sources[source_type]["connection_type"],
-                    "object_storage",
-                )
-
-        self.assertIn(
-            "bucket",
-            sources["s3"]["config_keys"],
-        )
-        self.assertNotIn(
-            "AWS_S3_BUCKET",
-            sources["s3"]["environment_keys"],
-        )
+            self.assertNotIn(source_type, sources)
 
     def test_dataset_source_availability_tracks_status(self):
         self.assertTrue(
@@ -842,7 +804,6 @@ class DatasetSharingTests(unittest.TestCase):
             {
                 "SHOPIFY_CLIENT_ID": "client-id",
                 "SHOPIFY_CLIENT_SECRET": "   ",
-                "SHOPIFY_WEBHOOK_SECRET": "webhook-secret",
             },
             clear=True,
         ):
@@ -857,7 +818,6 @@ class DatasetSharingTests(unittest.TestCase):
             source["configured_environment_keys"],
             [
                 "SHOPIFY_CLIENT_ID",
-                "SHOPIFY_WEBHOOK_SECRET",
             ],
         )
 
@@ -867,7 +827,6 @@ class DatasetSharingTests(unittest.TestCase):
             {
                 "SHOPIFY_CLIENT_ID": "client-id",
                 "SHOPIFY_CLIENT_SECRET": "client-secret",
-                "SHOPIFY_WEBHOOK_SECRET": "webhook-secret",
             },
             clear=True,
         ):
@@ -883,7 +842,6 @@ class DatasetSharingTests(unittest.TestCase):
             [
                 "SHOPIFY_CLIENT_ID",
                 "SHOPIFY_CLIENT_SECRET",
-                "SHOPIFY_WEBHOOK_SECRET",
             ],
         )
 
@@ -949,7 +907,7 @@ class DatasetSharingTests(unittest.TestCase):
             400,
         )
 
-    def test_build_source_connection_status_marks_planned_sources(self):
+    def test_build_source_connection_status_marks_unconfigured_sources(self):
         self.assertEqual(
             build_source_connection_status(
                 "csv",
@@ -960,7 +918,7 @@ class DatasetSharingTests(unittest.TestCase):
             build_source_connection_status(
                 "shopify",
             ),
-            "planned",
+            "needs_setup",
         )
 
     def test_build_source_connection_status_normalizes_source_type(self):
@@ -974,7 +932,7 @@ class DatasetSharingTests(unittest.TestCase):
             build_source_connection_status(
                 " Shopify ",
             ),
-            "planned",
+            "needs_setup",
         )
 
     def test_create_source_connection_route_stores_normalized_source_type(self):

@@ -5,6 +5,7 @@ import {
   useMemo,
   useState,
 } from "react"
+import { useUser } from "@clerk/nextjs"
 
 import {
   getOrganizationWorkspaces,
@@ -14,6 +15,7 @@ import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
 import {
+  setActiveWorkspaceId,
   workspaceAccessChangedEvent,
 } from "@/lib/workspace-context"
 
@@ -21,11 +23,14 @@ export type WorkspaceRole =
   | "owner"
   | "member"
   | "client"
+  | "managed_client"
   | "unknown"
 
 export function useWorkspaceAccess(
   userId: string | undefined
 ) {
+  const { user } = useUser()
+  const userEmail = user?.primaryEmailAddress?.emailAddress
   const {
     activeWorkspaceId,
     workspaceVersion,
@@ -80,11 +85,38 @@ export function useWorkspaceAccess(
       try {
         const workspaceData =
           await getOrganizationWorkspaces(
-            userId
+            userId,
+            userEmail,
+            {
+              includeManagedClientWorkspaces: true,
+            }
           )
 
+        const selectableWorkspaces =
+          workspaceData.filter(
+            workspace =>
+              workspace.role.toLowerCase() !==
+                "managed_client" ||
+              workspace.agency_owner_access_enabled === true
+          )
+
+        if (
+          !ignoreResult &&
+          activeWorkspaceId !== userId &&
+          !selectableWorkspaces.some(
+            workspace =>
+              workspace.owner_user_id ===
+              activeWorkspaceId
+          )
+        ) {
+          setActiveWorkspaceId(
+            userId,
+            userId
+          )
+        }
+
         if (!ignoreResult) {
-          setWorkspaces(workspaceData)
+          setWorkspaces(selectableWorkspaces)
           setLoadedWorkspaceAccessKey(workspaceAccessKey)
         }
       } catch (error) {
@@ -109,15 +141,15 @@ export function useWorkspaceAccess(
   }, [
     accessRefreshKey,
     workspaceAccessKey,
+    activeWorkspaceId,
     userId,
+    userEmail,
   ])
 
   const activeWorkspace =
     useMemo(
       () =>
-        activeWorkspaceId &&
-        userId &&
-        activeWorkspaceId !== userId
+        activeWorkspaceId && userId
           ? workspaces.find(
             (workspace) =>
               workspace.owner_user_id ===
@@ -136,31 +168,59 @@ export function useWorkspaceAccess(
       ? normalizeWorkspaceRole(
         activeWorkspace.role
       )
-      : activeWorkspaceId &&
-          userId &&
-          activeWorkspaceId !== userId
-        ? "unknown"
-        : "owner"
+      : "unknown"
   const workspaceAccessReady =
     loadedWorkspaceAccessKey === workspaceAccessKey
   const workspaceRole: WorkspaceRole =
     workspaceAccessReady
       ? workspaceRoleFromData
       : "unknown"
+  const isAgencyWorkspace =
+    Boolean(activeWorkspace) &&
+    !activeWorkspace?.owner_user_id.includes(":client:")
+  const hasOwnerWorkspaceMembership =
+    workspaceRoleFromData === "owner" &&
+    isAgencyWorkspace
   const canConfigureWorkspace =
     workspaceAccessReady &&
     !loadingWorkspaceAccess &&
-    workspaceRole === "owner"
+    workspaceRole === "owner" &&
+    hasOwnerWorkspaceMembership
+  const verifiedOwnerWorkspace =
+    workspaceRole === "owner" &&
+    hasOwnerWorkspaceMembership
 
   return {
     activeWorkspace,
     activeWorkspaceId,
+    canManageAlerts:
+      workspaceAccessReady &&
+      !loadingWorkspaceAccess &&
+      (workspaceRole === "owner" ||
+        workspaceRole === "client" ||
+        workspaceRole === "managed_client"),
     canConfigureWorkspace,
+    canDeleteDecisions:
+      workspaceAccessReady &&
+      !loadingWorkspaceAccess &&
+      (workspaceRole === "client" ||
+        verifiedOwnerWorkspace),
+    canViewConnections:
+      workspaceAccessReady &&
+      !loadingWorkspaceAccess &&
+      (workspaceRole === "client" ||
+        verifiedOwnerWorkspace),
     canManageWorkspaceData:
       workspaceAccessReady &&
       !loadingWorkspaceAccess &&
-      workspaceRole !== "client" &&
-      workspaceRole !== "unknown",
+      (workspaceRole === "client" ||
+        verifiedOwnerWorkspace),
+    canCreateDecisions:
+      workspaceAccessReady &&
+      !loadingWorkspaceAccess &&
+      (workspaceRole === "owner" ||
+        workspaceRole === "member" ||
+        workspaceRole === "managed_client"),
     isClientWorkspace:
       workspaceRole === "client",
     loadingWorkspaceAccess,
@@ -179,7 +239,8 @@ function normalizeWorkspaceRole(
   if (
     cleanRole === "owner" ||
     cleanRole === "member" ||
-    cleanRole === "client"
+    cleanRole === "client" ||
+    cleanRole === "managed_client"
   ) {
     return cleanRole
   }

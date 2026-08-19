@@ -1,0 +1,101 @@
+date,client_industry,project,invoice_status,hours_billed,billable_amount,project_expenses,payments_received,outstanding_amount,utilization_rate
+2025-01-01,Technology,Discovery,Sent,36,4860,648,3061.8,1798.2,0.61
+2025-01-02,Healthcare,Implementation,Paid,37,5550,703,5106.0,444.0,0.635
+2025-01-03,Construction,Support,Overdue,38,6270,760,5768.4,501.6,0.66
+2025-01-04,Professional Services,Optimization,Draft,39,7020,819,6458.4,561.6,0.685
+2025-01-05,Technology,Discovery,Sent,40,5400,880,4968.0,432.0,0.71
+2025-01-06,Healthcare,Implementation,Paid,41,6150,738,5658.0,492.0,0.735
+2025-01-07,Construction,Support,Overdue,42,6930,798,4365.9,2564.1,0.76
+2025-01-08,Professional Services,Optimization,Draft,43,7740,860,7120.8,619.2,0.785
+2025-01-09,Technology,Discovery,Sent,44,5940,924,5464.8,475.2,0.81
+2025-01-10,Healthcare,Implementation,Paid,45,6750,990,6210.0,540.0,0.61
+2025-01-11,Construction,Support,Overdue,46,7590,828,6982.8,607.2,0.635
+2025-01-12,Professional Services,Optimization,Draft,47,8460,893,7783.2,676.8,0.66
+2025-01-13,Technology,Discovery,Sent,48,6480,960,4082.4,2397.6,0.685
+2025-01-14,Healthcare,Implementation,Paid,49,7350,1029,6762.0,588.0,0.71
+2025-01-15,Construction,Support,Overdue,50,8250,1100,7590.0,660.0,0.735
+2025-01-16,Professional Services,Optimization,Draft,51,9180,918,8445.6,734.4,0.76
+2025-01-17,Technology,Discovery,Sent,52,7020,988,6458.4,561.6,0.785
+2025-01-18,Healthcare,Implementation,Paid,36,5400,720,4968.0,432.0,0.81
+2025-01-19,Construction,Support,Overdue,37,6105,777,3846.15,2258.85,0.61
+2025-01-20,Professional Services,Optimization,Draft,38,6840,836,6292.8,547.2,0.635
+2025-01-21,Technology,Discovery,Sent,39,5265,702,4843.8,421.2,0.66
+2025-01-22,Healthcare,Implementation,Paid,40,6000,760,5520.0,480.0,0.685
+2025-01-23,Construction,Support,Overdue,41,6765,820,6223.8,541.2,0.71
+2025-01-24,Professional Services,Optimization,Draft,42,7560,882,6955.2,604.8,0.735
+2025-01-25,Technology,Discovery,Sent,43,5805,946,3657.15,2147.85,0.76
+2025-01-26,Healthcare,Implementation,Paid,44,6600,792,6072.0,528.0,0.785
+2025-01-27,Construction,Support,Overdue,45,7425,855,6831.0,594.0,0.81
+2025-01-28,Professional Services,Optimization,Draft,46,8280,920,7617.6,662.4,0.61
+2025-01-29,Technology,Discovery,Sent,47,6345,987,5837.4,507.6,0.635
+2025-01-30,Healthcare,Implementation,Paid,48,7200,1056,6624.0,576.0,0.66
+2025-01-31,Construction,Support,Overdue,49,8085,882,5093.55,2991.45,0.685
+2025-02-01,Professional Services,Optimization,Draft,50,9000,950,8280.0,720.0,0.71
+2025-02-02,Technology,Discovery,Sent,51,6885,1020,6334.2,550.8,0.735
+2025-02-03,Healthcare,Implementation,Paid,52,7800,1092,7176.0,624.0,0.76
+2025-02-04,Construction,Support,Overdue,36,5940,792,5464.8,475.2,0.785
+2025-02-05,Professional Services,Optimization,Draft,37,6660,666,6127.2,532.8,0.81
+2025-02-06,Technology,Discovery,Sent,38,5130,722,3231.9,1898.1,0.61
+2025-02-07,Healthcare,Implementation,Paid,39,5850,780,5382.0,468.0,0.635
+2025-02-08,Construction,Support,Overdue,40,6600,840,6072.0,528.0,0.66
+2025-02-09,Professional Services,Optimization,Draft,41,7380,902,6789.6,590.4,0.685
+2025-02-10,Technology,Discovery,Sent,42,5670,756,5216.4,453.6,0.71
+2025-02-11,Healthcare,Implementation,Paid,43,6450,817,5934.0,516.0,0.735
+2025-02-12,Construction,Support,Overdue,44,7260,880,4573.8,2686.2,0.76
+2025-02-13,Professional Services,Optimization,Draft,45,8100,945,7452.0,648.0,0.785
+2025-02-14,Technology,Discovery,Sent,46,6210,1012,5713.2,496.8,0.81
+2025-02-15,Healthcare,Implementation,Paid,47,7050,846,6486.0,564.0,0.61
+2025-02-16,Construction,Support,Overdue,48,7920,912,7286.4,633.6,0.635
+2025-02-17,Professional Services,Optimization,Draft,49,8820,980,8114.4,705.6,0.66
+2025-02-18,Technology,Discovery,Sent,50,6750,1050,4252.5,2497.5,0.685
+2025-02-19,Healthcare,Implementation,Paid,51,7650,1122,7038.0,612.0,0.71
+2025-02-20,Construction,Support,Overdue,52,8580,936,7893.6,686.4,0.735
+2025-02-21,Professional Services,Optimization,Draft,36,6480,684,5961.6,518.4,0.76
+2025-02-22,Technology,Discovery,Sent,37,4995,740,4595.4,399.6,0.785
+2025-02-23,Healthcare,Implementation,Paid,38,5700,798,5244.0,456.0,0.81
+2025-02-24,Construction,Support,Overdue,39,6435,858,4054.05,2380.95,0.61
+2025-02-25,Professional Services,Optimization,Draft,40,7200,720,6624.0,576.0,0.635
+2025-02-26,Technology,Discovery,Sent,41,5535,779,5092.2,442.8,0.66
+2025-02-27,Healthcare,Implementation,Paid,42,6300,840,5796.0,504.0,0.685
+2025-02-28,Construction,Support,Overdue,43,7095,903,6527.4,567.6,0.71
+2025-03-01,Professional Services,Optimization,Draft,44,7920,968,7286.4,633.6,0.735
+2025-03-02,Technology,Discovery,Sent,45,6075,810,3827.25,2247.75,0.76
+2025-03-03,Healthcare,Implementation,Paid,46,6900,874,6348.0,552.0,0.785
+2025-03-04,Construction,Support,Overdue,47,7755,940,7134.6,620.4,0.81
+2025-03-05,Professional Services,Optimization,Draft,48,8640,1008,7948.8,691.2,0.61
+2025-03-06,Technology,Discovery,Sent,49,6615,1078,6085.8,529.2,0.635
+2025-03-07,Healthcare,Implementation,Paid,50,7500,900,6900.0,600.0,0.66
+2025-03-08,Construction,Support,Overdue,51,8415,969,5301.45,3113.55,0.685
+2025-03-09,Professional Services,Optimization,Draft,52,9360,1040,8611.2,748.8,0.71
+2025-03-10,Technology,Discovery,Sent,36,4860,756,4471.2,388.8,0.735
+2025-03-11,Healthcare,Implementation,Paid,37,5550,814,5106.0,444.0,0.76
+2025-03-12,Construction,Support,Overdue,38,6270,684,5768.4,501.6,0.785
+2025-03-13,Professional Services,Optimization,Draft,39,7020,741,6458.4,561.6,0.81
+2025-03-14,Technology,Discovery,Sent,40,5400,800,3402.0,1998.0,0.61
+2025-03-15,Healthcare,Implementation,Paid,41,6150,861,5658.0,492.0,0.635
+2025-03-16,Construction,Support,Overdue,42,6930,924,6375.6,554.4,0.66
+2025-03-17,Professional Services,Optimization,Draft,43,7740,774,7120.8,619.2,0.685
+2025-03-18,Technology,Discovery,Sent,44,5940,836,5464.8,475.2,0.71
+2025-03-19,Healthcare,Implementation,Paid,45,6750,900,6210.0,540.0,0.735
+2025-03-20,Construction,Support,Overdue,46,7590,966,4781.7,2808.3,0.76
+2025-03-21,Professional Services,Optimization,Draft,47,8460,1034,7783.2,676.8,0.785
+2025-03-22,Technology,Discovery,Sent,48,6480,864,5961.6,518.4,0.81
+2025-03-23,Healthcare,Implementation,Paid,49,7350,931,6762.0,588.0,0.61
+2025-03-24,Construction,Support,Overdue,50,8250,1000,7590.0,660.0,0.635
+2025-03-25,Professional Services,Optimization,Draft,51,9180,1071,8445.6,734.4,0.66
+2025-03-26,Technology,Discovery,Sent,52,7020,1144,4422.6,2597.4,0.685
+2025-03-27,Healthcare,Implementation,Paid,36,5400,648,4968.0,432.0,0.71
+2025-03-28,Construction,Support,Overdue,37,6105,703,5616.6,488.4,0.735
+2025-03-29,Professional Services,Optimization,Draft,38,6840,760,6292.8,547.2,0.76
+2025-03-30,Technology,Discovery,Sent,39,5265,819,4843.8,421.2,0.785
+2025-03-31,Healthcare,Implementation,Paid,40,6000,880,5520.0,480.0,0.81
+2025-04-01,Construction,Support,Overdue,41,6765,738,4261.95,2503.05,0.61
+2025-04-02,Professional Services,Optimization,Draft,42,7560,798,6955.2,604.8,0.635
+2025-04-03,Technology,Discovery,Sent,43,5805,860,5340.6,464.4,0.66
+2025-04-04,Healthcare,Implementation,Paid,44,6600,924,6072.0,528.0,0.685
+2025-04-05,Construction,Support,Overdue,45,7425,990,6831.0,594.0,0.71
+2025-04-06,Professional Services,Optimization,Draft,46,8280,828,7617.6,662.4,0.735
+2025-04-07,Technology,Discovery,Sent,47,6345,893,3997.35,2347.65,0.76
+2025-04-08,Healthcare,Implementation,Paid,48,7200,960,6624.0,576.0,0.785
+2025-04-09,Construction,Support,Overdue,49,8085,1029,7438.2,646.8,0.81
+2025-04-10,Professional Services,Optimization,Draft,50,9000,1100,8280.0,720.0,0.61

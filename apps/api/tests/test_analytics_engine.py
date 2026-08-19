@@ -1,5 +1,7 @@
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
+from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -240,6 +242,47 @@ class AnalyticsEngineTests(unittest.TestCase):
             result,
             dataframe,
         )
+
+    def test_duckdb_adapter_queries_parquet_files_directly(self):
+        config = AnalyticsEngineConfig(
+            engine="duckdb",
+            duckdb_path="analytics/decisionate.duckdb",
+            analytics_storage_dir="analytics/datasets",
+            storage_format="parquet",
+            bigquery_project_id=None,
+            bigquery_dataset=None,
+            bigquery_location="US",
+        )
+        dataframe = pd.DataFrame({"revenue": [100]})
+        connection = MagicMock()
+        connection.execute.return_value.fetchdf.return_value = dataframe
+        duckdb = SimpleNamespace(
+            connect=MagicMock(return_value=connection),
+        )
+
+        with TemporaryDirectory() as directory:
+            parquet_path = Path(directory) / "sales.parquet"
+            parquet_path.touch()
+            dataset = SimpleNamespace(
+                file_path=str(parquet_path),
+                file_name="sales.parquet",
+            )
+
+            with patch(
+                "app.modules.datasets.services.analytics_adapters.importlib.import_module",
+                return_value=duckdb,
+            ):
+                result = DuckDBAnalyticsAdapter(config).load_dataframe(dataset)
+
+        duckdb.connect.assert_called_once_with(
+            database="analytics/decisionate.duckdb",
+        )
+        connection.execute.assert_called_once_with(
+            "SELECT * FROM read_parquet([?], union_by_name = true)",
+            [str(parquet_path)],
+        )
+        connection.close.assert_called_once_with()
+        self.assertIs(result, dataframe)
 
     def test_bigquery_adapter_requires_optional_dependency(self):
         config = AnalyticsEngineConfig(

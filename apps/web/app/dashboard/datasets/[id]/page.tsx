@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import { MetricCard } from "@/features/dashboard/components/metric-card"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import {
   MetricSelector,
   formatMetricLabel,
@@ -42,8 +43,6 @@ import {
   createDecision,
   getDatasetAIAnalysis,
   getDatasetDetails,
-  getDatasetPreference,
-  updateDatasetPreference,
   type AIAnalysis,
 } from "@/lib/api"
 import {
@@ -168,8 +167,6 @@ export default function DatasetDetailsPage() {
     useState(0)
   const [errorMessage, setErrorMessage] =
     useState("")
-  const [preferenceWarning, setPreferenceWarning] =
-    useState("")
   const [datasetLoadRetryKey, setDatasetLoadRetryKey] =
     useState(0)
   const [creatingDecisionKey, setCreatingDecisionKey] =
@@ -212,7 +209,6 @@ export default function DatasetDetailsPage() {
       setDataset(null)
       setSelectedMetric(undefined)
       setErrorMessage("")
-      setPreferenceWarning("")
       setLoading(true)
 
       if (datasetId === null) {
@@ -227,59 +223,23 @@ export default function DatasetDetailsPage() {
       }
 
       try {
-        const [
-          datasetResult,
-          preferenceResult,
-        ] = await Promise.allSettled([
-          getDatasetDetails(
-            datasetId,
-            currentUserId,
-            activeWorkspaceId
-          ),
-          getDatasetPreference(
-            currentUserId,
-            activeWorkspaceId
-          ),
-        ])
+        const data = await getDatasetDetails(
+          datasetId,
+          currentUserId,
+          activeWorkspaceId
+        )
 
         if (ignoreResult) {
           return
         }
 
-        if (datasetResult.status === "rejected") {
-          throw datasetResult.reason
-        }
-
-        const data = datasetResult.value
-        const preference =
-          preferenceResult.status === "fulfilled"
-            ? preferenceResult.value
-            : undefined
-
-        if (preferenceResult.status === "rejected") {
-          setPreferenceWarning(
-            `${getErrorMessage(
-              preferenceResult.reason,
-              "Dataset preference service is unavailable."
-            )} Select a metric manually if needed.`
-          )
-        } else {
-          setPreferenceWarning("")
-        }
-
         setDataset(data)
-        setSelectedMetric(
-          preference?.selected_dataset_id === datasetId
-            ? preference.selected_metric ??
-                undefined
-            : undefined
-        )
+        setSelectedMetric(undefined)
         setErrorMessage("")
       } catch (error) {
         if (!ignoreResult) {
           console.error(error)
           setDataset(null)
-          setPreferenceWarning("")
           setErrorMessage(
             getErrorMessage(
               error,
@@ -324,26 +284,9 @@ export default function DatasetDetailsPage() {
       return
     }
 
-    const safeDatasetId = datasetId
-    const currentUserId = userId
-    async function clearStaleMetric() {
+    queueMicrotask(() =>
       setSelectedMetric(undefined)
-
-      try {
-        await updateDatasetPreference(
-          safeDatasetId,
-          currentUserId,
-          "",
-          undefined,
-          undefined,
-          activeWorkspaceId
-        )
-      } catch {
-        // A stale metric should not block dataset detail views.
-      }
-    }
-
-    void clearStaleMetric()
+    )
   }, [
     activeWorkspaceId,
     dataset,
@@ -497,34 +440,11 @@ export default function DatasetDetailsPage() {
       ? metricColumns[0]
       : undefined)
 
-  async function handleMetricChange(
+  function handleMetricChange(
     metric: string | undefined
   ) {
-    const previousMetric = selectedMetric
     setSelectedMetric(metric)
     setErrorMessage("")
-
-    if (datasetId && userId) {
-      try {
-        await updateDatasetPreference(
-          datasetId,
-          userId,
-          metric ?? "",
-          undefined,
-          undefined,
-          activeWorkspaceId
-        )
-        setPreferenceWarning("")
-      } catch (error) {
-        setSelectedMetric(previousMetric)
-        setErrorMessage(
-          getErrorMessage(
-            error,
-            "Could not save dataset metric preference."
-          )
-        )
-      }
-    }
   }
 
   async function handleCreateDecision(
@@ -653,47 +573,64 @@ export default function DatasetDetailsPage() {
         }
         actions={
           <div className="flex min-w-0 flex-wrap gap-3">
-        <Link
-          href={`/dashboard/forecasts?dataset=${datasetId ?? ""}`}
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
-        >
-          <LineChart size={16} />
-          Forecast
-        </Link>
+            <div className="w-full min-w-0 sm:w-72">
+              <DatasetSelector
+                value={datasetId ?? undefined}
+                onChange={(nextDatasetId) => {
+                  if (
+                    nextDatasetId &&
+                    nextDatasetId !== datasetId
+                  ) {
+                    router.push(
+                      `/dashboard/datasets/${nextDatasetId}`
+                    )
+                  }
+                }}
+                ariaLabel="Select dataset details"
+              />
+            </div>
 
-        <Link
-          href={`/dashboard?dataset=${datasetId ?? ""}`}
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
-        >
-          <BarChart3 size={16} />
-          Dashboard
-        </Link>
+            <Link
+              href={`/dashboard/forecasts?dataset=${datasetId ?? ""}`}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
+            >
+              <LineChart size={16} />
+              Forecast
+            </Link>
 
-        <Link
-          href={`/dashboard/insights?dataset=${datasetId ?? ""}`}
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
-        >
-          <Sparkles size={16} />
-          Insights
-        </Link>
+            <Link
+              href={`/dashboard?dataset=${datasetId ?? ""}`}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
+            >
+              <BarChart3 size={16} />
+              Dashboard
+            </Link>
 
-        <Link
-          href={`/dashboard/reports?dataset=${datasetId ?? ""}`}
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
-        >
-          <FileText size={16} />
-          Report
-        </Link>
+            <Link
+              href={`/dashboard/insights?dataset=${datasetId ?? ""}`}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
+            >
+              <Sparkles size={16} />
+              Insights
+            </Link>
 
-        {canManageWorkspaceData && (
-          <Link
-            href={`/dashboard/decisions/new?dataset=${datasetId ?? ""}&returnTo=${encodeURIComponent(`/dashboard/datasets/${datasetId ?? ""}`)}`}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
-          >
-            <ClipboardList size={16} />
-            New Decision
-          </Link>
-        )}
+            <Link
+              href={`/dashboard/reports?dataset=${datasetId ?? ""}`}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
+            >
+              <FileText size={16} />
+              Report
+            </Link>
+
+            {canManageWorkspaceData && (
+              <Link
+                href={`/dashboard/decisions/new?dataset=${datasetId ?? ""}&returnTo=${encodeURIComponent(`/dashboard/datasets/${datasetId ?? ""}`)}`}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
+              >
+                <ClipboardList size={16} />
+                New Decision
+              </Link>
+            )}
           </div>
         }
       />
@@ -740,27 +677,6 @@ export default function DatasetDetailsPage() {
             : "Showing all detected numeric metrics."}
         </p>
       </section>
-
-      {preferenceWarning && (
-        <div
-          role="status"
-          className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <span>{preferenceWarning}</span>
-
-          <button
-            type="button"
-            onClick={() =>
-              setDatasetLoadRetryKey(
-                currentKey => currentKey + 1
-              )
-            }
-            className="w-fit rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
-          >
-            Retry preference
-          </button>
-        </div>
-      )}
 
       {metricAnalysisLoading && (
         <AnalysisStatus kind="loading" />
@@ -821,6 +737,14 @@ export default function DatasetDetailsPage() {
                 sourceDetails.format
               )}
             />
+            {sourceDetails.storedFileFormat && (
+              <AnalyticsField
+                label="Stored format"
+                value={formatSourceValue(
+                  sourceDetails.storedFileFormat
+                )}
+              />
+            )}
             <AnalyticsField
               label="Original file"
               value={

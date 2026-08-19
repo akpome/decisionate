@@ -101,6 +101,8 @@ def generate_dataset_ai_analysis(
     dataframe: pd.DataFrame,
     metric: str | None = None,
     learning_context: dict | None = None,
+    workspace_id: str | None = None,
+    actor_user_id: str | None = None,
 ):
     all_metric_facts = []
 
@@ -161,4 +163,6 @@ def generate_dataset_ai_analysis(
         facts=facts,
         fallback_summary=fallback_summary,
         fallback_recommendations=fallback_recommendations,
+        workspace_id=workspace_id,
+        actor_user_id=actor_user_id,
     )

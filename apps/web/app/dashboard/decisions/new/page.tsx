@@ -7,6 +7,7 @@ import {
 } from "next/navigation"
 import {
     Suspense,
+    useCallback,
     useEffect,
     useState,
 } from "react"
@@ -20,13 +21,13 @@ import {
 import {
     createDecision,
     getDatasets,
-    getDatasetPreference,
     getDatasetMetrics,
-    updateDatasetPreference,
+    getDecisionTemplates,
     type DatasetSummary,
     type DecisionCategory,
     type DecisionConfidenceScore,
     type DecisionPriority,
+    type DecisionTemplate,
 } from "@/lib/api"
 import {
     decisionCategoryOptions,
@@ -107,6 +108,16 @@ function getDecisionPageErrorMessage(
         : fallbackMessage
 }
 
+function applyDecisionTemplateTokens(
+    value: string,
+    metric?: string
+) {
+    return value.replace(
+        /\{metric\}/g,
+        metric ? formatMetricLabel(metric) : "key metric"
+    )
+}
+
 function getSafeReturnPath(
     value: string | null
 ) {
@@ -167,9 +178,17 @@ function NewDecisionContent() {
         getCreateDecisionDatasetId(
             searchParams.get("dataset") ?? ""
         )
+    const initialTemplateSlug =
+        searchParams.get("template") ?? ""
+    const initialMetric =
+        searchParams.get("metric") ?? ""
 
     const [decisionDatasets, setDecisionDatasets] =
         useState<DecisionDatasetOption[]>([])
+    const [decisionTemplates, setDecisionTemplates] =
+        useState<DecisionTemplate[]>([])
+    const [selectedTemplateSlug, setSelectedTemplateSlug] =
+        useState("")
     const [createDatasetId, setCreateDatasetId] =
         useState("")
     const [selectedMetric, setSelectedMetric] =
@@ -179,6 +198,8 @@ function NewDecisionContent() {
     const [loadingMetrics, setLoadingMetrics] =
         useState(false)
     const [createDecisionTitle, setCreateDecisionTitle] =
+        useState("")
+    const [createDecisionAction, setCreateDecisionAction] =
         useState("")
     const [createDecisionDescription, setCreateDecisionDescription] =
         useState("")
@@ -204,8 +225,6 @@ function NewDecisionContent() {
         useState("")
     const [createDecisionError, setCreateDecisionError] =
         useState("")
-    const [preferenceWarning, setPreferenceWarning] =
-        useState("")
 
     const selectedDecisionDataset =
         decisionDatasets.find(
@@ -225,12 +244,75 @@ function NewDecisionContent() {
                 selectedDecisionDataset
             )
             : undefined
+    const selectedDecisionTemplate =
+        decisionTemplates.find(
+            template =>
+                template.slug === selectedTemplateSlug
+        )
     const canCreateDecision =
         Boolean(createDecisionTitle.trim()) &&
+        Boolean(createDecisionAction.trim()) &&
         Boolean(createDecisionExpectedOutcome.trim()) &&
         Boolean(createDatasetId) &&
         !creatingDecision &&
         canManageWorkspaceData
+
+    const applyDecisionTemplate = useCallback(
+        (
+            template: DecisionTemplate | undefined,
+            metric = initialMetric
+        ) => {
+        if (!template) {
+            setSelectedTemplateSlug("")
+            setCreateDecisionTitle("")
+            setCreateDecisionAction("")
+            setCreateDecisionDescription("")
+            setCreateDecisionExpectedOutcome("")
+            setCreateDecisionPriority(defaultDecisionPriority)
+            setCreateDecisionCategory(defaultDecisionCategory)
+            setCreateDecisionConfidence("")
+            setCreateDecisionReviewDate("")
+            return
+        }
+
+        setSelectedTemplateSlug(template.slug)
+        setCreateDecisionTitle(
+            applyDecisionTemplateTokens(
+                template.title_template,
+                metric
+            )
+        )
+        setCreateDecisionAction(
+            applyDecisionTemplateTokens(
+                template.decision_description,
+                metric
+            )
+        )
+        setCreateDecisionDescription(
+            applyDecisionTemplateTokens(
+                template.decision_description,
+                metric
+            )
+        )
+        setCreateDecisionExpectedOutcome(
+            applyDecisionTemplateTokens(
+                template.expected_outcome,
+                metric
+            )
+        )
+        setCreateDecisionPriority(template.priority)
+        setCreateDecisionCategory(template.category)
+        setCreateDecisionConfidence(
+            template.confidence_score
+        )
+        setCreateDecisionReviewDate(
+            getDateInputValueFromToday(
+                template.review_days
+            )
+        )
+        },
+        [initialMetric]
+    )
 
     useEffect(() => {
         if (
@@ -259,20 +341,18 @@ function NewDecisionContent() {
             try {
                 setLoadingDatasets(true)
                 setCreateDecisionError("")
-                setPreferenceWarning("")
                 setDecisionDatasets([])
                 setCreateDatasetId("")
+                setDecisionTemplates([])
+                setSelectedTemplateSlug("")
 
-                const preferencePromise =
-                    Promise.allSettled([
-                        getDatasetPreference(
+                const [datasetsResult, templatesResult] =
+                    await Promise.allSettled([
+                        getDatasets(
                             userId,
                             activeWorkspaceId
                         ),
-                    ])
-                const [datasetsResult] =
-                    await Promise.allSettled([
-                        getDatasets(
+                        getDecisionTemplates(
                             userId,
                             activeWorkspaceId
                         ),
@@ -290,6 +370,25 @@ function NewDecisionContent() {
 
                 setDecisionDatasets(datasetData)
 
+                const templateData =
+                    templatesResult.status === "fulfilled"
+                        ? templatesResult.value
+                        : []
+                setDecisionTemplates(templateData)
+
+                const requestedTemplate =
+                    templateData.find(
+                        template =>
+                            template.slug ===
+                            initialTemplateSlug
+                    )
+                if (requestedTemplate) {
+                    applyDecisionTemplate(
+                        requestedTemplate,
+                        initialMetric
+                    )
+                }
+
                 let nextDatasetId: number | undefined
                 if (datasetData.length > 0) {
                     const initialDataset =
@@ -302,8 +401,7 @@ function NewDecisionContent() {
                             : undefined
 
                     nextDatasetId =
-                        initialDataset?.id ??
-                        datasetData[0].id
+                        initialDataset?.id
 
                     setCreateDecisionReviewDate(
                         currentReviewDate =>
@@ -320,44 +418,6 @@ function NewDecisionContent() {
                 setSelectedMetric(undefined)
                 setLoadingDatasets(false)
 
-                const [preferenceResult] =
-                    await preferencePromise
-                if (!ignoreResult) {
-                    const preference =
-                        preferenceResult.status === "fulfilled"
-                            ? preferenceResult.value
-                            : undefined
-
-                    if (preferenceResult.status === "rejected") {
-                        setPreferenceWarning(
-                            `${getDecisionPageErrorMessage(
-                                preferenceResult.reason,
-                                "Dataset preference service is unavailable."
-                            )} Using the first available dataset.`
-                        )
-                    } else {
-                        setPreferenceWarning("")
-                    }
-
-                    const preferredDataset =
-                        preference?.selected_dataset_id
-                            ? datasetData.find(
-                                dataset =>
-                                    dataset.id ===
-                                    preference.selected_dataset_id
-                            )
-                            : undefined
-
-                    if (preferredDataset) {
-                        setCreateDatasetId(
-                            String(preferredDataset.id)
-                        )
-                        setSelectedMetric(
-                            preference?.selected_metric ??
-                                undefined
-                        )
-                    }
-                }
             } catch (error) {
                 if (ignoreResult) {
                     return
@@ -365,7 +425,6 @@ function NewDecisionContent() {
 
                 console.error(error)
                 setDecisionDatasets([])
-                setPreferenceWarning("")
                 setCreateDecisionError(
                     getDecisionPageErrorMessage(
                         error,
@@ -389,6 +448,9 @@ function NewDecisionContent() {
         activeWorkspaceId,
         datasetLoadRetryKey,
         initialDatasetId,
+        initialMetric,
+        initialTemplateSlug,
+        applyDecisionTemplate,
         user?.id,
         workspaceVersion,
     ])
@@ -439,6 +501,13 @@ function NewDecisionContent() {
                     metricColumns
                 )
 
+                if (
+                    initialMetric &&
+                    metricColumns.includes(initialMetric)
+                ) {
+                    setSelectedMetric(initialMetric)
+                }
+
                 setSelectedMetric(currentMetric =>
                     currentMetric &&
                     !metricColumns.includes(currentMetric)
@@ -471,6 +540,7 @@ function NewDecisionContent() {
     }, [
         activeWorkspaceId,
         createDatasetId,
+        initialMetric,
         metricLoadRetryKey,
         user?.id,
         workspaceVersion,
@@ -494,27 +564,9 @@ function NewDecisionContent() {
             return
         }
 
-        const safeDatasetId = datasetId
-        const userId = user.id
-
-        async function clearStaleMetric() {
+        queueMicrotask(() =>
             setSelectedMetric(undefined)
-
-            try {
-                await updateDatasetPreference(
-                    safeDatasetId,
-                    userId,
-                    "",
-                    undefined,
-                    undefined,
-                    activeWorkspaceId
-                )
-            } catch {
-                // A stale metric should not block decision creation.
-            }
-        }
-
-        void clearStaleMetric()
+        )
     }, [
         activeWorkspaceId,
         createDatasetId,
@@ -528,11 +580,9 @@ function NewDecisionContent() {
         router.push(returnPath)
     }
 
-    async function handleDatasetChange(
+    function handleDatasetChange(
         datasetValue: string
     ) {
-        const previousDatasetValue = createDatasetId
-        const previousMetric = selectedMetric
         setCreateDecisionError("")
         setCreateDatasetId(datasetValue)
         setSelectedMetric(undefined)
@@ -545,65 +595,38 @@ function NewDecisionContent() {
                 datasetValue
             )
 
-        if (datasetId === null || !user?.id) {
+        if (datasetId === null) {
             return
-        }
-
-        try {
-            await updateDatasetPreference(
-                datasetId,
-                user.id,
-                "",
-                undefined,
-                undefined,
-                activeWorkspaceId
-            )
-            setPreferenceWarning("")
-        } catch (error) {
-            setCreateDatasetId(previousDatasetValue)
-            setSelectedMetric(previousMetric)
-            setCreateDecisionError(
-                getDecisionPageErrorMessage(
-                    error,
-                    "Could not save decision dataset preference."
-                )
-            )
         }
     }
 
-    async function handleMetricChange(
+    function handleMetricChange(
         metric: string | undefined
     ) {
-        const previousMetric = selectedMetric
-        const datasetId =
-            getCreateDecisionDatasetId(
-                createDatasetId
-            )
-
         setSelectedMetric(metric)
-        setCreateDecisionError("")
 
-        if (datasetId !== null && user?.id) {
-            try {
-            await updateDatasetPreference(
-                    datasetId,
-                    user.id,
-                    metric ?? "",
-                    undefined,
-                    undefined,
-                    activeWorkspaceId
-                )
-                setPreferenceWarning("")
-            } catch (error) {
-                setSelectedMetric(previousMetric)
-                setCreateDecisionError(
-                    getDecisionPageErrorMessage(
-                        error,
-                        "Could not save decision metric preference."
-                    )
-                )
-            }
+        if (selectedDecisionTemplate) {
+            applyDecisionTemplate(
+                selectedDecisionTemplate,
+                metric
+            )
         }
+
+        setCreateDecisionError("")
+    }
+
+    function handleTemplateChange(
+        templateSlug: string
+    ) {
+        const template =
+            decisionTemplates.find(
+                item => item.slug === templateSlug
+            )
+        applyDecisionTemplate(
+            template,
+            selectedMetric || initialMetric
+        )
+        setCreateDecisionError("")
     }
 
     async function handleCreateDecision(
@@ -624,11 +647,12 @@ function NewDecisionContent() {
 
         if (
             !cleanTitle ||
+            !createDecisionAction.trim() ||
             datasetId === null ||
             !cleanExpectedOutcome
         ) {
             setCreateDecisionError(
-                "Choose a dataset, add a decision title, and define the expected outcome."
+                "Choose a dataset, add a decision title and action, and define the expected outcome."
             )
             return
         }
@@ -642,6 +666,7 @@ function NewDecisionContent() {
                     dataset_id: datasetId,
                     metric_column: selectedMetric,
                     title: cleanTitle,
+                    action: createDecisionAction.trim(),
                     description:
                         createDecisionDescription.trim() || undefined,
                     expected_outcome: cleanExpectedOutcome,
@@ -698,26 +723,6 @@ function NewDecisionContent() {
             />
 
             <DashboardCard>
-                {preferenceWarning && (
-                    <div
-                        role="status"
-                        className="mb-4 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                        <span>{preferenceWarning}</span>
-
-                        <button
-                            type="button"
-                            onClick={() =>
-                                setDatasetLoadRetryKey(
-                                    currentKey => currentKey + 1
-                                )
-                            }
-                            className="w-fit rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
-                        >
-                            Retry preference
-                        </button>
-                    </div>
-                )}
 
                 {loadingDatasets ? (
                     <p className="text-sm text-gray-500">
@@ -728,6 +733,50 @@ function NewDecisionContent() {
                         onSubmit={handleCreateDecision}
                         className="grid min-w-0 gap-4 lg:grid-cols-3"
                     >
+                        {decisionTemplates.length > 0 && (
+                            <div className="min-w-0 lg:col-span-3">
+                                <label
+                                    htmlFor="decision-template"
+                                    className="text-xs font-medium uppercase tracking-wider text-gray-500"
+                                >
+                                    Decision template
+                                </label>
+
+                                <select
+                                    id="decision-template"
+                                    value={selectedTemplateSlug}
+                                    onChange={(event) =>
+                                        handleTemplateChange(
+                                            event.target.value
+                                        )
+                                    }
+                                    className="mt-1 block h-10 w-full rounded-lg border border-gray-200 bg-white px-3 pr-9 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                                >
+                                    <option value="">
+                                        Start from scratch
+                                    </option>
+
+                                    {decisionTemplates.map(template => (
+                                        <option
+                                            key={template.slug}
+                                            value={template.slug}
+                                        >
+                                            {template.name}
+                                        </option>
+                                    ))}
+                                </select>
+
+                                <p className="mt-2 text-xs text-gray-500">
+                                    Choose a starting structure, then adjust every field for this decision.
+                                </p>
+                                {selectedDecisionTemplate && (
+                                    <p className="mt-1 text-xs text-gray-600">
+                                        {selectedDecisionTemplate.description}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
                         <div className="min-w-0">
                             <label
                                 htmlFor="decision-title"
@@ -863,6 +912,32 @@ function NewDecisionContent() {
                                     ? `Focused on ${formatMetricLabel(selectedMetric)}. This metric will be saved with the decision.`
                                     : "Optional focus for this decision. The record remains linked to the selected dataset."}
                             </p>
+                        </div>
+
+                        <div className="min-w-0 lg:col-span-3">
+                            <label
+                                htmlFor="decision-action"
+                                className="text-xs font-medium uppercase tracking-wider text-gray-500"
+                            >
+                                Action
+                                <span className="ml-1 text-amber-600">
+                                    Required
+                                </span>
+                            </label>
+
+                            <textarea
+                                id="decision-action"
+                                value={createDecisionAction}
+                                onChange={(event) => {
+                                    setCreateDecisionError("")
+                                    setCreateDecisionAction(
+                                        event.target.value
+                                    )
+                                }}
+                                placeholder="What will you do? For example: Increase paid search ad spend by 50% for 30 days."
+                                rows={3}
+                                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                            />
                         </div>
 
                         <div className="min-w-0 lg:col-span-3">

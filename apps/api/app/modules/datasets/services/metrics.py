@@ -23,6 +23,25 @@ def generate_metrics(
         dataframe
     ):
         column_label = str(column)
+        if (
+            column_label in {
+                "__decisionate_summary__",
+                "__decisionate_summary_month__",
+            }
+            or any(
+                column_label.endswith(
+                    f"__{statistic}"
+                )
+                for statistic in (
+                    "mean",
+                    "min",
+                    "max",
+                    "count",
+                    "sum",
+                )
+            )
+        ):
+            continue
         total = to_json_number(
             numeric_series.sum()
         )

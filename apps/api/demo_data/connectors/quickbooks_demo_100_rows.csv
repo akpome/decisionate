@@ -1,0 +1,101 @@
+date,account_type,account_name,class,transaction_type,invoice_count,revenue,expense,cash_flow,outstanding_balance
+2025-01-01,Revenue,Services,North,Invoice,18,6400,2800,3600,18500
+2025-01-02,Cost of Goods Sold,Software,South,Bill,19,6840,2949,3891,18332
+2025-01-03,Operating Expense,Payroll,Online,Payment,20,7280,3098,4182,18164
+2025-01-04,Accounts Receivable,Marketing,Corporate,Expense,21,7720,3247,4473,17996
+2025-01-05,Revenue,Services,North,Invoice,22,8160,3396,4764,17828
+2025-01-06,Cost of Goods Sold,Software,South,Bill,23,8600,2970,5630,17660
+2025-01-07,Operating Expense,Payroll,Online,Payment,24,6940,3119,3821,17492
+2025-01-08,Accounts Receivable,Marketing,Corporate,Expense,25,7380,3268,4112,19004
+2025-01-09,Revenue,Services,North,Invoice,18,7820,3417,4403,18836
+2025-01-10,Cost of Goods Sold,Software,South,Bill,19,8260,3566,4694,18668
+2025-01-11,Operating Expense,Payroll,Online,Payment,20,8700,3140,5560,18500
+2025-01-12,Accounts Receivable,Marketing,Corporate,Expense,21,9140,3289,5851,18332
+2025-01-13,Revenue,Services,North,Invoice,22,7480,3438,4042,18164
+2025-01-14,Cost of Goods Sold,Software,South,Bill,23,7920,3587,4333,17996
+2025-01-15,Operating Expense,Payroll,Online,Payment,24,8360,3736,4624,19508
+2025-01-16,Accounts Receivable,Marketing,Corporate,Expense,25,8800,3310,5490,19340
+2025-01-17,Revenue,Services,North,Invoice,18,9240,3459,5781,19172
+2025-01-18,Cost of Goods Sold,Software,South,Bill,19,9680,3608,6072,19004
+2025-01-19,Operating Expense,Payroll,Online,Payment,20,8020,3757,4263,18836
+2025-01-20,Accounts Receivable,Marketing,Corporate,Expense,21,8460,3906,4554,18668
+2025-01-21,Revenue,Services,North,Invoice,22,8900,3480,5420,18500
+2025-01-22,Cost of Goods Sold,Software,South,Bill,23,9340,3629,5711,20012
+2025-01-23,Operating Expense,Payroll,Online,Payment,24,9780,3778,6002,19844
+2025-01-24,Accounts Receivable,Marketing,Corporate,Expense,25,10220,3927,6293,19676
+2025-01-25,Revenue,Services,North,Invoice,18,8560,4076,4484,19508
+2025-01-26,Cost of Goods Sold,Software,South,Bill,19,9000,3650,5350,19340
+2025-01-27,Operating Expense,Payroll,Online,Payment,20,9440,3799,5641,19172
+2025-01-28,Accounts Receivable,Marketing,Corporate,Expense,21,9880,3948,5932,19004
+2025-01-29,Revenue,Services,North,Invoice,22,10320,4097,6223,20516
+2025-01-30,Cost of Goods Sold,Software,South,Bill,23,10760,4246,6514,20348
+2025-01-31,Operating Expense,Payroll,Online,Payment,24,9100,3820,5280,20180
+2025-02-01,Accounts Receivable,Marketing,Corporate,Expense,25,9540,3969,5571,20012
+2025-02-02,Revenue,Services,North,Invoice,18,9980,4118,5862,19844
+2025-02-03,Cost of Goods Sold,Software,South,Bill,19,10420,4267,6153,19676
+2025-02-04,Operating Expense,Payroll,Online,Payment,20,10860,4416,6444,19508
+2025-02-05,Accounts Receivable,Marketing,Corporate,Expense,21,11300,3990,7310,21020
+2025-02-06,Revenue,Services,North,Invoice,22,9640,4139,5501,20852
+2025-02-07,Cost of Goods Sold,Software,South,Bill,23,10080,4288,5792,20684
+2025-02-08,Operating Expense,Payroll,Online,Payment,24,10520,4437,6083,20516
+2025-02-09,Accounts Receivable,Marketing,Corporate,Expense,25,10960,4586,6374,20348
+2025-02-10,Revenue,Services,North,Invoice,18,11400,4160,7240,20180
+2025-02-11,Cost of Goods Sold,Software,South,Bill,19,11840,4309,7531,20012
+2025-02-12,Operating Expense,Payroll,Online,Payment,20,10180,4458,5722,21524
+2025-02-13,Accounts Receivable,Marketing,Corporate,Expense,21,10620,4607,6013,21356
+2025-02-14,Revenue,Services,North,Invoice,22,11060,4756,6304,21188
+2025-02-15,Cost of Goods Sold,Software,South,Bill,23,11500,4330,7170,21020
+2025-02-16,Operating Expense,Payroll,Online,Payment,24,11940,4479,7461,20852
+2025-02-17,Accounts Receivable,Marketing,Corporate,Expense,25,12380,4628,7752,20684
+2025-02-18,Revenue,Services,North,Invoice,18,10720,4777,5943,20516
+2025-02-19,Cost of Goods Sold,Software,South,Bill,19,11160,4926,6234,22028
+2025-02-20,Operating Expense,Payroll,Online,Payment,20,11600,4500,7100,21860
+2025-02-21,Accounts Receivable,Marketing,Corporate,Expense,21,12040,4649,7391,21692
+2025-02-22,Revenue,Services,North,Invoice,22,12480,4798,7682,21524
+2025-02-23,Cost of Goods Sold,Software,South,Bill,23,12920,4947,7973,21356
+2025-02-24,Operating Expense,Payroll,Online,Payment,24,11260,5096,6164,21188
+2025-02-25,Accounts Receivable,Marketing,Corporate,Expense,25,11700,4670,7030,21020
+2025-02-26,Revenue,Services,North,Invoice,18,12140,4819,7321,22532
+2025-02-27,Cost of Goods Sold,Software,South,Bill,19,12580,4968,7612,22364
+2025-02-28,Operating Expense,Payroll,Online,Payment,20,13020,5117,7903,22196
+2025-03-01,Accounts Receivable,Marketing,Corporate,Expense,21,13460,5266,8194,22028
+2025-03-02,Revenue,Services,North,Invoice,22,11800,4840,6960,21860
+2025-03-03,Cost of Goods Sold,Software,South,Bill,23,12240,4989,7251,21692
+2025-03-04,Operating Expense,Payroll,Online,Payment,24,12680,5138,7542,21524
+2025-03-05,Accounts Receivable,Marketing,Corporate,Expense,25,13120,5287,7833,23036
+2025-03-06,Revenue,Services,North,Invoice,18,13560,5436,8124,22868
+2025-03-07,Cost of Goods Sold,Software,South,Bill,19,14000,5010,8990,22700
+2025-03-08,Operating Expense,Payroll,Online,Payment,20,12340,5159,7181,22532
+2025-03-09,Accounts Receivable,Marketing,Corporate,Expense,21,12780,5308,7472,22364
+2025-03-10,Revenue,Services,North,Invoice,22,13220,5457,7763,22196
+2025-03-11,Cost of Goods Sold,Software,South,Bill,23,13660,5606,8054,22028
+2025-03-12,Operating Expense,Payroll,Online,Payment,24,14100,5180,8920,23540
+2025-03-13,Accounts Receivable,Marketing,Corporate,Expense,25,14540,5329,9211,23372
+2025-03-14,Revenue,Services,North,Invoice,18,12880,5478,7402,23204
+2025-03-15,Cost of Goods Sold,Software,South,Bill,19,13320,5627,7693,23036
+2025-03-16,Operating Expense,Payroll,Online,Payment,20,13760,5776,7984,22868
+2025-03-17,Accounts Receivable,Marketing,Corporate,Expense,21,14200,5350,8850,22700
+2025-03-18,Revenue,Services,North,Invoice,22,14640,5499,9141,22532
+2025-03-19,Cost of Goods Sold,Software,South,Bill,23,15080,5648,9432,24044
+2025-03-20,Operating Expense,Payroll,Online,Payment,24,13420,5797,7623,23876
+2025-03-21,Accounts Receivable,Marketing,Corporate,Expense,25,13860,5946,7914,23708
+2025-03-22,Revenue,Services,North,Invoice,18,14300,5520,8780,23540
+2025-03-23,Cost of Goods Sold,Software,South,Bill,19,14740,5669,9071,23372
+2025-03-24,Operating Expense,Payroll,Online,Payment,20,15180,5818,9362,23204
+2025-03-25,Accounts Receivable,Marketing,Corporate,Expense,21,15620,5967,9653,23036
+2025-03-26,Revenue,Services,North,Invoice,22,13960,6116,7844,24548
+2025-03-27,Cost of Goods Sold,Software,South,Bill,23,14400,5690,8710,24380
+2025-03-28,Operating Expense,Payroll,Online,Payment,24,14840,5839,9001,24212
+2025-03-29,Accounts Receivable,Marketing,Corporate,Expense,25,15280,5988,9292,24044
+2025-03-30,Revenue,Services,North,Invoice,18,15720,6137,9583,23876
+2025-03-31,Cost of Goods Sold,Software,South,Bill,19,16160,6286,9874,23708
+2025-04-01,Operating Expense,Payroll,Online,Payment,20,14500,5860,8640,23540
+2025-04-02,Accounts Receivable,Marketing,Corporate,Expense,21,14940,6009,8931,25052
+2025-04-03,Revenue,Services,North,Invoice,22,15380,6158,9222,24884
+2025-04-04,Cost of Goods Sold,Software,South,Bill,23,15820,6307,9513,24716
+2025-04-05,Operating Expense,Payroll,Online,Payment,24,16260,6456,9804,24548
+2025-04-06,Accounts Receivable,Marketing,Corporate,Expense,25,16700,6030,10670,24380
+2025-04-07,Revenue,Services,North,Invoice,18,15040,6179,8861,24212
+2025-04-08,Cost of Goods Sold,Software,South,Bill,19,15480,6328,9152,24044
+2025-04-09,Operating Expense,Payroll,Online,Payment,20,15920,6477,9443,25556
+2025-04-10,Accounts Receivable,Marketing,Corporate,Expense,21,16360,6626,9734,25388

@@ -22,16 +22,17 @@ import {
 import {
   getDatasetDetails,
   getDatasetAIAnalysis,
-  getDatasetPreference,
   getDatasets,
   getMyOrganization,
   getOrganizationWorkspaces,
   createDecision,
-  updateDatasetPreference,
   type DatasetSummary,
   type AIAnalysis,
+  type DashboardAggregation,
+  type DashboardValueAggregation,
   type OrganizationRecord,
   type OrganizationWorkspaceRecord,
+  type ForecastPeriodFilter,
 } from "@/lib/api"
 import {
   useActiveWorkspace,
@@ -144,6 +145,61 @@ function getInitialReportDatasetId() {
     : undefined
 }
 
+function formatReportPeriodLabel(
+  period: ForecastPeriodFilter
+) {
+  const labels: Record<ForecastPeriodFilter, string> = {
+    "1m": "1 month",
+    "1q": "1 quarter",
+    "6m": "6 months",
+    "1y": "1 year",
+    "2y": "2 years",
+    "3y": "3 years",
+    "5y": "5 years",
+    all: "all available data",
+  }
+
+  return labels[period]
+}
+
+function formatReportStartDate(value: string) {
+  if (!value) {
+    return "first available period"
+  }
+
+  const [year, month, day] = value.split("-")
+
+  return year && month && day
+    ? `${month}/${day}/${year}`
+    : value
+}
+
+function formatReportAggregationLabel(
+  aggregation: DashboardAggregation
+) {
+  return aggregation === "daily"
+    ? "daily"
+    : aggregation === "weekly"
+      ? "weekly"
+      : aggregation === "quarterly"
+        ? "quarterly"
+        : "monthly"
+}
+
+function formatReportValueAggregationLabel(
+  aggregationType: DashboardValueAggregation
+) {
+  return aggregationType === "count"
+    ? "counted"
+    : aggregationType === "avg"
+      ? "averaged"
+      : aggregationType === "min"
+        ? "minimum"
+        : aggregationType === "max"
+          ? "maximum"
+          : "summed"
+}
+
 export default function ReportsPage() {
   const {
     user,
@@ -164,13 +220,19 @@ export default function ReportsPage() {
   const [
     selectedDatasetId,
     setSelectedDatasetId,
-  ] = useState<number | undefined>(
-    () => getInitialReportDatasetId()
-  )
+  ] = useState<number | undefined>()
   const [dataset, setDataset] =
     useState<ReportDatasetDetails | null>(null)
   const [selectedMetric, setSelectedMetric] =
     useState<string>()
+  const [periodFilter, setPeriodFilter] =
+    useState<ForecastPeriodFilter>("all")
+  const [aggregation, setAggregation] =
+    useState<DashboardAggregation>("monthly")
+  const [aggregationType, setAggregationType] =
+    useState<DashboardValueAggregation>("sum")
+  const [startDate, setStartDate] =
+    useState("")
   const [loadingDatasets, setLoadingDatasets] =
     useState(true)
   const [loadingReport, setLoadingReport] =
@@ -189,10 +251,8 @@ export default function ReportsPage() {
     useState(0)
   const [errorMessage, setErrorMessage] =
     useState("")
-  const [preferenceWarning, setPreferenceWarning] =
-    useState("")
   const [generatedAt, setGeneratedAt] =
-    useState(() => new Date())
+    useState<Date>()
   const [organization, setOrganization] =
     useState<OrganizationRecord | null>(null)
   const [workspaces, setWorkspaces] =
@@ -285,27 +345,9 @@ export default function ReportsPage() {
       return
     }
 
-    const datasetId = selectedDatasetId
-    const userId = user.id
-
-    async function clearStaleMetric() {
+    queueMicrotask(() =>
       setSelectedMetric(undefined)
-
-      try {
-        await updateDatasetPreference(
-          datasetId,
-          userId,
-          "",
-          undefined,
-          undefined,
-          activeWorkspaceId
-        )
-      } catch {
-        // A stale metric should not block report generation.
-      }
-    }
-
-    void clearStaleMetric()
+    )
   }, [
     activeWorkspaceId,
     dataset,
@@ -404,19 +446,15 @@ export default function ReportsPage() {
       try {
         setLoadingDatasets(true)
         setErrorMessage("")
-        setPreferenceWarning("")
         setDataset(null)
         setDatasets([])
         setSelectedDatasetId(undefined)
         setSelectedMetric(undefined)
+        setPeriodFilter("all")
+        setAggregation("monthly")
+        setAggregationType("sum")
+        setStartDate("")
 
-        const preferencePromise =
-          Promise.allSettled([
-            getDatasetPreference(
-              userId,
-              activeWorkspaceId
-            ),
-          ])
         const [datasetsResult] =
           await Promise.allSettled([
             getDatasets(
@@ -450,52 +488,11 @@ export default function ReportsPage() {
         setSelectedDatasetId(
           initialDatasetIsAvailable
             ? initialDatasetId
-            : workspaceDatasets[0]?.id
+            : undefined
         )
         setSelectedMetric(undefined)
         setLoadingDatasets(false)
 
-        const [preferenceResult] =
-          await preferencePromise
-        if (!ignoreResult) {
-          const preference =
-            preferenceResult.status === "fulfilled"
-              ? preferenceResult.value
-              : undefined
-
-          if (preferenceResult.status === "rejected") {
-            setPreferenceWarning(
-              `${getErrorMessage(
-                preferenceResult.reason,
-                "Dataset preference service is unavailable."
-              )} Using the first available dataset.`
-            )
-          } else {
-            setPreferenceWarning("")
-          }
-
-          const preferredDatasetIsAvailable =
-            preference?.selected_dataset_id &&
-            workspaceDatasets.some(
-              (item) =>
-                item.id ===
-                  preference.selected_dataset_id
-            )
-
-          if (
-            !initialDatasetIsAvailable &&
-            preferredDatasetIsAvailable
-          ) {
-            setSelectedDatasetId(
-              preference.selected_dataset_id ??
-                undefined
-            )
-            setSelectedMetric(
-              preference.selected_metric ??
-                undefined
-            )
-          }
-        }
       } catch (error) {
         if (!ignoreResult) {
           setErrorMessage(
@@ -506,7 +503,6 @@ export default function ReportsPage() {
           )
           setDatasets([])
           setSelectedDatasetId(undefined)
-          setPreferenceWarning("")
         }
       } finally {
         if (!ignoreResult) {
@@ -548,7 +544,13 @@ export default function ReportsPage() {
           (await getDatasetDetails(
             datasetId,
             userId,
-            activeWorkspaceId
+            activeWorkspaceId,
+            {
+              periodFilter,
+              aggregation,
+              aggregationType,
+              startDate: startDate || undefined,
+            }
           )) as ReportDatasetDetails
 
         if (!ignoreResult) {
@@ -584,7 +586,11 @@ export default function ReportsPage() {
     }
   }, [
     activeWorkspaceId,
+    aggregation,
+    aggregationType,
     selectedDatasetId,
+    periodFilter,
+    startDate,
     user?.id,
     workspaceVersion,
     reportRefreshVersion,
@@ -619,7 +625,13 @@ export default function ReportsPage() {
             safeDatasetId,
             userId,
             activeWorkspaceId,
-            metric
+            metric,
+            {
+              periodFilter,
+              aggregation,
+              aggregationType,
+              startDate: startDate || undefined,
+            }
           )
 
         if (!ignoreResult) {
@@ -653,19 +665,25 @@ export default function ReportsPage() {
     }
   }, [
     activeWorkspaceId,
+    aggregation,
+    aggregationType,
     effectiveSelectedMetric,
     metricAnalysisRetryKey,
+    periodFilter,
     selectedDatasetId,
+    startDate,
     user?.id,
   ])
 
-  async function handleDatasetChange(
+  function handleDatasetChange(
     datasetId: number | undefined
   ) {
-    const previousDatasetId = selectedDatasetId
-    const previousMetric = selectedMetric
     setSelectedDatasetId(datasetId)
     setSelectedMetric(undefined)
+    setPeriodFilter("all")
+    setAggregation("monthly")
+    setAggregationType("sum")
+    setStartDate("")
     setDataset(null)
     setErrorMessage("")
 
@@ -688,76 +706,13 @@ export default function ReportsPage() {
       )
     }
 
-    if (datasetId && user?.id) {
-      try {
-        await updateDatasetPreference(
-          datasetId,
-          user.id,
-          "",
-          undefined,
-          undefined,
-          activeWorkspaceId
-        )
-        setPreferenceWarning("")
-      } catch (error) {
-        setSelectedDatasetId(previousDatasetId)
-        setSelectedMetric(previousMetric)
-        if (typeof window !== "undefined") {
-          const url = new URL(window.location.href)
-
-          if (previousDatasetId) {
-            url.searchParams.set(
-              "dataset",
-              String(previousDatasetId)
-            )
-          } else {
-            url.searchParams.delete("dataset")
-          }
-
-          window.history.replaceState(
-            null,
-            "",
-            url.toString()
-          )
-        }
-        setErrorMessage(
-          getErrorMessage(
-            error,
-            "Could not save report dataset preference."
-          )
-        )
-      }
-    }
   }
 
-  async function handleMetricChange(
+  function handleMetricChange(
     metric: string | undefined
   ) {
-    const previousMetric = selectedMetric
     setSelectedMetric(metric)
     setErrorMessage("")
-
-    if (selectedDatasetId && user?.id) {
-      try {
-        await updateDatasetPreference(
-          selectedDatasetId,
-          user.id,
-          metric ?? "",
-          undefined,
-          undefined,
-          activeWorkspaceId
-        )
-        setPreferenceWarning("")
-      } catch (error) {
-        setSelectedMetric(previousMetric)
-        setErrorMessage(
-          getErrorMessage(
-            error,
-            "Could not save report metric preference."
-          )
-        )
-      }
-    }
   }
 
   function refreshReport() {
@@ -910,7 +865,7 @@ export default function ReportsPage() {
               </h2>
 
               <p className="text-sm text-gray-500">
-                Choose the dataset used for KPI snapshots, narrative insights, and chart-backed summaries.
+                Choose the dataset, reporting window, and aggregation used for the KPI snapshot, insights, and chart-backed summary.
               </p>
             </div>
 
@@ -984,6 +939,103 @@ export default function ReportsPage() {
             </label>
           </div>
 
+          <div className="mt-4 grid min-w-0 gap-3 rounded-lg border border-gray-200 bg-gray-50 px-0 py-2 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
+            <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+              <span className="block">Start date</span>
+              <input
+                type="date"
+                value={startDate}
+                disabled={!selectedDatasetId || loadingReport}
+                onChange={event =>
+                  setStartDate(event.target.value)
+                }
+                className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-100"
+              />
+            </label>
+
+            <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+              <span className="block">Period</span>
+              <select
+                value={periodFilter}
+                disabled={!selectedDatasetId || loadingReport}
+                onChange={event =>
+                  setPeriodFilter(
+                    event.target.value as ForecastPeriodFilter
+                  )
+                }
+                className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-100"
+              >
+                <option value="1m">1 month</option>
+                <option value="1q">1 quarter</option>
+                <option value="6m">6 months</option>
+                <option value="1y">1 year</option>
+                <option value="2y">2 years</option>
+                <option value="3y">3 years</option>
+                <option value="5y">5 years</option>
+                <option value="all">All data</option>
+              </select>
+            </label>
+
+            <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+              <span className="block">Group by</span>
+              <select
+                value={aggregation}
+                disabled={!selectedDatasetId || loadingReport}
+                onChange={event =>
+                  setAggregation(
+                    event.target.value as DashboardAggregation
+                  )
+                }
+                className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-100"
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+              </select>
+            </label>
+
+            <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
+              <span className="block">Aggregate</span>
+              <select
+                value={aggregationType}
+                disabled={!selectedDatasetId || loadingReport}
+                onChange={event =>
+                  setAggregationType(
+                    event.target.value as DashboardValueAggregation
+                  )
+                }
+                className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-100"
+              >
+                <option value="sum">Sum</option>
+                <option value="count">Count</option>
+                <option value="avg">Average</option>
+                <option value="min">Minimum</option>
+                <option value="max">Maximum</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              disabled={!selectedDatasetId || loadingReport}
+              onClick={() => {
+                setPeriodFilter("all")
+                setAggregation("monthly")
+                setAggregationType("sum")
+                setStartDate("")
+              }}
+              className="h-9 rounded-md border border-gray-200 bg-white px-3 text-xs font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-400"
+            >
+              Reset range
+            </button>
+
+            <p className="col-span-full truncate text-xs text-gray-500">
+              Showing {formatReportPeriodLabel(periodFilter)} from {formatReportStartDate(startDate)}
+              {` • grouped ${formatReportAggregationLabel(aggregation)}`}
+              {` • ${formatReportValueAggregationLabel(aggregationType)}`}
+            </p>
+          </div>
+
           <p className="mt-3 max-w-full break-words text-sm text-gray-500">
             {dataset ? (
               <>
@@ -997,6 +1049,7 @@ export default function ReportsPage() {
                 {effectiveSelectedMetric
                   ? ` • Focused on ${formatMetricLabel(effectiveSelectedMetric)}`
                   : " • All metrics"}
+                {` • ${formatReportPeriodLabel(periodFilter)}`}
                 {selectedDatasetId && (
                   <Link
                     href={`/dashboard/datasets/${selectedDatasetId}`}
@@ -1033,27 +1086,17 @@ export default function ReportsPage() {
               Retry dataset load
             </button>
           )}
-        </div>
-      )}
 
-      {preferenceWarning && (
-        <div
-          className="print:hidden flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 sm:flex-row sm:items-center sm:justify-between"
-          role="status"
-        >
-          <span>{preferenceWarning}</span>
-
-          <button
-            type="button"
-            onClick={() =>
-              setDatasetLoadRetryKey(
-                currentKey => currentKey + 1
-              )
-            }
-            className="w-fit rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
-          >
-            Retry preference
-          </button>
+          {selectedDatasetId && (
+            <button
+              type="button"
+              onClick={refreshReport}
+              disabled={loadingReport}
+              className="w-fit rounded-md border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Retry report
+            </button>
+          )}
         </div>
       )}
 
@@ -1070,28 +1113,6 @@ export default function ReportsPage() {
           <EmptyReportState
             canManageWorkspaceData={canManageWorkspaceData}
           />
-        )}
-
-      {!loadingDatasets &&
-        datasets.length > 0 &&
-        !selectedDatasetId &&
-        !errorMessage && (
-          <div className="rounded-2xl border border-dashed bg-white p-6 text-center shadow-sm sm:p-12">
-            <h2 className="text-xl font-semibold">
-              No dataset selected
-            </h2>
-
-            <p className="mt-2 text-sm text-gray-500">
-              Select a dataset to generate a report.
-            </p>
-
-            <Link
-              href="/dashboard/datasets"
-              className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
-            >
-              Open datasets
-            </Link>
-          </div>
         )}
 
       {dataset && (
@@ -1208,7 +1229,7 @@ function ReportHeader({
   brand: WorkspaceBrand
   dataset: ReportDatasetDetails
   sourceLabel: string
-  generatedAt: Date
+  generatedAt?: Date
 }) {
   return (
     <header className="border-b pb-6">
@@ -1245,7 +1266,9 @@ function ReportHeader({
         </div>
 
         <p className="text-sm text-gray-500 lg:text-right">
-          Generated {formatReportDate(generatedAt)}
+          {generatedAt
+            ? `Generated ${formatReportDate(generatedAt)}`
+            : "Generating report"}
         </p>
       </div>
     </header>
@@ -1437,6 +1460,13 @@ function ReportChart({
         </h3>
       </div>
 
+      <p className="mb-3 text-xs text-gray-500">
+        {formatMetricLabel(yKey)} by {formatMetricLabel(xKey)}
+        {selectedMetric
+          ? " • selected report metric"
+          : " • primary report metric"}
+      </p>
+
       <div
         className="h-[350px]"
         role="img"
@@ -1448,7 +1478,14 @@ function ReportChart({
         >
           <LineChart data={chartRows}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey={xKey} />
+            <XAxis
+              dataKey={xKey}
+              angle={-35}
+              textAnchor="end"
+              height={64}
+              tick={{ fontSize: 11 }}
+              tickMargin={8}
+            />
             <YAxis />
             <Tooltip />
             <Line

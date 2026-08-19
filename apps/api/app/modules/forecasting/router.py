@@ -1,6 +1,8 @@
 import asyncio
+from typing import Literal
 
 from fastapi import HTTPException
+from fastapi import Query
 from fastapi import Request, APIRouter
 
 from sqlalchemy import and_, or_
@@ -97,6 +99,30 @@ async def get_forecast(
     dataset_id: int,
     request: Request,
     metric: str | None = None,
+    start_date: str | None = Query(None),
+    period_filter: Literal[
+        "1m",
+        "1q",
+        "6m",
+        "1y",
+        "2y",
+        "3y",
+        "5y",
+        "all",
+    ] = Query("all"),
+    aggregation: Literal[
+        "daily",
+        "weekly",
+        "monthly",
+        "quarterly",
+    ] = Query("monthly"),
+    aggregation_type: Literal[
+        "sum",
+        "count",
+        "avg",
+        "min",
+        "max",
+    ] = Query("sum"),
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -150,6 +176,12 @@ async def get_forecast(
             dataframe,
             metric,
             learning_context,
+            workspace_id,
+            start_date,
+            period_filter,
+            aggregation,
+            aggregation_type,
+            user_id,
         )
 
         if "error" in forecast:
@@ -166,17 +198,23 @@ async def get_forecast(
             "value_column"
         ]
 
-        historical = (
-            dataframe_to_json_records(
-                dataframe[
-                    [
-                        date_column,
-                        value_column,
-                    ]
-                ]
-                .tail(12)
-            )
+        historical = forecast.pop(
+            "historical",
+            None,
         )
+
+        if historical is None:
+            historical = (
+                dataframe_to_json_records(
+                    dataframe[
+                        [
+                            date_column,
+                            value_column,
+                        ]
+                    ]
+                    .tail(12)
+                )
+            )
 
         response = {
             **build_forecast_dataset_metadata(

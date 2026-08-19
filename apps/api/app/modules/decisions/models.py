@@ -73,6 +73,11 @@ class Decision(Base):
         nullable=False,
     )
 
+    action = Column(
+        Text,
+        nullable=True,
+    )
+
     description = Column(
         Text,
     )
@@ -120,3 +125,8 @@ class Decision(Base):
     category = Column(String, default=DEFAULT_DECISION_CATEGORY)
 
     confidence_score = Column(String, nullable=True)
+
+    @property
+    def owner_user_id(self) -> str:
+        """Decision owner retained in the existing internal creator field."""
+        return self.clerk_user_id

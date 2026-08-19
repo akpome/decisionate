@@ -14,28 +14,15 @@ interface DataSourcePanelProps {
 }
 
 const SOURCE_CATEGORY_ORDER = [
-  "cloud_files",
+  "files",
+  "analytics",
   "commerce",
   "payments",
   "accounting",
-  "analytics",
   "databases",
-  "data_warehouses",
-  "cloud_object_storage",
   "business_apps",
-  "custom",
   "other",
 ]
-
-const SOURCE_CATEGORY_DESCRIPTIONS: Record<
-  string,
-  string
-> = {
-  data_warehouses:
-    "Connect analytical warehouse tables and query results for governed reporting datasets.",
-  cloud_object_storage:
-    "Connect file-based datasets stored in cloud buckets, containers, or object prefixes.",
-}
 
 export function DataSourcePanel({
   sources,
@@ -85,18 +72,6 @@ export function DataSourcePanel({
                 category
               )}
             </h3>
-
-            {SOURCE_CATEGORY_DESCRIPTIONS[
-              category
-            ] && (
-              <p className="mt-1 text-sm text-gray-500">
-                {
-                  SOURCE_CATEGORY_DESCRIPTIONS[
-                    category
-                  ]
-                }
-              </p>
-            )}
 
             <div className="mt-3 divide-y rounded-xl border">
               {categorySources.map(
@@ -149,6 +124,12 @@ export function DataSourcePanel({
                           }
                         </p>
 
+                        {source.status === "planned" && (
+                          <p className="mt-2 break-words text-xs font-medium text-gray-400">
+                            This connector is not enabled on the server yet.
+                          </p>
+                        )}
+
                         <p className="mt-2 break-words text-xs font-medium uppercase text-gray-400">
                           {formatSourceConnection(
                             source.connection_type
@@ -167,8 +148,9 @@ export function DataSourcePanel({
                           </p>
                         )}
 
-                        {(hasConfigKeys ||
-                          hasEnvironmentKeys) && (
+                        {canCreateDraft &&
+                          (hasConfigKeys ||
+                            hasEnvironmentKeys) && (
                           <p className="mt-1 break-words text-xs text-gray-400">
                             Required details are collected after this connection is added.
                           </p>
@@ -237,19 +219,6 @@ function normalizeSourceType(
 function formatSourceCategory(
   category: string
 ) {
-  if (
-    category === "data_warehouses"
-  ) {
-    return "Data Warehouses"
-  }
-
-  if (
-    category ===
-    "cloud_object_storage"
-  ) {
-    return "Cloud Object Storage"
-  }
-
   return category
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) =>
@@ -273,13 +242,6 @@ function getSourceCategoryRank(
 function formatSourceConnection(
   connectionType?: string
 ) {
-  if (
-    connectionType ===
-    "data_warehouse"
-  ) {
-    return "Data Warehouse"
-  }
-
   if (
     connectionType ===
     "object_storage"

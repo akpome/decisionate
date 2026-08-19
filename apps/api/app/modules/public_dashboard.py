@@ -10,6 +10,7 @@ from sqlalchemy import and_
 from sqlalchemy import or_
 from app.db.database import SessionLocal
 from app.db.models import DashboardShare
+from app.db.models import DatasetJoinCache
 from app.db.models import Organization
 from app.modules.decisions.models import Decision
 from app.modules.datasets.services.charts import (
@@ -22,6 +23,9 @@ from app.modules.datasets.services.dataset_loader import (
 from app.modules.datasets.services.metrics import (
     generate_metrics,
 )
+from app.modules.datasets.services.joins import (
+    JOIN_RESULT_VERSION,
+)
 from app.modules.datasets.services.source_metadata import (
     build_dataset_source_metadata,
 )
@@ -29,6 +33,7 @@ from app.modules.organizations.router import (
     DEFAULT_SELECTED_DASHBOARD,
     VALID_SELECTED_DASHBOARDS,
     clean_dashboard_preferences,
+    clean_dashboard_views,
     clean_metric_targets,
     find_user_preference,
 )
@@ -115,6 +120,41 @@ def get_clean_dataset_preference_entry(
     )
 
 
+def get_public_join_cache_result(
+    db,
+    dataset,
+    dashboard_key: str,
+):
+    caches = (
+        db.query(DatasetJoinCache)
+        .filter(
+            DatasetJoinCache.workspace_id == dataset.workspace_id,
+            DatasetJoinCache.dashboard_key == dashboard_key,
+        )
+        .order_by(DatasetJoinCache.updated_at.desc())
+        .all()
+    )
+
+    for cache in caches:
+        try:
+            dataset_ids = {
+                int(dataset_id)
+                for dataset_id in json.loads(cache.dataset_ids)
+            }
+            result = json.loads(cache.result)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+
+        if (
+            dataset.id in dataset_ids
+            and isinstance(result, dict)
+            and result.get("join_version") == JOIN_RESULT_VERSION
+        ):
+            return result
+
+    return None
+
+
 def has_public_decision_text(value):
     return value is not None and str(value).strip() != ""
 
@@ -171,10 +211,15 @@ def build_public_decision_summary(
     def has_recorded_outcome(decision):
         return (
             has_public_decision_text(
-                decision.outcome_status
+                decision.expected_outcome
             )
-            or has_public_decision_text(
-                decision.actual_outcome
+            and (
+                has_public_decision_text(
+                    decision.outcome_status
+                )
+                or has_public_decision_text(
+                    decision.actual_outcome
+                )
             )
         )
 
@@ -253,6 +298,9 @@ def build_public_decision_summary(
         ),
         "outcomes_evaluated": sum(
             has_public_decision_text(
+                decision.expected_outcome
+            )
+            and has_public_decision_text(
                 decision.outcome_status
             )
             for decision in decisions
@@ -548,6 +596,45 @@ async def get_public_shared_dashboard(
             if preference
             else None
         )
+        dashboard_views = (
+            get_clean_dataset_preference_entry(
+                preference.dashboard_views,
+                dataset_id,
+                clean_dashboard_views,
+            )
+            if preference
+            else None
+        )
+        joined_dataset_result = get_public_join_cache_result(
+            db,
+            dataset,
+            dashboard_key,
+        )
+        if joined_dataset_result is None:
+            dashboard_view = (
+                dashboard_views or {}
+            ).get(str(dataset.id), {}).get(
+                dashboard_key,
+                {},
+            )
+            legacy_dashboard_preference = (
+                dashboard_preferences or {}
+            ).get(str(dataset.id), {})
+            for candidate in (
+                dashboard_view.get(
+                    "joinedDatasetResult"
+                ),
+                legacy_dashboard_preference.get(
+                    "joinedDatasetResult"
+                ),
+            ):
+                if (
+                    isinstance(candidate, dict)
+                    and candidate.get("join_version")
+                    == JOIN_RESULT_VERSION
+                ):
+                    joined_dataset_result = candidate
+                    break
         decision_summary = (
             build_public_decision_summary(
                 db,
@@ -567,8 +654,15 @@ async def get_public_shared_dashboard(
                 dataframe,
             ),
             "preference": {
+                "selected_metric": (
+                    preference.selected_metric
+                    if preference
+                    else None
+                ),
                 "metric_targets": metric_targets,
                 "dashboard_preferences": dashboard_preferences,
+                "dashboard_views": dashboard_views,
+                "joined_dataset_result": joined_dataset_result,
             },
             "decision_summary": decision_summary,
         }

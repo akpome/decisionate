@@ -4,6 +4,7 @@ import {
     getDecisionActivityFeed,
     getDecisionSummary,
     getDecisions,
+    exportDecisions,
 } from "@/lib/api"
 import {
     getDecisionActivityBadgeClass,
@@ -93,6 +94,7 @@ import {
     Plus,
     Link2,
     X,
+    Download,
 } from "lucide-react"
 
 type DecisionListRecord = DecisionRecord
@@ -108,6 +110,8 @@ function getDecisionPageErrorMessage(
 }
 
 type PortfolioFilter = DecisionListLifecycle
+
+type PortfolioOwnerFilter = "all" | "mine"
 
 type PortfolioStatusFilter =
     | ""
@@ -184,6 +188,10 @@ const decisionPortfolioLifecycleOptions = [
     defaultPortfolioLifecycle,
     archivedPortfolioLifecycle,
 ] as const
+const decisionPortfolioOwnerOptions = [
+    "all",
+    "mine",
+] as const
 const decisionPortfolioAttentionOptions = [
     "required",
 ] as const
@@ -217,7 +225,11 @@ export default function DecisionsPage() {
     const {
         canManageWorkspaceData,
         loadingWorkspaceAccess,
+        workspaceRole,
     } = useWorkspaceAccess(user?.id)
+    const canExportDecisions =
+        !loadingWorkspaceAccess &&
+        (workspaceRole === "owner" || workspaceRole === "client")
     const portfolioLoadedOnce = useRef(false)
     const [decisions, setDecisions] = useState<DecisionListRecord[]>([])
     const [decisionSummary, setDecisionSummary] =
@@ -236,6 +248,14 @@ export default function DecisionsPage() {
                 "lifecycle",
                 decisionPortfolioLifecycleOptions,
                 defaultPortfolioLifecycle
+            )
+        )
+    const [portfolioOwnerFilter, setPortfolioOwnerFilter] =
+        useState<PortfolioOwnerFilter>(
+            () => getInitialDecisionPortfolioOption(
+                "owner",
+                decisionPortfolioOwnerOptions,
+                "all"
             )
         )
     const [portfolioSearch, setPortfolioSearch] =
@@ -372,6 +392,10 @@ export default function DecisionsPage() {
             message: string
             viewKey: string
         } | null>(null)
+    const [decisionExportFormat, setDecisionExportFormat] =
+        useState<"csv" | "json" | null>(null)
+    const [decisionExportError, setDecisionExportError] =
+        useState("")
     const refreshRequestId = useRef(0)
     const activeRefreshRequestId = useRef<number | null>(null)
     const portfolioRequestId = useRef(0)
@@ -387,6 +411,7 @@ export default function DecisionsPage() {
         portfolioSearch.trim()
     const portfolioViewKey = JSON.stringify([
         portfolioFilter,
+        portfolioOwnerFilter,
         portfolioStatusFilter,
         portfolioCategoryFilter,
         portfolioAttentionFilter,
@@ -438,6 +463,11 @@ export default function DecisionsPage() {
             portfolioFilter,
             defaultPortfolioLifecycle
         )
+        setPortfolioParam(
+            "owner",
+            portfolioOwnerFilter,
+            "all"
+        )
         setPortfolioParam("status", portfolioStatusFilter)
         setPortfolioParam("category", portfolioCategoryFilter)
         setPortfolioParam("attention", portfolioAttentionFilter)
@@ -459,6 +489,7 @@ export default function DecisionsPage() {
         )
     }, [
         portfolioFilter,
+        portfolioOwnerFilter,
         portfolioStatusFilter,
         portfolioCategoryFilter,
         portfolioAttentionFilter,
@@ -475,6 +506,7 @@ export default function DecisionsPage() {
 
     const portfolioFiltersActive =
         portfolioFilter !== defaultPortfolioLifecycle ||
+        portfolioOwnerFilter !== "all" ||
         Boolean(portfolioCategoryFilter) ||
         Boolean(portfolioAttentionFilter) ||
         Boolean(portfolioOutcomeFilter) ||
@@ -497,6 +529,13 @@ export default function DecisionsPage() {
                 key: "lifecycle",
                 label: `Lifecycle: ${formatDecisionLabel(portfolioFilter)}`,
                 onClear: () => setPortfolioFilter(defaultPortfolioLifecycle),
+            }
+            : null,
+        portfolioOwnerFilter !== "all"
+            ? {
+                key: "owner",
+                label: "Owner: My decisions",
+                onClear: () => setPortfolioOwnerFilter("all"),
             }
             : null,
         portfolioStatusFilter
@@ -595,7 +634,9 @@ export default function DecisionsPage() {
             ] = await Promise.allSettled([
                 getDecisionSummary(
                     userId,
-                    activeWorkspaceId
+                    activeWorkspaceId,
+                    undefined,
+                    portfolioOwnerFilter === "mine"
                 ),
                 getDecisionActivityFeed(
                     userId,
@@ -608,6 +649,7 @@ export default function DecisionsPage() {
                     activeWorkspaceId,
                     {
                         lifecycle: portfolioFilter,
+                        mine: portfolioOwnerFilter === "mine",
                         status: portfolioStatusFilter || undefined,
                         category: portfolioCategoryFilter || undefined,
                         attentionState: portfolioAttentionFilter || undefined,
@@ -739,7 +781,9 @@ export default function DecisionsPage() {
                 const summaryData =
                     await getDecisionSummary(
                         userId,
-                        activeWorkspaceId
+                        activeWorkspaceId,
+                        undefined,
+                        portfolioOwnerFilter === "mine"
                     )
 
                 if (
@@ -825,6 +869,7 @@ export default function DecisionsPage() {
     }, [
         activeWorkspaceId,
         activityRetryKey,
+        portfolioOwnerFilter,
         user?.id,
         workspaceVersion,
     ])
@@ -877,6 +922,7 @@ export default function DecisionsPage() {
                         activeWorkspaceId,
                         {
                             lifecycle: portfolioFilter,
+                            mine: portfolioOwnerFilter === "mine",
                             status: portfolioStatusFilter || undefined,
                             category: portfolioCategoryFilter || undefined,
                             attentionState: portfolioAttentionFilter || undefined,
@@ -939,6 +985,7 @@ export default function DecisionsPage() {
         portfolioAttentionFilter,
         portfolioCategoryFilter,
         portfolioFilter,
+        portfolioOwnerFilter,
         portfolioLearningFilter,
         portfolioNotesFilter,
         portfolioOutcomeFilter,
@@ -971,6 +1018,7 @@ export default function DecisionsPage() {
                     activeWorkspaceId,
                     {
                         lifecycle: portfolioFilter,
+                        mine: portfolioOwnerFilter === "mine",
                         status: portfolioStatusFilter || undefined,
                         category: portfolioCategoryFilter || undefined,
                         attentionState: portfolioAttentionFilter || undefined,
@@ -1191,6 +1239,7 @@ export default function DecisionsPage() {
 
     function resetPortfolioFilters() {
         setPortfolioFilter(defaultPortfolioLifecycle)
+        setPortfolioOwnerFilter("all")
         setPortfolioStatusFilter("")
         setPortfolioCategoryFilter("")
         setPortfolioAttentionFilter("")
@@ -1220,6 +1269,53 @@ export default function DecisionsPage() {
                 message: "Could not copy view link",
                 viewKey: portfolioViewKey,
             })
+        }
+    }
+
+    async function handleExportDecisions(
+        format: "csv" | "json"
+    ) {
+        if (!user?.id || decisionExportFormat) return
+
+        setDecisionExportFormat(format)
+        setDecisionExportError("")
+
+        try {
+            const blob = await exportDecisions(
+                user.id,
+                activeWorkspaceId,
+                format,
+                {
+                    lifecycle: portfolioFilter,
+                    mine: portfolioOwnerFilter === "mine",
+                    status: portfolioStatusFilter || undefined,
+                    category: portfolioCategoryFilter || undefined,
+                    attentionState: portfolioAttentionFilter || undefined,
+                    outcomeState: portfolioOutcomeFilter || undefined,
+                    learningState: portfolioLearningFilter || undefined,
+                    notesState: portfolioNotesFilter || undefined,
+                    reviewState: portfolioReviewFilter || undefined,
+                    search: trimmedPortfolioSearch,
+                    sort: portfolioSort,
+                }
+            )
+            const objectUrl = window.URL.createObjectURL(blob)
+            const link = document.createElement("a")
+            link.href = objectUrl
+            link.download = `decisionate-decisions.${format}`
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            window.URL.revokeObjectURL(objectUrl)
+        } catch (error) {
+            setDecisionExportError(
+                getDecisionPageErrorMessage(
+                    error,
+                    "Decision export could not be created."
+                )
+            )
+        } finally {
+            setDecisionExportFormat(null)
         }
     }
 
@@ -1510,6 +1606,31 @@ export default function DecisionsPage() {
                             </Link>
                         )}
 
+                        {canExportDecisions && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    title="Export filtered decisions as CSV"
+                                    onClick={() => handleExportDecisions("csv")}
+                                    disabled={Boolean(decisionExportFormat)}
+                                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <Download size={16} />
+                                    {decisionExportFormat === "csv" ? "Exporting..." : "CSV"}
+                                </button>
+                                <button
+                                    type="button"
+                                    title="Export filtered decisions as JSON"
+                                    onClick={() => handleExportDecisions("json")}
+                                    disabled={Boolean(decisionExportFormat)}
+                                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <Download size={16} />
+                                    {decisionExportFormat === "json" ? "Exporting..." : "JSON"}
+                                </button>
+                            </div>
+                        )}
+
                         <IconBadge
                             className="bg-[var(--decisionate-brand-accent-soft)] text-[var(--decisionate-brand-accent-text)]"
                             icon={<BriefcaseBusiness size={22} />}
@@ -1557,6 +1678,20 @@ export default function DecisionsPage() {
                         </div>
 
                         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:justify-end">
+                            <select
+                                aria-label="Filter decisions by owner"
+                                value={portfolioOwnerFilter}
+                                onChange={(event) =>
+                                    setPortfolioOwnerFilter(
+                                        event.target.value as PortfolioOwnerFilter
+                                    )
+                                }
+                                className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] sm:w-auto"
+                            >
+                                <option value="all">All decisions</option>
+                                <option value="mine">My decisions</option>
+                            </select>
+
                             {/* =========================
                                 Decision Portfolio Status Filter For Server Query
                             ========================= */}
@@ -1844,6 +1979,15 @@ export default function DecisionsPage() {
                                 aria-live="polite"
                             >
                                 {portfolioLinkStatus.message}
+                            </div>
+                        )}
+
+                        {decisionExportError && (
+                            <div
+                                className="basis-full rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700"
+                                role="alert"
+                            >
+                                {decisionExportError}
                             </div>
                         )}
                     </div>
@@ -2249,6 +2393,10 @@ function DecisionActivityRow({
                     {activityItem.message}
                 </span>
 
+                <span className="mt-1 block text-xs text-gray-400">
+                    By {activityItem.actor_user_id || "workspace user"}
+                </span>
+
                 {!decisionAvailable && (
                     <span className="mt-1 block text-xs font-medium text-gray-400">
                         Decision not available
@@ -2295,7 +2443,7 @@ function DecisionActivityRow({
 
     return (
         <Link
-            href={`/dashboard/decisions/${activityItem.decision_id}`}
+        href={`/dashboard/decisions/${activityItem.decision_id}`}
             aria-label={`${activityItem.decision_title}: ${activityItem.message}`}
             className="group flex flex-wrap items-start gap-3 py-3 transition hover:bg-gray-50"
         >
@@ -2434,6 +2582,15 @@ function DecisionCard({
                     {health}
                 </span>
             </div>
+
+            {decision.action && (
+                <p className="mt-3 break-words border-l-2 border-[var(--decisionate-brand-primary)] pl-3 text-sm text-gray-700 line-clamp-2">
+                    <span className="font-medium text-[var(--decisionate-brand-primary-text)]">
+                        Action:
+                    </span>{" "}
+                    {decision.action}
+                </p>
+            )}
 
             <p className="mt-3 break-words text-sm text-gray-500 line-clamp-2">
                 {decision.description ||

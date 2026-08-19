@@ -6,7 +6,9 @@ import {
   categoryDecisionActivity,
   confidenceDecisionActivity,
   createdDecisionActivity,
+  deleteDecisionActivity,
   detailsDecisionActivity,
+  exportDecisionActivity,
   learningDecisionActivity,
   notesDecisionActivity,
   outcomeDecisionActivity,
@@ -67,6 +69,12 @@ const archiveActivityStyle: DecisionActivityStyle = {
   titleClass: "",
 }
 
+const deleteActivityStyle: DecisionActivityStyle = {
+  dotClass: "bg-red-500",
+  badgeClass: "bg-red-50 text-red-700",
+  titleClass: "text-red-700",
+}
+
 const decisionActivityStyles: Record<
   DecisionActivityType,
   DecisionActivityStyle
@@ -84,6 +92,8 @@ const decisionActivityStyles: Record<
   [categoryDecisionActivity]: categoryActivityStyle,
   [confidenceDecisionActivity]: confidenceActivityStyle,
   [archiveDecisionActivity]: archiveActivityStyle,
+  [deleteDecisionActivity]: deleteActivityStyle,
+  [exportDecisionActivity]: blueActivityStyle,
 }
 
 /* =========================

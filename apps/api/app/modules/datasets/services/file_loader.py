@@ -1,9 +1,12 @@
 import importlib.util
 import ntpath
 import os
+from pathlib import Path
 
 import pandas as pd
 from fastapi import HTTPException
+
+from app.infrastructure.object_storage import get_object_storage
 
 
 DATASET_FILE_SOURCE_DEPENDENCIES = {
@@ -211,7 +214,40 @@ def build_upload_source_config(
             if file_type
             else None
         ),
+        "stored_file_format": "parquet",
     }
+
+
+def convert_dataframe_to_parquet(
+    dataframe,
+    source_path: str,
+):
+    parquet_path = os.path.splitext(
+        source_path
+    )[0] + ".parquet"
+
+    try:
+        dataframe.to_parquet(
+            parquet_path,
+            index=False,
+        )
+    except ImportError as error:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Parquet conversion requires the pyarrow package "
+                "on the API server."
+            ),
+        ) from error
+    except Exception as error:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Uploaded data could not be converted to Parquet."
+            ),
+        ) from error
+
+    return parquet_path
 
 
 def validate_dataset_dataframe(
@@ -263,9 +299,30 @@ def load_dataset_file(
         )
 
     try:
-        dataframe = file_type["reader"](
-            file_path
-        )
+        with get_object_storage().materialize(file_path) as materialized_path:
+            if (
+                file_type["source_type"] == "parquet"
+                and os.path.isdir(materialized_path)
+            ):
+                parquet_files = sorted(
+                    Path(materialized_path).rglob("*.parquet")
+                )
+                if not parquet_files:
+                    raise FileNotFoundError(file_path)
+
+                dataframes = [
+                    pd.read_parquet(path)
+                    for path in parquet_files
+                ]
+                dataframe = pd.concat(
+                    dataframes,
+                    ignore_index=True,
+                    sort=False,
+                )
+            else:
+                dataframe = file_type["reader"](
+                    materialized_path
+                )
     except FileNotFoundError as error:
         raise HTTPException(
             status_code=404,

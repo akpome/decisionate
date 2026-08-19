@@ -19,6 +19,7 @@ import {
     useActiveWorkspace,
 } from "@/lib/use-active-workspace"
 import {
+    formatSourceValue,
     getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
 
@@ -285,6 +286,11 @@ function DatasetListItem({
                     <span className="rounded-full bg-[var(--decisionate-brand-primary-soft)] px-2.5 py-1 text-xs font-medium text-[var(--decisionate-brand-primary-text)]">
                         {sourceDetails.label}
                     </span>
+                    {sourceDetails.storedFileFormat && (
+                        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                            Stored as {formatSourceValue(sourceDetails.storedFileFormat)}
+                        </span>
+                    )}
 
                 </div>
 

@@ -6,11 +6,14 @@ import {
   type FormEvent,
 } from "react"
 import { useRouter } from "next/navigation"
-import { useUser } from "@clerk/nextjs"
+import { useClerk, useUser } from "@clerk/nextjs"
+import { LogOut } from "lucide-react"
 
 import {
   createOrganization,
   getMyOrganization,
+  getOrganizationWorkspaces,
+  type OrganizationCreatePayload,
 } from "@/lib/api"
 import {
   ThemeToggle,
@@ -21,6 +24,23 @@ const onboardingUseCases = [
   "Agency client portfolio",
   "Shared client reporting portal",
 ]
+
+const signupPlans = [
+  {
+    value: "professional",
+    name: "Professional",
+    description: "For one business workspace.",
+    detail: "5,000 Decisionate AI credits/month",
+  },
+  {
+    value: "agency",
+    name: "Agency",
+    description: "For an agency managing clients.",
+    detail: "Up to 10 client workspaces · 25,000 credits/month",
+  },
+] as const
+
+type SignupPlan = (typeof signupPlans)[number]["value"]
 
 function getOnboardingErrorMessage(
   error: unknown,
@@ -34,18 +54,26 @@ function getOnboardingErrorMessage(
 
 export default function OnboardingPage() {
   const { user } = useUser()
+  const { signOut } = useClerk()
+  const userEmail =
+    user?.primaryEmailAddress?.emailAddress ??
+    user?.emailAddresses?.[0]?.emailAddress
 
   const router = useRouter()
 
   const [organizationName, setOrganizationName] =
     useState("")
+  const [selectedPlan, setSelectedPlan] =
+    useState<SignupPlan>("professional")
 
   const [loading, setLoading] =
     useState(false)
   const [
     checkingOrganization,
     setCheckingOrganization,
-  ] = useState(false)
+  ] = useState(true)
+  const [existingWorkspaceFound, setExistingWorkspaceFound] =
+    useState(false)
   const [errorMessage, setErrorMessage] =
     useState("")
 
@@ -65,9 +93,16 @@ export default function OnboardingPage() {
       setLoading(true)
       setErrorMessage("")
 
+      const organizationPayload: OrganizationCreatePayload = {
+        name: organizationName.trim(),
+        plan: selectedPlan,
+      }
+
       await createOrganization(
-        organizationName.trim(),
-        user.id
+        organizationPayload,
+        user.id,
+        user.primaryEmailAddress?.emailAddress ??
+          user.emailAddresses?.[0]?.emailAddress
       )
 
       router.push(
@@ -95,12 +130,19 @@ export default function OnboardingPage() {
     async function checkOrganization() {
       try {
         setCheckingOrganization(true)
-        const organization =
-          await getMyOrganization(
-            userId
-          )
+        const [organization, workspaces] =
+          await Promise.all([
+            getMyOrganization(
+              userId
+            ),
+            getOrganizationWorkspaces(
+              userId,
+              userEmail
+            ),
+          ])
 
-        if (organization) {
+        if (organization || workspaces.length > 0) {
+          setExistingWorkspaceFound(true)
           router.push(
             "/dashboard"
           )
@@ -119,12 +161,20 @@ export default function OnboardingPage() {
     }
 
     void checkOrganization()
-  }, [user?.id, router])
+  }, [router, user?.id, userEmail])
 
   return (
     <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
-      <div className="mx-auto flex max-w-5xl justify-end">
+      <div className="mx-auto flex max-w-5xl justify-end gap-2">
         <ThemeToggle />
+        <button
+          type="button"
+          onClick={() => void signOut({ redirectUrl: "/sign-in" })}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+        >
+          <LogOut size={16} aria-hidden="true" />
+          Switch account
+        </button>
       </div>
 
       <div className="mx-auto mt-6 grid w-full max-w-5xl gap-5 lg:min-h-[calc(100vh-6.5rem)] lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-center">
@@ -141,20 +191,76 @@ export default function OnboardingPage() {
             Create the workspace that will hold your datasets, dashboards, reports, alerts, and decisions. You can use it for your own business or for agency-managed client work.
           </p>
 
-          {checkingOrganization && (
+          {checkingOrganization || existingWorkspaceFound ? (
             <p
               role="status"
               aria-live="polite"
-              className="mt-4 rounded-xl border bg-gray-50 px-4 py-3 text-sm text-gray-600"
+              className="mt-8 rounded-xl border bg-gray-50 px-4 py-3 text-sm text-gray-600"
             >
-              Checking existing workspace...
+              {existingWorkspaceFound
+                ? "Opening your workspace..."
+                : "Checking existing workspace..."}
             </p>
-          )}
+          ) : (
+            <form
+              onSubmit={handleSubmit}
+              className="mt-8 space-y-4"
+            >
+            <fieldset>
+              <legend className="text-sm font-medium">
+                Choose your 30-day free trial
+              </legend>
 
-          <form
-            onSubmit={handleSubmit}
-            className="mt-8 space-y-4"
-          >
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                {signupPlans.map((plan) => {
+                  const selected = selectedPlan === plan.value
+
+                  return (
+                    <label
+                      key={plan.value}
+                      className={`cursor-pointer rounded-xl border p-4 transition ${
+                        selected
+                          ? "border-[var(--decisionate-brand-primary)] bg-blue-50 ring-2 ring-blue-100"
+                          : "border-gray-200 bg-white hover:border-gray-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="signup-plan"
+                        value={plan.value}
+                        checked={selected}
+                        onChange={() => setSelectedPlan(plan.value)}
+                        className="sr-only"
+                      />
+                      <span className="flex items-center justify-between gap-3">
+                        <span className="font-semibold text-gray-900">
+                          {plan.name}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className={`h-4 w-4 rounded-full border-4 ${
+                            selected
+                              ? "border-[var(--decisionate-brand-primary)]"
+                              : "border-gray-300"
+                          }`}
+                        />
+                      </span>
+                      <span className="mt-2 block text-sm text-gray-600">
+                        {plan.description}
+                      </span>
+                      <span className="mt-2 block text-xs font-medium text-gray-500">
+                        {plan.detail}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+
+              <p className="mt-2 text-xs text-gray-500">
+                No payment is required during setup. You can manage billing after your trial begins.
+              </p>
+            </fieldset>
+
             <div>
               <label
                 htmlFor="organization-name"
@@ -199,7 +305,8 @@ export default function OnboardingPage() {
                 ? "Creating..."
                 : "Continue"}
             </button>
-          </form>
+            </form>
+          )}
         </section>
 
         <aside className="rounded-2xl border bg-white p-6 shadow-sm sm:p-8">

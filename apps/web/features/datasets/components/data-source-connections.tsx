@@ -1,12 +1,11 @@
 "use client"
 
-import {
-  useState,
-} from "react"
+import { useState } from "react"
 
 import {
   type DataSourceConnection,
   type DataSourceConnectionStatus,
+  type DataSourceConnectionSyncPayload,
   type DatasetSourceOption,
 } from "@/lib/api"
 
@@ -16,6 +15,7 @@ interface DataSourceConnectionsProps {
   sources?: DatasetSourceOption[]
   deletingConnectionId?: number | null
   updatingConnectionId?: number | null
+  syncingConnectionId?: number | null
   onDeleteConnection?: (
     connection: DataSourceConnection
   ) => void
@@ -27,6 +27,31 @@ interface DataSourceConnectionsProps {
     connection: DataSourceConnection,
     connectionConfig: Record<string, unknown>
   ) => void
+  onSyncConnection?: (
+    connection: DataSourceConnection,
+    payload: DataSourceConnectionSyncPayload
+  ) => void
+  onStartOAuthConnection?: (
+    connection: DataSourceConnection
+  ) => void
+  onUpdateSchedule?: (
+    connection: DataSourceConnection,
+    enabled: boolean,
+    intervalHours: number,
+    timeOfDay: string,
+    timezone: string
+  ) => void
+}
+
+function getBrowserTimezone() {
+  if (typeof Intl === "undefined") {
+    return "UTC"
+  }
+
+  return (
+    Intl.DateTimeFormat().resolvedOptions().timeZone ||
+    "UTC"
+  )
 }
 
 export function DataSourceConnections({
@@ -35,9 +60,13 @@ export function DataSourceConnections({
   sources = [],
   deletingConnectionId,
   updatingConnectionId,
+  syncingConnectionId,
   onDeleteConnection,
   onRenameConnection,
   onConfigureConnection,
+  onSyncConnection,
+  onStartOAuthConnection,
+  onUpdateSchedule,
 }: DataSourceConnectionsProps) {
   const [
     editingConnectionId,
@@ -183,7 +212,7 @@ export function DataSourceConnections({
       <div className="rounded-xl border bg-white p-4 text-sm text-gray-500">
         {loadError
           ? "Saved data source connections are unavailable. Retry the data services above."
-          : "No data source connections are configured yet. External connector pulls are planned; upload a CSV, Excel, JSON, or Parquet file from Datasets for now."}
+          : "No external data source connections have been added yet. Add one from the available connections above."}
       </div>
     )
   }
@@ -199,6 +228,9 @@ export function DataSourceConnections({
           }
           updatingConnectionId={
             updatingConnectionId
+          }
+          syncingConnectionId={
+            syncingConnectionId
           }
           editingConnectionId={
             editingConnectionId
@@ -221,6 +253,13 @@ export function DataSourceConnections({
           onConfigureConnection={
             onConfigureConnection
           }
+          onSyncConnection={
+            onSyncConnection
+          }
+          onStartOAuthConnection={
+            onStartOAuthConnection
+          }
+          onUpdateSchedule={onUpdateSchedule}
           sources={sources}
           configuringConnectionId={
             configuringConnectionId
@@ -247,6 +286,7 @@ function DataSourceConnectionRow({
   connection,
   deletingConnectionId,
   updatingConnectionId,
+  syncingConnectionId,
   editingConnectionId,
   editingDisplayName,
   setEditingDisplayName,
@@ -256,6 +296,9 @@ function DataSourceConnectionRow({
   onDeleteConnection,
   onRenameConnection,
   onConfigureConnection,
+  onSyncConnection,
+  onStartOAuthConnection,
+  onUpdateSchedule,
   sources,
   configuringConnectionId,
   editingConnectionConfig,
@@ -268,6 +311,7 @@ function DataSourceConnectionRow({
   connection: DataSourceConnection
   deletingConnectionId?: number | null
   updatingConnectionId?: number | null
+  syncingConnectionId?: number | null
   editingConnectionId: number | null
   editingDisplayName: string
   setEditingDisplayName: (
@@ -291,6 +335,20 @@ function DataSourceConnectionRow({
     connection: DataSourceConnection,
     connectionConfig: Record<string, unknown>
   ) => void
+  onSyncConnection?: (
+    connection: DataSourceConnection,
+    payload: DataSourceConnectionSyncPayload
+  ) => void
+  onStartOAuthConnection?: (
+    connection: DataSourceConnection
+  ) => void
+  onUpdateSchedule?: (
+    connection: DataSourceConnection,
+    enabled: boolean,
+    intervalHours: number,
+    timeOfDay: string,
+    timezone: string
+  ) => void
   sources: DatasetSourceOption[]
   configuringConnectionId: number | null
   editingConnectionConfig: Record<string, string>
@@ -312,6 +370,16 @@ function DataSourceConnectionRow({
     editingConnectionId === connection.id
   const isConfiguring =
     configuringConnectionId === connection.id
+  const [syncStartDate, setSyncStartDate] =
+    useState("")
+  const [syncEndDate, setSyncEndDate] =
+    useState("")
+  const [syncMetrics, setSyncMetrics] =
+    useState([
+      "activeUsers",
+      "sessions",
+      "totalRevenue",
+    ])
   const source =
     getConnectionSource(
       connection,
@@ -334,11 +402,81 @@ function DataSourceConnectionRow({
     getExternalCredentialLabel(source)
   const connectionConfigHelpText =
     getConnectionConfigHelpText(source)
+  const sourceIsPlanned =
+    source?.status === "planned"
   const canConfigure =
     Boolean(
       onConfigureConnection &&
-        editableConfigKeys.length > 0
+        editableConfigKeys.length > 0 &&
+        !sourceIsPlanned
     )
+  const canSyncConnector =
+    [
+      "google_analytics",
+      "hubspot",
+      "stripe",
+      "shopify",
+      "meta_ads",
+      "quickbooks",
+      "freshbooks",
+      "sage",
+      "xero",
+      "postgresql",
+      "mysql",
+      "sql_server",
+    ].includes(
+      connection.source_type
+    ) &&
+    source?.status === "available" &&
+    Boolean(onSyncConnection)
+  const canStartOAuth =
+    connection.source_type !== "google_analytics" &&
+    source?.connection_type === "oauth" &&
+    source.status === "available" &&
+    Boolean(onStartOAuthConnection)
+  const canSchedule =
+    source?.sync_modes?.includes("scheduled") === true &&
+    Boolean(onUpdateSchedule) &&
+    !sourceIsPlanned
+  const [scheduleEnabled, setScheduleEnabled] =
+    useState(Boolean(connection.sync_enabled))
+  const [scheduleIntervalHours, setScheduleIntervalHours] =
+    useState(String(connection.sync_interval_hours ?? 24))
+  const [scheduleTimeOfDay, setScheduleTimeOfDay] =
+    useState(connection.sync_time_of_day ?? "09:00")
+  const [scheduleTimezone] =
+    useState(connection.sync_timezone ?? "")
+
+
+  function toggleSyncMetric(metric: string) {
+    setSyncMetrics((currentMetrics) =>
+      currentMetrics.includes(metric)
+        ? currentMetrics.filter(
+            (currentMetric) =>
+              currentMetric !== metric
+          )
+        : [
+            ...currentMetrics,
+            metric,
+          ]
+    )
+  }
+
+  function syncConnection() {
+    onSyncConnection?.(
+      connection,
+      {
+        ...(syncStartDate
+          ? { start_date: syncStartDate }
+          : {}),
+        ...(syncEndDate
+          ? { end_date: syncEndDate }
+          : {}),
+        dimensions: ["date"],
+        metrics: syncMetrics,
+      }
+    )
+  }
   const trimmedDisplayName =
     editingDisplayName.trim()
   const canSave =
@@ -429,6 +567,12 @@ function DataSourceConnectionRow({
           {connection.has_config
             ? "Config saved"
             : "No config saved"}
+        </p>
+
+        <p className="mt-1 text-xs text-gray-500">
+          Last sync: {formatLastSyncedAt(
+            connection.last_synced_at
+          )}
         </p>
 
         {requiresEnvironmentCredentials && (
@@ -544,6 +688,146 @@ function DataSourceConnectionRow({
             </div>
           </div>
         )}
+
+        {connection.source_type === "google_analytics" &&
+          canSyncConnector && (
+          <div className="mt-4 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
+              Google Analytics sync range and metrics
+            </p>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-medium text-gray-600">
+                Start date
+                <input
+                  type="date"
+                  value={syncStartDate}
+                  onChange={(event) =>
+                    setSyncStartDate(
+                      event.target.value
+                    )
+                  }
+                  className="mt-1 block h-9 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
+                />
+              </label>
+
+              <label className="text-xs font-medium text-gray-600">
+                End date
+                <input
+                  type="date"
+                  value={syncEndDate}
+                  onChange={(event) =>
+                    setSyncEndDate(
+                      event.target.value
+                    )
+                  }
+                  className="mt-1 block h-9 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+              {[
+                "activeUsers",
+                "sessions",
+                "totalRevenue",
+                "screenPageViews",
+                "conversions",
+              ].map((metric) => (
+                <label
+                  key={metric}
+                  className="inline-flex items-center gap-2 text-xs text-gray-700"
+                >
+                  <input
+                    type="checkbox"
+                    checked={syncMetrics.includes(metric)}
+                    onChange={() =>
+                      toggleSyncMetric(metric)
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+                  />
+                  {metric}
+                </label>
+              ))}
+            </div>
+
+            <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
+              Leave dates blank to sync the previous 365 days. Select at least one metric.
+            </p>
+          </div>
+        )}
+
+        {canSchedule && (
+          <div className="mt-4 rounded-xl border bg-gray-50 p-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={scheduleEnabled}
+                  onChange={(event) =>
+                    setScheduleEnabled(event.target.checked)
+                  }
+                  className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+                />
+                Enable automatic sync
+              </label>
+
+              <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-600">
+                Every
+                <select
+                  value={scheduleIntervalHours}
+                  onChange={(event) =>
+                    setScheduleIntervalHours(event.target.value)
+                  }
+                  className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
+                >
+                  {[1, 6, 12, 24, 72, 168].map((hours) => (
+                    <option key={hours} value={hours}>
+                      {hours < 24 ? `${hours} hours` : `${hours / 24} days`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-600">
+                At local time
+                <input
+                  type="time"
+                  value={scheduleTimeOfDay}
+                  onChange={(event) =>
+                    setScheduleTimeOfDay(event.target.value)
+                  }
+                  className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={() =>
+                  onUpdateSchedule?.(
+                    connection,
+                    scheduleEnabled,
+                    Number(scheduleIntervalHours),
+                    scheduleTimeOfDay,
+                    scheduleTimezone || getBrowserTimezone()
+                  )
+                }
+                disabled={updatingConnectionId === connection.id}
+                className="h-9 rounded-lg border px-3 text-xs font-medium text-gray-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {updatingConnectionId === connection.id
+                  ? "Saving..."
+                  : "Save schedule"}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Syncs follow this local time in {scheduleTimezone || "your local timezone"}.
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              Connector data is kept raw for 24 months, then summarized for permanent historical analysis.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex w-full shrink-0 flex-col items-start gap-2 md:w-auto md:items-end">
@@ -560,8 +844,47 @@ function DataSourceConnectionRow({
         {!isEditing &&
           (onRenameConnection ||
             onDeleteConnection ||
-            canConfigure) && (
+            canConfigure ||
+            canSyncConnector ||
+            canStartOAuth) && (
             <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
+              {canSyncConnector && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    syncConnection()
+                  }
+                  disabled={
+                    syncingConnectionId ===
+                      connection.id ||
+                    updatingConnectionId ===
+                      connection.id ||
+                    syncMetrics.length === 0
+                  }
+                  className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  {syncingConnectionId ===
+                  connection.id
+                    ? "Syncing..."
+                    : "Sync now"}
+                </button>
+              )}
+
+              {canStartOAuth && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onStartOAuthConnection?.(connection)
+                  }
+                  disabled={
+                    updatingConnectionId === connection.id
+                  }
+                  className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  Connect with OAuth
+                </button>
+              )}
+
               {canConfigure && (
                 <button
                   type="button"
@@ -742,6 +1065,27 @@ function formatConnectionStatus(
     )
 }
 
+function formatLastSyncedAt(
+  value?: string | null
+) {
+  if (!value) {
+    return "Never"
+  }
+
+  const timestamp = new Date(value)
+  if (Number.isNaN(timestamp.getTime())) {
+    return "Unknown"
+  }
+
+  return new Intl.DateTimeFormat(
+    undefined,
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }
+  ).format(timestamp)
+}
+
 function getConnectionStatusClassName(
   status: DataSourceConnectionStatus
 ) {
@@ -772,6 +1116,10 @@ function getConnectionSource(
 function getSourceCredentialKeys(
   source?: DatasetSourceOption
 ) {
+  if (source?.connection_type === "oauth") {
+    return []
+  }
+
   return source?.environment_keys ?? []
 }
 
@@ -798,13 +1146,6 @@ function getExternalCredentialLabel(
 
   if (
     source?.connection_type ===
-    "data_warehouse"
-  ) {
-    return "Warehouse credentials"
-  }
-
-  if (
-    source?.connection_type ===
     "object_storage"
   ) {
     return "Storage credentials"
@@ -826,13 +1167,6 @@ function getConnectionConfigHelpText(
 ) {
   if (source?.connection_type === "database") {
     return "Dataset fields select what to import. Credential fields are saved with this connection and hidden after save."
-  }
-
-  if (
-    source?.connection_type ===
-    "data_warehouse"
-  ) {
-    return "Dataset fields select the warehouse query to import. Credential fields are saved with this connection and hidden after save."
   }
 
   if (

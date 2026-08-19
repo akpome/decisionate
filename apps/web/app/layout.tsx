@@ -1,12 +1,13 @@
 import "./globals.css"
-import { ClerkProvider } from "@clerk/nextjs"
 import type {
   Metadata,
   Viewport,
 } from "next"
 import type { ReactNode } from "react"
+import { AppClerkProvider } from "./clerk-provider"
 import { PwaRegistration } from "./pwa-registration"
 import { ThemeBootstrap } from "./theme-bootstrap"
+import { WorkspaceFaviconBootstrap } from "./workspace-favicon-bootstrap"
 
 export const metadata: Metadata = {
   title: {
@@ -14,23 +15,9 @@ export const metadata: Metadata = {
     template: "%s | Decisionate",
   },
   description:
-    "Decision intelligence workspace for growing businesses, with forecasts, alerts, recommendations, and accountable decisions.",
+    "Business intelligence dashboards and decision intelligence for growing businesses, with forecasts, AI recommendations, and accountable decisions.",
   applicationName: "Decisionate",
   manifest: "/manifest.webmanifest",
-  icons: {
-    icon: [
-      {
-        url: "/icons/decisionate-icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-    apple: [
-      {
-        url: "/icons/decisionate-icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-  },
   appleWebApp: {
     capable: true,
     title: "Decisionate",
@@ -42,7 +29,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Decisionate",
     description:
-      "Turn operational data into clearer decisions, forecasts, recommendations, and accountable follow-up.",
+      "Turn operational data into business intelligence, clearer decisions, forecasts, recommendations, and accountable follow-up.",
     type: "website",
   },
 }
@@ -58,24 +45,27 @@ export default function RootLayout({
   children: ReactNode
 }) {
   return (
-    <ClerkProvider
-      signInFallbackRedirectUrl="/dashboard"
-      signInForceRedirectUrl="/dashboard"
-      signUpFallbackRedirectUrl="/onboarding"
-      signUpForceRedirectUrl="/onboarding"
-    >
+    <AppClerkProvider>
       <html
         lang="en"
         suppressHydrationWarning
       >
+        <head>
+          <link
+            rel="icon"
+            href="/icons/decisionate-icon.svg"
+            type="image/svg+xml"
+          />
+          <WorkspaceFaviconBootstrap />
+        </head>
         <body className="bg-gray-50 text-gray-950 antialiased">
           <ThemeBootstrap />
           <div className="min-h-screen">
             {children}
-          </div>
+        </div>
           <PwaRegistration />
         </body>
       </html>
-    </ClerkProvider>
+    </AppClerkProvider>
   )
 }

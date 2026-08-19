@@ -64,6 +64,8 @@ export const createdDecisionActivity =
 export const statusDecisionActivity = "status" satisfies DecisionActivityType
 export const archiveDecisionActivity =
   "archive" satisfies DecisionActivityType
+export const deleteDecisionActivity =
+  "delete" satisfies DecisionActivityType
 export const restoreDecisionActivity =
   "restore" satisfies DecisionActivityType
 export const overviewDecisionActivity =
@@ -82,6 +84,8 @@ export const categoryDecisionActivity =
   "category" satisfies DecisionActivityType
 export const confidenceDecisionActivity =
   "confidence" satisfies DecisionActivityType
+export const exportDecisionActivity =
+  "export" satisfies DecisionActivityType
 export const highDecisionPriority = "high" satisfies DecisionPriority
 export const mediumDecisionPriority = "medium" satisfies DecisionPriority
 export const lowDecisionPriority = "low" satisfies DecisionPriority

@@ -1,0 +1,101 @@
+date,product_category,product,sales_channel,order_status,orders,units_sold,gross_sales,discounts,returns,net_sales
+2025-01-01,Apparel,Everyday Kit,Online Store,paid,42,50,2400,96.0,0,2304.0
+2025-01-02,Home,Premium Bundle,Shop App,paid,43,52,2808,140.4,1,2667.6
+2025-01-03,Beauty,Starter Pack,Social,fulfilled,44,54,3240,194.4,2,3045.6
+2025-01-04,Electronics,Seasonal Set,Wholesale,refunded,45,56,3696,147.84,3,3548.16
+2025-01-05,Apparel,Everyday Kit,Online Store,paid,46,58,4176,208.8,0,3967.2
+2025-01-06,Home,Premium Bundle,Shop App,paid,47,60,2880,172.8,1,2707.2
+2025-01-07,Beauty,Starter Pack,Social,fulfilled,48,62,3348,133.92,2,3214.08
+2025-01-08,Electronics,Seasonal Set,Wholesale,refunded,49,64,3840,192.0,3,3648.0
+2025-01-09,Apparel,Everyday Kit,Online Store,paid,50,66,4356,261.36,0,4094.64
+2025-01-10,Home,Premium Bundle,Shop App,paid,51,59,4248,169.92,1,4078.08
+2025-01-11,Beauty,Starter Pack,Social,fulfilled,52,61,2928,146.4,2,2781.6
+2025-01-12,Electronics,Seasonal Set,Wholesale,refunded,53,63,3402,204.12,3,3197.88
+2025-01-13,Apparel,Everyday Kit,Online Store,paid,54,65,3900,156.0,0,3744.0
+2025-01-14,Home,Premium Bundle,Shop App,paid,55,67,4422,221.1,1,4200.9
+2025-01-15,Beauty,Starter Pack,Social,fulfilled,42,55,3960,237.6,2,3722.4
+2025-01-16,Electronics,Seasonal Set,Wholesale,refunded,43,57,2736,109.44,3,2626.56
+2025-01-17,Apparel,Everyday Kit,Online Store,paid,44,59,3186,159.3,0,3026.7
+2025-01-18,Home,Premium Bundle,Shop App,paid,45,61,3660,219.6,1,3440.4
+2025-01-19,Beauty,Starter Pack,Social,fulfilled,46,54,3564,142.56,2,3421.44
+2025-01-20,Electronics,Seasonal Set,Wholesale,refunded,47,56,4032,201.6,3,3830.4
+2025-01-21,Apparel,Everyday Kit,Online Store,paid,48,58,2784,167.04,0,2616.96
+2025-01-22,Home,Premium Bundle,Shop App,paid,49,60,3240,129.6,1,3110.4
+2025-01-23,Beauty,Starter Pack,Social,fulfilled,50,62,3720,186.0,2,3534.0
+2025-01-24,Electronics,Seasonal Set,Wholesale,refunded,51,64,4224,253.44,3,3970.56
+2025-01-25,Apparel,Everyday Kit,Online Store,paid,52,66,4752,190.08,0,4561.92
+2025-01-26,Home,Premium Bundle,Shop App,paid,54,69,3312,165.6,1,3146.4
+2025-01-27,Beauty,Starter Pack,Social,fulfilled,55,71,3834,230.04,2,3603.96
+2025-01-28,Electronics,Seasonal Set,Wholesale,refunded,56,64,3840,153.6,3,3686.4
+2025-01-29,Apparel,Everyday Kit,Online Store,paid,43,52,3432,171.6,0,3260.4
+2025-01-30,Home,Premium Bundle,Shop App,paid,44,54,3888,233.28,1,3654.72
+2025-01-31,Beauty,Starter Pack,Social,fulfilled,45,56,2688,107.52,2,2580.48
+2025-02-01,Electronics,Seasonal Set,Wholesale,refunded,46,58,3132,156.6,3,2975.4
+2025-02-02,Apparel,Everyday Kit,Online Store,paid,47,60,3600,216.0,0,3384.0
+2025-02-03,Home,Premium Bundle,Shop App,paid,48,62,4092,163.68,1,3928.32
+2025-02-04,Beauty,Starter Pack,Social,fulfilled,49,64,4608,230.4,2,4377.6
+2025-02-05,Electronics,Seasonal Set,Wholesale,refunded,50,66,3168,190.08,3,2977.92
+2025-02-06,Apparel,Everyday Kit,Online Store,paid,51,59,3186,127.44,0,3058.56
+2025-02-07,Home,Premium Bundle,Shop App,paid,52,61,3660,183.0,1,3477.0
+2025-02-08,Beauty,Starter Pack,Social,fulfilled,53,63,4158,249.48,2,3908.52
+2025-02-09,Electronics,Seasonal Set,Wholesale,refunded,54,65,4680,187.2,3,4492.8
+2025-02-10,Apparel,Everyday Kit,Online Store,paid,55,67,3216,160.8,0,3055.2
+2025-02-11,Home,Premium Bundle,Shop App,paid,56,69,3726,223.56,1,3502.44
+2025-02-12,Beauty,Starter Pack,Social,fulfilled,43,57,3420,136.8,2,3283.2
+2025-02-13,Electronics,Seasonal Set,Wholesale,refunded,44,59,3894,194.7,3,3699.3
+2025-02-14,Apparel,Everyday Kit,Online Store,paid,45,61,4392,263.52,0,4128.48
+2025-02-15,Home,Premium Bundle,Shop App,paid,46,54,2592,103.68,1,2488.32
+2025-02-16,Beauty,Starter Pack,Social,fulfilled,47,56,3024,151.2,2,2872.8
+2025-02-17,Electronics,Seasonal Set,Wholesale,refunded,48,58,3480,208.8,3,3271.2
+2025-02-18,Apparel,Everyday Kit,Online Store,paid,49,60,3960,158.4,0,3801.6
+2025-02-19,Home,Premium Bundle,Shop App,paid,50,62,4464,223.2,1,4240.8
+2025-02-20,Beauty,Starter Pack,Social,fulfilled,52,65,3120,187.2,2,2932.8
+2025-02-21,Electronics,Seasonal Set,Wholesale,refunded,53,67,3618,144.72,3,3473.28
+2025-02-22,Apparel,Everyday Kit,Online Store,paid,54,69,4140,207.0,0,3933.0
+2025-02-23,Home,Premium Bundle,Shop App,paid,55,71,4686,281.16,1,4404.84
+2025-02-24,Beauty,Starter Pack,Social,fulfilled,56,64,4608,184.32,2,4423.68
+2025-02-25,Electronics,Seasonal Set,Wholesale,refunded,57,66,3168,158.4,3,3009.6
+2025-02-26,Apparel,Everyday Kit,Online Store,paid,44,54,2916,174.96,0,2741.04
+2025-02-27,Home,Premium Bundle,Shop App,paid,45,56,3360,134.4,1,3225.6
+2025-02-28,Beauty,Starter Pack,Social,fulfilled,46,58,3828,191.4,2,3636.6
+2025-03-01,Electronics,Seasonal Set,Wholesale,refunded,47,60,4320,259.2,3,4060.8
+2025-03-02,Apparel,Everyday Kit,Online Store,paid,48,62,2976,119.04,0,2856.96
+2025-03-03,Home,Premium Bundle,Shop App,paid,49,64,3456,172.8,1,3283.2
+2025-03-04,Beauty,Starter Pack,Social,fulfilled,50,66,3960,237.6,2,3722.4
+2025-03-05,Electronics,Seasonal Set,Wholesale,refunded,51,59,3894,155.76,3,3738.24
+2025-03-06,Apparel,Everyday Kit,Online Store,paid,52,61,4392,219.6,0,4172.4
+2025-03-07,Home,Premium Bundle,Shop App,paid,53,63,3024,181.44,1,2842.56
+2025-03-08,Beauty,Starter Pack,Social,fulfilled,54,65,3510,140.4,2,3369.6
+2025-03-09,Electronics,Seasonal Set,Wholesale,refunded,55,67,4020,201.0,3,3819.0
+2025-03-10,Apparel,Everyday Kit,Online Store,paid,56,69,4554,273.24,0,4280.76
+2025-03-11,Home,Premium Bundle,Shop App,paid,57,71,5112,204.48,1,4907.52
+2025-03-12,Beauty,Starter Pack,Social,fulfilled,44,59,2832,141.6,2,2690.4
+2025-03-13,Electronics,Seasonal Set,Wholesale,refunded,45,61,3294,197.64,3,3096.36
+2025-03-14,Apparel,Everyday Kit,Online Store,paid,46,54,3240,129.6,0,3110.4
+2025-03-15,Home,Premium Bundle,Shop App,paid,47,56,3696,184.8,1,3511.2
+2025-03-16,Beauty,Starter Pack,Social,fulfilled,48,58,4176,250.56,2,3925.44
+2025-03-17,Electronics,Seasonal Set,Wholesale,refunded,50,61,2928,117.12,3,2810.88
+2025-03-18,Apparel,Everyday Kit,Online Store,paid,51,63,3402,170.1,0,3231.9
+2025-03-19,Home,Premium Bundle,Shop App,paid,52,65,3900,234.0,1,3666.0
+2025-03-20,Beauty,Starter Pack,Social,fulfilled,53,67,4422,176.88,2,4245.12
+2025-03-21,Electronics,Seasonal Set,Wholesale,refunded,54,69,4968,248.4,3,4719.6
+2025-03-22,Apparel,Everyday Kit,Online Store,paid,55,71,3408,204.48,0,3203.52
+2025-03-23,Home,Premium Bundle,Shop App,paid,56,64,3456,138.24,1,3317.76
+2025-03-24,Beauty,Starter Pack,Social,fulfilled,57,66,3960,198.0,2,3762.0
+2025-03-25,Electronics,Seasonal Set,Wholesale,refunded,58,68,4488,269.28,3,4218.72
+2025-03-26,Apparel,Everyday Kit,Online Store,paid,45,56,4032,161.28,0,3870.72
+2025-03-27,Home,Premium Bundle,Shop App,paid,46,58,2784,139.2,1,2644.8
+2025-03-28,Beauty,Starter Pack,Social,fulfilled,47,60,3240,194.4,2,3045.6
+2025-03-29,Electronics,Seasonal Set,Wholesale,refunded,48,62,3720,148.8,3,3571.2
+2025-03-30,Apparel,Everyday Kit,Online Store,paid,49,64,4224,211.2,0,4012.8
+2025-03-31,Home,Premium Bundle,Shop App,paid,50,66,4752,285.12,1,4466.88
+2025-04-01,Beauty,Starter Pack,Social,fulfilled,51,59,2832,113.28,2,2718.72
+2025-04-02,Electronics,Seasonal Set,Wholesale,refunded,52,61,3294,164.7,3,3129.3
+2025-04-03,Apparel,Everyday Kit,Online Store,paid,53,63,3780,226.8,0,3553.2
+2025-04-04,Home,Premium Bundle,Shop App,paid,54,65,4290,171.6,1,4118.4
+2025-04-05,Beauty,Starter Pack,Social,fulfilled,55,67,4824,241.2,2,4582.8
+2025-04-06,Electronics,Seasonal Set,Wholesale,refunded,56,69,3312,198.72,3,3113.28
+2025-04-07,Apparel,Everyday Kit,Online Store,paid,57,71,3834,153.36,0,3680.64
+2025-04-08,Home,Premium Bundle,Shop App,paid,58,73,4380,219.0,1,4161.0
+2025-04-09,Beauty,Starter Pack,Social,fulfilled,45,61,4026,241.56,2,3784.44
+2025-04-10,Electronics,Seasonal Set,Wholesale,refunded,46,54,3888,155.52,3,3732.48

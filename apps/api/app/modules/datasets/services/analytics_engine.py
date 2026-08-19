@@ -1,5 +1,6 @@
-import os
 from dataclasses import dataclass
+
+from app.configuration import get_runtime_configuration
 
 
 SUPPORTED_ANALYTICS_ENGINES = {
@@ -25,10 +26,7 @@ class AnalyticsEngineConfig:
 
 
 def get_analytics_engine_name():
-    engine = os.getenv(
-        "ANALYTICS_ENGINE",
-        "duckdb",
-    ).strip().lower()
+    engine = get_runtime_configuration().analytics_engine
 
     if engine not in SUPPORTED_ANALYTICS_ENGINES:
         raise ValueError(
@@ -39,10 +37,7 @@ def get_analytics_engine_name():
 
 
 def get_analytics_storage_format():
-    storage_format = os.getenv(
-        "ANALYTICS_STORAGE_FORMAT",
-        "parquet",
-    ).strip().lower()
+    storage_format = get_runtime_configuration().analytics_storage_format
 
     if (
         storage_format
@@ -57,27 +52,15 @@ def get_analytics_storage_format():
 
 
 def get_analytics_engine_config():
+    runtime = get_runtime_configuration()
     return AnalyticsEngineConfig(
-        engine=get_analytics_engine_name(),
-        duckdb_path=os.getenv(
-            "DUCKDB_DATABASE_PATH",
-            "analytics/decisionate.duckdb",
-        ),
-        analytics_storage_dir=os.getenv(
-            "ANALYTICS_STORAGE_DIR",
-            "analytics/datasets",
-        ),
-        storage_format=get_analytics_storage_format(),
-        bigquery_project_id=os.getenv(
-            "BIGQUERY_PROJECT_ID",
-        ),
-        bigquery_dataset=os.getenv(
-            "BIGQUERY_ANALYTICS_DATASET",
-        ),
-        bigquery_location=os.getenv(
-            "BIGQUERY_LOCATION",
-            "US",
-        ),
+        engine=runtime.analytics_engine,
+        duckdb_path=runtime.duckdb_database_path,
+        analytics_storage_dir=runtime.analytics_storage_dir,
+        storage_format=runtime.analytics_storage_format,
+        bigquery_project_id=runtime.bigquery_project_id or None,
+        bigquery_dataset=runtime.bigquery_dataset or None,
+        bigquery_location=runtime.bigquery_location,
     )
 
 

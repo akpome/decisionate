@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import math
 import os
 import re
 from datetime import datetime
@@ -16,14 +17,18 @@ from sqlalchemy import or_
 
 from app.db.database import SessionLocal
 from app.db.models import Dataset
+from app.db.models import DatasetRelationship
 from app.db.models import Organization
+from app.db.models import WeeklyReportDeliveryLog
 from app.db.models import WeeklyReportPreference
 from app.modules.alerts.email_delivery import (
+    get_email_delivery_source,
     is_email_delivery_configured,
     send_weekly_report_email,
 )
 from app.modules.alerts.schemas import (
     WeeklyReportDeliveryConfigResponse,
+    WeeklyReportDeliveryLogResponse,
     WeeklyReportDeliveryResponse,
     WeeklyReportDigestResponse,
     WeeklyReportPreferenceResponse,
@@ -46,7 +51,14 @@ from app.modules.datasets.services.dataset_loader import (
 from app.modules.datasets.services.metrics import (
     generate_metrics,
 )
+from app.modules.datasets.services.relationships import (
+    build_dataset_relationship,
+)
 from app.modules.decisions.models import Decision
+from app.modules.decisions.templates import (
+    build_decision_template_url,
+)
+from app.security.secrets import decrypt_secret, encrypt_secret
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -200,6 +212,67 @@ def clean_metric_focus(
     return clean_values
 
 
+def clean_metric_targets(
+    metric_targets: dict,
+    metric_focus: list[str],
+) -> dict[str, float]:
+    focus_by_key = {
+        normalize_metric_key(metric): metric
+        for metric in metric_focus
+        if normalize_metric_key(metric)
+    }
+    clean_targets = {}
+
+    for metric, target in (metric_targets or {}).items():
+        if not isinstance(metric, str):
+            continue
+
+        canonical_metric = focus_by_key.get(
+            normalize_metric_key(metric)
+        )
+        if not canonical_metric or target is None:
+            continue
+
+        try:
+            numeric_target = float(target)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail="KPI targets must be numeric values",
+            )
+
+        if not math.isfinite(numeric_target):
+            raise HTTPException(
+                status_code=400,
+                detail="KPI targets must be finite numeric values",
+            )
+
+        clean_targets[canonical_metric] = numeric_target
+
+    return clean_targets
+
+
+def clean_relationship_focus(
+    relationship_focus: list[int],
+) -> list[int]:
+    clean_values = []
+    seen_values = set()
+
+    for relationship_id in relationship_focus or []:
+        try:
+            clean_id = int(relationship_id)
+        except (TypeError, ValueError):
+            continue
+
+        if clean_id < 1 or clean_id in seen_values:
+            continue
+
+        seen_values.add(clean_id)
+        clean_values.append(clean_id)
+
+    return clean_values
+
+
 def clean_recipient_emails(
     recipient_emails: list[str],
 ) -> list[str]:
@@ -258,6 +331,37 @@ def parse_json_list(
     ]
 
 
+def parse_json_dict(
+    value: str | None,
+) -> dict:
+    if not value:
+        return {}
+
+    try:
+        parsed_value = json.loads(value)
+    except json.JSONDecodeError:
+        return {}
+
+    return parsed_value if isinstance(parsed_value, dict) else {}
+
+
+def parse_json_int_list(
+    value: str | None,
+) -> list[int]:
+    if not value:
+        return []
+
+    try:
+        parsed_value = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+
+    if not isinstance(parsed_value, list):
+        return []
+
+    return clean_relationship_focus(parsed_value)
+
+
 def build_weekly_report_preference_response(
     preference: WeeklyReportPreference | None,
 ) -> WeeklyReportPreferenceResponse:
@@ -268,6 +372,8 @@ def build_weekly_report_preference_response(
             delivery_day="monday",
             recipient_emails=[],
             metric_focus=[],
+            metric_targets={},
+            relationship_focus=[],
             include_recommendations=True,
             sender_name="",
             sender_email="",
@@ -284,6 +390,12 @@ def build_weekly_report_preference_response(
             last_send_error=None,
         )
 
+    clean_metric_focus_values = clean_metric_focus(
+        parse_json_list(
+            preference.metric_focus
+        )
+    )
+
     return WeeklyReportPreferenceResponse(
         enabled=bool(preference.enabled),
         cadence=preference.cadence or "weekly",
@@ -291,9 +403,22 @@ def build_weekly_report_preference_response(
         recipient_emails=parse_json_list(
             preference.recipient_emails
         ),
-        metric_focus=clean_metric_focus(
-            parse_json_list(
-                preference.metric_focus
+        metric_focus=clean_metric_focus_values,
+        metric_targets=clean_metric_targets(
+            parse_json_dict(
+                getattr(
+                    preference,
+                    "metric_targets",
+                    None,
+                )
+            ),
+            clean_metric_focus_values,
+        ),
+        relationship_focus=parse_json_int_list(
+            getattr(
+                preference,
+                "relationship_focus",
+                None,
             )
         ),
         include_recommendations=bool(
@@ -328,16 +453,11 @@ def build_weekly_report_preference_response(
 
 
 def filter_alert_datasets_for_workspace(
-    user_id: str,
     workspace_id: str,
 ):
-    return or_(
-        Dataset.workspace_id == workspace_id,
-        and_(
-            Dataset.workspace_id.is_(None),
-            Dataset.user_id == user_id,
-        ),
-    )
+    # Alerts must never use a user's legacy workspace-less datasets. A user
+    # may belong to multiple workspaces, so user_id is not an isolation key.
+    return Dataset.workspace_id == workspace_id
 
 
 def normalize_metric_key(
@@ -419,7 +539,7 @@ def build_digest_recommendations(
 ) -> list[str]:
     recommendations = []
 
-    if not preference.metric_focus:
+    if not preference.metric_focus and not preference.relationship_focus:
         recommendations.append(
             "Select KPI metrics from your datasets before enabling weekly notifications."
         )
@@ -434,7 +554,7 @@ def build_digest_recommendations(
             "Review unavailable datasets before sending the next KPI notification."
         )
 
-    if not metrics:
+    if not metrics and not preference.relationship_focus:
         recommendations.append(
             "No matching dataset metrics are available yet. Upload or sync data with numeric KPI columns."
         )
@@ -444,15 +564,29 @@ def build_digest_recommendations(
         dataset_name = metric["dataset_name"]
         total = metric.get("total")
         average = metric.get("average")
+        target = metric.get("target")
 
         if total is not None:
-            recommendations.append(
-                f"Review total {column} from {dataset_name}: {total:,.2f}."
+            recommendation = (
+                f"Review total {column} from {dataset_name}: "
+                f"{total:,.2f}."
             )
         elif average is not None:
-            recommendations.append(
-                f"Review average {column} from {dataset_name}: {average:,.2f}."
+            recommendation = (
+                f"Review average {column} from {dataset_name}: "
+                f"{average:,.2f}."
             )
+        else:
+            recommendation = (
+                f"Review {column} from {dataset_name}."
+            )
+
+        if target is not None:
+            recommendation += (
+                f" Optional KPI target: {target:,.2f}."
+            )
+
+        recommendations.append(recommendation)
 
     return recommendations[:5]
 
@@ -484,13 +618,21 @@ def build_weekly_report_digest(
     datasets,
     brand_name: str | None = None,
     learning_context: dict | None = None,
+    workspace_id: str | None = None,
+    relationships: list[dict] | None = None,
 ) -> WeeklyReportDigestResponse:
     clean_brand_name = clean_weekly_report_brand_name(
         brand_name,
     )
+    relationship_results = relationships or []
     focus_keys = {
         normalize_metric_key(metric)
         for metric in preference.metric_focus
+        if normalize_metric_key(metric)
+    }
+    target_by_key = {
+        normalize_metric_key(metric): target
+        for metric, target in preference.metric_targets.items()
         if normalize_metric_key(metric)
     }
     digest_metrics = []
@@ -533,6 +675,9 @@ def build_weekly_report_digest(
             ):
                 continue
 
+            if not focus_keys and preference.relationship_focus:
+                continue
+
             digest_metrics.append({
                 "dataset_id": dataset.id,
                 "dataset_name": dataset_name,
@@ -554,6 +699,11 @@ def build_weekly_report_digest(
                     metric,
                     "maximum",
                     "max",
+                ),
+                "target": target_by_key.get(
+                    normalize_metric_key(
+                        f"{dataset.id}:{column}"
+                    )
                 ),
             })
 
@@ -578,9 +728,19 @@ def build_weekly_report_digest(
         if subject_prefix
         else subject_base
     )
-    preview_text = (
+    relationship_count = len(relationship_results)
+    preview_parts = [
         f"{metric_count} dataset KPI metric"
-        f"{'' if metric_count == 1 else 's'} ready for review."
+        f"{'' if metric_count == 1 else 's'}"
+    ]
+    if relationship_count:
+        preview_parts.append(
+            f"{relationship_count} cross-source relationship"
+            f"{'' if relationship_count == 1 else 's'}"
+        )
+    preview_text = (
+        ", ".join(preview_parts)
+        + " ready for review."
     )
     fallback_recommendations = build_digest_recommendations(
         preference,
@@ -589,8 +749,11 @@ def build_weekly_report_digest(
     )
     ai_facts = {
         "metrics": digest_metrics[:10],
+        "relationships": relationship_results[:10],
         "unavailable_datasets": unavailable_datasets,
         "metric_focus": preference.metric_focus,
+        "metric_targets": preference.metric_targets,
+        "relationship_focus": preference.relationship_focus,
     }
 
     if learning_context:
@@ -607,10 +770,25 @@ def build_weekly_report_digest(
                 for dataset_name in unavailable_datasets[:5]
             ]
         ),
+        workspace_id=workspace_id,
     )
 
     if not preference.include_recommendations:
         ai_analysis["recommendations"] = []
+
+    first_metric = digest_metrics[0] if digest_metrics else None
+    decision_template_url = build_decision_template_url(
+        dataset_id=(
+            first_metric["dataset_id"]
+            if first_metric
+            else None
+        ),
+        metric=(
+            first_metric["column"]
+            if first_metric
+            else None
+        ),
+    )
 
     return WeeklyReportDigestResponse(
         enabled=preference.enabled,
@@ -618,6 +796,7 @@ def build_weekly_report_digest(
         delivery_day=preference.delivery_day,
         recipient_emails=preference.recipient_emails,
         metric_focus=preference.metric_focus,
+        relationship_focus=preference.relationship_focus,
         sender_name=preference.sender_name,
         sender_email=preference.sender_email,
         reply_to_email=preference.reply_to_email,
@@ -628,21 +807,21 @@ def build_weekly_report_digest(
         ai_analysis=ai_analysis,
         dataset_count=len(datasets),
         metrics=digest_metrics,
+        relationships=relationship_results,
         recommendations=ai_analysis["recommendations"],
         unavailable_datasets=unavailable_datasets,
+        decision_template_url=decision_template_url,
     )
 
 
 def get_alert_datasets(
     db,
-    user_id: str,
     workspace_id: str,
 ):
     return (
         db.query(Dataset)
         .filter(
             filter_alert_datasets_for_workspace(
-                user_id,
                 workspace_id,
             )
         )
@@ -652,6 +831,117 @@ def get_alert_datasets(
         )
         .all()
     )
+
+
+def get_alert_relationships(
+    db,
+    workspace_id: str,
+    relationship_ids: list[int],
+):
+    if not relationship_ids:
+        return []
+
+    return (
+        db.query(DatasetRelationship)
+        .filter(
+            DatasetRelationship.workspace_id == workspace_id,
+            DatasetRelationship.id.in_(relationship_ids),
+        )
+        .order_by(DatasetRelationship.id.asc())
+        .all()
+    )
+
+
+def build_weekly_report_relationships(
+    db,
+    preference: WeeklyReportPreferenceResponse,
+    datasets,
+    workspace_id: str,
+):
+    relationships = get_alert_relationships(
+        db,
+        workspace_id,
+        preference.relationship_focus,
+    )
+    datasets_by_id = {
+        int(dataset.id): dataset
+        for dataset in datasets
+    }
+    results = []
+
+    for relationship in relationships:
+        left_dataset = datasets_by_id.get(
+            int(relationship.left_dataset_id)
+        )
+        right_dataset = datasets_by_id.get(
+            int(relationship.right_dataset_id)
+        )
+        if not left_dataset or not right_dataset:
+            continue
+
+        try:
+            frames = [
+                (
+                    left_dataset,
+                    load_dataframe_from_dataset(left_dataset),
+                ),
+                (
+                    right_dataset,
+                    load_dataframe_from_dataset(right_dataset),
+                ),
+            ]
+            result = build_dataset_relationship(
+                frames,
+                {
+                    "name": relationship.name,
+                    "left": {
+                        "dataset_id": relationship.left_dataset_id,
+                        "date_column": relationship.left_date_column,
+                        "metric_column": relationship.left_metric,
+                    },
+                    "right": {
+                        "dataset_id": relationship.right_dataset_id,
+                        "date_column": relationship.right_date_column,
+                        "metric_column": relationship.right_metric,
+                    },
+                    "period": relationship.period,
+                    "aggregation": relationship.aggregation,
+                    "method": relationship.method,
+                    "lag_mode": getattr(relationship, "lag_mode", None) or "manual",
+                    "lag_periods": relationship.lag_periods,
+                },
+                relationship.id,
+            )
+            results.append({
+                "id": result["id"],
+                "name": result["name"],
+                "left_dataset_id": result["left"]["dataset_id"],
+                "right_dataset_id": result["right"]["dataset_id"],
+                "left_dataset_name": result["left_dataset_name"],
+                "right_dataset_name": result["right_dataset_name"],
+                "left_metric": result["left"]["metric_column"],
+                "right_metric": result["right"]["metric_column"],
+                "period": result["period"],
+                "aggregation": result["aggregation"],
+                "method": result["method"],
+                "lag_mode": result["lag_mode"],
+                "lag_periods": result["lag_periods"],
+                "matched_period_count": result["matched_period_count"],
+                "correlation": result["correlation"],
+                "relationship_strength": result["relationship_strength"],
+                "direction": result["direction"],
+                "decision_context": result["decision_context"],
+                "delay_description": result.get("delay_description"),
+                "lag_credibility": result.get("lag_credibility", "unknown"),
+            })
+        except Exception as error:
+            logger.warning(
+                "Weekly report relationship %s could not be calculated: %s",
+                relationship.id,
+                error,
+            )
+
+    return results
 
 
 def build_weekly_report_learning_filter(
@@ -668,6 +958,7 @@ def build_weekly_report_learning_filter(
     for dataset in datasets:
         dataset_filter = [
             Decision.dataset_id == dataset.id,
+            Decision.workspace_id == dataset.workspace_id,
         ]
 
         if focus_keys:
@@ -736,7 +1027,12 @@ def build_weekly_report_digest_for_workspace(
     )
     datasets = get_alert_datasets(
         db,
-        user_id,
+        workspace_id,
+    )
+    relationship_results = build_weekly_report_relationships(
+        db,
+        preference_response,
+        datasets,
         workspace_id,
     )
 
@@ -757,6 +1053,8 @@ def build_weekly_report_digest_for_workspace(
             ),
             learning_scope="dataset",
         ),
+        workspace_id,
+        relationship_results,
     )
 
 
@@ -771,7 +1069,6 @@ async def build_weekly_report_digest_for_workspace_async(
     )
     datasets = get_alert_datasets(
         db,
-        user_id,
         workspace_id,
     )
     preference_response = build_weekly_report_preference_response(
@@ -793,6 +1090,12 @@ async def build_weekly_report_digest_for_workspace_async(
             learning_scope="dataset",
         )
     )
+    relationship_results = build_weekly_report_relationships(
+        db,
+        preference_response,
+        datasets,
+        workspace_id,
+    )
 
     return await asyncio.to_thread(
         build_weekly_report_digest,
@@ -800,6 +1103,8 @@ async def build_weekly_report_digest_for_workspace_async(
         datasets,
         brand_name,
         learning_context,
+        workspace_id,
+        relationship_results,
     )
 
 
@@ -818,16 +1123,16 @@ def validate_weekly_report_digest_for_delivery(
             detail="Add at least one weekly KPI email recipient",
         )
 
-    if not digest.metric_focus:
+    if not digest.metric_focus and not digest.relationship_focus:
         raise HTTPException(
             status_code=400,
-            detail="Select at least one dataset KPI metric",
+            detail="Select at least one dataset KPI metric or relationship",
         )
 
-    if not digest.metrics:
+    if not digest.metrics and not digest.relationships:
         raise HTTPException(
             status_code=400,
-            detail="No matching dataset KPI metrics are available to send",
+            detail="No matching dataset KPI metrics or relationships are available to send",
         )
 
 
@@ -880,7 +1185,7 @@ def build_weekly_report_smtp_settings(
         "smtp_host": preference.smtp_host or "",
         "smtp_port": preference.smtp_port,
         "smtp_username": preference.smtp_username or "",
-        "smtp_password": preference.smtp_password or "",
+        "smtp_password": decrypt_secret(preference.smtp_password),
         "smtp_use_tls": (
             True
             if preference.smtp_use_tls is None
@@ -911,6 +1216,77 @@ def build_weekly_report_delivery_response(
         sent_at=format_sent_at(
             sent_at
         ),
+    )
+
+
+def record_weekly_report_delivery_log(
+    db,
+    workspace_id: str,
+    status: str,
+    recipients: list[str] | None = None,
+    subject: str = "",
+    delivered_count: int = 0,
+    metrics_count: int = 0,
+    error: str | None = None,
+):
+    try:
+        db.add(
+            WeeklyReportDeliveryLog(
+                workspace_id=workspace_id,
+                status=status,
+                recipient_emails=json.dumps(
+                    recipients or [],
+                    sort_keys=True,
+                ),
+                subject=subject,
+                delivered_count=delivered_count,
+                metrics_count=metrics_count,
+                error=error,
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Weekly report delivery history could not be recorded for workspace %s",
+            workspace_id,
+        )
+
+
+def get_weekly_report_delivery_failure_details(
+    error: HTTPException,
+    digest: WeeklyReportDigestResponse | None,
+):
+    recipients = getattr(
+        error,
+        "delivery_recipients",
+        None,
+    )
+    delivered_recipients = getattr(
+        error,
+        "delivered_recipients",
+        None,
+    )
+    return (
+        list(recipients)
+        if isinstance(recipients, list)
+        else digest.recipient_emails if digest else [],
+        len(delivered_recipients)
+        if isinstance(delivered_recipients, list)
+        else 0,
+    )
+
+
+def build_weekly_report_delivery_log_response(log):
+    return WeeklyReportDeliveryLogResponse(
+        id=log.id,
+        status=log.status,
+        recipients=parse_json_list(log.recipient_emails),
+        subject=log.subject or "",
+        delivered_count=log.delivered_count or 0,
+        metrics_count=log.metrics_count or 0,
+        error=log.error,
+        attempted_at=format_sent_at(log.attempted_at),
     )
 
 
@@ -953,6 +1329,7 @@ def build_weekly_report_test_digest(
             "If you received this message, Delivery configuration can send email.",
         ],
         unavailable_datasets=[],
+        decision_template_url=build_decision_template_url(),
     )
 
 
@@ -1016,10 +1393,10 @@ def require_alerts_scheduler_secret(
 def require_weekly_report_manager(
     workspace_role: str,
 ):
-    if workspace_role != "owner":
+    if workspace_role not in {"owner", "client", "managed_client"}:
         raise HTTPException(
             status_code=403,
-            detail="Only workspace owners can change weekly email report setup",
+            detail="Only workspace owners, client workspace owners, or approved agency owners can change alert analysis",
         )
 
 
@@ -1032,6 +1409,9 @@ async def get_weekly_report_preference(
 ):
     auth_context = get_auth_context(
         request,
+    )
+    require_weekly_report_manager(
+        auth_context.workspace_role
     )
 
     db = SessionLocal()
@@ -1059,6 +1439,9 @@ async def get_weekly_report_digest(
 ):
     auth_context = get_auth_context(
         request,
+    )
+    require_weekly_report_manager(
+        auth_context.workspace_role
     )
 
     db = SessionLocal()
@@ -1089,6 +1472,9 @@ async def get_weekly_report_delivery_config(
 ):
     auth_context = get_auth_context(
         request,
+    )
+    require_weekly_report_manager(
+        auth_context.workspace_role
     )
     db = SessionLocal()
 
@@ -1127,6 +1513,13 @@ async def get_weekly_report_delivery_config(
                 sender_email,
                 smtp_host,
             ),
+            email_delivery_source=get_email_delivery_source(
+                sender_email,
+                smtp_host,
+            ),
+            workspace_smtp_configured=bool(
+                str(smtp_host or "").strip()
+            ),
             scheduler_configured=bool(
                 get_alerts_scheduler_secret()
             ),
@@ -1163,6 +1556,45 @@ async def get_weekly_report_delivery_config(
         db.close()
 
 
+@router.get(
+    "/weekly-report/delivery-history",
+    response_model=list[WeeklyReportDeliveryLogResponse],
+)
+async def get_weekly_report_delivery_history(
+    request: Request,
+    limit: int = 20,
+):
+    auth_context = get_auth_context(
+        request,
+    )
+    require_weekly_report_manager(
+        auth_context.workspace_role
+    )
+    db = SessionLocal()
+
+    try:
+        safe_limit = min(max(limit, 1), 50)
+        logs = (
+            db.query(WeeklyReportDeliveryLog)
+            .filter(
+                WeeklyReportDeliveryLog.workspace_id
+                == auth_context.workspace_id,
+            )
+            .order_by(
+                WeeklyReportDeliveryLog.attempted_at.desc(),
+                WeeklyReportDeliveryLog.id.desc(),
+            )
+            .limit(safe_limit)
+            .all()
+        )
+        return [
+            build_weekly_report_delivery_log_response(log)
+            for log in logs
+        ]
+    finally:
+        db.close()
+
+
 @router.post(
     "/weekly-report/send",
     response_model=WeeklyReportDeliveryResponse,
@@ -1184,6 +1616,7 @@ async def send_weekly_report_now(
             db,
             auth_context.workspace_id,
         )
+        digest = None
         try:
             digest = await build_weekly_report_digest_for_workspace_async(
                 db,
@@ -1208,6 +1641,15 @@ async def send_weekly_report_now(
                 sent_at=sent_at,
             )
             db.commit()
+            record_weekly_report_delivery_log(
+                db,
+                auth_context.workspace_id,
+                "sent",
+                delivery_result["recipients"],
+                digest.subject,
+                delivery_result["delivered_count"],
+                len(digest.metrics),
+            )
 
             return build_weekly_report_delivery_response(
                 auth_context.workspace_id,
@@ -1217,12 +1659,28 @@ async def send_weekly_report_now(
                 sent_at,
             )
         except HTTPException as error:
+            failure_recipients, delivered_count = (
+                get_weekly_report_delivery_failure_details(
+                    error,
+                    digest,
+                )
+            )
             update_weekly_report_delivery_status(
                 preference,
                 "failed",
                 str(error.detail),
             )
             db.commit()
+            record_weekly_report_delivery_log(
+                db,
+                auth_context.workspace_id,
+                "failed",
+                failure_recipients,
+                digest.subject if digest else "",
+                delivered_count=delivered_count,
+                error=str(error.detail),
+                metrics_count=len(digest.metrics) if digest else 0,
+            )
             raise error
         except Exception:
             logger.exception(
@@ -1239,6 +1697,15 @@ async def send_weekly_report_now(
                 failure_detail,
             )
             db.commit()
+            record_weekly_report_delivery_log(
+                db,
+                auth_context.workspace_id,
+                "failed",
+                digest.recipient_emails if digest else [],
+                digest.subject if digest else "",
+                error=failure_detail,
+                metrics_count=len(digest.metrics) if digest else 0,
+            )
             raise HTTPException(
                 status_code=502,
                 detail=failure_detail,
@@ -1269,6 +1736,7 @@ async def send_weekly_report_test_email(
             db,
             auth_context.workspace_id,
         )
+        digest = None
         try:
             digest = build_weekly_report_test_digest(
                 preference,
@@ -1290,6 +1758,15 @@ async def send_weekly_report_test_email(
                 "test_sent",
             )
             db.commit()
+            record_weekly_report_delivery_log(
+                db,
+                auth_context.workspace_id,
+                "test_sent",
+                delivery_result["recipients"],
+                digest.subject,
+                delivery_result["delivered_count"],
+                len(digest.metrics),
+            )
 
             return build_weekly_report_delivery_response(
                 auth_context.workspace_id,
@@ -1299,12 +1776,28 @@ async def send_weekly_report_test_email(
                 sent_at,
             )
         except HTTPException as error:
+            failure_recipients, delivered_count = (
+                get_weekly_report_delivery_failure_details(
+                    error,
+                    digest,
+                )
+            )
             update_weekly_report_delivery_status(
                 preference,
                 "test_failed",
                 str(error.detail),
             )
             db.commit()
+            record_weekly_report_delivery_log(
+                db,
+                auth_context.workspace_id,
+                "test_failed",
+                failure_recipients,
+                digest.subject if digest else "",
+                delivered_count=delivered_count,
+                error=str(error.detail),
+                metrics_count=len(digest.metrics) if digest else 0,
+            )
             raise error
         except Exception:
             logger.exception(
@@ -1321,6 +1814,15 @@ async def send_weekly_report_test_email(
                 failure_detail,
             )
             db.commit()
+            record_weekly_report_delivery_log(
+                db,
+                auth_context.workspace_id,
+                "test_failed",
+                digest.recipient_emails if digest else [],
+                digest.subject if digest else "",
+                error=failure_detail,
+                metrics_count=len(digest.metrics) if digest else 0,
+            )
             raise HTTPException(
                 status_code=502,
                 detail=failure_detail,
@@ -1360,6 +1862,7 @@ async def send_due_weekly_reports(
 
         for preference in preferences:
             workspace_id = preference.workspace_id
+            digest = None
 
             if was_weekly_report_sent_today(
                 preference,
@@ -1370,6 +1873,11 @@ async def send_due_weekly_reports(
                     "status": "skipped",
                     "detail": "Already sent today",
                 })
+                record_weekly_report_delivery_log(
+                    db,
+                    workspace_id,
+                    "skipped",
+                )
                 continue
 
             try:
@@ -1396,6 +1904,15 @@ async def send_due_weekly_reports(
                     sent_at=sent_at,
                 )
                 db.commit()
+                record_weekly_report_delivery_log(
+                    db,
+                    workspace_id,
+                    "sent",
+                    delivery_result["recipients"],
+                    digest.subject,
+                    delivery_result["delivered_count"],
+                    len(digest.metrics),
+                )
                 results.append({
                     "workspace_id": workspace_id,
                     "status": "sent",
@@ -1404,15 +1921,32 @@ async def send_due_weekly_reports(
                     ],
                 })
             except HTTPException as error:
+                failure_recipients, delivered_count = (
+                    get_weekly_report_delivery_failure_details(
+                        error,
+                        digest,
+                    )
+                )
                 update_weekly_report_delivery_status(
                     preference,
                     "failed",
                     str(error.detail),
                 )
                 db.commit()
+                record_weekly_report_delivery_log(
+                    db,
+                    workspace_id,
+                    "failed",
+                    failure_recipients,
+                    digest.subject if digest else "",
+                    delivered_count=delivered_count,
+                    error=str(error.detail),
+                    metrics_count=len(digest.metrics) if digest else 0,
+                )
                 results.append({
                     "workspace_id": workspace_id,
                     "status": "failed",
+                    "delivered_count": delivered_count,
                     "detail": str(error.detail),
                 })
             except Exception:
@@ -1430,6 +1964,15 @@ async def send_due_weekly_reports(
                     failure_detail,
                 )
                 db.commit()
+                record_weekly_report_delivery_log(
+                    db,
+                    workspace_id,
+                    "failed",
+                    digest.recipient_emails if digest else [],
+                    digest.subject if digest else "",
+                    error=failure_detail,
+                    metrics_count=len(digest.metrics) if digest else 0,
+                )
                 results.append({
                     "workspace_id": workspace_id,
                     "status": "failed",
@@ -1489,6 +2032,13 @@ async def update_weekly_report_preference(
     )
     clean_focus = clean_metric_focus(
         payload.metric_focus
+    )
+    clean_relationships = clean_relationship_focus(
+        payload.relationship_focus
+    )
+    clean_targets = clean_metric_targets(
+        payload.metric_targets,
+        clean_focus,
     )
     clean_sender_name = clean_optional_text(
         payload.sender_name,
@@ -1550,6 +2100,32 @@ async def update_weekly_report_preference(
             clean_focus,
             sort_keys=True,
         )
+        preference.metric_targets = json.dumps(
+            clean_targets,
+            sort_keys=True,
+        )
+        available_relationship_ids = {
+            int(relationship.id)
+            for relationship in get_alert_relationships(
+                db,
+                auth_context.workspace_id,
+                clean_relationships,
+            )
+        }
+        invalid_relationship_ids = [
+            relationship_id
+            for relationship_id in clean_relationships
+            if relationship_id not in available_relationship_ids
+        ]
+        if invalid_relationship_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="One or more selected relationships are not available in this workspace",
+            )
+        preference.relationship_focus = json.dumps(
+            clean_relationships,
+            sort_keys=True,
+        )
         preference.include_recommendations = (
             1 if payload.include_recommendations else 0
         )
@@ -1564,7 +2140,7 @@ async def update_weekly_report_preference(
         if payload.smtp_clear_password:
             preference.smtp_password = ""
         elif clean_smtp_password:
-            preference.smtp_password = clean_smtp_password
+            preference.smtp_password = encrypt_secret(clean_smtp_password) or ""
 
         preference.smtp_use_tls = (
             1 if payload.smtp_use_tls else 0

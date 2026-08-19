@@ -2,6 +2,15 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 pandas
+pyarrow
+fastparquet
+openpyxl
 numpy
+duckdb
 PyJWT
 python-multipart
+cryptography
+psycopg[binary]
+boto3
+redis
+sentry-sdk[fastapi]

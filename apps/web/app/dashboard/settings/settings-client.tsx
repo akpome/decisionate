@@ -1,9 +1,10 @@
 "use client"
 
 import {
-  CircleAlert,
-  CircleCheck,
+  AlertTriangle,
   RotateCcw,
+  Trash2,
+  X,
 } from "lucide-react"
 import {
   type ChangeEvent,
@@ -13,26 +14,24 @@ import {
 
 import {
   addOrganizationInvite,
-  addOrganizationMember,
+  createClientWorkspace,
   createOrganization,
-  getAnalyticsEngineStatus,
-  getApiHealthStatus,
+  deleteClientWorkspace,
+  getBillingStatus,
   getMyOrganization,
   getOrganizationInvites,
   getOrganizationMembers,
   getOrganizationWorkspaces,
-  getAIStatus,
   removeOrganizationInvite,
   removeOrganizationMember,
+  updateAgencyOwnerWorkspaceAccess,
   updateOrganizationMemberRole,
   updateMyOrganization,
   type OrganizationInviteRecord,
   type OrganizationMemberRecord,
   type OrganizationRecord,
   type OrganizationWorkspaceRecord,
-  type AIStatus,
-  type ApiHealthStatus,
-  type AnalyticsEngineStatus,
+  type BillingStatus,
 } from "@/lib/api"
 import {
   defaultBrandAccentColor,
@@ -48,7 +47,11 @@ import {
 import {
   WorkspaceBrandMark,
 } from "@/app/dashboard/workspace-brand-mark"
+import {
+  notifyWorkspaceAccessChanged,
+} from "@/lib/workspace-context"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { AlertDeliverySettings } from "@/features/alerts/components/alert-delivery-settings"
 import {
   useWorkspaceAccess,
 } from "@/lib/use-workspace-access"
@@ -76,13 +79,19 @@ function getSettingsErrorMessage(
 export function SettingsClient({
   userId,
   fullName,
+  emailAddress,
 }: SettingsClientProps) {
   const {
+    activeWorkspace,
     canConfigureWorkspace,
+    isClientWorkspace,
     loadingWorkspaceAccess,
+    workspaceRole,
   } = useWorkspaceAccess(userId)
   const [organization, setOrganization] =
     useState<OrganizationRecord | null>(null)
+  const [billingStatus, setBillingStatus] =
+    useState<BillingStatus | null>(null)
   const [organizationMembers, setOrganizationMembers] =
     useState<OrganizationMemberRecord[]>([])
   const [organizationWorkspaces, setOrganizationWorkspaces] =
@@ -97,19 +106,25 @@ export function SettingsClient({
     useState(defaultBrandAccentColor)
   const [reportDisplayName, setReportDisplayName] =
     useState("")
-  const [memberUserId, setMemberUserId] =
+  const [memberInviteEmail, setMemberInviteEmail] =
     useState("")
-  const [memberRole, setMemberRole] =
-    useState("member")
-  const [inviteEmail, setInviteEmail] =
+  const [clientWorkspaceName, setClientWorkspaceName] =
     useState("")
-  const [pendingClientInvites, setPendingClientInvites] =
+  const [clientWorkspaceEmail, setClientWorkspaceEmail] =
+    useState("")
+  const [selectedClientWorkspaceId, setSelectedClientWorkspaceId] =
+    useState("")
+  const [clientWorkspaceMembers, setClientWorkspaceMembers] =
+    useState<OrganizationMemberRecord[]>([])
+  const [clientWorkspaceInvites, setClientWorkspaceInvites] =
+    useState<OrganizationInviteRecord[]>([])
+  const [clientMemberInviteEmail, setClientMemberInviteEmail] =
+    useState("")
+  const [pendingMemberInvites, setPendingMemberInvites] =
     useState<OrganizationInviteRecord[]>([])
   const [loadingOrganization, setLoadingOrganization] =
     useState(true)
   const [savingOrganization, setSavingOrganization] =
-    useState(false)
-  const [addingMember, setAddingMember] =
     useState(false)
   const [accessRetrying, setAccessRetrying] =
     useState(false)
@@ -119,20 +134,6 @@ export function SettingsClient({
     useState<number | null>(null)
   const [organizationLoadError, setOrganizationLoadError] =
     useState("")
-  const [aiStatus, setAiStatus] =
-    useState<AIStatus | null>(null)
-  const [analyticsStatus, setAnalyticsStatus] =
-    useState<AnalyticsEngineStatus | null>(null)
-  const [apiHealthStatus, setApiHealthStatus] =
-    useState<ApiHealthStatus | null>(null)
-  const [aiStatusError, setAiStatusError] =
-    useState("")
-  const [analyticsStatusError, setAnalyticsStatusError] =
-    useState("")
-  const [apiHealthError, setApiHealthError] =
-    useState("")
-  const [statusRetryKey, setStatusRetryKey] =
-    useState(0)
   const [saveError, setSaveError] =
     useState("")
   const [logoUploadError, setLogoUploadError] =
@@ -140,6 +141,38 @@ export function SettingsClient({
   const [memberError, setMemberError] =
     useState("")
   const [inviteError, setInviteError] =
+    useState("")
+  const [clientWorkspaceError, setClientWorkspaceError] =
+    useState("")
+  const [clientWorkspaceNotice, setClientWorkspaceNotice] =
+    useState("")
+  const [creatingClientWorkspace, setCreatingClientWorkspace] =
+    useState(false)
+  const [deletingClientWorkspace, setDeletingClientWorkspace] =
+    useState(false)
+  const [clientWorkspaceDeleteTarget, setClientWorkspaceDeleteTarget] =
+    useState<OrganizationWorkspaceRecord | null>(null)
+  const [clientWorkspaceDeleteConfirmation, setClientWorkspaceDeleteConfirmation] =
+    useState("")
+  const [clientWorkspaceDeleteError, setClientWorkspaceDeleteError] =
+    useState("")
+  const [loadingClientWorkspaceAccess, setLoadingClientWorkspaceAccess] =
+    useState(false)
+  const [clientWorkspaceAccessError, setClientWorkspaceAccessError] =
+    useState("")
+  const [clientWorkspaceAccessRetryKey, setClientWorkspaceAccessRetryKey] =
+    useState(0)
+  const [clientMemberActionId, setClientMemberActionId] =
+    useState<number | null>(null)
+  const [clientAccessAction, setClientAccessAction] =
+    useState<"member-invite" | "invite" | null>(null)
+  const [agencyOwnerAccessEnabled, setAgencyOwnerAccessEnabled] =
+    useState(false)
+  const [loadingAgencyOwnerAccess, setLoadingAgencyOwnerAccess] =
+    useState(false)
+  const [savingAgencyOwnerAccess, setSavingAgencyOwnerAccess] =
+    useState(false)
+  const [agencyOwnerAccessError, setAgencyOwnerAccessError] =
     useState("")
   const [handoffStatus, setHandoffStatus] =
     useState("")
@@ -206,19 +239,119 @@ export function SettingsClient({
     ).length
   const isClientPortalUser =
     !loadingOrganization &&
-    !organization &&
+    isClientWorkspace &&
+    workspaceRole === "client" &&
     !organizationLoadError &&
     sharedWorkspaceCount > 0
-  const canAddMember =
+  const isClientWorkspaceOwner =
+    isClientWorkspace &&
+    workspaceRole === "client" &&
+    Boolean(activeWorkspace?.owner_user_id.includes(":client:"))
+  const agencyWorkspaceMembers =
+    organizationMembers.filter(
+      member =>
+        !(
+          member.role === "owner" &&
+          member.clerk_user_id === organization?.owner_user_id
+        )
+    )
+  const canCreateClientWorkspace =
+    billingStatus?.billing_model === "agency" &&
+    canConfigureWorkspace &&
     Boolean(organization) &&
-    Boolean(memberUserId.trim()) &&
-    !addingMember
+    Boolean(clientWorkspaceName.trim()) &&
+    Boolean(cleanPendingClientInviteEmail(clientWorkspaceEmail)) &&
+    !creatingClientWorkspace
+  const managedClientWorkspaces =
+    organizationWorkspaces.filter(
+      workspace =>
+        workspace.owner_user_id !== userId &&
+        workspace.role === "managed_client"
+    )
+  const selectedClientWorkspace =
+    managedClientWorkspaces.find(
+      workspace =>
+        workspace.owner_user_id === selectedClientWorkspaceId
+    ) ?? managedClientWorkspaces[0] ?? null
+  const selectedClientWorkspaceOwnerId =
+    selectedClientWorkspace?.owner_user_id ?? ""
+  const selectedClientWorkspaceOwnerMembers =
+    clientWorkspaceMembers.filter(
+      member => member.role === "client"
+    )
+  const selectedClientWorkspaceOwnerInvite =
+    clientWorkspaceInvites.find(
+      invite => invite.role === "client"
+    )
+  const selectedClientWorkspaceMemberInvites =
+    clientWorkspaceInvites.filter(
+      invite => invite.role !== "client"
+    )
+  const selectedClientWorkspaceMembers =
+    clientWorkspaceMembers.filter(
+      member =>
+        member.role === "member"
+    )
+  const canManageClientWorkspaces =
+    billingStatus?.billing_model === "agency" &&
+    canConfigureWorkspace
+
+  useEffect(() => {
+    let ignoreResult = false
+
+    async function loadAgencyOwnerAccess() {
+      if (!isClientWorkspaceOwner) {
+        setAgencyOwnerAccessEnabled(false)
+        setLoadingAgencyOwnerAccess(false)
+        setAgencyOwnerAccessError("")
+        return
+      }
+
+      setLoadingAgencyOwnerAccess(true)
+      setAgencyOwnerAccessError("")
+
+      try {
+        const organizationData =
+          await getMyOrganization(userId)
+
+        if (!ignoreResult) {
+          setAgencyOwnerAccessEnabled(
+            organizationData?.agency_owner_access_enabled === true
+          )
+        }
+      } catch (error) {
+        if (!ignoreResult) {
+          setAgencyOwnerAccessError(
+            getSettingsErrorMessage(
+              error,
+              "Unable to load agency workspace access."
+            )
+          )
+        }
+      } finally {
+        if (!ignoreResult) {
+          setLoadingAgencyOwnerAccess(false)
+        }
+      }
+    }
+
+    void loadAgencyOwnerAccess()
+
+    return () => {
+      ignoreResult = true
+    }
+  }, [
+    isClientWorkspaceOwner,
+    organizationLoadRetryKey,
+    userId,
+  ])
 
   useEffect(() => {
     let ignoreResult = false
 
     async function loadOrganization() {
       if (!canConfigureWorkspace) {
+        setBillingStatus(null)
         setLoadingOrganization(false)
         return
       }
@@ -232,11 +365,19 @@ export function SettingsClient({
       const [
         organizationResult,
         workspaceResult,
+        billingResult,
       ] = await Promise.allSettled([
         getMyOrganization(
           userId
         ),
         getOrganizationWorkspaces(
+          userId,
+          undefined,
+          {
+            includeManagedClientWorkspaces: true,
+          }
+        ),
+        getBillingStatus(
           userId
         ),
       ])
@@ -285,7 +426,7 @@ export function SettingsClient({
 
           if (!organizationData) {
             setOrganizationMembers([])
-            setPendingClientInvites([])
+            setPendingMemberInvites([])
           }
         } else {
           setOrganizationLoadError(
@@ -322,9 +463,17 @@ export function SettingsClient({
           )
         }
 
+        if (billingResult.status === "fulfilled") {
+          setBillingStatus(billingResult.value)
+        } else {
+          setBillingStatus(null)
+        }
+
         if (inviteResult?.status === "fulfilled") {
-          setPendingClientInvites(
-            inviteResult.value
+          setPendingMemberInvites(
+            inviteResult.value.filter(
+              invite => invite.role === "member"
+            )
           )
         } else if (inviteResult) {
           setInviteError(
@@ -353,76 +502,69 @@ export function SettingsClient({
   useEffect(() => {
     let ignoreResult = false
 
-    async function loadServiceStatus() {
-      if (!canConfigureWorkspace) {
+    async function loadClientWorkspaceAccess() {
+      if (
+        !canConfigureWorkspace ||
+        !selectedClientWorkspaceOwnerId
+      ) {
+        setClientWorkspaceMembers([])
+        setClientWorkspaceInvites([])
+        setLoadingClientWorkspaceAccess(false)
+        setClientWorkspaceAccessError("")
         return
       }
 
-      setAiStatus(null)
-      setAnalyticsStatus(null)
-      setApiHealthStatus(null)
-      setAiStatusError("")
-      setAnalyticsStatusError("")
-      setApiHealthError("")
+      setLoadingClientWorkspaceAccess(true)
+      setClientWorkspaceAccessError("")
 
-      const [
-        aiStatusResult,
-        analyticsStatusResult,
-        apiHealthResult,
-      ] = await Promise.allSettled([
-        getAIStatus(userId),
-        getAnalyticsEngineStatus(userId),
-        getApiHealthStatus(),
-      ])
+      const [memberResult, inviteResult] =
+        await Promise.allSettled([
+          getOrganizationMembers(
+            userId,
+            selectedClientWorkspaceOwnerId
+          ),
+          getOrganizationInvites(
+            userId,
+            selectedClientWorkspaceOwnerId
+          ),
+        ])
 
-      if (ignoreResult) {
-        return
-      }
+      if (ignoreResult) return
 
-      if (aiStatusResult.status === "fulfilled") {
-        setAiStatus(aiStatusResult.value)
+      if (memberResult.status === "fulfilled") {
+        setClientWorkspaceMembers(memberResult.value)
       } else {
-        setAiStatusError(
+        setClientWorkspaceAccessError(
           getSettingsErrorMessage(
-            aiStatusResult.reason,
-            "Unable to load AI readiness."
+            memberResult.reason,
+            "Unable to load client workspace members."
           )
         )
       }
 
-      if (analyticsStatusResult.status === "fulfilled") {
-        setAnalyticsStatus(
-          analyticsStatusResult.value
-        )
+      if (inviteResult.status === "fulfilled") {
+        setClientWorkspaceInvites(inviteResult.value)
       } else {
-        setAnalyticsStatusError(
+        setClientWorkspaceAccessError(
           getSettingsErrorMessage(
-            analyticsStatusResult.reason,
-            "Unable to load analytics readiness."
+            inviteResult.reason,
+            "Unable to load client workspace invites."
           )
         )
       }
 
-      if (apiHealthResult.status === "fulfilled") {
-        setApiHealthStatus(apiHealthResult.value)
-      } else {
-        setApiHealthError(
-          getSettingsErrorMessage(
-            apiHealthResult.reason,
-            "Unable to reach the API service."
-          )
-        )
-      }
+      setLoadingClientWorkspaceAccess(false)
     }
 
-    void loadServiceStatus()
+    void loadClientWorkspaceAccess()
 
     return () => {
       ignoreResult = true
     }
   }, [
     canConfigureWorkspace,
-    statusRetryKey,
+    clientWorkspaceAccessRetryKey,
+    selectedClientWorkspaceOwnerId,
     userId,
   ])
 
@@ -495,7 +637,11 @@ export function SettingsClient({
           userId
         ),
         getOrganizationWorkspaces(
-          userId
+          userId,
+          undefined,
+          {
+            includeManagedClientWorkspaces: true,
+          }
         ),
         getOrganizationInvites(
           userId
@@ -528,9 +674,6 @@ export function SettingsClient({
       }
 
       if (inviteResult.status === "fulfilled") {
-        setPendingClientInvites(
-          inviteResult.value
-        )
         setInviteError("")
       } else {
         setInviteError(
@@ -556,6 +699,41 @@ export function SettingsClient({
       )
     } finally {
       setSavingOrganization(false)
+    }
+  }
+
+  async function handleAgencyOwnerAccessChange(
+    enabled: boolean
+  ) {
+    if (
+      !isClientWorkspaceOwner ||
+      savingAgencyOwnerAccess
+    ) {
+      return
+    }
+
+    setSavingAgencyOwnerAccess(true)
+    setAgencyOwnerAccessError("")
+
+    try {
+      const organizationData =
+        await updateAgencyOwnerWorkspaceAccess(
+          enabled,
+          userId
+        )
+      setAgencyOwnerAccessEnabled(
+        organizationData.agency_owner_access_enabled === true
+      )
+      notifyWorkspaceAccessChanged()
+    } catch (error) {
+      setAgencyOwnerAccessError(
+        getSettingsErrorMessage(
+          error,
+          "Unable to update agency workspace access."
+        )
+      )
+    } finally {
+      setSavingAgencyOwnerAccess(false)
     }
   }
 
@@ -666,8 +844,10 @@ export function SettingsClient({
     }
 
     if (inviteResult.status === "fulfilled") {
-      setPendingClientInvites(
-        inviteResult.value
+      setPendingMemberInvites(
+        inviteResult.value.filter(
+          invite => invite.role === "member"
+        )
       )
     } else {
       setInviteError(
@@ -681,66 +861,58 @@ export function SettingsClient({
     setAccessRetrying(false)
   }
 
-  async function handleAddMember() {
-    if (!canAddMember) return
+  async function handleInviteMember() {
+    if (!organization || !canConfigureWorkspace) return
 
-    setAddingMember(true)
-    setMemberError("")
+    const cleanEmail =
+      cleanPendingClientInviteEmail(
+        memberInviteEmail
+      )
+
+    if (!cleanEmail) {
+      setInviteError(
+        "Enter a valid teammate email."
+      )
+      return
+    }
+
+    if (
+      pendingMemberInvites.some(
+        invite => invite.email === cleanEmail
+      )
+    ) {
+      setInviteError(
+        "That teammate email already has a pending invite."
+      )
+      return
+    }
 
     try {
-      try {
-        await addOrganizationMember(
-          {
-            clerk_user_id: memberUserId.trim(),
-            role: memberRole,
-          },
-          userId
+      const invite = await addOrganizationInvite(
+        {
+          email: cleanEmail,
+          role: "member",
+        },
+        userId
+      )
+      setPendingMemberInvites(
+        currentInvites => [
+          ...currentInvites.filter(
+            currentInvite => currentInvite.id !== invite.id
+          ),
+          invite,
+        ]
+      )
+      setMemberInviteEmail("")
+      setInviteError("")
+    } catch (error) {
+      console.error(error)
+      setInviteError(
+        getSettingsErrorMessage(
+          error,
+          "Teammate invite could not be created."
         )
-        setMemberUserId("")
-        setMemberRole("member")
-      } catch (error) {
-        console.error(error)
-        setMemberError(
-          getSettingsErrorMessage(
-            error,
-            "Member could not be added."
-          )
-        )
-        return
-      }
-
-      const [memberResult, workspaceResult] =
-        await Promise.allSettled([
-          getOrganizationMembers(userId),
-          getOrganizationWorkspaces(userId),
-        ])
-
-      if (memberResult.status === "fulfilled") {
-        setOrganizationMembers(
-          memberResult.value
-        )
-        setMemberError("")
-      } else {
-        setMemberError(
-          `Member added, but the member list could not be refreshed. ${getSettingsErrorMessage(
-            memberResult.reason,
-            "Retry access data."
-          )}`
-        )
-      }
-
-      if (workspaceResult.status === "fulfilled") {
-        setOrganizationWorkspaces(
-          workspaceResult.value
-        )
-        setSaveError("")
-      } else {
-        setSaveError(
-          "Member added, but workspace access data could not be refreshed."
-        )
-      }
-    } finally {
-      setAddingMember(false)
+      )
     }
   }
 
@@ -754,7 +926,7 @@ export function SettingsClient({
     const message =
       `Hi — ${workspaceDisplayName} has shared a client workspace with you.\n\n` +
       `Sign in here: ${portalUrl}\n\n` +
-      "Once you sign in, your shared client workspace will open in the sidebar. You can review dashboards, datasets, reports, forecasts, alerts, and decisions from that workspace."
+      "Once you sign in, your shared client workspace will open in the sidebar. You can review dashboards, datasets, reports, forecasts, and decisions from that workspace."
 
     if (
       typeof navigator === "undefined" ||
@@ -780,69 +952,306 @@ export function SettingsClient({
     }, 3500)
   }
 
-  async function handleTrackClientInvite() {
-    if (!organization) return
+  async function handleCreateClientWorkspace() {
+    if (!canCreateClientWorkspace) return
 
     const cleanEmail =
       cleanPendingClientInviteEmail(
-        inviteEmail
+        clientWorkspaceEmail
       )
 
     if (!cleanEmail) {
-      setInviteError(
-        "Enter a valid client email to track."
+      setClientWorkspaceError(
+        "Enter a valid client email."
       )
       return
     }
 
-    if (
-      pendingClientInvites.some(
-        (invite) => invite.email === cleanEmail
-      )
-    ) {
-      setInviteError(
-        "That client email is already being tracked."
-      )
-      return
-    }
+    setCreatingClientWorkspace(true)
+    setClientWorkspaceError("")
+    setClientWorkspaceNotice("")
 
     try {
-      const invite =
-        await addOrganizationInvite(
+      const workspace =
+        await createClientWorkspace(
           {
-            email: cleanEmail,
-            role: "client",
+            name: clientWorkspaceName.trim(),
+            client_email: cleanEmail,
           },
           userId
         )
 
-      setPendingClientInvites(
-        (currentInvites) => [
-          ...currentInvites.filter(
-            (currentInvite) =>
-              currentInvite.id !== invite.id &&
-              currentInvite.email !== invite.email
+      setOrganizationWorkspaces(
+        currentWorkspaces => [
+          ...currentWorkspaces.filter(
+            currentWorkspace =>
+              currentWorkspace.id !== workspace.id
           ),
-          invite,
+          workspace,
         ]
       )
-      setInviteEmail("")
-      setInviteError("")
+      setSelectedClientWorkspaceId(
+        workspace.owner_user_id
+      )
+      setClientWorkspaceName("")
+      setClientWorkspaceEmail("")
+      setClientWorkspaceNotice(
+        `${workspace.name} is ready. The client invite is waiting for ${cleanEmail} to sign in.${workspace.billing_notice ? ` ${workspace.billing_notice}` : ""}`
+      )
     } catch (error) {
       console.error(error)
-      setInviteError(
+      setClientWorkspaceError(
         getSettingsErrorMessage(
           error,
-          "Client invite could not be tracked."
+          "Client workspace could not be created."
         )
       )
+    } finally {
+      setCreatingClientWorkspace(false)
     }
   }
 
-  async function handleRemovePendingClientInvite(
+  function handleOpenDeleteClientWorkspace() {
+    if (!selectedClientWorkspace || deletingClientWorkspace) return
+
+    setClientWorkspaceDeleteTarget(selectedClientWorkspace)
+    setClientWorkspaceDeleteConfirmation("")
+    setClientWorkspaceDeleteError("")
+  }
+
+  function handleCloseDeleteClientWorkspace() {
+    if (deletingClientWorkspace) return
+
+    setClientWorkspaceDeleteTarget(null)
+    setClientWorkspaceDeleteConfirmation("")
+    setClientWorkspaceDeleteError("")
+  }
+
+  async function handleDeleteClientWorkspace() {
+    if (
+      !clientWorkspaceDeleteTarget ||
+      deletingClientWorkspace ||
+      clientWorkspaceDeleteConfirmation.trim() !==
+        clientWorkspaceDeleteTarget.name.trim()
+    ) {
+      return
+    }
+
+    const workspaceName = clientWorkspaceDeleteTarget.name
+
+    setDeletingClientWorkspace(true)
+    setClientWorkspaceDeleteError("")
+    setClientWorkspaceNotice("")
+
+    try {
+      await deleteClientWorkspace(
+        clientWorkspaceDeleteTarget.id,
+        userId
+      )
+
+      const remainingManagedWorkspaces =
+        managedClientWorkspaces.filter(
+          workspace => workspace.id !== clientWorkspaceDeleteTarget.id
+        )
+      setOrganizationWorkspaces(
+        currentWorkspaces =>
+          currentWorkspaces.filter(
+            workspace => workspace.id !== clientWorkspaceDeleteTarget.id
+          )
+      )
+      setSelectedClientWorkspaceId(
+        remainingManagedWorkspaces[0]?.owner_user_id ?? ""
+      )
+      setClientWorkspaceMembers([])
+      setClientWorkspaceInvites([])
+      setClientWorkspaceAccessError("")
+      setClientWorkspaceNotice(
+        `${workspaceName} and its workspace data were deleted.`
+      )
+      setClientWorkspaceDeleteTarget(null)
+      setClientWorkspaceDeleteConfirmation("")
+    } catch (error) {
+      console.error(error)
+      setClientWorkspaceDeleteError(
+        getSettingsErrorMessage(
+          error,
+          "Client workspace could not be deleted."
+        )
+      )
+    } finally {
+      setDeletingClientWorkspace(false)
+    }
+  }
+
+  async function handleInviteClientWorkspaceCollaborator() {
+    if (
+      !canManageClientWorkspaces ||
+      !selectedClientWorkspaceOwnerId ||
+      !cleanPendingClientInviteEmail(clientMemberInviteEmail) ||
+      clientAccessAction
+    ) {
+      return
+    }
+
+    const cleanEmail =
+      cleanPendingClientInviteEmail(
+        clientMemberInviteEmail
+      )
+
+    if (!cleanEmail) return
+
+    setClientAccessAction("member-invite")
+    setClientWorkspaceAccessError("")
+
+    try {
+      await addOrganizationInvite(
+        {
+          email: cleanEmail,
+          role: "member",
+        },
+        userId,
+        selectedClientWorkspaceOwnerId
+      )
+      setClientMemberInviteEmail("")
+      setClientWorkspaceAccessRetryKey(
+        currentKey => currentKey + 1
+      )
+    } catch (error) {
+      console.error(error)
+      setClientWorkspaceAccessError(
+        getSettingsErrorMessage(
+          error,
+          "Client member invite could not be created."
+        )
+      )
+    } finally {
+      setClientAccessAction(null)
+    }
+  }
+
+  async function handleRemoveClientMember(
+    member: OrganizationMemberRecord
+  ) {
+    if (
+      !canManageClientWorkspaces ||
+      !selectedClientWorkspaceOwnerId ||
+      member.role === "owner" ||
+      clientMemberActionId
+    ) {
+      return
+    }
+
+    setClientMemberActionId(member.id)
+    setClientWorkspaceAccessError("")
+
+    try {
+      await removeOrganizationMember(
+        member.id,
+        userId,
+        selectedClientWorkspaceOwnerId
+      )
+      setClientWorkspaceAccessRetryKey(
+        currentKey => currentKey + 1
+      )
+    } catch (error) {
+      console.error(error)
+      setClientWorkspaceAccessError(
+        getSettingsErrorMessage(
+          error,
+          "Client workspace member could not be removed."
+        )
+      )
+    } finally {
+      setClientMemberActionId(null)
+    }
+  }
+
+  async function handleUpdateClientMemberRole(
+    member: OrganizationMemberRecord,
+    nextRole: "member" | "client"
+  ) {
+    if (
+      !canManageClientWorkspaces ||
+      !selectedClientWorkspaceOwnerId ||
+      member.role === nextRole ||
+      clientMemberActionId
+    ) {
+      return
+    }
+
+    setClientMemberActionId(member.id)
+    setClientWorkspaceAccessError("")
+
+    try {
+      const updatedMember =
+        await updateOrganizationMemberRole(
+          member.id,
+          nextRole,
+          userId,
+          selectedClientWorkspaceOwnerId
+        )
+      setClientWorkspaceMembers(
+        currentMembers =>
+          currentMembers.map(
+            currentMember =>
+              currentMember.id === updatedMember.id
+                ? updatedMember
+                : currentMember
+          )
+      )
+    } catch (error) {
+      console.error(error)
+      setClientWorkspaceAccessError(
+        getSettingsErrorMessage(
+          error,
+          "Client member role could not be updated."
+        )
+      )
+    } finally {
+      setClientMemberActionId(null)
+    }
+  }
+
+  async function handleRemoveClientInvite(
     invite: OrganizationInviteRecord
   ) {
-    if (!organization) return
+    if (
+      !canManageClientWorkspaces ||
+      !selectedClientWorkspaceOwnerId ||
+      clientAccessAction
+    ) {
+      return
+    }
+
+    setClientAccessAction("invite")
+    setClientWorkspaceAccessError("")
+
+    try {
+      await removeOrganizationInvite(
+        invite.id,
+        userId,
+        selectedClientWorkspaceOwnerId
+      )
+      setClientWorkspaceAccessRetryKey(
+        currentKey => currentKey + 1
+      )
+    } catch (error) {
+      console.error(error)
+      setClientWorkspaceAccessError(
+        getSettingsErrorMessage(
+          error,
+          "Client workspace invite could not be removed."
+        )
+      )
+    } finally {
+      setClientAccessAction(null)
+    }
+  }
+
+  async function handleRemovePendingMemberInvite(
+    invite: OrganizationInviteRecord
+  ) {
+    if (!organization || !canConfigureWorkspace) return
 
     try {
       await removeOrganizationInvite(
@@ -850,20 +1259,21 @@ export function SettingsClient({
         userId
       )
 
-      setPendingClientInvites(
-        (currentInvites) =>
-          currentInvites.filter(
-            (currentInvite) =>
-              currentInvite.id !== invite.id
-          )
-      )
+      const removeInvite = (
+        currentInvites: OrganizationInviteRecord[]
+      ) =>
+        currentInvites.filter(
+          currentInvite => currentInvite.id !== invite.id
+        )
+
+      setPendingMemberInvites(removeInvite)
       setInviteError("")
     } catch (error) {
       console.error(error)
       setInviteError(
         getSettingsErrorMessage(
           error,
-          "Client invite could not be removed."
+          "Teammate invite could not be removed."
         )
       )
     }
@@ -878,7 +1288,11 @@ export function SettingsClient({
     nextRole: string
   ) {
     if (
-      member.role === "owner" ||
+      !canConfigureWorkspace ||
+      (
+        member.role === "owner" &&
+        member.clerk_user_id === organization?.owner_user_id
+      ) ||
       member.role === nextRole ||
       memberActionId
     ) {
@@ -922,7 +1336,11 @@ export function SettingsClient({
     member: OrganizationMemberRecord
   ) {
     if (
-      member.role === "owner" ||
+      !canConfigureWorkspace ||
+      (
+        member.role === "owner" &&
+        member.clerk_user_id === organization?.owner_user_id
+      ) ||
       memberActionId
     ) {
       return
@@ -981,15 +1399,60 @@ export function SettingsClient({
           title="Settings"
           description="Workspace configuration is available to the business owner."
         />
-        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          Only the business owner can manage workspace settings, branding, members, and service configuration.
-        </div>
+        {isClientWorkspaceOwner ? (
+          <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">
+                  Agency workspace access
+                </h2>
+                <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                  Allow the agency owner to open this client workspace for analysis. Agency access is read-only for data setup: the agency owner will not see Data navigation and cannot add datasets or configure connections.
+                </p>
+              </div>
+
+              <label className="inline-flex shrink-0 items-center gap-3 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={agencyOwnerAccessEnabled}
+                  onChange={(event) =>
+                    void handleAgencyOwnerAccessChange(
+                      event.target.checked
+                    )
+                  }
+                  disabled={
+                    loadingAgencyOwnerAccess ||
+                    savingAgencyOwnerAccess
+                  }
+                  className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+                />
+                {savingAgencyOwnerAccess
+                  ? "Saving..."
+                  : agencyOwnerAccessEnabled
+                    ? "Agency access enabled"
+                    : "Allow agency access"}
+              </label>
+            </div>
+
+            {agencyOwnerAccessError && (
+              <p role="alert" className="mt-3 text-sm font-medium text-red-600">
+                {agencyOwnerAccessError}
+              </p>
+            )}
+          </section>
+        ) : (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            {isClientWorkspace
+              ? "This workspace is managed by the agency owner."
+              : "Only the business owner can manage workspace settings, branding, members, and service configuration."}
+          </div>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-8">
       {/* =========================
           Settings Page Header For Account And Workspace Management
       ========================= */}
@@ -999,7 +1462,9 @@ export function SettingsClient({
         description={
           isClientPortalUser
             ? "Review the workspaces that have been shared with you."
-            : "Manage your workspace profile, branding, team access, and optional client handoff settings."
+            : canManageClientWorkspaces
+              ? "Manage your workspace, team members, and client workspaces."
+              : "Manage your workspace and team members."
         }
       />
 
@@ -1053,14 +1518,14 @@ export function SettingsClient({
 
       {!isClientPortalUser && (
         <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold">
-              Workspace Profile
+              Workspace
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
-              This name anchors the workspace people will recognize in the app, reports, and shared dashboards.
+              Configure the workspace identity and branding used throughout Decisionate.
             </p>
           </div>
 
@@ -1073,6 +1538,24 @@ export function SettingsClient({
               Saved
             </span>
           )}
+        </div>
+
+        <div className="mt-5 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4">
+          <div className="flex flex-col gap-1 rounded-lg border border-white/70 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="break-all text-sm font-medium text-gray-900">
+                {emailAddress || fullName || "Current account"}
+              </p>
+              {emailAddress && fullName && (
+                <p className="text-xs text-gray-500">
+                  {fullName}
+                </p>
+              )}
+            </div>
+            <span className="w-fit rounded-full bg-[var(--decisionate-brand-primary-soft)] px-2.5 py-1 text-xs font-medium text-[var(--decisionate-brand-primary-text)]">
+              Owner
+            </span>
+          </div>
         </div>
 
         {organizationLoadError && (
@@ -1387,140 +1870,364 @@ export function SettingsClient({
       )}
 
       {!isClientPortalUser && (
-        <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold">
-                Decision Intelligence
-              </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            AI analysis uses recorded decision outcomes and lessons as evidence when a provider is configured.
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-            <span>
-              API service: {apiHealthError
-                ? "Unavailable"
-                : apiHealthStatus
-                  ? "Reachable"
-                  : "Checking..."}
-            </span>
-            {apiHealthError && (
-              <button
-                type="button"
-                onClick={() =>
-                  setStatusRetryKey(
-                    currentKey => currentKey + 1
-                  )
-                }
-                disabled={loadingOrganization}
-                className="font-medium text-[var(--decisionate-brand-primary-text)] underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Retry API status
-              </button>
-            )}
-          </div>
-            </div>
+        <AlertDeliverySettings userId={userId} />
+      )}
 
-            {aiStatusError ? (
-              <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
-                <CircleAlert size={14} />
-                Status unavailable
-              </span>
-            ) : aiStatus === null ? (
-              <span className="inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600">
-                Checking AI...
-              </span>
-            ) : aiStatus.configured ? (
-              <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-                <CircleCheck size={14} />
-                AI ready
-              </span>
-            ) : (
-              <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
-                <CircleAlert size={14} />
-                Rules fallback
-              </span>
-            )}
+      {/* =========================
+          Client Workspace Management Section For Owner And Member Access
+      ========================= */}
+
+      {!isClientPortalUser && canManageClientWorkspaces && (
+        <section className="order-last rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Client Workspaces
+            </h2>
+
+            <p className="mt-1 text-sm text-gray-500">
+              Client workspace data stays isolated from the agency. Manage
+              members or delete client workspaces here; client users access
+              their workspace by signing in.
+            </p>
           </div>
 
-          {aiStatusError ? (
-            <div
-              role="status"
-              className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between"
+          <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <input
+              aria-label="Client workspace name"
+              type="text"
+              value={clientWorkspaceName}
+              onChange={(event) => {
+                setClientWorkspaceName(event.target.value)
+                setClientWorkspaceError("")
+                setClientWorkspaceNotice("")
+              }}
+              placeholder="Client workspace name"
+              disabled={!organization || creatingClientWorkspace}
+              className="h-10 rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+            />
+
+            <input
+              aria-label="Client email"
+              type="email"
+              value={clientWorkspaceEmail}
+              onChange={(event) => {
+                setClientWorkspaceEmail(event.target.value)
+                setClientWorkspaceError("")
+                setClientWorkspaceNotice("")
+              }}
+              placeholder="client@example.com"
+              disabled={!organization || creatingClientWorkspace}
+              className="h-10 rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+            />
+
+            <button
+              type="button"
+              onClick={handleCreateClientWorkspace}
+              disabled={!canCreateClientWorkspace}
+              className="h-10 rounded-xl bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
             >
-              <span>
-                AI readiness is temporarily unavailable. Analysis will continue using the configured fallback rules.
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setStatusRetryKey(
-                    currentKey => currentKey + 1
-                  )
-                }
-                disabled={loadingOrganization}
-                className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-amber-300 bg-white px-3 text-xs font-medium text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loadingOrganization
-                  ? "Retrying..."
-                  : "Retry AI status"}
-              </button>
-            </div>
-          ) : (
-            <div className="mt-4 grid gap-3 sm:grid-cols-4">
-              <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Provider
-                </p>
-                <p className="mt-1 text-sm font-semibold text-gray-800">
-                  {aiStatus?.provider || "Checking..."}
-                </p>
+              {creatingClientWorkspace
+                ? "Creating..."
+                : "Create Workspace"}
+            </button>
+          </div>
+
+          {clientWorkspaceError && (
+            <p role="alert" className="mt-3 text-sm font-medium text-red-600">
+              {clientWorkspaceError}
+            </p>
+          )}
+
+          {clientWorkspaceNotice && (
+            <p role="status" className="mt-3 text-sm font-medium text-green-700">
+              {clientWorkspaceNotice}
+            </p>
+          )}
+
+          {selectedClientWorkspace && (
+            <div className="mt-5 space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <select
+                    aria-label="Client workspace to manage"
+                    value={selectedClientWorkspaceOwnerId}
+                    onChange={(event) =>
+                      setSelectedClientWorkspaceId(
+                        event.target.value
+                      )
+                    }
+                    disabled={deletingClientWorkspace}
+                    className="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-50 sm:w-64"
+                  >
+                    {managedClientWorkspaces.map(workspace => (
+                      <option
+                        key={workspace.id}
+                        value={workspace.owner_user_id}
+                      >
+                        {workspace.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenDeleteClientWorkspace}
+                    disabled={deletingClientWorkspace}
+                    title="Delete client workspace"
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-400"
+                  >
+                    <Trash2 size={15} />
+                    {deletingClientWorkspace
+                      ? "Deleting..."
+                      : "Delete Workspace"}
+                  </button>
+                </div>
               </div>
-              <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Model
-                </p>
-                <p className="mt-1 truncate text-sm font-semibold text-gray-800">
-                  {aiStatus?.model || "Deterministic rules"}
-                </p>
+
+              <div className="flex min-h-12 flex-col gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  {loadingClientWorkspaceAccess ? (
+                    <p className="text-sm text-gray-500">
+                      Loading client owner...
+                    </p>
+                  ) : selectedClientWorkspaceOwnerMembers.length > 0 ? (
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Owner
+                      </span>
+                      <div className="flex min-w-0 flex-wrap gap-2">
+                        {selectedClientWorkspaceOwnerMembers.map(member => (
+                          <span
+                            key={member.id}
+                            className="truncate text-sm font-medium text-gray-900"
+                          >
+                            {member.email || "Email unavailable"}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : selectedClientWorkspaceOwnerInvite ? (
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Owner
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-gray-900">
+                          {selectedClientWorkspaceOwnerInvite.email}
+                        </p>
+                        <span className="text-xs text-gray-500">
+                          Invitation pending
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleRemoveClientInvite(
+                            selectedClientWorkspaceOwnerInvite
+                          )
+                        }
+                        disabled={Boolean(clientAccessAction)}
+                        className="w-fit text-xs font-medium text-red-600 underline underline-offset-2 disabled:text-gray-400"
+                      >
+                        Revoke invitation
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No client owner invitation is associated with this workspace.
+                    </p>
+                  )}
               </div>
-              <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Learning input
+
+                <div className="rounded-xl border border-gray-100 bg-white p-4">
+                <h4 className="text-sm font-semibold text-gray-900">
+                  Client workspace members
+                </h4>
+                <p className="mt-1 text-xs text-gray-500">
+                  Invite additional members and manage their access.
                 </p>
-                <p className="mt-1 text-sm font-semibold text-gray-800">
-                  Outcomes + lessons
-                </p>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  aria-label="Client member email"
+                  type="email"
+                  value={clientMemberInviteEmail}
+                  onChange={(event) =>
+                    setClientMemberInviteEmail(event.target.value)
+                  }
+                  placeholder="client-member@example.com"
+                  disabled={Boolean(clientAccessAction)}
+                  className="h-10 rounded-xl border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-100"
+                />
+                <button
+                  type="button"
+                  onClick={handleInviteClientWorkspaceCollaborator}
+                  disabled={
+                    !cleanPendingClientInviteEmail(clientMemberInviteEmail) ||
+                    Boolean(clientAccessAction)
+                  }
+                  className="h-10 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-white px-4 text-sm font-medium text-[var(--decisionate-brand-primary-text)] disabled:cursor-not-allowed disabled:text-gray-400"
+                >
+                  {clientAccessAction === "member-invite"
+                    ? "Inviting..."
+                    : "Invite Client Member"}
+                </button>
               </div>
-              <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Analytics engine
+
+              {clientWorkspaceAccessError && (
+                <div className="mt-3 flex flex-col gap-2 text-sm text-red-600 sm:flex-row sm:items-center sm:justify-between">
+                  <span role="alert">
+                    {clientWorkspaceAccessError}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setClientWorkspaceAccessRetryKey(
+                        currentKey => currentKey + 1
+                      )
+                    }
+                    className="w-fit font-medium underline underline-offset-2"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {loadingClientWorkspaceAccess ? (
+                <p className="mt-4 text-sm text-gray-500">
+                  Loading workspace access...
                 </p>
-                <p className="mt-1 truncate text-sm font-semibold text-gray-800">
-                  {analyticsStatusError
-                    ? "Unavailable"
-                    : analyticsStatus
-                      ? `${analyticsStatus.engine} · ${analyticsStatus.storage_format}`
-                      : "Checking..."}
-                </p>
+              ) : (
+                <>
+                  <div className="mt-4 divide-y divide-gray-100 rounded-xl border border-gray-100 bg-white">
+                    {selectedClientWorkspaceMembers.length > 0 ? (
+                      selectedClientWorkspaceMembers.map(member => (
+                        <div
+                          key={member.id}
+                          className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <p className="break-all text-sm font-medium text-gray-900">
+                              {member.email || "Email unavailable"}
+                            </p>
+                            <p className="text-xs capitalize text-gray-500">
+                              {member.role === "client"
+                                ? "Owner access"
+                                : "Member access"}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2 sm:shrink-0">
+                            <select
+                              aria-label={`Role for ${member.email || "client member"}`}
+                              value={member.role === "client" ? "client" : "member"}
+                              onChange={event =>
+                                handleUpdateClientMemberRole(
+                                  member,
+                                  event.target.value as "member" | "client"
+                                )
+                              }
+                              disabled={clientMemberActionId === member.id}
+                              className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                            >
+                              <option value="member">Member</option>
+                              <option value="client">Owner</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleRemoveClientMember(member)
+                              }
+                              disabled={clientMemberActionId === member.id}
+                              className="h-8 rounded-lg border border-red-200 px-2.5 text-xs font-medium text-red-600 disabled:cursor-not-allowed disabled:text-gray-400"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="px-3 py-3 text-sm text-gray-500">
+                        No client members have been added yet.
+                      </p>
+                    )}
+                  </div>
+
+                  {selectedClientWorkspaceMemberInvites.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Pending access invites
+                      </p>
+                      {selectedClientWorkspaceMemberInvites.map(invite => (
+                        <div
+                          key={invite.id}
+                          className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <span className="break-all text-sm text-gray-700">
+                            {invite.email}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRemoveClientInvite(invite)
+                            }
+                            disabled={Boolean(clientAccessAction)}
+                            className="w-fit text-xs font-medium text-red-600 underline underline-offset-2 disabled:text-gray-400"
+                          >
+                            Revoke invitation
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              </div>
+
+              <div className="rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-[var(--decisionate-brand-primary-text)]">
+                      Client handoff
+                    </h3>
+
+                    <p className="mt-1 text-sm text-[var(--decisionate-brand-primary-text)]">
+                      Copy a short sign-in note when handing a client workspace to a client.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyClientHandoffNote}
+                    disabled={!organization}
+                    className="w-full shrink-0 rounded-xl bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 md:w-auto"
+                  >
+                    Copy Handoff Note
+                  </button>
+                </div>
+
+                {handoffStatus && (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="mt-3 whitespace-pre-line break-words text-sm font-medium text-[var(--decisionate-brand-primary-text)]"
+                  >
+                    {handoffStatus}
+                  </p>
+                )}
               </div>
             </div>
           )}
         </section>
       )}
 
-      {/* =========================
-          Workspace Members Management Section For Team And Client Roles
-      ========================= */}
-
       {!isClientPortalUser && (
       <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
         <h2 className="text-xl font-semibold">
-          Team & Client Access
+          Workspace Members
         </h2>
 
         <p className="mt-1 text-sm text-gray-500">
-          Add teammates with the Member role. Use the Client role only for external users who should review a shared workspace without managing data setup.
+          Invite and manage members of this workspace.
         </p>
 
         {(memberError || inviteError) && (
@@ -1536,73 +2243,69 @@ export function SettingsClient({
           </button>
         )}
 
-        <div className="mt-5 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-[var(--decisionate-brand-primary-text)]">
-                Optional client handoff
-              </h3>
-
-              <p className="mt-1 text-sm text-[var(--decisionate-brand-primary-text)]">
-                Use this when you give a client access to a shared workspace and want a short sign-in note.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleCopyClientHandoffNote}
-              disabled={!organization}
-              className="w-full shrink-0 rounded-xl bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 md:w-auto"
-            >
-              Copy Handoff Note
-            </button>
-          </div>
-
-          {handoffStatus && (
-            <p
-              role="status"
-              aria-live="polite"
-              className="mt-3 whitespace-pre-line break-words text-sm font-medium text-[var(--decisionate-brand-primary-text)]"
-            >
-              {handoffStatus}
-            </p>
-          )}
-        </div>
-
         <div className="mt-5 rounded-xl border border-gray-100 bg-gray-50 p-4">
           <h3 className="text-sm font-semibold text-gray-900">
-            Optional client invite tracking
+            Invite a teammate by email
           </h3>
 
           <p className="mt-1 text-sm text-gray-500">
-            Track client emails only when you are preparing external client access. Once they sign in, add their user ID below and remove the email from this list.
+            Invite a teammate to access this workspace.
           </p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
             <input
-              aria-label="Client email to track"
+              aria-label="Teammate email"
               type="email"
-              value={inviteEmail}
-              onChange={(event) => {
-                setInviteEmail(
-                  event.target.value
-                )
-                setInviteError("")
-              }}
-              placeholder="client@example.com"
-              disabled={!organization}
+              value={memberInviteEmail}
+                  onChange={(event) => {
+                    setMemberInviteEmail(event.target.value)
+                    setInviteError("")
+                  }}
+                  placeholder="teammate@example.com"
+                  disabled={!organization || !canConfigureWorkspace}
               className="h-10 rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
             />
 
             <button
               type="button"
-              onClick={handleTrackClientInvite}
-              disabled={!organization || !inviteEmail.trim()}
-              className="h-10 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400 md:w-auto"
+              onClick={handleInviteMember}
+              disabled={
+                !organization ||
+                !canConfigureWorkspace ||
+                !memberInviteEmail.trim()
+              }
+              className="h-10 w-full rounded-xl bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 md:w-auto"
             >
-              Track Invite
+              Invite Member
             </button>
           </div>
+
+          {pendingMemberInvites.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Pending teammate invites
+              </p>
+              {pendingMemberInvites.map((invite) => (
+                <div
+                  key={invite.id}
+                  className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span className="break-all text-sm text-gray-700">
+                    {invite.email}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleRemovePendingMemberInvite(invite)
+                    }
+                    className="w-fit text-xs font-medium text-red-600 underline underline-offset-2"
+                  >
+                    Remove invite
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {inviteError && (
             <p
@@ -1612,84 +2315,6 @@ export function SettingsClient({
               {inviteError}
             </p>
           )}
-
-          {pendingClientInvites.length > 0 ? (
-            <div className="mt-4 divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
-              {pendingClientInvites.map((invite) => (
-                <div
-                  key={invite.id}
-                  className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="min-w-0">
-                    <p className="break-words text-sm font-medium text-gray-900">
-                      {invite.email}
-                    </p>
-
-                    <p className="break-words text-xs text-gray-500">
-                      Waiting for client sign-in · {formatRoleLabel(invite.role)}
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleRemovePendingClientInvite(
-                        invite
-                      )
-                    }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition hover:bg-gray-50 md:w-fit"
-                  >
-                    Mark Added
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-gray-500">
-              No pending client emails tracked.
-            </p>
-          )}
-        </div>
-
-        <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem_auto]">
-          <input
-            aria-label="Teammate or client user ID"
-            type="text"
-            value={memberUserId}
-            onChange={(event) => {
-              setMemberUserId(
-                event.target.value
-              )
-              setMemberError("")
-            }}
-            placeholder="Teammate or client user ID"
-            disabled={!organization || addingMember}
-            className="h-10 w-full min-w-0 rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-          />
-
-          <select
-            aria-label="New member role"
-            value={memberRole}
-            onChange={(event) =>
-              setMemberRole(event.target.value)
-            }
-            disabled={!organization || addingMember}
-            className="h-10 w-full min-w-0 rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-          >
-            <option value="member">Member</option>
-            <option value="client">Client</option>
-          </select>
-
-          <button
-            type="button"
-            onClick={handleAddMember}
-            disabled={!canAddMember}
-            className="h-10 w-full rounded-xl border border-[var(--decisionate-brand-primary-ring)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 md:w-auto"
-          >
-            {addingMember
-              ? "Adding..."
-              : "Add Member"}
-          </button>
         </div>
 
         {memberError && (
@@ -1701,39 +2326,34 @@ export function SettingsClient({
           </p>
         )}
 
-        <p className="mt-3 text-xs text-gray-500">
-          Use Member for teammates. Use Client only when handing over a shared workspace to an external client.
-        </p>
-
         <div className="mt-5 divide-y divide-gray-100 rounded-xl border border-gray-100">
-          {organizationMembers.length > 0 ? (
-            organizationMembers.map((member) => (
+          {agencyWorkspaceMembers.length > 0 ? (
+            agencyWorkspaceMembers.map((member) => (
               <div
-                key={`${member.organization_id}-${member.clerk_user_id}`}
+                key={`${member.organization_id}-${member.id}`}
                 className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between"
               >
                 <div className="min-w-0">
                   <p className="break-words text-sm font-medium text-gray-900">
-                    {member.clerk_user_id === userId
-                      ? fullName || "Current user"
-                      : member.clerk_user_id}
+                    {member.email ||
+                      (member.clerk_user_id === userId
+                        ? fullName || "Current user"
+                        : "Email unavailable")}
                   </p>
 
-                  <p className="break-all text-xs text-gray-500">
-                    {member.clerk_user_id}
-                  </p>
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:shrink-0">
-                  {member.role === "owner" ? (
+                  {member.role === "owner" &&
+                  member.clerk_user_id === organization?.owner_user_id ? (
                     <span className="w-fit rounded-full border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1 text-xs font-medium text-[var(--decisionate-brand-primary-text)]">
                       Owner
                     </span>
                   ) : (
                     <>
                       <select
-                        aria-label={`Role for ${member.clerk_user_id}`}
-                        value={member.role}
+                        aria-label={`Role for ${member.email || "member"}`}
+                        value={member.role === "owner" ? "owner" : "member"}
                         onChange={(event) =>
                           handleUpdateMemberRole(
                             member,
@@ -1743,11 +2363,11 @@ export function SettingsClient({
                         disabled={memberActionId === member.id}
                         className="h-9 w-full rounded-lg border border-gray-200 px-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 sm:w-auto"
                       >
+                        <option value="owner">
+                          Owner
+                        </option>
                         <option value="member">
                           Member
-                        </option>
-                        <option value="client">
-                          Client
                         </option>
                       </select>
 
@@ -1772,11 +2392,108 @@ export function SettingsClient({
             ))
           ) : (
             <p className="px-4 py-3 text-sm text-gray-500">
-              Save a workspace name to initialize team and client access.
+              No workspace members have been added yet.
             </p>
           )}
         </div>
       </div>
+      )}
+
+      {clientWorkspaceDeleteTarget && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-client-workspace-title"
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleDeleteClientWorkspace()
+            }}
+            className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                  <AlertTriangle size={19} />
+                </span>
+                <div className="min-w-0">
+                  <h2
+                    id="delete-client-workspace-title"
+                    className="text-lg font-semibold text-gray-900"
+                  >
+                    Delete client workspace?
+                  </h2>
+                  <p className="mt-1 break-words text-sm text-gray-600">
+                    This permanently removes {clientWorkspaceDeleteTarget.name}, its users&apos; access, invitations, datasets, decisions, connections, reports, and preferences.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseDeleteClientWorkspace}
+                disabled={deletingClientWorkspace}
+                aria-label="Close delete workspace confirmation"
+                className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <label
+              htmlFor="delete-client-workspace-confirmation"
+              className="mt-5 block text-sm font-medium text-gray-700"
+            >
+              Type <span className="font-semibold text-gray-900">{clientWorkspaceDeleteTarget.name}</span> to confirm
+            </label>
+            <input
+              id="delete-client-workspace-confirmation"
+              autoFocus
+              type="text"
+              value={clientWorkspaceDeleteConfirmation}
+              onChange={(event) => {
+                setClientWorkspaceDeleteConfirmation(event.target.value)
+                setClientWorkspaceDeleteError("")
+              }}
+              disabled={deletingClientWorkspace}
+              className="mt-2 h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+              spellCheck={false}
+            />
+
+            {clientWorkspaceDeleteError && (
+              <p role="alert" className="mt-3 text-sm font-medium text-red-600">
+                {clientWorkspaceDeleteError}
+              </p>
+            )}
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={handleCloseDeleteClientWorkspace}
+                disabled={deletingClientWorkspace}
+                className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={
+                  deletingClientWorkspace ||
+                  clientWorkspaceDeleteConfirmation.trim() !==
+                    clientWorkspaceDeleteTarget.name.trim()
+                }
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-200"
+              >
+                <Trash2 size={15} />
+                {deletingClientWorkspace
+                  ? "Deleting..."
+                  : "Permanently Delete"}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
     </div>
@@ -1919,17 +2636,6 @@ function formatFileSize(bytes: number) {
   }
 
   return `${(kilobytes / 1024).toFixed(1)} MB`
-}
-
-function formatRoleLabel(
-  role: string
-) {
-  return role
-    .replaceAll("_", " ")
-    .replace(
-      /\b\w/g,
-      (character) => character.toUpperCase()
-    )
 }
 
 function cleanPendingClientInviteEmail(

@@ -5,10 +5,13 @@ export type DashboardComponentKey =
   | "decisionPerformance"
   | "retailPerformance"
   | "restaurantPerformance"
+  | "hotelHospitality"
   | "professionalServices"
   | "healthcarePractice"
   | "realEstate"
   | "nonprofitPerformance"
+  | "constructionPerformance"
+  | "lawFirmPerformance"
 
 export type DashboardPreviewTone =
   | "blue"
@@ -134,6 +137,22 @@ export const dashboardDefinitions: DashboardDefinition[] = [
     componentKey: "restaurantPerformance",
   },
   {
+    key: "hotels-hospitality-performance",
+    name: "Hotels & Hospitality Performance",
+    category: "Industry",
+    description:
+      "Occupancy, room revenue, booking channels and guest experience.",
+    highlights: [
+      "Occupancy",
+      "RevPAR",
+      "Guest Experience",
+    ],
+    dataBasis: "dataset",
+    previewTone: "teal",
+    previewLayout: "overview",
+    componentKey: "hotelHospitality",
+  },
+  {
     key: "professional-services",
     name: "Professional Services",
     category: "Industry",
@@ -196,6 +215,38 @@ export const dashboardDefinitions: DashboardDefinition[] = [
     previewTone: "green",
     previewLayout: "overview",
     componentKey: "nonprofitPerformance",
+  },
+  {
+    key: "construction-performance",
+    name: "Construction Performance",
+    category: "Industry",
+    description:
+      "Project progress, cost control, resources and delivery risk.",
+    highlights: [
+      "Project Progress",
+      "Cost Control",
+      "Delivery Risk",
+    ],
+    dataBasis: "dataset",
+    previewTone: "amber",
+    previewLayout: "overview",
+    componentKey: "constructionPerformance",
+  },
+  {
+    key: "law-firm-performance",
+    name: "Law Firm Performance",
+    category: "Industry",
+    description:
+      "Matter workload, realization, client value and team capacity.",
+    highlights: [
+      "Matter Workload",
+      "Realization",
+      "Team Capacity",
+    ],
+    dataBasis: "dataset",
+    previewTone: "purple",
+    previewLayout: "decision",
+    componentKey: "lawFirmPerformance",
   },
 ]
 

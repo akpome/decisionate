@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Keep the web container portable across Vercel, Railway, Cloud Run, ECS,
+  // and any provider that can run a Node process.
+  output: "standalone",
   async headers() {
     const noStalePwaAssetHeaders = [
       {

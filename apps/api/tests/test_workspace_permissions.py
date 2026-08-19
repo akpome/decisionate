@@ -31,26 +31,30 @@ def build_request(
 
 
 class WorkspacePermissionTests(unittest.TestCase):
-    def test_client_role_cannot_modify_workspace_data_setup(self):
-        with self.assertRaises(
-            HTTPException,
-        ) as context:
+    def test_client_role_can_modify_workspace_data_setup(self):
+        require_workspace_data_manager(
+            build_request("client")
+        )
+
+    def test_member_role_cannot_modify_workspace_data_setup(self):
+        with self.assertRaises(HTTPException) as context:
             require_workspace_data_manager(
-                build_request("client")
+                build_request("member")
             )
 
-        self.assertEqual(
-            context.exception.status_code,
-            403,
-        )
-        self.assertEqual(
-            context.exception.detail,
-            "Client users cannot modify workspace data setup",
-        )
+        self.assertEqual(context.exception.status_code, 403)
 
-    def test_member_role_can_modify_workspace_data_setup(self):
+    def test_managed_client_role_cannot_modify_workspace_data_setup(self):
+        with self.assertRaises(HTTPException) as context:
+            require_workspace_data_manager(
+                build_request("managed_client")
+            )
+
+        self.assertEqual(context.exception.status_code, 403)
+
+    def test_owner_role_can_modify_workspace_data_setup(self):
         require_workspace_data_manager(
-            build_request("member")
+            build_request("owner")
         )
 
 

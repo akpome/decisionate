@@ -97,10 +97,47 @@ def require_workspace_data_manager(
         request,
     )
 
-    if workspace_role != "owner":
+    if workspace_role not in {"owner", "client"}:
         from fastapi import HTTPException
 
         raise HTTPException(
             status_code=403,
             detail="Only workspace owners can modify workspace data setup",
+        )
+
+
+def require_workspace_connection_viewer(
+    request: Request,
+):
+    request_state = getattr(
+        request,
+        "state",
+        None,
+    )
+
+    if (
+        not hasattr(
+            request,
+            "headers",
+        )
+        and not (
+            request_state is not None
+            and hasattr(
+                request_state,
+                auth_context_cache_key,
+            )
+        )
+    ):
+        return
+
+    workspace_role = get_workspace_role(
+        request,
+    )
+
+    if workspace_role not in {"owner", "client"}:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=403,
+            detail="Connection access is not available to workspace members",
         )

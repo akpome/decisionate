@@ -6,11 +6,19 @@ __pycache__/
 # Local API runtime data
 apps/api/decisionate.db
 apps/api/uploads/
+uploads/
+analytics/
+*.duckdb
+*.duckdb-wal
+*.duckdb-shm
 
-# Environment files
-.env
-.env.*
+# Environment files: ignore every local/provider environment variant while
+# keeping checked-in configuration templates available.
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
+!**/.env.*.example
 
 # OS/editor noise
 .DS_Store
