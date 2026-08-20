@@ -67,10 +67,16 @@ database with the explicit `--migrate-to` option. The target must be empty and
 the script preserves integer IDs and resets PostgreSQL sequences.
 
 `OBJECT_STORAGE_PROVIDER=local` keeps development data on the local filesystem.
-For Railway, set `OBJECT_STORAGE_PROVIDER=r2` and configure the bucket, endpoint,
-access key, and secret key. R2 references are stored as `s3://` paths and are
-materialized only when a dataset is queried, so switching to AWS S3 later does
-not require changing dataset routes or analytics code.
+For durable deployments, use `r2`, `s3`, `gcs`, or `azure` and configure the
+matching `OBJECT_STORAGE_*` settings. New references use `r2://` for R2,
+`s3://` for AWS/S3-compatible storage, `gs://` for GCS, and `azure://` for
+Azure. Dataset routes and analytics code are provider-neutral. The resolver
+selects the client from each stored URI, so references from an old and new
+provider can coexist during a migration. Older R2 references written as
+`s3://` are supported as legacy R2 references when `R2_*` variables and
+`OBJECT_STORAGE_LEGACY_S3_PROVIDER=r2` are configured. Use
+`scripts/migrate_object_storage.py` to copy existing objects and update
+database references before changing providers.
 
 `DATASET_UPLOAD_DIR` controls local staging files. It is not the source of truth
 when object storage is enabled.

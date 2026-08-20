@@ -5326,7 +5326,7 @@ export async function createOrganization(
 
   const response =
     await fetchOrganizationRequest(
-      `${API_URL}/organizations`,
+      `${API_URL}/organizations/`,
       {
         method: "POST",
         headers: await organizationOwnerJsonHeaders(

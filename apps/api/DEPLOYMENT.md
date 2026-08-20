@@ -64,9 +64,11 @@ OBJECT_STORAGE_REGION=auto
 ```
 
 Uploaded and connector datasets are staged locally, converted to Parquet, and
-stored in R2. PostgreSQL stores metadata and `s3://` object references. Reads
-materialize only the requested object or partition directory, so the API can
-move from R2 to AWS S3 without changing dataset routes.
+stored in R2. PostgreSQL stores metadata and provider-qualified object
+references such as `r2://bucket/key`. Reads materialize only the requested
+object or partition directory. The resolver also reads legacy `s3://` R2
+references, so the API can move from R2 to AWS S3 without changing dataset
+routes.
 
 ## Email, AI, billing
 

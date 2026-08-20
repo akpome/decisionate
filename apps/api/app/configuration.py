@@ -59,6 +59,14 @@ class RuntimeConfiguration:
     object_storage_access_key: str
     object_storage_secret_key: str
     object_storage_region: str
+    object_storage_project: str
+    object_storage_credentials_file: str
+    object_storage_credentials_json: str
+    object_storage_connection_string: str
+    object_storage_account_url: str
+    object_storage_account_name: str
+    object_storage_account_key: str
+    object_storage_sas_token: str
     cache_provider: str
     redis_url: str
     analytics_engine: str
@@ -100,7 +108,12 @@ def get_runtime_configuration() -> RuntimeConfiguration:
             _env("OBJECT_STORAGE_PROVIDER", "local").lower()
             or "local"
         ),
-        object_storage_bucket=_first_env("OBJECT_STORAGE_BUCKET", "R2_BUCKET"),
+        object_storage_bucket=_first_env(
+            "OBJECT_STORAGE_BUCKET",
+            "R2_BUCKET",
+            "GCS_BUCKET",
+            "AZURE_STORAGE_CONTAINER",
+        ),
         object_storage_endpoint=_first_env("OBJECT_STORAGE_ENDPOINT", "R2_ENDPOINT"),
         object_storage_access_key=_first_env(
             "OBJECT_STORAGE_ACCESS_KEY",
@@ -111,6 +124,38 @@ def get_runtime_configuration() -> RuntimeConfiguration:
             "R2_SECRET_ACCESS_KEY",
         ),
         object_storage_region=_env("OBJECT_STORAGE_REGION"),
+        object_storage_project=_first_env(
+            "OBJECT_STORAGE_PROJECT",
+            "GCS_PROJECT",
+        ),
+        object_storage_credentials_file=_first_env(
+            "OBJECT_STORAGE_CREDENTIALS_FILE",
+            "GCS_CREDENTIALS_FILE",
+        ),
+        object_storage_credentials_json=_first_env(
+            "OBJECT_STORAGE_CREDENTIALS_JSON",
+            "GCS_CREDENTIALS_JSON",
+        ),
+        object_storage_connection_string=_first_env(
+            "OBJECT_STORAGE_CONNECTION_STRING",
+            "AZURE_STORAGE_CONNECTION_STRING",
+        ),
+        object_storage_account_url=_first_env(
+            "OBJECT_STORAGE_ACCOUNT_URL",
+            "AZURE_STORAGE_ACCOUNT_URL",
+        ),
+        object_storage_account_name=_first_env(
+            "OBJECT_STORAGE_ACCOUNT_NAME",
+            "AZURE_STORAGE_ACCOUNT_NAME",
+        ),
+        object_storage_account_key=_first_env(
+            "OBJECT_STORAGE_ACCOUNT_KEY",
+            "AZURE_STORAGE_ACCOUNT_KEY",
+        ),
+        object_storage_sas_token=_first_env(
+            "OBJECT_STORAGE_SAS_TOKEN",
+            "AZURE_STORAGE_SAS_TOKEN",
+        ),
         cache_provider=(
             _env("CACHE_PROVIDER", "memory").lower() or "memory"
         ),

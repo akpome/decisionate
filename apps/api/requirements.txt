@@ -12,5 +12,7 @@ python-multipart
 cryptography
 psycopg[binary]
 boto3
+azure-storage-blob
+google-cloud-storage
 redis
 sentry-sdk[fastapi]

@@ -384,6 +384,17 @@ def configured_platform_admin_references() -> set[str]:
     }
 
 
+def configured_platform_admin_emails() -> set[str]:
+    return {
+        email.strip().lower()
+        for email in os.getenv(
+            "DECISIONATE_PLATFORM_ADMIN_EMAILS",
+            "",
+        ).split(",")
+        if email.strip()
+    }
+
+
 def ensure_platform_admin_roles() -> None:
     configured_ids = configured_platform_admin_references()
     if not configured_ids:
@@ -422,6 +433,7 @@ def ensure_platform_admin_roles() -> None:
 
 def get_platform_admin_user_ids() -> set[str]:
     configured_ids = configured_platform_admin_references()
+    configured_emails = configured_platform_admin_emails()
     db = SessionLocal()
     try:
         role_ids = {
@@ -435,6 +447,31 @@ def get_platform_admin_user_ids() -> set[str]:
                     configured_id,
                 )
                 or configured_id
+            )
+        if configured_emails:
+            role_ids.update(
+                user.id
+                for user in (
+                    db.query(AppUser)
+                    .filter(
+                        func.lower(AppUser.email).in_(
+                            configured_emails
+                        )
+                    )
+                    .all()
+                )
+            )
+            role_ids.update(
+                identity.user_id
+                for identity in (
+                    db.query(AuthIdentity)
+                    .filter(
+                        func.lower(AuthIdentity.email).in_(
+                            configured_emails
+                        )
+                    )
+                    .all()
+                )
             )
         if role_ids:
             return role_ids

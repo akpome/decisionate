@@ -17,7 +17,7 @@ Change deployment configuration, not application code:
 | Web | `NEXT_PUBLIC_API_URL` at web build time | Any Node/Next host |
 | API | `DATABASE_URL` and container port `8000` | Any Python/container host |
 | Transaction data | SQLAlchemy `DATABASE_URL` | PostgreSQL or SQLite for local development |
-| Dataset files | `OBJECT_STORAGE_*` | Local development, Cloudflare R2, AWS S3, or another S3-compatible store |
+| Dataset files | `OBJECT_STORAGE_*` | Local development, Cloudflare R2, AWS S3, Google Cloud Storage, or Azure Blob Storage |
 | Analytics | `ANALYTICS_ENGINE`, `ANALYTICS_STORAGE_FORMAT` | DuckDB/Parquet or BigQuery |
 | Cache | `CACHE_PROVIDER`, `REDIS_URL` | In-memory development cache or Redis-compatible service |
 | Authentication | `AUTH_PROVIDER`, `AUTH_JWKS_URL`, audience, issuer | Any JWT/JWKS-compatible provider |
@@ -33,7 +33,7 @@ The API exposes the selected non-secret providers at `GET /health` under
 ## First deployment
 
 1. Provision PostgreSQL and record its connection URL.
-2. Provision an S3-compatible bucket and credentials.
+2. Provision a durable object-storage bucket/container and credentials.
 3. Copy `apps/api/.env.example` to the API provider's secret/configuration
    store. Set `APP_ENV=production`, `DATABASE_URL`, explicit runtime provider
    choices, remote object-storage values, HTTPS URLs, explicit CORS origins,
@@ -84,17 +84,65 @@ an isolated restore before cutover.
 
 ## Moving object storage
 
-The application stores dataset references as local paths in development or
-`s3://bucket/key` references in remote mode. To move R2 to S3, or S3 to
-another S3-compatible service:
+The migration utility copies every persisted `Dataset.file_path`, including
+single-file uploads and connector partition directories. It verifies every
+copied object byte-for-byte before changing database references. It keeps the
+source objects by default and updates all dataset references in one database
+transaction.
 
-1. Copy objects while preserving keys.
-2. Change only `OBJECT_STORAGE_PROVIDER`, bucket, endpoint, region, access
-   key, and secret key.
-3. Verify a dataset preview, a dashboard query, a shared dashboard, and a
-   connector dataset before switching traffic.
+Set the source and target settings as deployment secrets. The variable names
+after each prefix are `PROVIDER`, `BUCKET`, `ENDPOINT`, `ACCESS_KEY`,
+`SECRET_KEY`, `REGION`, `PROJECT`, `CREDENTIALS_FILE`, `CREDENTIALS_JSON`,
+`CONNECTION_STRING`, `ACCOUNT_URL`, `ACCOUNT_NAME`, `ACCOUNT_KEY`, and
+`SAS_TOKEN` as applicable:
 
-Do not delete the old bucket until the restore and query checks pass.
+```bash
+export STORAGE_MIGRATION_SOURCE_PROVIDER=r2
+export STORAGE_MIGRATION_SOURCE_BUCKET=decisionate-production
+export STORAGE_MIGRATION_SOURCE_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+export STORAGE_MIGRATION_SOURCE_ACCESS_KEY=...
+export STORAGE_MIGRATION_SOURCE_SECRET_KEY=...
+
+export STORAGE_MIGRATION_TARGET_PROVIDER=gcs
+export STORAGE_MIGRATION_TARGET_BUCKET=decisionate-production
+export STORAGE_MIGRATION_TARGET_PROJECT=your-gcp-project
+export STORAGE_MIGRATION_TARGET_CREDENTIALS_FILE=/run/secrets/gcs.json
+
+export DATABASE_URL=...
+```
+
+Run a read-only inventory first:
+
+```bash
+.venv/bin/python scripts/migrate_object_storage.py --dry-run \
+  --report storage-migration-plan.json
+```
+
+Run the verified copy and database update:
+
+```bash
+.venv/bin/python scripts/migrate_object_storage.py \
+  --report storage-migration-result.json
+```
+
+For Azure, use `STORAGE_MIGRATION_TARGET_PROVIDER=azure`,
+`STORAGE_MIGRATION_TARGET_BUCKET=<container>`, and either a connection string
+or account URL plus account key/SAS token. For GCS, use `gs://` references and
+service-account JSON or application-default credentials.
+
+The database stores the complete object reference in `datasets.file_path`.
+The storage resolver chooses the client from that reference (`r2://`,
+`s3://`, `gs://`, or `azure://`) rather than assuming every row belongs to the
+currently selected provider. Keep the old provider's provider-specific
+credentials configured while migrating so reads, verification, rollback, and
+the final database-reference update can happen without an application-wide
+storage cutover. Older R2 rows that contain `s3://` are resolved as legacy R2
+when `OBJECT_STORAGE_LEGACY_S3_PROVIDER=r2` is set.
+
+Only after the new provider passes dataset preview, dashboard query, shared
+dashboard, connector partition, deletion, and backup/restore checks should the
+source be removed. The optional `--delete-source` flag performs that cleanup
+after the database update; it is intentionally never the default.
 
 ## Moving authentication
 
