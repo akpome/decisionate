@@ -11,7 +11,10 @@ from app.db.models import Dataset
 from app.db.models import DatasetJoinCache
 from app.db.models import DatasetRelationship
 from app.db.models import UserPreference
-from app.infrastructure.object_storage import get_object_storage
+from app.infrastructure.object_storage import (
+    get_dataset_storage_reference,
+    get_object_storage,
+)
 
 
 SUBSCRIPTION_EXPIRY_DATA_PURGE_DAYS = 89
@@ -92,9 +95,9 @@ def purge_workspace_data_after_expiry(
     datasets = db.query(Dataset).filter(dataset_scope).all()
     storage = get_object_storage()
     file_references = {
-        str(dataset.file_path).strip()
+        get_dataset_storage_reference(dataset)
         for dataset in datasets
-        if str(dataset.file_path or "").strip()
+        if get_dataset_storage_reference(dataset)
     }
     for file_reference in file_references:
         storage.delete(file_reference)

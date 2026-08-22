@@ -1,0 +1,26 @@
+{
+  "copied_dataset_count": 2,
+  "copied_object_count": 2,
+  "dataset_count": 2,
+  "datasets": [
+    {
+      "dataset_id": 1,
+      "reason": "recovered from local source after missing target object",
+      "source_reference": "/home/akpome/decisionate/apps/api/uploads/bd9e4c3a-a7cd-4693-907d-647b0788ff7d-revenue-demo.parquet",
+      "target_reference": "r2://decisionate-staging/datasets/workspace=usr_d0f169e685e04f0bbd158f07a69fdb91/dataset-1.parquet"
+    },
+    {
+      "dataset_id": 2,
+      "reason": "recovered from local source after missing target object",
+      "source_reference": "/home/akpome/decisionate/apps/api/uploads/0b360822-c422-4bcf-944e-dd6c92227d23-marketing-demo.parquet",
+      "target_reference": "r2://decisionate-staging/datasets/workspace=usr_d0f169e685e04f0bbd158f07a69fdb91/dataset-2.parquet"
+    }
+  ],
+  "dry_run": false,
+  "skipped": [],
+  "skipped_count": 0,
+  "source_deleted": false,
+  "source_provider": "local",
+  "target_provider": "r2",
+  "verified": true
+}

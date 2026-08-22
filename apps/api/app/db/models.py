@@ -156,6 +156,14 @@ class Dataset(Base):
         nullable=False,
     )
 
+    # New records keep the provider-independent object key in file_path and
+    # the provider separately. Legacy rows may still contain a full URI.
+    storage_provider = Column(
+        String,
+        nullable=True,
+        index=True,
+    )
+
     source_type = Column(
         String,
         nullable=False,

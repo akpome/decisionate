@@ -11,7 +11,7 @@ from app.modules.datasets.services.analytics_storage import (
 from app.modules.datasets.services.file_loader import (
     load_dataset_file,
 )
-from app.infrastructure.object_storage import get_object_storage
+from app.infrastructure.object_storage import get_dataset_storage_reference
 
 
 class AnalyticsAdapterUnavailable(
@@ -81,7 +81,7 @@ class DuckDBAnalyticsAdapter(
         self,
         dataset,
     ):
-        file_path = str(dataset.file_path or "").strip()
+        file_path = get_dataset_storage_reference(dataset)
         with get_object_storage().materialize(file_path) as materialized_path:
             parquet_paths = self._parquet_paths(materialized_path)
 

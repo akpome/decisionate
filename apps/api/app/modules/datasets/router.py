@@ -38,7 +38,10 @@ from app.db.models import DatasetRelationship
 from app.db.models import UserPreference
 from app.db.models import WeeklyReportPreference
 from app.db.models import utc_now
-from app.infrastructure.object_storage import get_object_storage
+from app.infrastructure.object_storage import (
+    get_dataset_storage_reference,
+    get_object_storage,
+)
 
 from app.modules.datasets.schemas import DataSourceConnectionCreate
 from app.modules.datasets.schemas import DataSourceConnectionUpdate
@@ -359,6 +362,8 @@ def persist_dataset_file(
 ):
     parquet_path = None
     stored_file_path = file_path
+    stored_reference = file_path
+    storage_provider = None
     storage = get_object_storage()
     try:
         source_type, dataframe = load_dataset_file(
@@ -375,7 +380,7 @@ def persist_dataset_file(
             file_path = parquet_path
 
         if storage.is_remote:
-            stored_file_path = storage.put_file(
+            stored_reference = storage.put_file(
                 file_path,
                 key=(
                     "datasets/"
@@ -383,6 +388,8 @@ def persist_dataset_file(
                     f"dataset-{uuid.uuid4().hex}.parquet"
                 ),
             )
+            stored_file_path = storage.reference_key(stored_reference)
+            storage_provider = storage.config.provider
         else:
             stored_file_path = file_path
 
@@ -396,6 +403,7 @@ def persist_dataset_file(
             ),
             file_name=upload_filename,
             file_path=stored_file_path,
+            storage_provider=storage_provider,
             row_count=len(dataframe),
             column_count=len(dataframe.columns),
         )
@@ -403,11 +411,11 @@ def persist_dataset_file(
         db.add(dataset)
         db.commit()
         db.refresh(dataset)
-        if stored_file_path != file_path:
+        if stored_reference != file_path:
             remove_dataset_file(file_path)
         return dataset
     except Exception:
-        remove_dataset_file(stored_file_path)
+        remove_dataset_file(stored_reference)
         remove_dataset_file(file_path)
         if parquet_path and parquet_path != file_path:
             remove_dataset_file(parquet_path)
@@ -3245,26 +3253,31 @@ def persist_connector_dataframe(
         )
 
         storage = get_object_storage()
+        existing_reference = (
+            get_dataset_storage_reference(existing_dataset)
+            if existing_dataset
+            else ""
+        )
         existing_dataframe = None
         existing_summary = pd.DataFrame()
         if existing_dataset:
-            if storage.is_directory_reference(existing_dataset.file_path):
+            if storage.is_directory_reference(existing_reference):
                 existing_dataframe = load_connector_raw_dataframe(
-                    existing_dataset.file_path
+                    existing_reference
                 )
                 existing_summary = load_connector_summary_dataframe(
-                    existing_dataset.file_path
+                    existing_reference
                 )
             else:
                 _, existing_dataframe = load_dataset_file(
-                    existing_dataset.file_path,
+                    existing_reference,
                     existing_dataset.file_name,
                 )
 
         fetched_row_count = len(dataframe)
         storage_migration_required = bool(
             existing_dataset
-            and not storage.is_directory_reference(existing_dataset.file_path)
+            and not storage.is_directory_reference(existing_reference)
         )
 
         if dataframe.empty:
@@ -3314,9 +3327,20 @@ def persist_connector_dataframe(
             local_partition_dir,
             key_prefix=build_connector_storage_prefix(connection),
         )
+        storage_provider = (
+            storage.config.provider
+            if storage.is_remote
+            else None
+        )
+        stored_file_path = (
+            storage.reference_key(file_path)
+            if storage.is_remote
+            else file_path
+        )
         if file_path != local_partition_dir:
             remove_dataset_file(local_partition_dir)
 
+        storage_key = stored_file_path
         historical_summary_files = []
         for local_path in storage_result[
             "historical_partition_paths"
@@ -3326,15 +3350,15 @@ def persist_connector_dataframe(
                 local_partition_dir,
             ).replace(os.sep, "/")
             historical_summary_files.append(
-                f"{file_path.rstrip('/')}/{relative_path}"
+                f"{storage_key.rstrip('/')}/{relative_path}"
                 if storage.is_remote
                 else local_path
             )
         historical_directory = (
-            f"{file_path.rstrip('/')}/{CONNECTOR_HISTORICAL_DIRECTORY}/"
+            f"{storage_key.rstrip('/')}/{CONNECTOR_HISTORICAL_DIRECTORY}/"
             if storage.is_remote
             else os.path.join(
-                file_path,
+                storage_key,
                 CONNECTOR_HISTORICAL_DIRECTORY,
             )
         )
@@ -3369,7 +3393,7 @@ def persist_connector_dataframe(
             ),
             "stored_file_format": "parquet",
             "partitioned_storage": "monthly_hot_with_yearly_historical_summary",
-            "partition_directory": file_path,
+            "partition_directory": storage_key,
             "partition_date_column": storage_result["date_column"],
             "hot_months": CONNECTOR_HOT_MONTHS,
             "retention_years": CONNECTOR_DATA_RETENTION_YEARS,
@@ -3402,10 +3426,14 @@ def persist_connector_dataframe(
 
         if existing_dataset:
             dataset = existing_dataset
-            if dataset.file_path != file_path:
-                replaced_file_path = dataset.file_path
+            if (
+                dataset.file_path != stored_file_path
+                or dataset.storage_provider != storage_provider
+            ):
+                replaced_file_path = existing_reference
             dataset.file_name = upload_filename
-            dataset.file_path = file_path
+            dataset.file_path = stored_file_path
+            dataset.storage_provider = storage_provider
             dataset.source_config = source_config
             dataset.row_count = (
                 storage_result["hot_row_count"]
@@ -3419,7 +3447,8 @@ def persist_connector_dataframe(
                 source_type=connection.source_type,
                 source_config=source_config,
                 file_name=upload_filename,
-                file_path=file_path,
+                file_path=stored_file_path,
+                storage_provider=storage_provider,
                 row_count=(
                     storage_result["hot_row_count"]
                     + storage_result["historical_summary_row_count"]
@@ -3448,8 +3477,9 @@ def connector_dataset_requires_retention_cleanup(
     date_column = source_config.get("partition_date_column")
     storage = get_object_storage()
 
-    if storage.is_directory_reference(dataset.file_path):
-        with storage.materialize(dataset.file_path) as local_partition_dir:
+    dataset_reference = get_dataset_storage_reference(dataset)
+    if storage.is_directory_reference(dataset_reference):
+        with storage.materialize(dataset_reference) as local_partition_dir:
             for path in list_connector_raw_partition_paths(
                 local_partition_dir
             ):
@@ -3504,7 +3534,7 @@ def connector_dataset_requires_retention_cleanup(
             )
         )
 
-    with storage.materialize(dataset.file_path) as local_file_path:
+    with storage.materialize(dataset_reference) as local_file_path:
         try:
             dataframe = load_dataset_file(
                 local_file_path,
@@ -4678,9 +4708,7 @@ async def delete_dataset(
             workspace_id,
         )
 
-        remove_dataset_file(
-            dataset.file_path
-        )
+        remove_dataset_file(get_dataset_storage_reference(dataset))
         cleanup_deleted_dataset_preferences(
             db,
             dataset,

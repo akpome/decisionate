@@ -9,7 +9,10 @@ from sqlalchemy import Column, DateTime, Integer, String, Text
 from sqlalchemy import and_, case, func, or_
 
 from app.db.database import Base, SessionLocal
-from app.infrastructure.object_storage import get_object_storage
+from app.infrastructure.object_storage import (
+    get_dataset_storage_reference,
+    get_object_storage,
+)
 from app.db.models import (
     AIUsageEvent,
     AppUser,
@@ -2296,7 +2299,9 @@ def delete_workspace_records(
     )
     dataset_ids = [dataset.id for dataset in datasets]
     for dataset in datasets:
-        remove_dataset_file_for_admin(dataset.file_path)
+        remove_dataset_file_for_admin(
+            get_dataset_storage_reference(dataset)
+        )
 
     if dataset_ids:
         db.query(DashboardShare).filter(

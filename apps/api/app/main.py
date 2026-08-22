@@ -750,6 +750,21 @@ def ensure_dataset_source_columns():
 ensure_dataset_source_columns()
 
 
+def ensure_dataset_storage_columns():
+    with engine.begin() as connection:
+        column_names = get_table_columns(connection, "datasets")
+        if "storage_provider" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE datasets "
+                    "ADD COLUMN storage_provider VARCHAR"
+                )
+            )
+
+
+ensure_dataset_storage_columns()
+
+
 # =========================
 # Decision Title Cleanup For Existing Required Records
 # =========================

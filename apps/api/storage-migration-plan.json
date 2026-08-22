@@ -1,0 +1,22 @@
+{
+  "copied_object_count": 0,
+  "dataset_count": 0,
+  "datasets": [],
+  "dry_run": true,
+  "skipped": [
+    {
+      "dataset_id": 1,
+      "reason": "already in target provider; Parquet key repair will be applied",
+      "reference": "r2://decisionate-staging/datasets/migrated/dataset-1/revenue-demo.csv"
+    },
+    {
+      "dataset_id": 2,
+      "reason": "already in target provider; Parquet key repair will be applied",
+      "reference": "r2://decisionate-staging/datasets/migrated/dataset-2/marketing-demo.csv"
+    }
+  ],
+  "source_deleted": false,
+  "source_provider": "local",
+  "target_provider": "r2",
+  "verified": false
+}

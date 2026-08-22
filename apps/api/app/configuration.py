@@ -91,6 +91,20 @@ class RuntimeConfiguration:
 
 def get_runtime_configuration() -> RuntimeConfiguration:
     """Read the deployment contract from the current process environment."""
+    app_env = _env("APP_ENV", "development").lower() or "development"
+    raw_database_url = _env("DATABASE_URL")
+    if app_env in {"staging", "production"}:
+        if not raw_database_url:
+            raise RuntimeError(
+                "DATABASE_URL must be configured for staging and production; "
+                "configure the Railway Postgres service reference"
+            )
+        normalized_database_url = normalize_database_url(raw_database_url)
+        if normalized_database_url.startswith("sqlite"):
+            raise RuntimeError(
+                "DATABASE_URL must point to PostgreSQL for staging and production"
+            )
+
     cors_origins = tuple(
         origin.strip().rstrip("/")
         for origin in _env("CORS_ALLOWED_ORIGINS").split(",")
@@ -98,8 +112,8 @@ def get_runtime_configuration() -> RuntimeConfiguration:
     )
 
     return RuntimeConfiguration(
-        app_env=_env("APP_ENV", "development").lower() or "development",
-        database_url=normalize_database_url(_env("DATABASE_URL")),
+        app_env=app_env,
+        database_url=normalize_database_url(raw_database_url),
         api_url=_env("DECISIONATE_API_URL", "http://localhost:8000"),
         web_url=_env("DECISIONATE_WEB_APP_URL", "http://localhost:3000"),
         cors_allowed_origins=cors_origins,

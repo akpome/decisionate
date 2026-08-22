@@ -77,6 +77,10 @@ Use the existing migration preflight for a SQLite development database:
   --report postgres-migration-report.json
 ```
 
+The target PostgreSQL database must contain no application rows. An empty
+schema already created by Railway or the API is acceptable; the migration
+reuses those empty tables, preserves integer IDs, and resets sequences.
+
 For PostgreSQL-to-PostgreSQL moves, use the source and target provider's
 native logical backup/restore tools. Keep the application `DATABASE_URL`
 unchanged at the code level. Run `scripts/verify_backup_restore.py` against
@@ -130,14 +134,15 @@ For Azure, use `STORAGE_MIGRATION_TARGET_PROVIDER=azure`,
 or account URL plus account key/SAS token. For GCS, use `gs://` references and
 service-account JSON or application-default credentials.
 
-The database stores the complete object reference in `datasets.file_path`.
-The storage resolver chooses the client from that reference (`r2://`,
-`s3://`, `gs://`, or `azure://`) rather than assuming every row belongs to the
-currently selected provider. Keep the old provider's provider-specific
-credentials configured while migrating so reads, verification, rollback, and
-the final database-reference update can happen without an application-wide
-storage cutover. Older R2 rows that contain `s3://` are resolved as legacy R2
-when `OBJECT_STORAGE_LEGACY_S3_PROVIDER=r2` is set.
+New dataset rows store the provider-neutral object key in
+`datasets.file_path` and the provider in `datasets.storage_provider`. The
+storage resolver reconstructs the active provider reference from deployment
+configuration. Legacy rows that contain a complete `r2://`, `s3://`, `gs://`,
+or `azure://` reference remain readable during the transition. Keep the old
+provider's provider-specific credentials configured while migrating so reads,
+verification, rollback, and the final provider update can happen without an
+application-wide storage cutover. Older R2 rows that contain `s3://` are
+resolved as legacy R2 when `OBJECT_STORAGE_LEGACY_S3_PROVIDER=r2` is set.
 
 Only after the new provider passes dataset preview, dashboard query, shared
 dashboard, connector partition, deletion, and backup/restore checks should the

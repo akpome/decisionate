@@ -33,6 +33,11 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 
+OPTIONAL_LEGACY_COLUMNS = {
+    "datasets": {"storage_provider"},
+}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Preflight and optionally migrate Decisionate SQLite data."
@@ -211,10 +216,13 @@ def build_preflight_report(engine, base) -> dict[str, Any]:
                 if model_table is not None
                 else set()
             )
+            optional_columns = OPTIONAL_LEGACY_COLUMNS.get(table_name, set())
             table_report: dict[str, Any] = {
                 "rows": table_row_count(connection, source_table),
                 "columns": sorted(source_columns),
-                "missing_model_columns": sorted(model_columns - source_columns),
+                "missing_model_columns": sorted(
+                    model_columns - source_columns - optional_columns
+                ),
                 "unknown_columns": sorted(source_columns - model_columns),
                 "duplicate_unique_values": [],
             }
@@ -260,12 +268,33 @@ def build_preflight_report(engine, base) -> dict[str, Any]:
     return report
 
 
-def ensure_target_is_empty(engine) -> None:
+def ensure_target_is_empty(engine, base) -> None:
     existing_tables = inspect(engine).get_table_names()
-    if existing_tables:
+    if not existing_tables:
+        return
+
+    model_table_names = set(base.metadata.tables)
+    allowed_metadata_tables = {"alembic_version"}
+    unknown_tables = sorted(
+        set(existing_tables) - model_table_names - allowed_metadata_tables
+    )
+    populated_tables = []
+    for table_name in sorted(set(existing_tables) & model_table_names):
+        table = Table(
+            table_name,
+            MetaData(),
+            autoload_with=engine,
+        )
+        with engine.connect() as connection:
+            if table_row_count(connection, table):
+                populated_tables.append(table_name)
+
+    if unknown_tables or populated_tables:
         raise SystemExit(
-            "Migration target is not empty. Use a fresh PostgreSQL database. "
-            f"Existing tables: {', '.join(sorted(existing_tables)[:10])}"
+            "Migration target contains data or unknown tables. Use a fresh "
+            "PostgreSQL database, or clear the target before copying. "
+            f"Populated tables: {', '.join(populated_tables[:10]) or 'none'}. "
+            f"Unknown tables: {', '.join(unknown_tables[:10]) or 'none'}."
         )
 
 
@@ -302,7 +331,7 @@ def copy_to_postgres(
     if batch_size < 1:
         raise SystemExit("--batch-size must be greater than zero")
 
-    ensure_target_is_empty(target_engine)
+    ensure_target_is_empty(target_engine, base)
     base.metadata.create_all(target_engine)
     source_tables = set(inspect(source_engine).get_table_names())
     copied: dict[str, int] = {}

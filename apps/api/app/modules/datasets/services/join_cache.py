@@ -5,7 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 
-from app.infrastructure.object_storage import get_object_storage
+from app.infrastructure.object_storage import (
+    get_dataset_storage_reference,
+    get_object_storage,
+)
 from app.modules.datasets.services.joins import (
     JOIN_RESULT_VERSION,
 )
@@ -47,14 +50,14 @@ def build_dataset_source_fingerprint(datasets):
     ):
         source = {
             "id": int(dataset.id),
-            "file_path": str(dataset.file_path or ""),
+            "file_path": get_dataset_storage_reference(dataset),
             "source_type": str(dataset.source_type or ""),
             "row_count": int(dataset.row_count or 0),
             "column_count": int(dataset.column_count or 0),
         }
 
         source_metadata = get_object_storage().fingerprint(
-            dataset.file_path
+            get_dataset_storage_reference(dataset)
         )
         if source_metadata:
             source.update(source_metadata)

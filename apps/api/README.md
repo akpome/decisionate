@@ -62,9 +62,10 @@ Before switching a deployment, run the migration preflight from `apps/api`:
 
 This creates a SQLite backup, checks database integrity, foreign keys, required
 columns, unique values, and required-field nulls. It exits non-zero when the
-copy is unsafe. After the report is clean, copy into a fresh PostgreSQL
-database with the explicit `--migrate-to` option. The target must be empty and
-the script preserves integer IDs and resets PostgreSQL sequences.
+copy is unsafe. After the report is clean, copy into a PostgreSQL database with
+the explicit `--migrate-to` option. The target must contain no application
+rows; an empty schema created by the API is okay. The script preserves integer
+IDs and resets PostgreSQL sequences.
 
 `OBJECT_STORAGE_PROVIDER=local` keeps development data on the local filesystem.
 For durable deployments, use `r2`, `s3`, `gcs`, or `azure` and configure the
@@ -78,8 +79,11 @@ provider can coexist during a migration. Older R2 references written as
 `scripts/migrate_object_storage.py` to copy existing objects and update
 database references before changing providers.
 
-`DATASET_UPLOAD_DIR` controls local staging files. It is not the source of truth
-when object storage is enabled.
+For remote storage, new dataset rows store a provider-neutral object key in
+`datasets.file_path` and the provider in `datasets.storage_provider`. Legacy
+rows containing a full `r2://`, `gs://`, or `azure://` reference remain readable
+and are resolved without a data rewrite. `DATASET_UPLOAD_DIR` controls local
+staging files; it is not the source of truth when object storage is enabled.
 
 `CORS_ALLOWED_ORIGINS` is a comma-separated list of web origins that can call the API. Include the deployed web app origin so public shared dashboard links can load data in the browser.
 

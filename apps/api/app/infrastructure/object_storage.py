@@ -313,6 +313,35 @@ class ObjectStorage:
     def reference_key(self, reference: str) -> str:
         return _reference_parts(str(reference).strip())[1]
 
+    def reference_for_key(
+        self,
+        key: str,
+        provider: str | None = None,
+    ) -> str:
+        clean_key = str(key or "").strip()
+        clean_provider = str(provider or self.config.provider).strip().lower()
+        if clean_provider == "local":
+            return clean_key
+        config = (
+            self.config
+            if clean_provider == self.config.provider
+            else _provider_config_from_env(clean_provider)
+        )
+        return _reference_for_config(config, clean_key)
+
+    def reference_for_stored_value(
+        self,
+        value: str | None,
+        provider: str | None = None,
+    ) -> str:
+        """Resolve a legacy URI or a provider-neutral stored object key."""
+        clean_value = str(value or "").strip()
+        if not clean_value or self.is_reference(clean_value):
+            return clean_value
+        if provider and str(provider).strip().lower() != "local":
+            return self.reference_for_key(clean_value, provider)
+        return clean_value
+
     def _storage_for_reference(self, reference: str) -> "ObjectStorage":
         """Resolve a stored URI to the client that owns that URI.
 
@@ -790,6 +819,14 @@ def get_object_storage() -> ObjectStorage:
         _storage = ObjectStorage(config)
         _storage_signature = signature
     return _storage
+
+
+def get_dataset_storage_reference(dataset) -> str:
+    """Resolve a Dataset row to a usable local path or provider URI."""
+    return get_object_storage().reference_for_stored_value(
+        getattr(dataset, "file_path", None),
+        getattr(dataset, "storage_provider", None),
+    )
 
 
 def build_storage_status() -> dict:

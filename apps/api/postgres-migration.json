@@ -1,0 +1,620 @@
+{
+  "source_dialect": "sqlite",
+  "source_tables": [
+    "ai_usage_events",
+    "app_users",
+    "auth_identities",
+    "billing_webhook_events",
+    "dashboard_shares",
+    "data_source_connections",
+    "dataset_join_caches",
+    "dataset_relationships",
+    "datasets",
+    "decision_activities",
+    "decisions",
+    "oauth_connection_states",
+    "oauth_credentials",
+    "organization_invites",
+    "organization_members",
+    "organizations",
+    "platform_admin_audit_events",
+    "platform_admin_roles",
+    "platform_billing_settings",
+    "platform_email_settings",
+    "usage_activity_events",
+    "user_preferences",
+    "weekly_report_delivery_logs",
+    "weekly_report_preferences",
+    "workspace_subscriptions"
+  ],
+  "missing_model_tables": [],
+  "unknown_source_tables": [],
+  "integrity_check": "ok",
+  "foreign_key_violations": [],
+  "tables": {
+    "ai_usage_events": {
+      "rows": 0,
+      "columns": [
+        "actor_user_id",
+        "completion_tokens",
+        "created_at",
+        "credits",
+        "estimated_credits",
+        "estimated_tokens",
+        "id",
+        "operation",
+        "period_start",
+        "prompt_tokens",
+        "provider",
+        "status",
+        "total_tokens",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "workspace_id": 0,
+        "operation": 0
+      }
+    },
+    "app_users": {
+      "rows": 12,
+      "columns": [
+        "created_at",
+        "display_name",
+        "email",
+        "id",
+        "updated_at"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {}
+    },
+    "auth_identities": {
+      "rows": 15,
+      "columns": [
+        "created_at",
+        "email",
+        "id",
+        "last_seen_at",
+        "provider",
+        "subject",
+        "user_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "user_id": 0,
+        "provider": 0,
+        "subject": 0
+      }
+    },
+    "billing_webhook_events": {
+      "rows": 0,
+      "columns": [
+        "event_type",
+        "id",
+        "processed_at",
+        "provider",
+        "provider_event_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "provider_event_id": 0,
+        "event_type": 0
+      }
+    },
+    "dashboard_shares": {
+      "rows": 0,
+      "columns": [
+        "created_at",
+        "dashboard_key",
+        "dataset_id",
+        "id",
+        "share_token"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "dataset_id": 0,
+        "dashboard_key": 0,
+        "share_token": 0
+      }
+    },
+    "data_source_connections": {
+      "rows": 0,
+      "columns": [
+        "connection_config",
+        "created_at",
+        "display_name",
+        "id",
+        "last_synced_at",
+        "source_type",
+        "status",
+        "updated_at",
+        "user_id",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "user_id": 0,
+        "source_type": 0,
+        "display_name": 0
+      }
+    },
+    "dataset_join_caches": {
+      "rows": 0,
+      "columns": [
+        "created_at",
+        "dashboard_key",
+        "dataset_ids",
+        "definition",
+        "id",
+        "result",
+        "source_fingerprint",
+        "updated_at",
+        "user_id",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "user_id": 0,
+        "dashboard_key": 0,
+        "dataset_ids": 0,
+        "definition": 0,
+        "result": 0,
+        "source_fingerprint": 0
+      }
+    },
+    "dataset_relationships": {
+      "rows": 1,
+      "columns": [
+        "aggregation",
+        "created_at",
+        "id",
+        "lag_mode",
+        "lag_periods",
+        "left_dataset_id",
+        "left_date_column",
+        "left_metric",
+        "method",
+        "name",
+        "period",
+        "right_dataset_id",
+        "right_date_column",
+        "right_metric",
+        "updated_at",
+        "user_id",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "user_id": 0,
+        "name": 0,
+        "left_dataset_id": 0,
+        "left_date_column": 0,
+        "left_metric": 0,
+        "right_dataset_id": 0,
+        "right_date_column": 0,
+        "right_metric": 0
+      }
+    },
+    "datasets": {
+      "rows": 2,
+      "columns": [
+        "column_count",
+        "created_at",
+        "file_name",
+        "file_path",
+        "id",
+        "row_count",
+        "share_token",
+        "source_config",
+        "source_type",
+        "user_id",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "file_name": 0,
+        "file_path": 0,
+        "row_count": 0,
+        "column_count": 0,
+        "user_id": 0
+      }
+    },
+    "decision_activities": {
+      "rows": 20,
+      "columns": [
+        "activity_type",
+        "actor_user_id",
+        "created_at",
+        "decision_id",
+        "decision_title",
+        "id",
+        "message",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "activity_type": 0,
+        "message": 0
+      }
+    },
+    "decisions": {
+      "rows": 5,
+      "columns": [
+        "action",
+        "actual_outcome",
+        "category",
+        "clerk_user_id",
+        "confidence_score",
+        "created_at",
+        "dataset_id",
+        "description",
+        "expected_outcome",
+        "id",
+        "lessons_learned",
+        "metric_column",
+        "notes",
+        "outcome_status",
+        "priority",
+        "recommendation_context",
+        "recommendation_source",
+        "recommendation_text",
+        "review_date",
+        "status",
+        "title",
+        "updated_at",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "clerk_user_id": 0,
+        "dataset_id": 0,
+        "title": 0
+      }
+    },
+    "oauth_connection_states": {
+      "rows": 0,
+      "columns": [
+        "connection_id",
+        "created_at",
+        "expires_at",
+        "id",
+        "source_type",
+        "state_token",
+        "user_id",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "state_token": 0,
+        "connection_id": 0,
+        "workspace_id": 0,
+        "user_id": 0,
+        "source_type": 0,
+        "expires_at": 0
+      }
+    },
+    "oauth_credentials": {
+      "rows": 0,
+      "columns": [
+        "access_token_encrypted",
+        "connection_id",
+        "created_at",
+        "expires_at",
+        "id",
+        "provider_account_id",
+        "refresh_token_encrypted",
+        "scope",
+        "source_type",
+        "token_type",
+        "updated_at",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "connection_id": 0,
+        "workspace_id": 0,
+        "source_type": 0
+      }
+    },
+    "organization_invites": {
+      "rows": 1,
+      "columns": [
+        "created_at",
+        "email",
+        "id",
+        "organization_id",
+        "role",
+        "status"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "organization_id": 0,
+        "email": 0
+      }
+    },
+    "organization_members": {
+      "rows": 4,
+      "columns": [
+        "clerk_user_id",
+        "created_at",
+        "id",
+        "organization_id",
+        "role"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "organization_id": 0,
+        "clerk_user_id": 0
+      }
+    },
+    "organizations": {
+      "rows": 2,
+      "columns": [
+        "accent_color",
+        "agency_owner_access_enabled",
+        "created_at",
+        "id",
+        "logo_url",
+        "name",
+        "owner_user_id",
+        "primary_color",
+        "report_display_name"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "name": 0,
+        "owner_user_id": 0
+      }
+    },
+    "platform_admin_audit_events": {
+      "rows": 17,
+      "columns": [
+        "action",
+        "admin_user_id",
+        "created_at",
+        "details",
+        "id",
+        "organization_id",
+        "target_email",
+        "target_user_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "admin_user_id": 0,
+        "action": 0
+      }
+    },
+    "platform_admin_roles": {
+      "rows": 1,
+      "columns": [
+        "created_at",
+        "granted_by_user_id",
+        "id",
+        "permissions",
+        "user_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "user_id": 0
+      }
+    },
+    "platform_billing_settings": {
+      "rows": 0,
+      "columns": [
+        "additional_client_workspace_ai_credits",
+        "agency_ai_credits",
+        "agency_client_ai_credits",
+        "agency_growth_ai_credits",
+        "agency_pro_ai_credits",
+        "ai_credit_pack_size",
+        "created_at",
+        "enterprise_ai_credits",
+        "free_ai_credits",
+        "id",
+        "professional_ai_credits",
+        "updated_at",
+        "updated_by_user_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {}
+    },
+    "platform_email_settings": {
+      "rows": 0,
+      "columns": [
+        "created_at",
+        "id",
+        "provider",
+        "resend_api_key",
+        "resend_from_email",
+        "resend_from_name",
+        "smtp_from_email",
+        "smtp_from_name",
+        "smtp_host",
+        "smtp_password",
+        "smtp_port",
+        "smtp_use_ssl",
+        "smtp_use_tls",
+        "smtp_username",
+        "updated_at",
+        "updated_by_user_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {}
+    },
+    "usage_activity_events": {
+      "rows": 47275,
+      "columns": [
+        "actor_user_id",
+        "created_at",
+        "duration_ms",
+        "id",
+        "method",
+        "route",
+        "status_code",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "route": 0,
+        "method": 0
+      }
+    },
+    "user_preferences": {
+      "rows": 1,
+      "columns": [
+        "clerk_user_id",
+        "created_at",
+        "dashboard_dataset_ids",
+        "dashboard_preferences",
+        "dashboard_views",
+        "id",
+        "metric_targets",
+        "selected_dashboard",
+        "selected_dataset_id",
+        "selected_metric",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "clerk_user_id": 0
+      }
+    },
+    "weekly_report_delivery_logs": {
+      "rows": 0,
+      "columns": [
+        "attempted_at",
+        "delivered_count",
+        "error",
+        "id",
+        "metrics_count",
+        "recipient_emails",
+        "status",
+        "subject",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "workspace_id": 0,
+        "status": 0
+      }
+    },
+    "weekly_report_preferences": {
+      "rows": 0,
+      "columns": [
+        "cadence",
+        "created_at",
+        "delivery_day",
+        "enabled",
+        "id",
+        "include_recommendations",
+        "last_send_error",
+        "last_send_status",
+        "last_sent_at",
+        "metric_focus",
+        "metric_targets",
+        "recipient_emails",
+        "relationship_focus",
+        "reply_to_email",
+        "sender_email",
+        "sender_name",
+        "smtp_host",
+        "smtp_password",
+        "smtp_port",
+        "smtp_use_ssl",
+        "smtp_use_tls",
+        "smtp_username",
+        "subject_prefix",
+        "updated_at",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "workspace_id": 0
+      }
+    },
+    "workspace_subscriptions": {
+      "rows": 1,
+      "columns": [
+        "additional_ai_credit_packs",
+        "additional_client_workspaces",
+        "ai_credits_used",
+        "billing_interval",
+        "cancel_at_period_end",
+        "canceled_at",
+        "created_at",
+        "current_period_end",
+        "current_period_start",
+        "data_purged_at",
+        "id",
+        "lifecycle_notice_at",
+        "lifecycle_notice_key",
+        "plan",
+        "price_id",
+        "provider",
+        "provider_addon_subscription_item_id",
+        "provider_customer_id",
+        "provider_subscription_id",
+        "status",
+        "updated_at",
+        "workspace_id"
+      ],
+      "missing_model_columns": [],
+      "unknown_columns": [],
+      "duplicate_unique_values": [],
+      "null_required_columns": {
+        "workspace_id": 0
+      }
+    }
+  },
+  "ready_for_copy": true,
+  "backup_path": "/home/akpome/decisionate/apps/api/decisionate-pre-postgres-migration.sqlite",
+  "migration_completed": false
+}
