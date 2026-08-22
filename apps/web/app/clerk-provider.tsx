@@ -12,15 +12,8 @@ export function AppClerkProvider({
   children,
 }: AppClerkProviderProps) {
   const pathname = usePathname()
-  const isPublicPath =
-    pathname === "/" ||
-    pathname === "/demo" ||
-    pathname?.startsWith("/share") ||
-    pathname?.startsWith("/privacy") ||
-    pathname?.startsWith("/terms") ||
-    pathname?.startsWith("/security")
 
-  if (isPublicPath) {
+  if (pathname === "/") {
     return <>{children}</>
   }
 
