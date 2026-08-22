@@ -15,6 +15,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 
 DEFAULT_API_URL = "http://localhost:8000"
@@ -53,6 +54,21 @@ JOBS = {
 
 def clean_env_value(name: str, default: str = "") -> str:
     return str(os.getenv(name, default) or "").strip()
+
+
+def normalize_api_url(value: str) -> str:
+    clean_value = str(value or "").strip()
+    if not clean_value:
+        raise ValueError("DECISIONATE_API_URL is not configured")
+    if "://" not in clean_value:
+        clean_value = f"https://{clean_value}"
+    parsed = urlparse(clean_value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(
+            "DECISIONATE_API_URL must be the public API URL, for example "
+            "https://decisionate-api.example.com"
+        )
+    return clean_value.rstrip("/")
 
 
 def selected_jobs() -> list[ScheduledJob]:
@@ -128,8 +144,10 @@ def run_job(
 
 def main(argv: list[str] | None = None) -> int:
     del argv
-    api_url = clean_env_value("DECISIONATE_API_URL", DEFAULT_API_URL)
     try:
+        api_url = normalize_api_url(
+            clean_env_value("DECISIONATE_API_URL", DEFAULT_API_URL)
+        )
         timeout_seconds = max(
             int(
                 clean_env_value(

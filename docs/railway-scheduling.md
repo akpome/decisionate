@@ -38,6 +38,11 @@ SCHEDULED_JOBS=connectors,alerts,billing
 SCHEDULER_TIMEOUT_SECONDS=60
 ```
 
+`DECISIONATE_API_URL` must be the public domain of the existing persistent
+`decisionate` API service. Do not use the `decisionate-scheduler` domain; the
+cron service must call the API service rather than call itself. Include the
+`https://` prefix.
+
 The three scheduler secrets must also be configured on the API service. They
 must match exactly. Do not expose them in the frontend or commit them to Git.
 
