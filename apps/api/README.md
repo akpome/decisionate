@@ -197,6 +197,20 @@ cannot prove that a provider account, OAuth flow or sync works.
 
 The runner exits with `0` when all due workspaces are sent or skipped, `1` when the scheduler request itself fails, and `2` when the API processed the request but at least one workspace failed delivery validation or email sending.
 
+For a single Railway Cron service, use the combined runner instead:
+
+```bash
+python scripts/run_scheduled_jobs.py
+```
+
+Set `DECISIONATE_API_URL`, `CONNECTORS_SCHEDULER_SECRET`,
+`ALERTS_SCHEDULER_SECRET`, and `BILLING_SCHEDULER_SECRET` on that service.
+`SCHEDULED_JOBS` defaults to `connectors,alerts,billing`; set it to a
+comma-separated subset when a deployment does not use every scheduled feature.
+The runner continues through all selected jobs and exits non-zero if any job
+fails. It does not require `DATABASE_URL` because the protected API performs
+the database work.
+
 ## Billing
 
 Billing uses Stripe Checkout and the Stripe customer portal. Configure these
