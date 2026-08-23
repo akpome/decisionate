@@ -1799,8 +1799,6 @@ function IndustryDashboard({
         stopSharingTitle={stopSharingTitle}
         stopSharingAriaLabel={stopSharingAriaLabel}
         shareEnabled={shareEnabled}
-        demoMode={demoMode}
-        demoControls={headerControls}
         showStopSharing={false}
         showActions={showActions}
         exportMode={exportMode}
@@ -1808,6 +1806,9 @@ function IndustryDashboard({
 
       <IndustryKpiGrid
         metrics={dashboardConfig.metrics}
+        dashboardName={name}
+        demoMode={demoMode}
+        headerControls={headerControls}
         exportMode={exportMode}
       />
 
@@ -2066,9 +2067,15 @@ function IndustryDashboard({
 
 function IndustryKpiGrid({
   metrics,
+  dashboardName,
+  demoMode = false,
+  headerControls,
   exportMode = false,
 }: {
   metrics: IndustryMetric[]
+  dashboardName: string
+  demoMode?: boolean
+  headerControls?: ReactNode
   exportMode?: boolean
 }) {
   const scrollRef =
@@ -2118,27 +2125,46 @@ function IndustryKpiGrid({
     })
   }
 
+  const demoStatusLine = demoMode ? (
+    <div className="flex min-w-0 flex-1 flex-col items-start gap-2 sm:flex-row sm:items-center">
+      <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
+        {dashboardName} · Live demo · Read-only sample data · Decisions disabled
+      </p>
+      {headerControls && (
+        <div className="w-full min-w-0 sm:flex-1">
+          {headerControls}
+        </div>
+      )}
+    </div>
+  ) : null
+
   return (
     <section className="space-y-2 print:space-y-1.5">
-      {canScroll && (
-        <div className="flex justify-end gap-2 print:hidden">
-          <button
-            type="button"
-            onClick={() => scrollKpis(-1)}
-            aria-label="Show previous KPI cards"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
-          >
-            ‹
-          </button>
+      {(demoStatusLine || canScroll) && (
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          {demoStatusLine}
 
-          <button
-            type="button"
-            onClick={() => scrollKpis(1)}
-            aria-label="Show more KPI cards"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
-          >
-            ›
-          </button>
+          {canScroll && (
+            <div className="flex shrink-0 justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => scrollKpis(-1)}
+                aria-label="Show previous KPI cards"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+              >
+                ‹
+              </button>
+
+              <button
+                type="button"
+                onClick={() => scrollKpis(1)}
+                aria-label="Show more KPI cards"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+              >
+                ›
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -2797,9 +2823,6 @@ function DashboardHeader({
   stopSharingTitle,
   stopSharingAriaLabel,
   shareEnabled,
-  demoMode,
-  demoControls,
-  headerControls,
   showStopSharing = true,
   showActions = true,
   exportMode,
@@ -2823,9 +2846,6 @@ function DashboardHeader({
   stopSharingTitle?: string
   stopSharingAriaLabel?: string
   shareEnabled?: boolean
-  demoMode?: boolean
-  demoControls?: ReactNode
-  headerControls?: ReactNode
   showStopSharing?: boolean
   showActions?: boolean
   exportMode?: boolean
@@ -2875,19 +2895,6 @@ function DashboardHeader({
         </div>
       )}
 
-      {demoMode && (
-        <div className="flex min-w-0 flex-1 flex-col items-start gap-2 sm:flex-row sm:items-center">
-          <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
-            {name} · Live demo · Read-only sample data · Decisions disabled
-          </p>
-          {demoControls && (
-            <div className="w-full min-w-0 sm:flex-1">
-              {demoControls}
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className={!showActions || exportMode ? "hidden" : "print:hidden"}>
           <h1 className="text-3xl font-bold leading-tight print:text-xl">
@@ -2899,7 +2906,7 @@ function DashboardHeader({
           </p>
         </div>
 
-        {(showActions || headerControls) && (
+        {showActions && (
           <div className="flex min-w-0 flex-wrap items-start gap-3 print:hidden">
             {showActions && (
               <>
@@ -2938,7 +2945,6 @@ function DashboardHeader({
                 {controls}
               </>
             )}
-            {headerControls}
           </div>
         )}
       </div>
