@@ -2876,12 +2876,12 @@ function DashboardHeader({
       )}
 
       {demoMode && (
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 px-1 print:hidden">
+        <div className="flex min-w-0 flex-col items-start gap-2 px-1 print:hidden sm:flex-row sm:items-center">
           <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
             Live demo · Read-only sample data · Decisions disabled
           </p>
           {demoControls && (
-            <div className="min-w-0 flex-1">
+            <div className="w-full min-w-0 sm:flex-1">
               {demoControls}
             </div>
           )}
