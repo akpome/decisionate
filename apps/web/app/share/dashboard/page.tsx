@@ -1004,7 +1004,7 @@ function SharedDashboardContent({
     />
   ) : null
   const demoStatusLine = sharedDemo ? (
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
       <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
         {sharedDashboardTitle} · Live demo · Read-only sample data · Decisions disabled
       </p>
@@ -1271,11 +1271,12 @@ function SharedDashboardContent({
 
         </div>
 
-        {demoStatusLine}
-
         {effectiveDashboardTemplate === "executive" && (
           <>
-            <KpiGrid metrics={metrics} />
+            <KpiGrid
+              metrics={metrics}
+              headerContent={demoStatusLine}
+            />
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
               <MainChartCard
@@ -1323,9 +1324,15 @@ function SharedDashboardContent({
               />
             </div>
 
-            <KpiGrid metrics={metrics} />
+            <KpiGrid
+              metrics={metrics}
+              headerContent={demoStatusLine}
+            />
           </>
         )}
+
+        {effectiveDashboardTemplate === "comparison" &&
+          demoStatusLine}
 
         {effectiveDashboardTemplate === "comparison" && (
           <MainChartCard
@@ -1517,8 +1524,10 @@ function SharedDashboardControls({
 
 function KpiGrid({
   metrics,
+  headerContent,
 }: {
   metrics: DashboardMetric[]
+  headerContent?: React.ReactNode
 }) {
   const scrollRef =
     useRef<HTMLDivElement | null>(null)
@@ -1546,25 +1555,31 @@ function KpiGrid({
 
   return (
     <section className="space-y-2">
-      {canScroll && (
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => scrollKpis(-1)}
-            aria-label="Show previous KPI cards"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
-          >
-            ‹
-          </button>
+      {(headerContent || canScroll) && (
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          {headerContent}
 
-          <button
-            type="button"
-            onClick={() => scrollKpis(1)}
-            aria-label="Show more KPI cards"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
-          >
-            ›
-          </button>
+          {canScroll && (
+            <div className="flex shrink-0 justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => scrollKpis(-1)}
+                aria-label="Show previous KPI cards"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+              >
+                ‹
+              </button>
+
+              <button
+                type="button"
+                onClick={() => scrollKpis(1)}
+                aria-label="Show more KPI cards"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+              >
+                ›
+              </button>
+            </div>
+          )}
         </div>
       )}
 
