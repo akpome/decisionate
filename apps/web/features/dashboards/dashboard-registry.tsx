@@ -1799,7 +1799,6 @@ function IndustryDashboard({
         stopSharingAriaLabel={stopSharingAriaLabel}
         shareEnabled={shareEnabled}
         demoMode={demoMode}
-        headerControls={headerControls}
         showStopSharing={false}
         showActions={showActions}
         exportMode={exportMode}
@@ -1830,6 +1829,7 @@ function IndustryDashboard({
           description={dashboardConfig.trendDescription}
           status={dashboardConfig.trendStatus}
           canFullscreen={dashboardConfig.trendData.length > 0}
+          headerControls={headerControls}
           exportMode={exportMode}
         >
           {dashboardConfig.trendData.length > 0 ? (
@@ -2861,6 +2861,7 @@ function DashboardChartCard({
   status,
   children,
   fullscreenChildren,
+  headerControls,
   className = "",
   canFullscreen = false,
   exportMode,
@@ -2870,6 +2871,7 @@ function DashboardChartCard({
   status?: string
   children: ReactNode
   fullscreenChildren?: ReactNode
+  headerControls?: ReactNode
   className?: string
   canFullscreen?: boolean
   exportMode?: boolean
@@ -2928,6 +2930,8 @@ function DashboardChartCard({
           </h2>
 
           <div className="flex shrink-0 items-center gap-1">
+            {headerControls}
+
             {status && (
               <span
                 className={`rounded-full border border-amber-200 bg-amber-50 font-semibold uppercase tracking-wide text-amber-700 ${
