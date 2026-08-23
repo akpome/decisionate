@@ -46,12 +46,6 @@ import {
   formatMetricLabel,
 } from "@/features/dashboard/components/metric-selector"
 import {
-  getDatasetSourceDetails,
-} from "@/features/datasets/lib/source-config"
-import {
-  WorkspaceBrandMark,
-} from "@/app/dashboard/workspace-brand-mark"
-import {
   WorkspaceBrandMark,
 } from "@/app/dashboard/workspace-brand-mark"
 import {
