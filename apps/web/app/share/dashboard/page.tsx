@@ -1002,7 +1002,6 @@ function SharedDashboardContent({
       onCreateDecision={handleDemoCreateDecision}
     />
   ) : null
-  const demoIntro = sharedDemo ? <DemoModeIntro /> : null
   const demoBanner = sharedDemo ? (
     <DemoModeBanner
       showMetricSelection={isGeneralBusinessOverview}
@@ -1135,7 +1134,6 @@ function SharedDashboardContent({
       ]
     return (
       <SharedPageShell brand={sharedBrand}>
-        {demoIntro}
         {historicalDataWarning && (
           <div
             className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800"
@@ -1171,6 +1169,7 @@ function SharedDashboardContent({
           chartTitles={dashboardChartTitles}
           decisionSummary={decisionSummary}
           brand={sharedBrand}
+          demoMode={sharedDemo}
           headerControls={demoPrimaryControls}
           showActions={false}
         />
@@ -1192,7 +1191,6 @@ function SharedDashboardContent({
 
   return (
     <SharedPageShell brand={sharedBrand}>
-      {demoIntro}
       <div className="space-y-5">
         {historicalDataWarning && (
           <div
@@ -1237,6 +1235,12 @@ function SharedDashboardContent({
                 >
                   Reporting workspace
                 </p>
+
+                {sharedDemo && (
+                  <p className="mt-1 text-[11px] font-semibold text-blue-700">
+                    Live demo · Read-only sample data · Decisions disabled
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1684,24 +1688,27 @@ function MainChartCard({
   return (
     <>
       <SharedCard className={`flex min-w-0 flex-col ${className}`}>
+        {headerControls && (
+          <div className="mb-3 flex min-w-0 flex-wrap items-center justify-start border-b border-gray-100 pb-3">
+            {headerControls}
+          </div>
+        )}
+
         <CardHeader
           title={chartTitle}
           description="Main chart"
           action={
-            headerControls || hasChartData ? (
+            hasChartData ? (
               <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-                {headerControls}
-                {hasChartData && (
-                  <button
-                    type="button"
-                    onClick={() => setIsFullscreen(true)}
-                    title={`View ${chartTitle} full screen`}
-                    aria-label={`View ${chartTitle} full screen`}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-gray-900"
-                  >
-                    <Maximize2 size={15} />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(true)}
+                  title={`View ${chartTitle} full screen`}
+                  aria-label={`View ${chartTitle} full screen`}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-gray-900"
+                >
+                  <Maximize2 size={15} />
+                </button>
               </div>
             ) : undefined
           }
@@ -1821,30 +1828,6 @@ function TargetKpiCard({
         />
       </div>
     </SharedCard>
-  )
-}
-
-function DemoModeIntro() {
-  return (
-    <section
-      className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm"
-      aria-labelledby="live-demo-heading"
-    >
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
-        Decisionate live demo
-      </p>
-      <h1
-        id="live-demo-heading"
-        className="mt-1 text-xl font-bold tracking-tight text-blue-950"
-      >
-        Explore real decision-intelligence workflows with sample data
-      </h1>
-      <p className="mt-1 max-w-3xl text-sm leading-6 text-blue-800">
-        This read-only demo includes 365 daily rows for each sample
-        connector. Uploading, deleting datasets, and creating decisions
-        are disabled.
-      </p>
-    </section>
   )
 }
 
