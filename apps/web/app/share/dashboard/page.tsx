@@ -1004,11 +1004,11 @@ function SharedDashboardContent({
     />
   ) : null
   const demoStatusLine = sharedDemo ? (
-    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+    <div className="flex min-w-0 flex-1 flex-col items-start gap-2 sm:flex-row sm:items-center">
       <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
         {sharedDashboardTitle} · Live demo · Read-only sample data · Decisions disabled
       </p>
-      <div className="min-w-0 flex-1">
+      <div className="w-full min-w-0 sm:flex-1">
         {demoPrimaryControls}
       </div>
     </div>
@@ -1871,7 +1871,7 @@ function DemoPrimaryControls({
   onCreateDecision: () => void
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-end justify-end gap-2 xl:flex-nowrap">
+    <div className="flex min-w-0 flex-wrap items-end justify-start gap-2 sm:justify-end xl:flex-nowrap">
       <label className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-gray-500">
         <span className="shrink-0">Dataset</span>
         <select
@@ -1935,21 +1935,23 @@ function DemoPrimaryControls({
         </button>
       )}
 
-      <button
-        type="button"
-        onClick={onCreateDecision}
-        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-blue-300 bg-white px-2.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
-      >
-        <LockKeyhole size={13} aria-hidden="true" />
-        Create decision
-      </button>
+      <div className="flex shrink-0 flex-nowrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onCreateDecision}
+          className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-blue-300 bg-white px-2.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
+        >
+          <LockKeyhole size={13} aria-hidden="true" />
+          Create decision
+        </button>
 
-      <Link
-        href="/sign-up"
-        className="inline-flex h-8 items-center justify-center rounded-md bg-blue-700 px-2.5 text-xs font-semibold text-white transition hover:bg-blue-800"
-      >
-        Start free trial
-      </Link>
+        <Link
+          href="/sign-up"
+          className="inline-flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md bg-blue-700 px-2.5 text-xs font-semibold text-white transition hover:bg-blue-800"
+        >
+          Start free trial
+        </Link>
+      </div>
     </div>
   )
 }
