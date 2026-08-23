@@ -5,13 +5,13 @@ import { ThemeToggle } from "@/app/theme-toggle"
 
 export default function SignInPage() {
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
+    <main className="min-h-screen overflow-x-hidden bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-6xl justify-end">
         <ThemeToggle />
       </div>
 
-      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <section className="max-w-2xl">
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] min-w-0 max-w-6xl items-start gap-8 lg:items-center lg:grid-cols-[minmax(0,1fr)_auto]">
+        <section className="order-last min-w-0 max-w-2xl lg:order-first">
           <Link
             href="/"
             className="text-sm font-semibold text-[var(--decisionate-brand-primary-text)]"
@@ -30,9 +30,9 @@ export default function SignInPage() {
 
         <section
           aria-label="Sign in"
-          className="flex justify-center"
+          className="order-first flex min-w-0 justify-center lg:order-last"
         >
-          <div className="w-full max-w-[24rem]">
+          <div className="w-full min-w-0 max-w-[24rem]">
             <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-center text-sm text-blue-900">
               New user?{" "}
               <Link

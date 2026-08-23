@@ -25,13 +25,13 @@ function AuthShell({
   children: ReactNode
 }) {
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
+    <main className="min-h-screen overflow-x-hidden bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-6xl justify-end">
         <ThemeToggle />
       </div>
 
-      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <section className="max-w-2xl">
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] min-w-0 max-w-6xl items-start gap-8 lg:items-center lg:grid-cols-[minmax(0,1fr)_auto]">
+        <section className="order-last min-w-0 max-w-2xl lg:order-first">
           <Link
             href="/"
             className="text-sm font-semibold text-[var(--decisionate-brand-primary-text)]"
@@ -50,7 +50,7 @@ function AuthShell({
 
         <section
           aria-label="Sign up"
-          className="flex justify-center"
+          className="order-first flex min-w-0 justify-center lg:order-last"
         >
           {children}
         </section>

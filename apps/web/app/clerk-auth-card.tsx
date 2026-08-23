@@ -11,6 +11,13 @@ type ClerkAuthCardProps = {
   mode: "sign-in" | "sign-up"
 }
 
+const authAppearance = {
+  elements: {
+    rootBox: "w-full min-w-0",
+    card: "w-full max-w-full",
+  },
+}
+
 export function ClerkAuthCard({
   mode,
 }: ClerkAuthCardProps) {
@@ -25,6 +32,7 @@ export function ClerkAuthCard({
       withSignUp={false}
       signUpUrl="/sign-up"
       signUpFallbackRedirectUrl="/onboarding"
+      appearance={authAppearance}
     />
   )
 }
@@ -110,6 +118,7 @@ function SignUpWithConsent() {
         fallbackRedirectUrl="/onboarding"
         forceRedirectUrl="/onboarding"
         signInFallbackRedirectUrl="/dashboard"
+        appearance={authAppearance}
       />
     </div>
   )
