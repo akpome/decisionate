@@ -46,6 +46,12 @@ import {
   formatMetricLabel,
 } from "@/features/dashboard/components/metric-selector"
 import {
+  getDatasetSourceDetails,
+} from "@/features/datasets/lib/source-config"
+import {
+  WorkspaceBrandMark,
+} from "@/app/dashboard/workspace-brand-mark"
+import {
   WorkspaceBrandMark,
 } from "@/app/dashboard/workspace-brand-mark"
 import {
@@ -470,6 +476,7 @@ function SharedDashboardContent({
       setDashboardChartTitles({})
       setDecisionSummary(null)
       setDashboardTitle("")
+      setDashboardSubtitle("")
       setDashboardSubtitle("")
       setStartDate("")
       setPeriodFilter("1m")
@@ -1236,11 +1243,6 @@ function SharedDashboardContent({
                   Reporting workspace
                 </p>
 
-                {sharedDemo && (
-                  <p className="mt-1 text-[11px] font-semibold text-blue-700">
-                    Live demo · Read-only sample data · Decisions disabled
-                  </p>
-                )}
               </div>
             </div>
 
@@ -1267,7 +1269,14 @@ function SharedDashboardContent({
 
         {effectiveDashboardTemplate === "executive" && (
           <>
-            <KpiGrid metrics={metrics} />
+            <KpiGrid
+              metrics={metrics}
+              demoStatus={
+                sharedDemo
+                  ? `${sharedDashboardTitle} · Live demo · Read-only sample data · Decisions disabled`
+                  : undefined
+              }
+            />
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
               <MainChartCard
@@ -1317,7 +1326,14 @@ function SharedDashboardContent({
               />
             </div>
 
-            <KpiGrid metrics={metrics} />
+            <KpiGrid
+              metrics={metrics}
+              demoStatus={
+                sharedDemo
+                  ? `${sharedDashboardTitle} · Live demo · Read-only sample data · Decisions disabled`
+                  : undefined
+              }
+            />
           </>
         )}
 
@@ -1512,8 +1528,10 @@ function SharedDashboardControls({
 
 function KpiGrid({
   metrics,
+  demoStatus,
 }: {
   metrics: DashboardMetric[]
+  demoStatus?: string
 }) {
   const scrollRef =
     useRef<HTMLDivElement | null>(null)
@@ -1541,25 +1559,35 @@ function KpiGrid({
 
   return (
     <section className="space-y-2">
-      {canScroll && (
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => scrollKpis(-1)}
-            aria-label="Show previous KPI cards"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
-          >
-            ‹
-          </button>
+      {(demoStatus || canScroll) && (
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          {demoStatus && (
+            <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
+              {demoStatus}
+            </p>
+          )}
 
-          <button
-            type="button"
-            onClick={() => scrollKpis(1)}
-            aria-label="Show more KPI cards"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
-          >
-            ›
-          </button>
+          {canScroll && (
+            <div className="flex shrink-0 justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => scrollKpis(-1)}
+                aria-label="Show previous KPI cards"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+              >
+                ‹
+              </button>
+
+              <button
+                type="button"
+                onClick={() => scrollKpis(1)}
+                aria-label="Show more KPI cards"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+              >
+                ›
+              </button>
+            </div>
+          )}
         </div>
       )}
 
