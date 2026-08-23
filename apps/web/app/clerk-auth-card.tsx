@@ -26,14 +26,16 @@ export function ClerkAuthCard({
   }
 
   return (
-    <SignIn
-      fallbackRedirectUrl="/auth/redirect"
-      forceRedirectUrl="/auth/redirect"
-      withSignUp={false}
-      signUpUrl="/sign-up"
-      signUpFallbackRedirectUrl="/onboarding"
-      appearance={authAppearance}
-    />
+    <div className="decisionate-auth-card w-full min-w-0 overflow-hidden">
+      <SignIn
+        fallbackRedirectUrl="/auth/redirect"
+        forceRedirectUrl="/auth/redirect"
+        withSignUp={false}
+        signUpUrl="/sign-up"
+        signUpFallbackRedirectUrl="/onboarding"
+        appearance={authAppearance}
+      />
+    </div>
   )
 }
 
@@ -110,7 +112,7 @@ function SignUpWithConsent() {
   }
 
   return (
-    <div className="w-full max-w-md">
+    <div className="decisionate-auth-card w-full min-w-0 max-w-md overflow-hidden">
       <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
         Terms of Service and Privacy Policy acknowledged.
       </div>

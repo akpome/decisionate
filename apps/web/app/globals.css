@@ -153,6 +153,17 @@ body {
   color: var(--decisionate-brand-primary-text);
 }
 
+@media (max-width: 639px) {
+  .decisionate-auth-card .cl-rootBox,
+  .decisionate-auth-card .cl-cardBox,
+  .decisionate-auth-card .cl-card {
+    box-sizing: border-box;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+}
+
 .dashboard-kpi-scroll {
   scrollbar-color: var(--decisionate-app-border) transparent;
   scrollbar-width: thin;
