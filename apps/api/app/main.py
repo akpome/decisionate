@@ -1340,10 +1340,18 @@ app = FastAPI(
 
 
 def get_allowed_origins():
-    configured_origins = get_runtime_configuration().cors_allowed_origins
+    runtime = get_runtime_configuration()
+    configured_origins = list(runtime.cors_allowed_origins)
+    configured_web_origin = runtime.web_url.strip().rstrip("/")
+
+    if (
+        configured_web_origin and
+        configured_web_origin not in configured_origins
+    ):
+        configured_origins.append(configured_web_origin)
 
     if configured_origins:
-        return list(configured_origins)
+        return configured_origins
 
     return [
         "http://localhost:3000",
