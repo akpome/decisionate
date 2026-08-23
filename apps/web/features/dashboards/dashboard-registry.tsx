@@ -112,6 +112,7 @@ type DashboardPlaceholderProps = {
   stopSharingTitle?: string
   stopSharingAriaLabel?: string
   shareEnabled?: boolean
+  headerControls?: ReactNode
   showActions?: boolean
   exportMode?: boolean
 }
@@ -1734,6 +1735,7 @@ function IndustryDashboard({
   stopSharingTitle,
   stopSharingAriaLabel,
   shareEnabled,
+  headerControls,
   showActions,
   exportMode,
 }: DashboardPlaceholderProps & {
@@ -1794,6 +1796,7 @@ function IndustryDashboard({
         stopSharingTitle={stopSharingTitle}
         stopSharingAriaLabel={stopSharingAriaLabel}
         shareEnabled={shareEnabled}
+        headerControls={headerControls}
         showStopSharing={false}
         showActions={showActions}
         exportMode={exportMode}
@@ -2701,6 +2704,7 @@ function DashboardHeader({
   stopSharingTitle,
   stopSharingAriaLabel,
   shareEnabled,
+  headerControls,
   showStopSharing = true,
   showActions = true,
   exportMode,
@@ -2724,6 +2728,7 @@ function DashboardHeader({
   stopSharingTitle?: string
   stopSharingAriaLabel?: string
   shareEnabled?: boolean
+  headerControls?: ReactNode
   showStopSharing?: boolean
   showActions?: boolean
   exportMode?: boolean
@@ -2784,41 +2789,46 @@ function DashboardHeader({
           </p>
         </div>
 
-        {showActions && (
+        {(showActions || headerControls) && (
           <div className="flex min-w-0 flex-wrap items-start gap-3 print:hidden">
-            <DashboardActionButton
-              icon={<FileDown size={16} />}
-              label={pdfLabel}
-              onClick={onDownloadPdf ?? (() => undefined)}
-              disabled={pdfDisabled || !onDownloadPdf}
-            />
-            <DashboardActionButton
-              icon={<Share2 size={16} />}
-              label={shareLabel}
-              onClick={
-                onShare ??
-                (() => {
-                  void navigator.clipboard.writeText(
-                    window.location.href
-                  )
-                })
-              }
-              disabled={shareDisabled}
-              title={shareTitle}
-              ariaLabel={shareAriaLabel}
-            />
-            {showStopSharing && shareEnabled && onStopSharing && (
-              <DashboardActionButton
-                icon={<Unlink size={16} />}
-                label={stopSharingLabel}
-                onClick={onStopSharing}
-                disabled={stopSharingDisabled}
-                title={stopSharingTitle}
-                ariaLabel={stopSharingAriaLabel}
-                tone="danger"
-              />
+            {showActions && (
+              <>
+                <DashboardActionButton
+                  icon={<FileDown size={16} />}
+                  label={pdfLabel}
+                  onClick={onDownloadPdf ?? (() => undefined)}
+                  disabled={pdfDisabled || !onDownloadPdf}
+                />
+                <DashboardActionButton
+                  icon={<Share2 size={16} />}
+                  label={shareLabel}
+                  onClick={
+                    onShare ??
+                    (() => {
+                      void navigator.clipboard.writeText(
+                        window.location.href
+                      )
+                    })
+                  }
+                  disabled={shareDisabled}
+                  title={shareTitle}
+                  ariaLabel={shareAriaLabel}
+                />
+                {showStopSharing && shareEnabled && onStopSharing && (
+                  <DashboardActionButton
+                    icon={<Unlink size={16} />}
+                    label={stopSharingLabel}
+                    onClick={onStopSharing}
+                    disabled={stopSharingDisabled}
+                    title={stopSharingTitle}
+                    ariaLabel={stopSharingAriaLabel}
+                    tone="danger"
+                  />
+                )}
+                {controls}
+              </>
             )}
-            {controls}
+            {headerControls}
           </div>
         )}
       </div>

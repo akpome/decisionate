@@ -5,7 +5,10 @@ import {
   NextResponse,
 } from "next/server"
 
-const isPublicLandingRoute = createRouteMatcher(["/"])
+const isPublicDemoRoute = createRouteMatcher([
+  "/",
+  "/demo(.*)",
+])
 
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
@@ -44,7 +47,7 @@ export default function proxy(
   request: NextRequest,
   event: NextFetchEvent,
 ) {
-  if (isPublicLandingRoute(request)) {
+  if (isPublicDemoRoute(request)) {
     return NextResponse.next()
   }
 

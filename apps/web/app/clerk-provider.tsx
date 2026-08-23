@@ -12,8 +12,12 @@ export function AppClerkProvider({
   children,
 }: AppClerkProviderProps) {
   const pathname = usePathname()
+  const isPublicPath =
+    pathname === "/" ||
+    pathname === "/demo" ||
+    pathname?.startsWith("/demo/")
 
-  if (pathname === "/") {
+  if (isPublicPath) {
     return <>{children}</>
   }
 

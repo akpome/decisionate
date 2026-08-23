@@ -970,11 +970,37 @@ function SharedDashboardContent({
     setDemoNotice("")
   }
 
-  const demoBanner = sharedDemo ? (
-    <DemoModeBanner
+  const handleDemoDatasetChange = (value: string) => {
+    setDemoJoinDataset("")
+    updateDemoQuery("dataset", value)
+  }
+  const handleDemoJoinChange = (value: string) => {
+    setDemoJoinDataset(value)
+    setDemoNotice("")
+  }
+  const handleDemoResetJoin = () => {
+    setDemoJoinDataset("")
+    setDemoNotice("")
+  }
+  const handleDemoCreateDecision = () => {
+    setDemoNotice(
+      "This is a live demo. Decisions cannot be created here. Sign up for a free trial to create and track decisions."
+    )
+  }
+  const demoPrimaryControls = sharedDemo ? (
+    <DemoPrimaryControls
       datasets={demoDatasets}
       selectedDataset={sharedDemoDataset}
       joinDataset={demoJoinDataset}
+      onDatasetChange={handleDemoDatasetChange}
+      onJoinChange={handleDemoJoinChange}
+      onResetJoin={handleDemoResetJoin}
+      onCreateDecision={handleDemoCreateDecision}
+    />
+  ) : null
+  const demoIntro = sharedDemo ? <DemoModeIntro /> : null
+  const demoBanner = sharedDemo ? (
+    <DemoModeBanner
       showMetricSelection={isGeneralBusinessOverview}
       showMetricMapping={showDemoMetricMapping}
       mappingChartTitles={getDashboardMappingChartTitles(
@@ -998,18 +1024,6 @@ function SharedDashboardContent({
         sharedSelectedDashboard || defaultDashboardKey
       }
       notice={demoNotice}
-      onDatasetChange={value => {
-        setDemoJoinDataset("")
-        updateDemoQuery("dataset", value)
-      }}
-      onJoinChange={value => {
-        setDemoJoinDataset(value)
-        setDemoNotice("")
-      }}
-      onResetJoin={() => {
-        setDemoJoinDataset("")
-        setDemoNotice("")
-      }}
       onMetricsChange={values => {
         setSelectedMetrics(
           values.length > 0
@@ -1035,11 +1049,6 @@ function SharedDashboardContent({
         setDemoNotice("")
       }}
       onDashboardChange={value => updateDemoQuery("dashboard", value)}
-      onCreateDecision={() =>
-        setDemoNotice(
-          "This is a live demo. Decisions cannot be created here. Sign up for a free trial to create and track decisions."
-        )
-      }
     />
   ) : null
 
@@ -1126,7 +1135,7 @@ function SharedDashboardContent({
       ]
     return (
       <SharedPageShell brand={sharedBrand}>
-        {demoBanner}
+        {demoIntro}
         {historicalDataWarning && (
           <div
             className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800"
@@ -1162,6 +1171,7 @@ function SharedDashboardContent({
           chartTitles={dashboardChartTitles}
           decisionSummary={decisionSummary}
           brand={sharedBrand}
+          headerControls={demoPrimaryControls}
           showActions={false}
         />
 
@@ -1175,13 +1185,14 @@ function SharedDashboardContent({
           startDate={startDate}
           setStartDate={setStartDate}
         />
+        {demoBanner}
       </SharedPageShell>
     )
   }
 
   return (
     <SharedPageShell brand={sharedBrand}>
-      {demoBanner}
+      {demoIntro}
       <div className="space-y-5">
         {historicalDataWarning && (
           <div
@@ -1265,6 +1276,7 @@ function SharedDashboardContent({
                 selectedTarget={selectedTarget}
                 scaleMode={scaleMode}
                 colorPalette={dashboardColorPalette}
+                headerControls={demoPrimaryControls}
               />
 
               <TargetKpiCard
@@ -1297,6 +1309,7 @@ function SharedDashboardContent({
                 selectedTarget={selectedTarget}
                 scaleMode={scaleMode}
                 colorPalette={dashboardColorPalette}
+                headerControls={demoPrimaryControls}
               />
             </div>
 
@@ -1318,6 +1331,7 @@ function SharedDashboardContent({
             selectedTarget={selectedTarget}
             scaleMode={scaleMode}
             colorPalette={dashboardColorPalette}
+            headerControls={demoPrimaryControls}
             className="w-full xl:h-[720px]"
             chartAreaClassName="mt-4 h-[520px] flex-none xl:h-auto xl:min-h-[560px] xl:flex-1"
           />
@@ -1338,6 +1352,7 @@ function SharedDashboardContent({
           setStartDate={setStartDate}
           showChartControls
         />
+        {demoBanner}
       </div>
     </SharedPageShell>
   )
@@ -1576,6 +1591,7 @@ function MainChartCard({
   selectedTarget,
   scaleMode,
   colorPalette,
+  headerControls,
   className = "xl:h-[640px]",
   chartAreaClassName = "mt-4 h-[360px] flex-none xl:h-auto xl:min-h-[360px] xl:flex-1",
 }: {
@@ -1588,6 +1604,7 @@ function MainChartCard({
   selectedTarget: number
   scaleMode: ScaleMode
   colorPalette: string[]
+  headerControls?: React.ReactNode
   className?: string
   chartAreaClassName?: string
 }) {
@@ -1671,16 +1688,21 @@ function MainChartCard({
           title={chartTitle}
           description="Main chart"
           action={
-            hasChartData ? (
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(true)}
-                title={`View ${chartTitle} full screen`}
-                aria-label={`View ${chartTitle} full screen`}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-gray-900"
-              >
-                <Maximize2 size={15} />
-              </button>
+            headerControls || hasChartData ? (
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                {headerControls}
+                {hasChartData && (
+                  <button
+                    type="button"
+                    onClick={() => setIsFullscreen(true)}
+                    title={`View ${chartTitle} full screen`}
+                    aria-label={`View ${chartTitle} full screen`}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-gray-900"
+                  >
+                    <Maximize2 size={15} />
+                  </button>
+                )}
+              </div>
             ) : undefined
           }
         />
@@ -1802,6 +1824,115 @@ function TargetKpiCard({
   )
 }
 
+function DemoModeIntro() {
+  return (
+    <section
+      className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm"
+      aria-labelledby="live-demo-heading"
+    >
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
+        Decisionate live demo
+      </p>
+      <h1
+        id="live-demo-heading"
+        className="mt-1 text-xl font-bold tracking-tight text-blue-950"
+      >
+        Explore real decision-intelligence workflows with sample data
+      </h1>
+      <p className="mt-1 max-w-3xl text-sm leading-6 text-blue-800">
+        This read-only demo includes 365 daily rows for each sample
+        connector. Uploading, deleting datasets, and creating decisions
+        are disabled.
+      </p>
+    </section>
+  )
+}
+
+function DemoPrimaryControls({
+  datasets,
+  selectedDataset,
+  joinDataset,
+  onDatasetChange,
+  onJoinChange,
+  onResetJoin,
+  onCreateDecision,
+}: {
+  datasets: PublicDemoDatasetOption[]
+  selectedDataset: string
+  joinDataset: string
+  onDatasetChange: (value: string) => void
+  onJoinChange: (value: string) => void
+  onResetJoin: () => void
+  onCreateDecision: () => void
+}) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-end justify-end gap-2">
+      <label className="min-w-0 text-[11px] font-semibold text-gray-500">
+        <span className="sr-only">Sample dataset</span>
+        <select
+          aria-label="Sample dataset"
+          value={selectedDataset}
+          onChange={event => onDatasetChange(event.target.value)}
+          className="h-8 max-w-[13rem] rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+        >
+          {datasets.map(dataset => (
+            <option key={dataset.key} value={dataset.key}>
+              {dataset.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="min-w-0 text-[11px] font-semibold text-gray-500">
+        <span className="sr-only">Join with</span>
+        <select
+          aria-label="Join with"
+          value={joinDataset}
+          onChange={event => onJoinChange(event.target.value)}
+          className="h-8 max-w-[11rem] rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+        >
+          <option value="">Join with...</option>
+          {datasets
+            .filter(dataset => dataset.key !== selectedDataset)
+            .map(dataset => (
+              <option key={dataset.key} value={dataset.key}>
+                {dataset.label}
+              </option>
+            ))}
+        </select>
+      </label>
+
+      {joinDataset && (
+        <button
+          type="button"
+          onClick={onResetJoin}
+          title="Reset joined demo data"
+          aria-label="Reset joined demo data"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-amber-300 bg-amber-50 text-amber-900 transition hover:bg-amber-100"
+        >
+          <X size={14} aria-hidden="true" />
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={onCreateDecision}
+        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-blue-300 bg-white px-2.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
+      >
+        <LockKeyhole size={13} aria-hidden="true" />
+        Create decision
+      </button>
+
+      <Link
+        href="/sign-up"
+        className="inline-flex h-8 items-center justify-center rounded-md bg-blue-700 px-2.5 text-xs font-semibold text-white transition hover:bg-blue-800"
+      >
+        Start free trial
+      </Link>
+    </div>
+  )
+}
+
 function SharedPageShell({
   children,
   brand = defaultWorkspaceBrand,
@@ -1822,9 +1953,6 @@ function SharedPageShell({
 }
 
 function DemoModeBanner({
-  datasets,
-  selectedDataset,
-  joinDataset,
   showMetricSelection,
   showMetricMapping,
   mappingChartTitles,
@@ -1838,18 +1966,11 @@ function DemoModeBanner({
   metricTargets,
   selectedDashboard,
   notice,
-  onDatasetChange,
-  onJoinChange,
-  onResetJoin,
   onMetricsChange,
   onTargetChange,
   onMappingChange,
   onDashboardChange,
-  onCreateDecision,
 }: {
-  datasets: PublicDemoDatasetOption[]
-  selectedDataset: string
-  joinDataset: string
   showMetricSelection: boolean
   showMetricMapping: boolean
   mappingChartTitles: {
@@ -1867,9 +1988,6 @@ function DemoModeBanner({
   metricTargets: Record<string, number>
   selectedDashboard: string
   notice: string
-  onDatasetChange: (value: string) => void
-  onJoinChange: (value: string) => void
-  onResetJoin: () => void
   onMetricsChange: (values: string[]) => void
   onTargetChange: (metric: string, value: number) => void
   onMappingChange: (
@@ -1877,47 +1995,25 @@ function DemoModeBanner({
     value: string
   ) => void
   onDashboardChange: (value: string) => void
-  onCreateDecision: () => void
 }) {
   return (
     <section
-      className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm"
-      aria-labelledby="live-demo-heading"
+      className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm"
+      aria-labelledby="live-demo-settings-heading"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
-            Decisionate live demo
-          </p>
-          <h1
-            id="live-demo-heading"
-            className="mt-1 text-xl font-bold tracking-tight text-blue-950"
-          >
-            Explore real decision-intelligence workflows with sample data
-          </h1>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-blue-800">
-            This read-only demo includes 365 daily rows for each sample
-            connector. Uploading, deleting datasets, and creating decisions
-            are disabled.
-          </p>
-        </div>
+      <div>
+        <h2
+          id="live-demo-settings-heading"
+          className="text-sm font-bold tracking-tight text-blue-950"
+        >
+          Demo controls
+        </h2>
+        <p className="mt-1 text-xs leading-5 text-blue-800">
+          Choose a dashboard, select KPIs, and map industry chart fields. Changes apply only to this demo session.
+        </p>
+      </div>
 
-        <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:w-[48rem] xl:grid-cols-4">
-          <label className="min-w-0 text-xs font-semibold text-blue-900">
-            <span className="mb-1 block">Sample dataset</span>
-            <select
-              value={selectedDataset}
-              onChange={event => onDatasetChange(event.target.value)}
-              className="h-10 w-full rounded-lg border border-blue-200 bg-white px-3 text-sm font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-            >
-              {datasets.map(dataset => (
-                <option key={dataset.key} value={dataset.key}>
-                  {dataset.label} ({dataset.row_count} daily rows)
-                </option>
-              ))}
-            </select>
-          </label>
-
+      <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <label className="min-w-0 text-xs font-semibold text-blue-900">
             <span className="mb-1 block">Dashboard</span>
             <select
@@ -1930,24 +2026,6 @@ function DemoModeBanner({
                   {dashboard.name}
                 </option>
               ))}
-            </select>
-          </label>
-
-          <label className="min-w-0 text-xs font-semibold text-blue-900">
-            <span className="mb-1 block">Join with</span>
-            <select
-              value={joinDataset}
-              onChange={event => onJoinChange(event.target.value)}
-              className="h-10 w-full rounded-lg border border-blue-200 bg-white px-3 text-sm font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-            >
-              <option value="">No join</option>
-              {datasets
-                .filter(dataset => dataset.key !== selectedDataset)
-                .map(dataset => (
-                  <option key={dataset.key} value={dataset.key}>
-                    {dataset.label}
-                  </option>
-                ))}
             </select>
           </label>
 
@@ -2028,47 +2106,17 @@ function DemoModeBanner({
               onChange={onMappingChange}
             />
           )}
-        </div>
       </div>
 
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          {joinDataset && (
-            <button
-              type="button"
-              onClick={onResetJoin}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
-            >
-              <X size={15} aria-hidden="true" />
-              Reset join
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onCreateDecision}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-300 bg-white px-3 text-sm font-semibold text-blue-800 transition hover:bg-blue-100"
-          >
-            <LockKeyhole size={15} aria-hidden="true" />
-            Create decision
-          </button>
-          <Link
-            href="/sign-up"
-            className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-700 px-3 text-sm font-semibold text-white transition hover:bg-blue-800"
-          >
-            Start free trial
-          </Link>
-        </div>
-
-        {notice && (
-          <p
-            className="text-sm font-semibold text-blue-900"
-            role="status"
-            aria-live="polite"
-          >
-            {notice}
-          </p>
-        )}
-      </div>
+      {notice && (
+        <p
+          className="mt-3 text-sm font-semibold text-blue-900"
+          role="status"
+          aria-live="polite"
+        >
+          {notice}
+        </p>
+      )}
     </section>
   )
 }
