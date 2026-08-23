@@ -992,9 +992,13 @@ function SharedDashboardContent({
       datasets={demoDatasets}
       selectedDataset={sharedDemoDataset}
       joinDataset={demoJoinDataset}
+      selectedDashboard={
+        sharedSelectedDashboard || defaultDashboardKey
+      }
       onDatasetChange={handleDemoDatasetChange}
       onJoinChange={handleDemoJoinChange}
       onResetJoin={handleDemoResetJoin}
+      onDashboardChange={value => updateDemoQuery("dashboard", value)}
       onCreateDecision={handleDemoCreateDecision}
     />
   ) : null
@@ -1020,9 +1024,6 @@ function SharedDashboardContent({
       )}
       selectedMetrics={selectedMetrics}
       metricTargets={targets}
-      selectedDashboard={
-        sharedSelectedDashboard || defaultDashboardKey
-      }
       notice={demoNotice}
       onMetricsChange={values => {
         setSelectedMetrics(
@@ -1048,7 +1049,6 @@ function SharedDashboardContent({
         }))
         setDemoNotice("")
       }}
-      onDashboardChange={value => updateDemoQuery("dashboard", value)}
     />
   ) : null
 
@@ -1852,17 +1852,21 @@ function DemoPrimaryControls({
   datasets,
   selectedDataset,
   joinDataset,
+  selectedDashboard,
   onDatasetChange,
   onJoinChange,
   onResetJoin,
+  onDashboardChange,
   onCreateDecision,
 }: {
   datasets: PublicDemoDatasetOption[]
   selectedDataset: string
   joinDataset: string
+  selectedDashboard: string
   onDatasetChange: (value: string) => void
   onJoinChange: (value: string) => void
   onResetJoin: () => void
+  onDashboardChange: (value: string) => void
   onCreateDecision: () => void
 }) {
   return (
@@ -1878,6 +1882,22 @@ function DemoPrimaryControls({
           {datasets.map(dataset => (
             <option key={dataset.key} value={dataset.key}>
               {dataset.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="min-w-0 text-[11px] font-semibold text-gray-500">
+        <span className="sr-only">Dashboard</span>
+        <select
+          aria-label="Dashboard"
+          value={selectedDashboard}
+          onChange={event => onDashboardChange(event.target.value)}
+          className="h-8 max-w-[12rem] rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+        >
+          {dashboardDefinitions.map(dashboard => (
+            <option key={dashboard.key} value={dashboard.key}>
+              {dashboard.name}
             </option>
           ))}
         </select>
@@ -1964,12 +1984,10 @@ function DemoModeBanner({
   metricOptions,
   selectedMetrics,
   metricTargets,
-  selectedDashboard,
   notice,
   onMetricsChange,
   onTargetChange,
   onMappingChange,
-  onDashboardChange,
 }: {
   showMetricSelection: boolean
   showMetricMapping: boolean
@@ -1986,7 +2004,6 @@ function DemoModeBanner({
   metricOptions: string[]
   selectedMetrics: string[]
   metricTargets: Record<string, number>
-  selectedDashboard: string
   notice: string
   onMetricsChange: (values: string[]) => void
   onTargetChange: (metric: string, value: number) => void
@@ -1994,7 +2011,6 @@ function DemoModeBanner({
     role: keyof DashboardMetricMapping,
     value: string
   ) => void
-  onDashboardChange: (value: string) => void
 }) {
   return (
     <section
@@ -2009,26 +2025,11 @@ function DemoModeBanner({
           Demo controls
         </h2>
         <p className="mt-1 text-xs leading-5 text-blue-800">
-          Choose a dashboard, select KPIs, and map industry chart fields. Changes apply only to this demo session.
+          Select KPIs and map industry chart fields. Changes apply only to this demo session.
         </p>
       </div>
 
       <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <label className="min-w-0 text-xs font-semibold text-blue-900">
-            <span className="mb-1 block">Dashboard</span>
-            <select
-              value={selectedDashboard}
-              onChange={event => onDashboardChange(event.target.value)}
-              className="h-10 w-full rounded-lg border border-blue-200 bg-white px-3 text-sm font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-            >
-              {dashboardDefinitions.map(dashboard => (
-                <option key={dashboard.key} value={dashboard.key}>
-                  {dashboard.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
           {showMetricSelection && (
             <fieldset className="min-w-0 text-xs font-semibold text-blue-900 sm:col-span-2 xl:col-span-4">
               <legend className="mb-1">Metrics &amp; targets</legend>
