@@ -12,6 +12,7 @@ const isPublicDemoRoute = createRouteMatcher([
 const isPublicAuthRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/auth/redirect(.*)",
 ])
 
 const isProtectedRoute = createRouteMatcher([
