@@ -45,27 +45,27 @@ export default function RootLayout({
   children: ReactNode
 }) {
   return (
-    <AppClerkProvider>
-      <html
-        lang="en"
-        suppressHydrationWarning
-      >
-        <head>
-          <link
-            rel="icon"
-            href="/icons/decisionate-icon.svg"
-            type="image/svg+xml"
-          />
-          <WorkspaceFaviconBootstrap />
-        </head>
-        <body className="bg-gray-50 text-gray-950 antialiased">
+    <html
+      lang="en"
+      suppressHydrationWarning
+    >
+      <head>
+        <link
+          rel="icon"
+          href="/icons/decisionate-icon.svg"
+          type="image/svg+xml"
+        />
+        <WorkspaceFaviconBootstrap />
+      </head>
+      <body className="bg-gray-50 text-gray-950 antialiased">
+        <AppClerkProvider>
           <ThemeBootstrap />
           <div className="min-h-screen">
             {children}
-        </div>
+          </div>
           <PwaRegistration />
-        </body>
-      </html>
-    </AppClerkProvider>
+        </AppClerkProvider>
+      </body>
+    </html>
   )
 }
