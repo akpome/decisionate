@@ -1871,8 +1871,8 @@ function DemoPrimaryControls({
 }) {
   return (
     <div className="flex min-w-0 flex-wrap items-end justify-end gap-2">
-      <label className="min-w-0 text-[11px] font-semibold text-gray-500">
-        <span className="sr-only">Sample dataset</span>
+      <label className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+        <span className="shrink-0">Dataset</span>
         <select
           aria-label="Sample dataset"
           value={selectedDataset}
@@ -1887,8 +1887,8 @@ function DemoPrimaryControls({
         </select>
       </label>
 
-      <label className="min-w-0 text-[11px] font-semibold text-gray-500">
-        <span className="sr-only">Dashboard</span>
+      <label className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+        <span className="shrink-0">Dashboard</span>
         <select
           aria-label="Dashboard"
           value={selectedDashboard}
@@ -1903,8 +1903,8 @@ function DemoPrimaryControls({
         </select>
       </label>
 
-      <label className="min-w-0 text-[11px] font-semibold text-gray-500">
-        <span className="sr-only">Join with</span>
+      <label className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+        <span className="shrink-0">Join with</span>
         <select
           aria-label="Join with"
           value={joinDataset}
