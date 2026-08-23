@@ -9,6 +9,10 @@ const isPublicDemoRoute = createRouteMatcher([
   "/",
   "/demo(.*)",
 ])
+const isPublicAuthRoute = createRouteMatcher([
+  "/sign-in(.*)",
+  "/sign-up(.*)",
+])
 
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
@@ -47,7 +51,7 @@ export default function proxy(
   request: NextRequest,
   event: NextFetchEvent,
 ) {
-  if (isPublicDemoRoute(request)) {
+  if (isPublicDemoRoute(request) || isPublicAuthRoute(request)) {
     return NextResponse.next()
   }
 
