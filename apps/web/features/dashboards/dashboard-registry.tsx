@@ -2920,7 +2920,7 @@ function DashboardChartCard({
       >
         <div className="flex min-w-0 items-start justify-between gap-2">
           <h2
-            className={`min-w-0 truncate font-semibold leading-tight ${
+            className={`min-w-0 flex-1 truncate font-semibold leading-tight ${
               exportMode
                 ? "text-[11px]"
                 : "text-lg print:text-xs"
@@ -2929,7 +2929,7 @@ function DashboardChartCard({
             {title}
           </h2>
 
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-1 xl:flex-nowrap">
             {headerControls}
 
             {status && (
