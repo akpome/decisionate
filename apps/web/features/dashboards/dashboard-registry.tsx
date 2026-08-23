@@ -1799,6 +1799,7 @@ function IndustryDashboard({
         stopSharingAriaLabel={stopSharingAriaLabel}
         shareEnabled={shareEnabled}
         demoMode={demoMode}
+        demoControls={headerControls}
         showStopSharing={false}
         showActions={showActions}
         exportMode={exportMode}
@@ -1829,7 +1830,6 @@ function IndustryDashboard({
           description={dashboardConfig.trendDescription}
           status={dashboardConfig.trendStatus}
           canFullscreen={dashboardConfig.trendData.length > 0}
-          headerControls={headerControls}
           exportMode={exportMode}
         >
           {dashboardConfig.trendData.length > 0 ? (
@@ -2708,6 +2708,7 @@ function DashboardHeader({
   stopSharingAriaLabel,
   shareEnabled,
   demoMode,
+  demoControls,
   headerControls,
   showStopSharing = true,
   showActions = true,
@@ -2733,6 +2734,7 @@ function DashboardHeader({
   stopSharingAriaLabel?: string
   shareEnabled?: boolean
   demoMode?: boolean
+  demoControls?: ReactNode
   headerControls?: ReactNode
   showStopSharing?: boolean
   showActions?: boolean
@@ -2784,10 +2786,15 @@ function DashboardHeader({
       )}
 
       {demoMode && (
-        <div className="flex min-w-0 items-center px-1 print:hidden">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 px-1 print:hidden">
           <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
             Live demo · Read-only sample data · Decisions disabled
           </p>
+          {demoControls && (
+            <div className="min-w-0 flex-1">
+              {demoControls}
+            </div>
+          )}
         </div>
       )}
 
