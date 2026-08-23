@@ -2056,6 +2056,17 @@ function DemoModeBanner({
                           className="h-3.5 w-3.5 shrink-0 accent-blue-700"
                         />
                         <span
+                          aria-hidden="true"
+                          className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10"
+                          style={{
+                            backgroundColor:
+                              dashboardChartPalette[
+                                Math.max(metricOptions.indexOf(metric), 0) %
+                                  dashboardChartPalette.length
+                              ],
+                          }}
+                        />
+                        <span
                           className="truncate"
                           title={formatMetricName(metric)}
                         >
