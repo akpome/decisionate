@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -1805,24 +1806,10 @@ function IndustryDashboard({
         exportMode={exportMode}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 print:grid-cols-4 print:gap-1.5">
-        {dashboardConfig.metrics.map(metric => (
-          <div
-            key={metric.label}
-            className="break-inside-avoid rounded-2xl border border-gray-200 bg-white p-4 shadow-sm print:rounded-xl print:p-1.5"
-          >
-            <p className="text-xs font-medium uppercase text-gray-500">
-              {metric.label}
-            </p>
-            <p className="mt-1 break-words text-2xl font-bold leading-tight text-gray-950 print:text-lg">
-              {metric.value}
-            </p>
-            <p className="mt-1 text-xs leading-4 text-gray-500 print:leading-3">
-              {metric.detail}
-            </p>
-          </div>
-        ))}
-      </div>
+      <IndustryKpiGrid
+        metrics={dashboardConfig.metrics}
+        exportMode={exportMode}
+      />
 
       <div className="dashboard-export-chart-grid grid gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-2">
         <DashboardChartCard
@@ -2074,6 +2061,109 @@ function IndustryDashboard({
         </div>
       )}
     </div>
+  )
+}
+
+function IndustryKpiGrid({
+  metrics,
+  exportMode = false,
+}: {
+  metrics: IndustryMetric[]
+  exportMode?: boolean
+}) {
+  const scrollRef =
+    useRef<HTMLDivElement | null>(null)
+  const [canScroll, setCanScroll] =
+    useState(false)
+
+  useEffect(() => {
+    const node = scrollRef.current
+
+    if (!node || exportMode) {
+      setCanScroll(false)
+      return
+    }
+
+    const updateScrollState = () => {
+      setCanScroll(node.scrollWidth > node.clientWidth + 1)
+    }
+
+    updateScrollState()
+    window.addEventListener("resize", updateScrollState)
+
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(updateScrollState)
+    observer?.observe(node)
+
+    return () => {
+      window.removeEventListener("resize", updateScrollState)
+      observer?.disconnect()
+    }
+  }, [exportMode, metrics.length])
+
+  function scrollKpis(direction: -1 | 1) {
+    const node = scrollRef.current
+
+    if (!node) {
+      return
+    }
+
+    node.scrollBy({
+      left:
+        direction *
+        Math.max(node.clientWidth * 0.9, 320),
+      behavior: "smooth",
+    })
+  }
+
+  return (
+    <section className="space-y-2 print:space-y-1.5">
+      {canScroll && (
+        <div className="flex justify-end gap-2 print:hidden">
+          <button
+            type="button"
+            onClick={() => scrollKpis(-1)}
+            aria-label="Show previous KPI cards"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+          >
+            ‹
+          </button>
+
+          <button
+            type="button"
+            onClick={() => scrollKpis(1)}
+            aria-label="Show more KPI cards"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+          >
+            ›
+          </button>
+        </div>
+      )}
+
+      <div
+        ref={scrollRef}
+        className="dashboard-kpi-scroll flex gap-4 overflow-x-auto scroll-smooth pb-2 print:grid print:grid-cols-4 print:gap-1.5 print:overflow-visible"
+      >
+        {metrics.map(metric => (
+          <div
+            key={metric.label}
+            className="dashboard-kpi-strip-card break-inside-avoid rounded-2xl border border-gray-200 bg-white p-4 shadow-sm print:rounded-xl print:p-1.5"
+          >
+            <p className="text-xs font-medium uppercase text-gray-500">
+              {metric.label}
+            </p>
+            <p className="mt-1 break-words text-2xl font-bold leading-tight text-gray-950 print:text-lg">
+              {metric.value}
+            </p>
+            <p className="mt-1 text-xs leading-4 text-gray-500 print:leading-3">
+              {metric.detail}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 
