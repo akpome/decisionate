@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "decisionate-pwa"
-const CACHE_VERSION = "v2"
+const CACHE_VERSION = "v3"
 const SHELL_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-shell`
 const STATIC_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-static`
 const OFFLINE_URL = "/offline.html"

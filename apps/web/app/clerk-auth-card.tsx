@@ -1,6 +1,8 @@
 "use client"
 
 import {
+  ClerkLoaded,
+  ClerkLoading,
   SignIn,
   SignUp,
 } from "@clerk/nextjs"
@@ -27,14 +29,25 @@ export function ClerkAuthCard({
 
   return (
     <div className="decisionate-auth-card w-full min-w-0 overflow-hidden">
-      <SignIn
-        fallbackRedirectUrl="/auth/redirect"
-        forceRedirectUrl="/auth/redirect"
-        withSignUp={false}
-        signUpUrl="/sign-up"
-        signUpFallbackRedirectUrl="/onboarding"
-        appearance={authAppearance}
-      />
+      <ClerkLoading>
+        <div
+          role="status"
+          aria-live="polite"
+          className="min-h-24 rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600 shadow-sm"
+        >
+          Loading sign in...
+        </div>
+      </ClerkLoading>
+      <ClerkLoaded>
+        <SignIn
+          fallbackRedirectUrl="/auth/redirect"
+          forceRedirectUrl="/auth/redirect"
+          withSignUp={false}
+          signUpUrl="/sign-up"
+          signUpFallbackRedirectUrl="/onboarding"
+          appearance={authAppearance}
+        />
+      </ClerkLoaded>
     </div>
   )
 }
@@ -116,12 +129,23 @@ function SignUpWithConsent() {
       <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
         Terms of Service and Privacy Policy acknowledged.
       </div>
-      <SignUp
-        fallbackRedirectUrl="/onboarding"
-        forceRedirectUrl="/onboarding"
-        signInFallbackRedirectUrl="/dashboard"
-        appearance={authAppearance}
-      />
+      <ClerkLoading>
+        <div
+          role="status"
+          aria-live="polite"
+          className="min-h-24 rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600 shadow-sm"
+        >
+          Loading sign up...
+        </div>
+      </ClerkLoading>
+      <ClerkLoaded>
+        <SignUp
+          fallbackRedirectUrl="/onboarding"
+          forceRedirectUrl="/onboarding"
+          signInFallbackRedirectUrl="/dashboard"
+          appearance={authAppearance}
+        />
+      </ClerkLoaded>
     </div>
   )
 }
