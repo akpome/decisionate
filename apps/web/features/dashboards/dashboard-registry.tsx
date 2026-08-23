@@ -112,6 +112,7 @@ type DashboardPlaceholderProps = {
   stopSharingTitle?: string
   stopSharingAriaLabel?: string
   shareEnabled?: boolean
+  demoMode?: boolean
   headerControls?: ReactNode
   showActions?: boolean
   exportMode?: boolean
@@ -1735,6 +1736,7 @@ function IndustryDashboard({
   stopSharingTitle,
   stopSharingAriaLabel,
   shareEnabled,
+  demoMode,
   headerControls,
   showActions,
   exportMode,
@@ -1796,6 +1798,7 @@ function IndustryDashboard({
         stopSharingTitle={stopSharingTitle}
         stopSharingAriaLabel={stopSharingAriaLabel}
         shareEnabled={shareEnabled}
+        demoMode={demoMode}
         headerControls={headerControls}
         showStopSharing={false}
         showActions={showActions}
@@ -2704,6 +2707,7 @@ function DashboardHeader({
   stopSharingTitle,
   stopSharingAriaLabel,
   shareEnabled,
+  demoMode,
   headerControls,
   showStopSharing = true,
   showActions = true,
@@ -2728,6 +2732,7 @@ function DashboardHeader({
   stopSharingTitle?: string
   stopSharingAriaLabel?: string
   shareEnabled?: boolean
+  demoMode?: boolean
   headerControls?: ReactNode
   showStopSharing?: boolean
   showActions?: boolean
@@ -2775,6 +2780,14 @@ function DashboardHeader({
               {description}
             </p>
           </div>
+        </div>
+      )}
+
+      {demoMode && (
+        <div className="flex min-w-0 items-center px-1 print:hidden">
+          <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
+            Live demo · Read-only sample data · Decisions disabled
+          </p>
         </div>
       )}
 
