@@ -1003,6 +1003,16 @@ function SharedDashboardContent({
       onCreateDecision={handleDemoCreateDecision}
     />
   ) : null
+  const demoStatusLine = sharedDemo ? (
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+      <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
+        {sharedDashboardTitle} · Live demo · Read-only sample data · Decisions disabled
+      </p>
+      <div className="min-w-0 flex-1">
+        {demoPrimaryControls}
+      </div>
+    </div>
+  ) : null
   const demoBanner = sharedDemo ? (
     <DemoModeBanner
       showMetricSelection={isGeneralBusinessOverview}
@@ -1261,16 +1271,11 @@ function SharedDashboardContent({
 
         </div>
 
+        {demoStatusLine}
+
         {effectiveDashboardTemplate === "executive" && (
           <>
-            <KpiGrid
-              metrics={metrics}
-              demoStatus={
-                sharedDemo
-                  ? `${sharedDashboardTitle} · Live demo · Read-only sample data · Decisions disabled`
-                  : undefined
-              }
-            />
+            <KpiGrid metrics={metrics} />
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
               <MainChartCard
@@ -1283,7 +1288,6 @@ function SharedDashboardContent({
                 selectedTarget={selectedTarget}
                 scaleMode={scaleMode}
                 colorPalette={dashboardColorPalette}
-                headerControls={demoPrimaryControls}
               />
 
               <TargetKpiCard
@@ -1316,18 +1320,10 @@ function SharedDashboardContent({
                 selectedTarget={selectedTarget}
                 scaleMode={scaleMode}
                 colorPalette={dashboardColorPalette}
-                headerControls={demoPrimaryControls}
               />
             </div>
 
-            <KpiGrid
-              metrics={metrics}
-              demoStatus={
-                sharedDemo
-                  ? `${sharedDashboardTitle} · Live demo · Read-only sample data · Decisions disabled`
-                  : undefined
-              }
-            />
+            <KpiGrid metrics={metrics} />
           </>
         )}
 
@@ -1345,7 +1341,6 @@ function SharedDashboardContent({
             selectedTarget={selectedTarget}
             scaleMode={scaleMode}
             colorPalette={dashboardColorPalette}
-            headerControls={demoPrimaryControls}
             className="w-full xl:h-[720px]"
             chartAreaClassName="mt-4 h-[520px] flex-none xl:h-auto xl:min-h-[560px] xl:flex-1"
           />
@@ -1522,10 +1517,8 @@ function SharedDashboardControls({
 
 function KpiGrid({
   metrics,
-  demoStatus,
 }: {
   metrics: DashboardMetric[]
-  demoStatus?: string
 }) {
   const scrollRef =
     useRef<HTMLDivElement | null>(null)
@@ -1553,35 +1546,25 @@ function KpiGrid({
 
   return (
     <section className="space-y-2">
-      {(demoStatus || canScroll) && (
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          {demoStatus && (
-            <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
-              {demoStatus}
-            </p>
-          )}
+      {canScroll && (
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => scrollKpis(-1)}
+            aria-label="Show previous KPI cards"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+          >
+            ‹
+          </button>
 
-          {canScroll && (
-            <div className="flex shrink-0 justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => scrollKpis(-1)}
-                aria-label="Show previous KPI cards"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
-              >
-                ‹
-              </button>
-
-              <button
-                type="button"
-                onClick={() => scrollKpis(1)}
-                aria-label="Show more KPI cards"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
-              >
-                ›
-              </button>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => scrollKpis(1)}
+            aria-label="Show more KPI cards"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-600 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
+          >
+            ›
+          </button>
         </div>
       )}
 
@@ -1710,18 +1693,15 @@ function MainChartCard({
   return (
     <>
       <SharedCard className={`flex min-w-0 flex-col ${className}`}>
-        {headerControls && (
-          <div className="mb-3 flex min-w-0 flex-wrap items-center justify-start border-b border-gray-100 pb-3">
-            {headerControls}
-          </div>
-        )}
-
         <CardHeader
           title={chartTitle}
           description="Main chart"
           action={
-            hasChartData ? (
-              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+            headerControls || hasChartData ? (
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 xl:flex-nowrap">
+                {headerControls}
+
+                {hasChartData && (
                 <button
                   type="button"
                   onClick={() => setIsFullscreen(true)}
@@ -1731,6 +1711,7 @@ function MainChartCard({
                 >
                   <Maximize2 size={15} />
                 </button>
+                )}
               </div>
             ) : undefined
           }
@@ -1875,7 +1856,7 @@ function DemoPrimaryControls({
   onCreateDecision: () => void
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-end justify-end gap-2">
+    <div className="flex min-w-0 flex-wrap items-end justify-end gap-2 xl:flex-nowrap">
       <label className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-gray-500">
         <span className="shrink-0">Dataset</span>
         <select
