@@ -148,15 +148,31 @@ class ConnectorSmokeTests(unittest.TestCase):
                     {},
                 ),
             ), \
-            patch.object(
-                connectors,
-                "connector_bytes_request",
-                return_value=(
-                    b"date,revenue\n2026-01-02,500\n",
-                    {"Content-Type": "text/csv"},
-                ),
-            ), \
-            patch.dict(os.environ, {"STRIPE_API_KEY": "test-key"}, clear=False):
+            patch.dict(
+                os.environ,
+                {
+                    "STRIPE_API_KEY": "test-key",
+                    "STRIPE_API_URL": "https://api.stripe.com/v1",
+                    "HUBSPOT_API_BASE_URL": "https://api.hubapi.com",
+                    "HUBSPOT_CRM_API_VERSION": "v3",
+                    "SHOPIFY_API_VERSION": "2026-07",
+                    "SHOPIFY_API_BASE_URL_TEMPLATE": (
+                        "https://{shop_domain}/admin/api/{api_version}"
+                    ),
+                    "META_ADS_API_BASE_URL": "https://graph.facebook.com",
+                    "META_ADS_GRAPH_VERSION": "v23.0",
+                    "META_ADS_TIME_INCREMENT": "1",
+                    "QUICKBOOKS_API_BASE_URL": (
+                        "https://quickbooks.api.intuit.com"
+                    ),
+                    "QUICKBOOKS_API_VERSION": "v3",
+                    "FRESHBOOKS_API_BASE_URL_TEMPLATE": (
+                        "https://api.freshbooks.com/account/{account_id}/invoices/invoices"
+                    ),
+                    "XERO_API_BASE_URL": "https://api.xero.com/api.xro/2.0",
+                },
+                clear=False,
+            ):
             cases = [
                 ("hubspot", {"object_type": "deals"}),
                 ("stripe", {}),
@@ -165,8 +181,6 @@ class ConnectorSmokeTests(unittest.TestCase):
                 ("quickbooks", {"company_id": "company-1"}),
                 ("freshbooks", {"account_id": "account-1"}),
                 ("xero", {"tenant_id": tenant_id}),
-                ("google_drive", {"file_id": "file-1"}),
-                ("onedrive", {"drive_id": "drive-1", "item_id": "item-1"}),
             ]
 
             for source_type, config in cases:

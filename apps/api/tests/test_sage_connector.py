@@ -16,17 +16,20 @@ class SageConnectorTests(unittest.TestCase):
             {
                 "SAGE_CLIENT_ID": "client-id",
                 "SAGE_CLIENT_SECRET": "client-secret",
+                "SAGE_OAUTH_AUTHORIZATION_URL": (
+                    "https://www.sageone.com/oauth2/auth/central"
+                ),
+                "SAGE_OAUTH_TOKEN_URL": "https://oauth.example/token",
+                "SAGE_OAUTH_SCOPES": "readonly",
             },
             clear=False,
         ):
             url = build_authorization_url("sage", "state-1")
+            token_url = get_sage_token_url("US")
 
         self.assertIn("sageone.com/oauth2/auth/central", url)
         self.assertIn("scope=readonly", url)
-        self.assertEqual(
-            get_sage_token_url("US"),
-            "https://oauth.na.sageone.com/token",
-        )
+        self.assertEqual(token_url, "https://oauth.example/token")
 
     def test_sage_invoices_are_normalized_for_analytics(self):
         connection = SimpleNamespace(
@@ -61,7 +64,11 @@ class SageConnectorTests(unittest.TestCase):
 
         with patch.dict(
             os.environ,
-            {"SAGE_API_SUBSCRIPTION_KEY": "subscription-key"},
+            {
+                "SAGE_API_SUBSCRIPTION_KEY": "subscription-key",
+                "SAGE_API_BASE_URL": "https://api.example/sage",
+                "SAGE_BUSINESS_HEADER": "X-Site",
+            },
             clear=False,
         ), patch.object(
             connectors,

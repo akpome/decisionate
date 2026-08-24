@@ -14,6 +14,7 @@ from app.modules.oauth.service import (
 
 
 IMPLEMENTED_CONNECTOR_TYPES = {
+    "google_analytics",
     "hubspot",
     "stripe",
     "shopify",
@@ -126,7 +127,7 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["account_id"],
         "description": (
-            "Connect payments, subscriptions, customers, and invoices."
+            "Connect Stripe charge and payment data."
         ),
     },
     {
@@ -150,7 +151,7 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["company_id"],
         "description": (
-            "Connect accounting, revenue, expense, and invoice data."
+            "Connect QuickBooks invoice data."
         ),
     },
     {
@@ -162,7 +163,7 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["account_id"],
         "description": (
-            "Connect invoices, clients, payments, expenses, and time tracking."
+            "Connect FreshBooks invoice data."
         ),
     },
     {
@@ -186,7 +187,7 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["tenant_id"],
         "description": (
-            "Connect Xero invoices, customers, payments, and accounting data."
+            "Connect Xero invoice data."
         ),
     },
     {
@@ -196,7 +197,7 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["object_type"],
+        "config_keys": ["object_type", "properties"],
         "description": (
             "Connect contacts, companies, deals, and sales pipeline data."
         ),
@@ -260,6 +261,58 @@ DATASET_SOURCE_ENV_KEYS = {
     ],
 }
 
+# These settings are deliberately kept separate from environment_keys. The
+# latter are credential fields shown in the connection editor; these are
+# provider runtime settings and must remain deployment configuration.
+DATASET_SOURCE_RUNTIME_ENV_KEYS = {
+    "stripe": ["STRIPE_API_URL"],
+    "shopify": [
+        "SHOPIFY_API_VERSION",
+        "SHOPIFY_API_BASE_URL_TEMPLATE",
+    ],
+    "quickbooks": [
+        "QUICKBOOKS_API_BASE_URL",
+        "QUICKBOOKS_API_VERSION",
+    ],
+    "freshbooks": ["FRESHBOOKS_API_BASE_URL_TEMPLATE"],
+    "sage": [
+        "SAGE_API_BASE_URL",
+        "SAGE_BUSINESS_HEADER",
+        "SAGE_OAUTH_TOKEN_URL",
+    ],
+    "hubspot": [
+        "HUBSPOT_API_BASE_URL",
+        "HUBSPOT_CRM_API_VERSION",
+    ],
+    "meta_ads": [
+        "META_ADS_API_BASE_URL",
+        "META_ADS_GRAPH_VERSION",
+        "META_ADS_TIME_INCREMENT",
+    ],
+    "xero": [
+        "XERO_API_BASE_URL",
+        "XERO_CONNECTIONS_API_URL",
+    ],
+}
+
+
+def get_missing_provider_settings(source_type):
+    return [
+        key
+        for key in DATASET_SOURCE_RUNTIME_ENV_KEYS.get(source_type, [])
+        if not str(os.getenv(key, "") or "").strip()
+    ]
+
+
+def provider_setup_note(source_type, default_note):
+    missing = get_missing_provider_settings(source_type)
+    if not missing:
+        return default_note
+    return (
+        f"{default_note} Missing provider setting(s): "
+        f"{', '.join(missing)}."
+    )
+
 
 def normalize_dataset_source_type(
     source_type,
@@ -308,6 +361,22 @@ def clone_dataset_source(source):
             *configured_env_keys,
         ]
 
+    runtime_env_keys = DATASET_SOURCE_RUNTIME_ENV_KEYS.get(
+        source["type"],
+        [],
+    )
+    if runtime_env_keys:
+        missing_runtime_keys = get_missing_provider_settings(source["type"])
+        cloned_source["provider_setting_keys"] = [
+            *runtime_env_keys,
+        ]
+        cloned_source["missing_provider_setting_keys"] = [
+            *missing_runtime_keys,
+        ]
+        cloned_source["provider_settings_configured"] = not bool(
+            missing_runtime_keys
+        )
+
     if (
         source["connection_type"] == "upload"
         and source["status"] == "available"
@@ -340,23 +409,35 @@ def clone_dataset_source(source):
             )
 
     if source["type"] == "hubspot":
-        if is_oauth_provider_configured("hubspot"):
+        if (
+            is_oauth_provider_configured("hubspot")
+            and not get_missing_provider_settings("hubspot")
+        ):
             cloned_source["status"] = "available"
         else:
             cloned_source["status"] = "needs_setup"
             cloned_source["availability_note"] = (
-                "Configure HubSpot OAuth credentials and token encryption "
-                "on the Decisionate server to enable sync."
+                provider_setup_note(
+                    "hubspot",
+                    "Configure HubSpot OAuth credentials and token encryption "
+                    "on the Decisionate server to enable sync.",
+                )
             )
 
     if source["type"] == "stripe":
-        if str(os.getenv("STRIPE_API_KEY", "") or "").strip():
+        if (
+            str(os.getenv("STRIPE_API_KEY", "") or "").strip()
+            and not get_missing_provider_settings("stripe")
+        ):
             cloned_source["status"] = "available"
         else:
             cloned_source["status"] = "needs_setup"
             cloned_source["availability_note"] = (
-                "Configure STRIPE_API_KEY on the Decisionate server to "
-                "enable sync."
+                provider_setup_note(
+                    "stripe",
+                    "Configure STRIPE_API_KEY on the Decisionate server to "
+                    "enable sync.",
+                )
             )
 
     if source["type"] in {
@@ -366,27 +447,37 @@ def clone_dataset_source(source):
         "freshbooks",
         "xero",
     }:
-        if is_oauth_provider_configured(source["type"]):
+        if (
+            is_oauth_provider_configured(source["type"])
+            and not get_missing_provider_settings(source["type"])
+        ):
             cloned_source["status"] = "available"
         else:
             cloned_source["status"] = "needs_setup"
             cloned_source["availability_note"] = (
-                f"Configure {source['label']} OAuth credentials and token "
-                "encryption on the Decisionate server to enable sync."
+                provider_setup_note(
+                    source["type"],
+                    f"Configure {source['label']} OAuth credentials and token "
+                    "encryption on the Decisionate server to enable sync.",
+                )
             )
 
     if source["type"] == "sage":
         if (
             is_oauth_provider_configured("sage")
             and str(os.getenv("SAGE_API_SUBSCRIPTION_KEY", "") or "").strip()
+            and not get_missing_provider_settings("sage")
         ):
             cloned_source["status"] = "available"
         else:
             cloned_source["status"] = "needs_setup"
             cloned_source["availability_note"] = (
-                "Configure Sage OAuth credentials, the Sage API subscription "
-                "key, and token encryption on the Decisionate server to "
-                "enable sync."
+                provider_setup_note(
+                    "sage",
+                    "Configure Sage OAuth credentials, the Sage API subscription "
+                    "key, and token encryption on the Decisionate server to "
+                    "enable sync.",
+                )
             )
 
     database_environment_keys = {

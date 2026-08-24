@@ -267,6 +267,7 @@ def load_stripe_dataframe(
     start_date=None,
     end_date=None,
 ) -> tuple[pd.DataFrame, dict]:
+    config = parse_connection_config(connection)
     api_key = str(os.getenv("STRIPE_API_KEY", "") or "").strip()
     if not api_key:
         raise ConnectorUnavailable(
@@ -277,6 +278,17 @@ def load_stripe_dataframe(
     starting_after = None
     seen_starting_after = set()
     base_url = require_provider_url("STRIPE_API_URL")
+    account_id = str(config.get("account_id") or "").strip()
+    if account_id:
+        account_id = account_id.removeprefix("acct_")
+        if not re.fullmatch(r"[A-Za-z0-9]+", account_id):
+            raise ConnectorUnavailable(
+                "Stripe account_id must be a valid connected account ID"
+            )
+        account_id = f"acct_{account_id}"
+    request_headers = {"Authorization": f"Bearer {api_key}"}
+    if account_id:
+        request_headers["Stripe-Account"] = account_id
     while True:
         if starting_after is not None:
             if starting_after in seen_starting_after:
@@ -296,7 +308,7 @@ def load_stripe_dataframe(
 
         payload = connector_json_request(
             f"{base_url}/charges?{urlencode(params)}",
-            headers={"Authorization": f"Bearer {api_key}"},
+            headers=request_headers,
         )
         data = payload.get("data")
         if not isinstance(data, list):
@@ -345,6 +357,7 @@ def load_stripe_dataframe(
     return dataframe, {
         "connector": "stripe",
         "resource": "charges",
+        "account_id": account_id,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
@@ -479,6 +492,7 @@ def load_meta_ads_dataframe(
             "META_ADS_GRAPH_VERSION is required for the Meta Ads connector"
         )
     graph_base_url = require_provider_url("META_ADS_API_BASE_URL")
+    time_increment = get_meta_ads_time_increment()
     time_range = json.dumps(
         {"since": since.isoformat(), "until": until.isoformat()},
         separators=(",", ":"),
@@ -500,6 +514,7 @@ def load_meta_ads_dataframe(
             "actions",
         ]),
         "level": "campaign",
+        "time_increment": time_increment,
         "time_range": time_range,
         "limit": str(PAGE_SIZE),
     }
@@ -546,11 +561,6 @@ def load_meta_ads_dataframe(
                 "cpm": record.get("cpm"),
                 "leads": action_values.get("lead"),
                 "purchases": action_values.get("purchase"),
-                "conversions": sum(
-                    float(value)
-                    for value in action_values.values()
-                    if is_number(value)
-                ),
             }
             for action_type, value in action_values.items():
                 normalized_action = re.sub(
@@ -582,6 +592,7 @@ def load_meta_ads_dataframe(
         "resource": "campaign_insights",
         "start_date": since.isoformat(),
         "end_date": until.isoformat(),
+        "time_increment": time_increment,
         "row_count": len(dataframe),
     }
 
@@ -616,9 +627,10 @@ def load_quickbooks_dataframe(
         if start_position in seen_positions:
             break
         seen_positions.add(start_position)
-        query = (
-            "SELECT * FROM Invoice "
-            f"STARTPOSITION {start_position} MAXRESULTS {PAGE_SIZE}"
+        query = quickbooks_invoice_query(
+            start_position,
+            start_date,
+            end_date,
         )
         url = (
             f"{base_url}/{api_version}/company/{company_id}/query?"
@@ -1215,19 +1227,46 @@ def shopify_order_params(start_date, end_date) -> dict[str, str]:
     return params
 
 
+def quickbooks_invoice_query(start_position: int, start_date, end_date) -> str:
+    filters = []
+    if start_date is not None:
+        filters.append(f"TxnDate >= '{start_date.isoformat()}'")
+    if end_date is not None:
+        filters.append(f"TxnDate <= '{end_date.isoformat()}'")
+    where_clause = f" WHERE {' AND '.join(filters)}" if filters else ""
+    return (
+        f"SELECT * FROM Invoice{where_clause} "
+        f"STARTPOSITION {start_position} MAXRESULTS {PAGE_SIZE}"
+    )
+
+
+def get_meta_ads_time_increment() -> str:
+    value = get_provider_setting("META_ADS_TIME_INCREMENT")
+    if not value:
+        raise ConnectorUnavailable(
+            "META_ADS_TIME_INCREMENT is required for the Meta Ads connector"
+        )
+    normalized = value.strip().lower()
+    if normalized == "all":
+        return "all"
+    try:
+        increment = int(normalized)
+    except ValueError as error:
+        raise ConnectorUnavailable(
+            "META_ADS_TIME_INCREMENT must be an integer from 1 to 90 or all"
+        ) from error
+    if increment <= 0 or increment > 90:
+        raise ConnectorUnavailable(
+            "META_ADS_TIME_INCREMENT must be an integer from 1 to 90 or all"
+        )
+    return str(increment)
+
+
 def get_next_link(link_header: str | None) -> str | None:
     if not link_header:
         return None
     match = re.search(r"<([^>]+)>;\s*rel=\"next\"", link_header)
     return match.group(1) if match else None
-
-
-def is_number(value) -> bool:
-    try:
-        float(value)
-    except (TypeError, ValueError):
-        return False
-    return True
 
 
 def filter_date_range(dataframe: pd.DataFrame, start_date, end_date) -> pd.DataFrame:

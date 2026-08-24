@@ -37,6 +37,7 @@ class OAuthProvider:
     client_secret_env: str
     scopes_env: str
     use_basic_token_auth: bool = False
+    required_scopes: tuple[str, ...] = ()
 
 
 OAUTH_PROVIDERS = {
@@ -47,6 +48,7 @@ OAUTH_PROVIDERS = {
         client_id_env="SHOPIFY_CLIENT_ID",
         client_secret_env="SHOPIFY_CLIENT_SECRET",
         scopes_env="SHOPIFY_OAUTH_SCOPES",
+        required_scopes=("read_orders",),
     ),
     "hubspot": OAuthProvider(
         source_type="hubspot",
@@ -55,6 +57,12 @@ OAUTH_PROVIDERS = {
         client_id_env="HUBSPOT_CLIENT_ID",
         client_secret_env="HUBSPOT_CLIENT_SECRET",
         scopes_env="HUBSPOT_OAUTH_SCOPES",
+        required_scopes=(
+            "crm.objects.contacts.read",
+            "crm.objects.companies.read",
+            "crm.objects.deals.read",
+            "crm.objects.tickets.read",
+        ),
     ),
     "meta_ads": OAuthProvider(
         source_type="meta_ads",
@@ -63,6 +71,7 @@ OAUTH_PROVIDERS = {
         client_id_env="META_ADS_APP_ID",
         client_secret_env="META_ADS_APP_SECRET",
         scopes_env="META_ADS_OAUTH_SCOPES",
+        required_scopes=("ads_read",),
     ),
     "quickbooks": OAuthProvider(
         source_type="quickbooks",
@@ -72,6 +81,7 @@ OAUTH_PROVIDERS = {
         client_secret_env="QUICKBOOKS_CLIENT_SECRET",
         scopes_env="QUICKBOOKS_OAUTH_SCOPES",
         use_basic_token_auth=True,
+        required_scopes=("com.intuit.quickbooks.accounting",),
     ),
     "freshbooks": OAuthProvider(
         source_type="freshbooks",
@@ -80,6 +90,7 @@ OAUTH_PROVIDERS = {
         client_id_env="FRESHBOOKS_CLIENT_ID",
         client_secret_env="FRESHBOOKS_CLIENT_SECRET",
         scopes_env="FRESHBOOKS_OAUTH_SCOPES",
+        required_scopes=("invoices:read",),
     ),
     "sage": OAuthProvider(
         source_type="sage",
@@ -88,6 +99,7 @@ OAUTH_PROVIDERS = {
         client_id_env="SAGE_CLIENT_ID",
         client_secret_env="SAGE_CLIENT_SECRET",
         scopes_env="SAGE_OAUTH_SCOPES",
+        required_scopes=("readonly",),
     ),
     "xero": OAuthProvider(
         source_type="xero",
@@ -97,6 +109,7 @@ OAUTH_PROVIDERS = {
         client_secret_env="XERO_CLIENT_SECRET",
         scopes_env="XERO_OAUTH_SCOPES",
         use_basic_token_auth=True,
+        required_scopes=("accounting.transactions",),
     ),
 }
 
@@ -168,6 +181,16 @@ def get_provider_scopes(provider: OAuthProvider) -> tuple[str, ...]:
     if not scopes:
         raise OAuthProviderUnavailable(
             f"{provider.scopes_env} is required for {provider.source_type} OAuth"
+        )
+    missing_scopes = [
+        scope
+        for scope in provider.required_scopes
+        if scope not in scopes
+    ]
+    if missing_scopes:
+        raise OAuthProviderUnavailable(
+            f"{provider.scopes_env} is missing required scope(s): "
+            f"{', '.join(missing_scopes)}"
         )
     return scopes
 
@@ -251,8 +274,6 @@ def exchange_code(
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": get_callback_url(),
-        "client_id": client_id,
-        "client_secret": client_secret,
     }
     headers = {"Accept": "application/json"}
     if provider.use_basic_token_auth:
@@ -262,6 +283,9 @@ def exchange_code(
             f"{client_id}:{client_secret}".encode("utf-8")
         ).decode("ascii")
         headers["Authorization"] = f"Basic {encoded}"
+    else:
+        params["client_id"] = client_id
+        params["client_secret"] = client_secret
 
     request = Request(
         token_url,
@@ -313,8 +337,6 @@ def refresh_oauth_token(
     params = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
-        "client_id": client_id,
-        "client_secret": client_secret,
     }
     headers = {"Accept": "application/json"}
     if provider.use_basic_token_auth:
@@ -324,6 +346,9 @@ def refresh_oauth_token(
             f"{client_id}:{client_secret}".encode("utf-8")
         ).decode("ascii")
         headers["Authorization"] = f"Basic {encoded}"
+    else:
+        params["client_id"] = client_id
+        params["client_secret"] = client_secret
 
     request = Request(
         token_url,

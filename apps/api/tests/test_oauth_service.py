@@ -24,16 +24,27 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "GOOGLE_DRIVE_CLIENT_ID": "client-id",
-                "GOOGLE_DRIVE_CLIENT_SECRET": "client-secret",
+                "SHOPIFY_CLIENT_ID": "client-id",
+                "SHOPIFY_CLIENT_SECRET": "client-secret",
+                "SHOPIFY_OAUTH_AUTHORIZATION_URL_TEMPLATE": (
+                    "https://{shop_domain}/admin/oauth/authorize"
+                ),
+                "SHOPIFY_OAUTH_TOKEN_URL_TEMPLATE": (
+                    "https://{shop_domain}/admin/oauth/access_token"
+                ),
+                "SHOPIFY_OAUTH_SCOPES": "read_orders",
                 "OAUTH_TOKEN_ENCRYPTION_KEY": key,
             },
             clear=False,
         ):
-            url = build_authorization_url("google_drive", "state-1")
+            url = build_authorization_url(
+                "shopify",
+                "state-1",
+                {"shop_domain": "shop.example.com"},
+            )
             encrypted = encrypt_token("access-token")
 
-            self.assertTrue(is_oauth_provider_configured("google_drive"))
+            self.assertTrue(is_oauth_provider_configured("shopify"))
             self.assertIn("state=state-1", url)
             self.assertNotEqual(encrypted, "access-token")
             self.assertEqual(decrypt_token(encrypted), "access-token")
