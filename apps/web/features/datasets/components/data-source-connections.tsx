@@ -601,6 +601,7 @@ function DataSourceConnectionRow({
               <ConnectionConfigFieldGroup
                 title="Dataset Settings"
                 configKeys={configKeys}
+                sourceType={connection.source_type}
                 editingConnectionConfig={
                   editingConnectionConfig
                 }
@@ -959,6 +960,7 @@ function DataSourceConnectionRow({
 function ConnectionConfigFieldGroup({
   title,
   configKeys,
+  sourceType,
   editingConnectionConfig,
   hasSavedConfig,
   setEditingConnectionConfig,
@@ -966,6 +968,7 @@ function ConnectionConfigFieldGroup({
 }: {
   title: string
   configKeys: string[]
+  sourceType?: string
   editingConnectionConfig: Record<string, string>
   hasSavedConfig: boolean
   setEditingConnectionConfig: (
@@ -984,6 +987,7 @@ function ConnectionConfigFieldGroup({
           <ConnectionConfigField
             key={configKey}
             configKey={configKey}
+            sourceType={sourceType}
             value={
               editingConnectionConfig[
                 configKey
@@ -1006,12 +1010,14 @@ function ConnectionConfigFieldGroup({
 
 function ConnectionConfigField({
   configKey,
+  sourceType,
   value,
   hasSavedConfig,
   secret,
   onChange,
 }: {
   configKey: string
+  sourceType?: string
   value: string
   hasSavedConfig: boolean
   secret?: boolean
@@ -1028,7 +1034,21 @@ function ConnectionConfigField({
   return (
     <label className="block min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
       {label}
-      {configKey === "query" ? (
+      {sourceType === "salesforce" && configKey === "object_type" ? (
+        <select
+          aria-label="Salesforce dataset"
+          value={value}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+          className={`${sharedClassName} h-9`}
+        >
+          <option value="">Select dataset</option>
+          <option value="Opportunity">Opportunities</option>
+          <option value="Account">Accounts</option>
+          <option value="Lead">Leads</option>
+        </select>
+      ) : configKey === "query" ? (
         <textarea
           value={value}
           onChange={(event) =>

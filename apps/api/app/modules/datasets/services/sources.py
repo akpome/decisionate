@@ -212,8 +212,8 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["object_type", "fields"],
         "description": (
-            "Connect Salesforce Sales Cloud records using a configurable "
-            "object and field selection."
+            "Connect Salesforce Opportunities, Accounts, or Leads with "
+            "provider-controlled fields."
         ),
     },
     {

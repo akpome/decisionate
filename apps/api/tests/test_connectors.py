@@ -337,6 +337,23 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertTrue(payload["done"])
         pause.assert_called_once()
 
+    def test_salesforce_rejects_objects_outside_sales_cloud_scope(self):
+        connection = make_connection(
+            "salesforce",
+            {
+                "object_type": "Case",
+                "_instance_url": "https://acme.my.salesforce.com",
+            },
+        )
+        with self.assertRaisesRegex(
+            connectors.ConnectorUnavailable,
+            "Opportunity, Account, or Lead",
+        ):
+            connectors.load_salesforce_dataframe(
+                None,
+                connection,
+            )
+
     def test_database_connector_query_has_no_implicit_row_cap(self):
         query = "SELECT created_at, revenue FROM source_rows"
         self.assertEqual(

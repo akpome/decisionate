@@ -26,6 +26,11 @@ from app.modules.oauth.service import (
 PAGE_SIZE = 100
 SALESFORCE_MAX_ATTEMPTS = 4
 SALESFORCE_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
+SALESFORCE_OBJECT_TYPES = {
+    "opportunity": "Opportunity",
+    "account": "Account",
+    "lead": "Lead",
+}
 
 
 def salesforce_error_is_retryable(status_code: int, detail: str) -> bool:
@@ -1220,14 +1225,17 @@ def load_salesforce_dataframe(
     end_date=None,
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
-    object_type = str(config.get("object_type") or "").strip()
-    if not object_type:
+    requested_object_type = str(config.get("object_type") or "").strip()
+    if not requested_object_type:
         raise ConnectorUnavailable(
             "Configure a Salesforce object_type before syncing"
         )
-    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", object_type):
+    object_type = SALESFORCE_OBJECT_TYPES.get(
+        requested_object_type.lower()
+    )
+    if not object_type:
         raise ConnectorUnavailable(
-            "Salesforce object_type must be a valid Salesforce object name"
+            "Salesforce object_type must be Opportunity, Account, or Lead"
         )
 
     field_expression = normalize_salesforce_fields(config.get("fields"))
