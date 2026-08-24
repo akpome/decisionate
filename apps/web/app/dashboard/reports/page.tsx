@@ -546,6 +546,7 @@ export default function ReportsPage() {
             userId,
             activeWorkspaceId,
             {
+              includeAIAnalysis: false,
               periodFilter,
               aggregation,
               aggregationType,

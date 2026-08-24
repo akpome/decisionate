@@ -658,7 +658,10 @@ export default function InsightsPage() {
             datasetId,
             userId,
             activeWorkspaceId,
-            { includeAllRows: true }
+            {
+              includeAllRows: true,
+              includeAIAnalysis: false,
+            }
           )
 
         if (!ignoreResult) {

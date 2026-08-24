@@ -226,7 +226,8 @@ export default function DatasetDetailsPage() {
         const data = await getDatasetDetails(
           datasetId,
           currentUserId,
-          activeWorkspaceId
+          activeWorkspaceId,
+          { includeAIAnalysis: false }
         )
 
         if (ignoreResult) {

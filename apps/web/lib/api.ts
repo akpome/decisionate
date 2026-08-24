@@ -1950,7 +1950,8 @@ function getWorkspaceCacheIdentity(
 
 function getCachedRead<T>(
   cacheKey: string,
-  loader: () => Promise<T>
+  loader: () => Promise<T>,
+  ttlMs = apiReadCacheTtlMs
 ): Promise<T> {
   if (typeof window === "undefined") {
     return loader()
@@ -1984,7 +1985,7 @@ function getCachedRead<T>(
   apiReadCache.set(
     cacheKey,
     {
-      expiresAt: now + apiReadCacheTtlMs,
+      expiresAt: now + ttlMs,
       promise,
     }
   )
@@ -2796,6 +2797,10 @@ export async function uploadDataset(
       userId,
       workspaceId
     )}:`,
+    `dataset-details:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}:`,
     `dataset-preference:${getWorkspaceCacheIdentity(
       userId,
       workspaceId
@@ -2840,6 +2845,10 @@ export async function importDatasetFromSignedUrl(
       workspaceId
     )}`,
     `dataset-metrics:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}:`,
+    `dataset-details:${getWorkspaceCacheIdentity(
       userId,
       workspaceId
     )}:`,
@@ -4425,24 +4434,35 @@ export async function getBillingAccessStatus(
   userId: string,
   workspaceId?: string
 ): Promise<BillingAccessStatus> {
-  const response = await apiFetch(
-    `${API_URL}/billing/access`,
-    {
-      headers: await workspaceHeaders(
-        userId,
-        workspaceId
-      ),
+  const cacheKey =
+    `billing-access:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}`
+
+  return getCachedRead(
+    cacheKey,
+    async () => {
+      const response = await apiFetch(
+        `${API_URL}/billing/access`,
+        {
+          headers: await workspaceHeaders(
+            userId,
+            workspaceId
+          ),
+        }
+      )
+
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to load subscription access"
+        )
+      }
+
+      return response.json()
     }
   )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load subscription access"
-    )
-  }
-
-  return response.json()
 }
 
 export async function createBillingCheckout(
@@ -4536,6 +4556,7 @@ export async function getDatasetDetails(
   workspaceId?: string,
   options?: {
     includeAllRows?: boolean
+    includeAIAnalysis?: boolean
     startDate?: string
     periodFilter?: ForecastPeriodFilter
     aggregation?: DashboardAggregation
@@ -4552,6 +4573,10 @@ export async function getDatasetDetails(
 
   if (options?.includeAllRows) {
     queryParams.set("include_all_rows", "true")
+  }
+
+  if (options?.includeAIAnalysis === false) {
+    queryParams.set("include_ai_analysis", "false")
   }
 
   if (options?.startDate) {
@@ -4578,26 +4603,37 @@ export async function getDatasetDetails(
     ? `?${queryString}`
     : ""
 
-  const response =
-    await apiFetch(
-      `${API_URL}/datasets/${cleanDatasetId}/details${query}`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
-      },
-      datasetDetailsRequestTimeoutMs,
-    )
+  const cacheKey =
+    `dataset-details:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}:${cleanDatasetId}:${queryString}`
 
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load dataset"
-    )
-  }
+  return getCachedRead(
+    cacheKey,
+    async () => {
+      const response =
+        await apiFetch(
+          `${API_URL}/datasets/${cleanDatasetId}/details${query}`,
+          {
+            headers: await workspaceHeaders(
+              userId,
+              workspaceId
+            ),
+          },
+          datasetDetailsRequestTimeoutMs,
+        )
 
-  return response.json()
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to load dataset"
+        )
+      }
+
+      return response.json()
+    }
+  )
 }
 
 export async function getDatasetAnomalies(
@@ -4672,25 +4708,36 @@ export async function getDatasetAnomalies(
     ? `?${queryString}`
     : ""
 
-  const response =
-    await apiFetch(
-      `${API_URL}/datasets/${cleanDatasetId}/anomalies${query}`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
+  const cacheKey =
+    `dataset-anomalies:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}:${cleanDatasetId}:${queryString}`
+
+  return getCachedRead(
+    cacheKey,
+    async () => {
+      const response =
+        await apiFetch(
+          `${API_URL}/datasets/${cleanDatasetId}/anomalies${query}`,
+          {
+            headers: await workspaceHeaders(
+              userId,
+              workspaceId
+            ),
+          }
+        )
+
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to detect dataset anomalies"
+        )
       }
-    )
 
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to detect dataset anomalies"
-    )
-  }
-
-  return response.json()
+      return response.json()
+    }
+  )
 }
 
 export async function getDatasetAIAnalysis(
@@ -4741,25 +4788,36 @@ export async function getDatasetAIAnalysis(
     ? `?${queryString}`
     : ""
 
-  const response =
-    await apiFetch(
-      `${API_URL}/datasets/${cleanDatasetId}/ai-analysis${query}`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
+  const cacheKey =
+    `dataset-ai-analysis:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}:${cleanDatasetId}:${queryString}`
+
+  return getCachedRead(
+    cacheKey,
+    async () => {
+      const response =
+        await apiFetch(
+          `${API_URL}/datasets/${cleanDatasetId}/ai-analysis${query}`,
+          {
+            headers: await workspaceHeaders(
+              userId,
+              workspaceId
+            ),
+          }
+        )
+
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to load metric AI analysis"
+        )
       }
-    )
 
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load metric AI analysis"
-    )
-  }
-
-  return response.json()
+      return response.json()
+    }
+  )
 }
 
 export async function analyzeMultipleDatasetMetrics(
@@ -5242,6 +5300,10 @@ export async function deleteDataset(
       workspaceId
     )}`,
     `dataset-metrics:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}:`,
+    `dataset-details:${getWorkspaceCacheIdentity(
       userId,
       workspaceId
     )}:`,
@@ -5748,25 +5810,36 @@ export async function getForecast(
 
   const query = queryParams.toString()
   const forecastQuery = query ? `?${query}` : ""
-  const response =
-    await apiFetch(
-      `${API_URL}/forecasting/${cleanDatasetId}${forecastQuery}`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
+  const cacheKey =
+    `forecast:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}:${cleanDatasetId}:${query}`
+
+  return getCachedRead(
+    cacheKey,
+    async () => {
+      const response =
+        await apiFetch(
+          `${API_URL}/forecasting/${cleanDatasetId}${forecastQuery}`,
+          {
+            headers: await workspaceHeaders(
+              userId,
+              workspaceId
+            ),
+          }
+        )
+
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to load forecast"
+        )
       }
-    )
 
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load forecast"
-    )
-  }
-
-  return response.json()
+      return response.json()
+    }
+  )
 }
 
 /* =========================
@@ -5777,36 +5850,47 @@ export async function getDashboardPreference(
   userId: string,
   workspaceId?: string
 ): Promise<SelectedDashboardPreference> {
-  let response: Response
+  const cacheKey =
+    `dashboard-preference:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}`
 
-  try {
-    response =
-      await apiFetch(
-        `${API_URL}/organizations/preferences/dashboard`,
-        {
-          headers: await workspaceHeaders(
-            userId,
-            workspaceId
-          ),
-        },
-        preferenceRequestTimeoutMs
+  return getCachedRead(
+    cacheKey,
+    async () => {
+      let response: Response
+
+      try {
+        response =
+          await apiFetch(
+            `${API_URL}/organizations/preferences/dashboard`,
+            {
+              headers: await workspaceHeaders(
+                userId,
+                workspaceId
+              ),
+            },
+            preferenceRequestTimeoutMs
+          )
+      } catch (error) {
+        rethrowApiFetchError(
+          error,
+          "Dashboard preference service is unavailable."
+        )
+      }
+
+      if (!response.ok) {
+        await throwApiError(
+          response,
+          "Failed to load dashboard preference"
+        )
+      }
+
+      return getSafeDashboardPreference(
+        await response.json()
       )
-  } catch (error) {
-    rethrowApiFetchError(
-      error,
-      "Dashboard preference service is unavailable."
-    )
-  }
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load dashboard preference"
-    )
-  }
-
-  return getSafeDashboardPreference(
-    await response.json()
+    }
   )
 }
 
@@ -5851,9 +5935,19 @@ export async function updateDashboardPreference(
     )
   }
 
-  return getSafeDashboardPreference(
-    await response.json()
-  )
+  const preference =
+    getSafeDashboardPreference(
+      await response.json()
+    )
+
+  invalidateApiReadCache([
+    `dashboard-preference:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}`,
+  ])
+
+  return preference
 }
 
 export async function getDatasetPreference(

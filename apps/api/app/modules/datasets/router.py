@@ -644,6 +644,7 @@ def build_dataset_details_response(
     period_filter: str | None = None,
     aggregation: str | None = None,
     aggregation_type: str | None = None,
+    include_ai_analysis: bool = True,
 ):
     report_dataframe = dataframe
 
@@ -668,25 +669,31 @@ def build_dataset_details_response(
             aggregation_type,
         )
 
-    return {
+    response = {
         **build_dataset_summary_response(
             dataset
         ),
         "preview": generate_preview(report_dataframe),
         "metrics": generate_metrics(report_dataframe),
         "insights": generate_insights(report_dataframe),
-        "ai_analysis": generate_dataset_ai_analysis(
-            report_dataframe,
-            None,
-            learning_context,
-            workspace_id,
-            actor_user_id,
-        ),
         "chart": generate_chart_data(
             report_dataframe,
             limit=chart_limit,
         ),
     }
+
+    if include_ai_analysis:
+        response["ai_analysis"] = generate_dataset_ai_analysis(
+            report_dataframe,
+            None,
+            learning_context,
+            workspace_id,
+            actor_user_id,
+        )
+    else:
+        response["ai_analysis"] = None
+
+    return response
 
 
 def build_source_connection_response(
@@ -4214,6 +4221,10 @@ async def dataset_details(
         "min",
         "max",
     ] | None = Query(None),
+    include_ai_analysis: bool = Query(
+        default=True,
+        description="Include AI analysis in the initial dataset response.",
+    ),
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -4235,17 +4246,19 @@ async def dataset_details(
             workspace_id,
         )
 
-        learning_context = (
-            build_workspace_decision_learning_context(
-                db,
-                user_id,
-                workspace_id,
-                base_filter=build_dataset_decision_learning_filter(
-                    dataset.id,
-                ),
-                learning_scope="dataset",
+        learning_context = None
+        if include_ai_analysis:
+            learning_context = (
+                build_workspace_decision_learning_context(
+                    db,
+                    user_id,
+                    workspace_id,
+                    base_filter=build_dataset_decision_learning_filter(
+                        dataset.id,
+                    ),
+                    learning_scope="dataset",
+                )
             )
-        )
         return await asyncio.to_thread(
             build_dataset_details_response,
             dataset,
@@ -4258,6 +4271,7 @@ async def dataset_details(
             period_filter=period_filter,
             aggregation=aggregation,
             aggregation_type=aggregation_type,
+            include_ai_analysis=include_ai_analysis,
         )
 
     finally:

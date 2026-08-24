@@ -1178,7 +1178,8 @@ async function loadDatasetMetricOptions(
         getDatasetDetails(
           dataset.id,
           userId,
-          activeWorkspaceId
+          activeWorkspaceId,
+          { includeAIAnalysis: false }
         ) as Promise<DatasetDetails>
       )
     )

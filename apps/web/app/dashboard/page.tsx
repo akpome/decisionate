@@ -1140,7 +1140,10 @@ export default function DashboardPage() {
             datasetId,
             userId,
             activeWorkspaceId,
-            { includeAllRows: true }
+            {
+              includeAllRows: true,
+              includeAIAnalysis: false,
+            }
           ),
           getDatasetPreference(
             userId,
@@ -1633,7 +1636,6 @@ export default function DashboardPage() {
     clearSelectedDashboard,
     defaultDatasetRetryKey,
     dashboardPreferenceLoaded,
-    selectedDashboard,
     userId,
     workspaceVersion,
   ])
