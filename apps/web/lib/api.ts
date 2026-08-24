@@ -1516,6 +1516,7 @@ type AuthenticatedHeaders =
 
 const clerkTokenTimeoutMs = 1500
 const apiRequestTimeoutMs = 10000
+const datasetDetailsRequestTimeoutMs = 30000
 const apiReadCacheTtlMs = 15000
 const clerkBearerAuthEnabled =
   process.env.NEXT_PUBLIC_ENABLE_API_BEARER_AUTH === "true"
@@ -1592,7 +1593,8 @@ async function withAuthorizationHeader(
 
 async function apiFetch(
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
+  timeoutMs: number = apiRequestTimeoutMs,
 ) {
   if (typeof window === "undefined") {
     const controller = new AbortController()
@@ -1619,7 +1621,7 @@ async function apiFetch(
         timedOut = true
         controller.abort()
       },
-      apiRequestTimeoutMs
+      timeoutMs
     )
 
     try {
@@ -1686,7 +1688,7 @@ async function apiFetch(
         timedOut = true
         controller.abort()
       },
-      apiRequestTimeoutMs
+      timeoutMs
     )
 
   try {
@@ -4583,7 +4585,8 @@ export async function getDatasetDetails(
           userId,
           workspaceId
         ),
-      }
+      },
+      datasetDetailsRequestTimeoutMs,
     )
 
   if (!response.ok) {
