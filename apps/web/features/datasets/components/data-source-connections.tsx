@@ -421,6 +421,7 @@ function DataSourceConnectionRow({
       "freshbooks",
       "sage",
       "xero",
+      "salesforce",
       "postgresql",
       "mysql",
       "sql_server",

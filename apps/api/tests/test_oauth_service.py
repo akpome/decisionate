@@ -64,6 +64,32 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             )
         )
 
+    def test_salesforce_oauth_requires_api_and_refresh_scopes(self):
+        key = Fernet.generate_key().decode()
+        with patch.dict(
+            os.environ,
+            {
+                "SALESFORCE_CLIENT_ID": "client-id",
+                "SALESFORCE_CLIENT_SECRET": "client-secret",
+                "SALESFORCE_OAUTH_AUTHORIZATION_URL": (
+                    "https://login.salesforce.com/services/oauth2/authorize"
+                ),
+                "SALESFORCE_OAUTH_TOKEN_URL": (
+                    "https://login.salesforce.com/services/oauth2/token"
+                ),
+                "SALESFORCE_OAUTH_SCOPES": "api refresh_token",
+                "OAUTH_TOKEN_ENCRYPTION_KEY": key,
+            },
+            clear=False,
+        ):
+            url = build_authorization_url(
+                "salesforce",
+                "state-salesforce",
+            )
+
+            self.assertTrue(is_oauth_provider_configured("salesforce"))
+            self.assertIn("state=state-salesforce", url)
+
 
 if __name__ == "__main__":
     unittest.main()

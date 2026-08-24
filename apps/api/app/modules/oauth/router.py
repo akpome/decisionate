@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -28,6 +28,35 @@ from app.modules.oauth.service import (
 
 router = APIRouter()
 STATE_TTL_MINUTES = 10
+
+
+def normalize_salesforce_instance_url(value: str | None) -> str:
+    parsed = urlparse(str(value or "").strip())
+    try:
+        port = parsed.port
+    except ValueError as error:
+        raise OAuthTokenExchangeError(
+            "Salesforce returned an invalid instance URL"
+        ) from error
+    hostname = (parsed.hostname or "").lower()
+    if (
+        parsed.scheme != "https"
+        or not hostname
+        or parsed.username
+        or parsed.password
+        or port is not None
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+        or not (
+            hostname == "salesforce.com"
+            or hostname.endswith(".salesforce.com")
+        )
+    ):
+        raise OAuthTokenExchangeError(
+            "Salesforce returned an invalid instance URL"
+        )
+    return f"https://{hostname}"
 
 
 def get_workspace_connection(db, connection_id: int, auth_context):
@@ -214,6 +243,14 @@ async def oauth_callback(
                 connection_config,
                 sort_keys=True,
             )
+        if state.source_type == "salesforce":
+            connection_config["_instance_url"] = normalize_salesforce_instance_url(
+                payload.get("instance_url")
+            )
+            connection.connection_config = json.dumps(
+                connection_config,
+                sort_keys=True,
+            )
         credential = (
             db.query(OAuthCredential)
             .filter(OAuthCredential.connection_id == connection.id)
@@ -236,7 +273,10 @@ async def oauth_callback(
         credential.token_type = str(payload.get("token_type") or "") or None
         credential.scope = str(payload.get("scope") or "") or None
         credential.provider_account_id = str(
-            payload.get("user_id") or payload.get("tenant_id") or ""
+            payload.get("user_id")
+            or payload.get("tenant_id")
+            or payload.get("id")
+            or ""
         ) or None
         credential.expires_at = token_expiry(payload)
         connection.status = "connected"

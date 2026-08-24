@@ -1,10 +1,12 @@
 import json
+from io import BytesIO
 import os
 import tempfile
 import unittest
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import patch
+from urllib.error import HTTPError
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -243,6 +245,97 @@ class ConnectorSmokeTests(unittest.TestCase):
             connectors.validate_read_query(
                 "SELECT * FROM source_rows; DELETE FROM source_rows"
             )
+
+    def test_salesforce_sync_is_dynamic_and_follows_query_cursors(self):
+        connection = make_connection(
+            "salesforce",
+            {
+                "object_type": "Opportunity",
+                "fields": "Name,Amount,StageName",
+                "_instance_url": "https://acme.my.salesforce.com",
+            },
+        )
+        responses = [
+            {
+                "done": False,
+                "records": [{
+                    "attributes": {
+                        "type": "Opportunity",
+                        "url": "/services/data/v66.0/sobjects/Opportunity/006-1",
+                    },
+                    "Id": "006-1",
+                    "CreatedDate": "2026-01-02T00:00:00Z",
+                    "LastModifiedDate": "2026-01-03T00:00:00Z",
+                    "Name": "First deal",
+                    "Amount": 1250,
+                    "StageName": "Prospecting",
+                    "ProviderOnlyField__c": "kept",
+                }],
+                "nextRecordsUrl": "/services/data/v66.0/query/01g-next",
+            },
+            {
+                "done": True,
+                "records": [{
+                    "attributes": {"type": "Opportunity"},
+                    "Id": "006-2",
+                    "CreatedDate": "2026-01-04T00:00:00Z",
+                    "LastModifiedDate": "2026-01-05T00:00:00Z",
+                    "Name": "Second deal",
+                    "Amount": 2500,
+                    "StageName": "Closed Won",
+                }],
+            },
+        ]
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="salesforce-access-token",
+        ), patch.object(
+            connectors,
+            "salesforce_json_request",
+            side_effect=responses,
+        ) as request, patch.dict(
+            os.environ,
+            {"SALESFORCE_API_VERSION": "v66.0"},
+            clear=False,
+        ):
+            dataframe, report = connectors.load_connector_dataframe(
+                None,
+                connection,
+                datetime(2026, 1, 1, tzinfo=UTC).date(),
+                datetime(2026, 1, 31, tzinfo=UTC).date(),
+            )
+
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(report["resource"], "Opportunity")
+        self.assertEqual(dataframe.iloc[0]["ProviderOnlyField__c"], "kept")
+        self.assertNotIn("attributes", dataframe.columns)
+        self.assertEqual(request.call_count, 2)
+        self.assertIn("LastModifiedDate", request.call_args_list[0].args[0])
+
+    def test_salesforce_request_retries_transient_failures(self):
+        error = HTTPError(
+            "https://acme.my.salesforce.com/services/data/v66.0/query",
+            503,
+            "temporarily unavailable",
+            {"Retry-After": "0"},
+            BytesIO(b"busy"),
+        )
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = b'{"done": true, "records": []}'
+        with patch.object(
+            connectors,
+            "urlopen",
+            side_effect=[error, response],
+        ), patch.object(connectors, "sleep") as pause:
+            payload = connectors.salesforce_json_request(
+                "https://acme.my.salesforce.com/services/data/v66.0/query",
+                {"Authorization": "Bearer token"},
+            )
+
+        self.assertTrue(payload["done"])
+        pause.assert_called_once()
 
     def test_database_connector_query_has_no_implicit_row_cap(self):
         query = "SELECT created_at, revenue FROM source_rows"
