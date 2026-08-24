@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import {
   useAuth,
   useUser,
@@ -220,6 +227,8 @@ type ReportSectionProps = {
   anomalyError: boolean
   aiAnalysis?: AIAnalysis | null
   analysisLoading: boolean
+  managementActions?: ReactNode
+  managementPanels?: ReactNode
   onCreateDecision?: () => void
   creatingDecision: boolean
 }
@@ -543,6 +552,8 @@ export default function DashboardPage() {
   const [showDatasetPanel, setShowDatasetPanel] =
     useState(false)
   const [showAnalysisPanel, setShowAnalysisPanel] =
+    useState(false)
+  const [showGeneralDecisionatePanel, setShowGeneralDecisionatePanel] =
     useState(false)
 
   const [dashboardTitle, setDashboardTitle] =
@@ -3109,8 +3120,45 @@ export default function DashboardPage() {
   }
 
   const dashboardManagementActions = (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      {canConfigureWorkspace && shareEnabled && (
+    <div
+      className={
+        showIndustryManagementToggles
+          ? "flex w-full flex-wrap items-center justify-between gap-x-8 gap-y-2"
+          : !isCustomSelectedDashboard
+            ? "flex w-full flex-wrap items-center justify-between gap-x-8 gap-y-2"
+            : "flex flex-wrap items-center justify-end gap-2"
+      }
+    >
+      {showIndustryManagementToggles &&
+        canCreateDecisions &&
+        selectedDatasetId && (
+        <button
+          type="button"
+          onClick={handleOpenDashboardDecision}
+          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 text-xs font-semibold text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
+          title="Create a decision from this dashboard's selected dataset and metric."
+        >
+          <Plus size={14} />
+          Create decision
+        </button>
+      )}
+
+      {!isCustomSelectedDashboard &&
+        canCreateDecisions &&
+        selectedDatasetId && (
+        <button
+          type="button"
+          onClick={handleOpenDashboardDecision}
+          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 text-xs font-semibold text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
+          title="Create a decision from this dashboard's selected dataset and metric."
+        >
+          <Plus size={14} />
+          Create decision
+        </button>
+      )}
+
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+        {canConfigureWorkspace && shareEnabled && (
         <DashboardActionButton
           icon={<Unlink size={14} />}
           label={
@@ -3125,21 +3173,7 @@ export default function DashboardPage() {
           tone="danger"
           className="h-9 rounded-lg px-3 text-xs shadow-none"
         />
-      )}
-
-      {showIndustryManagementToggles &&
-        canCreateDecisions &&
-        selectedDatasetId && (
-        <button
-          type="button"
-          onClick={handleOpenDashboardDecision}
-          className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 text-xs font-semibold text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
-          title="Create a decision from this dashboard's selected dataset and metric."
-        >
-          <Plus size={14} />
-          Create decision
-        </button>
-      )}
+        )}
 
       {canConfigureWorkspace && (
         <button
@@ -3150,6 +3184,22 @@ export default function DashboardPage() {
         >
           <Settings2 size={14} />
           {dashboardEditMode ? "Done editing" : "Edit dashboard"}
+        </button>
+      )}
+
+      {!isCustomSelectedDashboard && (
+        <button
+          type="button"
+          onClick={() => setShowGeneralDecisionatePanel(current => !current)}
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
+          aria-expanded={showGeneralDecisionatePanel}
+          aria-controls="general-dashboard-decisionate-panel"
+          title="Show the Decisionate analysis and intelligence for this dashboard."
+        >
+          <LineChartIcon size={14} />
+          {showGeneralDecisionatePanel
+            ? "Hide Decisionate Analysis & Intelligence"
+            : "Decisionate Analysis & Intelligence"}
         </button>
       )}
 
@@ -3203,7 +3253,141 @@ export default function DashboardPage() {
         </button>
       )}
 
+      </div>
     </div>
+  )
+
+  const generalDashboardManagementPanels = (
+    <>
+      {dataset &&
+        !loading &&
+        showGeneralDecisionatePanel && (
+        <section
+          id="general-dashboard-decisionate-panel"
+          className="min-w-0 rounded-2xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3 shadow-sm print:hidden"
+        >
+          <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-2">
+            <div className="min-w-0">
+              {metricAnalysisLoading && (
+                <AnalysisStatus kind="loading" />
+              )}
+
+              {metricAnalysisError && (
+                <AnalysisStatus
+                  kind="unavailable"
+                  onRetry={() =>
+                    setMetricAnalysisRetryKey(
+                      currentKey => currentKey + 1
+                    )
+                  }
+                />
+              )}
+
+              {!metricAnalysisLoading &&
+                dataset.ai_analysis &&
+                (!dashboardAnalysisMetric ||
+                  dataset.ai_analysis.metric === dashboardAnalysisMetric) && (
+                <AIAnalysisPanel
+                  analysis={dataset.ai_analysis}
+                  title="Decisionate Analysis"
+                  metric={dashboardAnalysisMetric}
+                  className="h-full !rounded-none !border-0 !bg-transparent !p-0"
+                  compact
+                  creatingDecision={
+                    creatingDashboardRecommendation
+                  }
+                />
+              )}
+
+              {!metricAnalysisLoading &&
+                !metricAnalysisError &&
+                !dataset.ai_analysis && (
+                <p className="text-sm text-gray-600">
+                  Analysis will appear after the selected metric has been evaluated.
+                </p>
+              )}
+            </div>
+
+            <div className="min-w-0 border-t border-[var(--decisionate-brand-primary-ring)]/70 pt-3 xl:border-l xl:border-t-0 xl:pl-3 xl:pt-0">
+              <DashboardIntelligenceCard
+                anomalies={dashboardAnomalies}
+                primaryMetric={primaryMetric}
+                latestValue={latestValue}
+                selectedTarget={selectedTarget}
+                chartRows={chartRows}
+                selectedMetrics={selectedMetrics}
+                anomalyLoading={dashboardAnomalyLoading}
+                anomalyError={dashboardAnomalyError}
+                analysisLoading={metricAnalysisLoading}
+                aiAnalysis={dataset?.ai_analysis}
+                embedded
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {dashboardEditMode && (
+        <DashboardCard>
+          <CardHeader
+            title="Metrics & Targets"
+            description="Choose which metrics appear in the chart and set optional targets."
+            icon={
+              <IconBadge
+                className="bg-[var(--decisionate-brand-accent-soft)] text-[var(--decisionate-brand-accent-text)]"
+                icon={<Gauge size={22} />}
+              />
+            }
+          />
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {metrics.map((metric) => (
+              <MetricSelectionRow
+                key={metric.column}
+                metric={metric}
+                color={getMetricColor(
+                  getMetricIndex(
+                    metrics,
+                    metric.column
+                  )
+                )}
+                selected={selectedMetrics.includes(
+                  metric.column
+                )}
+                target={targets[metric.column] ?? 0}
+                onTargetChange={(value) =>
+                  setTargets((current) => ({
+                    ...current,
+                    [metric.column]: value,
+                  }))
+                }
+                onToggle={() =>
+                  handleMetricToggle(metric.column)
+                }
+              />
+            ))}
+          </div>
+        </DashboardCard>
+      )}
+
+      {showJoinPanel && (
+        <DatasetJoinPanel
+          key={`dataset-join-${selectedDatasetId ?? "none"}`}
+          datasets={datasets}
+          selectedDatasetId={selectedDatasetId}
+          dashboardKey={selectedDashboard}
+          userId={userId}
+          workspaceId={activeWorkspaceId}
+          startDate={startDate}
+          periodFilter={periodFilter}
+          aggregation={aggregation}
+          aggregationType={aggregationType}
+          canManageWorkspaceData={canManageWorkspaceData}
+          onJoinResult={handleJoinedDatasetResult}
+          persistedResult={joinedDatasetResult}
+        />
+      )}
+    </>
   )
 
   if (isCustomSelectedDashboard) {
@@ -3947,10 +4131,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="flex justify-end print:hidden">
-        {dashboardManagementActions}
-      </div>
-
       <WorkspaceAccessNotice
         loading={loadingWorkspaceAccess}
         canManageWorkspaceData={canConfigureWorkspace}
@@ -4152,155 +4332,31 @@ export default function DashboardPage() {
             className="dashboard-report space-y-4 bg-white"
           >
             {dashboardTemplate === "executive" && (
-              <ExecutiveTemplate {...templateProps} />
+              <ExecutiveTemplate
+                {...templateProps}
+                managementActions={dashboardManagementActions}
+                managementPanels={generalDashboardManagementPanels}
+              />
             )}
 
             {dashboardTemplate === "performance" && (
-              <PerformanceTemplate {...templateProps} />
+              <PerformanceTemplate
+                {...templateProps}
+                managementActions={dashboardManagementActions}
+                managementPanels={generalDashboardManagementPanels}
+              />
             )}
 
             {dashboardTemplate === "comparison" && (
-              <ComparisonTemplate {...templateProps} />
+              <ComparisonTemplate
+                {...templateProps}
+                managementActions={dashboardManagementActions}
+                managementPanels={generalDashboardManagementPanels}
+              />
             )}
 
           </div>
 
-          <div className="grid min-w-0 items-stretch gap-4 xl:grid-cols-2">
-            <div className="min-w-0 xl:order-2">
-              <DashboardIntelligenceCard
-                anomalies={dashboardAnomalies}
-                primaryMetric={primaryMetric}
-                latestValue={latestValue}
-                selectedTarget={selectedTarget}
-                chartRows={chartRows}
-                selectedMetrics={selectedMetrics}
-                anomalyLoading={dashboardAnomalyLoading}
-                anomalyError={dashboardAnomalyError}
-                analysisLoading={metricAnalysisLoading}
-                aiAnalysis={dataset?.ai_analysis}
-              />
-            </div>
-
-            <div className="min-w-0 xl:order-1">
-              {metricAnalysisLoading && (
-                <AnalysisStatus kind="loading" />
-              )}
-
-              {metricAnalysisError && (
-                <AnalysisStatus
-                  kind="unavailable"
-                  onRetry={() =>
-                    setMetricAnalysisRetryKey(
-                      currentKey => currentKey + 1
-                    )
-                  }
-                />
-              )}
-
-              {!metricAnalysisLoading &&
-                dataset.ai_analysis &&
-                (!dashboardAnalysisMetric ||
-                  dataset.ai_analysis.metric === dashboardAnalysisMetric) && (
-                <AIAnalysisPanel
-                  analysis={dataset.ai_analysis}
-                  title="Decisionate Analysis"
-                  metric={dashboardAnalysisMetric}
-                  className="h-full print:hidden"
-                  compact
-                  onCreateDecision={
-                    canCreateDecisions &&
-                    primaryMetric &&
-                    dataset.ai_analysis.recommendations.length > 0
-                      ? () => {
-                        void handleCreateMainDashboardRecommendation()
-                      }
-                      : undefined
-                  }
-                  creatingDecision={
-                    creatingDashboardRecommendation
-                  }
-                />
-              )}
-
-              {!metricAnalysisLoading &&
-                !metricAnalysisError &&
-                !dataset.ai_analysis && (
-                <div className="flex h-full flex-col rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 print:hidden">
-                  <p className="font-semibold text-gray-900">
-                    Decisionate Analysis
-                  </p>
-                  <p className="mt-1">
-                    Analysis will appear after the selected metric has been evaluated.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* =========================
-              Compact Metric Selection And Target Controls
-          ========================= */}
-
-          {dashboardEditMode && (
-            <DashboardCard>
-              <CardHeader
-                title="Metrics & Targets"
-                description="Choose which metrics appear in the chart and set optional targets."
-                icon={
-                  <IconBadge
-                    className="bg-[var(--decisionate-brand-accent-soft)] text-[var(--decisionate-brand-accent-text)]"
-                    icon={<Gauge size={22} />}
-                  />
-                }
-              />
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                {metrics.map((metric) => (
-                  <MetricSelectionRow
-                    key={metric.column}
-                    metric={metric}
-                    color={getMetricColor(
-                      getMetricIndex(
-                        metrics,
-                        metric.column
-                      )
-                    )}
-                    selected={selectedMetrics.includes(
-                      metric.column
-                    )}
-                    target={targets[metric.column] ?? 0}
-                    onTargetChange={(value) =>
-                      setTargets((current) => ({
-                        ...current,
-                        [metric.column]: value,
-                      }))
-                    }
-                    onToggle={() =>
-                      handleMetricToggle(metric.column)
-                    }
-                  />
-                ))}
-              </div>
-            </DashboardCard>
-          )}
-
-          {showJoinPanel && (
-            <DatasetJoinPanel
-              key={`dataset-join-${selectedDatasetId ?? "none"}`}
-              datasets={datasets}
-              selectedDatasetId={selectedDatasetId}
-              dashboardKey={selectedDashboard}
-              userId={userId}
-              workspaceId={activeWorkspaceId}
-              startDate={startDate}
-              periodFilter={periodFilter}
-              aggregation={aggregation}
-              aggregationType={aggregationType}
-              canManageWorkspaceData={canManageWorkspaceData}
-              onJoinResult={handleJoinedDatasetResult}
-              persistedResult={joinedDatasetResult}
-            />
-          )}
         </>
       )}
     </div>
@@ -4734,6 +4790,14 @@ function PerformanceTemplate(
         anomalyLoading={props.anomalyLoading}
         anomalyError={props.anomalyError}
       />
+
+      {props.managementActions && (
+        <div className="mt-3 flex justify-end print:hidden">
+          {props.managementActions}
+        </div>
+      )}
+
+      {props.managementPanels}
     </>
   )
 }
@@ -4765,6 +4829,8 @@ function ComparisonTemplate({
   anomalies,
   anomalyLoading,
   anomalyError,
+  managementActions,
+  managementPanels,
 }: ReportSectionProps) {
   const hasChartData =
     chartRows.length > 0 &&
@@ -4787,6 +4853,14 @@ function ComparisonTemplate({
         anomalyLoading={anomalyLoading}
         anomalyError={anomalyError}
       />
+
+      {managementActions && (
+        <div className="mt-3 flex justify-end print:hidden">
+          {managementActions}
+        </div>
+      )}
+
+      {managementPanels}
 
       <DashboardCard className="flex min-w-0 flex-col xl:h-[720px]">
         <CardHeader
@@ -4877,6 +4951,7 @@ function DashboardIntelligenceCard({
   anomalyError,
   analysisLoading,
   aiAnalysis,
+  embedded = false,
 }: {
   anomalies: DatasetAnomaliesResponse | null
   primaryMetric: string
@@ -4888,11 +4963,16 @@ function DashboardIntelligenceCard({
   anomalyError: boolean
   analysisLoading: boolean
   aiAnalysis?: AIAnalysis | null
+  embedded?: boolean
 }) {
   return (
     <section
       data-dashboard-export-control
-      className="flex h-full flex-col rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-[var(--decisionate-brand-primary-text)] sm:px-3"
+      className={
+        embedded
+          ? "flex h-full flex-col px-0 py-0 text-[var(--decisionate-brand-primary-text)]"
+          : "flex h-full flex-col rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-[var(--decisionate-brand-primary-text)] sm:px-3"
+      }
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
@@ -4980,6 +5060,8 @@ function ReportSection({
   anomalies,
   anomalyLoading,
   anomalyError,
+  managementActions,
+  managementPanels,
 }: ReportSectionProps) {
   const hasChartData =
     chartRows.length > 0 &&
@@ -5003,6 +5085,14 @@ function ReportSection({
         anomalyLoading={anomalyLoading}
         anomalyError={anomalyError}
       />
+
+      {managementActions && (
+        <div className="mt-3 flex justify-end print:hidden">
+          {managementActions}
+        </div>
+      )}
+
+      {managementPanels}
 
       {/* Main Executive Grid */}
       <div className="dashboard-print-target-grid dashboard-print-target-grid-right grid items-stretch gap-5 xl:h-[660px] xl:grid-cols-[minmax(0,1fr)_340px]">
