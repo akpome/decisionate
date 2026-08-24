@@ -1,6 +1,8 @@
 import asyncio
+import json
 import unittest
 from datetime import datetime
+from email.message import EmailMessage
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -15,6 +17,7 @@ from app.modules.alerts.schemas import (
     WeeklyReportPreferenceUpdate,
 )
 from app.modules.alerts.email_delivery import (
+    _send_resend_message,
     build_weekly_report_email_message,
     build_weekly_report_email_text,
     is_email_delivery_configured,
@@ -216,6 +219,86 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
                     "smtp.workspace.example",
                 )
             )
+
+    def test_workspace_smtp_override_still_works_with_resend_platform(self):
+        with patch(
+            "app.modules.alerts.email_delivery.get_platform_email_settings",
+            return_value={
+                "provider": "resend",
+                "configured": False,
+                "smtp_from_email": "",
+            },
+        ):
+            self.assertTrue(
+                is_email_delivery_configured(
+                    "workspace@example.com",
+                    "smtp.workspace.example",
+                )
+            )
+
+    def test_resend_delivery_posts_text_message_and_verified_sender(self):
+        message = EmailMessage()
+        message["From"] = "Ignored Header <ignored@example.com>"
+        message["To"] = "recipient@example.com"
+        message["Subject"] = "Decisionate test"
+        message["Reply-To"] = "reply@example.com"
+        message.set_content("A test message")
+        settings = {
+            "resend_api_url": "https://api.resend.com/emails",
+            "resend_api_key": "re_test_key",
+            "resend_from_email": "no-reply@decisionate.ca",
+            "resend_from_name": "Decisionate",
+            "smtp_timeout_seconds": 10,
+        }
+        captured = {}
+
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        def fake_urlopen(request, timeout):
+            captured["request"] = request
+            captured["timeout"] = timeout
+            return FakeResponse()
+
+        with patch(
+            "app.modules.alerts.email_delivery.urlopen",
+            fake_urlopen,
+        ):
+            _send_resend_message(message, settings)
+
+        payload = json.loads(
+            captured["request"].data.decode("utf-8")
+        )
+        self.assertEqual(
+            captured["request"].full_url,
+            "https://api.resend.com/emails",
+        )
+        self.assertEqual(
+            captured["request"].headers["Authorization"],
+            "Bearer re_test_key",
+        )
+        self.assertEqual(
+            payload["from"],
+            "Decisionate <no-reply@decisionate.ca>",
+        )
+        self.assertEqual(
+            payload["to"],
+            ["recipient@example.com"],
+        )
+        self.assertEqual(
+            payload["reply_to"],
+            ["reply@example.com"],
+        )
+        self.assertEqual(
+            payload["text"],
+            "A test message\n",
+        )
 
     def test_weekly_report_digest_applies_sender_details_and_subject_prefix(self):
         preference = WeeklyReportPreferenceResponse(

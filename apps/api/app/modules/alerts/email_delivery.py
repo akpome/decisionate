@@ -20,6 +20,7 @@ from app.security.secrets import decrypt_secret
 
 
 logger = logging.getLogger(__name__)
+DEFAULT_RESEND_API_URL = "https://api.resend.com/emails"
 
 
 class WeeklyReportEmailDeliveryError(HTTPException):
@@ -168,7 +169,10 @@ def get_platform_email_settings() -> dict:
         or clean_env_value("RESEND_FROM_NAME")
         or "Decisionate"
     )
-    resend_api_url = clean_env_value("RESEND_API_URL")
+    resend_api_url = clean_env_value(
+        "RESEND_API_URL",
+        DEFAULT_RESEND_API_URL,
+    )
     if provider not in {"smtp", "resend"}:
         provider = ""
     provider_configured = bool(
@@ -229,17 +233,40 @@ def is_email_delivery_configured(
     smtp_host: str | None = None,
 ) -> bool:
     platform_settings = get_platform_email_settings()
+    workspace_host = str(smtp_host or "").strip()
+    workspace_sender = str(sender_email or "").strip()
+
+    if workspace_host and (
+        workspace_sender or platform_settings["smtp_from_email"]
+    ):
+        return True
+
     if platform_settings["provider"] == "resend":
         return bool(platform_settings["configured"])
     return bool(
         (
-            str(smtp_host or "").strip()
+            workspace_host
             or platform_settings["smtp_host"]
         )
         and (
             platform_settings["smtp_from_email"]
-            or str(sender_email or "").strip()
+            or workspace_sender
         )
+    )
+
+
+def get_platform_sender_details(
+    settings: dict,
+) -> tuple[str, str]:
+    if settings["provider"] == "resend":
+        return (
+            settings["resend_from_email"],
+            settings["resend_from_name"] or "Decisionate",
+        )
+
+    return (
+        settings["smtp_from_email"],
+        settings["smtp_from_name"] or "Decisionate",
     )
 
 
@@ -361,9 +388,11 @@ def send_platform_system_email(
     platform_settings = get_platform_email_settings()
     require_email_delivery_configured()
     message = EmailMessage()
-    from_name = platform_settings["smtp_from_name"] or "Decisionate"
+    from_email, from_name = get_platform_sender_details(
+        platform_settings
+    )
     message["Subject"] = subject
-    message["From"] = f"{from_name} <{platform_settings['smtp_from_email']}>"
+    message["From"] = f"{from_name} <{from_email}>"
     message["To"] = clean_recipient
     if reply_to:
         message["Reply-To"] = reply_to
@@ -841,8 +870,10 @@ def send_support_request_email(
     use_tls = platform_settings["smtp_use_tls"]
     use_ssl = platform_settings["smtp_use_ssl"]
     timeout_seconds = platform_settings["smtp_timeout_seconds"]
-    from_email = platform_settings["smtp_from_email"]
-    from_name = platform_settings["smtp_from_name"] or "Decisionate Support"
+    from_email, from_name = get_platform_sender_details(
+        platform_settings
+    )
+    from_name = from_name or "Decisionate Support"
     recipient = clean_env_value(
         "SUPPORT_EMAIL",
         "support@decisionate.ca",

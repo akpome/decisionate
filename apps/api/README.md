@@ -150,8 +150,10 @@ Configure the same IDs in `NEXT_PUBLIC_PLATFORM_ADMIN_USER_IDS` in the web app t
 Decisionate system mail (support, signup, subscription, and AI credit notifications) uses the platform email configuration. Platform admins can manage it from `/platform-admin`; the environment variables below remain the deployment bootstrap/fallback. Alerts can send dataset-derived KPI digests by email. Workspace owners can optionally override those customer alert/report messages from the Alerts page with their own SMTP provider:
 
 Set `EMAIL_PROVIDER=resend` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL` to
-use Resend for Decisionate-owned mail. Workspace SMTP overrides remain SMTP-only
-and continue to take precedence for workspace-owned report delivery.
+use Resend for Decisionate-owned mail. `RESEND_API_URL` defaults to
+`https://api.resend.com/emails` and only needs to be set when using a compatible
+custom endpoint. Workspace SMTP overrides remain SMTP-only and continue to take
+precedence for workspace-owned report delivery.
 
 - `SMTP_HOST`
 - `SMTP_FROM_EMAIL`

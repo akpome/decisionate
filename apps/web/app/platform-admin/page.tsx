@@ -2262,7 +2262,7 @@ export default function PlatformAdminPage() {
                 </div>
                 <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                   <div>
-                    <dt className="text-gray-500">Decisionate SMTP</dt>
+                    <dt className="text-gray-500">Decisionate email provider</dt>
                     <dd className={`mt-1 font-medium ${overview.alert_status?.server_smtp_configured ? "text-green-700" : "text-amber-700"}`}>
                       {overview.alert_status?.server_smtp_configured ? "Configured" : "Not configured"}
                     </dd>
@@ -2289,7 +2289,7 @@ export default function PlatformAdminPage() {
                 <div>
                   <h2 className="font-semibold">Decisionate email delivery</h2>
                   <p className="mt-1 text-sm text-gray-500">
-                    Configure the SMTP account used for Decisionate system email,
+                    Configure the provider used for Decisionate system email,
                     including support, signup, subscription, and AI credit messages.
                     Customer workspace SMTP settings remain separate.
                   </p>
