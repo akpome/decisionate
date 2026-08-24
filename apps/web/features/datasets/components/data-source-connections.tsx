@@ -421,7 +421,6 @@ function DataSourceConnectionRow({
       "freshbooks",
       "sage",
       "xero",
-      "salesforce",
       "postgresql",
       "mysql",
       "sql_server",
@@ -1034,21 +1033,7 @@ function ConnectionConfigField({
   return (
     <label className="block min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
       {label}
-      {sourceType === "salesforce" && configKey === "object_type" ? (
-        <select
-          aria-label="Salesforce dataset"
-          value={value}
-          onChange={(event) =>
-            onChange(event.target.value)
-          }
-          className={`${sharedClassName} h-9`}
-        >
-          <option value="">Select dataset</option>
-          <option value="Opportunity">Opportunities</option>
-          <option value="Account">Accounts</option>
-          <option value="Lead">Leads</option>
-        </select>
-      ) : configKey === "query" ? (
+      {configKey === "query" ? (
         <textarea
           value={value}
           onChange={(event) =>
