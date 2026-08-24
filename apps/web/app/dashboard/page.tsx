@@ -539,6 +539,10 @@ export default function DashboardPage() {
     useState(false)
   const [showJoinPanel, setShowJoinPanel] =
     useState(false)
+  const [showDatasetPanel, setShowDatasetPanel] =
+    useState(false)
+  const [showAnalysisPanel, setShowAnalysisPanel] =
+    useState(false)
 
   const [dashboardTitle, setDashboardTitle] =
     useState(defaultDashboardTitle)
@@ -3012,6 +3016,10 @@ export default function DashboardPage() {
   const isCustomSelectedDashboard =
     selectedDashboardDefinition.key !==
     defaultDashboardKey
+  const showIndustryManagementToggles =
+    isCustomSelectedDashboard &&
+    selectedDashboardDefinition.componentKey !==
+      "decisionPerformance"
   const dashboardShareTitle =
     isCustomSelectedDashboard
       ? selectedDashboardDefinition.name
@@ -3095,6 +3103,34 @@ export default function DashboardPage() {
         >
           <Settings2 size={14} />
           {dashboardEditMode ? "Done editing" : "Edit dashboard"}
+        </button>
+      )}
+
+      {showIndustryManagementToggles && (
+        <button
+          type="button"
+          onClick={() => setShowDatasetPanel(current => !current)}
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
+          aria-expanded={showDatasetPanel}
+          aria-controls="industry-dashboard-dataset-panel"
+          title="Choose the dataset and analysis period for this dashboard."
+        >
+          <Database size={14} />
+          {showDatasetPanel ? "Hide dataset" : "Dataset"}
+        </button>
+      )}
+
+      {showIndustryManagementToggles && (
+        <button
+          type="button"
+          onClick={() => setShowAnalysisPanel(current => !current)}
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
+          aria-expanded={showAnalysisPanel}
+          aria-controls="industry-dashboard-analysis-panel"
+          title="Show the Decisionate analysis and recommendation for this dashboard."
+        >
+          <LineChartIcon size={14} />
+          {showAnalysisPanel ? "Hide analysis" : "Decisionate Analysis"}
         </button>
       )}
 
@@ -3255,8 +3291,6 @@ export default function DashboardPage() {
     }
     const dashboardControls = usesDatasetSelection ? (
       <div className="grid w-full min-w-0 grid-cols-1 gap-3">
-        {dashboardManagementActions}
-
         <div className="min-w-0 space-y-1">
             {joinedDatasetResult && (
               <div
@@ -3396,152 +3430,26 @@ export default function DashboardPage() {
       </div>
     ) : dashboardManagementActions
 
-    return (
-      <div className="screen-page space-y-3">
-        {pdfExporting && (
-          <div
-            aria-hidden="true"
-            className="dashboard-print-page"
+    const dashboardManagementPanels = (
+      <>
+        {showDatasetPanel && usesDatasetSelection && (
+          <section
+            id="industry-dashboard-dataset-panel"
+            className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm print:hidden"
           >
-            <SelectedDashboard
-              key={`print-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
-              name={selectedDashboardDefinition.name}
-              description={selectedDashboardDefinition.description}
-              highlights={selectedDashboardDefinition.highlights}
-              dataset={selectedDashboardDataset}
-              datasetName={dataset?.file_name}
-              datasetId={selectedDatasetId}
-              aggregation={aggregation}
-              aggregationType={aggregationType}
-              canManageWorkspaceData={canManageWorkspaceData}
-              analysisMetric={dashboardAnalysisMetric}
-              analysisLoading={metricAnalysisLoading}
-              analysisError={metricAnalysisError}
-              onRetryAnalysis={() =>
-                setMetricAnalysisRetryKey(
-                  currentKey => currentKey + 1
-                )
-              }
-              manualMapping={
-                usesDatasetMetricMapping
-                  ? currentMetricMapping
-                  : undefined
-              }
-              chartTitles={currentDashboardChartTitles}
-              brand={activeBrand}
-              showActions={false}
-              exportMode
-            />
-          </div>
+            <div className="mb-3">
+              <h2 className="text-sm font-semibold text-gray-900">
+                Dataset selection
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">
+                Choose the dataset, period, grouping, and aggregation used by this dashboard.
+              </p>
+            </div>
+            {dashboardControls}
+          </section>
         )}
 
-        <WorkspaceAccessNotice
-          loading={loadingWorkspaceAccess}
-          canManageWorkspaceData={canConfigureWorkspace}
-          message="Analysis and metric selection are available in this shared workspace. The business owner handles data changes and dashboard sharing."
-          className="rounded-lg print:hidden"
-        />
-
-        <SelectedDashboard
-          key={`screen-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
-          name={selectedDashboardDefinition.name}
-          description={selectedDashboardDefinition.description}
-          highlights={selectedDashboardDefinition.highlights}
-          dataset={selectedDashboardDataset}
-          datasetName={dataset?.file_name}
-          datasetId={selectedDatasetId}
-          aggregation={aggregation}
-          aggregationType={aggregationType}
-          canManageWorkspaceData={canManageWorkspaceData}
-          canCreateDecisions={canCreateDecisions}
-          analysisMetric={dashboardAnalysisMetric}
-          analysisLoading={metricAnalysisLoading}
-          analysisError={metricAnalysisError}
-          onRetryAnalysis={() =>
-            setMetricAnalysisRetryKey(
-              currentKey => currentKey + 1
-            )
-          }
-          manualMapping={
-            usesDatasetMetricMapping
-              ? currentMetricMapping
-              : undefined
-          }
-          chartTitles={currentDashboardChartTitles}
-          brand={activeBrand}
-          controls={dashboardControls}
-          onCreateDecision={
-            canCreateDecisions && selectedDatasetId
-              ? handleOpenDashboardDecision
-              : undefined
-          }
-          onCreateRecommendation={
-            usesDatasetMetricMapping &&
-            canCreateDecisions &&
-            Boolean(
-              dashboardRecommendationMetric &&
-              dataset?.ai_analysis?.recommendations.length
-            )
-              ? () => {
-                void handleCreateDashboardRecommendation()
-              }
-              : undefined
-          }
-          creatingRecommendation={
-            creatingDashboardRecommendation
-          }
-          status={
-            canConfigureWorkspace && shareStatus ? (
-              <div
-                className={getShareStatusClassName(shareStatus)}
-                role="status"
-                aria-live="polite"
-              >
-                {getShareStatusMessage(
-                  shareStatus,
-                  dashboardShareTitle
-                )}
-              </div>
-            ) : null
-          }
-          onDownloadPdf={handleDownloadDashboardPdf}
-          onShare={handleShareDashboard}
-          onStopSharing={
-            canConfigureWorkspace
-              ? handleStopSharing
-              : undefined
-          }
-          pdfDisabled={
-            (selectedDashboardNeedsDataset && (
-              !selectedDatasetId ||
-              !dataset ||
-              loading
-            )) ||
-            pdfExporting
-          }
-          shareDisabled={shareControlsDisabled}
-          stopSharingDisabled={stopSharingDisabled}
-          pdfLabel={
-            pdfExporting
-              ? "Opening..."
-              : "Save PDF"
-          }
-          shareLabel={shareButtonLabel}
-          stopSharingLabel={
-            shareAction === "stop"
-              ? "Stopping..."
-              : "Stop sharing"
-          }
-          shareTitle={shareButtonTitle}
-          shareAriaLabel={shareButtonAriaLabel}
-          stopSharingTitle={`Turn off public access for this ${dashboardShareTitle.toLowerCase()}.`}
-          stopSharingAriaLabel={`Stop sharing ${dashboardShareTitle.toLowerCase()}`}
-          shareEnabled={shareEnabled}
-        />
-
-        {dashboardEditMode &&
-          selectedDashboard !== defaultDashboardKey &&
-          (
+        {dashboardEditMode && (
           <DashboardChartTitlePanel
             fields={dashboardChartTitleFields}
             titles={currentDashboardChartTitles}
@@ -3615,6 +3523,159 @@ export default function DashboardPage() {
             persistedResult={joinedDatasetResult}
           />
         )}
+      </>
+    )
+
+    return (
+      <div className="screen-page space-y-3">
+        {pdfExporting && (
+          <div
+            aria-hidden="true"
+            className="dashboard-print-page"
+          >
+            <SelectedDashboard
+              key={`print-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
+              name={selectedDashboardDefinition.name}
+              description={selectedDashboardDefinition.description}
+              highlights={selectedDashboardDefinition.highlights}
+              dataset={selectedDashboardDataset}
+              datasetName={dataset?.file_name}
+              datasetId={selectedDatasetId}
+              aggregation={aggregation}
+              aggregationType={aggregationType}
+              canManageWorkspaceData={canManageWorkspaceData}
+              analysisMetric={dashboardAnalysisMetric}
+              analysisLoading={metricAnalysisLoading}
+              analysisError={metricAnalysisError}
+              onRetryAnalysis={() =>
+                setMetricAnalysisRetryKey(
+                  currentKey => currentKey + 1
+                )
+              }
+              manualMapping={
+                usesDatasetMetricMapping
+                  ? currentMetricMapping
+                  : undefined
+              }
+              chartTitles={currentDashboardChartTitles}
+              brand={activeBrand}
+              showActions={false}
+              exportMode
+            />
+          </div>
+        )}
+
+        <WorkspaceAccessNotice
+          loading={loadingWorkspaceAccess}
+          canManageWorkspaceData={canConfigureWorkspace}
+          message="Analysis and metric selection are available in this shared workspace. The business owner handles data changes and dashboard sharing."
+          className="rounded-lg print:hidden"
+        />
+
+        <SelectedDashboard
+          key={`screen-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
+          name={selectedDashboardDefinition.name}
+          description={selectedDashboardDefinition.description}
+          highlights={selectedDashboardDefinition.highlights}
+          dataset={selectedDashboardDataset}
+          datasetName={dataset?.file_name}
+          datasetId={selectedDatasetId}
+          aggregation={aggregation}
+          aggregationType={aggregationType}
+          canManageWorkspaceData={canManageWorkspaceData}
+          canCreateDecisions={canCreateDecisions}
+          analysisMetric={dashboardAnalysisMetric}
+          analysisLoading={metricAnalysisLoading}
+          analysisError={metricAnalysisError}
+          onRetryAnalysis={() =>
+            setMetricAnalysisRetryKey(
+              currentKey => currentKey + 1
+            )
+          }
+          manualMapping={
+            usesDatasetMetricMapping
+              ? currentMetricMapping
+              : undefined
+          }
+          chartTitles={currentDashboardChartTitles}
+          brand={activeBrand}
+          controls={
+            selectedDashboardDefinition.componentKey ===
+            "decisionPerformance"
+              ? dashboardControls
+              : undefined
+          }
+          managementActions={dashboardManagementActions}
+          managementPanels={dashboardManagementPanels}
+          showAnalysisPanel={showAnalysisPanel}
+          onCreateDecision={
+            canCreateDecisions && selectedDatasetId
+              ? handleOpenDashboardDecision
+              : undefined
+          }
+          onCreateRecommendation={
+            usesDatasetMetricMapping &&
+            canCreateDecisions &&
+            Boolean(
+              dashboardRecommendationMetric &&
+              dataset?.ai_analysis?.recommendations.length
+            )
+              ? () => {
+                void handleCreateDashboardRecommendation()
+              }
+              : undefined
+          }
+          creatingRecommendation={
+            creatingDashboardRecommendation
+          }
+          status={
+            canConfigureWorkspace && shareStatus ? (
+              <div
+                className={getShareStatusClassName(shareStatus)}
+                role="status"
+                aria-live="polite"
+              >
+                {getShareStatusMessage(
+                  shareStatus,
+                  dashboardShareTitle
+                )}
+              </div>
+            ) : null
+          }
+          onDownloadPdf={handleDownloadDashboardPdf}
+          onShare={handleShareDashboard}
+          onStopSharing={
+            canConfigureWorkspace
+              ? handleStopSharing
+              : undefined
+          }
+          pdfDisabled={
+            (selectedDashboardNeedsDataset && (
+              !selectedDatasetId ||
+              !dataset ||
+              loading
+            )) ||
+            pdfExporting
+          }
+          shareDisabled={shareControlsDisabled}
+          stopSharingDisabled={stopSharingDisabled}
+          pdfLabel={
+            pdfExporting
+              ? "Opening..."
+              : "Save PDF"
+          }
+          shareLabel={shareButtonLabel}
+          stopSharingLabel={
+            shareAction === "stop"
+              ? "Stopping..."
+              : "Stop sharing"
+          }
+          shareTitle={shareButtonTitle}
+          shareAriaLabel={shareButtonAriaLabel}
+          stopSharingTitle={`Turn off public access for this ${dashboardShareTitle.toLowerCase()}.`}
+          stopSharingAriaLabel={`Stop sharing ${dashboardShareTitle.toLowerCase()}`}
+          shareEnabled={shareEnabled}
+        />
 
         {!datasetsLoading &&
           userId &&

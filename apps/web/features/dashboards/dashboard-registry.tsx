@@ -92,6 +92,9 @@ type DashboardPlaceholderProps = {
   chartTitles?: DashboardChartTitles
   decisionSummary?: DecisionSummary | null
   controls?: ReactNode
+  managementActions?: ReactNode
+  managementPanels?: ReactNode
+  showAnalysisPanel?: boolean
   status?: ReactNode
   brand?: WorkspaceBrand
   canManageWorkspaceData?: boolean
@@ -1718,6 +1721,9 @@ function IndustryDashboard({
   chartTitles,
   config,
   controls,
+  managementActions,
+  managementPanels,
+  showAnalysisPanel,
   status,
   brand,
   onDownloadPdf,
@@ -1777,6 +1783,82 @@ function IndustryDashboard({
     (!analysisMetric ||
       dataset.ai_analysis.metric === analysisMetric)
   )
+  const decisionateAnalysisPanel = (
+    <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(30rem,1fr)]">
+      {dashboardConfig.kpiMode === "sales" ? (
+        <SalesDecisionateAnalysis
+          dashboard={dashboardConfig}
+          analysis={
+            !analysisMetric ||
+            dataset?.ai_analysis?.metric === analysisMetric
+              ? dataset?.ai_analysis
+              : null
+          }
+          analysisLoading={analysisLoading}
+          analysisError={analysisError}
+          onRetryAnalysis={onRetryAnalysis}
+          onCreateRecommendation={onCreateRecommendation}
+          onCreateDecision={onCreateDecision}
+          creatingRecommendation={creatingRecommendation}
+        />
+      ) : (
+        <div className="min-w-0">
+          {analysisLoading && (
+            <AnalysisStatus kind="loading" />
+          )}
+
+          {analysisError && (
+            <AnalysisStatus
+              kind="unavailable"
+              onRetry={onRetryAnalysis}
+            />
+          )}
+
+          {!analysisLoading &&
+            dataset?.ai_analysis &&
+            (!analysisMetric ||
+              dataset.ai_analysis.metric === analysisMetric) && (
+            <AIAnalysisPanel
+              analysis={dataset.ai_analysis}
+              title="Decisionate Analysis"
+              metric={analysisMetric}
+              className="h-full print:hidden !p-3"
+              onCreateDecision={
+                onCreateRecommendation ?? onCreateDecision
+              }
+              creatingDecision={creatingRecommendation}
+            />
+          )}
+
+          {!hasMatchingAnalysis && onCreateDecision && (
+            <div className="flex h-full flex-col rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 print:hidden">
+              <p className="font-semibold text-gray-900">
+                Create a decision from this dashboard
+              </p>
+              <p className="mt-1">
+                Capture the selected dataset and metric, then define the action and expected outcome.
+              </p>
+              <div className="mt-auto flex items-center justify-start pt-4">
+                <button
+                  type="button"
+                  onClick={onCreateDecision}
+                  className="inline-flex items-center rounded-xl bg-[var(--decisionate-brand-primary)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
+                >
+                  Create decision
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showActions !== false && controls && (
+        <div className="h-full min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm print:hidden">
+          {controls}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="dashboard-export-dashboard space-y-4 print:space-y-1.5">
@@ -1809,8 +1891,17 @@ function IndustryDashboard({
         dashboardName={name}
         demoMode={demoMode}
         headerControls={headerControls}
+        managementActions={managementActions}
         exportMode={exportMode}
       />
+
+      {managementPanels}
+
+      {showAnalysisPanel !== false && !exportMode && (
+        <div id="industry-dashboard-analysis-panel">
+          {decisionateAnalysisPanel}
+        </div>
+      )}
 
       <div className="dashboard-export-chart-grid grid gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-2">
         <DashboardChartCard
@@ -1911,11 +2002,12 @@ function IndustryDashboard({
         </DashboardChartCard>
       </div>
 
-      <div className="dashboard-export-chart-grid grid gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-2">
+      <div className="dashboard-export-chart-grid grid items-stretch gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-2">
         <DashboardChartCard
           title={resolvedChartTitles.operations}
           description={dashboardConfig.operationsDescription}
           status={dashboardConfig.operationsStatus}
+          className="xl:!h-full"
           canFullscreen={dashboardConfig.operationsData.length > 0}
           exportMode={exportMode}
         >
@@ -1960,7 +2052,7 @@ function IndustryDashboard({
           )}
         </DashboardChartCard>
 
-        <div className="break-inside-avoid rounded-xl border border-gray-200 bg-white p-4 shadow-sm print:p-2">
+        <div className="h-full break-inside-avoid rounded-xl border border-gray-200 bg-white p-4 shadow-sm print:p-2">
           <h2 className="text-base font-semibold print:text-sm">
             {dashboardConfig.signalTitle}
           </h2>
@@ -1985,82 +2077,6 @@ function IndustryDashboard({
         </div>
       </div>
 
-      {!exportMode && (
-        <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(30rem,1fr)]">
-          {dashboardConfig.kpiMode === "sales" ? (
-            <SalesDecisionateAnalysis
-              dashboard={dashboardConfig}
-              analysis={
-                !analysisMetric ||
-                dataset?.ai_analysis?.metric === analysisMetric
-                  ? dataset?.ai_analysis
-                  : null
-              }
-              analysisLoading={analysisLoading}
-              analysisError={analysisError}
-              onRetryAnalysis={onRetryAnalysis}
-              onCreateRecommendation={onCreateRecommendation}
-              onCreateDecision={onCreateDecision}
-              creatingRecommendation={creatingRecommendation}
-            />
-          ) : (
-            <div className="min-w-0">
-              {analysisLoading && (
-                <AnalysisStatus kind="loading" />
-              )}
-
-              {analysisError && (
-                <AnalysisStatus
-                  kind="unavailable"
-                  onRetry={onRetryAnalysis}
-                />
-              )}
-
-              {!analysisLoading &&
-                dataset?.ai_analysis &&
-                (!analysisMetric ||
-                  dataset.ai_analysis.metric === analysisMetric) && (
-                <AIAnalysisPanel
-                  analysis={dataset.ai_analysis}
-                  title="Decisionate Analysis"
-                  metric={analysisMetric}
-                  className="h-full print:hidden !p-3"
-                  onCreateDecision={
-                    onCreateRecommendation ?? onCreateDecision
-                  }
-                  creatingDecision={creatingRecommendation}
-                />
-              )}
-
-              {!hasMatchingAnalysis && onCreateDecision && (
-                <div className="flex h-full flex-col rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 print:hidden">
-                  <p className="font-semibold text-gray-900">
-                    Create a decision from this dashboard
-                  </p>
-                  <p className="mt-1">
-                    Capture the selected dataset and metric, then define the action and expected outcome.
-                  </p>
-                  <div className="mt-auto flex items-center justify-start pt-4">
-                    <button
-                      type="button"
-                      onClick={onCreateDecision}
-                      className="inline-flex items-center rounded-xl bg-[var(--decisionate-brand-primary)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
-                    >
-                      Create decision
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {showActions !== false && controls && (
-            <div className="h-full min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm print:hidden">
-              {controls}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -2070,12 +2086,14 @@ function IndustryKpiGrid({
   dashboardName,
   demoMode = false,
   headerControls,
+  managementActions,
   exportMode = false,
 }: {
   metrics: IndustryMetric[]
   dashboardName: string
   demoMode?: boolean
   headerControls?: ReactNode
+  managementActions?: ReactNode
   exportMode?: boolean
 }) {
   const scrollRef =
@@ -2168,26 +2186,34 @@ function IndustryKpiGrid({
         </div>
       )}
 
-      <div
-        ref={scrollRef}
-        className="dashboard-kpi-scroll flex gap-4 overflow-x-auto scroll-smooth pb-2 print:grid print:grid-cols-4 print:gap-1.5 print:overflow-visible"
-      >
-        {metrics.map(metric => (
-          <div
-            key={metric.label}
-            className="dashboard-kpi-strip-card break-inside-avoid rounded-2xl border border-gray-200 bg-white p-4 shadow-sm print:rounded-xl print:p-1.5"
-          >
-            <p className="text-xs font-medium uppercase text-gray-500">
-              {metric.label}
-            </p>
-            <p className="mt-1 break-words text-2xl font-bold leading-tight text-gray-950 print:text-lg">
-              {metric.value}
-            </p>
-            <p className="mt-1 text-xs leading-4 text-gray-500 print:leading-3">
-              {metric.detail}
-            </p>
+      <div className="flex min-w-0 items-end gap-3">
+        <div
+          ref={scrollRef}
+          className="dashboard-kpi-scroll flex min-w-0 flex-1 gap-4 overflow-x-auto scroll-smooth pb-2 print:grid print:grid-cols-4 print:gap-1.5 print:overflow-visible"
+        >
+          {metrics.map(metric => (
+            <div
+              key={metric.label}
+              className="dashboard-kpi-strip-card industry-kpi-strip-card break-inside-avoid rounded-2xl border border-gray-200 bg-white p-4 shadow-sm print:rounded-xl print:p-1.5"
+            >
+              <p className="text-xs font-medium uppercase text-gray-500">
+                {metric.label}
+              </p>
+              <p className="mt-1 break-words text-2xl font-bold leading-tight text-gray-950 print:text-lg">
+                {metric.value}
+              </p>
+              <p className="mt-1 text-xs leading-4 text-gray-500 print:leading-3">
+                {metric.detail}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {managementActions && (
+          <div className="flex shrink-0 items-end print:hidden">
+            {managementActions}
           </div>
-        ))}
+        )}
       </div>
     </section>
   )
