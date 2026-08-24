@@ -354,6 +354,124 @@ class ConnectorSmokeTests(unittest.TestCase):
                 connection,
             )
 
+    def test_netsuite_sync_paginates_and_preserves_dynamic_fields(self):
+        connection = make_connection(
+            "netsuite",
+            {
+                "account_id": "1234567_SB1",
+                "record_type": "sales_order",
+            },
+        )
+        responses = [
+            {
+                "items": [{"id": "101", "links": []}],
+                "hasMore": True,
+                "links": [{
+                    "rel": "next",
+                    "href": (
+                        "https://1234567_SB1.suitetalk.api.netsuite.com"
+                        "/services/rest/record/v1/salesorder"
+                        "?limit=1000&offset=1000"
+                    ),
+                }],
+            },
+            {
+                "items": [{"id": "102", "links": []}],
+                "hasMore": False,
+                "links": [],
+            },
+            {
+                "id": "101",
+                "dateCreated": "2026-01-02T00:00:00Z",
+                "lastModifiedDate": "2026-01-03T00:00:00Z",
+                "tranDate": "2026-01-02",
+                "tranId": "SO101",
+                "entity": {"id": "customer-1", "refName": "Acme"},
+                "custbody_channel": "partner",
+                "links": [{"rel": "self", "href": "metadata-only"}],
+            },
+            {
+                "id": "102",
+                "dateCreated": "2026-01-04T00:00:00Z",
+                "lastModifiedDate": "2026-01-05T00:00:00Z",
+                "tranDate": "2026-01-04",
+                "tranId": "SO102",
+                "entity": {"id": "customer-2", "refName": "Beta"},
+                "links": [],
+            },
+        ]
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="netsuite-access-token",
+        ), patch.object(
+            connectors,
+            "netsuite_json_request",
+            side_effect=responses,
+        ) as request, patch.dict(
+            os.environ,
+            {
+                "NETSUITE_API_BASE_URL_TEMPLATE": (
+                    "https://{account_id}.suitetalk.api.netsuite.com"
+                    "/services/rest/record/v1"
+                ),
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_connector_dataframe(
+                None,
+                connection,
+                datetime(2026, 1, 1, tzinfo=UTC).date(),
+                datetime(2026, 1, 31, tzinfo=UTC).date(),
+            )
+
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(report["resource"], "salesorder")
+        self.assertEqual(report["record_type"], "sales_order")
+        self.assertEqual(dataframe.iloc[0]["custbody_channel"], "partner")
+        self.assertEqual(dataframe.iloc[0]["entity__refName"], "Acme")
+        self.assertEqual(request.call_count, 4)
+        self.assertIn("lastModifiedDate", request.call_args_list[0].args[0])
+        self.assertIn("expandSubResources=true", request.call_args_list[2].args[0])
+
+    def test_netsuite_rejects_records_outside_requested_scope(self):
+        connection = make_connection(
+            "netsuite",
+            {
+                "account_id": "1234567",
+                "record_type": "vendor",
+            },
+        )
+        with self.assertRaisesRegex(
+            connectors.ConnectorUnavailable,
+            "invoice, customer, or sales_order",
+        ):
+            connectors.load_netsuite_dataframe(None, connection)
+
+    def test_netsuite_request_retries_rate_limits(self):
+        error = HTTPError(
+            "https://1234567.suitetalk.api.netsuite.com/services/rest/record/v1/invoice",
+            429,
+            "rate limited",
+            {"Retry-After": "0"},
+            BytesIO(b"busy"),
+        )
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = b'{"items": [], "hasMore": false}'
+        with patch.object(
+            connectors,
+            "urlopen",
+            side_effect=[error, response],
+        ), patch.object(connectors, "sleep") as pause:
+            payload = connectors.netsuite_json_request(
+                "https://1234567.suitetalk.api.netsuite.com/services/rest/record/v1/invoice",
+                {"Authorization": "Bearer token"},
+            )
+
+        self.assertFalse(payload["hasMore"])
+        pause.assert_called_once()
+
     def test_database_connector_query_has_no_implicit_row_cap(self):
         query = "SELECT created_at, revenue FROM source_rows"
         self.assertEqual(

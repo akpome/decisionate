@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -120,6 +121,16 @@ OAUTH_PROVIDERS = {
         scopes_env="SALESFORCE_OAUTH_SCOPES",
         required_scopes=("api", "refresh_token"),
     ),
+    "netsuite": OAuthProvider(
+        source_type="netsuite",
+        authorization_url_env="NETSUITE_OAUTH_AUTHORIZATION_URL_TEMPLATE",
+        token_url_env="NETSUITE_OAUTH_TOKEN_URL_TEMPLATE",
+        client_id_env="NETSUITE_CLIENT_ID",
+        client_secret_env="NETSUITE_CLIENT_SECRET",
+        scopes_env="NETSUITE_OAUTH_SCOPES",
+        use_basic_token_auth=True,
+        required_scopes=("rest_webservices",),
+    ),
 }
 
 
@@ -204,6 +215,36 @@ def get_provider_scopes(provider: OAuthProvider) -> tuple[str, ...]:
     return scopes
 
 
+def get_netsuite_account_id(connection_config: dict | None = None) -> str:
+    config = connection_config or {}
+    account_id = str(config.get("account_id") or "").strip()
+    if not account_id or not re.fullmatch(r"[A-Za-z0-9_-]+", account_id):
+        raise OAuthProviderUnavailable(
+            "Configure a valid NetSuite account ID before connecting"
+        )
+    return account_id
+
+
+def format_netsuite_endpoint(
+    provider: OAuthProvider,
+    endpoint: str,
+    connection_config: dict | None = None,
+) -> str:
+    value = get_provider_endpoint(provider, endpoint)
+    account_id = get_netsuite_account_id(connection_config)
+    try:
+        return value.format(account_id=account_id)
+    except KeyError as error:
+        env_name = (
+            provider.authorization_url_env
+            if endpoint == "authorization"
+            else provider.token_url_env
+        )
+        raise OAuthProviderUnavailable(
+            f"{env_name} must include {{account_id}}"
+        ) from error
+
+
 def is_oauth_provider_configured(source_type: str) -> bool:
     try:
         provider = get_provider(source_type)
@@ -232,7 +273,13 @@ def build_authorization_url(
     authorization_url = get_provider_endpoint(provider, "authorization")
     scopes = get_provider_scopes(provider)
 
-    if provider.source_type == "shopify":
+    if provider.source_type == "netsuite":
+        authorization_url = format_netsuite_endpoint(
+            provider,
+            "authorization",
+            config,
+        )
+    elif provider.source_type == "shopify":
         shop_domain = str(config.get("shop_domain") or "").strip()
         if not shop_domain or "." not in shop_domain:
             raise OAuthProviderUnavailable(
@@ -267,7 +314,9 @@ def exchange_code(
     client_id, client_secret = get_provider_credentials(provider)
     config = connection_config or {}
     token_url = get_provider_endpoint(provider, "token")
-    if provider.source_type == "shopify":
+    if provider.source_type == "netsuite":
+        token_url = format_netsuite_endpoint(provider, "token", config)
+    elif provider.source_type == "shopify":
         shop_domain = str(config.get("shop_domain") or "").strip()
         shop_domain = shop_domain.removeprefix("https://").removeprefix("http://")
         try:
@@ -340,7 +389,9 @@ def refresh_oauth_token(
     client_id, client_secret = get_provider_credentials(provider)
     config = connection_config or {}
     token_url = get_provider_endpoint(provider, "token")
-    if provider.source_type == "sage":
+    if provider.source_type == "netsuite":
+        token_url = format_netsuite_endpoint(provider, "token", config)
+    elif provider.source_type == "sage":
         token_url = get_sage_token_url(config.get("country"))
 
     params = {

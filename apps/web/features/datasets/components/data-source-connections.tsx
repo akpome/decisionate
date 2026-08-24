@@ -422,6 +422,7 @@ function DataSourceConnectionRow({
       "sage",
       "xero",
       "salesforce",
+      "netsuite",
       "postgresql",
       "mysql",
       "sql_server",
@@ -1047,6 +1048,20 @@ function ConnectionConfigField({
           <option value="Opportunity">Opportunities</option>
           <option value="Account">Accounts</option>
           <option value="Lead">Leads</option>
+        </select>
+      ) : sourceType === "netsuite" && configKey === "record_type" ? (
+        <select
+          aria-label="NetSuite record type"
+          value={value}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+          className={`${sharedClassName} h-9`}
+        >
+          <option value="">Select record type</option>
+          <option value="invoice">Invoices</option>
+          <option value="customer">Customers</option>
+          <option value="sales_order">Sales Orders</option>
         </select>
       ) : configKey === "query" ? (
         <textarea

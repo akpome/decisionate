@@ -24,6 +24,7 @@ IMPLEMENTED_CONNECTOR_TYPES = {
     "sage",
     "xero",
     "salesforce",
+    "netsuite",
     "postgresql",
     "mysql",
     "sql_server",
@@ -217,6 +218,19 @@ DATASET_SOURCES = [
         ),
     },
     {
+        "type": "netsuite",
+        "label": "NetSuite",
+        "category": "accounting",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["account_id", "record_type"],
+        "description": (
+            "Connect NetSuite invoices, customers, or sales orders using "
+            "the account's REST Web Services API."
+        ),
+    },
+    {
         "type": "meta_ads",
         "label": "Meta Ads",
         "category": "business_apps",
@@ -273,6 +287,10 @@ DATASET_SOURCE_ENV_KEYS = {
         "SALESFORCE_CLIENT_ID",
         "SALESFORCE_CLIENT_SECRET",
     ],
+    "netsuite": [
+        "NETSUITE_CLIENT_ID",
+        "NETSUITE_CLIENT_SECRET",
+    ],
     "meta_ads": [
         "META_ADS_APP_ID",
         "META_ADS_APP_SECRET",
@@ -312,6 +330,11 @@ DATASET_SOURCE_RUNTIME_ENV_KEYS = {
         "XERO_CONNECTIONS_API_URL",
     ],
     "salesforce": ["SALESFORCE_API_VERSION"],
+    "netsuite": [
+        "NETSUITE_API_BASE_URL_TEMPLATE",
+        "NETSUITE_OAUTH_AUTHORIZATION_URL_TEMPLATE",
+        "NETSUITE_OAUTH_TOKEN_URL_TEMPLATE",
+    ],
 }
 
 
@@ -466,6 +489,7 @@ def clone_dataset_source(source):
         "freshbooks",
         "xero",
         "salesforce",
+        "netsuite",
     }:
         if (
             is_oauth_provider_configured(source["type"])
