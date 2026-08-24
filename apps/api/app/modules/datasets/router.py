@@ -181,7 +181,6 @@ CONNECTOR_DEDUP_KEYS = {
     "freshbooks": ["invoice_id"],
     "xero": ["invoice_id"],
     "salesforce": ["record_id"],
-    "netsuite": ["record_id"],
 }
 REMOVED_FILE_STORAGE_CONNECTORS = {
     "google_drive",

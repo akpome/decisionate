@@ -90,46 +90,5 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             self.assertTrue(is_oauth_provider_configured("salesforce"))
             self.assertIn("state=state-salesforce", url)
 
-    def test_netsuite_oauth_uses_account_specific_endpoints_and_scope(self):
-        key = Fernet.generate_key().decode()
-        with patch.dict(
-            os.environ,
-            {
-                "NETSUITE_CLIENT_ID": "client-id",
-                "NETSUITE_CLIENT_SECRET": "client-secret",
-                "NETSUITE_OAUTH_AUTHORIZATION_URL_TEMPLATE": (
-                    "https://{account_id}.app.netsuite.com/app/login/"
-                    "oauth2/authorize.nl"
-                ),
-                "NETSUITE_OAUTH_TOKEN_URL_TEMPLATE": (
-                    "https://{account_id}.suitetalk.api.netsuite.com/"
-                    "services/rest/auth/oauth2/v1/token"
-                ),
-                "NETSUITE_API_BASE_URL_TEMPLATE": (
-                    "https://{account_id}.suitetalk.api.netsuite.com/"
-                    "services/rest/record/v1"
-                ),
-                "NETSUITE_OAUTH_SCOPES": "rest_webservices",
-                "OAUTH_TOKEN_ENCRYPTION_KEY": key,
-            },
-            clear=False,
-        ):
-            url = build_authorization_url(
-                "netsuite",
-                "state-netsuite",
-                {
-                    "account_id": "1234567_SB1",
-                    "record_type": "invoice",
-                },
-            )
-
-            self.assertTrue(is_oauth_provider_configured("netsuite"))
-            self.assertIn(
-                "https://1234567_SB1.app.netsuite.com/",
-                url,
-            )
-            self.assertIn("rest_webservices", url)
-
-
 if __name__ == "__main__":
     unittest.main()
