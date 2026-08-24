@@ -4666,7 +4666,7 @@ function PerformanceTemplate(
 
   return (
     <>
-      <div className="dashboard-print-target-grid dashboard-print-target-grid-left grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="dashboard-print-target-grid dashboard-print-target-grid-left grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
         <DashboardCard className="dashboard-print-target-card flex min-w-0 flex-col xl:h-[660px]">
           <CardHeader
             title="Performance Target"
@@ -5077,7 +5077,7 @@ function ReportSection({
       />
 
       {/* Main Executive Grid */}
-      <div className="dashboard-print-target-grid dashboard-print-target-grid-right grid items-stretch gap-5 xl:h-[660px] xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="dashboard-print-target-grid dashboard-print-target-grid-right grid items-stretch gap-5 lg:h-[660px] lg:grid-cols-[minmax(0,1fr)_340px]">
         {/* Executive Chart Card */}
         <DashboardCard
           id="dashboard-evidence"

@@ -1881,7 +1881,7 @@ function IndustryDashboard({
         </div>
       )}
 
-      <div className="dashboard-export-chart-grid grid gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-2">
+      <div className="dashboard-export-chart-grid grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-2">
         <DashboardChartCard
           title={resolvedChartTitles.trend}
           description={dashboardConfig.trendDescription}
@@ -1980,7 +1980,7 @@ function IndustryDashboard({
         </DashboardChartCard>
       </div>
 
-      <div className="dashboard-export-chart-grid grid items-stretch gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-2">
+      <div className="dashboard-export-chart-grid grid items-stretch gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-2">
         <DashboardChartCard
           title={resolvedChartTitles.operations}
           description={dashboardConfig.operationsDescription}
@@ -2547,7 +2547,7 @@ function DecisionPerformanceDashboard({
         ))}
       </div>
 
-      <div className="dashboard-export-chart-grid grid gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-3">
+      <div className="dashboard-export-chart-grid grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-3">
         <DashboardChartCard
           title={resolvedChartTitles.mix}
           description="Decision volume grouped by business area."
@@ -2628,7 +2628,7 @@ function DecisionPerformanceDashboard({
         </DashboardChartCard>
       </div>
 
-      <div className="dashboard-export-chart-grid grid gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-3">
+      <div className="dashboard-export-chart-grid grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-3">
         <DashboardChartCard
           title={resolvedChartTitles.outcome}
           description="Evaluated decisions by result mix."
