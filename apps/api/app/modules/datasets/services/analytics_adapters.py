@@ -12,6 +12,7 @@ from app.modules.datasets.services.file_loader import (
     load_dataset_file,
 )
 from app.infrastructure.object_storage import get_dataset_storage_reference
+from app.infrastructure.object_storage import get_object_storage
 
 
 class AnalyticsAdapterUnavailable(
