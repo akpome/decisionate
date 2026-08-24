@@ -1859,16 +1859,21 @@ function IndustryDashboard({
         exportMode={exportMode}
       />
 
+      {managementActions && (
+        <div className="flex min-w-0 justify-end print:hidden">
+          {managementActions}
+        </div>
+      )}
+
+      {managementPanels}
+
       <IndustryKpiGrid
         metrics={dashboardConfig.metrics}
         dashboardName={name}
         demoMode={demoMode}
         headerControls={headerControls}
-        managementActions={managementActions}
         exportMode={exportMode}
       />
-
-      {managementPanels}
 
       {showAnalysisPanel !== false && !exportMode && (
         <div id="industry-dashboard-analysis-panel">
@@ -2059,14 +2064,12 @@ function IndustryKpiGrid({
   dashboardName,
   demoMode = false,
   headerControls,
-  managementActions,
   exportMode = false,
 }: {
   metrics: IndustryMetric[]
   dashboardName: string
   demoMode?: boolean
   headerControls?: ReactNode
-  managementActions?: ReactNode
   exportMode?: boolean
 }) {
   const scrollRef =
@@ -2181,11 +2184,6 @@ function IndustryKpiGrid({
         ))}
       </div>
 
-      {managementActions && (
-        <div className="flex min-w-0 justify-end print:hidden">
-          {managementActions}
-        </div>
-      )}
     </section>
   )
 }

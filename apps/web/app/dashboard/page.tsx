@@ -227,8 +227,6 @@ type ReportSectionProps = {
   anomalyError: boolean
   aiAnalysis?: AIAnalysis | null
   analysisLoading: boolean
-  managementActions?: ReactNode
-  managementPanels?: ReactNode
   onCreateDecision?: () => void
   creatingDecision: boolean
 }
@@ -629,6 +627,9 @@ export default function DashboardPage() {
     useState<OrganizationWorkspaceRecord[]>([])
   const [selectedDashboard, setSelectedDashboard] =
     useState(defaultDashboardKey)
+  const selectedDashboardRef =
+    useRef(defaultDashboardKey)
+  selectedDashboardRef.current = selectedDashboard
   const [dashboardPreferenceLoadedKey, setDashboardPreferenceLoadedKey] =
     useState("")
   const dashboardPreferenceContextKey =
@@ -1492,6 +1493,9 @@ export default function DashboardPage() {
      Load Default Dataset
   ========================= */
 
+  const datasetDefaultsLoadKey =
+    `${userId}:${activeWorkspaceId ?? ""}:${workspaceVersion}:${defaultDatasetRetryKey}`
+
   useEffect(() => {
     if (!userId || !dashboardPreferenceLoaded) return
 
@@ -1566,7 +1570,9 @@ export default function DashboardPage() {
             ? sharedConfig.datasetId
             : undefined
         const savedSelectedDatasetId =
-          savedDashboardDatasetIds[selectedDashboard]
+          savedDashboardDatasetIds[
+            selectedDashboardRef.current
+          ]
         const nextDatasetId =
           sharedDatasetId ??
           (
@@ -1636,6 +1642,7 @@ export default function DashboardPage() {
     clearSelectedDashboard,
     defaultDatasetRetryKey,
     dashboardPreferenceLoaded,
+    datasetDefaultsLoadKey,
     userId,
     workspaceVersion,
   ])
@@ -4330,30 +4337,30 @@ export default function DashboardPage() {
 
       {dataset && !loading && (
         <>
+          <div className="dashboard-management-toolbar print:hidden">
+            {dashboardManagementActions}
+          </div>
+
+          {generalDashboardManagementPanels}
+
           <div
-            className="dashboard-report space-y-4 bg-white"
+            className="dashboard-report space-y-4"
           >
             {dashboardTemplate === "executive" && (
               <ExecutiveTemplate
                 {...templateProps}
-                managementActions={dashboardManagementActions}
-                managementPanels={generalDashboardManagementPanels}
               />
             )}
 
             {dashboardTemplate === "performance" && (
               <PerformanceTemplate
                 {...templateProps}
-                managementActions={dashboardManagementActions}
-                managementPanels={generalDashboardManagementPanels}
               />
             )}
 
             {dashboardTemplate === "comparison" && (
               <ComparisonTemplate
                 {...templateProps}
-                managementActions={dashboardManagementActions}
-                managementPanels={generalDashboardManagementPanels}
               />
             )}
 
@@ -4793,13 +4800,6 @@ function PerformanceTemplate(
         anomalyError={props.anomalyError}
       />
 
-      {props.managementActions && (
-        <div className="mt-3 flex justify-end print:hidden">
-          {props.managementActions}
-        </div>
-      )}
-
-      {props.managementPanels}
     </>
   )
 }
@@ -4831,8 +4831,6 @@ function ComparisonTemplate({
   anomalies,
   anomalyLoading,
   anomalyError,
-  managementActions,
-  managementPanels,
 }: ReportSectionProps) {
   const hasChartData =
     chartRows.length > 0 &&
@@ -4855,14 +4853,6 @@ function ComparisonTemplate({
         anomalyLoading={anomalyLoading}
         anomalyError={anomalyError}
       />
-
-      {managementActions && (
-        <div className="mt-3 flex justify-end print:hidden">
-          {managementActions}
-        </div>
-      )}
-
-      {managementPanels}
 
       <DashboardCard className="flex min-w-0 flex-col xl:h-[720px]">
         <CardHeader
@@ -5062,8 +5052,6 @@ function ReportSection({
   anomalies,
   anomalyLoading,
   anomalyError,
-  managementActions,
-  managementPanels,
 }: ReportSectionProps) {
   const hasChartData =
     chartRows.length > 0 &&
@@ -5088,18 +5076,13 @@ function ReportSection({
         anomalyError={anomalyError}
       />
 
-      {managementActions && (
-        <div className="mt-3 flex justify-end print:hidden">
-          {managementActions}
-        </div>
-      )}
-
-      {managementPanels}
-
       {/* Main Executive Grid */}
       <div className="dashboard-print-target-grid dashboard-print-target-grid-right grid items-stretch gap-5 xl:h-[660px] xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Executive Chart Card */}
-        <DashboardCard id="dashboard-evidence" className="dashboard-print-chart-card flex min-h-[460px] min-w-0 flex-col sm:min-h-[560px] xl:h-full xl:min-h-0">
+        <DashboardCard
+          id="dashboard-evidence"
+          className="dashboard-print-chart-card flex min-h-[460px] min-w-0 flex-col sm:min-h-[560px] xl:h-full xl:min-h-0"
+        >
           <CardHeader
             title={
               selectedMetrics.length > 3

@@ -20,9 +20,11 @@ import {
   LayoutDashboard,
   LineChart,
   LifeBuoy,
+  Menu,
   Plug,
   Settings,
   Target,
+  X,
 } from "lucide-react"
 import {
   useEffect,
@@ -217,6 +219,8 @@ export function DashboardShell({
     useState("")
   const [expandedNavGroups, setExpandedNavGroups] =
     useState<Record<string, boolean>>({})
+  const [mobileNavOpen, setMobileNavOpen] =
+    useState(false)
   const [apiUnavailableMessage, setApiUnavailableMessage] =
     useState(() => {
       const initialDetail =
@@ -247,6 +251,10 @@ export function DashboardShell({
           isActiveDashboardPath(pathname, item.href)
         )
     )?.label
+
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [pathname])
 
   useEffect(() => {
     if (
@@ -688,9 +696,27 @@ export function DashboardShell({
           Dashboard Sidebar Brand Workspace And Primary Navigation
       ========================= */}
 
-      <aside className="dashboard-print-hidden flex h-screen w-64 shrink-0 flex-col border-r bg-white">
+      {mobileNavOpen && (
+        <button
+          type="button"
+          aria-label="Close dashboard navigation"
+          className="dashboard-print-hidden fixed inset-0 z-30 bg-gray-950/30 xl:hidden"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+
+      <aside
+        id="dashboard-sidebar"
+        aria-label="Dashboard navigation"
+        className={`dashboard-print-hidden fixed inset-y-0 left-0 z-40 flex h-screen w-72 shrink-0 flex-col border-r bg-white shadow-xl transition-transform duration-200 xl:static xl:z-auto xl:w-64 xl:translate-x-0 xl:shadow-none ${
+          mobileNavOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
+        }`}
+      >
         <div className="shrink-0 border-b p-6">
-          <div className="flex items-center gap-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
             <div
               className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl text-sm font-bold text-white"
               style={{
@@ -730,8 +756,19 @@ export function DashboardShell({
                   : visibleOrganization
                     ? "Business workspace"
                     : "Workspace"}
-              </p>
+                </p>
             </div>
+            </div>
+
+            <button
+              type="button"
+              aria-label="Close dashboard navigation"
+              title="Close navigation"
+              className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 xl:hidden"
+              onClick={() => setMobileNavOpen(false)}
+            >
+              <X size={18} aria-hidden="true" />
+            </button>
           </div>
 
           <p className="mt-1 truncate text-sm text-gray-500">
@@ -921,6 +958,20 @@ export function DashboardShell({
       ========================= */}
 
       <main className="dashboard-print-main h-screen flex-1 overflow-y-auto p-8">
+        <div className="dashboard-print-hidden mb-4 xl:hidden">
+          <button
+            type="button"
+            aria-expanded={mobileNavOpen}
+            aria-controls="dashboard-sidebar"
+            aria-label="Open dashboard navigation"
+            title="Open navigation"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm transition hover:bg-gray-50 hover:text-gray-950"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <Menu size={20} aria-hidden="true" />
+          </button>
+        </div>
+
         {subscriptionAccessBlocked && subscriptionAccess ? (
           <SubscriptionRequiredPanel
             access={subscriptionAccess}
