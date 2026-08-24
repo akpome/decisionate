@@ -1517,6 +1517,7 @@ type AuthenticatedHeaders =
 const clerkTokenTimeoutMs = 1500
 const apiRequestTimeoutMs = 10000
 const datasetDetailsRequestTimeoutMs = 30000
+const preferenceRequestTimeoutMs = 30000
 const apiReadCacheTtlMs = 15000
 const clerkBearerAuthEnabled =
   process.env.NEXT_PUBLIC_ENABLE_API_BEARER_AUTH === "true"
@@ -5787,7 +5788,8 @@ export async function getDashboardPreference(
             userId,
             workspaceId
           ),
-        }
+        },
+        preferenceRequestTimeoutMs
       )
   } catch (error) {
     rethrowApiFetchError(
@@ -5832,7 +5834,8 @@ export async function updateDashboardPreference(
           body: JSON.stringify({
             selected_dashboard: safeSelectedDashboard,
           }),
-        }
+        },
+        preferenceRequestTimeoutMs
       )
   } catch (error) {
     rethrowApiFetchError(
@@ -5877,7 +5880,8 @@ export async function getDatasetPreference(
                 userId,
                 workspaceId
               ),
-            }
+            },
+            preferenceRequestTimeoutMs
           )
       } catch (error) {
         rethrowApiFetchError(
@@ -5976,7 +5980,8 @@ export async function updateDatasetPreference(
               workspaceId
             ),
             body: JSON.stringify(body),
-          }
+          },
+          preferenceRequestTimeoutMs
         )
 
       if (!response.ok) {

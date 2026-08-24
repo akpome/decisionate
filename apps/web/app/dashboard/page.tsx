@@ -107,6 +107,7 @@ import {
   GitMerge,
   LineChart as LineChartIcon,
   Maximize2,
+  Plus,
   Settings2,
   Share2,
   Unlink,
@@ -3075,6 +3076,38 @@ export default function DashboardPage() {
     selectedDashboardNeedsDataset &&
     Boolean(selectedDatasetId) &&
     datasets.length > 1
+
+  function handleOpenDashboardDecision() {
+    if (!selectedDatasetId || !canCreateDecisions) {
+      return
+    }
+
+    const autoMetricMapping =
+      getDashboardAutoMetricMapping(
+        selectedDashboardDefinition.componentKey,
+        selectedDashboardDataset
+      )
+    const dashboardMetric =
+      currentMetricMapping.primary &&
+      availableMetricColumns.includes(
+        currentMetricMapping.primary
+      )
+        ? currentMetricMapping.primary
+        : autoMetricMapping.primary
+    const params = new URLSearchParams({
+      dataset: String(selectedDatasetId),
+      returnTo: "/dashboard",
+    })
+
+    if (dashboardMetric) {
+      params.set("metric", dashboardMetric)
+    }
+
+    router.push(
+      `/dashboard/decisions/new?${params.toString()}`
+    )
+  }
+
   const dashboardManagementActions = (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {canConfigureWorkspace && shareEnabled && (
@@ -3092,6 +3125,20 @@ export default function DashboardPage() {
           tone="danger"
           className="h-9 rounded-lg px-3 text-xs shadow-none"
         />
+      )}
+
+      {showIndustryManagementToggles &&
+        canCreateDecisions &&
+        selectedDatasetId && (
+        <button
+          type="button"
+          onClick={handleOpenDashboardDecision}
+          className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 text-xs font-semibold text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
+          title="Create a decision from this dashboard's selected dataset and metric."
+        >
+          <Plus size={14} />
+          Create decision
+        </button>
       )}
 
       {canConfigureWorkspace && (
@@ -3155,6 +3202,7 @@ export default function DashboardPage() {
               : "Compare data"}
         </button>
       )}
+
     </div>
   )
 
@@ -3214,28 +3262,6 @@ export default function DashboardPage() {
     const dashboardRecommendationMetric =
       customDashboardMetricValue ||
       dashboardAutoMetricMapping.primary
-
-    function handleOpenDashboardDecision() {
-      if (!selectedDatasetId || !canCreateDecisions) {
-        return
-      }
-
-      const params = new URLSearchParams({
-        dataset: String(selectedDatasetId),
-        returnTo: "/dashboard",
-      })
-
-      if (dashboardRecommendationMetric) {
-        params.set(
-          "metric",
-          dashboardRecommendationMetric
-        )
-      }
-
-      router.push(
-        `/dashboard/decisions/new?${params.toString()}`
-      )
-    }
 
     async function handleCreateDashboardRecommendation() {
       const analysis = dataset?.ai_analysis
@@ -4027,9 +4053,23 @@ export default function DashboardPage() {
               className="w-fit rounded-md border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50"
             >
               Retry dashboard load
-            </button>
-          )}
-        </div>
+        </button>
+      )}
+
+      {showIndustryManagementToggles &&
+        canCreateDecisions &&
+        selectedDatasetId && (
+        <button
+          type="button"
+          onClick={handleOpenDashboardDecision}
+          className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 text-xs font-semibold text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
+          title="Create a decision from this dashboard's selected dataset and metric."
+        >
+          <Plus size={14} />
+          Create decision
+        </button>
+      )}
+    </div>
       )}
 
       {/* =========================
