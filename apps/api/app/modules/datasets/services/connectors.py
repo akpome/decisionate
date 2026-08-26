@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime, timedelta
 import re
 from time import sleep
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import pandas as pd
@@ -24,6 +24,14 @@ from app.modules.oauth.service import (
 
 
 PAGE_SIZE = 100
+SALESFORCE_OBJECT_TYPES = {
+    "Account",
+    "Lead",
+    "Opportunity",
+}
+SALESFORCE_MAX_SOQL_LENGTH = 6000
+
+
 class ConnectorUnavailable(RuntimeError):
     pass
 
@@ -101,6 +109,13 @@ def load_connector_dataframe(
 ) -> tuple[pd.DataFrame, dict]:
     if connection.source_type == "hubspot":
         return load_hubspot_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+        )
+    if connection.source_type == "salesforce":
+        return load_salesforce_dataframe(
             db,
             connection,
             start_date,
@@ -255,6 +270,238 @@ def load_hubspot_dataframe(
     return dataframe, {
         "connector": "hubspot",
         "object_type": object_type,
+        "start_date": date_value(start_date),
+        "end_date": date_value(end_date),
+        "row_count": len(dataframe),
+    }
+
+
+def validate_salesforce_instance_url(value) -> str:
+    instance_url = str(value or "").strip().rstrip("/")
+    parsed = urlparse(instance_url)
+    hostname = (parsed.hostname or "").lower()
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.path not in ("", "/")
+        or not (
+            hostname == "salesforce.com"
+            or hostname.endswith(".salesforce.com")
+        )
+    ):
+        raise ConnectorUnavailable(
+            "Salesforce authorization did not provide a valid instance URL"
+        )
+    return instance_url
+
+
+def get_salesforce_api_version() -> str:
+    value = get_provider_setting("SALESFORCE_API_VERSION").strip()
+    normalized = value.removeprefix("v")
+    if not re.fullmatch(r"\d+\.\d+", normalized):
+        raise ConnectorUnavailable(
+            "SALESFORCE_API_VERSION must be a Salesforce version such as 65.0"
+        )
+    return f"v{normalized}"
+
+
+def salesforce_date_boundary(value, end_of_day: bool = False) -> str:
+    if isinstance(value, datetime):
+        value = value.date()
+    boundary = "23:59:59" if end_of_day else "00:00:00"
+    return f"{value.isoformat()}T{boundary}Z"
+
+
+def salesforce_field_batches(
+    object_type: str,
+    field_names: list[str],
+):
+    batch = ["Id"]
+    for field_name in field_names:
+        if field_name == "Id":
+            continue
+        candidate = [*batch, field_name]
+        query = (
+            f"SELECT {', '.join(candidate)} FROM {object_type}"
+        )
+        if (
+            len(query) > SALESFORCE_MAX_SOQL_LENGTH
+            and len(batch) > 1
+        ):
+            yield batch
+            batch = ["Id", field_name]
+        else:
+            batch = candidate
+    if batch:
+        yield batch
+
+
+def resolve_salesforce_next_url(
+    instance_url: str,
+    next_url: str,
+) -> str:
+    parsed = urlparse(next_url)
+    if parsed.scheme or parsed.netloc:
+        base_host = (urlparse(instance_url).hostname or "").lower()
+        if (
+            parsed.scheme != "https"
+            or (parsed.hostname or "").lower() != base_host
+        ):
+            raise ConnectorUnavailable(
+                "Salesforce returned an invalid pagination URL"
+            )
+        return next_url
+    if not next_url.startswith("/"):
+        raise ConnectorUnavailable(
+            "Salesforce returned an invalid pagination URL"
+        )
+    return f"{instance_url}{next_url}"
+
+
+def load_salesforce_query_records(
+    instance_url: str,
+    api_root: str,
+    access_token: str,
+    soql: str,
+):
+    next_url = f"{api_root}/query/?{urlencode({'q': soql})}"
+    seen_urls = set()
+    while next_url:
+        if next_url in seen_urls:
+            raise ConnectorUnavailable(
+                "Salesforce returned a repeated pagination URL"
+            )
+        seen_urls.add(next_url)
+        payload = connector_json_request(
+            next_url,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        records = payload.get("records")
+        if not isinstance(records, list):
+            raise ConnectorUnavailable(
+                "Salesforce returned an invalid records response"
+            )
+        for record in records:
+            if isinstance(record, dict):
+                yield record
+        next_records_url = str(
+            payload.get("nextRecordsUrl") or ""
+        ).strip()
+        next_url = (
+            resolve_salesforce_next_url(instance_url, next_records_url)
+            if next_records_url
+            else ""
+        )
+
+
+def load_salesforce_dataframe(
+    db,
+    connection: DataSourceConnection,
+    start_date=None,
+    end_date=None,
+) -> tuple[pd.DataFrame, dict]:
+    config = parse_connection_config(connection)
+    object_type = str(config.get("object_type") or "").strip()
+    if object_type not in SALESFORCE_OBJECT_TYPES:
+        raise ConnectorUnavailable(
+            "Salesforce object_type must be Account, Lead, or Opportunity"
+        )
+
+    instance_url = validate_salesforce_instance_url(
+        config.get("instance_url")
+    )
+    access_token = get_oauth_access_token(
+        db,
+        connection,
+        "salesforce",
+    )
+    api_version = get_salesforce_api_version()
+    api_root = f"{instance_url}/services/data/{api_version}"
+    describe_payload = connector_json_request(
+        f"{api_root}/sobjects/{object_type}/describe",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    described_fields = describe_payload.get("fields")
+    if not isinstance(described_fields, list):
+        raise ConnectorUnavailable(
+            "Salesforce returned an invalid object description"
+        )
+
+    field_names = ["Id"]
+    for field in described_fields:
+        if not isinstance(field, dict):
+            continue
+        field_name = str(field.get("name") or "").strip()
+        if (
+            field_name
+            and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field_name)
+            and field_name not in field_names
+        ):
+            field_names.append(field_name)
+    for required_field in ("CreatedDate", "LastModifiedDate"):
+        if required_field not in field_names:
+            field_names.append(required_field)
+
+    where_clauses = []
+    if start_date is not None:
+        where_clauses.append(
+            "LastModifiedDate >= "
+            f"{salesforce_date_boundary(start_date)}"
+        )
+    if end_date is not None:
+        where_clauses.append(
+            "LastModifiedDate <= "
+            f"{salesforce_date_boundary(end_date, end_of_day=True)}"
+        )
+    where_clause = (
+        f" WHERE {' AND '.join(where_clauses)}"
+        if where_clauses
+        else ""
+    )
+
+    records_by_id = {}
+    query_count = 0
+    for field_batch in salesforce_field_batches(
+        object_type,
+        field_names,
+    ):
+        query_count += 1
+        soql = (
+            f"SELECT {', '.join(field_batch)} FROM {object_type}"
+            f"{where_clause} ORDER BY LastModifiedDate ASC"
+        )
+        for item in load_salesforce_query_records(
+            instance_url,
+            api_root,
+            access_token,
+            soql,
+        ):
+            record_id = str(item.get("Id") or "").strip()
+            if not record_id:
+                continue
+            provider_record = {
+                key: value
+                for key, value in item.items()
+                if key != "attributes"
+            }
+            row = build_dynamic_connector_row(
+                provider_record,
+                {
+                    "record_id": record_id,
+                    "created_at": item.get("CreatedDate"),
+                    "updated_at": item.get("LastModifiedDate"),
+                    "object_type": object_type,
+                },
+            )
+            records_by_id.setdefault(record_id, {}).update(row)
+
+    dataframe = pd.DataFrame(records_by_id.values())
+    return dataframe, {
+        "connector": "salesforce",
+        "object_type": object_type,
+        "api_version": api_version,
+        "field_count": len(field_names),
+        "query_count": query_count,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
@@ -1134,6 +1381,15 @@ def get_oauth_access_token(
             credential.token_type = str(payload.get("token_type") or "") or credential.token_type
             credential.scope = str(payload.get("scope") or "") or credential.scope
             credential.expires_at = token_expiry(payload)
+            if source_type == "salesforce" and payload.get("instance_url"):
+                refreshed_config = parse_connection_config(connection)
+                refreshed_config["instance_url"] = validate_salesforce_instance_url(
+                    payload.get("instance_url")
+                )
+                connection.connection_config = json.dumps(
+                    refreshed_config,
+                    sort_keys=True,
+                )
             db.commit()
         except ConnectorUnavailable:
             raise

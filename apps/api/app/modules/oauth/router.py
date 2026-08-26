@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -28,6 +28,25 @@ from app.modules.oauth.service import (
 
 router = APIRouter()
 STATE_TTL_MINUTES = 10
+
+
+def get_salesforce_instance_url(payload: dict) -> str:
+    instance_url = str(payload.get("instance_url") or "").strip().rstrip("/")
+    parsed = urlparse(instance_url)
+    hostname = (parsed.hostname or "").lower()
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.path not in ("", "/")
+        or not (
+            hostname == "salesforce.com"
+            or hostname.endswith(".salesforce.com")
+        )
+    ):
+        raise OAuthTokenExchangeError(
+            "Salesforce did not return a valid HTTPS instance URL"
+        )
+    return instance_url
 
 
 def get_workspace_connection(db, connection_id: int, auth_context):
@@ -256,6 +275,14 @@ def process_oauth_callback(
                     "Sage did not return a business identifier"
                 )
             connection_config["business_id"] = business_id
+            connection.connection_config = json.dumps(
+                connection_config,
+                sort_keys=True,
+            )
+        if state.source_type == "salesforce":
+            connection_config["instance_url"] = get_salesforce_instance_url(
+                payload
+            )
             connection.connection_config = json.dumps(
                 connection_config,
                 sort_keys=True,

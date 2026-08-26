@@ -429,6 +429,7 @@ function DataSourceConnectionRow({
       "freshbooks",
       "sage",
       "xero",
+      "salesforce",
       "postgresql",
       "mysql",
       "sql_server",
@@ -1043,6 +1044,12 @@ const CONNECTION_FIELD_GUIDES: Record<
       example: "amount,dealstage,closedate",
     },
   },
+  salesforce: {
+    object_type: {
+      description: "Choose the Sales Cloud object to ingest.",
+      example: "Opportunity",
+    },
+  },
   meta_ads: {
     ad_account_id: {
       description: "The Meta advertising account ID. The act_ prefix is accepted or added.",
@@ -1217,6 +1224,24 @@ function ConnectionConfigField({
     : fieldGuide.example
   const sharedClassName =
     "mt-1 min-w-0 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 text-sm normal-case tracking-normal text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+
+  if (sourceType === "salesforce" && configKey === "object_type") {
+    return (
+      <label className="block min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
+        {label}
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={`${sharedClassName} h-9`}
+        >
+          <option value="">Select a Sales Cloud object</option>
+          <option value="Account">Accounts</option>
+          <option value="Lead">Leads</option>
+          <option value="Opportunity">Opportunities</option>
+        </select>
+      </label>
+    )
+  }
 
   return (
     <label className="block min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">

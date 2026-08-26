@@ -193,6 +193,65 @@ class ConnectorSmokeTests(unittest.TestCase):
                 self.assertFalse(dataframe.empty, source_type)
                 self.assertEqual(report["connector"], source_type)
 
+    def test_salesforce_selected_object_preserves_dynamic_fields(self):
+        def json_request(url, headers):
+            self.assertEqual(
+                headers["Authorization"],
+                "Bearer test-access-token",
+            )
+            if url.endswith("/sobjects/Opportunity/describe"):
+                return {
+                    "fields": [
+                        {"name": "Id"},
+                        {"name": "Name"},
+                        {"name": "Amount"},
+                        {"name": "Custom_Score__c"},
+                    ]
+                }
+            if "/query/" in url:
+                return {
+                    "records": [{
+                        "attributes": {
+                            "type": "Opportunity",
+                        },
+                        "Id": "006-test",
+                        "Name": "Expansion",
+                        "Amount": 12500,
+                        "Custom_Score__c": 0.84,
+                        "CreatedDate": "2026-01-02T00:00:00Z",
+                        "LastModifiedDate": "2026-01-02T00:00:00Z",
+                    }],
+                    "done": True,
+                }
+            raise AssertionError(f"Unhandled Salesforce URL: {url}")
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="test-access-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ), patch.dict(
+            os.environ,
+            {"SALESFORCE_API_VERSION": "65.0"},
+            clear=False,
+        ):
+            dataframe, report = connectors.load_connector_dataframe(
+                None,
+                make_connection("salesforce", {
+                    "object_type": "Opportunity",
+                    "instance_url": "https://example.my.salesforce.com",
+                }),
+            )
+
+        self.assertEqual(report["object_type"], "Opportunity")
+        self.assertEqual(report["api_version"], "v65.0")
+        self.assertEqual(dataframe.iloc[0]["Name"], "Expansion")
+        self.assertEqual(dataframe.iloc[0]["Custom_Score__c"], 0.84)
+        self.assertEqual(dataframe.iloc[0]["record_id"], "006-test")
+
     def test_database_connectors_load_read_only_rows(self):
         with tempfile.NamedTemporaryFile(suffix=".sqlite") as database_file:
             engine = create_engine(f"sqlite:///{database_file.name}")

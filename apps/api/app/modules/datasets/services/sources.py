@@ -23,6 +23,7 @@ IMPLEMENTED_CONNECTOR_TYPES = {
     "freshbooks",
     "sage",
     "xero",
+    "salesforce",
     "postgresql",
     "mysql",
     "sql_server",
@@ -203,6 +204,19 @@ DATASET_SOURCES = [
         ),
     },
     {
+        "type": "salesforce",
+        "label": "Salesforce Sales Cloud",
+        "category": "business_apps",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["object_type"],
+        "description": (
+            "Connect one Sales Cloud object at a time. Accounts, leads, and "
+            "opportunities are discovered with their available provider fields."
+        ),
+    },
+    {
         "type": "meta_ads",
         "label": "Meta Ads",
         "category": "business_apps",
@@ -255,6 +269,10 @@ DATASET_SOURCE_ENV_KEYS = {
         "HUBSPOT_CLIENT_ID",
         "HUBSPOT_CLIENT_SECRET",
     ],
+    "salesforce": [
+        "SALESFORCE_CLIENT_ID",
+        "SALESFORCE_CLIENT_SECRET",
+    ],
     "google_analytics": [
         "GOOGLE_ANALYTICS_CLIENT_ID",
         "GOOGLE_ANALYTICS_CLIENT_SECRET",
@@ -287,6 +305,9 @@ DATASET_SOURCE_RUNTIME_ENV_KEYS = {
     "hubspot": [
         "HUBSPOT_API_BASE_URL",
         "HUBSPOT_CRM_API_VERSION",
+    ],
+    "salesforce": [
+        "SALESFORCE_API_VERSION",
     ],
     "meta_ads": [
         "META_ADS_API_BASE_URL",
@@ -455,6 +476,7 @@ def clone_dataset_source(source):
         "quickbooks",
         "freshbooks",
         "xero",
+        "salesforce",
     }:
         if (
             is_oauth_provider_configured(source["type"])

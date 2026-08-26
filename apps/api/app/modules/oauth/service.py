@@ -111,6 +111,15 @@ OAUTH_PROVIDERS = {
         use_basic_token_auth=True,
         required_scopes=("accounting.transactions",),
     ),
+    "salesforce": OAuthProvider(
+        source_type="salesforce",
+        authorization_url_env="SALESFORCE_OAUTH_AUTHORIZATION_URL",
+        token_url_env="SALESFORCE_OAUTH_TOKEN_URL",
+        client_id_env="SALESFORCE_CLIENT_ID",
+        client_secret_env="SALESFORCE_CLIENT_SECRET",
+        scopes_env="SALESFORCE_OAUTH_SCOPES",
+        required_scopes=("api", "refresh_token"),
+    ),
     "google_analytics": OAuthProvider(
         source_type="google_analytics",
         authorization_url_env="GOOGLE_ANALYTICS_OAUTH_AUTHORIZATION_URL",

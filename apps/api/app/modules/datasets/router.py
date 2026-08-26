@@ -179,6 +179,7 @@ CONNECTOR_DEDUP_KEYS = {
     "quickbooks": ["invoice_id"],
     "freshbooks": ["invoice_id"],
     "xero": ["invoice_id"],
+    "salesforce": ["record_id"],
 }
 REMOVED_FILE_STORAGE_CONNECTORS = {
     "google_drive",
@@ -2409,6 +2410,12 @@ async def update_source_connection(
                 if (
                     str(config_key).startswith("_")
                     and config_key != "_connector_retention_months"
+                    and config_key not in next_config
+                ):
+                    next_config[config_key] = config_value
+                if (
+                    connection.source_type == "salesforce"
+                    and config_key == "instance_url"
                     and config_key not in next_config
                 ):
                     next_config[config_key] = config_value
