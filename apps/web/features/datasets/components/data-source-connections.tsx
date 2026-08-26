@@ -42,7 +42,8 @@ interface DataSourceConnectionsProps {
     enabled: boolean,
     intervalHours: number,
     timeOfDay: string,
-    timezone: string
+    timezone: string,
+    dayOfWeek: number
   ) => void
 }
 
@@ -263,6 +264,9 @@ export function DataSourceConnections({
           onStartOAuthConnection={
             onStartOAuthConnection
           }
+          onCancelOAuthAuthorization={
+            onCancelOAuthAuthorization
+          }
           onUpdateSchedule={onUpdateSchedule}
           sources={sources}
           configuringConnectionId={
@@ -346,12 +350,16 @@ function DataSourceConnectionRow({
   onStartOAuthConnection?: (
     connection: DataSourceConnection
   ) => void
+  onCancelOAuthAuthorization?: (
+    connection: DataSourceConnection
+  ) => void
   onUpdateSchedule?: (
     connection: DataSourceConnection,
     enabled: boolean,
     intervalHours: number,
     timeOfDay: string,
-    timezone: string
+    timezone: string,
+    dayOfWeek: number
   ) => void
   sources: DatasetSourceOption[]
   configuringConnectionId: number | null
@@ -374,10 +382,6 @@ function DataSourceConnectionRow({
     editingConnectionId === connection.id
   const isConfiguring =
     configuringConnectionId === connection.id
-  const [syncStartDate, setSyncStartDate] =
-    useState("")
-  const [syncEndDate, setSyncEndDate] =
-    useState("")
   const [syncMetrics, setSyncMetrics] =
     useState([
       "activeUsers",
@@ -456,6 +460,8 @@ function DataSourceConnectionRow({
     useState(connection.sync_time_of_day ?? "09:00")
   const [scheduleTimezone] =
     useState(connection.sync_timezone ?? "")
+  const [scheduleDayOfWeek, setScheduleDayOfWeek] =
+    useState(String(connection.sync_day_of_week ?? 0))
 
 
   function toggleSyncMetric(metric: string) {
@@ -476,12 +482,6 @@ function DataSourceConnectionRow({
     onSyncConnection?.(
       connection,
       {
-        ...(syncStartDate
-          ? { start_date: syncStartDate }
-          : {}),
-        ...(syncEndDate
-          ? { end_date: syncEndDate }
-          : {}),
         dimensions: ["date"],
         metrics: syncMetrics,
       }
@@ -606,8 +606,6 @@ function DataSourceConnectionRow({
               Configure connection settings
             </p>
 
-            <ConnectionSetupGuide source={source} />
-
             {configKeys.length > 0 && (
               <ConnectionConfigFieldGroup
                 title="Dataset Settings"
@@ -624,10 +622,6 @@ function DataSourceConnectionRow({
                 }
               />
             )}
-
-            <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
-              Saved connection values are hidden. Enter replacement values for the fields you want to save.
-            </p>
 
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button
@@ -683,38 +677,8 @@ function DataSourceConnectionRow({
           canSyncConnector && (
           <div className="mt-4 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
-              Google Analytics sync range and metrics
+              Google Analytics metrics
             </p>
-
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-medium text-gray-600">
-                Start date
-                <input
-                  type="date"
-                  value={syncStartDate}
-                  onChange={(event) =>
-                    setSyncStartDate(
-                      event.target.value
-                    )
-                  }
-                  className="mt-1 block h-9 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
-                />
-              </label>
-
-              <label className="text-xs font-medium text-gray-600">
-                End date
-                <input
-                  type="date"
-                  value={syncEndDate}
-                  onChange={(event) =>
-                    setSyncEndDate(
-                      event.target.value
-                    )
-                  }
-                  className="mt-1 block h-9 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
-                />
-              </label>
-            </div>
 
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
               {[
@@ -742,7 +706,7 @@ function DataSourceConnectionRow({
             </div>
 
             <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
-              Leave dates blank to sync the previous 365 days. Select at least one metric.
+              Select at least one metric.
             </p>
           </div>
         )}
@@ -763,7 +727,7 @@ function DataSourceConnectionRow({
               </label>
 
               <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-600">
-                Every
+                Frequency
                 <select
                   value={scheduleIntervalHours}
                   onChange={(event) =>
@@ -771,13 +735,37 @@ function DataSourceConnectionRow({
                   }
                   className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
                 >
-                  {[1, 6, 12, 24, 72, 168].map((hours) => (
-                    <option key={hours} value={hours}>
-                      {hours < 24 ? `${hours} hours` : `${hours / 24} days`}
-                    </option>
-                  ))}
+                  <option value="24">Daily</option>
+                  <option value="168">Weekly</option>
                 </select>
               </label>
+
+              {scheduleIntervalHours === "168" && (
+                <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-600">
+                  On
+                  <select
+                    value={scheduleDayOfWeek}
+                    onChange={(event) =>
+                      setScheduleDayOfWeek(event.target.value)
+                    }
+                    className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
+                  >
+                    {[
+                      [0, "Sunday"],
+                      [1, "Monday"],
+                      [2, "Tuesday"],
+                      [3, "Wednesday"],
+                      [4, "Thursday"],
+                      [5, "Friday"],
+                      [6, "Saturday"],
+                    ].map(([day, label]) => (
+                      <option key={day} value={day}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
               <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-600">
                 At local time
@@ -799,7 +787,8 @@ function DataSourceConnectionRow({
                     scheduleEnabled,
                     Number(scheduleIntervalHours),
                     scheduleTimeOfDay,
-                    scheduleTimezone || getBrowserTimezone()
+                    scheduleTimezone || getBrowserTimezone(),
+                    Number(scheduleDayOfWeek)
                   )
                 }
                 disabled={updatingConnectionId === connection.id}

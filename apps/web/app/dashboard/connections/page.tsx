@@ -376,7 +376,8 @@ function ConnectionsPageContent({
     enabled: boolean,
     intervalHours: number,
     timeOfDay: string,
-    timezone: string
+    timezone: string,
+    dayOfWeek: number
   ) {
     if (!user?.id) return
     setUpdatingConnectionId(connection.id)
@@ -390,6 +391,7 @@ function ConnectionsPageContent({
             interval_hours: intervalHours,
             time_of_day: timeOfDay,
             timezone,
+            day_of_week: dayOfWeek,
           },
           user.id,
           activeWorkspaceId

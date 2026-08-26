@@ -424,6 +424,7 @@ export type DataSourceConnection = {
   sync_interval_hours?: number
   sync_time_of_day?: string | null
   sync_timezone?: string | null
+  sync_day_of_week?: number | null
   created_at?: string
   updated_at?: string
 }
@@ -444,6 +445,7 @@ export type DataSourceConnectionSchedulePayload = {
   interval_hours: number
   time_of_day: string
   timezone: string
+  day_of_week: number
 }
 
 export type DataSourceConnectionSyncResult = {

@@ -10,12 +10,13 @@ SYNC_INTERVAL_HOURS_KEY = "_sync_interval_hours"
 SYNC_TIME_OF_DAY_KEY = "_sync_time_of_day"
 SYNC_TIMEZONE_KEY = "_sync_timezone"
 SYNC_ANCHOR_DATE_KEY = "_sync_anchor_date"
+SYNC_DAY_OF_WEEK_KEY = "_sync_day_of_week"
 DEFAULT_SYNC_ENABLED = True
 DEFAULT_SYNC_INTERVAL_HOURS = 24
 DEFAULT_SYNC_TIME_OF_DAY = "09:00"
 DEFAULT_SYNC_TIMEZONE = "UTC"
-MIN_SYNC_INTERVAL_HOURS = 1
-MAX_SYNC_INTERVAL_HOURS = 24 * 31
+DEFAULT_SYNC_DAY_OF_WEEK = 0
+SUPPORTED_SYNC_INTERVAL_HOURS = (24, 168)
 
 
 def parse_connection_config(value) -> dict:
@@ -31,7 +32,7 @@ def parse_connection_config(value) -> dict:
 
 
 def read_connection_schedule(value) -> tuple[bool, int]:
-    enabled, interval_hours, _, _, _ = read_connection_schedule_details(value)
+    enabled, interval_hours, _, _, _, _ = read_connection_schedule_details(value)
     return enabled, interval_hours
 
 
@@ -52,12 +53,25 @@ def _normalize_timezone(value, fallback: str = DEFAULT_SYNC_TIMEZONE) -> str:
     return clean_value
 
 
+def _normalize_day_of_week(
+    value,
+    fallback: int = DEFAULT_SYNC_DAY_OF_WEEK,
+) -> int:
+    try:
+        clean_value = int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+    return clean_value if 0 <= clean_value <= 6 else fallback
+
+
 def read_connection_schedule_details(value) -> tuple[
     bool,
     int,
     str,
     str,
     str | None,
+    int,
 ]:
     config = parse_connection_config(value)
     enabled = str(
@@ -80,10 +94,8 @@ def read_connection_schedule_details(value) -> tuple[
         )
     except (TypeError, ValueError):
         interval_hours = DEFAULT_SYNC_INTERVAL_HOURS
-    interval_hours = max(
-        MIN_SYNC_INTERVAL_HOURS,
-        min(MAX_SYNC_INTERVAL_HOURS, interval_hours),
-    )
+    if interval_hours not in SUPPORTED_SYNC_INTERVAL_HOURS:
+        interval_hours = DEFAULT_SYNC_INTERVAL_HOURS
     anchor_date = config.get(SYNC_ANCHOR_DATE_KEY)
     try:
         if anchor_date:
@@ -93,12 +105,16 @@ def read_connection_schedule_details(value) -> tuple[
             anchor_date = None
     except ValueError:
         anchor_date = None
+    day_of_week = _normalize_day_of_week(
+        config.get(SYNC_DAY_OF_WEEK_KEY)
+    )
     return (
         enabled,
         interval_hours,
         _normalize_time_of_day(config.get(SYNC_TIME_OF_DAY_KEY)),
         _normalize_timezone(config.get(SYNC_TIMEZONE_KEY)),
         anchor_date,
+        day_of_week,
     )
 
 
@@ -108,34 +124,26 @@ def write_connection_schedule(
     interval_hours: int,
     time_of_day: str | None = None,
     timezone_name: str | None = None,
+    day_of_week: int | None = None,
     now: datetime | None = None,
 ) -> str:
     try:
         clean_interval = int(interval_hours)
     except (TypeError, ValueError) as error:
         raise ValueError("Sync interval must be a whole number of hours") from error
-    if not MIN_SYNC_INTERVAL_HOURS <= clean_interval <= MAX_SYNC_INTERVAL_HOURS:
+    if clean_interval not in SUPPORTED_SYNC_INTERVAL_HOURS:
         raise ValueError(
-            f"Sync interval must be between {MIN_SYNC_INTERVAL_HOURS} and "
-            f"{MAX_SYNC_INTERVAL_HOURS} hours"
+            "Sync interval must be one of: "
+            + ", ".join(
+                f"{hours} hours"
+                for hours in SUPPORTED_SYNC_INTERVAL_HOURS
+            )
         )
 
     config = parse_connection_config(value)
     # Retention is an application policy, not a customer setting. Remove the
     # legacy key when an existing connection is scheduled again.
     config.pop("_connector_retention_months", None)
-    previous_enabled = str(
-        config.get(
-            SYNC_ENABLED_KEY,
-            str(DEFAULT_SYNC_ENABLED).lower(),
-        )
-    ).lower() in {"1", "true", "yes", "on"}
-    previous_time = _normalize_time_of_day(
-        config.get(SYNC_TIME_OF_DAY_KEY)
-    )
-    previous_timezone = _normalize_timezone(
-        config.get(SYNC_TIMEZONE_KEY)
-    )
     next_time = _normalize_time_of_day(
         time_of_day
         if time_of_day is not None
@@ -146,16 +154,32 @@ def write_connection_schedule(
         if timezone_name is not None
         else config.get(SYNC_TIMEZONE_KEY)
     )
+    next_day_of_week = _normalize_day_of_week(
+        day_of_week
+        if day_of_week is not None
+        else config.get(SYNC_DAY_OF_WEEK_KEY)
+    )
+    (
+        previous_enabled,
+        previous_interval,
+        previous_time,
+        previous_timezone,
+        _,
+        previous_day_of_week,
+    ) = read_connection_schedule_details(config)
     # Reset the anchor whenever a schedule is enabled or its local clock changes.
     schedule_changed = (
         not previous_enabled
+        or previous_interval != clean_interval
         or previous_time != next_time
         or previous_timezone != next_timezone
+        or previous_day_of_week != next_day_of_week
     )
     config[SYNC_ENABLED_KEY] = bool(enabled)
     config[SYNC_INTERVAL_HOURS_KEY] = clean_interval
     config[SYNC_TIME_OF_DAY_KEY] = next_time
     config[SYNC_TIMEZONE_KEY] = next_timezone
+    config[SYNC_DAY_OF_WEEK_KEY] = next_day_of_week
     if enabled and schedule_changed:
         current_time = now or datetime.now(timezone.utc)
         if current_time.tzinfo is None:
@@ -175,6 +199,7 @@ def connection_sync_is_due(
     time_of_day: str | None = None,
     timezone_name: str | None = None,
     anchor_date: str | None = None,
+    day_of_week: int = DEFAULT_SYNC_DAY_OF_WEEK,
 ) -> bool:
     if last_synced_at is None:
         if not anchor_date:
@@ -185,9 +210,7 @@ def connection_sync_is_due(
             return True
         return last_synced_at + timedelta(hours=interval_hours) <= now
 
-    schedule_timezone = ZoneInfo(
-        _normalize_timezone(timezone_name)
-    )
+    schedule_timezone = ZoneInfo(_normalize_timezone(timezone_name))
     schedule_time = datetime.strptime(
         _normalize_time_of_day(time_of_day),
         "%H:%M",
@@ -201,17 +224,32 @@ def connection_sync_is_due(
         schedule_time,
         tzinfo=schedule_timezone,
     )
+    if interval_hours == 168:
+        target_weekday = (_normalize_day_of_week(day_of_week) - 1) % 7
+        days_since_target = (
+            current_local.weekday() - target_weekday
+        ) % 7
+        scheduled_date = current_local.date() - timedelta(
+            days=days_since_target
+        )
+        latest_slot = datetime.combine(
+            scheduled_date,
+            schedule_time,
+            tzinfo=schedule_timezone,
+        )
+        if current_local < latest_slot:
+            latest_slot -= timedelta(days=7)
+    else:
+        latest_slot = datetime.combine(
+            current_local.date(),
+            schedule_time,
+            tzinfo=schedule_timezone,
+        )
+        if current_local < latest_slot:
+            latest_slot -= timedelta(days=1)
 
-    if current_local < anchor_local:
+    if latest_slot < anchor_local:
         return False
-
-    elapsed_hours = (
-        current_local - anchor_local
-    ).total_seconds() / 3600
-    slot_number = int(elapsed_hours // interval_hours)
-    latest_slot = anchor_local + timedelta(
-        hours=slot_number * interval_hours
-    )
 
     if last_synced_at is None:
         return True

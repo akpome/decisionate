@@ -188,3 +188,4 @@ class DataSourceConnectionSchedule(BaseModel):
     interval_hours: int = 24
     time_of_day: str = "09:00"
     timezone: str = "UTC"
+    day_of_week: int = 0

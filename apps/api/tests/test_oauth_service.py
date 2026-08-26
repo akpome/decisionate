@@ -96,14 +96,35 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         config = write_connection_schedule(
             '{"property_id":"123"}',
             True,
-            6,
+            24,
         )
-        self.assertEqual(read_connection_schedule(config), (True, 6))
+        self.assertEqual(read_connection_schedule(config), (True, 24))
         self.assertTrue(
             connection_sync_is_due(
-                datetime.now() - timedelta(hours=7),
+                datetime.now() - timedelta(hours=25),
                 datetime.now(),
+                24,
+            )
+        )
+
+        with self.assertRaises(ValueError):
+            write_connection_schedule(
+                '{"property_id":"123"}',
+                True,
                 6,
+            )
+
+    def test_weekly_schedule_uses_selected_day(self):
+        scheduled_time = datetime(2026, 8, 26, 10, 0)
+        self.assertTrue(
+            connection_sync_is_due(
+                scheduled_time - timedelta(days=7, hours=1),
+                scheduled_time,
+                168,
+                "09:00",
+                "UTC",
+                "2026-08-26",
+                3,
             )
         )
 

@@ -148,7 +148,6 @@ from app.modules.datasets.services.connectors import (
     load_connector_dataframe,
 )
 from app.modules.datasets.services.scheduling import (
-    SYNC_TIMEZONE_KEY,
     connection_sync_is_due,
     parse_connection_config as parse_schedule_config,
     read_connection_schedule_details,
@@ -709,12 +708,10 @@ def build_source_connection_response(
         sync_enabled,
         sync_interval_hours,
         sync_time_of_day,
+        sync_timezone,
         _,
-        _,
+        sync_day_of_week,
     ) = read_connection_schedule_details(
-        connection.connection_config
-    )
-    schedule_config = parse_schedule_config(
         connection.connection_config
     )
 
@@ -753,7 +750,8 @@ def build_source_connection_response(
         "sync_enabled": sync_enabled,
         "sync_interval_hours": sync_interval_hours,
         "sync_time_of_day": sync_time_of_day,
-        "sync_timezone": schedule_config.get(SYNC_TIMEZONE_KEY),
+        "sync_timezone": sync_timezone,
+        "sync_day_of_week": sync_day_of_week,
         "created_at": connection.created_at,
         "updated_at": connection.updated_at,
     }
@@ -2497,6 +2495,7 @@ async def update_source_connection_schedule(
                 payload.interval_hours,
                 payload.time_of_day,
                 payload.timezone,
+                payload.day_of_week,
             )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
@@ -3716,6 +3715,7 @@ async def sync_due_source_connections(request: Request):
                 time_of_day,
                 timezone_name,
                 anchor_date,
+                day_of_week,
             ) = read_connection_schedule_details(
                 connection.connection_config
             )
@@ -3726,6 +3726,7 @@ async def sync_due_source_connections(request: Request):
                 time_of_day,
                 timezone_name,
                 anchor_date,
+                day_of_week,
             ):
                 continue
 
