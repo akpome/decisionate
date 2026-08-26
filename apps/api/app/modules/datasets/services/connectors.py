@@ -36,6 +36,10 @@ class ConnectorUnavailable(RuntimeError):
     pass
 
 
+class ConnectorNoData(ConnectorUnavailable):
+    """Raised when a valid sync returns no records for its requested range."""
+
+
 def require_provider_url(setting_name: str) -> str:
     value = get_provider_setting(setting_name).rstrip("/")
     if not value:

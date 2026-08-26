@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import math
 import os
 import shutil
@@ -144,6 +145,7 @@ from app.modules.datasets.services.google_analytics import (
     load_google_analytics_report,
 )
 from app.modules.datasets.services.connectors import (
+    ConnectorNoData,
     ConnectorUnavailable,
     load_connector_dataframe,
 )
@@ -168,6 +170,7 @@ from app.modules.datasets.services.auth import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 INITIAL_CONNECTOR_SYNC_DAYS = 30
 CONNECTOR_INCREMENTAL_LOOKBACK_DAYS = 1
@@ -3297,8 +3300,17 @@ def persist_connector_dataframe(
 
         if dataframe.empty:
             if not existing_dataset:
-                raise ValueError(
-                    f"{connection.source_type} returned no rows for this sync"
+                start_date = report_config.get("start_date")
+                end_date = report_config.get("end_date")
+                period = (
+                    f" from {start_date} through {end_date}"
+                    if start_date and end_date
+                    else " for the selected sync period"
+                )
+                raise ConnectorNoData(
+                    f"{connection.source_type.replace('_', ' ').title()} "
+                    f"returned no records{period}. Verify that the connected "
+                    "account contains data in this range."
                 )
             dataframe = existing_dataframe
 
@@ -3821,6 +3833,7 @@ async def sync_source_connection(
     )
 
     db = SessionLocal()
+    connection = None
     try:
         connection = get_owned_source_connection(
             db,
@@ -3863,6 +3876,11 @@ async def sync_source_connection(
             "column_count": dataset.column_count,
             "report": report_config,
         }
+    except ConnectorNoData as error:
+        raise HTTPException(
+            status_code=422,
+            detail=str(error),
+        ) from error
     except (GoogleAnalyticsConnectorUnavailable, ConnectorUnavailable) as error:
         raise HTTPException(
             status_code=503,
@@ -3871,6 +3889,13 @@ async def sync_source_connection(
     except HTTPException:
         raise
     except Exception:
+        logger.exception(
+            "Connector sync failed",
+            extra={
+                "connection_id": connection_id,
+                "source_type": getattr(connection, "source_type", None),
+            },
+        )
         raise HTTPException(
             status_code=502,
             detail="Connector data could not be loaded",
