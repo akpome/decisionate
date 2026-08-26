@@ -396,6 +396,8 @@ export type DatasetSourceOption = {
   environment_keys?: string[]
   environment_configured?: boolean
   configured_environment_keys?: string[]
+  provider_setting_keys?: string[]
+  missing_provider_setting_keys?: string[]
 }
 
 export type DataSourceConnectionStatus =

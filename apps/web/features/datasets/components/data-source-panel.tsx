@@ -4,6 +4,8 @@ import {
   type DatasetSourceOption,
 } from "@/lib/api"
 
+import { ConnectionSetupGuide } from "@/features/datasets/components/data-source-connections"
+
 interface DataSourcePanelProps {
   sources: DatasetSourceOption[]
   savedSourceTypes?: string[]
@@ -146,6 +148,17 @@ export function DataSourcePanel({
                               source.availability_note
                             }
                           </p>
+                        )}
+
+                        {source.connection_type !==
+                          "upload" &&
+                          (hasConfigKeys ||
+                            hasEnvironmentKeys ||
+                            source.provider_setting_keys?.length) && (
+                          <ConnectionSetupGuide
+                            source={source}
+                            compact
+                          />
                         )}
 
                         {canCreateDraft &&
