@@ -153,8 +153,7 @@ export function DataSourcePanel({
                         {source.connection_type !==
                           "upload" &&
                           (hasConfigKeys ||
-                            hasEnvironmentKeys ||
-                            source.provider_setting_keys?.length) && (
+                            hasEnvironmentKeys) && (
                           <ConnectionSetupGuide
                             source={source}
                             compact
