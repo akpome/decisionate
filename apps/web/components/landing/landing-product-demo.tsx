@@ -2,9 +2,11 @@
 
 import {
   ArrowRight,
+  Bell,
   CheckCircle2,
   Database,
   Gauge,
+  Link2,
   Lightbulb,
   Pause,
   Play,
@@ -23,6 +25,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -32,6 +35,7 @@ import {
 const demoSteps = [
   {
     label: "Connect",
+    view: "connect",
     title: "Start with the data you already have",
     description: "Upload a CSV or Excel file, or connect a source your team already uses.",
     action: "Choose a source and bring a dataset into the workspace.",
@@ -41,6 +45,7 @@ const demoSteps = [
   },
   {
     label: "Configure",
+    view: "mapping",
     title: "Tell Decisionate what matters",
     description: "Select the dataset, metrics, date range, aggregation and dashboard that frame the question.",
     action: "Map a business metric to a source column and set the analysis period.",
@@ -49,7 +54,28 @@ const demoSteps = [
     icon: Gauge,
   },
   {
+    label: "Relate",
+    view: "relationship",
+    title: "Connect the signals behind a decision",
+    description: "Relate metrics from separate sources by normalized periods when one dataset does not tell the whole story.",
+    action: "Compare marketing spend with revenue and let Decisionate test sensible timing automatically.",
+    result: "A business-friendly association with strength, matched periods and the observed delay.",
+    example: "Strong association · Revenue follows ad spend by about 1 month",
+    icon: Link2,
+  },
+  {
+    label: "Monitor",
+    view: "monitoring",
+    title: "Keep important changes in view",
+    description: "Anomaly detection, targets and scheduled alerts help surface meaningful changes without requiring someone to watch every chart.",
+    action: "Choose a metric, define an optional target and configure an alert delivery channel.",
+    result: "A concise signal with the evidence, recommendation and next step ready for review.",
+    example: "Unusual increase · Revenue is 24% above its recent expected range",
+    icon: Bell,
+  },
+  {
     label: "Analyze",
+    view: "analysis",
     title: "See the signal behind the numbers",
     description: "Use dashboards, KPIs, comparisons and category breakdowns to understand what changed.",
     action: "Compare performance and look for a meaningful movement before acting.",
@@ -59,6 +85,7 @@ const demoSteps = [
   },
   {
     label: "Recommend",
+    view: "forecast",
     title: "Turn evidence into a next action",
     description: "Forecasts and recommendations combine current signals with historical decision learning, with transparent fallback guidance when AI is unavailable.",
     action: "Review the forecast, confidence, risks and supporting evidence.",
@@ -68,6 +95,7 @@ const demoSteps = [
   },
   {
     label: "Decide",
+    view: "decision",
     title: "Make the choice accountable",
     description: "Convert a recommendation into a decision with an owner, expected outcome and review date.",
     action: "Record what will be done, the expected outcome and how success will be measured.",
@@ -77,6 +105,7 @@ const demoSteps = [
   },
   {
     label: "Learn",
+    view: "learning",
     title: "Make the next recommendation wiser",
     description: "Record the actual result, outcome status and lesson learned when the decision is reviewed.",
     action: "Compare the expected outcome with what happened and capture the lesson.",
@@ -110,6 +139,13 @@ const forecastData = [
   { month: "Jul", actual: 74, forecast: 74 },
   { month: "Aug", actual: null, forecast: 81 },
   { month: "Sep", actual: null, forecast: 86 },
+]
+
+const monitoringData = [
+  { month: "Apr", value: 51, expected: 49 },
+  { month: "May", value: 58, expected: 52 },
+  { month: "Jun", value: 67, expected: 55 },
+  { month: "Jul", value: 74, expected: 60 },
 ]
 
 export function LandingProductDemo() {
@@ -228,38 +264,44 @@ export function LandingProductDemo() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-semibold text-slate-900">
-                    {step === 0
+                    {currentStep.view === "connect"
                       ? "Connected sources"
-                      : step === 1
+                      : currentStep.view === "mapping"
                         ? "Metric mapping"
-                        : step === 4
+                        : currentStep.view === "relationship"
+                          ? "Relationship analysis"
+                          : currentStep.view === "monitoring"
+                            ? "Alert monitor"
+                            : currentStep.view === "decision"
                           ? "New decision"
-                          : step === 5
+                          : currentStep.view === "learning"
                             ? "Outcome review"
-                            : step === 3
+                            : currentStep.view === "forecast"
                               ? "Forecast evidence"
                               : "Business performance"}
                   </p>
                   <p className="mt-0.5 text-[10px] text-slate-400">
-                    {step === 0
+                    {currentStep.view === "connect"
                       ? "Ready for analysis"
-                      : step === 1
+                      : currentStep.view === "mapping"
                         ? "Use the columns that answer the question"
-                        : step === 2
-                          ? "Compare decision activity by business area"
-                        : step === 4
+                        : currentStep.view === "relationship"
+                          ? "Observed association, not proven causation"
+                          : currentStep.view === "monitoring"
+                            ? "Signals checked against recent patterns"
+                            : currentStep.view === "decision"
                           ? "Recommendation converted to action"
-                          : step === 5
+                          : currentStep.view === "learning"
                             ? "Evidence returned to the decision loop"
-                            : step === 3
+                            : currentStep.view === "forecast"
                               ? "Historical actuals compared with the forecast"
-                            : "Last 7 periods"}
+                              : "Last 7 periods"}
                   </p>
                 </div>
                 <Gauge size={15} className="text-blue-600" aria-hidden="true" />
               </div>
 
-              {step === 3 && (
+              {currentStep.view === "forecast" && (
                 <div className="mt-2 flex items-center gap-3 text-[9px] font-semibold text-slate-500">
                   <span className="inline-flex items-center gap-1">
                     <span className="h-2 w-2 rounded-sm bg-blue-600" aria-hidden="true" />
@@ -273,7 +315,7 @@ export function LandingProductDemo() {
               )}
 
               <div className="mt-3 h-44">
-                {step === 0 ? (
+                {currentStep.view === "connect" ? (
                   <div className="grid h-full grid-cols-3 gap-2">
                     {["CSV", "Analytics", "CRM"].map((source, index) => (
                       <div key={source} className="flex flex-col justify-between rounded-md border border-slate-200 bg-slate-50 p-2">
@@ -285,7 +327,7 @@ export function LandingProductDemo() {
                       </div>
                     ))}
                   </div>
-                ) : step === 1 ? (
+                ) : currentStep.view === "mapping" ? (
                   <div className="space-y-2 pt-1">
                     {[
                       ["Revenue", "revenue", "Mapped"],
@@ -303,7 +345,43 @@ export function LandingProductDemo() {
                       <span>Monthly sum</span>
                     </div>
                   </div>
-                ) : step === 4 ? (
+                ) : currentStep.view === "relationship" ? (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                      <span className="text-[10px] font-bold text-slate-700">Meta Ads · Ad spend</span>
+                      <span className="rounded bg-blue-100 px-2 py-1 text-[9px] font-bold text-blue-700">Input</span>
+                    </div>
+                    <div className="flex justify-center text-slate-400" aria-hidden="true">
+                      <ArrowRight size={14} />
+                    </div>
+                    <div className="flex items-center justify-between rounded-md border border-emerald-200 bg-emerald-50 px-2 py-2">
+                      <span className="text-[10px] font-bold text-slate-700">Revenue · Monthly sum</span>
+                      <span className="rounded bg-emerald-100 px-2 py-1 text-[9px] font-bold text-emerald-700">Outcome</span>
+                    </div>
+                    <div className="rounded-md bg-slate-950 px-2 py-2 text-[10px] font-semibold text-white">
+                      Best observed delay: <span className="text-cyan-300">about 1 month</span>
+                    </div>
+                  </div>
+                ) : currentStep.view === "monitoring" ? (
+                  <div className="space-y-2 pt-1">
+                    <div className="h-28">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={monitoringData} margin={{ top: 5, right: 4, left: -28, bottom: 0 }}>
+                          <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" />
+                          <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 9, fill: "#94a3b8" }} />
+                          <YAxis hide />
+                          <Area type="monotone" dataKey="expected" stroke="#94a3b8" strokeDasharray="4 3" fill="none" />
+                          <Area type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={2.5} fill="#dbeafe" fillOpacity={0.8} />
+                          <Line type="monotone" dataKey="value" stroke="#2563eb" dot={{ r: 3, fill: "#2563eb" }} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex items-center justify-between rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-[10px]">
+                      <span className="font-bold text-amber-800">Unusual increase detected</span>
+                      <span className="font-semibold text-amber-700">24% above range</span>
+                    </div>
+                  </div>
+                ) : currentStep.view === "decision" ? (
                   <div className="space-y-2 pt-1">
                     {[
                       ["Decision", "Focus the highest-converting channel"],
@@ -316,7 +394,7 @@ export function LandingProductDemo() {
                       </div>
                     ))}
                   </div>
-                ) : step === 5 ? (
+                ) : currentStep.view === "learning" ? (
                   <div className="space-y-2 pt-1">
                     <div className="grid grid-cols-2 gap-2">
                       <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
@@ -333,7 +411,7 @@ export function LandingProductDemo() {
                       <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-700">Repeat the tested offer with the strongest channel mix.</p>
                     </div>
                   </div>
-                ) : step === 3 ? (
+                ) : currentStep.view === "forecast" ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={forecastData} margin={{ top: 6, right: 4, left: -24, bottom: 0 }}>
                       <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" />
@@ -344,7 +422,7 @@ export function LandingProductDemo() {
                       <Bar dataKey="forecast" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
-                ) : step === 2 ? (
+                ) : currentStep.view === "analysis" ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={decisionData} margin={{ top: 6, right: 4, left: -24, bottom: 0 }}>
                       <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" />
@@ -370,16 +448,30 @@ export function LandingProductDemo() {
 
             <div className="rounded-lg bg-slate-950 p-3 text-white">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-300">
-                {step < 3 ? "Dashboard signal" : step === 3 ? "AI recommendation" : step === 4 ? "Decision record" : "Learning evidence"}
+                {currentStep.view === "monitoring"
+                  ? "Alert signal"
+                  : currentStep.view === "forecast"
+                    ? "AI recommendation"
+                    : currentStep.view === "decision"
+                      ? "Decision record"
+                      : currentStep.view === "learning"
+                        ? "Learning evidence"
+                        : currentStep.view === "relationship"
+                          ? "Relationship context"
+                          : "Dashboard signal"}
               </p>
               <p className="mt-4 text-sm font-semibold leading-5">
-                {step < 3
-                  ? "Revenue is moving above its recent baseline."
-                  : step === 3
+                {currentStep.view === "monitoring"
+                  ? "Revenue is outside its recent expected range."
+                  : currentStep.view === "forecast"
                     ? "Protect the improving trend with a focused next action."
-                    : step === 4
+                    : currentStep.view === "decision"
                       ? "Increase campaign focus for the next review period."
-                      : "Outcome recorded. Lesson added to future context."}
+                      : currentStep.view === "learning"
+                        ? "Outcome recorded. Lesson added to future context."
+                        : currentStep.view === "relationship"
+                          ? "Ad spend and revenue move together with a one-month observed delay."
+                          : "Revenue is moving above its recent baseline."}
               </p>
               <div className="mt-4 border-t border-slate-800 pt-3">
                 <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">

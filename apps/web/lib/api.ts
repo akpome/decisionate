@@ -1518,6 +1518,8 @@ type AuthenticatedHeaders =
 
 const clerkTokenTimeoutMs = 1500
 const apiRequestTimeoutMs = 10000
+const apiMutationTimeoutMs = 30000
+const connectionRequestTimeoutMs = 30000
 const datasetDetailsRequestTimeoutMs = 30000
 const preferenceRequestTimeoutMs = 30000
 const apiReadCacheTtlMs = 15000
@@ -3217,7 +3219,8 @@ export async function getDatasetSources(
             userId,
             workspaceId
           ),
-        }
+        },
+        connectionRequestTimeoutMs
       )
   } catch (error) {
     rethrowApiFetchError(
@@ -3278,7 +3281,8 @@ export async function getDataSourceConnections(
             userId,
             workspaceId
           ),
-        }
+        },
+        connectionRequestTimeoutMs
       )
   } catch (error) {
     rethrowApiFetchError(
@@ -4539,7 +4543,8 @@ export async function deleteDataSourceConnection(
           userId,
           workspaceId ?? userId
         ),
-      }
+      },
+      apiMutationTimeoutMs
     )
 
   if (!response.ok) {
