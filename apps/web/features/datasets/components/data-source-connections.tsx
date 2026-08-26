@@ -412,6 +412,9 @@ function DataSourceConnectionRow({
     getExternalCredentialLabel(source)
   const sourceIsPlanned =
     source?.status === "planned"
+  const stripeAccountConfigured =
+    connection.source_type !== "stripe" ||
+    connection.has_config
   const canConfigure =
     Boolean(
       onConfigureConnection &&
@@ -437,6 +440,7 @@ function DataSourceConnectionRow({
       connection.source_type
     ) &&
     source?.status === "available" &&
+    stripeAccountConfigured &&
     (source?.connection_type !== "oauth" ||
       connection.status === "connected") &&
     Boolean(onSyncConnection)
@@ -600,6 +604,13 @@ function DataSourceConnectionRow({
               : "needs setup"}
           </p>
         )}
+
+        {connection.source_type === "stripe" &&
+          !connection.has_config && (
+            <p className="mt-1 break-words text-xs text-amber-700">
+              Enter and save the Stripe account ID before syncing.
+            </p>
+          )}
 
         {isConfiguring && (
           <div className="mt-4 max-w-2xl rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
@@ -1000,7 +1011,7 @@ const CONNECTION_FIELD_GUIDES: Record<
   },
   stripe: {
     account_id: {
-      description: "Optional connected-account ID. Leave blank for the main Stripe account.",
+      description: "Required Stripe account ID for the account whose charges should be synced.",
       example: "acct_123456789",
     },
   },

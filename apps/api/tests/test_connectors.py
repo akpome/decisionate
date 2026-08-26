@@ -175,7 +175,7 @@ class ConnectorSmokeTests(unittest.TestCase):
             ):
             cases = [
                 ("hubspot", {"object_type": "deals"}),
-                ("stripe", {}),
+                ("stripe", {"account_id": "acct_testaccount"}),
                 ("shopify", {"shop_domain": "shop.example.com"}),
                 ("meta_ads", {"ad_account_id": "act_123"}),
                 ("quickbooks", {"company_id": "company-1"}),
@@ -192,6 +192,25 @@ class ConnectorSmokeTests(unittest.TestCase):
                 )
                 self.assertFalse(dataframe.empty, source_type)
                 self.assertEqual(report["connector"], source_type)
+
+    def test_stripe_sync_requires_account_id(self):
+        with patch.dict(
+            os.environ,
+            {
+                "STRIPE_API_KEY": "test-key",
+                "STRIPE_API_URL": "https://api.stripe.com/v1",
+            },
+            clear=False,
+        ):
+            with self.assertRaisesRegex(
+                connectors.ConnectorUnavailable,
+                "Stripe account_id is required before syncing",
+            ):
+                connectors.load_stripe_dataframe(
+                    make_connection("stripe", {}),
+                    datetime(2026, 1, 1, tzinfo=UTC).date(),
+                    datetime(2026, 1, 31, tzinfo=UTC).date(),
+                )
 
     def test_salesforce_selected_object_preserves_dynamic_fields(self):
         def json_request(url, headers):

@@ -128,7 +128,7 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["account_id"],
         "description": (
-            "Connect Stripe charge and payment data."
+            "Connect charge and payment data from a specific Stripe account."
         ),
     },
     {

@@ -527,18 +527,20 @@ def load_stripe_dataframe(
     rows = []
     starting_after = None
     seen_starting_after = set()
-    base_url = require_provider_url("STRIPE_API_URL")
     account_id = str(config.get("account_id") or "").strip()
-    if account_id:
-        account_id = account_id.removeprefix("acct_")
-        if not re.fullmatch(r"[A-Za-z0-9]+", account_id):
-            raise ConnectorUnavailable(
-                "Stripe account_id must be a valid connected account ID"
-            )
-        account_id = f"acct_{account_id}"
+    if not account_id:
+        raise ConnectorUnavailable(
+            "Stripe account_id is required before syncing"
+        )
+    account_id = account_id.removeprefix("acct_")
+    if not re.fullmatch(r"[A-Za-z0-9]+", account_id):
+        raise ConnectorUnavailable(
+            "Stripe account_id must be a valid connected account ID"
+        )
+    account_id = f"acct_{account_id}"
+    base_url = require_provider_url("STRIPE_API_URL")
     request_headers = {"Authorization": f"Bearer {api_key}"}
-    if account_id:
-        request_headers["Stripe-Account"] = account_id
+    request_headers["Stripe-Account"] = account_id
     while True:
         if starting_after is not None:
             if starting_after in seen_starting_after:
