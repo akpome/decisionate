@@ -99,6 +99,46 @@ async def start_oauth_connection(
         db.close()
 
 
+@router.delete("/connections/{connection_id}/authorization")
+async def cancel_oauth_authorization(
+    request: Request,
+    connection_id: int,
+):
+    auth_context = get_auth_context(request)
+    if auth_context.workspace_role != "owner":
+        raise HTTPException(
+            status_code=403,
+            detail="Only workspace owners can cancel connector authorization",
+        )
+
+    db = SessionLocal()
+    try:
+        connection = get_workspace_connection(
+            db,
+            connection_id,
+            auth_context,
+        )
+        credential = (
+            db.query(OAuthCredential)
+            .filter(OAuthCredential.connection_id == connection.id)
+            .first()
+        )
+        if credential:
+            db.delete(credential)
+
+        db.query(OAuthConnectionState).filter(
+            OAuthConnectionState.connection_id == connection.id
+        ).delete(synchronize_session=False)
+        connection.status = "draft"
+        db.commit()
+        return {
+            "message": "Connector authorization cancelled",
+            "connection_id": connection.id,
+        }
+    finally:
+        db.close()
+
+
 def process_oauth_callback(
     request: Request,
     expected_source_type: str | None = None,

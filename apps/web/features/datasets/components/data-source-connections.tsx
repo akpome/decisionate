@@ -34,6 +34,9 @@ interface DataSourceConnectionsProps {
   onStartOAuthConnection?: (
     connection: DataSourceConnection
   ) => void
+  onCancelOAuthAuthorization?: (
+    connection: DataSourceConnection
+  ) => void
   onUpdateSchedule?: (
     connection: DataSourceConnection,
     enabled: boolean,
@@ -66,6 +69,7 @@ export function DataSourceConnections({
   onConfigureConnection,
   onSyncConnection,
   onStartOAuthConnection,
+  onCancelOAuthAuthorization,
   onUpdateSchedule,
 }: DataSourceConnectionsProps) {
   const [
@@ -428,11 +432,18 @@ function DataSourceConnectionRow({
       connection.source_type
     ) &&
     source?.status === "available" &&
+    (source?.connection_type !== "oauth" ||
+      connection.status === "connected") &&
     Boolean(onSyncConnection)
   const canStartOAuth =
     source?.connection_type === "oauth" &&
     source.status === "available" &&
+    connection.status !== "connected" &&
     Boolean(onStartOAuthConnection)
+  const canCancelOAuth =
+    source?.connection_type === "oauth" &&
+    connection.status === "connected" &&
+    Boolean(onCancelOAuthAuthorization)
   const canSchedule =
     source?.sync_modes?.includes("scheduled") === true &&
     Boolean(onUpdateSchedule) &&
@@ -825,7 +836,8 @@ function DataSourceConnectionRow({
             onDeleteConnection ||
             canConfigure ||
             canSyncConnector ||
-            canStartOAuth) && (
+            canStartOAuth ||
+            canCancelOAuth) && (
             <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
               {canSyncConnector && (
                 <button
@@ -861,6 +873,23 @@ function DataSourceConnectionRow({
                   className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   Connect with OAuth
+                </button>
+              )}
+
+              {canCancelOAuth && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onCancelOAuthAuthorization?.(connection)
+                  }
+                  disabled={
+                    updatingConnectionId === connection.id
+                  }
+                  className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  {updatingConnectionId === connection.id
+                    ? "Cancelling..."
+                    : "Cancel authorization"}
                 </button>
               )}
 

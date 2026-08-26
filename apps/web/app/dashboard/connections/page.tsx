@@ -7,6 +7,7 @@ import { DataSourceConnections } from "@/features/datasets/components/data-sourc
 import { DataSourcePanel } from "@/features/datasets/components/data-source-panel"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import {
+  cancelOAuthAuthorization,
   createDataSourceConnection,
   deleteDataSourceConnection,
   getDataSourceConnections,
@@ -339,6 +340,37 @@ function ConnectionsPageContent({
     }
   }
 
+  async function handleCancelOAuthAuthorization(
+    connection: DataSourceConnection
+  ) {
+    if (!user?.id) return
+
+    setUpdatingConnectionId(connection.id)
+    setConnectionError("")
+    setConnectionNotice("")
+    try {
+      await cancelOAuthAuthorization(
+        connection.id,
+        user.id,
+        activeWorkspaceId
+      )
+      setConnectionNotice(
+        `Authorization cancelled for ${connection.display_name}.`
+      )
+      await loadConnections()
+    } catch (error) {
+      setConnectionError(
+        getErrorMessage(
+          error,
+          "Could not cancel connector authorization."
+        )
+      )
+      console.error(error)
+    } finally {
+      setUpdatingConnectionId(null)
+    }
+  }
+
   async function handleUpdateConnectionSchedule(
     connection: DataSourceConnection,
     enabled: boolean,
@@ -640,6 +672,11 @@ function ConnectionsPageContent({
             onStartOAuthConnection={
               canConfigureWorkspace
                 ? handleStartOAuthConnection
+                : undefined
+            }
+            onCancelOAuthAuthorization={
+              canConfigureWorkspace
+                ? handleCancelOAuthAuthorization
                 : undefined
             }
             onUpdateSchedule={

@@ -4412,6 +4412,37 @@ export async function startOAuthConnection(
   return response.json()
 }
 
+export async function cancelOAuthAuthorization(
+  connectionId: number,
+  userId: string,
+  workspaceId?: string
+) {
+  const cleanConnectionId =
+    cleanPositiveIntegerId(
+      connectionId,
+      "Connection id"
+    )
+  const response = await apiFetch(
+    `${API_URL}/oauth/connections/${cleanConnectionId}/authorization`,
+    {
+      method: "DELETE",
+      headers: await workspaceHeaders(
+        userId,
+        workspaceId
+      ),
+    }
+  )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to cancel connector authorization"
+    )
+  }
+
+  return response.json()
+}
+
 export async function getBillingStatus(
   userId: string,
   workspaceId?: string
