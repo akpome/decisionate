@@ -191,6 +191,9 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             {
                 "GOOGLE_ANALYTICS_SERVICE_ACCOUNT_FILE": "",
                 "GOOGLE_ANALYTICS_SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
+                "GOOGLE_ANALYTICS_SCOPE": (
+                    "https://www.googleapis.com/auth/analytics.readonly"
+                ),
             },
             clear=False,
         ), patch.dict(

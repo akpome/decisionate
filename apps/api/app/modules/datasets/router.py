@@ -3235,6 +3235,8 @@ def run_google_analytics_sync(
         end_date=end_date.isoformat(),
         dimensions=payload.dimensions,
         metrics=payload.metrics,
+        db=db,
+        connection=connection,
     )
     return persist_connector_dataframe(
         db,

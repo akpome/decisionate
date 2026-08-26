@@ -111,6 +111,17 @@ OAUTH_PROVIDERS = {
         use_basic_token_auth=True,
         required_scopes=("accounting.transactions",),
     ),
+    "google_analytics": OAuthProvider(
+        source_type="google_analytics",
+        authorization_url_env="GOOGLE_ANALYTICS_OAUTH_AUTHORIZATION_URL",
+        token_url_env="GOOGLE_ANALYTICS_OAUTH_TOKEN_URL",
+        client_id_env="GOOGLE_ANALYTICS_CLIENT_ID",
+        client_secret_env="GOOGLE_ANALYTICS_CLIENT_SECRET",
+        scopes_env="GOOGLE_ANALYTICS_OAUTH_SCOPES",
+        required_scopes=(
+            "https://www.googleapis.com/auth/analytics.readonly",
+        ),
+    ),
 }
 
 
@@ -136,11 +147,31 @@ def get_sage_token_url(country: str | None = None) -> str:
     )
 
 
-def get_callback_url() -> str:
+def get_callback_url(source_type: str | None = None) -> str:
+    if source_type == "google_analytics":
+        google_configured = clean_env(
+            "GOOGLE_ANALYTICS_OAUTH_CALLBACK_URL"
+        )
+        if google_configured:
+            return google_configured.rstrip("/")
+
     configured = clean_env("OAUTH_CALLBACK_URL")
     if configured:
-        return configured.rstrip("/")
+        callback_url = configured.rstrip("/")
+        if (
+            source_type == "google_analytics"
+            and callback_url.endswith("/oauth/callback")
+        ):
+            return callback_url.removesuffix(
+                "/oauth/callback"
+            ) + "/oauth/google-analytics/callback"
+        return callback_url
     api_url = get_runtime_configuration().api_url
+    if source_type == "google_analytics":
+        return (
+            f"{api_url.rstrip('/')}/oauth/"
+            "google-analytics/callback"
+        )
     return f"{api_url.rstrip('/')}/oauth/callback"
 
 
@@ -241,11 +272,19 @@ def build_authorization_url(
 
     params = {
         "client_id": client_id,
-        "redirect_uri": get_callback_url(),
+        "redirect_uri": get_callback_url(source_type),
         "response_type": "code",
         "state": state_token,
         "scope": " ".join(scopes),
     }
+    if provider.source_type == "google_analytics":
+        params.update(
+            {
+                "access_type": "offline",
+                "include_granted_scopes": "true",
+                "prompt": "consent",
+            }
+        )
     return f"{authorization_url}?{urlencode(params)}"
 
 
@@ -273,7 +312,7 @@ def exchange_code(
     params = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": get_callback_url(),
+        "redirect_uri": get_callback_url(source_type),
     }
     headers = {"Accept": "application/json"}
     if provider.use_basic_token_auth:

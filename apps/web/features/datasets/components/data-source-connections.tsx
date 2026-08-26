@@ -402,8 +402,6 @@ function DataSourceConnectionRow({
     source?.environment_configured
   const externalCredentialLabel =
     getExternalCredentialLabel(source)
-  const connectionConfigHelpText =
-    getConnectionConfigHelpText(source)
   const sourceIsPlanned =
     source?.status === "planned"
   const canConfigure =
@@ -432,7 +430,6 @@ function DataSourceConnectionRow({
     source?.status === "available" &&
     Boolean(onSyncConnection)
   const canStartOAuth =
-    connection.source_type !== "google_analytics" &&
     source?.connection_type === "oauth" &&
     source.status === "available" &&
     Boolean(onStartOAuthConnection)
@@ -620,12 +617,6 @@ function DataSourceConnectionRow({
             <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
               Saved connection values are hidden. Enter replacement values for the fields you want to save.
             </p>
-
-            {requiresEnvironmentCredentials && (
-              <p className="mt-1 text-xs text-[var(--decisionate-brand-primary-text)]">
-                {connectionConfigHelpText}
-              </p>
-            )}
 
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button
@@ -1042,55 +1033,6 @@ const CONNECTION_FIELD_GUIDES: Record<
   },
 }
 
-const OAUTH_DEPLOYMENT_KEYS: Record<string, string[]> = {
-  shopify: [
-    "SHOPIFY_OAUTH_AUTHORIZATION_URL_TEMPLATE",
-    "SHOPIFY_OAUTH_TOKEN_URL_TEMPLATE",
-    "SHOPIFY_OAUTH_SCOPES",
-  ],
-  quickbooks: [
-    "QUICKBOOKS_OAUTH_AUTHORIZATION_URL",
-    "QUICKBOOKS_OAUTH_TOKEN_URL",
-    "QUICKBOOKS_OAUTH_SCOPES",
-  ],
-  freshbooks: [
-    "FRESHBOOKS_OAUTH_AUTHORIZATION_URL",
-    "FRESHBOOKS_OAUTH_TOKEN_URL",
-    "FRESHBOOKS_OAUTH_SCOPES",
-  ],
-  sage: [
-    "SAGE_OAUTH_AUTHORIZATION_URL",
-    "SAGE_OAUTH_TOKEN_URL",
-    "SAGE_OAUTH_SCOPES",
-  ],
-  xero: [
-    "XERO_OAUTH_AUTHORIZATION_URL",
-    "XERO_OAUTH_TOKEN_URL",
-    "XERO_OAUTH_SCOPES",
-  ],
-  hubspot: [
-    "HUBSPOT_OAUTH_AUTHORIZATION_URL",
-    "HUBSPOT_OAUTH_TOKEN_URL",
-    "HUBSPOT_OAUTH_SCOPES",
-  ],
-  meta_ads: [
-    "META_ADS_OAUTH_AUTHORIZATION_URL",
-    "META_ADS_OAUTH_TOKEN_URL",
-    "META_ADS_OAUTH_SCOPES",
-  ],
-}
-
-const CONNECTOR_DEPLOYMENT_KEYS: Record<string, string[]> = {
-  google_analytics: [
-    "GOOGLE_ANALYTICS_SCOPE",
-    "GOOGLE_ANALYTICS_SERVICE_ACCOUNT_FILE or GOOGLE_ANALYTICS_SERVICE_ACCOUNT_JSON",
-  ],
-  stripe: ["STRIPE_API_KEY", "STRIPE_API_URL"],
-  postgresql: ["POSTGRESQL_SOURCE_URL"],
-  mysql: ["MYSQL_SOURCE_URL"],
-  sql_server: ["SQL_SERVER_SOURCE_URL"],
-}
-
 function getConnectionFieldGuide(
   sourceType: string | undefined,
   configKey: string
@@ -1101,60 +1043,6 @@ function getConnectionFieldGuide(
       example: "Use the value shown in the provider account",
     }
   )
-}
-
-function getDeploymentSetupKeys(
-  source?: DatasetSourceOption
-) {
-  if (!source) {
-    return []
-  }
-
-  const keys = [
-    ...(source.environment_keys ?? []),
-    ...(source.provider_setting_keys ?? []),
-    ...(CONNECTOR_DEPLOYMENT_KEYS[source.type] ?? []),
-    ...(OAUTH_DEPLOYMENT_KEYS[source.type] ?? []),
-  ]
-
-  if (source.connection_type === "oauth") {
-    keys.push(
-      "OAUTH_CALLBACK_URL",
-      "OAUTH_TOKEN_ENCRYPTION_KEY"
-    )
-  }
-
-  return keys.filter(
-    (key, index) => keys.indexOf(key) === index
-  )
-}
-
-function getDeploymentExample(key: string) {
-  if (key.includes("SECRET") || key.includes("API_KEY")) {
-    return `${key}=<provider-issued secret>`
-  }
-
-  if (key.includes("CLIENT_ID") || key.includes("APP_ID")) {
-    return `${key}=<provider-issued client ID>`
-  }
-
-  if (key.includes("SERVICE_ACCOUNT_FILE")) {
-    return `${key}=/secure/path/service-account.json`
-  }
-
-  if (key.includes("SERVICE_ACCOUNT_JSON")) {
-    return `${key}={"type":"service_account",...}`
-  }
-
-  if (key.includes("SCOPE")) {
-    return `${key}=<read-only provider scopes>`
-  }
-
-  if (key.includes("URL")) {
-    return `${key}=https://provider.example/...`
-  }
-
-  return `${key}=<value from provider>`
 }
 
 export function ConnectionSetupGuide({
@@ -1169,13 +1057,12 @@ export function ConnectionSetupGuide({
   }
 
   const configKeys = source.config_keys ?? []
-  const deploymentKeys = getDeploymentSetupKeys(source)
   const fieldGuides = configKeys.map((configKey) => ({
     configKey,
     ...getConnectionFieldGuide(source.type, configKey),
   }))
 
-  if (!fieldGuides.length && !deploymentKeys.length) {
+  if (!fieldGuides.length) {
     return null
   }
 
@@ -1189,7 +1076,7 @@ export function ConnectionSetupGuide({
       }
     >
       <summary className="cursor-pointer text-xs font-semibold text-gray-700">
-        What to enter and where provider settings belong
+        What to enter and example values
       </summary>
 
       <div className="mt-3 space-y-3 text-xs text-gray-600">
@@ -1219,36 +1106,15 @@ export function ConnectionSetupGuide({
           </div>
         )}
 
-        {deploymentKeys.length > 0 && (
-          <div>
-            <p className="font-semibold text-gray-800">
-              Configure on the API service
-            </p>
-            <p className="mt-1 leading-4">
-              These are deployment settings, not workspace fields. The platform operator adds them to the API service environment. Never paste secrets into a support request.
-            </p>
-            <div className="mt-2 grid gap-1 sm:grid-cols-2">
-              {deploymentKeys.map((key) => (
-                <code
-                  key={key}
-                  className="break-words rounded bg-gray-100 px-2 py-1 text-[10px] text-gray-700"
-                >
-                  {getDeploymentExample(key)}
-                </code>
-              ))}
-            </div>
-          </div>
-        )}
-
         {source.connection_type === "oauth" && (
           <p className="rounded-md bg-blue-50 px-2 py-2 leading-4 text-blue-800">
-            Save the connection fields first, then use Connect with OAuth to authorize the provider account. Client ID and client secret values belong in the API deployment configuration.
+            Save the connection fields first, then use Connect with OAuth to authorize the provider account.
           </p>
         )}
 
         {source.connection_type === "database" && (
           <p className="rounded-md bg-amber-50 px-2 py-2 leading-4 text-amber-800">
-            Database URLs are deployment settings. The query must be a single read-only SELECT or WITH statement and should use the tables and columns in your database.
+            The query must be a single read-only SELECT or WITH statement and should use the tables and columns in your database.
           </p>
         )}
       </div>
@@ -1462,31 +1328,6 @@ function getExternalCredentialLabel(
   }
 
   return "OAuth app credentials"
-}
-
-function getConnectionConfigHelpText(
-  source?: DatasetSourceOption
-) {
-  if (source?.connection_type === "database") {
-    return "Dataset fields select what to import. The database URL is configured on the API service and is not entered in this workspace form."
-  }
-
-  if (
-    source?.connection_type ===
-    "object_storage"
-  ) {
-    return "Dataset fields select the bucket, container, prefix, or file pattern to import. Storage credentials belong in the API service configuration."
-  }
-
-  if (source?.connection_type === "api_key") {
-    return "Dataset fields identify the account or endpoint. The provider API key belongs in the API service configuration."
-  }
-
-  if (source?.connection_type === "webhook") {
-    return "Dataset fields identify the incoming event stream. Webhook secrets belong in the API service configuration."
-  }
-
-  return "Dataset fields identify the account, file, or store. OAuth client credentials are configured on the API service; authorize the provider with Connect with OAuth."
 }
 
 function formatConnectionConfigKey(

@@ -78,8 +78,8 @@ DATASET_SOURCES = [
         "config_keys": ["property_id"],
         "description": (
             "Connect website and campaign performance data. The property ID "
-            "identifies the analytics property; the API service account is "
-            "configured on the Decisionate server."
+            "identifies the Analytics property. Authorize the Google account "
+            "that has access to that property."
         ),
     },
     {
@@ -255,6 +255,10 @@ DATASET_SOURCE_ENV_KEYS = {
         "HUBSPOT_CLIENT_ID",
         "HUBSPOT_CLIENT_SECRET",
     ],
+    "google_analytics": [
+        "GOOGLE_ANALYTICS_CLIENT_ID",
+        "GOOGLE_ANALYTICS_CLIENT_SECRET",
+    ],
     "meta_ads": [
         "META_ADS_APP_ID",
         "META_ADS_APP_SECRET",
@@ -292,6 +296,11 @@ DATASET_SOURCE_RUNTIME_ENV_KEYS = {
     "xero": [
         "XERO_API_BASE_URL",
         "XERO_CONNECTIONS_API_URL",
+    ],
+    "google_analytics": [
+        "GOOGLE_ANALYTICS_OAUTH_AUTHORIZATION_URL",
+        "GOOGLE_ANALYTICS_OAUTH_TOKEN_URL",
+        "GOOGLE_ANALYTICS_OAUTH_SCOPES",
     ],
 }
 
@@ -404,8 +413,8 @@ def clone_dataset_source(source):
         else:
             cloned_source["status"] = "needs_setup"
             cloned_source["availability_note"] = (
-                "Install google-analytics-data and configure a server-side "
-                "Google Analytics service account to enable manual sync."
+                "Install the GA4 client and configure Google OAuth client "
+                "credentials and token encryption to enable sync."
             )
 
     if source["type"] == "hubspot":

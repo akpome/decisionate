@@ -2,8 +2,6 @@
 # xlrd
 
 google-cloud-bigquery
-google-analytics-data
-google-auth
 
 # Future analytics and connector packages.
 # duckdb

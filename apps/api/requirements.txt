@@ -14,5 +14,7 @@ psycopg[binary]
 boto3
 azure-storage-blob
 google-cloud-storage
+google-analytics-data
+google-auth
 redis
 sentry-sdk[fastapi]

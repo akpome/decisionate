@@ -68,11 +68,6 @@ async def start_oauth_connection(
     db = SessionLocal()
     try:
         connection = get_workspace_connection(db, connection_id, auth_context)
-        if connection.source_type == "google_analytics":
-            raise HTTPException(
-                status_code=400,
-                detail="Google Analytics uses server-side credentials",
-            )
         config = parse_source_connection_config(connection.connection_config)
         state_token = create_state_token()
         authorization_url = build_authorization_url(
@@ -104,9 +99,9 @@ async def start_oauth_connection(
         db.close()
 
 
-@router.get("/callback")
-async def oauth_callback(
+def process_oauth_callback(
     request: Request,
+    expected_source_type: str | None = None,
 ):
     query = request.query_params
     state_token = str(query.get("state") or "").strip()
@@ -131,6 +126,17 @@ async def oauth_callback(
                 db.delete(state)
                 db.commit()
             return oauth_redirect("expired_state")
+
+        if (
+            expected_source_type
+            and state.source_type != expected_source_type
+        ):
+            db.delete(state)
+            db.commit()
+            return oauth_redirect(
+                "invalid_state",
+                expected_source_type,
+            )
 
         connection = (
             db.query(DataSourceConnection)
@@ -251,6 +257,23 @@ async def oauth_callback(
         return oauth_redirect(str(error)[:120])
     finally:
         db.close()
+
+
+@router.get("/callback")
+async def oauth_callback(
+    request: Request,
+):
+    return process_oauth_callback(request)
+
+
+@router.get("/google-analytics/callback")
+async def google_analytics_oauth_callback(
+    request: Request,
+):
+    return process_oauth_callback(
+        request,
+        expected_source_type="google_analytics",
+    )
 
 
 def oauth_redirect(status: str, source_type: str | None = None):
