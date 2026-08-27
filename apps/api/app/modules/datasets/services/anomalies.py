@@ -66,9 +66,6 @@ def _is_analysis_metric(column, date_column):
             "__decisionate_summary__",
             "__decisionate_summary_month__",
         }
-        and not column_name.endswith(
-            SUMMARY_STATISTIC_SUFFIXES
-        )
     )
 
 
@@ -82,14 +79,49 @@ def _format_period(value):
 
 def _metric_columns(dataframe, date_column):
     metrics = set()
+    available_columns = {
+        str(column)
+        for column in dataframe.columns
+    }
+    summary_metric_names = set()
+    if is_summary_dataframe(dataframe):
+        summary_suffixes_by_metric = {}
+        for column_name in available_columns:
+            for suffix in SUMMARY_STATISTIC_SUFFIXES:
+                if column_name.endswith(suffix):
+                    candidate_metric = column_name[
+                        : -len(suffix)
+                    ]
+                    summary_suffixes_by_metric.setdefault(
+                        candidate_metric,
+                        set(),
+                    ).add(suffix)
+                    break
+
+        summary_metric_names = {
+            metric_name
+            for metric_name, suffixes in (
+                summary_suffixes_by_metric.items()
+            )
+            if metric_name in available_columns
+            or len(suffixes) >= 2
+        }
+
     for column, _ in get_numeric_columns(dataframe):
         column_name = str(column)
         metric_name = column_name
         for suffix in SUMMARY_STATISTIC_SUFFIXES:
-            if column_name.endswith(suffix):
-                metric_name = column_name[
-                    : -len(suffix)
-                ]
+            if not column_name.endswith(suffix):
+                continue
+
+            candidate_metric = column_name[
+                : -len(suffix)
+            ]
+            # Connector fields can legitimately end in names such as
+            # ``Line__count``. Treat a suffix as a stored summary statistic
+            # only when it belongs to a coherent summary metric group.
+            if candidate_metric in summary_metric_names:
+                metric_name = candidate_metric
                 break
 
         if _is_analysis_metric(

@@ -111,6 +111,42 @@ class DatasetAnomalyTests(unittest.TestCase):
         self.assertEqual(result["total_anomaly_count"], 1)
         self.assertTrue(result["data_notes"])
 
+    def test_connector_count_fields_are_not_treated_as_summary_metrics(self):
+        dataframe = pd.DataFrame({
+            "txn_date": pd.date_range(
+                "2025-01-01",
+                periods=10,
+                freq="D",
+            ),
+            "Line__count": [
+                1,
+                1,
+                2,
+                1,
+                1,
+                1,
+                2,
+                1,
+                1,
+                8,
+            ],
+        })
+
+        result = detect_dataset_anomalies(
+            dataframe,
+            aggregation="daily",
+            sensitivity="medium",
+        )
+
+        self.assertEqual(
+            result["available_metrics"],
+            ["Line__count"],
+        )
+        self.assertEqual(
+            result["metrics"][0]["metric"],
+            "Line__count",
+        )
+
     def test_does_not_report_anomaly_with_too_few_periods(self):
         dataframe = pd.DataFrame({
             "date": pd.date_range(
