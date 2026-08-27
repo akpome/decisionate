@@ -24,6 +24,7 @@ from app.modules.oauth.service import (
 
 
 PAGE_SIZE = 100
+STRIPE_ENCRYPTED_API_KEY_CONFIG = "_stripe_api_key_encrypted"
 SALESFORCE_OBJECT_TYPES = {
     "Account",
     "Lead",
@@ -518,29 +519,29 @@ def load_stripe_dataframe(
     end_date=None,
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
-    api_key = str(os.getenv("STRIPE_API_KEY", "") or "").strip()
+    encrypted_api_key = str(
+        config.get(STRIPE_ENCRYPTED_API_KEY_CONFIG) or ""
+    ).strip()
+    if not encrypted_api_key:
+        raise ConnectorUnavailable(
+            "A customer-provided Stripe restricted API key is required before syncing"
+        )
+    try:
+        api_key = decrypt_token(encrypted_api_key)
+    except Exception as error:
+        raise ConnectorUnavailable(
+            "The stored Stripe API key could not be decrypted"
+        ) from error
     if not api_key:
         raise ConnectorUnavailable(
-            "STRIPE_API_KEY is required for the Stripe connector"
+            "A customer-provided Stripe restricted API key is required before syncing"
         )
 
     rows = []
     starting_after = None
     seen_starting_after = set()
-    account_id = str(config.get("account_id") or "").strip()
-    if not account_id:
-        raise ConnectorUnavailable(
-            "Stripe account_id is required before syncing"
-        )
-    account_id = account_id.removeprefix("acct_")
-    if not re.fullmatch(r"[A-Za-z0-9]+", account_id):
-        raise ConnectorUnavailable(
-            "Stripe account_id must be a valid connected account ID"
-        )
-    account_id = f"acct_{account_id}"
     base_url = require_provider_url("STRIPE_API_URL")
     request_headers = {"Authorization": f"Bearer {api_key}"}
-    request_headers["Stripe-Account"] = account_id
     while True:
         if starting_after is not None:
             if starting_after in seen_starting_after:
@@ -609,7 +610,6 @@ def load_stripe_dataframe(
     return dataframe, {
         "connector": "stripe",
         "resource": "charges",
-        "account_id": account_id,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),

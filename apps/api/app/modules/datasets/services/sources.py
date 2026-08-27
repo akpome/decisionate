@@ -126,9 +126,10 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "api_key",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["account_id"],
+        "config_keys": ["api_key"],
         "description": (
-            "Connect charge and payment data from a specific Stripe account."
+            "Connect your Stripe account with a read-only restricted API key. "
+            "No Stripe Connect relationship or account ID is required."
         ),
     },
     {
@@ -240,9 +241,6 @@ DATASET_SOURCE_ENV_KEYS = {
     ],
     "sql_server": [
         "SQL_SERVER_SOURCE_URL",
-    ],
-    "stripe": [
-        "STRIPE_API_KEY",
     ],
     "shopify": [
         "SHOPIFY_CLIENT_ID",
@@ -455,18 +453,15 @@ def clone_dataset_source(source):
             )
 
     if source["type"] == "stripe":
-        if (
-            str(os.getenv("STRIPE_API_KEY", "") or "").strip()
-            and not get_missing_provider_settings("stripe")
-        ):
+        if not get_missing_provider_settings("stripe"):
             cloned_source["status"] = "available"
         else:
             cloned_source["status"] = "needs_setup"
             cloned_source["availability_note"] = (
                 provider_setup_note(
                     "stripe",
-                    "Configure STRIPE_API_KEY on the Decisionate server to "
-                    "enable sync.",
+                    "Configure the Stripe API URL on the Decisionate server "
+                    "to enable customer-provided key sync.",
                 )
             )
 

@@ -147,6 +147,7 @@ from app.modules.datasets.services.google_analytics import (
 from app.modules.datasets.services.connectors import (
     ConnectorNoData,
     ConnectorUnavailable,
+    STRIPE_ENCRYPTED_API_KEY_CONFIG,
     load_connector_dataframe,
 )
 from app.modules.datasets.services.scheduling import (
@@ -167,6 +168,10 @@ from app.modules.datasets.services.auth import (
     get_workspace_id,
     require_workspace_connection_viewer,
     require_workspace_data_manager,
+)
+from app.modules.oauth.service import (
+    OAuthProviderUnavailable,
+    encrypt_token,
 )
 
 router = APIRouter()
@@ -719,6 +724,17 @@ def build_source_connection_response(
         connection.connection_config
     )
 
+    parsed_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    has_config = has_source_connection_config(
+        connection.connection_config
+    )
+    if source_type == "stripe":
+        has_config = bool(
+            parsed_config.get(STRIPE_ENCRYPTED_API_KEY_CONFIG)
+        )
+
     return {
         "id": connection.id,
         "user_id": connection.user_id,
@@ -747,9 +763,7 @@ def build_source_connection_response(
         ),
         "display_name": connection.display_name,
         "status": connection.status,
-        "has_config": has_source_connection_config(
-            connection.connection_config
-        ),
+        "has_config": has_config,
         "last_synced_at": connection.last_synced_at,
         "sync_enabled": sync_enabled,
         "sync_interval_hours": sync_interval_hours,
@@ -1103,6 +1117,35 @@ def sanitize_source_connection_config(
             sort_keys=True,
         )
         if sanitized_config
+        else None
+    )
+
+
+def protect_source_connection_config(
+    source_type: str,
+    connection_config,
+):
+    """Encrypt customer-provided connector secrets before persistence."""
+    parsed_config = parse_source_connection_config(connection_config)
+    if source_type != "stripe":
+        return (
+            json.dumps(parsed_config, sort_keys=True)
+            if parsed_config
+            else None
+        )
+
+    api_key = str(parsed_config.pop("api_key", "") or "").strip()
+    if api_key:
+        try:
+            parsed_config[STRIPE_ENCRYPTED_API_KEY_CONFIG] = encrypt_token(
+                api_key
+            )
+        except OAuthProviderUnavailable as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
+
+    return (
+        json.dumps(parsed_config, sort_keys=True)
+        if parsed_config
         else None
     )
 
@@ -2323,6 +2366,10 @@ async def create_source_connection(
         source,
         payload.connection_config,
     )
+    connection_config = protect_source_connection_config(
+        source_type,
+        connection_config,
+    )
 
     db = SessionLocal()
 
@@ -2422,10 +2469,16 @@ async def update_source_connection(
                     and config_key not in next_config
                 ):
                     next_config[config_key] = config_value
+            if (
+                connection.source_type == "stripe"
+                and "api_key" not in next_config
+            ):
+                next_config.pop(STRIPE_ENCRYPTED_API_KEY_CONFIG, None)
             connection.connection_config = (
-                json.dumps(next_config, sort_keys=True)
-                if next_config
-                else None
+                protect_source_connection_config(
+                    connection.source_type,
+                    next_config,
+                )
             )
 
         db.commit()

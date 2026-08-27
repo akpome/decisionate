@@ -259,7 +259,10 @@ CONNECTORS_SCHEDULER_SECRET=replace-me \
 ```
 
 OAuth providers still require their provider application credentials on the API
-server before authorization can begin. Stripe requires `STRIPE_API_KEY`.
+server before authorization can begin. Stripe data ingestion uses a restricted,
+read-only API key supplied by each customer on their own connection; it does not
+use Stripe Connect or a global customer-data key. Keep `STRIPE_SECRET_KEY`
+separate for Decisionate billing.
 Sage requires `SAGE_CLIENT_ID`, `SAGE_CLIENT_SECRET`,
 `SAGE_API_SUBSCRIPTION_KEY`, and an encrypted OAuth token key. Sage is imported
 with the provider's read-only OAuth consent and the selected business resource

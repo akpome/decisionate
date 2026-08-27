@@ -403,7 +403,10 @@ function DataSourceConnectionRow({
     )
   const requiresEnvironmentCredentials =
     credentialKeys.length > 0 ||
-    Boolean(source?.provider_setting_keys?.length) ||
+    Boolean(
+      source?.provider_setting_keys?.length &&
+        source?.connection_type !== "api_key"
+    ) ||
     source?.connection_type === "oauth"
   const environmentConfigured =
     connection.environment_configured ??
@@ -412,7 +415,7 @@ function DataSourceConnectionRow({
     getExternalCredentialLabel(source)
   const sourceIsPlanned =
     source?.status === "planned"
-  const stripeAccountConfigured =
+  const stripeKeyConfigured =
     connection.source_type !== "stripe" ||
     connection.has_config
   const canConfigure =
@@ -440,7 +443,7 @@ function DataSourceConnectionRow({
       connection.source_type
     ) &&
     source?.status === "available" &&
-    stripeAccountConfigured &&
+    stripeKeyConfigured &&
     (source?.connection_type !== "oauth" ||
       connection.status === "connected") &&
     Boolean(onSyncConnection)
@@ -608,7 +611,7 @@ function DataSourceConnectionRow({
         {connection.source_type === "stripe" &&
           !connection.has_config && (
             <p className="mt-1 break-words text-xs text-amber-700">
-              Enter and save the Stripe account ID before syncing.
+              Enter and save the customer&apos;s read-only Stripe restricted API key before syncing.
             </p>
           )}
 
@@ -632,6 +635,7 @@ function DataSourceConnectionRow({
                 setEditingConnectionConfig={
                   setEditingConnectionConfig
                 }
+                secret={connection.source_type === "stripe"}
               />
             )}
 
@@ -1010,9 +1014,9 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   stripe: {
-    account_id: {
-      description: "Required Stripe account ID for the account whose charges should be synced.",
-      example: "acct_123456789",
+    api_key: {
+      description: "A restricted, read-only API key from the customer's own Stripe account. Do not use a Stripe Connect account ID.",
+      example: "rk_test_...",
     },
   },
   shopify: {

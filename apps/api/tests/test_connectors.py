@@ -65,6 +65,11 @@ class ConnectorSmokeTests(unittest.TestCase):
                     }],
                 }
             if "stripe.com" in url:
+                self.assertEqual(
+                    headers["Authorization"],
+                    "Bearer test-key",
+                )
+                self.assertNotIn("Stripe-Account", headers)
                 return {
                     "data": [{
                         "id": "ch_1",
@@ -133,6 +138,7 @@ class ConnectorSmokeTests(unittest.TestCase):
             raise AssertionError(f"Unhandled connector URL: {url}")
 
         with patch.object(connectors, "get_oauth_access_token", return_value=token), \
+            patch.object(connectors, "decrypt_token", return_value="test-key"), \
             patch.object(connectors, "connector_json_request", side_effect=json_request), \
             patch.object(
                 connectors,
@@ -151,7 +157,6 @@ class ConnectorSmokeTests(unittest.TestCase):
             patch.dict(
                 os.environ,
                 {
-                    "STRIPE_API_KEY": "test-key",
                     "STRIPE_API_URL": "https://api.stripe.com/v1",
                     "HUBSPOT_API_BASE_URL": "https://api.hubapi.com",
                     "HUBSPOT_CRM_API_VERSION": "v3",
@@ -175,7 +180,7 @@ class ConnectorSmokeTests(unittest.TestCase):
             ):
             cases = [
                 ("hubspot", {"object_type": "deals"}),
-                ("stripe", {"account_id": "acct_testaccount"}),
+                ("stripe", {"_stripe_api_key_encrypted": "encrypted-key"}),
                 ("shopify", {"shop_domain": "shop.example.com"}),
                 ("meta_ads", {"ad_account_id": "act_123"}),
                 ("quickbooks", {"company_id": "company-1"}),
@@ -193,21 +198,20 @@ class ConnectorSmokeTests(unittest.TestCase):
                 self.assertFalse(dataframe.empty, source_type)
                 self.assertEqual(report["connector"], source_type)
 
-    def test_stripe_sync_requires_account_id(self):
+    def test_stripe_sync_requires_customer_api_key(self):
         with patch.dict(
             os.environ,
             {
-                "STRIPE_API_KEY": "test-key",
                 "STRIPE_API_URL": "https://api.stripe.com/v1",
             },
             clear=False,
         ):
             with self.assertRaisesRegex(
                 connectors.ConnectorUnavailable,
-                "Stripe account_id is required before syncing",
+                "customer-provided Stripe restricted API key is required before syncing",
             ):
                 connectors.load_stripe_dataframe(
-                    make_connection("stripe", {}),
+                    make_connection("stripe", {"account_id": "acct_testaccount"}),
                     datetime(2026, 1, 1, tzinfo=UTC).date(),
                     datetime(2026, 1, 31, tzinfo=UTC).date(),
                 )
