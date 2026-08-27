@@ -45,6 +45,32 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(row["record_id"], "record-1")
         self.assertNotIn("missing_alias", row)
 
+    def test_quickbooks_nested_lists_are_flattened_for_analysis(self):
+        row = connectors.build_dynamic_connector_row(
+            {
+                "Id": "invoice-1",
+                "Line": [
+                    {
+                        "Amount": 125,
+                        "SalesItemLineDetail": {
+                            "Qty": 2,
+                            "ItemRef": {"value": "item-1"},
+                        },
+                    },
+                ],
+            },
+            {},
+            flatten_lists=True,
+        )
+
+        self.assertEqual(row["Line__count"], 1)
+        self.assertEqual(row["Line__0__Amount"], 125)
+        self.assertEqual(
+            row["Line__0__SalesItemLineDetail__ItemRef__value"],
+            "item-1",
+        )
+        self.assertEqual(row["Line__0__SalesItemLineDetail__Qty"], 2)
+
     def test_implemented_connectors_are_registered(self):
         for source_type in IMPLEMENTED_CONNECTOR_TYPES:
             source = get_dataset_source(source_type)

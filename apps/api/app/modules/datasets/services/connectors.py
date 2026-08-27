@@ -68,8 +68,12 @@ def _dynamic_column_name(prefix: str, key) -> str:
     return f"{prefix}__{value}" if prefix else value
 
 
-def flatten_connector_record(value, prefix: str = "") -> dict:
-    """Retain provider fields without imposing a connector-wide schema."""
+def flatten_connector_record(
+    value,
+    prefix: str = "",
+    flatten_lists: bool = False,
+) -> dict:
+    """Flatten provider fields while retaining their dynamic schema."""
     if not isinstance(value, dict):
         return {_dynamic_column_name("", prefix): value}
 
@@ -77,8 +81,39 @@ def flatten_connector_record(value, prefix: str = "") -> dict:
     for key, child in value.items():
         column = _dynamic_column_name(prefix, key)
         if isinstance(child, dict) and child:
-            flattened.update(flatten_connector_record(child, column))
+            flattened.update(
+                flatten_connector_record(
+                    child,
+                    column,
+                    flatten_lists=flatten_lists,
+                )
+            )
             continue
+
+        if isinstance(child, list) and flatten_lists:
+            flattened[_dynamic_column_name(column, "count")] = len(child)
+            for index, item in enumerate(child):
+                item_column = _dynamic_column_name(column, index)
+                if isinstance(item, dict) and item:
+                    flattened.update(
+                        flatten_connector_record(
+                            item,
+                            item_column,
+                            flatten_lists=True,
+                        )
+                    )
+                elif isinstance(item, list):
+                    flattened.update(
+                        flatten_connector_record(
+                            {str(index): item},
+                            column,
+                            flatten_lists=True,
+                        )
+                    )
+                else:
+                    flattened[item_column] = item
+            continue
+
         if isinstance(child, (dict, list)):
             flattened[column] = json.dumps(
                 child,
@@ -93,9 +128,13 @@ def flatten_connector_record(value, prefix: str = "") -> dict:
 def build_dynamic_connector_row(
     source_record: dict,
     normalized_fields: dict,
+    flatten_lists: bool = False,
 ) -> dict:
     """Combine all source fields with stable aliases used by analytics."""
-    row = flatten_connector_record(source_record)
+    row = flatten_connector_record(
+        source_record,
+        flatten_lists=flatten_lists,
+    )
     for key, value in normalized_fields.items():
         if value is None:
             continue
@@ -936,6 +975,7 @@ def load_quickbooks_dataframe(
                 build_dynamic_connector_row(
                     invoice,
                     normalized_row,
+                    flatten_lists=True,
                 )
             )
 
