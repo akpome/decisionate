@@ -61,11 +61,15 @@ def get_selectable_numeric_columns(
     if not isinstance(dataframe, pd.DataFrame):
         return []
 
-    return [
-        str(column)
-        for column, _ in get_numeric_columns(dataframe)
-        if not _is_generated_metric_column(column)
-    ]
+    selectable_columns: list[str] = []
+    for column, _ in get_numeric_columns(dataframe):
+        if pd.api.types.is_bool_dtype(dataframe[column]):
+            continue
+        if _is_generated_metric_column(column):
+            continue
+        selectable_columns.append(str(column))
+
+    return selectable_columns
 
 
 def get_dataset_selected_metric_columns(dataset) -> list[str] | None:

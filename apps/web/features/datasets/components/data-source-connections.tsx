@@ -306,6 +306,7 @@ function DataSourceConnectionRow({
   onConfigureConnection,
   onSyncConnection,
   onStartOAuthConnection,
+  onCancelOAuthAuthorization,
   onUpdateSchedule,
   sources,
   configuringConnectionId,
