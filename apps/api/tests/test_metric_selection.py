@@ -81,6 +81,33 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             list(self.dataframe.columns),
         )
 
+    def test_connector_suffix_metric_is_filtered_like_other_numeric_columns(self):
+        dataframe = pd.DataFrame({
+            "date": ["2026-01-01", "2026-01-02"],
+            "revenue": [100, 125],
+            "Line__count": [2, 3],
+            "visits": [40, 52],
+        })
+        dataset = SimpleNamespace(
+            source_config=json.dumps({
+                "selected_metric_columns": ["revenue"],
+            })
+        )
+
+        self.assertEqual(
+            get_selectable_numeric_columns(dataframe),
+            ["revenue", "Line__count", "visits"],
+        )
+        self.assertEqual(
+            list(
+                filter_dataframe_to_selected_metrics(
+                    dataset,
+                    dataframe,
+                ).columns
+            ),
+            ["date", "revenue"],
+        )
+
     def test_normalization_rejects_unknown_columns(self):
         with self.assertRaisesRegex(
             ValueError,

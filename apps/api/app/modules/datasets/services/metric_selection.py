@@ -9,6 +9,9 @@ import pandas as pd
 from app.modules.datasets.services.numeric import (
     get_numeric_columns,
 )
+from app.modules.datasets.services.summary_query import (
+    is_summary_dataframe,
+)
 
 
 DATASET_SELECTED_METRICS_KEY = "selected_metric_columns"
@@ -43,16 +46,44 @@ def parse_dataset_source_config(dataset) -> dict:
     return parsed_config if isinstance(parsed_config, dict) else {}
 
 
-def _is_generated_metric_column(column) -> bool:
+def _is_generated_metric_column(
+    column,
+    dataframe: pd.DataFrame | None = None,
+) -> bool:
     column_name = str(column)
 
-    return (
-        column_name in _GENERATED_METRIC_COLUMNS
-        or any(
-            column_name.endswith(f"__{statistic}")
-            for statistic in _SUMMARY_STATISTICS
-        )
+    if column_name in _GENERATED_METRIC_COLUMNS:
+        return True
+
+    available_columns = (
+        {str(value) for value in dataframe.columns}
+        if isinstance(dataframe, pd.DataFrame)
+        else set()
     )
+    is_summary = (
+        is_summary_dataframe(dataframe)
+        if isinstance(dataframe, pd.DataFrame)
+        else False
+    )
+
+    for statistic in _SUMMARY_STATISTICS:
+        suffix = f"__{statistic}"
+        if not column_name.endswith(suffix):
+            continue
+
+        base_metric = column_name[: -len(suffix)]
+        if base_metric in available_columns:
+            return True
+
+        if is_summary:
+            sibling_statistics = sum(
+                f"{base_metric}__{sibling}" in available_columns
+                for sibling in _SUMMARY_STATISTICS
+            )
+            if sibling_statistics >= 2:
+                return True
+
+    return False
 
 
 def get_selectable_numeric_columns(
@@ -67,7 +98,10 @@ def get_selectable_numeric_columns(
         if (
             pd.api.types.is_numeric_dtype(dataframe[column])
             and not pd.api.types.is_bool_dtype(dataframe[column])
-            and not _is_generated_metric_column(column)
+            and not _is_generated_metric_column(
+                column,
+                dataframe,
+            )
         )
     ]
 
@@ -157,7 +191,10 @@ def filter_dataframe_to_selected_metrics(
         for column, _ in get_numeric_columns(dataframe)
         if (
             not pd.api.types.is_bool_dtype(dataframe[column])
-            and not _is_generated_metric_column(column)
+            and not _is_generated_metric_column(
+                column,
+                dataframe,
+            )
         )
     }
     selected_set = set(
