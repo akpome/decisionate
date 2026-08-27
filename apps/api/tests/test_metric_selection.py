@@ -19,6 +19,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             "revenue": [100, 125],
             "visits": [40, 52],
             "is_returning": [True, False],
+            "numeric_text": ["100", "125"],
             "customer_email": [
                 "first@example.com",
                 "second@example.com",
@@ -55,6 +56,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 "date",
                 "revenue",
                 "is_returning",
+                "numeric_text",
                 "customer_email",
                 "revenue__sum",
             ],

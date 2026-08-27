@@ -6,10 +6,6 @@ import json
 
 import pandas as pd
 
-from app.modules.datasets.services.numeric import (
-    get_numeric_columns,
-)
-
 
 DATASET_SELECTED_METRICS_KEY = "selected_metric_columns"
 
@@ -61,15 +57,15 @@ def get_selectable_numeric_columns(
     if not isinstance(dataframe, pd.DataFrame):
         return []
 
-    selectable_columns: list[str] = []
-    for column, _ in get_numeric_columns(dataframe):
-        if pd.api.types.is_bool_dtype(dataframe[column]):
-            continue
-        if _is_generated_metric_column(column):
-            continue
-        selectable_columns.append(str(column))
-
-    return selectable_columns
+    return [
+        str(column)
+        for column in dataframe.columns
+        if (
+            pd.api.types.is_numeric_dtype(dataframe[column])
+            and not pd.api.types.is_bool_dtype(dataframe[column])
+            and not _is_generated_metric_column(column)
+        )
+    ]
 
 
 def get_dataset_selected_metric_columns(dataset) -> list[str] | None:
