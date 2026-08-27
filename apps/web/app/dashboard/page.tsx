@@ -1647,6 +1647,7 @@ export default function DashboardPage() {
     dashboardPreferenceLoaded,
     datasetDefaultsLoadKey,
     userId,
+    user?.primaryEmailAddress?.emailAddress,
     workspaceVersion,
   ])
 
