@@ -43,6 +43,7 @@ import {
   createDecision,
   getDatasetAIAnalysis,
   getDatasetDetails,
+  updateDatasetMetricSelection,
   type AIAnalysis,
 } from "@/lib/api"
 import {
@@ -89,6 +90,9 @@ type DatasetDetails = {
   source_config?: string | null
   row_count: number
   column_count: number
+  columns?: string[]
+  numeric_columns?: string[]
+  selected_metric_columns?: string[]
   metrics?: DatasetMetric[]
   insights?: DatasetInsight[]
   ai_analysis?: AIAnalysis
@@ -156,6 +160,12 @@ export default function DatasetDetailsPage() {
     useState<DatasetDetails | null>(null)
   const [selectedMetric, setSelectedMetric] =
     useState<string>()
+  const [selectedMetricColumns, setSelectedMetricColumns] =
+    useState<string[]>([])
+  const [savingMetricSelection, setSavingMetricSelection] =
+    useState(false)
+  const [metricSelectionError, setMetricSelectionError] =
+    useState("")
 
   const [loading, setLoading] =
     useState(true)
@@ -208,6 +218,8 @@ export default function DatasetDetailsPage() {
     async function loadDataset() {
       setDataset(null)
       setSelectedMetric(undefined)
+      setSelectedMetricColumns([])
+      setMetricSelectionError("")
       setErrorMessage("")
       setLoading(true)
 
@@ -236,6 +248,14 @@ export default function DatasetDetailsPage() {
 
         setDataset(data)
         setSelectedMetric(undefined)
+        setSelectedMetricColumns(
+          data.selected_metric_columns ??
+          data.numeric_columns ??
+          data.metrics?.map(
+            (metric: DatasetMetric) => metric.column
+          ) ??
+          []
+        )
         setErrorMessage("")
       } catch (error) {
         if (!ignoreResult) {
@@ -302,6 +322,17 @@ export default function DatasetDetailsPage() {
     dataset?.metrics?.map(
       metric => metric.column
     ) ?? []
+  const previewColumns =
+    dataset?.columns ??
+    (dataset?.preview?.[0]
+      ? Object.keys(dataset.preview[0])
+      : [])
+  const numericMetricColumns = new Set(
+    dataset?.numeric_columns ?? metricColumns
+  )
+  const selectedMetricColumnSet = new Set(
+    selectedMetricColumns
+  )
   const effectiveSelectedMetric =
     selectedMetric &&
     metricColumns.includes(selectedMetric)
@@ -446,6 +477,81 @@ export default function DatasetDetailsPage() {
   ) {
     setSelectedMetric(metric)
     setErrorMessage("")
+  }
+
+  function handleMetricColumnToggle(
+    column: string,
+    checked: boolean
+  ) {
+    setSelectedMetricColumns(currentColumns => {
+      if (checked) {
+        return currentColumns.includes(column)
+          ? currentColumns
+          : [...currentColumns, column]
+      }
+
+      return currentColumns.filter(
+        currentColumn => currentColumn !== column
+      )
+    })
+    setMetricSelectionError("")
+  }
+
+  async function handleSaveMetricSelection() {
+    if (
+      !userId ||
+      !datasetId ||
+      !canManageWorkspaceData ||
+      savingMetricSelection
+    ) {
+      return
+    }
+
+    try {
+      setSavingMetricSelection(true)
+      setMetricSelectionError("")
+      setErrorMessage("")
+
+      await updateDatasetMetricSelection(
+        datasetId,
+        selectedMetricColumns,
+        userId,
+        activeWorkspaceId
+      )
+
+      const refreshedDataset = await getDatasetDetails(
+        datasetId,
+        userId,
+        activeWorkspaceId,
+        { includeAIAnalysis: false }
+      )
+      setDataset(refreshedDataset)
+      setSelectedMetricColumns(
+        refreshedDataset.selected_metric_columns ??
+        refreshedDataset.numeric_columns ??
+        refreshedDataset.metrics?.map(
+          (metric: DatasetMetric) => metric.column
+        ) ??
+        []
+      )
+      setSelectedMetric(currentMetric =>
+        refreshedDataset.metrics?.some(
+          (metric: DatasetMetric) =>
+            metric.column === currentMetric
+        )
+          ? currentMetric
+          : undefined
+      )
+    } catch (error) {
+      setMetricSelectionError(
+        getErrorMessage(
+          error,
+          "Could not save metric selection."
+        )
+      )
+    } finally {
+      setSavingMetricSelection(false)
+    }
   }
 
   async function handleCreateDecision(
@@ -851,9 +957,40 @@ export default function DatasetDetailsPage() {
       {/* Preview */}
 
       <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
-        <h2 className="mb-4 text-xl font-semibold">
-          Dataset Preview
-        </h2>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Dataset Preview
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-gray-500">
+              Select the numeric columns Decisionate should use as metrics across the app.
+            </p>
+          </div>
+
+          {canManageWorkspaceData && (
+            <button
+              type="button"
+              onClick={() => {
+                void handleSaveMetricSelection()
+              }}
+              disabled={savingMetricSelection}
+              className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingMetricSelection
+                ? "Saving..."
+                : "Save metric selection"}
+            </button>
+          )}
+        </div>
+
+        {metricSelectionError && (
+          <p
+            role="alert"
+            className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {metricSelectionError}
+          </p>
+        )}
 
         <div className="overflow-x-auto">
           <table
@@ -862,17 +999,48 @@ export default function DatasetDetailsPage() {
           >
             <thead className="bg-gray-50">
               <tr>
-                {dataset.preview?.[0] &&
-                  Object.keys(
-                    dataset.preview[0]
-                  ).map((column) => (
+                {previewColumns.map((column) => {
+                  const isNumericMetric =
+                    numericMetricColumns.has(column)
+
+                  return (
                     <th
                       key={column}
                       className="border-b px-4 py-3 text-left font-medium text-gray-600"
                     >
-                      {column}
+                      <label className="flex min-w-0 items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={
+                            isNumericMetric &&
+                            selectedMetricColumnSet.has(column)
+                          }
+                          disabled={
+                            !isNumericMetric ||
+                            !canManageWorkspaceData ||
+                            savingMetricSelection
+                          }
+                          onChange={(event) => {
+                            handleMetricColumnToggle(
+                              column,
+                              event.target.checked
+                            )
+                          }}
+                          title={
+                            isNumericMetric
+                              ? "Include this column as a metric"
+                              : "Only numeric columns can be metrics"
+                          }
+                          aria-label={`Use ${column} as a metric`}
+                          className="h-4 w-4 shrink-0 accent-blue-600"
+                        />
+                        <span className="truncate">
+                          {column}
+                        </span>
+                      </label>
                     </th>
-                  ))}
+                  )
+                })}
               </tr>
             </thead>
 
@@ -902,13 +1070,7 @@ export default function DatasetDetailsPage() {
               ) : (
                 <tr>
                   <td
-                    colSpan={
-                      dataset.preview?.[0]
-                        ? Object.keys(
-                            dataset.preview[0]
-                          ).length
-                        : 1
-                    }
+                    colSpan={previewColumns.length || 1}
                     className="px-4 py-6 text-sm text-gray-500"
                   >
                     No preview rows available.
@@ -918,6 +1080,20 @@ export default function DatasetDetailsPage() {
             </tbody>
           </table>
         </div>
+
+        {previewColumns.length === 0 ? (
+          <p className="mt-3 text-sm text-gray-500">
+            No columns are available for metric selection.
+          </p>
+        ) : numericMetricColumns.size === 0 ? (
+          <p className="mt-3 text-sm text-gray-500">
+            No numeric columns were detected in this dataset.
+          </p>
+        ) : (
+          <p className="mt-3 text-sm text-gray-500">
+            Checked numeric columns are used as metrics throughout Decisionate. Unchecked columns remain in the dataset but are excluded from analysis.
+          </p>
+        )}
       </div>
     </div>
   )

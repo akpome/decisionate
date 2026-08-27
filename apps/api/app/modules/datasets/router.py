@@ -49,6 +49,7 @@ from app.modules.datasets.schemas import DataSourceConnectionUpdate
 from app.modules.datasets.schemas import DataSourceConnectionSync
 from app.modules.datasets.schemas import DataSourceConnectionSchedule
 from app.modules.datasets.schemas import DatasetCreate
+from app.modules.datasets.schemas import DatasetMetricSelectionUpdate
 from app.modules.datasets.schemas import DatasetSignedUrlImport
 from app.modules.datasets.schemas import DatasetJoinRequest
 from app.modules.datasets.schemas import DatasetRelationshipRequest
@@ -81,6 +82,13 @@ from app.modules.datasets.services.metrics import (
 )
 from app.modules.datasets.services.numeric import (
     get_numeric_columns,
+)
+from app.modules.datasets.services.metric_selection import (
+    DATASET_SELECTED_METRICS_KEY,
+    filter_dataframe_to_selected_metrics,
+    get_effective_dataset_metric_columns,
+    get_selectable_numeric_columns,
+    normalize_selected_metric_columns,
 )
 
 from app.modules.datasets.services.charts import (
@@ -654,7 +662,19 @@ def build_dataset_details_response(
     aggregation_type: str | None = None,
     include_ai_analysis: bool = True,
 ):
-    report_dataframe = dataframe
+    available_metric_columns = get_selectable_numeric_columns(
+        dataframe
+    )
+    selected_metric_columns = (
+        get_effective_dataset_metric_columns(
+            dataset,
+            dataframe,
+        )
+    )
+    report_dataframe = filter_dataframe_to_selected_metrics(
+        dataset,
+        dataframe,
+    )
 
     if any(
         value is not None
@@ -669,7 +689,7 @@ def build_dataset_details_response(
             dataframe
         )
         report_dataframe = prepare_forecast_dataframe(
-            dataframe,
+            report_dataframe,
             date_column,
             start_date,
             period_filter,
@@ -681,13 +701,19 @@ def build_dataset_details_response(
         **build_dataset_summary_response(
             dataset
         ),
-        "preview": generate_preview(report_dataframe),
+        "preview": generate_preview(dataframe),
+        "columns": [
+            str(column)
+            for column in dataframe.columns
+        ],
         "metrics": generate_metrics(report_dataframe),
         "insights": generate_insights(report_dataframe),
         "chart": generate_chart_data(
             report_dataframe,
             limit=chart_limit,
         ),
+        "numeric_columns": available_metric_columns,
+        "selected_metric_columns": selected_metric_columns,
     }
 
     if include_ai_analysis:
@@ -3495,12 +3521,21 @@ def persist_connector_dataframe(
                 "historical_summary_row_count"
             ],
         }
+        next_source_config = {
+            "connection_id": connection.id,
+            "ingestion_mode": "connector_sync",
+            **merged_report_config,
+        }
+        if existing_dataset:
+            previous_source_config = parse_source_connection_config(
+                existing_dataset.source_config
+            )
+            if DATASET_SELECTED_METRICS_KEY in previous_source_config:
+                next_source_config[DATASET_SELECTED_METRICS_KEY] = (
+                    previous_source_config[DATASET_SELECTED_METRICS_KEY]
+                )
         source_config = json.dumps(
-            {
-                "connection_id": connection.id,
-                "ingestion_mode": "connector_sync",
-                **merged_report_config,
-            },
+            next_source_config,
             sort_keys=True,
         )
 
@@ -3957,6 +3992,68 @@ async def sync_source_connection(
         db.close()
 
 
+@router.patch("/{dataset_id}/metric-selection")
+async def update_dataset_metric_selection(
+    request: Request,
+    dataset_id: int,
+    payload: DatasetMetricSelectionUpdate,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(
+        request,
+        user_id,
+    )
+    require_workspace_data_manager(request)
+
+    db = SessionLocal()
+
+    try:
+        dataset, dataframe = load_dataframe(
+            db,
+            dataset_id,
+            apply_metric_selection=False,
+        )
+
+        verify_dataset_owner(
+            dataset,
+            user_id,
+            workspace_id,
+        )
+
+        numeric_columns, selected_columns = (
+            normalize_selected_metric_columns(
+                dataframe,
+                payload.selected_metric_columns,
+            )
+        )
+        source_config = parse_source_connection_config(
+            dataset.source_config
+        )
+        source_config[DATASET_SELECTED_METRICS_KEY] = (
+            selected_columns
+        )
+        dataset.source_config = json.dumps(
+            source_config,
+            sort_keys=True,
+        )
+        db.commit()
+        db.refresh(dataset)
+
+        return {
+            "dataset_id": dataset.id,
+            "file_name": dataset.file_name,
+            "numeric_columns": numeric_columns,
+            "selected_metric_columns": selected_columns,
+        }
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+    finally:
+        db.close()
+
+
 @router.get("/{dataset_id}")
 async def get_dataset(
     request: Request,
@@ -4043,6 +4140,7 @@ async def dataset_preview(
         dataset, dataframe = load_dataframe(
             db,
             dataset_id,
+            apply_metric_selection=False,
         )
 
         verify_dataset_owner(
@@ -4326,6 +4424,7 @@ async def dataset_details(
         dataset, dataframe = load_dataframe(
             db,
             dataset_id,
+            apply_metric_selection=False,
         )
 
         verify_dataset_owner(

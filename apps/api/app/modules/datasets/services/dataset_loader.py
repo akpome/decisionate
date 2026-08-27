@@ -7,6 +7,9 @@ from app.modules.datasets.services.analytics_adapters import (
     AnalyticsAdapterUnavailable,
     load_dataset_dataframe,
 )
+from app.modules.datasets.services.metric_selection import (
+    filter_dataframe_to_selected_metrics,
+)
 
 
 def load_dataset(
@@ -29,11 +32,18 @@ def load_dataset(
 
 def load_dataframe_from_dataset(
     dataset,
+    apply_metric_selection: bool = True,
 ):
     try:
-        return load_dataset_dataframe(
+        dataframe = load_dataset_dataframe(
             dataset
         )
+        if apply_metric_selection:
+            return filter_dataframe_to_selected_metrics(
+                dataset,
+                dataframe,
+            )
+        return dataframe
     except AnalyticsAdapterUnavailable as error:
         raise HTTPException(
             status_code=503,
@@ -44,6 +54,7 @@ def load_dataframe_from_dataset(
 def load_dataframe(
     db,
     dataset_id: int,
+    apply_metric_selection: bool = True,
 ):
     dataset = load_dataset(
         db,
@@ -52,7 +63,8 @@ def load_dataframe(
 
     dataframe = (
         load_dataframe_from_dataset(
-            dataset
+            dataset,
+            apply_metric_selection=apply_metric_selection,
         )
     )
 

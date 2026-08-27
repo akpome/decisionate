@@ -10,6 +10,13 @@ class DatasetCreate(BaseModel):
     rows: List[Dict[str, Any]]
 
 
+class DatasetMetricSelectionUpdate(BaseModel):
+    selected_metric_columns: List[str] = Field(
+        default_factory=list,
+        max_length=500,
+    )
+
+
 class DatasetSignedUrlImport(BaseModel):
     url: str = Field(min_length=12, max_length=4096)
     file_name: str | None = Field(default=None, max_length=255)

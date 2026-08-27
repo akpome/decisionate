@@ -157,6 +157,13 @@ export type DatasetSummary = {
   created_at?: string
 }
 
+export type DatasetMetricSelectionResponse = {
+  dataset_id: number
+  file_name: string
+  numeric_columns: string[]
+  selected_metric_columns: string[]
+}
+
 export type DatasetJoinMetadata = {
   dataset_id: number
   file_name: string
@@ -4674,6 +4681,60 @@ export async function getDatasetDetails(
       return response.json()
     }
   )
+}
+
+export async function updateDatasetMetricSelection(
+  id: number,
+  selectedMetricColumns: string[],
+  userId: string,
+  workspaceId?: string,
+): Promise<DatasetMetricSelectionResponse> {
+  const cleanDatasetId =
+    cleanPositiveIntegerId(
+      id,
+      "Dataset id"
+    )
+  const selectedColumns = Array.from(
+    new Set(
+      selectedMetricColumns
+        .map(column => column.trim())
+        .filter(Boolean)
+    )
+  )
+  const response = await apiFetch(
+    `${API_URL}/datasets/${cleanDatasetId}/metric-selection`,
+    {
+      method: "PATCH",
+      headers: await workspaceJsonHeaders(
+        userId,
+        workspaceId ?? userId
+      ),
+      body: JSON.stringify({
+        selected_metric_columns: selectedColumns,
+      }),
+    },
+    apiMutationTimeoutMs
+  )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to update dataset metrics"
+    )
+  }
+
+  invalidateApiReadCache([
+    `dataset-details:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}:${cleanDatasetId}:`,
+    `dataset-metrics:${getWorkspaceCacheIdentity(
+      userId,
+      workspaceId
+    )}:${cleanDatasetId}`,
+  ])
+
+  return response.json()
 }
 
 export async function getDatasetAnomalies(
