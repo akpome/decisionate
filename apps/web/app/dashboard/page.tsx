@@ -185,6 +185,8 @@ type DashboardDataset = {
   source_type?: string | null
   source_label?: string | null
   source_config?: string | null
+  numeric_columns?: string[]
+  selected_metric_columns?: string[]
   preview: DashboardRow[]
   metrics: DashboardMetric[]
   ai_analysis?: AIAnalysis | null
@@ -1777,12 +1779,21 @@ export default function DashboardPage() {
   ========================= */
 
   const allRows = useMemo(
-    () =>
-      joinedDatasetResult?.rows.length
-        ? joinedDatasetResult.rows
-        : dataset?.chart?.data?.length
-        ? dataset.chart.data
-        : dataset?.preview ?? [],
+    () => {
+      const sourceRows =
+        joinedDatasetResult?.rows.length
+          ? joinedDatasetResult.rows
+          : dataset?.chart?.data?.length
+          ? dataset.chart.data
+          : dataset?.preview ?? []
+
+      return joinedDatasetResult
+        ? sourceRows
+        : filterDashboardRowsToSelectedMetrics(
+            sourceRows,
+            dataset
+          )
+    },
     [dataset, joinedDatasetResult]
   )
   const joinedNumericMetrics = useMemo(
@@ -8112,6 +8123,36 @@ function DashboardMappingSelect({
   )
 }
 
+function filterDashboardRowsToSelectedMetrics(
+  rows: DashboardRow[],
+  dataset: DashboardDataset | null
+) {
+  if (
+    !dataset ||
+    !dataset.numeric_columns
+  ) {
+    return rows
+  }
+
+  const numericColumns = new Set(
+    dataset.numeric_columns
+  )
+  const selectedColumns = new Set(
+    dataset.selected_metric_columns ??
+    dataset.metrics.map(metric => metric.column)
+  )
+
+  return rows.map(row =>
+    Object.fromEntries(
+      Object.entries(row).filter(
+        ([column]) =>
+          !numericColumns.has(column) ||
+          selectedColumns.has(column)
+      )
+    ) as DashboardRow
+  )
+}
+
 function getDashboardMappingColumns(
   dataset: DashboardDataset | null
 ) {
@@ -8124,8 +8165,13 @@ function getDashboardMappingColumns(
   const rows = dataset?.chart?.data?.length
     ? dataset.chart.data
     : dataset?.preview ?? []
+  const filteredRows =
+    filterDashboardRowsToSelectedMetrics(
+      rows,
+      dataset
+    )
 
-  rows
+  filteredRows
     .slice(0, 50)
     .forEach(row => {
       Object.keys(row).forEach(column => {
@@ -8164,10 +8210,15 @@ function getDashboardNumericMappingColumns(
   const rows = dataset?.chart?.data?.length
     ? dataset.chart.data
     : dataset?.preview ?? []
+  const filteredRows =
+    filterDashboardRowsToSelectedMetrics(
+      rows,
+      dataset
+    )
   const columns = getDashboardMappingColumns(dataset)
 
   return columns.filter(column =>
-    rows.some(row =>
+    filteredRows.some(row =>
       toFiniteDashboardNumber(row[column]) !== null
     )
   )
