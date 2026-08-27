@@ -2876,13 +2876,14 @@ export async function importDatasetFromSignedUrl(
 
 export async function getDatasets(
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  userEmail?: string
 ): Promise<DatasetSummary[]> {
   const cacheKey =
     `datasets:${getWorkspaceCacheIdentity(
       userId,
       workspaceId
-    )}`
+    )}:${userEmail?.trim().toLowerCase() ?? ""}`
 
   return getCachedRead(
     cacheKey,
@@ -2896,7 +2897,8 @@ export async function getDatasets(
             {
               headers: await workspaceHeaders(
                 userId,
-                workspaceId
+                workspaceId,
+                userEmail
               ),
             }
           )

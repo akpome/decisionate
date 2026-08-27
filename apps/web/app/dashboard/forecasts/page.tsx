@@ -408,7 +408,8 @@ export default function ForecastsPage() {
           await Promise.allSettled([
             getDatasets(
               userId,
-              activeWorkspaceId
+              activeWorkspaceId,
+              user?.primaryEmailAddress?.emailAddress
             ),
           ])
 

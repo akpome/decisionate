@@ -350,7 +350,8 @@ function NewDecisionContent() {
                     await Promise.allSettled([
                         getDatasets(
                             userId,
-                            activeWorkspaceId
+                            activeWorkspaceId,
+                            user?.primaryEmailAddress?.emailAddress
                         ),
                         getDecisionTemplates(
                             userId,

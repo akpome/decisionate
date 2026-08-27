@@ -346,7 +346,8 @@ function AlertsPageContent({
           ),
           getDatasets(
             userId,
-            activeWorkspaceId
+            activeWorkspaceId,
+            user?.primaryEmailAddress?.emailAddress
           ),
           getDatasetRelationships(
             userId,

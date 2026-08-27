@@ -1516,7 +1516,8 @@ export default function DashboardPage() {
           await Promise.allSettled([
             getDatasets(
               userId,
-              activeWorkspaceId
+              activeWorkspaceId,
+              user?.primaryEmailAddress?.emailAddress
             ),
             getDatasetPreference(
               userId,

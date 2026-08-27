@@ -139,7 +139,11 @@ export default function RelationshipsPage() {
       setError("")
       try {
         const [datasetResult, relationshipResult] = await Promise.all([
-          getDatasets(userId, activeWorkspaceId),
+          getDatasets(
+            userId,
+            activeWorkspaceId,
+            user?.primaryEmailAddress?.emailAddress
+          ),
           getDatasetRelationships(userId, activeWorkspaceId),
         ])
         if (!current) return

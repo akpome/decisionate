@@ -459,7 +459,8 @@ export default function ReportsPage() {
           await Promise.allSettled([
             getDatasets(
               userId,
-              activeWorkspaceId
+              activeWorkspaceId,
+              user?.primaryEmailAddress?.emailAddress
             ),
           ])
 

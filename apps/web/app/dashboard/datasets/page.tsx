@@ -76,7 +76,8 @@ export default function DatasetsPage() {
       const data =
         await getDatasets(
           user.id,
-          activeWorkspaceId
+          activeWorkspaceId,
+          user.primaryEmailAddress?.emailAddress
         )
 
       setDatasets(data)
@@ -109,7 +110,8 @@ export default function DatasetsPage() {
         await Promise.allSettled([
           getDatasets(
             userId,
-            activeWorkspaceId
+            activeWorkspaceId,
+            user?.primaryEmailAddress?.emailAddress
           ),
         ])
 
