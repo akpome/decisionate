@@ -1279,9 +1279,7 @@ export default function DashboardPage() {
                 column => column.column_type === "numeric"
               )
               .map(column => column.label)
-            : data?.metrics?.map(
-              (metric: DashboardMetric) => metric.column
-            ) ?? []
+            : getSelectedDashboardMetricColumns(data)
         const savedSelectedMetrics =
           getValidSelectedMetrics(
             savedDashboardPreference.selectedMetrics,
@@ -1448,7 +1446,7 @@ export default function DashboardPage() {
         setTargets(
           {
             ...buildDefaultTargets(
-              data?.metrics ?? []
+              getSelectedDashboardMetrics(data)
             ),
             ...datasetTargets,
           }
@@ -1813,7 +1811,7 @@ export default function DashboardPage() {
     () =>
       joinedDatasetResult
         ? joinedNumericMetrics
-        : dataset?.metrics ?? [],
+        : getSelectedDashboardMetrics(dataset),
     [dataset, joinedDatasetResult, joinedNumericMetrics]
   )
   const joinedMappingColumns = useMemo(
@@ -8155,12 +8153,38 @@ function filterDashboardRowsToSelectedMetrics(
   )
 }
 
+function getSelectedDashboardMetrics(
+  dataset: DashboardDataset | null | undefined
+) {
+  const metrics = dataset?.metrics ?? []
+
+  if (!Array.isArray(dataset?.selected_metric_columns)) {
+    return metrics
+  }
+
+  const selectedColumns = new Set(
+    dataset.selected_metric_columns
+  )
+
+  return metrics.filter(metric =>
+    selectedColumns.has(metric.column)
+  )
+}
+
+function getSelectedDashboardMetricColumns(
+  dataset: DashboardDataset | null | undefined
+) {
+  return getSelectedDashboardMetrics(dataset).map(
+    metric => metric.column
+  )
+}
+
 function getDashboardMappingColumns(
   dataset: DashboardDataset | null
 ) {
   const columns = new Set<string>()
 
-  dataset?.metrics.forEach(metric => {
+  getSelectedDashboardMetrics(dataset).forEach(metric => {
     columns.add(metric.column)
   })
 
@@ -8202,7 +8226,7 @@ function getDashboardNumericMappingColumns(
   dataset: DashboardDataset | null
 ) {
   const metricColumns = new Set(
-    dataset?.metrics.map(metric => metric.column) ?? []
+    getSelectedDashboardMetricColumns(dataset)
   )
 
   if (metricColumns.size > 0) {
