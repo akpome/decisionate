@@ -8121,10 +8121,11 @@ function getDashboardMappingColumns(
     columns.add(metric.column)
   })
 
-  ;[
-    ...(dataset?.chart?.data ?? []),
-    ...(dataset?.preview ?? []),
-  ]
+  const rows = dataset?.chart?.data?.length
+    ? dataset.chart.data
+    : dataset?.preview ?? []
+
+  rows
     .slice(0, 50)
     .forEach(row => {
       Object.keys(row).forEach(column => {

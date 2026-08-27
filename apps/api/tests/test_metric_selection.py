@@ -56,7 +56,6 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 "date",
                 "revenue",
                 "is_returning",
-                "numeric_text",
                 "customer_email",
                 "revenue__sum",
             ],

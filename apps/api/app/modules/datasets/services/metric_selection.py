@@ -6,6 +6,10 @@ import json
 
 import pandas as pd
 
+from app.modules.datasets.services.numeric import (
+    get_numeric_columns,
+)
+
 
 DATASET_SELECTED_METRICS_KEY = "selected_metric_columns"
 
@@ -148,9 +152,14 @@ def filter_dataframe_to_selected_metrics(
     if selected_columns is None:
         return dataframe
 
-    selectable_columns = set(
-        get_selectable_numeric_columns(dataframe)
-    )
+    metric_like_columns = {
+        str(column)
+        for column, _ in get_numeric_columns(dataframe)
+        if (
+            not pd.api.types.is_bool_dtype(dataframe[column])
+            and not _is_generated_metric_column(column)
+        )
+    }
     selected_set = set(
         get_effective_dataset_metric_columns(
             dataset,
@@ -161,7 +170,7 @@ def filter_dataframe_to_selected_metrics(
         column
         for column in dataframe.columns
         if (
-            str(column) not in selectable_columns
+            str(column) not in metric_like_columns
             or str(column) in selected_set
         )
     ]
