@@ -2626,6 +2626,15 @@ function MainChart({
         height={48}
         tickLine={false}
         tickMargin={8}
+        label={{
+          value: formatMetricName(xKey),
+          position: "insideBottom",
+          offset: -28,
+          style: {
+            fill: "#6b7280",
+            fontSize: 10,
+          },
+        }}
       />
       <YAxis
         width={70}

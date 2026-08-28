@@ -63,10 +63,29 @@ export function MetricTrendChart({
           width="100%"
           height="100%"
         >
-          <LineChart data={data}>
+          <LineChart
+            data={data}
+            margin={{
+              top: 8,
+              right: 12,
+              bottom: 28,
+              left: 0,
+            }}
+          >
             <CartesianGrid strokeDasharray="3 3" />
 
-            <XAxis dataKey={xKey} />
+            <XAxis
+              dataKey={xKey}
+              label={{
+                value: formatMetricLabel(xKey),
+                position: "insideBottom",
+                offset: -18,
+                style: {
+                  fill: "#6b7280",
+                  fontSize: 10,
+                },
+              }}
+            />
 
             <YAxis />
 

@@ -1487,6 +1487,15 @@ function ReportChart({
               height={64}
               tick={{ fontSize: 11 }}
               tickMargin={8}
+              label={{
+                value: formatMetricLabel(xKey),
+                position: "insideBottom",
+                offset: -38,
+                style: {
+                  fill: "#6b7280",
+                  fontSize: 10,
+                },
+              }}
             />
             <YAxis />
             <Tooltip />
