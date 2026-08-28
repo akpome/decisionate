@@ -108,14 +108,33 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             ["date", "revenue"],
         )
 
+    def test_normalization_accepts_metric_and_dimension_columns(self):
+        available_columns, selected_columns = normalize_selected_metric_columns(
+            self.dataframe,
+            ["customer_email", "revenue"],
+        )
+
+        self.assertEqual(
+            available_columns,
+            [
+                "revenue",
+                "visits",
+                "numeric_text",
+            ],
+        )
+        self.assertEqual(
+            selected_columns,
+            ["revenue", "customer_email"],
+        )
+
     def test_normalization_rejects_unknown_columns(self):
         with self.assertRaisesRegex(
             ValueError,
-            "not numeric or was not found",
+            "was not found",
         ):
             normalize_selected_metric_columns(
                 self.dataframe,
-                ["customer_email"],
+                ["missing"],
             )
 
 

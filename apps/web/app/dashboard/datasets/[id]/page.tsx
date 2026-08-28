@@ -528,7 +528,9 @@ export default function DatasetDetailsPage() {
     setMetricSelectionError("")
   }
 
-  async function handleSaveMetricSelection() {
+  async function saveMetricSelection(
+    columns: string[]
+  ) {
     if (
       !userId ||
       !datasetId ||
@@ -545,7 +547,7 @@ export default function DatasetDetailsPage() {
 
       await updateDatasetMetricSelection(
         datasetId,
-        selectedMetricColumns,
+        columns,
         userId,
         activeWorkspaceId
       )
@@ -583,6 +585,16 @@ export default function DatasetDetailsPage() {
     } finally {
       setSavingMetricSelection(false)
     }
+  }
+
+  async function handleSaveMetricSelection() {
+    await saveMetricSelection(selectedMetricColumns)
+  }
+
+  async function handleResetMetricSelection() {
+    const defaultColumns = Array.from(numericMetricColumns)
+    setSelectedMetricColumns(defaultColumns)
+    await saveMetricSelection(defaultColumns)
   }
 
   async function handleCreateDecision(
@@ -999,18 +1011,30 @@ export default function DatasetDetailsPage() {
           </div>
 
           {canManageWorkspaceData && (
-            <button
-              type="button"
-              onClick={() => {
-                void handleSaveMetricSelection()
-              }}
-              disabled={savingMetricSelection}
-              className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {savingMetricSelection
-                ? "Saving..."
-                : "Save metric selection"}
-            </button>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void handleResetMetricSelection()
+                }}
+                disabled={savingMetricSelection}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Reset to system defaults
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleSaveMetricSelection()
+                }}
+                disabled={savingMetricSelection}
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingMetricSelection
+                  ? "Saving..."
+                  : "Save column selection"}
+              </button>
+            </div>
           )}
         </div>
 
@@ -1043,11 +1067,9 @@ export default function DatasetDetailsPage() {
                         <input
                           type="checkbox"
                           checked={
-                            isNumericMetric &&
                             selectedMetricColumnSet.has(column)
                           }
                           disabled={
-                            !isNumericMetric ||
                             !canManageWorkspaceData ||
                             savingMetricSelection
                           }
@@ -1060,9 +1082,13 @@ export default function DatasetDetailsPage() {
                           title={
                             isNumericMetric
                               ? "Include this column as a metric"
-                              : "Only numeric columns can be metrics"
+                              : "Keep this source column available for dashboard dimensions"
                           }
-                          aria-label={`Use ${column} as a metric`}
+                          aria-label={
+                            isNumericMetric
+                              ? `Use ${column} as a metric`
+                              : `Use ${column} as a dashboard dimension`
+                          }
                           className="h-4 w-4 shrink-0 accent-blue-600"
                         />
                         <span className="truncate">
@@ -1114,7 +1140,7 @@ export default function DatasetDetailsPage() {
 
         {previewColumns.length === 0 ? (
           <p className="mt-3 text-sm text-gray-500">
-            No columns are available for metric selection.
+            No columns are available in this dataset.
           </p>
         ) : numericMetricColumns.size === 0 ? (
           <p className="mt-3 text-sm text-gray-500">
@@ -1122,7 +1148,7 @@ export default function DatasetDetailsPage() {
           </p>
         ) : (
           <p className="mt-3 text-sm text-gray-500">
-            Checked numeric columns are used as metrics throughout Decisionate. Unchecked columns remain in the dataset but are excluded from analysis.
+            Numeric columns are selected as metrics by default. Other selected columns remain available for dashboard dimensions such as Channel Mix. Reset restores the initial numeric selection.
           </p>
         )}
       </div>

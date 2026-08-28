@@ -131,7 +131,14 @@ def normalize_selected_metric_columns(
     dataframe: pd.DataFrame,
     requested_columns: list[str],
 ) -> tuple[list[str], list[str]]:
-    available_columns = get_selectable_numeric_columns(dataframe)
+    available_metric_columns = get_selectable_numeric_columns(
+        dataframe
+    )
+    available_columns = [
+        str(column)
+        for column in dataframe.columns
+        if not _is_generated_metric_column(column, dataframe)
+    ]
     available_set = set(available_columns)
     selected_columns: list[str] = []
     seen: set[str] = set()
@@ -142,14 +149,14 @@ def normalize_selected_metric_columns(
             continue
         if column not in available_set:
             raise ValueError(
-                f"Metric column '{column}' is not numeric or was not found"
+                f"Column '{column}' was not found"
             )
         selected_columns.append(column)
         seen.add(column)
 
     # Preserve the source column order in the stored response and UI.
     selected_set = set(selected_columns)
-    return available_columns, [
+    return available_metric_columns, [
         column
         for column in available_columns
         if column in selected_set
