@@ -152,6 +152,30 @@ function formatPreviewValue(
   return String(value)
 }
 
+function getPreviewNumericColumns(
+  columns: string[],
+  preview: DatasetRow[] | undefined
+) {
+  if (!preview?.length) {
+    return []
+  }
+
+  return columns.filter(column => {
+    const values = preview
+      .map(row => row[column])
+      .filter(
+        (value): value is number =>
+          typeof value === "number" &&
+          Number.isFinite(value)
+      )
+
+    return (
+      values.length === preview.length &&
+      values.length > 0
+    )
+  })
+}
+
 export default function DatasetDetailsPage() {
   const params = useParams()
   const router = useRouter()
@@ -327,9 +351,16 @@ export default function DatasetDetailsPage() {
     (dataset?.preview?.[0]
       ? Object.keys(dataset.preview[0])
       : [])
-  const numericMetricColumns = new Set(
-    dataset?.numeric_columns ?? metricColumns
-  )
+  const numericMetricColumns = new Set([
+    ...(dataset?.numeric_columns ?? []),
+    ...getPreviewNumericColumns(
+      previewColumns,
+      dataset?.preview
+    ),
+    ...(dataset?.numeric_columns?.length
+      ? []
+      : metricColumns),
+  ])
   const selectedMetricColumnSet = new Set(
     selectedMetricColumns
   )
