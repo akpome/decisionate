@@ -1043,11 +1043,9 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   freshbooks: {
-  },
-  sage: {
-    business_id: {
-      description: "The Sage business identifier used to select the business for invoice sync.",
-      example: "your-sage-business-id",
+    resource_type: {
+      description: "Choose the FreshBooks resource to ingest into this dataset.",
+      example: "Invoices",
     },
   },
   xero: {
@@ -1260,6 +1258,26 @@ function ConnectionConfigField({
           <option value="Account">Accounts</option>
           <option value="Lead">Leads</option>
           <option value="Opportunity">Opportunities</option>
+        </select>
+      </label>
+    )
+  }
+
+  if (sourceType === "freshbooks" && configKey === "resource_type") {
+    return (
+      <label className="block min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
+        Dataset to ingest
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={`${sharedClassName} h-9`}
+        >
+          <option value="">Select a FreshBooks dataset</option>
+          <option value="profile">Profile</option>
+          <option value="invoices">Invoices</option>
+          <option value="expenses">Expenses</option>
+          <option value="payments">Payments</option>
+          <option value="clients">Clients</option>
         </select>
       </label>
     )

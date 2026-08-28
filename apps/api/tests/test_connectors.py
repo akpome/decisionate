@@ -2,7 +2,7 @@ import json
 import os
 import tempfile
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -44,6 +44,115 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(row["customer__segment"], "enterprise")
         self.assertEqual(row["record_id"], "record-1")
         self.assertNotIn("missing_alias", row)
+
+    def test_freshbooks_resource_selections_load_documented_resources(self):
+        identity_url = "https://api.freshbooks.com/auth/api/v1/users/me"
+
+        def json_request(url, headers):
+            self.assertEqual(
+                headers["Authorization"],
+                "Bearer freshbooks-token",
+            )
+            if url == identity_url:
+                return {
+                    "response": {
+                        "id": 42,
+                        "profile": {
+                            "first_name": "Ada",
+                            "last_name": "Lovelace",
+                        },
+                    },
+                }
+            if "/invoices/invoices?" in url:
+                return {
+                    "response": {
+                        "result": {
+                            "invoices": [{
+                                "invoiceid": 101,
+                                "create_date": "2026-01-02",
+                                "amount": {"amount": "125.00", "code": "CAD"},
+                            }],
+                        },
+                    },
+                }
+            if "/expenses/expenses?" in url:
+                return {
+                    "response": {
+                        "result": {
+                            "expenses": [{
+                                "expenseid": 201,
+                                "date": "2026-01-03",
+                                "amount": {"amount": "25.00", "code": "CAD"},
+                            }],
+                        },
+                    },
+                }
+            if "/payments/payments?" in url:
+                return {
+                    "response": {
+                        "result": {
+                            "payments": [{
+                                "id": 301,
+                                "date": "2026-01-04",
+                                "amount": {"amount": "75.00", "code": "CAD"},
+                            }],
+                        },
+                    },
+                }
+            if "/users/clients?" in url:
+                return {
+                    "response": {
+                        "result": {
+                            "clients": [{
+                                "id": 401,
+                                "signup_date": "2026-01-05 12:00:00",
+                                "organization": "Example Ltd",
+                            }],
+                        },
+                    },
+                }
+            raise AssertionError(f"Unhandled FreshBooks URL: {url}")
+
+        with patch.dict(
+            os.environ,
+            {
+                "FRESHBOOKS_API_BASE_URL_TEMPLATE": (
+                    "https://api.freshbooks.com/accounting/account/{account_id}"
+                ),
+                "FRESHBOOKS_IDENTITY_API_URL": identity_url,
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="freshbooks-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ):
+            for resource_type, expected_column in [
+                ("profile", "profile_id"),
+                ("invoices", "invoice_id"),
+                ("expenses", "expense_id"),
+                ("payments", "payment_id"),
+                ("clients", "client_id"),
+            ]:
+                dataframe, report = connectors.load_freshbooks_dataframe(
+                    None,
+                    make_connection(
+                        "freshbooks",
+                        {
+                            "account_id": "account-1",
+                            "resource_type": resource_type,
+                        },
+                    ),
+                    date(2026, 1, 1),
+                    date(2026, 1, 31),
+                )
+                self.assertFalse(dataframe.empty, resource_type)
+                self.assertIn(expected_column, dataframe.columns)
+                self.assertEqual(report["resource"], resource_type)
 
     def test_quickbooks_nested_lists_are_flattened_for_analysis(self):
         row = connectors.build_dynamic_connector_row(

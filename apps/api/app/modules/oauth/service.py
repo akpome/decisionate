@@ -93,6 +93,9 @@ OAUTH_PROVIDERS = {
         required_scopes=(
             "user:profile:read",
             "user:invoices:read",
+            "user:expenses:read",
+            "user:payments:read",
+            "user:clients:read",
         ),
     ),
     "sage": OAuthProvider(

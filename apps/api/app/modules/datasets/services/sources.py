@@ -164,9 +164,10 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": [],
+        "config_keys": ["resource_type"],
         "description": (
-            "Connect FreshBooks invoice data."
+            "Choose the FreshBooks resource to ingest: profile, invoices, "
+            "expenses, payments, or clients."
         ),
     },
     {
@@ -176,9 +177,10 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["business_id"],
+        "config_keys": [],
         "description": (
-            "Connect Sage Cloud Accounting sales invoice data."
+            "Connect Sage Cloud Accounting sales invoice data through OAuth. "
+            "The connected business is selected automatically."
         ),
     },
     {

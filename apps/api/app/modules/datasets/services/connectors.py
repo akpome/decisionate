@@ -32,6 +32,16 @@ SALESFORCE_OBJECT_TYPES = {
     "Opportunity",
 }
 SALESFORCE_MAX_SOQL_LENGTH = 6000
+FRESHBOOKS_RESOURCE_PATHS = {
+    "invoices": ("invoices/invoices", "invoices"),
+    "expenses": ("expenses/expenses", "expenses"),
+    "payments": ("payments/payments", "payments"),
+    "clients": ("users/clients", "clients"),
+}
+FRESHBOOKS_RESOURCE_TYPES = {
+    "profile",
+    *FRESHBOOKS_RESOURCE_PATHS,
+}
 
 
 class ConnectorUnavailable(RuntimeError):
@@ -1003,9 +1013,24 @@ def load_freshbooks_dataframe(
     end_date=None,
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
+    resource_type = str(
+        config.get("resource_type") or "invoices"
+    ).strip().lower()
+    if resource_type not in FRESHBOOKS_RESOURCE_TYPES:
+        raise ConnectorUnavailable(
+            "FreshBooks resource_type must be profile, invoices, expenses, "
+            "payments, or clients"
+        )
+
     account_id = str(config.get("account_id") or "").strip()
     access_token = get_oauth_access_token(db, connection, "freshbooks")
-    if not account_id or not re.fullmatch(r"[A-Za-z0-9_-]+", account_id):
+    if (
+        resource_type != "profile"
+        and (
+            not account_id
+            or not re.fullmatch(r"[A-Za-z0-9_-]+", account_id)
+        )
+    ):
         businesses = [
             business
             for business in get_freshbooks_businesses(access_token)
@@ -1024,8 +1049,71 @@ def load_freshbooks_dataframe(
             sort_keys=True,
         )
     rows = []
-    page = 1
-    seen_pages = set()
+
+    if resource_type == "profile":
+        identity_url = get_provider_setting(
+            "FRESHBOOKS_IDENTITY_API_URL"
+        )
+        if not identity_url:
+            raise ConnectorUnavailable(
+                "FRESHBOOKS_IDENTITY_API_URL is required for the FreshBooks connector"
+            )
+        payload = connector_json_request(
+            identity_url,
+            headers={
+                "Accept": "application/json",
+                "Api-Version": "alpha",
+                "Authorization": f"Bearer {access_token}",
+            },
+        )
+        response = payload.get("response")
+        if not isinstance(response, dict):
+            raise ConnectorUnavailable(
+                "FreshBooks returned an invalid profile response"
+            )
+        profile = response.get("profile")
+        profile = profile if isinstance(profile, dict) else response
+        profile_record = dict(profile)
+        identity_id = response.get("id")
+        if identity_id is not None:
+            profile_record["identity_id"] = identity_id
+        rows.append(
+            build_dynamic_connector_row(
+                profile_record,
+                {
+                    "profile_id": identity_id,
+                    "resource_type": resource_type,
+                },
+            )
+        )
+    else:
+        rows = _load_freshbooks_account_resource(
+            access_token,
+            account_id,
+            resource_type,
+            start_date,
+            end_date,
+        )
+
+    dataframe = pd.DataFrame(rows)
+    dataframe = filter_date_range(dataframe, start_date, end_date)
+    return dataframe, {
+        "connector": "freshbooks",
+        "resource": resource_type,
+        "account_id": account_id,
+        "start_date": date_value(start_date),
+        "end_date": date_value(end_date),
+        "row_count": len(dataframe),
+    }
+
+
+def _load_freshbooks_account_resource(
+    access_token: str,
+    account_id: str,
+    resource_type: str,
+    start_date=None,
+    end_date=None,
+) -> list[dict]:
     base_template = get_provider_setting(
         "FRESHBOOKS_API_BASE_URL_TEMPLATE"
     )
@@ -1034,87 +1122,153 @@ def load_freshbooks_dataframe(
             "FRESHBOOKS_API_BASE_URL_TEMPLATE is required for the FreshBooks connector"
         )
     try:
-        base_url = base_template.format(account_id=account_id).rstrip("/")
+        account_base_url = base_template.format(
+            account_id=account_id
+        ).rstrip("/")
     except KeyError as error:
         raise ConnectorUnavailable(
             "FRESHBOOKS_API_BASE_URL_TEMPLATE must include {account_id}"
         ) from error
 
+    legacy_invoice_suffix = "/invoices/invoices"
+    if account_base_url.endswith(legacy_invoice_suffix):
+        account_base_url = account_base_url[: -len(legacy_invoice_suffix)]
+    resource_path, response_key = FRESHBOOKS_RESOURCE_PATHS[resource_type]
+    endpoint = f"{account_base_url.rstrip('/')}/{resource_path}"
+    rows = []
+    page = 1
+    seen_pages = set()
+
     while True:
         if page in seen_pages:
-            break
+            raise ConnectorUnavailable(
+                "FreshBooks returned a repeated page while listing resources"
+            )
         seen_pages.add(page)
         params = {
             "page": str(page),
             "per_page": str(PAGE_SIZE),
         }
-        if start_date:
-            params["date_from"] = start_date.isoformat()
-        if end_date:
-            params["date_to"] = end_date.isoformat()
+        if resource_type in {"invoices", "expenses"}:
+            if start_date:
+                params["date_from"] = start_date.isoformat()
+            if end_date:
+                params["date_to"] = end_date.isoformat()
+        elif resource_type == "payments":
+            if start_date:
+                params["date_min"] = start_date.isoformat()
+            if end_date:
+                params["date_max"] = end_date.isoformat()
+        elif resource_type == "clients":
+            if start_date:
+                params["updated_min"] = start_date.isoformat()
+            if end_date:
+                params["updated_max"] = end_date.isoformat()
+
         payload = connector_json_request(
-            f"{base_url}?{urlencode(params)}",
+            f"{endpoint}?{urlencode(params)}",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         response = payload.get("response")
         result = response.get("result") if isinstance(response, dict) else None
-        invoices = result.get("invoices") if isinstance(result, dict) else None
-        if not isinstance(invoices, list):
-            invoices = []
+        records = result.get(response_key) if isinstance(result, dict) else None
+        if not isinstance(records, list):
+            raise ConnectorUnavailable(
+                f"FreshBooks returned an invalid {resource_type} response"
+            )
 
-        for invoice in invoices:
-            if not isinstance(invoice, dict):
+        for record in records:
+            if not isinstance(record, dict):
                 continue
-            amount = invoice.get("amount")
-            outstanding = invoice.get("outstanding")
+            amount = record.get("amount")
+            record_id = (
+                record.get("id")
+                or record.get("invoiceid")
+                or record.get("expenseid")
+                or record.get("logid")
+                or record.get("clientid")
+            )
             normalized_row = {
-                "invoice_id": invoice.get("invoiceid") or invoice.get("id"),
-                "invoice_number": invoice.get("invoice_number"),
-                "created_at": invoice.get("create_date") or invoice.get("created_at"),
-                "due_date": invoice.get("due_date"),
-                "date_paid": invoice.get("date_paid"),
-                "amount": amount.get("amount")
-                if isinstance(amount, dict)
-                else amount,
+                "record_id": record_id,
+                "resource_type": resource_type,
+                "created_at": (
+                    record.get("create_date")
+                    or record.get("date")
+                    or record.get("signup_date")
+                    or record.get("created_at")
+                ),
+                "updated_at": record.get("updated") or record.get("updated_at"),
+                "amount": (
+                    amount.get("amount")
+                    if isinstance(amount, dict)
+                    else amount
+                ),
                 "currency": (
                     amount.get("code")
                     if isinstance(amount, dict)
-                    else invoice.get("currency_code")
+                    else record.get("currency_code")
                 ),
-                "outstanding": outstanding.get("amount")
-                if isinstance(outstanding, dict)
-                else outstanding,
-                "status": invoice.get("v3_status") or invoice.get("display_status"),
-                "payment_status": invoice.get("payment_status"),
-                "client_id": invoice.get("clientid"),
-                "client_name": " ".join(
-                    value
-                    for value in [invoice.get("fname"), invoice.get("lname")]
-                    if value
-                ).strip(),
-                "organization": invoice.get("organization"),
             }
+            if resource_type == "invoices":
+                outstanding = record.get("outstanding")
+                normalized_row.update({
+                    "invoice_id": record.get("invoiceid") or record.get("id"),
+                    "invoice_number": record.get("invoice_number"),
+                    "due_date": record.get("due_date"),
+                    "date_paid": record.get("date_paid"),
+                    "outstanding": (
+                        outstanding.get("amount")
+                        if isinstance(outstanding, dict)
+                        else outstanding
+                    ),
+                    "status": record.get("v3_status") or record.get("display_status"),
+                    "payment_status": record.get("payment_status"),
+                    "client_id": record.get("clientid"),
+                    "client_name": " ".join(
+                        value
+                        for value in [record.get("fname"), record.get("lname")]
+                        if value
+                    ).strip(),
+                    "organization": record.get("organization"),
+                })
+            elif resource_type == "expenses":
+                normalized_row.update({
+                    "expense_id": record.get("expenseid") or record.get("id"),
+                    "client_id": record.get("clientid"),
+                    "vendor": record.get("vendor"),
+                    "category_id": record.get("categoryid"),
+                    "status": record.get("status"),
+                })
+            elif resource_type == "payments":
+                normalized_row.update({
+                    "payment_id": record.get("id") or record.get("logid"),
+                    "invoice_id": record.get("invoiceid"),
+                    "client_id": record.get("clientid"),
+                    "payment_type": record.get("type"),
+                })
+            elif resource_type == "clients":
+                normalized_row.update({
+                    "client_id": record.get("id") or record.get("userid"),
+                    "client_name": " ".join(
+                        value
+                        for value in [record.get("fname"), record.get("lname")]
+                        if value
+                    ).strip(),
+                    "organization": record.get("organization"),
+                    "email": record.get("email"),
+                })
             rows.append(
                 build_dynamic_connector_row(
-                    invoice,
+                    record,
                     normalized_row,
                 )
             )
 
-        if not invoices or len(invoices) < PAGE_SIZE:
+        if not records or len(records) < PAGE_SIZE:
             break
         page += 1
 
-    dataframe = pd.DataFrame(rows)
-    dataframe = filter_date_range(dataframe, start_date, end_date)
-    return dataframe, {
-        "connector": "freshbooks",
-        "resource": "invoices",
-        "account_id": account_id,
-        "start_date": date_value(start_date),
-        "end_date": date_value(end_date),
-        "row_count": len(dataframe),
-    }
+    return rows
 
 
 def load_sage_dataframe(
@@ -1587,7 +1741,15 @@ def get_next_link(link_header: str | None) -> str | None:
 def filter_date_range(dataframe: pd.DataFrame, start_date, end_date) -> pd.DataFrame:
     if dataframe.empty or (start_date is None and end_date is None):
         return dataframe
-    dates = pd.to_datetime(dataframe.get("created_at"), errors="coerce", utc=True)
+    if "created_at" not in dataframe.columns:
+        return dataframe
+    dates = pd.to_datetime(
+        dataframe["created_at"],
+        errors="coerce",
+        utc=True,
+    )
+    if not isinstance(dates, pd.Series) or dates.notna().sum() == 0:
+        return dataframe
     mask = dates.notna()
     if start_date is not None:
         mask &= dates.dt.date >= start_date
