@@ -25,8 +25,18 @@ export default function AuthRedirectPage() {
       return
     }
 
+    const requestedRedirect =
+      new URLSearchParams(window.location.search).get(
+        "redirect_url"
+      )
+    const returnTo = getSafeReturnTo(requestedRedirect)
+
     if (!isSignedIn || !user?.id) {
-      router.replace("/sign-in")
+      router.replace(
+        returnTo
+          ? `/sign-in?redirect_url=${encodeURIComponent(returnTo)}`
+          : "/sign-in"
+      )
       return
     }
 
@@ -72,12 +82,12 @@ export default function AuthRedirectPage() {
       // Preserve access for existing users when a non-auth lookup is
       // temporarily unavailable. DashboardShell will retry its workspace
       // loading and apply subscription access after the workspace is known.
-      router.replace("/dashboard")
+      router.replace(returnTo ?? "/dashboard")
     }
 
     void routeAuthenticatedUser().catch(() => {
       if (!cancelled) {
-        router.replace("/dashboard")
+        router.replace(returnTo ?? "/dashboard")
       }
     })
 
@@ -114,4 +124,18 @@ export default function AuthRedirectPage() {
       )}
     </main>
   )
+}
+
+function getSafeReturnTo(value: string | null) {
+  if (
+    !value ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    value === "/auth/redirect" ||
+    value.startsWith("/auth/redirect?")
+  ) {
+    return null
+  }
+
+  return value
 }

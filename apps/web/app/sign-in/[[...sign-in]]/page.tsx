@@ -3,7 +3,40 @@ import Link from "next/link"
 import { AuthCard } from "@/app/auth-card"
 import { ThemeToggle } from "@/app/theme-toggle"
 
-export default function SignInPage() {
+type SignInPageProps = {
+  searchParams: Promise<{
+    redirect_url?: string | string[]
+  }>
+}
+
+function getAuthRedirectUrl(
+  redirectValue: string | string[] | undefined
+) {
+  const candidate = Array.isArray(redirectValue)
+    ? redirectValue[0]
+    : redirectValue
+
+  if (
+    !candidate ||
+    !candidate.startsWith("/") ||
+    candidate.startsWith("//") ||
+    candidate === "/auth/redirect" ||
+    candidate.startsWith("/auth/redirect?")
+  ) {
+    return "/auth/redirect"
+  }
+
+  return `/auth/redirect?redirect_url=${encodeURIComponent(candidate)}`
+}
+
+export default async function SignInPage({
+  searchParams,
+}: SignInPageProps) {
+  const params = await searchParams
+  const authRedirectUrl = getAuthRedirectUrl(
+    params.redirect_url
+  )
+
   return (
     <main className="min-h-screen overflow-x-hidden bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-6xl justify-end">
@@ -43,7 +76,10 @@ export default function SignInPage() {
               </Link>
             </div>
 
-            <AuthCard mode="sign-in" />
+            <AuthCard
+              mode="sign-in"
+              redirectUrl={authRedirectUrl}
+            />
           </div>
         </section>
       </div>

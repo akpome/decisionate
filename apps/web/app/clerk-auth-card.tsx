@@ -12,6 +12,7 @@ import { useState } from "react"
 
 type ClerkAuthCardProps = {
   mode: "sign-in" | "sign-up"
+  redirectUrl?: string
 }
 
 const authAppearance = {
@@ -23,6 +24,7 @@ const authAppearance = {
 
 export function ClerkAuthCard({
   mode,
+  redirectUrl,
 }: ClerkAuthCardProps) {
   if (mode === "sign-up") {
     return <SignUpWithConsent />
@@ -41,8 +43,12 @@ export function ClerkAuthCard({
       </ClerkLoading>
       <ClerkLoaded>
         <SignIn
-          fallbackRedirectUrl="/auth/redirect"
-          forceRedirectUrl="/auth/redirect"
+          fallbackRedirectUrl={
+            redirectUrl ?? "/auth/redirect"
+          }
+          forceRedirectUrl={
+            redirectUrl ?? "/auth/redirect"
+          }
           withSignUp={false}
           signUpUrl="/sign-up"
           signUpFallbackRedirectUrl="/onboarding"
