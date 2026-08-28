@@ -20,6 +20,7 @@ from app.modules.oauth.service import (
     create_state_token,
     encrypt_token,
     exchange_code,
+    get_freshbooks_businesses,
     get_xero_connections,
     get_web_app_url,
     token_expiry,
@@ -223,6 +224,39 @@ def process_oauth_callback(
             code,
             connection_config,
         )
+        if state.source_type == "freshbooks":
+            access_token = str(payload.get("access_token") or "").strip()
+            businesses = get_freshbooks_businesses(access_token)
+            configured_account_id = str(
+                connection_config.get("account_id") or ""
+            ).strip()
+            matching_businesses = [
+                business
+                for business in businesses
+                if business["active"]
+            ]
+            if configured_account_id:
+                matching_businesses = [
+                    business
+                    for business in matching_businesses
+                    if business["account_id"] == configured_account_id
+                ]
+            if len(matching_businesses) == 1:
+                connection_config["account_id"] = matching_businesses[0][
+                    "account_id"
+                ]
+                connection.connection_config = json.dumps(
+                    connection_config,
+                    sort_keys=True,
+                )
+            elif not matching_businesses:
+                raise OAuthTokenExchangeError(
+                    "FreshBooks did not return an active business account"
+                )
+            else:
+                raise OAuthTokenExchangeError(
+                    "FreshBooks returned multiple business accounts; account selection is required"
+                )
         if state.source_type == "quickbooks":
             realm_id = str(query.get("realmId") or "").strip()
             if realm_id:

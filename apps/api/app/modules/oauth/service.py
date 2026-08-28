@@ -90,7 +90,10 @@ OAUTH_PROVIDERS = {
         client_id_env="FRESHBOOKS_CLIENT_ID",
         client_secret_env="FRESHBOOKS_CLIENT_SECRET",
         scopes_env="FRESHBOOKS_OAUTH_SCOPES",
-        required_scopes=("user:invoices:read",),
+        required_scopes=(
+            "user:profile:read",
+            "user:invoices:read",
+        ),
     ),
     "sage": OAuthProvider(
         source_type="sage",
@@ -368,6 +371,76 @@ def exchange_code(
             "OAuth provider returned no access token"
         )
     return payload
+
+
+def get_freshbooks_businesses(access_token: str) -> list[dict]:
+    """Return FreshBooks businesses available to the authorized identity."""
+    identity_url = get_provider_setting("FRESHBOOKS_IDENTITY_API_URL")
+    if not identity_url:
+        raise OAuthProviderUnavailable(
+            "FRESHBOOKS_IDENTITY_API_URL is required for FreshBooks account discovery"
+        )
+
+    request = Request(
+        identity_url,
+        headers={
+            "Accept": "application/json",
+            "Api-Version": "alpha",
+            "Authorization": f"Bearer {access_token}",
+        },
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            body = response.read().decode("utf-8")
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise OAuthTokenExchangeError(
+            f"FreshBooks account discovery failed with HTTP {error.code}: {detail[:240]}"
+        ) from error
+    except (URLError, TimeoutError, OSError) as error:
+        raise OAuthTokenExchangeError(
+            "FreshBooks account discovery is unavailable"
+        ) from error
+
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as error:
+        raise OAuthTokenExchangeError(
+            "FreshBooks returned an invalid account discovery response"
+        ) from error
+
+    response_payload = payload.get("response")
+    memberships = (
+        response_payload.get("business_memberships")
+        if isinstance(response_payload, dict)
+        else None
+    )
+    if not isinstance(memberships, list):
+        raise OAuthTokenExchangeError(
+            "FreshBooks returned no business memberships"
+        )
+
+    businesses = []
+    for membership in memberships:
+        if not isinstance(membership, dict):
+            continue
+        business = membership.get("business")
+        if not isinstance(business, dict):
+            continue
+        account_id = str(business.get("account_id") or "").strip()
+        if not account_id:
+            continue
+        businesses.append(
+            {
+                "account_id": account_id,
+                "business_id": str(business.get("id") or "").strip(),
+                "name": str(business.get("name") or "").strip(),
+                "role": str(membership.get("role") or "").strip(),
+                "active": business.get("active") is not False,
+            }
+        )
+    return businesses
 
 
 def refresh_oauth_token(

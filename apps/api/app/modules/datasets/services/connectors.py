@@ -18,6 +18,7 @@ from app.db.models import OAuthCredential
 from app.modules.oauth.service import (
     decrypt_token,
     encrypt_token,
+    get_freshbooks_businesses,
     refresh_oauth_token,
     token_expiry,
 )
@@ -1003,12 +1004,25 @@ def load_freshbooks_dataframe(
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
     account_id = str(config.get("account_id") or "").strip()
-    if not account_id or not re.fullmatch(r"[A-Za-z0-9_-]+", account_id):
-        raise ConnectorUnavailable(
-            "Configure a valid FreshBooks account ID before syncing"
-        )
-
     access_token = get_oauth_access_token(db, connection, "freshbooks")
+    if not account_id or not re.fullmatch(r"[A-Za-z0-9_-]+", account_id):
+        businesses = [
+            business
+            for business in get_freshbooks_businesses(access_token)
+            if business["active"]
+        ]
+        if len(businesses) != 1:
+            raise ConnectorUnavailable(
+                "FreshBooks returned multiple business accounts; account selection is required"
+                if businesses
+                else "FreshBooks did not return an active business account"
+            )
+        account_id = businesses[0]["account_id"]
+        config["account_id"] = account_id
+        connection.connection_config = json.dumps(
+            config,
+            sort_keys=True,
+        )
     rows = []
     page = 1
     seen_pages = set()

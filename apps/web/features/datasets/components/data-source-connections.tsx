@@ -1045,10 +1045,6 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   freshbooks: {
-    account_id: {
-      description: "The FreshBooks account ID used by the invoice endpoint.",
-      example: "123456",
-    },
   },
   sage: {
     business_id: {

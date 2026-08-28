@@ -163,7 +163,7 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["account_id"],
+        "config_keys": [],
         "description": (
             "Connect FreshBooks invoice data."
         ),
@@ -294,7 +294,10 @@ DATASET_SOURCE_RUNTIME_ENV_KEYS = {
         "QUICKBOOKS_API_BASE_URL",
         "QUICKBOOKS_API_VERSION",
     ],
-    "freshbooks": ["FRESHBOOKS_API_BASE_URL_TEMPLATE"],
+    "freshbooks": [
+        "FRESHBOOKS_API_BASE_URL_TEMPLATE",
+        "FRESHBOOKS_IDENTITY_API_URL",
+    ],
     "sage": [
         "SAGE_API_BASE_URL",
         "SAGE_BUSINESS_HEADER",
