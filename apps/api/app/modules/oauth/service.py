@@ -90,7 +90,7 @@ OAUTH_PROVIDERS = {
         client_id_env="FRESHBOOKS_CLIENT_ID",
         client_secret_env="FRESHBOOKS_CLIENT_SECRET",
         scopes_env="FRESHBOOKS_OAUTH_SCOPES",
-        required_scopes=("invoices:read",),
+        required_scopes=("user:invoices:read",),
     ),
     "sage": OAuthProvider(
         source_type="sage",
