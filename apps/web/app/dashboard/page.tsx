@@ -8046,7 +8046,12 @@ function DashboardMetricMappingPanel({
                     field.numericOnly
                       ? numericColumns
                       : field.dimensionOnly
-                        ? dimensionColumns
+                        ? Array.from(
+                          new Set([
+                            ...columns,
+                            ...dimensionColumns,
+                          ])
+                        )
                         : columns
                   }
                   emptyLabel="Auto"

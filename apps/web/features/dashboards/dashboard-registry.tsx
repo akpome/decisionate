@@ -1285,7 +1285,7 @@ function buildMappedIndustryDashboard(
     getValidManualColumn(
       manualMapping?.category,
       false,
-      true
+      false
     ) ||
     categoryColumn ||
     getFirstNonNumericColumn(
@@ -1304,7 +1304,7 @@ function buildMappedIndustryDashboard(
     getValidManualColumn(
       manualMapping?.stage,
       false,
-      true
+      false
     ) || stageColumn
   const datasetRowCount =
     typeof dataset?.row_count === "number" &&
