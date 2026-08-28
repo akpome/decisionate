@@ -958,15 +958,17 @@ export default function DatasetDetailsPage() {
         </h2>
 
         {displayedMetrics.length ? (
-          <div className="grid gap-6 md:grid-cols-3">
-            {displayedMetrics.map((metric) => (
-                <MetricCard
-                  key={metric.column}
-                  title={formatMetricLabel(metric.column)}
-                  value={metric.total}
-                description={`Average ${metric.average}`}
-              />
-            ))}
+          <div className="max-h-[32rem] overflow-y-auto pr-1">
+            <div className="grid gap-6 md:grid-cols-3">
+              {displayedMetrics.map((metric) => (
+                  <MetricCard
+                    key={metric.column}
+                    title={formatMetricLabel(metric.column)}
+                    value={metric.total}
+                  description={`Average ${metric.average}`}
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <div className="rounded-xl border border-dashed bg-gray-50 p-4 text-sm text-gray-500">
