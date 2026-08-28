@@ -585,9 +585,13 @@ function DataSourceConnectionRow({
         )}
 
         <p className="mt-2 text-xs font-medium uppercase text-gray-400">
-          {connection.has_config
-            ? "Config saved"
-            : "No config saved"}
+          {connection.source_type === "quickbooks"
+            ? connection.status === "connected"
+              ? "OAuth configured"
+              : "OAuth not configured"
+            : connection.has_config
+              ? "Config saved"
+              : "No config saved"}
         </p>
 
         <p className="mt-1 text-xs text-gray-500">
@@ -1036,12 +1040,6 @@ const CONNECTION_FIELD_GUIDES: Record<
     shop_domain: {
       description: "The Shopify store domain used for OAuth authorization.",
       example: "your-store.myshopify.com",
-    },
-  },
-  quickbooks: {
-    company_id: {
-      description: "The QuickBooks company or realm ID for the connected business.",
-      example: "123146096291234",
     },
   },
   freshbooks: {

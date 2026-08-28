@@ -151,7 +151,7 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["company_id"],
+        "config_keys": [],
         "description": (
             "Connect QuickBooks invoice data."
         ),

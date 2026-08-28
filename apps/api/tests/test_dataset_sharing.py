@@ -693,6 +693,12 @@ class DatasetSharingTests(unittest.TestCase):
             )["config_keys"],
             )
 
+    def test_quickbooks_company_id_is_discovered_by_oauth(self):
+        source = get_dataset_source("quickbooks")
+
+        self.assertEqual(source["connection_type"], "oauth")
+        self.assertEqual(source["config_keys"], [])
+
     def test_dataset_source_registry_excludes_deferred_connectors(self):
         sources = {
             source["type"]: source

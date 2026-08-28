@@ -259,15 +259,18 @@ def process_oauth_callback(
                 )
         if state.source_type == "quickbooks":
             realm_id = str(query.get("realmId") or "").strip()
-            if realm_id:
-                connection_config = parse_source_connection_config(
-                    connection.connection_config
+            if not realm_id:
+                raise OAuthTokenExchangeError(
+                    "QuickBooks authorization did not return a company identifier"
                 )
-                connection_config["company_id"] = realm_id
-                connection.connection_config = json.dumps(
-                    connection_config,
-                    sort_keys=True,
-                )
+            connection_config = parse_source_connection_config(
+                connection.connection_config
+            )
+            connection_config["company_id"] = realm_id
+            connection.connection_config = json.dumps(
+                connection_config,
+                sort_keys=True,
+            )
         if state.source_type == "xero":
             access_token = str(payload.get("access_token") or "").strip()
             xero_connections = get_xero_connections(access_token)
