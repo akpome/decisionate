@@ -191,16 +191,19 @@ type IndustryDashboardConfig = {
   trendDescription: string
   trendData: IndustryChartPoint[]
   trendLabel: string
+  trendDataLabel?: string
   trendStatus?: string
   secondaryTrendLabel?: string
   mixTitle: string
   mixDescription: string
   mixData: IndustryMixPoint[]
+  mixDataLabel?: string
   mixStatus?: string
   operationsTitle: string
   operationsDescription: string
   operationsData: IndustryChartPoint[]
   operationsLabel: string
+  operationsDataLabel?: string
   operationsStatus?: string
   signalTitle: string
   roleHints: {
@@ -1368,17 +1371,20 @@ function buildMappedIndustryDashboard(
         : "Select a dataset to render this trend with real data.",
       trendData: [],
       trendLabel: "Mapped value",
+      trendDataLabel: undefined,
       trendStatus: readinessStatus,
       mixDescription: hasDataset
         ? "Map a category column to render this mix."
         : "Select a dataset to render this mix with real data.",
       mixData: [],
+      mixDataLabel: undefined,
       mixStatus: readinessStatus,
       operationsDescription: hasDataset
         ? "Map a stage or status column to render this breakdown."
         : "Select a dataset to render this breakdown with real data.",
       operationsData: [],
       operationsLabel: "Mapped value",
+      operationsDataLabel: undefined,
       operationsStatus: readinessStatus,
       signals: [
         {
@@ -1548,6 +1554,9 @@ function buildMappedIndustryDashboard(
       : "Map a date or period column to render this trend with real data.",
     trendData,
     trendLabel: primaryLabel,
+    trendDataLabel: dateColumn && mappedPrimaryColumn
+      ? `Y-axis: ${primaryLabel}${mappedSecondaryColumn ? `, ${formatDashboardLabel(mappedSecondaryColumn)}` : ""} | X-axis: ${formatDashboardLabel(dateColumn)}`
+      : undefined,
     secondaryTrendLabel: mappedSecondaryColumn
       ? formatDashboardLabel(mappedSecondaryColumn)
       : undefined,
@@ -1562,6 +1571,10 @@ function buildMappedIndustryDashboard(
       ? undefined
       : "Needs mapping",
     mixData,
+    mixDataLabel:
+      mappedCategoryColumn && mappedPrimaryColumn
+        ? `Value: ${primaryLabel} | Grouped by: ${formatDashboardLabel(mappedCategoryColumn)}`
+        : undefined,
     operationsDescription:
       mappedStageColumn && mappedOperationsValueColumn
         ? `${config.operationsDescription} Grouped by ${formatDashboardLabel(mappedStageColumn)} using ${operationsPrimaryLabel}.`
@@ -1571,6 +1584,10 @@ function buildMappedIndustryDashboard(
       : "Needs mapping",
     operationsData,
     operationsLabel: operationsPrimaryLabel,
+    operationsDataLabel:
+      mappedStageColumn && mappedOperationsValueColumn
+        ? `Y-axis: ${operationsPrimaryLabel} | X-axis: ${formatDashboardLabel(mappedStageColumn)}`
+        : undefined,
     signals: config.kpiMode === "sales" ? salesSignals : [
       {
         label: "Tracked value",
@@ -1888,6 +1905,7 @@ function IndustryDashboard({
       <div className="dashboard-export-chart-grid grid gap-4 md:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-2">
         <DashboardChartCard
           title={resolvedChartTitles.trend}
+          dataLabel={dashboardConfig.trendDataLabel}
           description={dashboardConfig.trendDescription}
           status={dashboardConfig.trendStatus}
           canFullscreen={dashboardConfig.trendData.length > 0}
@@ -1947,6 +1965,7 @@ function IndustryDashboard({
 
         <DashboardChartCard
           title={resolvedChartTitles.mix}
+          dataLabel={dashboardConfig.mixDataLabel}
           description={dashboardConfig.mixDescription}
           status={dashboardConfig.mixStatus}
           className="dashboard-export-donut-card"
@@ -1987,6 +2006,7 @@ function IndustryDashboard({
       <div className="dashboard-export-chart-grid grid items-stretch gap-4 md:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:grid-cols-[minmax(0,5fr)_minmax(0,2fr)] print:gap-2">
         <DashboardChartCard
           title={resolvedChartTitles.operations}
+          dataLabel={dashboardConfig.operationsDataLabel}
           description={dashboardConfig.operationsDescription}
           status={dashboardConfig.operationsStatus}
           className="xl:!h-full"
@@ -2959,6 +2979,7 @@ function DashboardHeader({
 
 function DashboardChartCard({
   title,
+  dataLabel,
   description,
   status,
   children,
@@ -2969,6 +2990,7 @@ function DashboardChartCard({
   exportMode,
 }: {
   title: string
+  dataLabel?: string
   description: string
   status?: string
   children: ReactNode
@@ -3021,15 +3043,29 @@ function DashboardChartCard({
         }`}
       >
         <div className="flex min-w-0 items-start justify-between gap-2">
-          <h2
-            className={`min-w-0 flex-1 truncate font-semibold leading-tight ${
-              exportMode
-                ? "text-[11px]"
-                : "text-lg print:text-xs"
-            }`}
-          >
-            {title}
-          </h2>
+          <div className="min-w-0 flex-1">
+            <h2
+              className={`truncate font-semibold leading-tight ${
+                exportMode
+                  ? "text-[11px]"
+                  : "text-lg print:text-xs"
+              }`}
+            >
+              {title}
+            </h2>
+            {dataLabel && (
+              <p
+                className={`truncate font-medium text-[var(--decisionate-brand-primary-text)] ${
+                  exportMode
+                    ? "mt-[0.01in] text-[8px]"
+                    : "mt-0.5 text-[10px] print:text-[8px]"
+                }`}
+                title={dataLabel}
+              >
+                {dataLabel}
+              </p>
+            )}
+          </div>
 
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-1 xl:flex-nowrap">
             {headerControls}
