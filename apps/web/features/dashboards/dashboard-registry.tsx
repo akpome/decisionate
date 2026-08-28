@@ -192,6 +192,7 @@ type IndustryDashboardConfig = {
   trendData: IndustryChartPoint[]
   trendLabel: string
   trendDataLabel?: string
+  trendDateLabel?: string
   trendStatus?: string
   secondaryTrendLabel?: string
   mixTitle: string
@@ -1372,6 +1373,7 @@ function buildMappedIndustryDashboard(
       trendData: [],
       trendLabel: "Mapped value",
       trendDataLabel: undefined,
+      trendDateLabel: undefined,
       trendStatus: readinessStatus,
       mixDescription: hasDataset
         ? "Map a category column to render this mix."
@@ -1556,6 +1558,9 @@ function buildMappedIndustryDashboard(
     trendLabel: primaryLabel,
     trendDataLabel: dateColumn && mappedPrimaryColumn
       ? `Y-axis: ${primaryLabel}${mappedSecondaryColumn ? `, ${formatDashboardLabel(mappedSecondaryColumn)}` : ""} | X-axis: ${formatDashboardLabel(dateColumn)}`
+      : undefined,
+    trendDateLabel: dateColumn
+      ? formatDashboardLabel(dateColumn)
       : undefined,
     secondaryTrendLabel: mappedSecondaryColumn
       ? formatDashboardLabel(mappedSecondaryColumn)
@@ -1929,6 +1934,19 @@ function IndustryDashboard({
                   textAnchor="end"
                   height={48}
                   tickMargin={8}
+                  label={
+                    dashboardConfig.trendDateLabel
+                      ? {
+                        value: dashboardConfig.trendDateLabel,
+                        position: "insideBottom",
+                        offset: -28,
+                        style: {
+                          fill: "#6b7280",
+                          fontSize: 10,
+                        },
+                      }
+                      : undefined
+                  }
                 />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
