@@ -284,6 +284,7 @@ def prepare_forecast_dataframe(
         parsed_dates = pd.to_datetime(
             dataframe[date_column],
             errors="coerce",
+            utc=True,
         )
 
     valid_dates = parsed_dates.notna()
@@ -307,6 +308,7 @@ def prepare_forecast_dataframe(
             parsed_start_date = pd.to_datetime(
                 str(start_date).strip(),
                 errors="coerce",
+                utc=True,
             )
 
         if pd.isna(parsed_start_date):
