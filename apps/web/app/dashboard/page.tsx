@@ -212,6 +212,7 @@ type ReportSectionProps = {
   aggregation: MetricAggregation
   aggregationType: ValueAggregation
   startDate: string
+  dateColumns: string[]
   primaryMetric: string
   selectedTarget: number
   latestValue: number
@@ -223,6 +224,7 @@ type ReportSectionProps = {
   setAggregation: (value: MetricAggregation) => void
   setAggregationType: (value: ValueAggregation) => void
   setStartDate: (value: string) => void
+  setDateColumn: (value: string) => void
   onResetView: () => void
   anomalies: DatasetAnomaliesResponse | null
   anomalyLoading: boolean
@@ -1260,12 +1262,15 @@ export default function DashboardPage() {
             ).componentKey
           )
         const savedMetricMapping =
-          dashboardSupportsMetricMapping
-            ? getSavedDashboardMetricMapping(
-                getSavedDashboardMetricMappings(
-                  savedDashboardPreference.metricMappings
-                )[selectedDashboard]
-              )
+          getSavedDashboardMetricMapping(
+            getSavedDashboardMetricMappings(
+              savedDashboardPreference.metricMappings
+            )[selectedDashboard]
+          )
+        const resolvedSavedMetricMapping =
+          dashboardSupportsMetricMapping ||
+          selectedDashboard === defaultDashboardKey
+            ? savedMetricMapping
             : {}
         const savedDashboardChartTitles =
           getSavedDashboardChartTitles(
@@ -1374,7 +1379,7 @@ export default function DashboardPage() {
         setDashboardMetricMappings(current => ({
           ...current,
           [`${selectedDashboard}:${datasetId}`]:
-            savedMetricMapping,
+            resolvedSavedMetricMapping,
         }))
         setDashboardChartTitlesByKey(current => ({
           ...current,
@@ -1968,6 +1973,22 @@ export default function DashboardPage() {
       : currentMetricMapping.date ||
         dataset?.chart?.x_key ||
         "month"
+  const dashboardDateColumns = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [
+            xKey,
+            ...dashboardDimensionMappingColumns,
+          ].filter(
+            (column): column is string =>
+              typeof column === "string" &&
+              column.trim().length > 0
+          )
+        )
+      ),
+    [dashboardDimensionMappingColumns, xKey]
+  )
 
   const rows = useMemo(
     () =>
@@ -2381,7 +2402,7 @@ export default function DashboardPage() {
             getDashboardDefinition(
               selectedDashboard
             ).componentKey
-          )
+          ) || selectedDashboard === defaultDashboardKey
         ),
       [
         cleanCurrentMetricMapping,
@@ -2721,6 +2742,7 @@ export default function DashboardPage() {
     aggregation,
     aggregationType,
     startDate,
+    dateColumns: dashboardDateColumns,
     primaryMetric,
     selectedTarget,
     latestValue,
@@ -2732,6 +2754,7 @@ export default function DashboardPage() {
     setAggregation,
     setAggregationType,
     setStartDate,
+    setDateColumn: handleDateColumnChange,
     onResetView: handleResetView,
     anomalies: dashboardAnomalies,
     anomalyLoading: dashboardAnomalyLoading,
@@ -2811,6 +2834,24 @@ export default function DashboardPage() {
     void saveDashboardViewPreference(
       nextMetrics
     ).catch(() => undefined)
+  }
+
+  function handleDateColumnChange(column: string) {
+    const nextMapping = getNextDashboardMetricMapping(
+      currentMetricMapping,
+      "date",
+      column
+    )
+
+    setDashboardMetricMappings(current => ({
+      ...current,
+      [dashboardMappingKey]: nextMapping,
+    }))
+    setTemporaryShareStatus(
+      column
+        ? "Date column updated."
+        : "Date column reset to the dataset default."
+    )
   }
 
   function handleResetView() {
@@ -4764,6 +4805,8 @@ function PerformanceTemplate(
             aggregation={props.aggregation}
             aggregationType={props.aggregationType}
             startDate={props.startDate}
+            xKey={props.xKey}
+            dateColumns={props.dateColumns}
             selectedMetrics={props.selectedMetrics}
             setChartType={props.setChartType}
             setScaleMode={props.setScaleMode}
@@ -4771,6 +4814,7 @@ function PerformanceTemplate(
             setAggregation={props.setAggregation}
             setAggregationType={props.setAggregationType}
             setStartDate={props.setStartDate}
+            setDateColumn={props.setDateColumn}
             onResetView={props.onResetView}
           />
 
@@ -4830,6 +4874,7 @@ function ComparisonTemplate({
   aggregation,
   aggregationType,
   startDate,
+  dateColumns,
   primaryMetric,
   selectedTarget,
   setChartType,
@@ -4838,6 +4883,7 @@ function ComparisonTemplate({
   setAggregation,
   setAggregationType,
   setStartDate,
+  setDateColumn,
   onResetView,
   anomalies,
   anomalyLoading,
@@ -4895,6 +4941,8 @@ function ComparisonTemplate({
           aggregation={aggregation}
           aggregationType={aggregationType}
           startDate={startDate}
+          xKey={xKey}
+          dateColumns={dateColumns}
           selectedMetrics={selectedMetrics}
           setChartType={setChartType}
           setScaleMode={setScaleMode}
@@ -4902,6 +4950,7 @@ function ComparisonTemplate({
           setAggregation={setAggregation}
           setAggregationType={setAggregationType}
           setStartDate={setStartDate}
+          setDateColumn={setDateColumn}
           onResetView={onResetView}
         />
 
@@ -5048,6 +5097,7 @@ function ReportSection({
   aggregation,
   aggregationType,
   startDate,
+  dateColumns,
   primaryMetric,
   selectedTarget,
   latestValue,
@@ -5059,6 +5109,7 @@ function ReportSection({
   setAggregation,
   setAggregationType,
   setStartDate,
+  setDateColumn,
   onResetView,
   anomalies,
   anomalyLoading,
@@ -5123,6 +5174,8 @@ function ReportSection({
             aggregation={aggregation}
             aggregationType={aggregationType}
             startDate={startDate}
+            xKey={xKey}
+            dateColumns={dateColumns}
             selectedMetrics={selectedMetrics}
             setChartType={setChartType}
             setScaleMode={setScaleMode}
@@ -5130,6 +5183,7 @@ function ReportSection({
             setAggregation={setAggregation}
             setAggregationType={setAggregationType}
             setStartDate={setStartDate}
+            setDateColumn={setDateColumn}
             onResetView={onResetView}
           />
 
@@ -5248,6 +5302,8 @@ function DashboardControls({
   aggregation,
   aggregationType,
   startDate,
+  xKey,
+  dateColumns,
   selectedMetrics,
   setChartType,
   setScaleMode,
@@ -5255,6 +5311,7 @@ function DashboardControls({
   setAggregation,
   setAggregationType,
   setStartDate,
+  setDateColumn,
   onResetView,
 }: {
   chartType: ChartType
@@ -5263,6 +5320,8 @@ function DashboardControls({
   aggregation: MetricAggregation
   aggregationType: ValueAggregation
   startDate: string
+  xKey: string
+  dateColumns: string[]
   selectedMetrics: string[]
   setChartType: (value: ChartType) => void
   setScaleMode: (value: ScaleMode) => void
@@ -5270,6 +5329,7 @@ function DashboardControls({
   setAggregation: (value: MetricAggregation) => void
   setAggregationType: (value: ValueAggregation) => void
   setStartDate: (value: string) => void
+  setDateColumn: (value: string) => void
   onResetView: () => void
 }) {
   return (
@@ -5348,6 +5408,18 @@ function DashboardControls({
           ["max", "Maximum"],
         ]}
       />
+
+      {dateColumns.length > 0 && (
+        <CompactSelect
+          label="Date column"
+          value={xKey}
+          onChange={setDateColumn}
+          options={dateColumns.map(column => [
+            column,
+            formatMetricName(column),
+          ])}
+        />
+      )}
 
       <label className="flex h-10 w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs sm:h-9 sm:w-auto sm:px-2">
         <span className="whitespace-nowrap font-medium text-gray-500">
@@ -5450,6 +5522,15 @@ function MainChart({
         height={48}
         tickLine={false}
         tickMargin={8}
+        label={{
+          value: formatMetricName(xKey),
+          position: "insideBottom",
+          offset: -28,
+          style: {
+            fill: "#6b7280",
+            fontSize: 10,
+          },
+        }}
       />
       <YAxis
         width={yAxisWidth}
@@ -6669,11 +6750,16 @@ function getNextDashboardMetricMappings(
     (result, [key, value]) => {
       if (
         isDashboardKey(key) &&
-        dashboardUsesDatasetMetricMapping(
-          getDashboardDefinition(key).componentKey
-        )
+        (key === defaultDashboardKey ||
+          dashboardUsesDatasetMetricMapping(
+            getDashboardDefinition(key).componentKey
+          ))
       ) {
-        result[key] = value
+        result[key] = key === defaultDashboardKey
+          ? value.date
+            ? { date: value.date }
+            : {}
+          : value
       }
 
       return result
@@ -6681,12 +6767,19 @@ function getNextDashboardMetricMappings(
     {}
   )
 
+  const nextMapping =
+    dashboardKey === defaultDashboardKey
+      ? mapping?.date
+        ? { date: mapping.date }
+        : undefined
+      : mapping
+
   if (
     shouldSaveMapping &&
-    mapping &&
-    Object.keys(mapping).length > 0
+    nextMapping &&
+    Object.keys(nextMapping).length > 0
   ) {
-    nextMappings[dashboardKey] = mapping
+    nextMappings[dashboardKey] = nextMapping
   } else {
     delete nextMappings[dashboardKey]
   }
