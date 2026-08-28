@@ -36,7 +36,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
 
         self.assertEqual(
             get_selectable_numeric_columns(self.dataframe),
-            ["revenue", "visits"],
+            ["revenue", "visits", "numeric_text"],
         )
         self.assertEqual(
             get_effective_dataset_metric_columns(
@@ -69,7 +69,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 dataset,
                 self.dataframe,
             ),
-            ["revenue", "visits"],
+            ["revenue", "visits", "numeric_text"],
         )
         self.assertEqual(
             list(

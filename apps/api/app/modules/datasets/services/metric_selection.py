@@ -94,10 +94,9 @@ def get_selectable_numeric_columns(
 
     return [
         str(column)
-        for column in dataframe.columns
+        for column, _ in get_numeric_columns(dataframe)
         if (
-            pd.api.types.is_numeric_dtype(dataframe[column])
-            and not pd.api.types.is_bool_dtype(dataframe[column])
+            not pd.api.types.is_bool_dtype(dataframe[column])
             and not _is_generated_metric_column(
                 column,
                 dataframe,
