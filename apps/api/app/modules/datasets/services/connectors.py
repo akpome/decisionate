@@ -47,6 +47,37 @@ FRESHBOOKS_RESOURCE_TYPES = {
 }
 
 
+def normalize_freshbooks_resource_types(config: dict) -> list[str]:
+    """Return the selected FreshBooks resources in stable user order."""
+    configured = config.get("resource_types")
+    if isinstance(configured, list):
+        values = configured
+    elif isinstance(configured, str):
+        values = configured.split(",")
+    else:
+        legacy_resource = config.get("resource_type")
+        values = [legacy_resource or "invoices"]
+
+    resources = []
+    for value in values:
+        resource = str(value or "").strip().lower()
+        if not resource:
+            continue
+        if resource not in FRESHBOOKS_RESOURCE_TYPES:
+            raise ConnectorUnavailable(
+                "FreshBooks resource_types contains an unsupported resource: "
+                f"{resource}"
+            )
+        if resource not in resources:
+            resources.append(resource)
+
+    if not resources:
+        raise ConnectorUnavailable(
+            "Select at least one FreshBooks object before syncing"
+        )
+    return resources
+
+
 class ConnectorUnavailable(RuntimeError):
     pass
 
@@ -164,6 +195,7 @@ def load_connector_dataframe(
     connection: DataSourceConnection,
     start_date=None,
     end_date=None,
+    freshbooks_resource_type: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     if connection.source_type == "hubspot":
         return load_hubspot_dataframe(
@@ -212,6 +244,7 @@ def load_connector_dataframe(
             connection,
             start_date,
             end_date,
+            freshbooks_resource_type,
         )
     if connection.source_type == "sage":
         return load_sage_dataframe(
@@ -1014,10 +1047,12 @@ def load_freshbooks_dataframe(
     connection: DataSourceConnection,
     start_date=None,
     end_date=None,
+    resource_type_override: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
     resource_type = str(
-        config.get("resource_type") or "invoices"
+        resource_type_override
+        or normalize_freshbooks_resource_types(config)[0]
     ).strip().lower()
     if resource_type not in FRESHBOOKS_RESOURCE_TYPES:
         raise ConnectorUnavailable(

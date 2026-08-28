@@ -709,7 +709,7 @@ class DatasetSharingTests(unittest.TestCase):
         source = get_dataset_source("freshbooks")
 
         self.assertEqual(source["connection_type"], "oauth")
-        self.assertEqual(source["config_keys"], ["resource_type"])
+        self.assertEqual(source["config_keys"], ["resource_types"])
 
     def test_dataset_source_registry_excludes_deferred_connectors(self):
         sources = {

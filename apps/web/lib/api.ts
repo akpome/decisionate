@@ -428,6 +428,9 @@ export type DataSourceConnection = {
   has_config: boolean
   dataset_id?: number | null
   dataset_file_name?: string | null
+  dataset_ids?: number[]
+  dataset_file_names?: string[]
+  configured_resource_types?: string[]
   last_synced_at?: string | null
   sync_enabled?: boolean
   sync_interval_hours?: number
@@ -469,6 +472,7 @@ export type DataSourceConnectionSyncResult = {
   row_count: number
   column_count: number
   report: Record<string, unknown>
+  datasets?: DataSourceConnectionSyncResult[]
 }
 
 export type DataSourceConnectionSyncPayload = {

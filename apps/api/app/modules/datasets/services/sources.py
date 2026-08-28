@@ -164,9 +164,9 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["resource_type"],
+        "config_keys": ["resource_types"],
         "description": (
-            "Choose the FreshBooks resource to ingest: profile, invoices, "
+            "Choose one or more FreshBooks resources to ingest: profile, invoices, "
             "expenses, payments, clients, chart of accounts, credit notes, "
             "or projects."
         ),

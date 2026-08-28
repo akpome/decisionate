@@ -198,6 +198,14 @@ class ConnectorSmokeTests(unittest.TestCase):
                 self.assertIn(expected_column, dataframe.columns)
                 self.assertEqual(report["resource"], resource_type)
 
+    def test_freshbooks_resource_selection_accepts_multiple_objects(self):
+        self.assertEqual(
+            connectors.normalize_freshbooks_resource_types({
+                "resource_types": "invoices, projects, invoices",
+            }),
+            ["invoices", "projects"],
+        )
+
     def test_quickbooks_nested_lists_are_flattened_for_analysis(self):
         row = connectors.build_dynamic_connector_row(
             {

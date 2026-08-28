@@ -296,8 +296,13 @@ function ConnectionsPageContent({
           payload
         )
 
+      const syncedDatasets = result.datasets ?? [result]
       setConnectionNotice(
-        `Created dataset ${result.file_name} with ${result.row_count} rows.`
+        syncedDatasets.length > 1
+          ? `Created ${syncedDatasets.length} datasets: ${syncedDatasets
+              .map(dataset => dataset.file_name)
+              .join(", ")}.`
+          : `Created dataset ${result.file_name} with ${result.row_count} rows.`
       )
       await loadConnections()
     } catch (error) {

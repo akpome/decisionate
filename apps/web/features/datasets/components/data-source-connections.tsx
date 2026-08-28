@@ -122,6 +122,11 @@ export function DataSourceConnections({
           source
         ).map((key) => [key, ""])
       )
+    if (connection.source_type === "freshbooks") {
+      emptyConfig.resource_types = (
+        connection.configured_resource_types ?? []
+      ).join(",")
+    }
 
     setConfiguringConnectionId(
       connection.id
@@ -873,15 +878,23 @@ function DataSourceConnectionRow({
                 </button>
               )}
 
-              {connection.dataset_id && (
+              {(connection.dataset_ids?.length
+                ? connection.dataset_ids
+                : connection.dataset_id
+                  ? [connection.dataset_id]
+                  : []
+              ).map((datasetId, index) => (
                 <Link
-                  href={`/dashboard/datasets/${connection.dataset_id}`}
+                  key={datasetId}
+                  href={`/dashboard/datasets/${datasetId}`}
                   className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] sm:w-auto"
                 >
                   <Database size={14} />
-                  Go to dataset
+                  {connection.dataset_file_names?.[index]
+                    ? `Go to ${connection.dataset_file_names[index]}`
+                    : "Go to dataset"}
                 </Link>
-              )}
+              ))}
 
               {canStartOAuth && (
                 <button
@@ -990,6 +1003,17 @@ type ConnectionFieldGuide = {
   example: string
 }
 
+const FRESHBOOKS_RESOURCE_OPTIONS = [
+  { value: "profile", label: "Profile" },
+  { value: "invoices", label: "Invoices" },
+  { value: "expenses", label: "Expenses" },
+  { value: "payments", label: "Payments" },
+  { value: "clients", label: "Clients" },
+  { value: "chart_of_accounts", label: "Chart of accounts" },
+  { value: "credit_notes", label: "Credit notes" },
+  { value: "projects", label: "Projects" },
+]
+
 const CONNECTION_FIELD_GUIDES: Record<
   string,
   Record<string, ConnectionFieldGuide>
@@ -1043,9 +1067,9 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   freshbooks: {
-    resource_type: {
-      description: "Choose the FreshBooks resource to ingest into this dataset.",
-      example: "Invoices",
+    resource_types: {
+      description: "Select one or more FreshBooks objects. Each selected object is stored as its own dataset.",
+      example: "Invoices, Expenses",
     },
   },
   xero: {
@@ -1263,26 +1287,50 @@ function ConnectionConfigField({
     )
   }
 
-  if (sourceType === "freshbooks" && configKey === "resource_type") {
+  if (sourceType === "freshbooks" && configKey === "resource_types") {
+    const selectedResources = new Set(
+      value
+        .split(",")
+        .map((resource) => resource.trim())
+        .filter(Boolean)
+    )
+
     return (
-      <label className="block min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
-        Dataset to ingest
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={`${sharedClassName} h-9`}
-        >
-          <option value="">Select a FreshBooks dataset</option>
-          <option value="profile">Profile</option>
-          <option value="invoices">Invoices</option>
-          <option value="expenses">Expenses</option>
-          <option value="payments">Payments</option>
-          <option value="clients">Clients</option>
-          <option value="chart_of_accounts">Chart of accounts</option>
-          <option value="credit_notes">Credit notes</option>
-          <option value="projects">Projects</option>
-        </select>
-      </label>
+      <fieldset className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
+        <legend>FreshBooks objects to ingest</legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {FRESHBOOKS_RESOURCE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 normal-case tracking-normal text-gray-700"
+            >
+              <input
+                type="checkbox"
+                checked={selectedResources.has(option.value)}
+                onChange={(event) => {
+                  const nextResources = new Set(selectedResources)
+                  if (event.target.checked) {
+                    nextResources.add(option.value)
+                  } else {
+                    nextResources.delete(option.value)
+                  }
+                  onChange(
+                    FRESHBOOKS_RESOURCE_OPTIONS
+                      .map((item) => item.value)
+                      .filter((item) => nextResources.has(item))
+                      .join(",")
+                  )
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-2 normal-case tracking-normal text-gray-500">
+          Each checked object creates or updates a separate dataset.
+        </p>
+      </fieldset>
     )
   }
 

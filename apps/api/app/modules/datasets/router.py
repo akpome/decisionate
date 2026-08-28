@@ -157,6 +157,7 @@ from app.modules.datasets.services.connectors import (
     ConnectorUnavailable,
     STRIPE_ENCRYPTED_API_KEY_CONFIG,
     load_connector_dataframe,
+    normalize_freshbooks_resource_types,
 )
 from app.modules.datasets.services.scheduling import (
     connection_sync_is_due,
@@ -193,7 +194,7 @@ CONNECTOR_DEDUP_KEYS = {
     "shopify": ["order_id"],
     "meta_ads": ["date_start", "campaign_id"],
     "quickbooks": ["invoice_id"],
-    "freshbooks": ["invoice_id"],
+    "freshbooks": ["record_id"],
     "xero": ["invoice_id"],
     "salesforce": ["record_id"],
 }
@@ -734,6 +735,7 @@ def build_dataset_details_response(
 def build_source_connection_response(
     connection,
     dataset=None,
+    datasets=None,
 ):
     source_type = normalize_dataset_source_type(
         connection.source_type
@@ -755,6 +757,18 @@ def build_source_connection_response(
     parsed_config = parse_source_connection_config(
         connection.connection_config
     )
+    dataset_records = (
+        datasets
+        if datasets is not None
+        else ([dataset] if dataset else [])
+    )
+    configured_resource_types = []
+    if source_type == "freshbooks" and has_source_connection_config(
+        connection.connection_config
+    ):
+        configured_resource_types = normalize_freshbooks_resource_types(
+            parsed_config
+        )
     has_config = has_source_connection_config(
         connection.connection_config
     )
@@ -792,12 +806,25 @@ def build_source_connection_response(
         "display_name": connection.display_name,
         "status": connection.status,
         "has_config": has_config,
-        "dataset_id": dataset.id if dataset else None,
-        "dataset_file_name": (
-            dataset.file_name
-            if dataset
+        "dataset_id": (
+            dataset_records[0].id
+            if dataset_records
             else None
         ),
+        "dataset_file_name": (
+            dataset_records[0].file_name
+            if dataset_records
+            else None
+        ),
+        "dataset_ids": [
+            item.id
+            for item in dataset_records
+        ],
+        "dataset_file_names": [
+            item.file_name
+            for item in dataset_records
+        ],
+        "configured_resource_types": configured_resource_types,
         "last_synced_at": connection.last_synced_at,
         "sync_enabled": sync_enabled,
         "sync_interval_hours": sync_interval_hours,
@@ -2354,7 +2381,7 @@ async def get_source_connections(
         return [
             build_source_connection_response(
                 connection,
-                find_connector_dataset(
+                datasets=find_connector_datasets(
                     db,
                     connection,
                 ),
@@ -2427,7 +2454,7 @@ async def create_source_connection(
         if existing_connection:
             return build_source_connection_response(
                 existing_connection,
-                find_connector_dataset(
+                datasets=find_connector_datasets(
                     db,
                     existing_connection,
                 ),
@@ -2512,6 +2539,16 @@ async def update_source_connection(
                     and config_key not in next_config
                 ):
                     next_config[config_key] = config_value
+                if (
+                    connection.source_type == "freshbooks"
+                    and config_key in {
+                        "account_id",
+                        "business_id",
+                        "business_uuid",
+                    }
+                    and config_key not in next_config
+                ):
+                    next_config[config_key] = config_value
             if (
                 connection.source_type == "stripe"
                 and "api_key" not in next_config
@@ -2529,7 +2566,7 @@ async def update_source_connection(
 
         return build_source_connection_response(
             connection,
-            find_connector_dataset(
+            datasets=find_connector_datasets(
                 db,
                 connection,
             ),
@@ -2613,7 +2650,7 @@ async def update_source_connection_schedule(
         db.refresh(connection)
         return build_source_connection_response(
             connection,
-            find_connector_dataset(
+            datasets=find_connector_datasets(
                 db,
                 connection,
             ),
@@ -2649,6 +2686,30 @@ def get_incremental_sync_window(
 def find_connector_dataset(
     db,
     connection,
+    resource_type: str | None = None,
+):
+    datasets = find_connector_datasets(db, connection)
+
+    for dataset in datasets:
+        if resource_type:
+            source_config = parse_source_connection_config(
+                dataset.source_config
+            )
+            dataset_resource = str(
+                source_config.get("resource_type")
+                or source_config.get("resource")
+                or "invoices"
+            ).strip().lower()
+            if dataset_resource != resource_type:
+                continue
+        return dataset
+
+    return None
+
+
+def find_connector_datasets(
+    db,
+    connection,
 ):
     datasets = (
         db.query(Dataset)
@@ -2663,6 +2724,7 @@ def find_connector_dataset(
         .all()
     )
 
+    matching_datasets = []
     for dataset in datasets:
         source_config = parse_source_connection_config(
             dataset.source_config
@@ -2670,9 +2732,9 @@ def find_connector_dataset(
         if str(source_config.get("connection_id") or "") == str(
             connection.id
         ):
-            return dataset
+            matching_datasets.append(dataset)
 
-    return None
+    return matching_datasets
 
 
 CONNECTOR_PARTITION_DATE_COLUMNS = (
@@ -3361,6 +3423,41 @@ def run_google_analytics_sync(
     )
 
 
+def run_freshbooks_sync(
+    db,
+    connection,
+    payload: DataSourceConnectionSync,
+):
+    connection_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    resource_types = normalize_freshbooks_resource_types(
+        connection_config
+    )
+    start_date, end_date = get_incremental_sync_window(
+        connection,
+        payload,
+    )
+    results = []
+    for resource_type in resource_types:
+        dataframe, report_config = load_connector_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            freshbooks_resource_type=resource_type,
+        )
+        results.append(
+            persist_connector_dataframe(
+                db,
+                connection,
+                dataframe,
+                report_config,
+            )
+        )
+    return results
+
+
 def persist_connector_dataframe(
     db,
     connection,
@@ -3374,6 +3471,10 @@ def persist_connector_dataframe(
         existing_dataset = find_connector_dataset(
             db,
             connection,
+            resource_type=str(
+                report_config.get("resource") or ""
+            ).strip().lower()
+            or None,
         )
 
         storage = get_object_storage()
@@ -3426,12 +3527,22 @@ def persist_connector_dataframe(
             connection.source_type,
             report_config,
         )
+        resource_type = str(
+            report_config.get("resource") or ""
+        ).strip().lower()
         base_filename = (
             existing_dataset.file_name
             if existing_dataset
             else sanitize_upload_filename(
-                f"{connection.source_type}-{connection.id}-"
-                f"{date.today().isoformat()}.csv"
+                (
+                    f"{connection.source_type}-{resource_type}-dataset.csv"
+                    if connection.source_type == "freshbooks"
+                    and resource_type
+                    else (
+                        f"{connection.source_type}-{connection.id}-"
+                        f"{date.today().isoformat()}.csv"
+                    )
+                )
             )
         )
         upload_filename = (
@@ -3553,6 +3664,8 @@ def persist_connector_dataframe(
             "ingestion_mode": "connector_sync",
             **merged_report_config,
         }
+        if resource_type:
+            next_source_config["resource_type"] = resource_type
         if existing_dataset:
             previous_source_config = parse_source_connection_config(
                 existing_dataset.source_config
@@ -3739,7 +3852,10 @@ def run_data_source_sync(
     payload: DataSourceConnectionSync,
 ):
     if connection.source_type == "google_analytics":
-        return run_google_analytics_sync(db, connection, payload)
+        return [run_google_analytics_sync(db, connection, payload)]
+
+    if connection.source_type == "freshbooks":
+        return run_freshbooks_sync(db, connection, payload)
 
     if connection.source_type not in IMPLEMENTED_CONNECTOR_TYPES:
         raise ConnectorUnavailable(
@@ -3756,12 +3872,14 @@ def run_data_source_sync(
         start_date,
         end_date,
     )
-    return persist_connector_dataframe(
-        db,
-        connection,
-        dataframe,
-        report_config,
-    )
+    return [
+        persist_connector_dataframe(
+            db,
+            connection,
+            dataframe,
+            report_config,
+        )
+    ]
 
 
 def get_connectors_scheduler_secret():
@@ -3879,24 +3997,32 @@ async def sync_due_source_connections(request: Request):
                 continue
 
             try:
-                (
-                    dataset,
-                    report_config,
-                    file_path,
-                    replaced_file_path,
-                ) = run_data_source_sync(
+                sync_results = run_data_source_sync(
                     db,
                     connection,
                     DataSourceConnectionSync(),
                 )
                 db.commit()
-                remove_dataset_file(replaced_file_path)
+                for _dataset, _report_config, _file_path, replaced_file_path in sync_results:
+                    remove_dataset_file(replaced_file_path)
+                primary_dataset, primary_report, *_ = sync_results[0]
                 results.append({
                     "connection_id": connection.id,
-                    "dataset_id": dataset.id,
+                    "dataset_id": primary_dataset.id,
+                    "dataset_ids": [
+                        item[0].id
+                        for item in sync_results
+                    ],
                     "status": "synced",
-                    "row_count": dataset.row_count,
-                    "report": report_config,
+                    "row_count": sum(
+                        item[0].row_count
+                        for item in sync_results
+                    ),
+                    "reports": [
+                        item[1]
+                        for item in sync_results
+                    ],
+                    "report": primary_report,
                 })
             except (GoogleAnalyticsConnectorUnavailable, ConnectorUnavailable) as error:
                 db.rollback()
@@ -3966,30 +4092,32 @@ async def sync_source_connection(
                 detail="Manual sync is not enabled for this source",
             )
 
-        (
-            dataset,
-            report_config,
-            _file_path,
-            replaced_file_path,
-        ) = run_data_source_sync(
+        sync_results = run_data_source_sync(
             db,
             connection,
             payload,
         )
         db.commit()
-        remove_dataset_file(replaced_file_path)
-        db.refresh(dataset)
+        datasets = []
+        for dataset, report_config, _file_path, replaced_file_path in sync_results:
+            remove_dataset_file(replaced_file_path)
+            db.refresh(dataset)
+            datasets.append({
+                "dataset_id": dataset.id,
+                "workspace_id": dataset.workspace_id,
+                **build_dataset_source_metadata(dataset),
+                "file_name": dataset.file_name,
+                "file_path": dataset.file_path,
+                "row_count": dataset.row_count,
+                "column_count": dataset.column_count,
+                "report": report_config,
+            })
+        dataset = datasets[0]
 
         return {
             "connection_id": connection.id,
-            "dataset_id": dataset.id,
-            "workspace_id": dataset.workspace_id,
-            **build_dataset_source_metadata(dataset),
-            "file_name": dataset.file_name,
-            "file_path": dataset.file_path,
-            "row_count": dataset.row_count,
-            "column_count": dataset.column_count,
-            "report": report_config,
+            **dataset,
+            "datasets": datasets,
         }
     except ConnectorNoData as error:
         raise HTTPException(
