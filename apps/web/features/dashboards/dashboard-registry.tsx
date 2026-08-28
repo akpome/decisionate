@@ -1159,16 +1159,20 @@ export function getDashboardAutoMetricMapping(
     dataset.metrics
   )
 
+  const datasetDateColumn =
+    dataset.chart?.x_key &&
+      columns.includes(dataset.chart.x_key)
+      ? dataset.chart.x_key
+      : undefined
   const dateColumn =
+    datasetDateColumn ??
     findColumnByHints(
       columns,
       getDashboardDateHints(
         industryConfig.roleHints.date
       ),
       rows
-    ) ??
-    dataset.chart?.x_key ??
-    getFirstNonNumericColumn(columns, rows)
+    )
   const categoryColumn =
     findColumnByHints(
       columns,
@@ -1267,21 +1271,22 @@ function buildMappedIndustryDashboard(
       manualMapping?.operationsValue,
       true
     ) || mappedPrimaryColumn
+  const datasetDateColumn =
+    getValidManualColumn(
+      dataset?.chart?.x_key
+    )
   const dateColumn =
     getValidManualColumn(
       manualMapping?.date
     ) ||
+    datasetDateColumn ||
     findColumnByHints(
       columns,
       getDashboardDateHints(
         config.roleHints.date
       ),
       rows
-    ) ||
-    getValidManualColumn(
-      dataset?.chart?.x_key
-    ) ||
-    getFirstNonNumericColumn(columns, rows)
+    )
   const categoryColumn = findColumnByHints(
     columns,
     config.roleHints.category ?? [],

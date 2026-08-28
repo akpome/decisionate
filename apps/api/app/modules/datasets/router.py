@@ -675,6 +675,9 @@ def build_dataset_details_response(
         dataset,
         dataframe,
     )
+    date_column, _ = identify_forecast_columns(
+        dataframe
+    )
 
     if any(
         value is not None
@@ -685,9 +688,6 @@ def build_dataset_details_response(
             aggregation_type,
         )
     ):
-        date_column, _ = identify_forecast_columns(
-            dataframe
-        )
         report_dataframe = prepare_forecast_dataframe(
             report_dataframe,
             date_column,
@@ -711,6 +711,7 @@ def build_dataset_details_response(
         "chart": generate_chart_data(
             report_dataframe,
             limit=chart_limit,
+            date_column=date_column,
         ),
         "numeric_columns": available_metric_columns,
         "selected_metric_columns": selected_metric_columns,

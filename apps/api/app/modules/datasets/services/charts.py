@@ -11,6 +11,7 @@ from app.modules.datasets.services.serialization import (
 def generate_chart_data(
     dataframe: pd.DataFrame,
     limit: int | None = 50,
+    date_column=None,
 ):
     if not isinstance(
         dataframe,
@@ -35,12 +36,16 @@ def generate_chart_data(
         if column not in numeric_columns
     ]
 
-    date_column = find_date_column(
-        dataframe,
-        text_columns,
+    resolved_date_column = (
+        date_column
+        if date_column in dataframe.columns
+        else find_date_column(
+            dataframe,
+            text_columns,
+        )
     )
-    if date_column is not None:
-        x_column = date_column
+    if resolved_date_column is not None:
+        x_column = resolved_date_column
     elif text_columns:
         x_column = text_columns[0]
     else:
