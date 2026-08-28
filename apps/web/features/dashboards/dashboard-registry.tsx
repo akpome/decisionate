@@ -1158,7 +1158,9 @@ export function getDashboardAutoMetricMapping(
   const dateColumn =
     findColumnByHints(
       columns,
-      industryConfig.roleHints.date ?? [],
+      getDashboardDateHints(
+        industryConfig.roleHints.date
+      ),
       rows
     ) ??
     dataset.chart?.x_key ??
@@ -1267,7 +1269,9 @@ function buildMappedIndustryDashboard(
     ) ||
     findColumnByHints(
       columns,
-      config.roleHints.date ?? [],
+      getDashboardDateHints(
+        config.roleHints.date
+      ),
       rows
     ) ||
     getValidManualColumn(
@@ -3407,6 +3411,25 @@ function normalizeColumnName(column: string) {
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, " ")
     .trim()
+}
+
+function getDashboardDateHints(
+  hints?: string[]
+) {
+  return Array.from(
+    new Set([
+      ...(hints ?? []),
+      "date",
+      "month",
+      "year",
+      "time",
+      "period",
+      "quarter",
+      "created",
+      "updated",
+      "transaction",
+    ])
+  )
 }
 
 function findColumnByHints(
