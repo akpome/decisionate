@@ -187,6 +187,8 @@ export default function DatasetDetailsPage() {
     useState<string>()
   const [selectedMetricColumns, setSelectedMetricColumns] =
     useState<string[]>([])
+  const [columnSearch, setColumnSearch] =
+    useState("")
   const [savingMetricSelection, setSavingMetricSelection] =
     useState(false)
   const [metricSelectionError, setMetricSelectionError] =
@@ -252,6 +254,7 @@ export default function DatasetDetailsPage() {
       setDataset(null)
       setSelectedMetric(undefined)
       setSelectedMetricColumns([])
+      setColumnSearch("")
       setMetricSelectionError("")
       setErrorMessage("")
       setLoading(true)
@@ -360,6 +363,13 @@ export default function DatasetDetailsPage() {
     (dataset?.preview?.[0]
       ? Object.keys(dataset.preview[0])
       : [])
+  const normalizedColumnSearch =
+    columnSearch.trim().toLowerCase()
+  const visiblePreviewColumns = normalizedColumnSearch
+    ? previewColumns.filter(column =>
+      column.toLowerCase().includes(normalizedColumnSearch)
+    )
+    : previewColumns
   const numericMetricColumns = new Set([
     ...(dataset?.numeric_columns ?? []),
     ...getPreviewNumericColumns(
@@ -1089,6 +1099,22 @@ export default function DatasetDetailsPage() {
           )}
         </div>
 
+        <label className="mb-4 block max-w-md space-y-2">
+          <span className="text-sm font-medium text-gray-700">
+            Search columns
+          </span>
+          <input
+            type="search"
+            value={columnSearch}
+            onChange={(event) => {
+              setColumnSearch(event.target.value)
+            }}
+            placeholder="Search by column name"
+            aria-label="Search dataset columns by name"
+            className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+        </label>
+
         {metricSelectionError && (
           <p
             role="alert"
@@ -1136,7 +1162,7 @@ export default function DatasetDetailsPage() {
           >
             <thead className="bg-gray-50">
               <tr>
-                {previewColumns.map((column) => {
+                {visiblePreviewColumns.map((column) => {
                   const isNumericMetric =
                     numericMetricColumns.has(column)
 
@@ -1184,21 +1210,22 @@ export default function DatasetDetailsPage() {
             </thead>
 
             <tbody>
-              {dataset.preview?.length ? (
+              {dataset.preview?.length &&
+              visiblePreviewColumns.length > 0 ? (
                 dataset.preview.map(
                   (
                     row,
                     index: number
                   ) => (
                     <tr key={index}>
-                      {Object.values(row).map(
-                        (value, i) => (
+                      {visiblePreviewColumns.map(
+                        column => (
                           <td
-                            key={i}
+                            key={column}
                             className="max-w-xs break-words border-b px-4 py-3 text-gray-700"
                           >
                             {formatPreviewValue(
-                              value
+                              row[column]
                             )}
                           </td>
                         )
@@ -1209,10 +1236,12 @@ export default function DatasetDetailsPage() {
               ) : (
                 <tr>
                   <td
-                    colSpan={previewColumns.length || 1}
+                    colSpan={visiblePreviewColumns.length || 1}
                     className="px-4 py-6 text-sm text-gray-500"
                   >
-                    No preview rows available.
+                    {normalizedColumnSearch
+                      ? "No columns match your search."
+                      : "No preview rows available."}
                   </td>
                 </tr>
               )}
