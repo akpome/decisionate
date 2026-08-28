@@ -35,11 +35,16 @@ def generate_chart_data(
         if column not in numeric_columns
     ]
 
-    x_column = (
-        text_columns[0]
-        if text_columns
-        else dataframe.columns[0]
+    date_column = _find_date_column(
+        dataframe,
+        text_columns,
     )
+    if date_column is not None:
+        x_column = date_column
+    elif text_columns:
+        x_column = text_columns[0]
+    else:
+        x_column = dataframe.columns[0]
 
     y_column = numeric_columns[0]
     # Keep every source column in the bounded chart sample. Industry
@@ -67,3 +72,45 @@ def generate_chart_data(
             chart_frame
         ),
     }
+
+
+def _find_date_column(
+    dataframe: pd.DataFrame,
+    columns: list,
+):
+    date_keywords = (
+        "date",
+        "day",
+        "month",
+        "year",
+        "time",
+        "period",
+        "quarter",
+        "created",
+        "updated",
+        "timestamp",
+        "transaction",
+    )
+
+    for column in columns:
+        column_name = str(column).lower()
+        if not any(
+            keyword in column_name
+            for keyword in date_keywords
+        ):
+            continue
+
+        values = dataframe[column].dropna().head(100)
+        if values.empty:
+            continue
+
+        parsed_values = pd.to_datetime(
+            values,
+            errors="coerce",
+        )
+        if (
+            parsed_values.notna().mean() >= 0.8
+        ):
+            return column
+
+    return None
