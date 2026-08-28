@@ -2,7 +2,6 @@
 
 import {
   useEffect,
-  useRef,
   useState,
 } from "react"
 import {
@@ -212,14 +211,6 @@ export default function DatasetDetailsPage() {
     useState(0)
   const [creatingDecisionKey, setCreatingDecisionKey] =
     useState<string>()
-  const previewTableRef =
-    useRef<HTMLTableElement>(null)
-  const previewTableScrollRef =
-    useRef<HTMLDivElement>(null)
-  const previewTableTopScrollRef =
-    useRef<HTMLDivElement>(null)
-  const [previewTableScrollWidth, setPreviewTableScrollWidth] =
-    useState(0)
 
   const {
     isLoaded: authLoaded,
@@ -394,29 +385,6 @@ export default function DatasetDetailsPage() {
     metricColumns.includes(selectedMetric)
       ? selectedMetric
       : undefined
-
-  useEffect(() => {
-    const table = previewTableRef.current
-
-    if (!table) {
-      return
-    }
-
-    const updateScrollWidth = () => {
-      setPreviewTableScrollWidth(table.scrollWidth)
-    }
-
-    updateScrollWidth()
-
-    const resizeObserver = new ResizeObserver(
-      updateScrollWidth
-    )
-    resizeObserver.observe(table)
-
-    return () => {
-      resizeObserver.disconnect()
-    }
-  }, [dataset, previewColumns.length])
 
   useEffect(() => {
     if (
@@ -1184,38 +1152,9 @@ export default function DatasetDetailsPage() {
         )}
 
         <div
-          ref={previewTableTopScrollRef}
-          className="overflow-x-auto overflow-y-hidden pb-2"
-          aria-label="Horizontal scroll for dataset preview"
-          onScroll={(event) => {
-            if (previewTableScrollRef.current) {
-              previewTableScrollRef.current.scrollLeft =
-                event.currentTarget.scrollLeft
-            }
-          }}
-        >
-          <div
-            aria-hidden="true"
-            style={{
-              width: `${previewTableScrollWidth}px`,
-              minWidth: "100%",
-            }}
-            className="h-px"
-          />
-        </div>
-
-        <div
-          ref={previewTableScrollRef}
-          className="max-h-[32rem] overflow-x-hidden overflow-y-auto"
-          onScroll={(event) => {
-            if (previewTableTopScrollRef.current) {
-              previewTableTopScrollRef.current.scrollLeft =
-                event.currentTarget.scrollLeft
-            }
-          }}
+          className="max-h-[32rem] overflow-auto"
         >
           <table
-            ref={previewTableRef}
             aria-label={`Preview rows for ${dataset.file_name}`}
             className="min-w-full border-collapse text-sm"
           >
