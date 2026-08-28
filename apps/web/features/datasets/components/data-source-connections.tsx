@@ -468,7 +468,7 @@ function DataSourceConnectionRow({
   const [scheduleIntervalHours, setScheduleIntervalHours] =
     useState(String(connection.sync_interval_hours ?? 24))
   const [scheduleTimeOfDay, setScheduleTimeOfDay] =
-    useState(connection.sync_time_of_day ?? "09:00")
+    useState(connection.sync_time_of_day ?? "00:00")
   const [scheduleTimezone] =
     useState(connection.sync_timezone ?? "")
   const [scheduleDayOfWeek, setScheduleDayOfWeek] =
