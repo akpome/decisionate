@@ -189,6 +189,10 @@ export default function DatasetDetailsPage() {
     useState<string[]>([])
   const [columnSearch, setColumnSearch] =
     useState("")
+  const [metricSearch, setMetricSearch] =
+    useState("")
+  const [insightSearch, setInsightSearch] =
+    useState("")
   const [savingMetricSelection, setSavingMetricSelection] =
     useState(false)
   const [metricSelectionError, setMetricSelectionError] =
@@ -255,6 +259,8 @@ export default function DatasetDetailsPage() {
       setSelectedMetric(undefined)
       setSelectedMetricColumns([])
       setColumnSearch("")
+      setMetricSearch("")
+      setInsightSearch("")
       setMetricSelectionError("")
       setErrorMessage("")
       setLoading(true)
@@ -539,6 +545,20 @@ export default function DatasetDetailsPage() {
       dataset.insights ?? [],
       effectiveSelectedMetric
     )
+  const normalizedMetricSearch =
+    metricSearch.trim().toLowerCase()
+  const visibleMetrics = normalizedMetricSearch
+    ? displayedMetrics.filter(metric => (
+      `${metric.column} ${formatMetricLabel(metric.column)}`
+    ).toLowerCase().includes(normalizedMetricSearch))
+    : displayedMetrics
+  const normalizedInsightSearch =
+    insightSearch.trim().toLowerCase()
+  const visibleInsights = normalizedInsightSearch
+    ? displayedInsights.filter(insight => (
+      `${insight.title} ${insight.description} ${insight.type || ""} ${insight.column || ""}`
+    ).toLowerCase().includes(normalizedInsightSearch))
+    : displayedInsights
   const aiRecommendationMetric =
     effectiveSelectedMetric ||
     (metricColumns.length === 1
@@ -963,14 +983,31 @@ export default function DatasetDetailsPage() {
       {/* Metrics */}
 
       <div>
-        <h2 className="mb-4 text-2xl font-bold">
-          Metrics
-        </h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-bold">
+            Metrics
+          </h2>
+          <label className="block w-full sm:w-64">
+            <span className="sr-only">
+              Search metrics
+            </span>
+            <input
+              type="search"
+              value={metricSearch}
+              onChange={(event) => {
+                setMetricSearch(event.target.value)
+              }}
+              placeholder="Search metrics"
+              aria-label="Search metrics by name"
+              className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
+        </div>
 
-        {displayedMetrics.length ? (
+        {visibleMetrics.length ? (
           <div className="max-h-[32rem] overflow-y-auto pr-1">
             <div className="grid gap-6 md:grid-cols-3">
-              {displayedMetrics.map((metric) => (
+              {visibleMetrics.map((metric) => (
                   <MetricCard
                     key={metric.column}
                     title={formatMetricLabel(metric.column)}
@@ -982,7 +1019,9 @@ export default function DatasetDetailsPage() {
           </div>
         ) : (
           <div className="rounded-xl border border-dashed bg-gray-50 p-4 text-sm text-gray-500">
-            No numeric metrics were detected for this dataset yet.
+            {normalizedMetricSearch
+              ? "No metrics match your search."
+              : "No numeric metrics were detected for this dataset yet."}
           </div>
         )}
       </div>
@@ -990,14 +1029,31 @@ export default function DatasetDetailsPage() {
       {/* Insights */}
 
       <div>
-        <h2 className="mb-4 text-2xl font-bold">
-          Insights
-        </h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-bold">
+            Insights
+          </h2>
+          <label className="block w-full sm:w-64">
+            <span className="sr-only">
+              Search insights
+            </span>
+            <input
+              type="search"
+              value={insightSearch}
+              onChange={(event) => {
+                setInsightSearch(event.target.value)
+              }}
+              placeholder="Search insights"
+              aria-label="Search insights by name"
+              className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
+        </div>
 
-        {displayedInsights.length ? (
+        {visibleInsights.length ? (
           <div className="max-h-[32rem] overflow-y-auto pr-1">
             <div className="grid gap-6 md:grid-cols-2">
-              {displayedInsights.map((
+              {visibleInsights.map((
                 insight,
                 index: number
               ) => (
@@ -1028,7 +1084,9 @@ export default function DatasetDetailsPage() {
           </div>
         ) : (
           <div className="rounded-xl border border-dashed bg-gray-50 p-4 text-sm text-gray-500">
-            {effectiveSelectedMetric
+            {normalizedInsightSearch
+              ? "No insights match your search."
+              : effectiveSelectedMetric
               ? "No automated insights match the selected metric yet."
               : "No automated insights are available for this dataset yet."}
           </div>
@@ -1052,10 +1110,27 @@ export default function DatasetDetailsPage() {
 
       <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">
-              Dataset Preview
-            </h2>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-xl font-semibold">
+                Dataset Preview
+              </h2>
+              <label className="block w-full sm:w-64">
+                <span className="sr-only">
+                  Search columns
+                </span>
+                <input
+                  type="search"
+                  value={columnSearch}
+                  onChange={(event) => {
+                    setColumnSearch(event.target.value)
+                  }}
+                  placeholder="Search columns"
+                  aria-label="Search dataset columns by name"
+                  className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </label>
+            </div>
             <p className="mt-1 max-w-2xl text-sm text-gray-500">
               Select the numeric columns Decisionate should use as metrics across the app.
             </p>
@@ -1098,22 +1173,6 @@ export default function DatasetDetailsPage() {
             </div>
           )}
         </div>
-
-        <label className="mb-4 block max-w-md space-y-2">
-          <span className="text-sm font-medium text-gray-700">
-            Search columns
-          </span>
-          <input
-            type="search"
-            value={columnSearch}
-            onChange={(event) => {
-              setColumnSearch(event.target.value)
-            }}
-            placeholder="Search by column name"
-            aria-label="Search dataset columns by name"
-            className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          />
-        </label>
 
         {metricSelectionError && (
           <p
