@@ -167,7 +167,8 @@ DATASET_SOURCES = [
         "config_keys": ["resource_type"],
         "description": (
             "Choose the FreshBooks resource to ingest: profile, invoices, "
-            "expenses, payments, or clients."
+            "expenses, payments, clients, chart of accounts, credit notes, "
+            "or projects."
         ),
     },
     {
@@ -300,6 +301,8 @@ DATASET_SOURCE_RUNTIME_ENV_KEYS = {
     "freshbooks": [
         "FRESHBOOKS_API_BASE_URL_TEMPLATE",
         "FRESHBOOKS_IDENTITY_API_URL",
+        "FRESHBOOKS_PROJECTS_API_BASE_URL_TEMPLATE",
+        "FRESHBOOKS_BUSINESS_API_BASE_URL_TEMPLATE",
     ],
     "sage": [
         "SAGE_API_BASE_URL",

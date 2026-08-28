@@ -37,9 +37,12 @@ FRESHBOOKS_RESOURCE_PATHS = {
     "expenses": ("expenses/expenses", "expenses"),
     "payments": ("payments/payments", "payments"),
     "clients": ("users/clients", "clients"),
+    "credit_notes": ("credit_notes/credit_notes", "credit_notes"),
 }
 FRESHBOOKS_RESOURCE_TYPES = {
     "profile",
+    "chart_of_accounts",
+    "projects",
     *FRESHBOOKS_RESOURCE_PATHS,
 }
 
@@ -1019,18 +1022,20 @@ def load_freshbooks_dataframe(
     if resource_type not in FRESHBOOKS_RESOURCE_TYPES:
         raise ConnectorUnavailable(
             "FreshBooks resource_type must be profile, invoices, expenses, "
-            "payments, or clients"
+            "payments, clients, chart_of_accounts, credit_notes, or projects"
         )
 
     account_id = str(config.get("account_id") or "").strip()
+    business_id = str(config.get("business_id") or "").strip()
+    business_uuid = str(config.get("business_uuid") or "").strip()
     access_token = get_oauth_access_token(db, connection, "freshbooks")
-    if (
-        resource_type != "profile"
-        and (
-            not account_id
-            or not re.fullmatch(r"[A-Za-z0-9_-]+", account_id)
-        )
-    ):
+    needs_business_metadata = resource_type != "profile" and (
+        not account_id
+        or not re.fullmatch(r"[A-Za-z0-9_-]+", account_id)
+        or (resource_type == "projects" and not business_id)
+        or (resource_type == "chart_of_accounts" and not business_uuid)
+    )
+    if needs_business_metadata:
         businesses = [
             business
             for business in get_freshbooks_businesses(access_token)
@@ -1043,7 +1048,13 @@ def load_freshbooks_dataframe(
                 else "FreshBooks did not return an active business account"
             )
         account_id = businesses[0]["account_id"]
+        business_id = businesses[0].get("business_id") or business_id
+        business_uuid = businesses[0].get("business_uuid") or business_uuid
         config["account_id"] = account_id
+        if business_id:
+            config["business_id"] = business_id
+        if business_uuid:
+            config["business_uuid"] = business_uuid
         connection.connection_config = json.dumps(
             config,
             sort_keys=True,
@@ -1087,13 +1098,28 @@ def load_freshbooks_dataframe(
             )
         )
     else:
-        rows = _load_freshbooks_account_resource(
-            access_token,
-            account_id,
-            resource_type,
-            start_date,
-            end_date,
-        )
+        if resource_type == "chart_of_accounts":
+            rows = _load_freshbooks_chart_of_accounts_resource(
+                access_token,
+                business_uuid,
+                start_date,
+                end_date,
+            )
+        elif resource_type == "projects":
+            rows = _load_freshbooks_projects_resource(
+                access_token,
+                business_id,
+                start_date,
+                end_date,
+            )
+        else:
+            rows = _load_freshbooks_account_resource(
+                access_token,
+                account_id,
+                resource_type,
+                start_date,
+                end_date,
+            )
 
     dataframe = pd.DataFrame(rows)
     dataframe = filter_date_range(dataframe, start_date, end_date)
@@ -1101,10 +1127,176 @@ def load_freshbooks_dataframe(
         "connector": "freshbooks",
         "resource": resource_type,
         "account_id": account_id,
+        "business_id": business_id,
+        "business_uuid": business_uuid,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
     }
+
+
+def _load_freshbooks_chart_of_accounts_resource(
+    access_token: str,
+    business_uuid: str,
+    start_date=None,
+    end_date=None,
+) -> list[dict]:
+    base_template = get_provider_setting(
+        "FRESHBOOKS_BUSINESS_API_BASE_URL_TEMPLATE"
+    )
+    if not base_template:
+        raise ConnectorUnavailable(
+            "FRESHBOOKS_BUSINESS_API_BASE_URL_TEMPLATE is required for the "
+            "FreshBooks chart of accounts resource"
+        )
+    try:
+        business_base_url = base_template.format(
+            business_uuid=business_uuid
+        ).rstrip("/")
+    except KeyError as error:
+        raise ConnectorUnavailable(
+            "FRESHBOOKS_BUSINESS_API_BASE_URL_TEMPLATE must include "
+            "{business_uuid}"
+        ) from error
+
+    params = {"user_ledger_entries": "true"}
+    if start_date:
+        params["start_date"] = start_date.isoformat()
+    if end_date:
+        params["end_date"] = end_date.isoformat()
+    payload = connector_json_request(
+        f"{business_base_url}/reports/chart_of_accounts?{urlencode(params)}",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    response = payload.get("response")
+    result = response.get("result") if isinstance(response, dict) else None
+    records = (
+        result.get("journal_entry_accounts")
+        if isinstance(result, dict)
+        else None
+    )
+    if not isinstance(records, list):
+        raise ConnectorUnavailable(
+            "FreshBooks returned an invalid chart_of_accounts response"
+        )
+
+    rows = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        account_uuid = record.get("account_uuid")
+        rows.append(
+            build_dynamic_connector_row(
+                record,
+                {
+                    "record_id": account_uuid
+                    or record.get("account_number")
+                    or record.get("account_name"),
+                    "resource_type": "chart_of_accounts",
+                    "account_uuid": account_uuid,
+                    "account_name": record.get("account_name"),
+                    "account_number": record.get("account_number"),
+                    "account_type": record.get("account_type"),
+                    "account_sub_type": record.get("account_sub_type"),
+                    "balance": record.get("balance"),
+                    "currency_code": record.get("currency_code"),
+                    "state": record.get("state"),
+                },
+                flatten_lists=True,
+            )
+        )
+    return rows
+
+
+def _load_freshbooks_projects_resource(
+    access_token: str,
+    business_id: str,
+    start_date=None,
+    end_date=None,
+) -> list[dict]:
+    base_template = get_provider_setting(
+        "FRESHBOOKS_PROJECTS_API_BASE_URL_TEMPLATE"
+    )
+    if not base_template:
+        raise ConnectorUnavailable(
+            "FRESHBOOKS_PROJECTS_API_BASE_URL_TEMPLATE is required for the "
+            "FreshBooks projects resource"
+        )
+    try:
+        business_base_url = base_template.format(
+            business_id=business_id
+        ).rstrip("/")
+    except KeyError as error:
+        raise ConnectorUnavailable(
+            "FRESHBOOKS_PROJECTS_API_BASE_URL_TEMPLATE must include "
+            "{business_id}"
+        ) from error
+
+    rows = []
+    page = 0
+    seen_pages = set()
+    while True:
+        if page in seen_pages:
+            raise ConnectorUnavailable(
+                "FreshBooks returned a repeated projects page"
+            )
+        seen_pages.add(page)
+        params = {
+            "page": str(page),
+            "per_page": str(PAGE_SIZE),
+        }
+        payload = connector_json_request(
+            f"{business_base_url}/projects?{urlencode(params)}",
+            # FreshBooks requires GET project requests to omit Content-Type.
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        records = payload.get("projects")
+        if not isinstance(records, list):
+            raise ConnectorUnavailable(
+                "FreshBooks returned an invalid projects response"
+            )
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            project_id = record.get("id")
+            rows.append(
+                build_dynamic_connector_row(
+                    record,
+                    {
+                        "record_id": project_id,
+                        "resource_type": "projects",
+                        "project_id": project_id,
+                        "title": record.get("title"),
+                        "client_id": record.get("client_id"),
+                        "project_type": record.get("project_type"),
+                        "budget": record.get("budget"),
+                        "fixed_price": record.get("fixed_price"),
+                        "rate": record.get("rate"),
+                        "billing_method": record.get("billing_method"),
+                        "complete": record.get("complete"),
+                        "active": record.get("active"),
+                        "due_date": record.get("due_date"),
+                        "created_at": record.get("created_at"),
+                        "updated_at": record.get("updated_at"),
+                        "logged_duration": record.get("logged_duration"),
+                    },
+                    flatten_lists=True,
+                )
+            )
+
+        metadata = payload.get("meta")
+        if isinstance(metadata, dict):
+            try:
+                pages = int(metadata.get("pages") or 0)
+            except (TypeError, ValueError):
+                pages = 0
+            if pages and page + 1 >= pages:
+                break
+        if not records or len(records) < PAGE_SIZE:
+            break
+        page += 1
+
+    return rows
 
 
 def _load_freshbooks_account_resource(
@@ -1186,6 +1378,7 @@ def _load_freshbooks_account_resource(
                 or record.get("invoiceid")
                 or record.get("expenseid")
                 or record.get("logid")
+                or record.get("creditid")
                 or record.get("clientid")
             )
             normalized_row = {
@@ -1256,6 +1449,34 @@ def _load_freshbooks_account_resource(
                     ).strip(),
                     "organization": record.get("organization"),
                     "email": record.get("email"),
+                })
+            elif resource_type == "credit_notes":
+                paid = record.get("paid")
+                normalized_row.update({
+                    "credit_note_id": record.get("creditid")
+                    or record.get("id"),
+                    "credit_number": record.get("credit_number"),
+                    "credit_type": record.get("credit_type"),
+                    "client_id": record.get("clientid"),
+                    "client_name": " ".join(
+                        value
+                        for value in [record.get("fname"), record.get("lname")]
+                        if value
+                    ).strip(),
+                    "organization": record.get("organization"),
+                    "payment_status": record.get("payment_status"),
+                    "status": record.get("status")
+                    or record.get("display_status"),
+                    "paid_amount": (
+                        paid.get("amount")
+                        if isinstance(paid, dict)
+                        else paid
+                    ),
+                    "paid_currency": (
+                        paid.get("code")
+                        if isinstance(paid, dict)
+                        else None
+                    ),
                 })
             rows.append(
                 build_dynamic_connector_row(

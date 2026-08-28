@@ -1278,6 +1278,9 @@ function ConnectionConfigField({
           <option value="expenses">Expenses</option>
           <option value="payments">Payments</option>
           <option value="clients">Clients</option>
+          <option value="chart_of_accounts">Chart of accounts</option>
+          <option value="credit_notes">Credit notes</option>
+          <option value="projects">Projects</option>
         </select>
       </label>
     )

@@ -242,9 +242,18 @@ def process_oauth_callback(
                     if business["account_id"] == configured_account_id
                 ]
             if len(matching_businesses) == 1:
-                connection_config["account_id"] = matching_businesses[0][
+                selected_business = matching_businesses[0]
+                connection_config["account_id"] = selected_business[
                     "account_id"
                 ]
+                if selected_business.get("business_id"):
+                    connection_config["business_id"] = selected_business[
+                        "business_id"
+                    ]
+                if selected_business.get("business_uuid"):
+                    connection_config["business_uuid"] = selected_business[
+                        "business_uuid"
+                    ]
                 connection.connection_config = json.dumps(
                     connection_config,
                     sort_keys=True,

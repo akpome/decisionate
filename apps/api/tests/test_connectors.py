@@ -111,6 +111,39 @@ class ConnectorSmokeTests(unittest.TestCase):
                         },
                     },
                 }
+            if "/credit_notes/credit_notes?" in url:
+                return {
+                    "response": {
+                        "result": {
+                            "credit_notes": [{
+                                "creditid": 501,
+                                "create_date": "2026-01-06",
+                                "amount": {"amount": "15.00", "code": "CAD"},
+                            }],
+                        },
+                    },
+                }
+            if "/reports/chart_of_accounts?" in url:
+                return {
+                    "response": {
+                        "result": {
+                            "journal_entry_accounts": [{
+                                "account_uuid": "account-uuid-1",
+                                "account_name": "Cash",
+                                "balance": "125.00",
+                            }],
+                        },
+                    },
+                }
+            if "/projects/business/business-1/projects?" in url:
+                return {
+                    "meta": {"page": 0, "pages": 1, "total": 1},
+                    "projects": [{
+                        "id": 601,
+                        "title": "Website refresh",
+                        "created_at": "2026-01-07T00:00:00Z",
+                    }],
+                }
             raise AssertionError(f"Unhandled FreshBooks URL: {url}")
 
         with patch.dict(
@@ -120,6 +153,12 @@ class ConnectorSmokeTests(unittest.TestCase):
                     "https://api.freshbooks.com/accounting/account/{account_id}"
                 ),
                 "FRESHBOOKS_IDENTITY_API_URL": identity_url,
+                "FRESHBOOKS_BUSINESS_API_BASE_URL_TEMPLATE": (
+                    "https://api.freshbooks.com/accounting/businesses/{business_uuid}"
+                ),
+                "FRESHBOOKS_PROJECTS_API_BASE_URL_TEMPLATE": (
+                    "https://api.freshbooks.com/projects/business/{business_id}"
+                ),
             },
             clear=False,
         ), patch.object(
@@ -137,6 +176,9 @@ class ConnectorSmokeTests(unittest.TestCase):
                 ("expenses", "expense_id"),
                 ("payments", "payment_id"),
                 ("clients", "client_id"),
+                ("credit_notes", "credit_note_id"),
+                ("chart_of_accounts", "account_uuid"),
+                ("projects", "project_id"),
             ]:
                 dataframe, report = connectors.load_freshbooks_dataframe(
                     None,
@@ -144,6 +186,8 @@ class ConnectorSmokeTests(unittest.TestCase):
                         "freshbooks",
                         {
                             "account_id": "account-1",
+                            "business_id": "business-1",
+                            "business_uuid": "business-uuid-1",
                             "resource_type": resource_type,
                         },
                     ),

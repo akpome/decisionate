@@ -96,6 +96,9 @@ OAUTH_PROVIDERS = {
             "user:expenses:read",
             "user:payments:read",
             "user:clients:read",
+            "user:account:read",
+            "user:credit_notes:read",
+            "user:projects:read",
         ),
     ),
     "sage": OAuthProvider(
@@ -438,6 +441,9 @@ def get_freshbooks_businesses(access_token: str) -> list[dict]:
             {
                 "account_id": account_id,
                 "business_id": str(business.get("id") or "").strip(),
+                "business_uuid": str(
+                    business.get("business_uuid") or ""
+                ).strip(),
                 "name": str(business.get("name") or "").strip(),
                 "role": str(membership.get("role") or "").strip(),
                 "active": business.get("active") is not False,
