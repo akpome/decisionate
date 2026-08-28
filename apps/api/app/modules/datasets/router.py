@@ -157,6 +157,8 @@ from app.modules.datasets.services.connectors import (
     ConnectorUnavailable,
     STRIPE_ENCRYPTED_API_KEY_CONFIG,
     load_connector_dataframe,
+    normalize_quickbooks_resource_type,
+    normalize_quickbooks_resource_types,
     normalize_freshbooks_resource_types,
 )
 from app.modules.datasets.services.scheduling import (
@@ -193,7 +195,7 @@ CONNECTOR_DEDUP_KEYS = {
     "stripe": ["charge_id"],
     "shopify": ["order_id"],
     "meta_ads": ["date_start", "campaign_id"],
-    "quickbooks": ["invoice_id"],
+    "quickbooks": ["record_id"],
     "freshbooks": ["record_id"],
     "xero": ["invoice_id"],
     "salesforce": ["record_id"],
@@ -767,6 +769,12 @@ def build_source_connection_response(
         connection.connection_config
     ):
         configured_resource_types = normalize_freshbooks_resource_types(
+            parsed_config
+        )
+    elif source_type == "quickbooks" and has_source_connection_config(
+        connection.connection_config
+    ):
+        configured_resource_types = normalize_quickbooks_resource_types(
             parsed_config
         )
     has_config = has_source_connection_config(
@@ -2549,6 +2557,12 @@ async def update_source_connection(
                     and config_key not in next_config
                 ):
                     next_config[config_key] = config_value
+                if (
+                    connection.source_type == "quickbooks"
+                    and config_key in {"company_id", "realm_id"}
+                    and config_key not in next_config
+                ):
+                    next_config[config_key] = config_value
             if (
                 connection.source_type == "stripe"
                 and "api_key" not in next_config
@@ -2700,6 +2714,13 @@ def find_connector_dataset(
                 or source_config.get("resource")
                 or "invoices"
             ).strip().lower()
+            if connection.source_type == "quickbooks":
+                try:
+                    dataset_resource = normalize_quickbooks_resource_type(
+                        dataset_resource
+                    )
+                except ConnectorUnavailable:
+                    pass
             if dataset_resource != resource_type:
                 continue
         return dataset
@@ -3360,6 +3381,14 @@ def merge_connector_dataframes(
         ignore_index=True,
         sort=False,
     )
+    if (
+        source_type == "quickbooks"
+        and "record_id" in combined.columns
+        and "invoice_id" in combined.columns
+    ):
+        combined["record_id"] = combined["record_id"].fillna(
+            combined["invoice_id"]
+        )
     dedup_keys = get_connector_dedup_keys(
         source_type,
         report_config,
@@ -3421,6 +3450,41 @@ def run_google_analytics_sync(
         dataframe,
         report_config,
     )
+
+
+def run_quickbooks_sync(
+    db,
+    connection,
+    payload: DataSourceConnectionSync,
+):
+    connection_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    resource_types = normalize_quickbooks_resource_types(
+        connection_config
+    )
+    start_date, end_date = get_incremental_sync_window(
+        connection,
+        payload,
+    )
+    results = []
+    for resource_type in resource_types:
+        dataframe, report_config = load_connector_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            quickbooks_resource_type=resource_type,
+        )
+        results.append(
+            persist_connector_dataframe(
+                db,
+                connection,
+                dataframe,
+                report_config,
+            )
+        )
+    return results
 
 
 def run_freshbooks_sync(
@@ -3539,8 +3603,13 @@ def persist_connector_dataframe(
                     if connection.source_type == "freshbooks"
                     and resource_type
                     else (
-                        f"{connection.source_type}-{connection.id}-"
-                        f"{date.today().isoformat()}.csv"
+                        f"{connection.source_type}-{resource_type}-dataset.csv"
+                        if connection.source_type == "quickbooks"
+                        and resource_type
+                        else (
+                            f"{connection.source_type}-{connection.id}-"
+                            f"{date.today().isoformat()}.csv"
+                        )
                     )
                 )
             )
@@ -3853,6 +3922,9 @@ def run_data_source_sync(
 ):
     if connection.source_type == "google_analytics":
         return [run_google_analytics_sync(db, connection, payload)]
+
+    if connection.source_type == "quickbooks":
+        return run_quickbooks_sync(db, connection, payload)
 
     if connection.source_type == "freshbooks":
         return run_freshbooks_sync(db, connection, payload)

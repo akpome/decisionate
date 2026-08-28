@@ -151,9 +151,9 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": [],
+        "config_keys": ["resource_types"],
         "description": (
-            "Connect QuickBooks invoice data through OAuth. "
+            "Choose one or more QuickBooks resources to ingest through OAuth. "
             "The connected company is selected automatically."
         ),
     },

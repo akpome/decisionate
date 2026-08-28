@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 import pandas as pd
@@ -205,6 +206,72 @@ class ConnectorSmokeTests(unittest.TestCase):
             }),
             ["invoices", "projects"],
         )
+
+    def test_quickbooks_resource_selection_accepts_entity_aliases(self):
+        self.assertEqual(
+            connectors.normalize_quickbooks_resource_types({
+                "resource_types": [
+                    "Invoice",
+                    "customers",
+                    "SalesReceipt",
+                    "invoice",
+                ],
+            }),
+            ["invoices", "customers", "sales_receipts"],
+        )
+
+    def test_quickbooks_resource_selections_load_supported_entities(self):
+        def json_request(url, headers):
+            query = parse_qs(urlsplit(url).query)["query"][0]
+            entity = query.split(" FROM ", 1)[1].split(" ", 1)[0]
+            return {
+                "QueryResponse": {
+                    entity: [{
+                        "Id": f"{entity}-1",
+                        "TxnDate": "2026-01-02",
+                        "TotalAmt": "125.00",
+                        "MetaData": {
+                            "CreateTime": "2026-01-02T00:00:00-05:00",
+                        },
+                    }],
+                },
+            }
+
+        with patch.dict(
+            os.environ,
+            {
+                "QUICKBOOKS_API_BASE_URL": (
+                    "https://quickbooks.api.intuit.com"
+                ),
+                "QUICKBOOKS_API_VERSION": "v3",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="quickbooks-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ):
+            for resource_type, entity in connectors.QUICKBOOKS_RESOURCE_TYPES.items():
+                dataframe, report = connectors.load_quickbooks_dataframe(
+                    None,
+                    make_connection(
+                        "quickbooks",
+                        {
+                            "company_id": "company-1",
+                            "resource_types": [resource_type],
+                        },
+                    ),
+                    date(2026, 1, 1),
+                    date(2026, 1, 31),
+                )
+                self.assertFalse(dataframe.empty, resource_type)
+                self.assertIn("record_id", dataframe.columns)
+                self.assertEqual(report["resource"], resource_type)
+                self.assertEqual(report["object_type"], entity)
 
     def test_quickbooks_nested_lists_are_flattened_for_analysis(self):
         row = connectors.build_dynamic_connector_row(

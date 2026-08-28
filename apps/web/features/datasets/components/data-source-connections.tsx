@@ -122,7 +122,10 @@ export function DataSourceConnections({
           source
         ).map((key) => [key, ""])
       )
-    if (connection.source_type === "freshbooks") {
+    if (
+      connection.source_type === "freshbooks" ||
+      connection.source_type === "quickbooks"
+    ) {
       emptyConfig.resource_types = (
         connection.configured_resource_types ?? []
       ).join(",")
@@ -1014,6 +1017,19 @@ const FRESHBOOKS_RESOURCE_OPTIONS = [
   { value: "projects", label: "Projects" },
 ]
 
+const QUICKBOOKS_RESOURCE_OPTIONS = [
+  { value: "invoices", label: "Invoices" },
+  { value: "customers", label: "Customers" },
+  { value: "payments", label: "Payments" },
+  { value: "sales_receipts", label: "Sales receipts" },
+  { value: "estimates", label: "Estimates" },
+  { value: "bills", label: "Bills" },
+  { value: "purchases", label: "Purchases / expenses" },
+  { value: "vendors", label: "Vendors" },
+  { value: "products_services", label: "Products and services" },
+  { value: "accounts", label: "Accounts" },
+]
+
 const CONNECTION_FIELD_GUIDES: Record<
   string,
   Record<string, ConnectionFieldGuide>
@@ -1070,6 +1086,12 @@ const CONNECTION_FIELD_GUIDES: Record<
     resource_types: {
       description: "Select one or more FreshBooks objects. Each selected object is stored as its own dataset.",
       example: "Invoices, Expenses",
+    },
+  },
+  quickbooks: {
+    resource_types: {
+      description: "Select one or more QuickBooks resources. Each selected resource is stored as its own dataset.",
+      example: "Invoices, Customers",
     },
   },
   xero: {
@@ -1329,6 +1351,53 @@ function ConnectionConfigField({
         </div>
         <p className="mt-2 normal-case tracking-normal text-gray-500">
           Each checked object creates or updates a separate dataset.
+        </p>
+      </fieldset>
+    )
+  }
+
+  if (sourceType === "quickbooks" && configKey === "resource_types") {
+    const selectedResources = new Set(
+      value
+        .split(",")
+        .map((resource) => resource.trim())
+        .filter(Boolean)
+    )
+
+    return (
+      <fieldset className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
+        <legend>QuickBooks resources to ingest</legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {QUICKBOOKS_RESOURCE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 normal-case tracking-normal text-gray-700"
+            >
+              <input
+                type="checkbox"
+                checked={selectedResources.has(option.value)}
+                onChange={(event) => {
+                  const nextResources = new Set(selectedResources)
+                  if (event.target.checked) {
+                    nextResources.add(option.value)
+                  } else {
+                    nextResources.delete(option.value)
+                  }
+                  onChange(
+                    QUICKBOOKS_RESOURCE_OPTIONS
+                      .map((item) => item.value)
+                      .filter((item) => nextResources.has(item))
+                      .join(",")
+                  )
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-2 normal-case tracking-normal text-gray-500">
+          Each checked resource creates or updates a separate dataset.
         </p>
       </fieldset>
     )

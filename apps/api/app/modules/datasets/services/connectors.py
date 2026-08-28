@@ -86,6 +86,85 @@ class ConnectorNoData(ConnectorUnavailable):
     """Raised when a valid sync returns no records for its requested range."""
 
 
+QUICKBOOKS_RESOURCE_TYPES = {
+    "invoices": "Invoice",
+    "customers": "Customer",
+    "payments": "Payment",
+    "sales_receipts": "SalesReceipt",
+    "estimates": "Estimate",
+    "bills": "Bill",
+    "purchases": "Purchase",
+    "vendors": "Vendor",
+    "products_services": "Item",
+    "accounts": "Account",
+}
+QUICKBOOKS_RESOURCE_ALIASES = {
+    "invoice": "invoices",
+    "customer": "customers",
+    "payment": "payments",
+    "salesreceipt": "sales_receipts",
+    "sales_receipt": "sales_receipts",
+    "estimate": "estimates",
+    "bill": "bills",
+    "purchase": "purchases",
+    "vendor": "vendors",
+    "item": "products_services",
+    "account": "accounts",
+}
+QUICKBOOKS_TRANSACTION_RESOURCES = {
+    "invoices",
+    "payments",
+    "sales_receipts",
+    "estimates",
+    "bills",
+    "purchases",
+}
+
+
+def normalize_quickbooks_resource_type(value) -> str:
+    normalized = re.sub(
+        r"[\s-]+",
+        "_",
+        str(value or "").strip().lower(),
+    )
+    compact = normalized.replace("_", "")
+    resource_type = QUICKBOOKS_RESOURCE_ALIASES.get(
+        normalized,
+        QUICKBOOKS_RESOURCE_ALIASES.get(compact, normalized),
+    )
+    if resource_type not in QUICKBOOKS_RESOURCE_TYPES:
+        raise ConnectorUnavailable(
+            "QuickBooks resource_types contains an unsupported resource: "
+            f"{value}"
+        )
+    return resource_type
+
+
+def normalize_quickbooks_resource_types(config: dict) -> list[str]:
+    """Return selected QuickBooks entities in stable user order."""
+    configured = config.get("resource_types")
+    if isinstance(configured, list):
+        values = configured
+    elif isinstance(configured, str):
+        values = configured.split(",")
+    else:
+        values = [config.get("resource_type") or "invoices"]
+
+    resources = []
+    for value in values:
+        if not str(value or "").strip():
+            continue
+        resource_type = normalize_quickbooks_resource_type(value)
+        if resource_type not in resources:
+            resources.append(resource_type)
+
+    if not resources:
+        raise ConnectorUnavailable(
+            "Select at least one QuickBooks object before syncing"
+        )
+    return resources
+
+
 def require_provider_url(setting_name: str) -> str:
     value = get_provider_setting(setting_name).rstrip("/")
     if not value:
@@ -195,6 +274,7 @@ def load_connector_dataframe(
     connection: DataSourceConnection,
     start_date=None,
     end_date=None,
+    quickbooks_resource_type: str | None = None,
     freshbooks_resource_type: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     if connection.source_type == "hubspot":
@@ -237,6 +317,7 @@ def load_connector_dataframe(
             connection,
             start_date,
             end_date,
+            quickbooks_resource_type,
         )
     if connection.source_type == "freshbooks":
         return load_freshbooks_dataframe(
@@ -935,13 +1016,123 @@ def load_meta_ads_dataframe(
     }
 
 
+def quickbooks_query(
+    resource_type: str,
+    start_position: int,
+    start_date,
+    end_date,
+) -> str:
+    entity = QUICKBOOKS_RESOURCE_TYPES[resource_type]
+    filters = []
+    if resource_type in QUICKBOOKS_TRANSACTION_RESOURCES:
+        if start_date is not None:
+            filters.append(f"TxnDate >= '{start_date.isoformat()}'")
+        if end_date is not None:
+            filters.append(f"TxnDate <= '{end_date.isoformat()}'")
+    where_clause = f" WHERE {' AND '.join(filters)}" if filters else ""
+    return (
+        f"SELECT * FROM {entity}{where_clause} "
+        f"STARTPOSITION {start_position} MAXRESULTS {PAGE_SIZE}"
+    )
+
+
+def build_quickbooks_normalized_fields(
+    record: dict,
+    resource_type: str,
+) -> dict:
+    metadata = record.get("MetaData")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    customer_ref = record.get("CustomerRef")
+    customer_ref = customer_ref if isinstance(customer_ref, dict) else {}
+    vendor_ref = record.get("VendorRef")
+    vendor_ref = vendor_ref if isinstance(vendor_ref, dict) else {}
+    currency_ref = record.get("CurrencyRef")
+    currency_ref = currency_ref if isinstance(currency_ref, dict) else {}
+    primary_email = record.get("PrimaryEmailAddr")
+    primary_email = (
+        primary_email.get("Address")
+        if isinstance(primary_email, dict)
+        else primary_email
+    )
+    normalized = {
+        "record_id": record.get("Id") or record.get("id"),
+        "resource_type": resource_type,
+        "created_at": record.get("TxnDate") or metadata.get("CreateTime"),
+        "updated_at": metadata.get("LastUpdatedTime"),
+        "create_time": metadata.get("CreateTime"),
+        "last_updated_time": metadata.get("LastUpdatedTime"),
+        "total_amount": record.get("TotalAmt"),
+        "balance": record.get("Balance"),
+        "currency": currency_ref.get("value"),
+        "customer_id": customer_ref.get("value"),
+        "customer_name": customer_ref.get("name"),
+        "vendor_id": vendor_ref.get("value"),
+        "vendor_name": vendor_ref.get("name"),
+    }
+
+    if resource_type == "invoices":
+        normalized.update({
+            "invoice_id": record.get("Id"),
+            "doc_number": record.get("DocNumber"),
+            "due_date": record.get("DueDate"),
+            "email_status": record.get("EmailStatus"),
+            "invoice_status": record.get("TxnStatus"),
+            "private_note": record.get("PrivateNote"),
+        })
+    elif resource_type == "customers":
+        normalized.update({
+            "customer_id": record.get("Id"),
+            "customer_name": record.get("DisplayName"),
+            "email": primary_email,
+            "active": record.get("Active"),
+        })
+    elif resource_type == "vendors":
+        normalized.update({
+            "vendor_id": record.get("Id"),
+            "vendor_name": record.get("DisplayName"),
+            "email": primary_email,
+            "active": record.get("Active"),
+        })
+    elif resource_type == "products_services":
+        normalized.update({
+            "item_id": record.get("Id"),
+            "item_name": record.get("Name"),
+            "item_type": record.get("Type"),
+            "unit_price": record.get("UnitPrice"),
+            "purchase_cost": record.get("PurchaseCost"),
+            "quantity_on_hand": record.get("QtyOnHand"),
+            "active": record.get("Active"),
+        })
+    elif resource_type == "accounts":
+        normalized.update({
+            "account_id": record.get("Id"),
+            "account_name": record.get("Name"),
+            "account_type": record.get("AccountType"),
+            "account_sub_type": record.get("AccountSubType"),
+            "current_balance": record.get("CurrentBalance"),
+            "active": record.get("Active"),
+        })
+    else:
+        normalized.update({
+            "doc_number": record.get("DocNumber"),
+            "transaction_status": record.get("TxnStatus"),
+        })
+
+    return normalized
+
+
 def load_quickbooks_dataframe(
     db,
     connection: DataSourceConnection,
     start_date=None,
     end_date=None,
+    resource_type_override: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
+    resource_type = normalize_quickbooks_resource_type(
+        resource_type_override
+        or normalize_quickbooks_resource_types(config)[0]
+    )
     company_id = str(
         config.get("company_id") or config.get("realm_id") or ""
     ).strip()
@@ -957,6 +1148,7 @@ def load_quickbooks_dataframe(
         raise ConnectorUnavailable(
             "QUICKBOOKS_API_VERSION is required for the QuickBooks connector"
         )
+    entity = QUICKBOOKS_RESOURCE_TYPES[resource_type]
     rows = []
     start_position = 1
     seen_positions = set()
@@ -965,7 +1157,8 @@ def load_quickbooks_dataframe(
         if start_position in seen_positions:
             break
         seen_positions.add(start_position)
-        query = quickbooks_invoice_query(
+        query = quickbooks_query(
+            resource_type,
             start_position,
             start_date,
             end_date,
@@ -980,48 +1173,23 @@ def load_quickbooks_dataframe(
         )
         query_response = payload.get("QueryResponse")
         records = (
-            query_response.get("Invoice")
+            query_response.get(entity)
             if isinstance(query_response, dict)
             else None
         )
         if not isinstance(records, list):
             records = []
 
-        for invoice in records:
-            if not isinstance(invoice, dict):
+        for record in records:
+            if not isinstance(record, dict):
                 continue
-            customer_ref = invoice.get("CustomerRef")
-            metadata = invoice.get("MetaData")
-            normalized_row = {
-                "invoice_id": invoice.get("Id"),
-                "doc_number": invoice.get("DocNumber"),
-                "created_at": invoice.get("TxnDate"),
-                "due_date": invoice.get("DueDate"),
-                "total_amount": invoice.get("TotalAmt"),
-                "balance": invoice.get("Balance"),
-                "currency": invoice.get("CurrencyRef", {}).get("value")
-                if isinstance(invoice.get("CurrencyRef"), dict)
-                else None,
-                "customer_id": customer_ref.get("value")
-                if isinstance(customer_ref, dict)
-                else None,
-                "customer_name": customer_ref.get("name")
-                if isinstance(customer_ref, dict)
-                else None,
-                "email_status": invoice.get("EmailStatus"),
-                "invoice_status": invoice.get("TxnStatus"),
-                "create_time": metadata.get("CreateTime")
-                if isinstance(metadata, dict)
-                else None,
-                "last_updated_time": metadata.get("LastUpdatedTime")
-                if isinstance(metadata, dict)
-                else None,
-                "private_note": invoice.get("PrivateNote"),
-            }
             rows.append(
                 build_dynamic_connector_row(
-                    invoice,
-                    normalized_row,
+                    record,
+                    build_quickbooks_normalized_fields(
+                        record,
+                        resource_type,
+                    ),
                     flatten_lists=True,
                 )
             )
@@ -1031,10 +1199,12 @@ def load_quickbooks_dataframe(
         start_position += len(records)
 
     dataframe = pd.DataFrame(rows)
-    dataframe = filter_date_range(dataframe, start_date, end_date)
+    if resource_type in QUICKBOOKS_TRANSACTION_RESOURCES:
+        dataframe = filter_date_range(dataframe, start_date, end_date)
     return dataframe, {
         "connector": "quickbooks",
-        "resource": "Invoice",
+        "resource": resource_type,
+        "object_type": entity,
         "company_id": company_id,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
@@ -1950,19 +2120,6 @@ def shopify_order_params(start_date, end_date) -> dict[str, str]:
     if end_date:
         params["created_at_max"] = f"{end_date.isoformat()}T23:59:59Z"
     return params
-
-
-def quickbooks_invoice_query(start_position: int, start_date, end_date) -> str:
-    filters = []
-    if start_date is not None:
-        filters.append(f"TxnDate >= '{start_date.isoformat()}'")
-    if end_date is not None:
-        filters.append(f"TxnDate <= '{end_date.isoformat()}'")
-    where_clause = f" WHERE {' AND '.join(filters)}" if filters else ""
-    return (
-        f"SELECT * FROM Invoice{where_clause} "
-        f"STARTPOSITION {start_position} MAXRESULTS {PAGE_SIZE}"
-    )
 
 
 def get_meta_ads_time_increment() -> str:
