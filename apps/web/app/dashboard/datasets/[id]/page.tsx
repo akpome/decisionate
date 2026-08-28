@@ -983,34 +983,36 @@ export default function DatasetDetailsPage() {
         </h2>
 
         {displayedInsights.length ? (
-          <div className="grid gap-6 md:grid-cols-2">
-            {displayedInsights.map((
-              insight,
-              index: number
-            ) => (
-              <InsightCard
-                key={`${insight.title}-${index}`}
-                insight={insight}
-                label={insight.type || "Insight"}
-                onCreateDecision={
-                  canManageWorkspaceData
-                    ? () => {
-                      void handleCreateDecision(
-                        insight,
-                        `${index}:${insight.title}`
-                      )
-                    }
-                    : undefined
-                }
-                creatingDecision={
-                  creatingDecisionKey ===
-                  `${index}:${insight.title}`
-                }
-                actionDisabled={
-                  Boolean(creatingDecisionKey)
-                }
-              />
-            ))}
+          <div className="max-h-[32rem] overflow-y-auto pr-1">
+            <div className="grid gap-6 md:grid-cols-2">
+              {displayedInsights.map((
+                insight,
+                index: number
+              ) => (
+                <InsightCard
+                  key={`${insight.title}-${index}`}
+                  insight={insight}
+                  label={insight.type || "Insight"}
+                  onCreateDecision={
+                    canManageWorkspaceData
+                      ? () => {
+                        void handleCreateDecision(
+                          insight,
+                          `${index}:${insight.title}`
+                        )
+                      }
+                      : undefined
+                  }
+                  creatingDecision={
+                    creatingDecisionKey ===
+                    `${index}:${insight.title}`
+                  }
+                  actionDisabled={
+                    Boolean(creatingDecisionKey)
+                  }
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <div className="rounded-xl border border-dashed bg-gray-50 p-4 text-sm text-gray-500">
