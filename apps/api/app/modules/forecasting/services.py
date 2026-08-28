@@ -16,6 +16,9 @@ from app.modules.ai.service import (
 from app.modules.datasets.services.numeric import (
     get_numeric_columns,
 )
+from app.modules.datasets.services.charts import (
+    find_date_column,
+)
 from app.modules.datasets.services.serialization import (
     dataframe_to_json_records,
 )
@@ -227,26 +230,11 @@ def identify_forecast_columns(
             None,
         )
 
-    date_column = None
+    date_column = find_date_column(
+        dataframe,
+        list(dataframe.columns),
+    )
     value_column = None
-
-    date_keywords = [
-        "date",
-        "month",
-        "year",
-        "time",
-        "period",
-        "quarter",
-    ]
-
-    for column in dataframe.columns:
-        column_name = str(
-            column
-        ).lower()
-
-        if any(keyword in column_name for keyword in date_keywords):
-            date_column = column
-            break
 
     numeric_columns = [
         column

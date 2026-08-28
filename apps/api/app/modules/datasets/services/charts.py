@@ -35,7 +35,7 @@ def generate_chart_data(
         if column not in numeric_columns
     ]
 
-    date_column = _find_date_column(
+    date_column = find_date_column(
         dataframe,
         text_columns,
     )
@@ -74,10 +74,23 @@ def generate_chart_data(
     }
 
 
-def _find_date_column(
+def find_date_column(
     dataframe: pd.DataFrame,
     columns: list,
 ):
+    preferred_date_columns = (
+        "date",
+        "date_start",
+        "created_at",
+        "created_at_utc",
+        "created",
+        "created_date",
+        "transaction_date",
+        "invoice_date",
+        "updated_at",
+        "updated_date",
+        "timestamp",
+    )
     date_keywords = (
         "date",
         "day",
@@ -92,7 +105,21 @@ def _find_date_column(
         "transaction",
     )
 
-    for column in columns:
+    ordered_columns = [
+        *(
+            column
+            for preferred_column in preferred_date_columns
+            for column in columns
+            if str(column).lower() == preferred_column
+        ),
+        *columns,
+    ]
+    seen_columns = set()
+
+    for column in ordered_columns:
+        if column in seen_columns:
+            continue
+        seen_columns.add(column)
         column_name = str(column).lower()
         if not any(
             keyword in column_name
