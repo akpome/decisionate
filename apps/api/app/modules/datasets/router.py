@@ -732,6 +732,7 @@ def build_dataset_details_response(
 
 def build_source_connection_response(
     connection,
+    dataset=None,
 ):
     source_type = normalize_dataset_source_type(
         connection.source_type
@@ -790,6 +791,12 @@ def build_source_connection_response(
         "display_name": connection.display_name,
         "status": connection.status,
         "has_config": has_config,
+        "dataset_id": dataset.id if dataset else None,
+        "dataset_file_name": (
+            dataset.file_name
+            if dataset
+            else None
+        ),
         "last_synced_at": connection.last_synced_at,
         "sync_enabled": sync_enabled,
         "sync_interval_hours": sync_interval_hours,
@@ -2345,7 +2352,11 @@ async def get_source_connections(
 
         return [
             build_source_connection_response(
-                connection
+                connection,
+                find_connector_dataset(
+                    db,
+                    connection,
+                ),
             )
             for connection in connections
         ]
@@ -2414,7 +2425,11 @@ async def create_source_connection(
 
         if existing_connection:
             return build_source_connection_response(
-                existing_connection
+                existing_connection,
+                find_connector_dataset(
+                    db,
+                    existing_connection,
+                ),
             )
 
         connection = DataSourceConnection(
@@ -2433,7 +2448,8 @@ async def create_source_connection(
         db.refresh(connection)
 
         return build_source_connection_response(
-            connection
+            connection,
+            None,
         )
 
     finally:
@@ -2511,7 +2527,11 @@ async def update_source_connection(
         db.refresh(connection)
 
         return build_source_connection_response(
-            connection
+            connection,
+            find_connector_dataset(
+                db,
+                connection,
+            ),
         )
 
     finally:
@@ -2590,7 +2610,13 @@ async def update_source_connection_schedule(
             raise HTTPException(status_code=422, detail=str(error)) from error
         db.commit()
         db.refresh(connection)
-        return build_source_connection_response(connection)
+        return build_source_connection_response(
+            connection,
+            find_connector_dataset(
+                db,
+                connection,
+            ),
+        )
     finally:
         db.close()
 

@@ -426,6 +426,8 @@ export type DataSourceConnection = {
   display_name: string
   status: DataSourceConnectionStatus
   has_config: boolean
+  dataset_id?: number | null
+  dataset_file_name?: string | null
   last_synced_at?: string | null
   sync_enabled?: boolean
   sync_interval_hours?: number

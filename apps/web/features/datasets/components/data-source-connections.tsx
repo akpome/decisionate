@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
+import { Database } from "lucide-react"
 
 import {
   type DataSourceConnection,
@@ -865,6 +867,16 @@ function DataSourceConnectionRow({
                     ? "Syncing..."
                     : "Sync now"}
                 </button>
+              )}
+
+              {connection.dataset_id && (
+                <Link
+                  href={`/dashboard/datasets/${connection.dataset_id}`}
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] sm:w-auto"
+                >
+                  <Database size={14} />
+                  Go to dataset
+                </Link>
               )}
 
               {canStartOAuth && (
