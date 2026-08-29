@@ -38,6 +38,7 @@ class OAuthProvider:
     scopes_env: str
     use_basic_token_auth: bool = False
     required_scopes: tuple[str, ...] = ()
+    required_scope_groups: tuple[tuple[str, ...], ...] = ()
 
 
 OAUTH_PROVIDERS = {
@@ -118,7 +119,28 @@ OAUTH_PROVIDERS = {
         client_secret_env="XERO_CLIENT_SECRET",
         scopes_env="XERO_OAUTH_SCOPES",
         use_basic_token_auth=True,
-        required_scopes=("accounting.transactions",),
+        required_scope_groups=(
+            (
+                "accounting.invoices.read",
+                "accounting.invoices",
+                "accounting.transactions.read",
+                "accounting.transactions",
+            ),
+            (
+                "accounting.payments.read",
+                "accounting.payments",
+                "accounting.transactions.read",
+                "accounting.transactions",
+            ),
+            (
+                "accounting.contacts.read",
+                "accounting.contacts",
+            ),
+            (
+                "accounting.settings.read",
+                "accounting.settings",
+            ),
+        ),
     ),
     "zoho_books": OAuthProvider(
         source_type="zoho_books",
@@ -349,7 +371,10 @@ def get_provider_endpoint(provider: OAuthProvider, endpoint: str) -> str:
     return value
 
 
-def get_provider_scopes(provider: OAuthProvider) -> tuple[str, ...]:
+def get_provider_scopes(
+    provider: OAuthProvider,
+    connection_config: dict | None = None,
+) -> tuple[str, ...]:
     configured_scopes = get_provider_setting(provider.scopes_env)
     scopes = tuple(
         scope.strip()
@@ -370,6 +395,12 @@ def get_provider_scopes(provider: OAuthProvider) -> tuple[str, ...]:
             f"{provider.scopes_env} is missing required scope(s): "
             f"{', '.join(missing_scopes)}"
         )
+    for scope_group in provider.required_scope_groups:
+        if not any(scope in scopes for scope in scope_group):
+            raise OAuthProviderUnavailable(
+                f"{provider.scopes_env} is missing one of the required scopes: "
+                f"{', '.join(scope_group)}"
+            )
     return scopes
 
 
@@ -399,7 +430,7 @@ def build_authorization_url(
     client_id, _client_secret = get_provider_credentials(provider)
     config = connection_config or {}
     authorization_url = get_provider_endpoint(provider, "authorization")
-    scopes = get_provider_scopes(provider)
+    scopes = get_provider_scopes(provider, config)
 
     if provider.source_type == "shopify":
         shop_domain = str(config.get("shop_domain") or "").strip()

@@ -192,9 +192,10 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["tenant_id"],
+        "config_keys": ["resource_types"],
         "description": (
-            "Connect Xero invoice data."
+            "Choose one or more Xero resources to ingest through OAuth. "
+            "The connected organisation is selected automatically."
         ),
     },
     {

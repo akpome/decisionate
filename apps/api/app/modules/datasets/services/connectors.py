@@ -164,6 +164,74 @@ ZOHO_BOOKS_DATE_FILTER_RESOURCES = {
     "sales_orders",
 }
 
+XERO_RESOURCE_TYPES = {
+    "invoices": ("Invoices", "Invoices"),
+    "contacts": ("Contacts", "Contacts"),
+    "payments": ("Payments", "Payments"),
+    "credit_notes": ("CreditNotes", "CreditNotes"),
+    "quotes": ("Quotes", "Quotes"),
+    "purchase_orders": ("PurchaseOrders", "PurchaseOrders"),
+    "accounts": ("Accounts", "Accounts"),
+    "items": ("Items", "Items"),
+}
+XERO_RESOURCE_ALIASES = {
+    "invoice": "invoices",
+    "contact": "contacts",
+    "payment": "payments",
+    "creditnote": "credit_notes",
+    "creditnotes": "credit_notes",
+    "quote": "quotes",
+    "purchaseorder": "purchase_orders",
+    "purchaseorders": "purchase_orders",
+    "account": "accounts",
+    "item": "items",
+}
+
+
+def normalize_xero_resource_type(value) -> str:
+    normalized = re.sub(
+        r"[\s-]+",
+        "_",
+        str(value or "").strip().lower(),
+    )
+    compact = normalized.replace("_", "")
+    resource_type = XERO_RESOURCE_ALIASES.get(
+        normalized,
+        XERO_RESOURCE_ALIASES.get(compact, normalized),
+    )
+    if resource_type not in XERO_RESOURCE_TYPES:
+        raise ConnectorUnavailable(
+            "Xero resource_types contains an unsupported resource: "
+            f"{value}"
+        )
+    return resource_type
+
+
+def normalize_xero_resource_types(config: dict) -> list[str]:
+    """Return selected Xero resources in stable user order."""
+    configured = config.get("resource_types")
+    if isinstance(configured, list):
+        values = configured
+    elif isinstance(configured, str):
+        values = configured.split(",")
+    else:
+        # Existing Xero connections predate object selection and were invoice-only.
+        values = [config.get("resource_type") or "invoices"]
+
+    resources = []
+    for value in values:
+        if not str(value or "").strip():
+            continue
+        resource_type = normalize_xero_resource_type(value)
+        if resource_type not in resources:
+            resources.append(resource_type)
+
+    if not resources:
+        raise ConnectorUnavailable(
+            "Select at least one Xero object before syncing"
+        )
+    return resources
+
 
 def normalize_quickbooks_resource_type(value) -> str:
     normalized = re.sub(
@@ -364,6 +432,7 @@ def load_connector_dataframe(
     end_date=None,
     quickbooks_resource_type: str | None = None,
     freshbooks_resource_type: str | None = None,
+    xero_resource_type: str | None = None,
     zoho_books_resource_type: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     if connection.source_type == "hubspot":
@@ -429,6 +498,7 @@ def load_connector_dataframe(
             connection,
             start_date,
             end_date,
+            xero_resource_type,
         )
     if connection.source_type == "zoho_books":
         return load_zoho_books_dataframe(
@@ -1909,13 +1979,210 @@ def load_sage_dataframe(
     }
 
 
+def _xero_first_value(record: dict, *keys: str):
+    for key in keys:
+        value = record.get(key)
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def build_xero_normalized_fields(
+    record: dict,
+    resource_type: str,
+    *,
+    contact: dict | None = None,
+    line_item_count: int | None = None,
+) -> dict:
+    """Expose stable analytical aliases without dropping Xero fields."""
+    contact = contact if isinstance(contact, dict) else {}
+    identifier_keys = {
+        "invoices": ("InvoiceID",),
+        "contacts": ("ContactID",),
+        "payments": ("PaymentID",),
+        "credit_notes": ("CreditNoteID",),
+        "quotes": ("QuoteID",),
+        "purchase_orders": ("PurchaseOrderID",),
+        "accounts": ("AccountID",),
+        "items": ("ItemID",),
+    }
+    record_id = _xero_first_value(
+        record,
+        *identifier_keys[resource_type],
+        "ID",
+        "Id",
+        "id",
+    )
+    date_value = _xero_first_value(
+        record,
+        "DateString",
+        "Date",
+        "CreatedDateUTCString",
+        "CreatedDateUTC",
+        "UpdatedDateUTCString",
+        "UpdatedDateUTC",
+    )
+    updated_value = _xero_first_value(
+        record,
+        "UpdatedDateUTCString",
+        "UpdatedDateUTC",
+    )
+    normalized = {
+        "record_id": record_id,
+        "resource_type": resource_type,
+        "created_at": parse_xero_date(date_value),
+        "updated_at": parse_xero_date(updated_value),
+    }
+
+    if resource_type == "invoices":
+        normalized.update({
+            "invoice_id": record.get("InvoiceID"),
+            "invoice_number": record.get("InvoiceNumber"),
+            "invoice_type": record.get("Type"),
+            "status": record.get("Status"),
+            "due_date": parse_xero_date(
+                record.get("DueDateString") or record.get("DueDate")
+            ),
+            "fully_paid_on": parse_xero_date(
+                record.get("FullyPaidOnDate")
+            ),
+            "subtotal": record.get("SubTotal"),
+            "total_tax": record.get("TotalTax"),
+            "total": record.get("Total"),
+            "amount_due": record.get("AmountDue"),
+            "amount_paid": record.get("AmountPaid"),
+            "currency": record.get("CurrencyCode"),
+            "customer_id": contact.get("ContactID"),
+            "customer_name": contact.get("Name"),
+            "reference": record.get("Reference"),
+            "line_item_count": line_item_count,
+            "sent_to_contact": record.get("SentToContact"),
+        })
+    elif resource_type == "contacts":
+        normalized.update({
+            "contact_id": record.get("ContactID"),
+            "contact_name": record.get("Name"),
+            "contact_number": record.get("ContactNumber"),
+            "contact_status": record.get("ContactStatus"),
+            "email": record.get("EmailAddress"),
+            "is_customer": record.get("IsCustomer"),
+            "is_supplier": record.get("IsSupplier"),
+        })
+    elif resource_type == "payments":
+        payment_invoice = record.get("Invoice")
+        payment_invoice = (
+            payment_invoice if isinstance(payment_invoice, dict) else {}
+        )
+        payment_credit_note = record.get("CreditNote")
+        payment_credit_note = (
+            payment_credit_note
+            if isinstance(payment_credit_note, dict)
+            else {}
+        )
+        normalized.update({
+            "payment_id": record.get("PaymentID"),
+            "payment_type": record.get("PaymentType"),
+            "amount": record.get("Amount"),
+            "currency_rate": record.get("CurrencyRate"),
+            "invoice_id": payment_invoice.get("InvoiceID"),
+            "invoice_number": payment_invoice.get("InvoiceNumber"),
+            "credit_note_id": payment_credit_note.get("CreditNoteID"),
+        })
+    elif resource_type == "credit_notes":
+        normalized.update({
+            "credit_note_id": record.get("CreditNoteID"),
+            "credit_note_number": record.get("CreditNoteNumber"),
+            "credit_note_type": record.get("Type"),
+            "status": record.get("Status"),
+            "subtotal": record.get("SubTotal"),
+            "total_tax": record.get("TotalTax"),
+            "total": record.get("Total"),
+            "remaining_credit": record.get("RemainingCredit"),
+            "fully_paid_on": parse_xero_date(
+                record.get("FullyPaidOnDate")
+            ),
+            "currency": record.get("CurrencyCode"),
+            "customer_id": contact.get("ContactID"),
+            "customer_name": contact.get("Name"),
+        })
+    elif resource_type == "quotes":
+        normalized.update({
+            "quote_id": record.get("QuoteID"),
+            "quote_number": record.get("QuoteNumber"),
+            "status": record.get("Status"),
+            "expiry_date": parse_xero_date(
+                record.get("ExpiryDate")
+            ),
+            "subtotal": record.get("SubTotal"),
+            "total_tax": record.get("TotalTax"),
+            "total": record.get("Total"),
+            "currency": record.get("CurrencyCode"),
+            "customer_id": contact.get("ContactID"),
+            "customer_name": contact.get("Name"),
+        })
+    elif resource_type == "purchase_orders":
+        normalized.update({
+            "purchase_order_id": record.get("PurchaseOrderID"),
+            "purchase_order_number": record.get("PurchaseOrderNumber"),
+            "status": record.get("Status"),
+            "delivery_date": parse_xero_date(
+                record.get("DeliveryDate")
+            ),
+            "subtotal": record.get("SubTotal"),
+            "total_tax": record.get("TotalTax"),
+            "total": record.get("Total"),
+            "currency": record.get("CurrencyCode"),
+            "supplier_id": contact.get("ContactID"),
+            "supplier_name": contact.get("Name"),
+        })
+    elif resource_type == "accounts":
+        normalized.update({
+            "account_id": record.get("AccountID"),
+            "account_code": record.get("Code"),
+            "account_name": record.get("Name"),
+            "account_type": record.get("Type"),
+            "account_class": record.get("Class"),
+            "status": record.get("Status"),
+            "current_balance": record.get("CurrentBalance"),
+            "currency": record.get("CurrencyCode"),
+        })
+    elif resource_type == "items":
+        sales_details = record.get("SalesDetails")
+        sales_details = (
+            sales_details if isinstance(sales_details, dict) else {}
+        )
+        purchase_details = record.get("PurchaseDetails")
+        purchase_details = (
+            purchase_details
+            if isinstance(purchase_details, dict)
+            else {}
+        )
+        normalized.update({
+            "item_id": record.get("ItemID"),
+            "item_code": record.get("Code"),
+            "item_name": record.get("Name"),
+            "description": record.get("Description"),
+            "is_tracked": record.get("IsTrackedAsInventory"),
+            "quantity_on_hand": record.get("QuantityOnHand"),
+            "sales_unit_price": sales_details.get("UnitPrice"),
+            "purchase_unit_price": purchase_details.get("UnitPrice"),
+        })
+
+    return normalized
+
+
 def load_xero_dataframe(
     db,
     connection: DataSourceConnection,
     start_date=None,
     end_date=None,
+    resource_type_override: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
+    resource_type = normalize_xero_resource_type(
+        resource_type_override
+        or normalize_xero_resource_types(config)[0]
+    )
     tenant_id = str(config.get("tenant_id") or "").strip()
     if not re.fullmatch(
         r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
@@ -1928,6 +2195,7 @@ def load_xero_dataframe(
 
     access_token = get_oauth_access_token(db, connection, "xero")
     base_url = require_provider_url("XERO_API_BASE_URL")
+    resource_path, response_key = XERO_RESOURCE_TYPES[resource_type]
     rows = []
     page = 1
     seen_pages = set()
@@ -1937,61 +2205,39 @@ def load_xero_dataframe(
             break
         seen_pages.add(page)
         payload = connector_json_request(
-            f"{base_url}/Invoices?{urlencode({'page': page})}",
+            f"{base_url}/{resource_path}?{urlencode({'page': page})}",
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Xero-tenant-id": tenant_id,
             },
         )
-        invoices = payload.get("Invoices")
-        if not isinstance(invoices, list):
-            invoices = []
-
-        for invoice in invoices:
-            if not isinstance(invoice, dict):
-                continue
-            contact = invoice.get("Contact")
-            contact = contact if isinstance(contact, dict) else {}
-            line_items = invoice.get("LineItems")
-            line_items = line_items if isinstance(line_items, list) else []
-            invoice_date = parse_xero_date(
-                invoice.get("DateString") or invoice.get("Date")
+        records = payload.get(response_key)
+        if not isinstance(records, list):
+            raise ConnectorUnavailable(
+                f"Xero returned an invalid {resource_type} response"
             )
-            normalized_row = {
-                "invoice_id": invoice.get("InvoiceID"),
-                "invoice_number": invoice.get("InvoiceNumber"),
-                "invoice_type": invoice.get("Type"),
-                "status": invoice.get("Status"),
-                "created_at": invoice_date,
-                "due_date": parse_xero_date(
-                    invoice.get("DueDateString") or invoice.get("DueDate")
-                ),
-                "fully_paid_on": parse_xero_date(
-                    invoice.get("FullyPaidOnDate")
-                ),
-                "subtotal": invoice.get("SubTotal"),
-                "total_tax": invoice.get("TotalTax"),
-                "total": invoice.get("Total"),
-                "amount_due": invoice.get("AmountDue"),
-                "amount_paid": invoice.get("AmountPaid"),
-                "currency": invoice.get("CurrencyCode"),
-                "customer_id": contact.get("ContactID"),
-                "customer_name": contact.get("Name"),
-                "reference": invoice.get("Reference"),
-                "line_item_count": len(line_items),
-                "sent_to_contact": invoice.get("SentToContact"),
-                "updated_at": parse_xero_date(
-                    invoice.get("UpdatedDateUTC")
-                ),
-            }
+
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            contact = record.get("Contact")
+            contact = contact if isinstance(contact, dict) else {}
+            line_items = record.get("LineItems")
+            line_items = line_items if isinstance(line_items, list) else []
             rows.append(
                 build_dynamic_connector_row(
-                    invoice,
-                    normalized_row,
+                    record,
+                    build_xero_normalized_fields(
+                        record,
+                        resource_type,
+                        contact=contact,
+                        line_item_count=len(line_items),
+                    ),
+                    flatten_lists=True,
                 )
             )
 
-        if not invoices or len(invoices) < PAGE_SIZE:
+        if not records or len(records) < PAGE_SIZE:
             break
         page += 1
 
@@ -1999,7 +2245,8 @@ def load_xero_dataframe(
     dataframe = filter_date_range(dataframe, start_date, end_date)
     return dataframe, {
         "connector": "xero",
-        "resource": "Invoices",
+        "resource": resource_type,
+        "object_type": resource_path,
         "tenant_id": tenant_id,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
