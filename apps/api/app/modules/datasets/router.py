@@ -160,6 +160,8 @@ from app.modules.datasets.services.connectors import (
     normalize_quickbooks_resource_type,
     normalize_quickbooks_resource_types,
     normalize_freshbooks_resource_types,
+    normalize_zoho_books_resource_type,
+    normalize_zoho_books_resource_types,
 )
 from app.modules.datasets.services.scheduling import (
     connection_sync_is_due,
@@ -198,6 +200,7 @@ CONNECTOR_DEDUP_KEYS = {
     "quickbooks": ["record_id"],
     "freshbooks": ["record_id"],
     "xero": ["invoice_id"],
+    "zoho_books": ["record_id"],
     "salesforce": ["record_id"],
 }
 REMOVED_FILE_STORAGE_CONNECTORS = {
@@ -775,6 +778,12 @@ def build_source_connection_response(
         connection.connection_config
     ):
         configured_resource_types = normalize_quickbooks_resource_types(
+            parsed_config
+        )
+    elif source_type == "zoho_books" and has_source_connection_config(
+        connection.connection_config
+    ):
+        configured_resource_types = normalize_zoho_books_resource_types(
             parsed_config
         )
     has_config = has_source_connection_config(
@@ -2563,6 +2572,17 @@ async def update_source_connection(
                     and config_key not in next_config
                 ):
                     next_config[config_key] = config_value
+                if (
+                    connection.source_type == "zoho_books"
+                    and config_key in {
+                        "organization_id",
+                        "organization_name",
+                        "api_domain",
+                        "accounts_server",
+                    }
+                    and config_key not in next_config
+                ):
+                    next_config[config_key] = config_value
             if (
                 connection.source_type == "stripe"
                 and "api_key" not in next_config
@@ -2717,6 +2737,13 @@ def find_connector_dataset(
             if connection.source_type == "quickbooks":
                 try:
                     dataset_resource = normalize_quickbooks_resource_type(
+                        dataset_resource
+                    )
+                except ConnectorUnavailable:
+                    pass
+            if connection.source_type == "zoho_books":
+                try:
+                    dataset_resource = normalize_zoho_books_resource_type(
                         dataset_resource
                     )
                 except ConnectorUnavailable:
@@ -3522,6 +3549,41 @@ def run_freshbooks_sync(
     return results
 
 
+def run_zoho_books_sync(
+    db,
+    connection: DataSourceConnection,
+    payload: DataSourceConnectionSync,
+):
+    connection_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    resource_types = normalize_zoho_books_resource_types(
+        connection_config
+    )
+    start_date, end_date = get_incremental_sync_window(
+        connection,
+        payload,
+    )
+    results = []
+    for resource_type in resource_types:
+        dataframe, report_config = load_connector_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            zoho_books_resource_type=resource_type,
+        )
+        results.append(
+            persist_connector_dataframe(
+                db,
+                connection,
+                dataframe,
+                report_config,
+            )
+        )
+    return results
+
+
 def persist_connector_dataframe(
     db,
     connection,
@@ -3607,8 +3669,13 @@ def persist_connector_dataframe(
                         if connection.source_type == "quickbooks"
                         and resource_type
                         else (
-                            f"{connection.source_type}-{connection.id}-"
-                            f"{date.today().isoformat()}.csv"
+                            f"{connection.source_type}-{resource_type}-dataset.csv"
+                            if connection.source_type == "zoho_books"
+                            and resource_type
+                            else (
+                                f"{connection.source_type}-{connection.id}-"
+                                f"{date.today().isoformat()}.csv"
+                            )
                         )
                     )
                 )
@@ -3928,6 +3995,9 @@ def run_data_source_sync(
 
     if connection.source_type == "freshbooks":
         return run_freshbooks_sync(db, connection, payload)
+
+    if connection.source_type == "zoho_books":
+        return run_zoho_books_sync(db, connection, payload)
 
     if connection.source_type not in IMPLEMENTED_CONNECTOR_TYPES:
         raise ConnectorUnavailable(

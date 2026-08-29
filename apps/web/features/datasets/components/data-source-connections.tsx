@@ -124,7 +124,8 @@ export function DataSourceConnections({
       )
     if (
       connection.source_type === "freshbooks" ||
-      connection.source_type === "quickbooks"
+      connection.source_type === "quickbooks" ||
+      connection.source_type === "zoho_books"
     ) {
       emptyConfig.resource_types = (
         connection.configured_resource_types ?? []
@@ -446,6 +447,7 @@ function DataSourceConnectionRow({
       "freshbooks",
       "sage",
       "xero",
+      "zoho_books",
       "salesforce",
       "postgresql",
       "mysql",
@@ -1030,6 +1032,18 @@ const QUICKBOOKS_RESOURCE_OPTIONS = [
   { value: "accounts", label: "Accounts" },
 ]
 
+const ZOHO_BOOKS_RESOURCE_OPTIONS = [
+  { value: "invoices", label: "Invoices" },
+  { value: "contacts", label: "Contacts" },
+  { value: "expenses", label: "Expenses" },
+  { value: "customer_payments", label: "Customer payments" },
+  { value: "credit_notes", label: "Credit notes" },
+  { value: "estimates", label: "Estimates" },
+  { value: "sales_orders", label: "Sales orders" },
+  { value: "projects", label: "Projects" },
+  { value: "items", label: "Items / products and services" },
+]
+
 const CONNECTION_FIELD_GUIDES: Record<
   string,
   Record<string, ConnectionFieldGuide>
@@ -1092,6 +1106,12 @@ const CONNECTION_FIELD_GUIDES: Record<
     resource_types: {
       description: "Select one or more QuickBooks resources. Each selected resource is stored as its own dataset.",
       example: "Invoices, Customers",
+    },
+  },
+  zoho_books: {
+    resource_types: {
+      description: "Select one or more Zoho Books objects. Each selected object is stored as its own dataset; the organization is selected automatically after OAuth authorization.",
+      example: "Invoices, Contacts",
     },
   },
   xero: {
@@ -1398,6 +1418,53 @@ function ConnectionConfigField({
         </div>
         <p className="mt-2 normal-case tracking-normal text-gray-500">
           Each checked resource creates or updates a separate dataset.
+        </p>
+      </fieldset>
+    )
+  }
+
+  if (sourceType === "zoho_books" && configKey === "resource_types") {
+    const selectedResources = new Set(
+      value
+        .split(",")
+        .map((resource) => resource.trim())
+        .filter(Boolean)
+    )
+
+    return (
+      <fieldset className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
+        <legend>Zoho Books objects to ingest</legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {ZOHO_BOOKS_RESOURCE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 normal-case tracking-normal text-gray-700"
+            >
+              <input
+                type="checkbox"
+                checked={selectedResources.has(option.value)}
+                onChange={(event) => {
+                  const nextResources = new Set(selectedResources)
+                  if (event.target.checked) {
+                    nextResources.add(option.value)
+                  } else {
+                    nextResources.delete(option.value)
+                  }
+                  onChange(
+                    ZOHO_BOOKS_RESOURCE_OPTIONS
+                      .map((item) => item.value)
+                      .filter((item) => nextResources.has(item))
+                      .join(",")
+                  )
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-2 normal-case tracking-normal text-gray-500">
+          Each checked object creates or updates a separate dataset.
         </p>
       </fieldset>
     )

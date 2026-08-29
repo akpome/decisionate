@@ -210,7 +210,7 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Configure a connector",
         steps: [
           "Open Data -> Connections and review the connector catalog. The status shown in the application is the authority for whether a source is available in the current deployment.",
-          "Depending on deployment status, the catalog can include Google Analytics, PostgreSQL, MySQL, SQL Server, Stripe, Shopify, QuickBooks, FreshBooks, Sage Cloud Accounting, Xero, HubSpot, and Meta Ads. File uploads support CSV, JSON, Excel, and Parquet.",
+          "Depending on deployment status, the catalog can include Google Analytics, PostgreSQL, MySQL, SQL Server, Stripe, Shopify, QuickBooks, FreshBooks, Sage Cloud Accounting, Xero, Zoho Books, HubSpot, and Meta Ads. File uploads support CSV, JSON, Excel, and Parquet.",
           "Select a connector and provide only the fields requested by that connector, such as an account, property, company, shop, tenant, or object identifier.",
           "Use read-only or minimum-scope credentials wherever the provider supports them.",
           "Run the connection or pull test if the connector exposes one. Resolve provider authentication, permission, identifier, and server-configuration errors before enabling scheduled sync.",

@@ -16,9 +16,11 @@ from app.configuration import get_provider_setting
 from app.db.models import DataSourceConnection
 from app.db.models import OAuthCredential
 from app.modules.oauth.service import (
+    OAuthProviderUnavailable,
     decrypt_token,
     encrypt_token,
     get_freshbooks_businesses,
+    normalize_zoho_books_api_domain,
     refresh_oauth_token,
     token_expiry,
 )
@@ -120,6 +122,48 @@ QUICKBOOKS_TRANSACTION_RESOURCES = {
     "purchases",
 }
 
+ZOHO_BOOKS_RESOURCE_TYPES = {
+    "invoices": ("invoices", "invoices"),
+    "contacts": ("contacts", "contacts"),
+    "expenses": ("expenses", "expenses"),
+    "customer_payments": ("customerpayments", "customer_payments"),
+    "credit_notes": ("creditnotes", "creditnotes"),
+    "estimates": ("estimates", "estimates"),
+    "sales_orders": ("salesorders", "salesorders"),
+    "projects": ("projects", "projects"),
+    "items": ("items", "items"),
+}
+ZOHO_BOOKS_RESOURCE_ALIASES = {
+    "invoice": "invoices",
+    "contact": "contacts",
+    "expense": "expenses",
+    "customerpayment": "customer_payments",
+    "customerpayments": "customer_payments",
+    "customer_payment": "customer_payments",
+    "creditnote": "credit_notes",
+    "creditnotes": "credit_notes",
+    "estimate": "estimates",
+    "salesorder": "sales_orders",
+    "salesorders": "sales_orders",
+    "project": "projects",
+    "item": "items",
+}
+ZOHO_BOOKS_TRANSACTION_RESOURCES = {
+    "invoices",
+    "expenses",
+    "customer_payments",
+    "credit_notes",
+    "estimates",
+    "sales_orders",
+}
+ZOHO_BOOKS_DATE_FILTER_RESOURCES = {
+    "invoices",
+    "expenses",
+    "credit_notes",
+    "estimates",
+    "sales_orders",
+}
+
 
 def normalize_quickbooks_resource_type(value) -> str:
     normalized = re.sub(
@@ -161,6 +205,50 @@ def normalize_quickbooks_resource_types(config: dict) -> list[str]:
     if not resources:
         raise ConnectorUnavailable(
             "Select at least one QuickBooks object before syncing"
+        )
+    return resources
+
+
+def normalize_zoho_books_resource_type(value) -> str:
+    normalized = re.sub(
+        r"[\s-]+",
+        "_",
+        str(value or "").strip().lower(),
+    )
+    compact = normalized.replace("_", "")
+    resource_type = ZOHO_BOOKS_RESOURCE_ALIASES.get(
+        normalized,
+        ZOHO_BOOKS_RESOURCE_ALIASES.get(compact, normalized),
+    )
+    if resource_type not in ZOHO_BOOKS_RESOURCE_TYPES:
+        raise ConnectorUnavailable(
+            "Zoho Books resource_types contains an unsupported resource: "
+            f"{value}"
+        )
+    return resource_type
+
+
+def normalize_zoho_books_resource_types(config: dict) -> list[str]:
+    """Return selected Zoho Books resources in stable user order."""
+    configured = config.get("resource_types")
+    if isinstance(configured, list):
+        values = configured
+    elif isinstance(configured, str):
+        values = configured.split(",")
+    else:
+        values = [config.get("resource_type") or "invoices"]
+
+    resources = []
+    for value in values:
+        if not str(value or "").strip():
+            continue
+        resource_type = normalize_zoho_books_resource_type(value)
+        if resource_type not in resources:
+            resources.append(resource_type)
+
+    if not resources:
+        raise ConnectorUnavailable(
+            "Select at least one Zoho Books object before syncing"
         )
     return resources
 
@@ -276,6 +364,7 @@ def load_connector_dataframe(
     end_date=None,
     quickbooks_resource_type: str | None = None,
     freshbooks_resource_type: str | None = None,
+    zoho_books_resource_type: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     if connection.source_type == "hubspot":
         return load_hubspot_dataframe(
@@ -340,6 +429,14 @@ def load_connector_dataframe(
             connection,
             start_date,
             end_date,
+        )
+    if connection.source_type == "zoho_books":
+        return load_zoho_books_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            resource_type_override=zoho_books_resource_type,
         )
     if connection.source_type in {"postgresql", "mysql", "sql_server"}:
         return load_database_dataframe(
@@ -1904,6 +2001,286 @@ def load_xero_dataframe(
         "connector": "xero",
         "resource": "Invoices",
         "tenant_id": tenant_id,
+        "start_date": date_value(start_date),
+        "end_date": date_value(end_date),
+        "row_count": len(dataframe),
+    }
+
+
+def _zoho_books_first_value(record: dict, *keys: str):
+    for key in keys:
+        value = record.get(key)
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def build_zoho_books_normalized_fields(
+    record: dict,
+    resource_type: str,
+) -> dict:
+    """Expose stable analytical aliases without dropping Zoho's fields."""
+    record_id = _zoho_books_first_value(
+        record,
+        "invoice_id",
+        "contact_id",
+        "expense_id",
+        "payment_id",
+        "customerpayment_id",
+        "creditnote_id",
+        "estimate_id",
+        "salesorder_id",
+        "project_id",
+        "item_id",
+        "id",
+    )
+    created_at = _zoho_books_first_value(
+        record,
+        "date",
+        "created_time",
+        "creation_date",
+        "created_at",
+        "last_modified_time",
+        "updated_time",
+    )
+    normalized = {
+        "record_id": record_id,
+        "resource_type": resource_type,
+        "created_at": created_at,
+        "updated_at": _zoho_books_first_value(
+            record,
+            "last_modified_time",
+            "updated_time",
+            "updated_at",
+        ),
+        "total_amount": _zoho_books_first_value(
+            record,
+            "total",
+            "bcy_total",
+            "amount",
+            "bcy_amount",
+        ),
+        "balance": record.get("balance"),
+        "currency": _zoho_books_first_value(
+            record,
+            "currency_code",
+            "currency",
+        ),
+        "customer_id": record.get("customer_id"),
+        "customer_name": _zoho_books_first_value(
+            record,
+            "customer_name",
+            "contact_name",
+        ),
+    }
+
+    if resource_type == "invoices":
+        normalized.update(
+            {
+                "invoice_id": record.get("invoice_id"),
+                "invoice_number": record.get("invoice_number"),
+                "due_date": record.get("due_date"),
+                "status": record.get("status"),
+            }
+        )
+    elif resource_type == "contacts":
+        normalized.update(
+            {
+                "contact_id": record.get("contact_id"),
+                "contact_name": record.get("contact_name"),
+                "company_name": record.get("company_name"),
+                "contact_type": record.get("contact_type"),
+                "email": record.get("email"),
+                "phone": record.get("phone"),
+                "status": record.get("status"),
+                "outstanding_receivable_amount": record.get(
+                    "outstanding_receivable_amount"
+                ),
+            }
+        )
+    elif resource_type == "expenses":
+        normalized.update(
+            {
+                "expense_id": record.get("expense_id"),
+                "account_name": record.get("account_name"),
+                "description": record.get("description"),
+                "status": record.get("status"),
+            }
+        )
+    elif resource_type == "customer_payments":
+        normalized.update(
+            {
+                "payment_id": _zoho_books_first_value(
+                    record,
+                    "payment_id",
+                    "customerpayment_id",
+                ),
+                "payment_number": record.get("payment_number"),
+                "payment_mode": record.get("payment_mode"),
+            }
+        )
+    elif resource_type == "credit_notes":
+        normalized.update(
+            {
+                "credit_note_id": record.get("creditnote_id"),
+                "credit_note_number": record.get("creditnote_number"),
+                "status": record.get("status"),
+            }
+        )
+    elif resource_type == "estimates":
+        normalized.update(
+            {
+                "estimate_id": record.get("estimate_id"),
+                "estimate_number": record.get("estimate_number"),
+                "status": record.get("status"),
+            }
+        )
+    elif resource_type == "sales_orders":
+        normalized.update(
+            {
+                "sales_order_id": record.get("salesorder_id"),
+                "sales_order_number": record.get("salesorder_number"),
+                "shipment_date": record.get("shipment_date"),
+                "status": record.get("status"),
+            }
+        )
+    elif resource_type == "projects":
+        normalized.update(
+            {
+                "project_id": record.get("project_id"),
+                "project_name": record.get("project_name"),
+                "status": record.get("status"),
+                "rate": record.get("rate"),
+            }
+        )
+    elif resource_type == "items":
+        normalized.update(
+            {
+                "item_id": record.get("item_id"),
+                "item_name": record.get("name"),
+                "rate": record.get("rate"),
+                "purchase_rate": record.get("purchase_rate"),
+                "status": record.get("status"),
+                "stock_on_hand": record.get("stock_on_hand"),
+            }
+        )
+
+    return normalized
+
+
+def load_zoho_books_dataframe(
+    db,
+    connection: DataSourceConnection,
+    start_date=None,
+    end_date=None,
+    resource_type_override: str | None = None,
+) -> tuple[pd.DataFrame, dict]:
+    config = parse_connection_config(connection)
+    resource_type = normalize_zoho_books_resource_type(
+        resource_type_override
+        or normalize_zoho_books_resource_types(config)[0]
+    )
+    organization_id = str(
+        config.get("organization_id") or ""
+    ).strip()
+    if not re.fullmatch(r"\d+", organization_id):
+        raise ConnectorUnavailable(
+            "Connect a Zoho Books organization before syncing"
+        )
+
+    access_token = get_oauth_access_token(
+        db,
+        connection,
+        "zoho_books",
+    )
+    configured_domain = str(config.get("api_domain") or "").strip()
+    if not configured_domain:
+        configured_domain = require_provider_url(
+            "ZOHO_BOOKS_API_BASE_URL"
+        )
+    try:
+        api_domain = normalize_zoho_books_api_domain(configured_domain)
+    except OAuthProviderUnavailable as error:
+        raise ConnectorUnavailable(str(error)) from error
+
+    resource_path, response_key = ZOHO_BOOKS_RESOURCE_TYPES[resource_type]
+    rows = []
+    page = 1
+    seen_pages = set()
+    while True:
+        if page in seen_pages:
+            raise ConnectorUnavailable(
+                "Zoho Books returned a repeated pagination page"
+            )
+        seen_pages.add(page)
+        params = {
+            "organization_id": organization_id,
+            "page": str(page),
+            "per_page": str(PAGE_SIZE),
+        }
+        if resource_type in ZOHO_BOOKS_DATE_FILTER_RESOURCES:
+            if start_date is not None:
+                params["date_start"] = start_date.isoformat()
+            if end_date is not None:
+                params["date_end"] = end_date.isoformat()
+        payload = connector_json_request(
+            f"{api_domain}/books/v3/{resource_path}?{urlencode(params)}",
+            headers={
+                "Authorization": f"Zoho-oauthtoken {access_token}",
+            },
+        )
+        records = payload.get(response_key)
+        if not isinstance(records, list):
+            raise ConnectorUnavailable(
+                "Zoho Books returned an invalid "
+                f"{resource_type} response"
+            )
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            rows.append(
+                build_dynamic_connector_row(
+                    record,
+                    build_zoho_books_normalized_fields(
+                        record,
+                        resource_type,
+                    ),
+                    flatten_lists=True,
+                )
+            )
+
+        page_context = payload.get("page_context")
+        if isinstance(page_context, list):
+            page_context = (
+                page_context[0]
+                if page_context and isinstance(page_context[0], dict)
+                else {}
+            )
+        if not isinstance(page_context, dict):
+            page_context = {}
+        has_more_page = page_context.get("has_more_page")
+        if (
+            not records
+            or len(records) < PAGE_SIZE
+            or has_more_page is False
+            or str(has_more_page).lower() == "false"
+        ):
+            break
+        page += 1
+
+    dataframe = pd.DataFrame(rows)
+    if resource_type in ZOHO_BOOKS_TRANSACTION_RESOURCES:
+        dataframe = filter_date_range(
+            dataframe,
+            start_date,
+            end_date,
+        )
+    return dataframe, {
+        "connector": "zoho_books",
+        "resource": resource_type,
+        "object_type": resource_path,
+        "organization_id": organization_id,
+        "api_domain": api_domain,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
