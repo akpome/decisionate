@@ -7,10 +7,28 @@ from urllib.parse import parse_qs, urlparse
 from unittest.mock import MagicMock, patch
 
 from app.modules.datasets.services import connectors
-from app.modules.oauth.service import build_authorization_url, exchange_code
+from app.modules.oauth.service import (
+    build_authorization_url,
+    exchange_code,
+    normalize_zoho_books_accounts_server,
+)
 
 
 class ZohoBooksConnectorTests(unittest.TestCase):
+    def test_accounts_server_normalizes_known_oauth_paths(self):
+        self.assertEqual(
+            normalize_zoho_books_accounts_server(
+                "https://accounts.zoho.com/oauth/v2/auth"
+            ),
+            "https://accounts.zoho.com",
+        )
+        self.assertEqual(
+            normalize_zoho_books_accounts_server(
+                "https://accounts.zoho.eu/oauth/v2/token/"
+            ),
+            "https://accounts.zoho.eu",
+        )
+
     def test_token_exchange_uses_query_parameters(self):
         with patch.dict(
             os.environ,

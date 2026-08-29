@@ -198,7 +198,11 @@ def normalize_zoho_books_accounts_server(value: str) -> str:
     if (
         parsed.scheme != "https"
         or not parsed.netloc
-        or parsed.path not in ("", "/")
+        or parsed.path not in ("", "/", "/oauth/v2/auth", "/oauth/v2/token")
+        or parsed.query
+        or parsed.fragment
+        or parsed.username
+        or parsed.password
         or hostname not in allowed_hosts
     ):
         raise OAuthProviderUnavailable(
