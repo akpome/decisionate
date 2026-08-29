@@ -452,6 +452,54 @@ class ConnectorSmokeTests(unittest.TestCase):
                 self.assertFalse(dataframe.empty, source_type)
                 self.assertEqual(report["connector"], source_type)
 
+    def test_xero_resource_selection_uses_documented_endpoint(self):
+        tenant_id = "123e4567-e89b-12d3-a456-426614174000"
+        connection = make_connection(
+            "xero",
+            {
+                "tenant_id": tenant_id,
+                "resource_types": ["accounts"],
+            },
+        )
+
+        def fake_request(url, headers):
+            self.assertIn("/Accounts?", url)
+            self.assertEqual(headers["Xero-tenant-id"], tenant_id)
+            return {
+                "Accounts": [{
+                    "AccountID": "account-1",
+                    "Code": "400",
+                    "Name": "Sales",
+                    "Type": "REVENUE",
+                }],
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="xero-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=fake_request,
+        ), patch.dict(
+            os.environ,
+            {
+                "XERO_API_BASE_URL": "https://api.xero.com/api.xro/2.0",
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_xero_dataframe(
+                None,
+                connection,
+                resource_type_override="accounts",
+            )
+
+        self.assertEqual(len(dataframe), 1)
+        self.assertEqual(dataframe.iloc[0]["account_id"], "account-1")
+        self.assertEqual(dataframe.iloc[0]["account_name"], "Sales")
+        self.assertEqual(report["resource"], "accounts")
+
     def test_stripe_sync_requires_customer_api_key(self):
         with patch.dict(
             os.environ,

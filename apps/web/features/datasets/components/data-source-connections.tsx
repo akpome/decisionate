@@ -125,7 +125,9 @@ export function DataSourceConnections({
     if (
       connection.source_type === "freshbooks" ||
       connection.source_type === "quickbooks" ||
-      connection.source_type === "zoho_books"
+      connection.source_type === "zoho_books" ||
+      connection.source_type === "sage" ||
+      connection.source_type === "xero"
     ) {
       emptyConfig.resource_types = (
         connection.configured_resource_types ?? []
@@ -1048,6 +1050,34 @@ const ZOHO_BOOKS_RESOURCE_OPTIONS = [
   { value: "products_services", label: "Products and services" },
 ]
 
+const SAGE_RESOURCE_OPTIONS = [
+  { value: "sales_invoices", label: "Sales invoices" },
+  { value: "purchase_invoices", label: "Purchase invoices" },
+  { value: "sales_credit_notes", label: "Sales credit notes" },
+  { value: "purchase_credit_notes", label: "Purchase credit notes" },
+  { value: "contacts", label: "Contacts" },
+  { value: "ledger_accounts", label: "Ledger accounts" },
+  { value: "products", label: "Products" },
+  { value: "services", label: "Services" },
+  { value: "bank_accounts", label: "Bank accounts" },
+  { value: "payments", label: "Contact payments" },
+  { value: "other_payments", label: "Other payments" },
+  { value: "journals", label: "Journals" },
+]
+
+const XERO_RESOURCE_OPTIONS = [
+  { value: "invoices", label: "Invoices and bills" },
+  { value: "contacts", label: "Contacts" },
+  { value: "credit_notes", label: "Credit notes" },
+  { value: "payments", label: "Payments" },
+  { value: "bank_transactions", label: "Bank transactions" },
+  { value: "accounts", label: "Accounts" },
+  { value: "items", label: "Items" },
+  { value: "quotes", label: "Quotes" },
+  { value: "purchase_orders", label: "Purchase orders" },
+  { value: "manual_journals", label: "Manual journals" },
+]
+
 const CONNECTION_FIELD_GUIDES: Record<
   string,
   Record<string, ConnectionFieldGuide>
@@ -1118,10 +1148,20 @@ const CONNECTION_FIELD_GUIDES: Record<
       example: "Invoices, Customers, Bills",
     },
   },
+  sage: {
+    resource_types: {
+      description: "Select one or more Sage Cloud Accounting objects. Each selected object is stored as its own dataset.",
+      example: "Sales invoices, Contacts, Ledger accounts",
+    },
+  },
   xero: {
     tenant_id: {
       description: "The Xero organisation tenant ID returned after authorization.",
       example: "123e4567-e89b-12d3-a456-426614174000",
+    },
+    resource_types: {
+      description: "Select one or more Xero Accounting objects. Each selected object is stored as its own dataset.",
+      example: "Invoices, Payments, Accounts",
     },
   },
   hubspot: {
@@ -1456,6 +1496,100 @@ function ConnectionConfigField({
                   }
                   onChange(
                     ZOHO_BOOKS_RESOURCE_OPTIONS
+                      .map((item) => item.value)
+                      .filter((item) => nextResources.has(item))
+                      .join(",")
+                  )
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-2 normal-case tracking-normal text-gray-500">
+          Each checked object creates or updates a separate dataset.
+        </p>
+      </fieldset>
+    )
+  }
+
+  if (sourceType === "sage" && configKey === "resource_types") {
+    const selectedResources = new Set(
+      value
+        .split(",")
+        .map((resource) => resource.trim())
+        .filter(Boolean)
+    )
+
+    return (
+      <fieldset className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
+        <legend>Sage Cloud Accounting objects to ingest</legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {SAGE_RESOURCE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 normal-case tracking-normal text-gray-700"
+            >
+              <input
+                type="checkbox"
+                checked={selectedResources.has(option.value)}
+                onChange={(event) => {
+                  const nextResources = new Set(selectedResources)
+                  if (event.target.checked) {
+                    nextResources.add(option.value)
+                  } else {
+                    nextResources.delete(option.value)
+                  }
+                  onChange(
+                    SAGE_RESOURCE_OPTIONS
+                      .map((item) => item.value)
+                      .filter((item) => nextResources.has(item))
+                      .join(",")
+                  )
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-2 normal-case tracking-normal text-gray-500">
+          Each checked object creates or updates a separate dataset.
+        </p>
+      </fieldset>
+    )
+  }
+
+  if (sourceType === "xero" && configKey === "resource_types") {
+    const selectedResources = new Set(
+      value
+        .split(",")
+        .map((resource) => resource.trim())
+        .filter(Boolean)
+    )
+
+    return (
+      <fieldset className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
+        <legend>Xero Accounting objects to ingest</legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {XERO_RESOURCE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 normal-case tracking-normal text-gray-700"
+            >
+              <input
+                type="checkbox"
+                checked={selectedResources.has(option.value)}
+                onChange={(event) => {
+                  const nextResources = new Set(selectedResources)
+                  if (event.target.checked) {
+                    nextResources.add(option.value)
+                  } else {
+                    nextResources.delete(option.value)
+                  }
+                  onChange(
+                    XERO_RESOURCE_OPTIONS
                       .map((item) => item.value)
                       .filter((item) => nextResources.has(item))
                       .join(",")

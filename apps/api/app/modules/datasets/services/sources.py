@@ -179,10 +179,10 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": [],
+        "config_keys": ["resource_types"],
         "description": (
-            "Connect Sage Cloud Accounting sales invoice data through OAuth. "
-            "The connected business is selected automatically."
+            "Choose one or more Sage Cloud Accounting objects to ingest through "
+            "OAuth. The connected business is selected automatically."
         ),
     },
     {
@@ -192,9 +192,10 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["tenant_id"],
+        "config_keys": ["tenant_id", "resource_types"],
         "description": (
-            "Connect Xero invoice data."
+            "Choose one or more Xero Accounting objects to ingest through OAuth. "
+            "The connected organisation is selected automatically."
         ),
     },
     {

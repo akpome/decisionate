@@ -703,7 +703,16 @@ class DatasetSharingTests(unittest.TestCase):
         source = get_dataset_source("sage")
 
         self.assertEqual(source["connection_type"], "oauth")
-        self.assertEqual(source["config_keys"], [])
+        self.assertEqual(source["config_keys"], ["resource_types"])
+
+    def test_xero_exposes_resource_selector(self):
+        source = get_dataset_source("xero")
+
+        self.assertEqual(source["connection_type"], "oauth")
+        self.assertEqual(
+            source["config_keys"],
+            ["tenant_id", "resource_types"],
+        )
 
     def test_freshbooks_exposes_resource_selector(self):
         source = get_dataset_source("freshbooks")

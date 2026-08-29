@@ -160,6 +160,10 @@ from app.modules.datasets.services.connectors import (
     normalize_quickbooks_resource_type,
     normalize_quickbooks_resource_types,
     normalize_freshbooks_resource_types,
+    normalize_sage_resource_type,
+    normalize_sage_resource_types,
+    normalize_xero_resource_type,
+    normalize_xero_resource_types,
     normalize_zoho_books_resource_type,
     normalize_zoho_books_resource_types,
 )
@@ -784,6 +788,18 @@ def build_source_connection_response(
         connection.connection_config
     ):
         configured_resource_types = normalize_zoho_books_resource_types(
+            parsed_config
+        )
+    elif source_type == "sage" and has_source_connection_config(
+        connection.connection_config
+    ):
+        configured_resource_types = normalize_sage_resource_types(
+            parsed_config
+        )
+    elif source_type == "xero" and has_source_connection_config(
+        connection.connection_config
+    ):
+        configured_resource_types = normalize_xero_resource_types(
             parsed_config
         )
     has_config = has_source_connection_config(
@@ -2748,6 +2764,20 @@ def find_connector_dataset(
                     )
                 except ConnectorUnavailable:
                     pass
+            if connection.source_type == "sage":
+                try:
+                    dataset_resource = normalize_sage_resource_type(
+                        dataset_resource
+                    )
+                except ConnectorUnavailable:
+                    pass
+            if connection.source_type == "xero":
+                try:
+                    dataset_resource = normalize_xero_resource_type(
+                        dataset_resource
+                    )
+                except ConnectorUnavailable:
+                    pass
             if dataset_resource != resource_type:
                 continue
         return dataset
@@ -3584,6 +3614,72 @@ def run_zoho_books_sync(
     return results
 
 
+def run_sage_sync(
+    db,
+    connection: DataSourceConnection,
+    payload: DataSourceConnectionSync,
+):
+    connection_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    resource_types = normalize_sage_resource_types(connection_config)
+    start_date, end_date = get_incremental_sync_window(
+        connection,
+        payload,
+    )
+    results = []
+    for resource_type in resource_types:
+        dataframe, report_config = load_connector_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            sage_resource_type=resource_type,
+        )
+        results.append(
+            persist_connector_dataframe(
+                db,
+                connection,
+                dataframe,
+                report_config,
+            )
+        )
+    return results
+
+
+def run_xero_sync(
+    db,
+    connection: DataSourceConnection,
+    payload: DataSourceConnectionSync,
+):
+    connection_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    resource_types = normalize_xero_resource_types(connection_config)
+    start_date, end_date = get_incremental_sync_window(
+        connection,
+        payload,
+    )
+    results = []
+    for resource_type in resource_types:
+        dataframe, report_config = load_connector_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            xero_resource_type=resource_type,
+        )
+        results.append(
+            persist_connector_dataframe(
+                db,
+                connection,
+                dataframe,
+                report_config,
+            )
+        )
+    return results
+
+
 def persist_connector_dataframe(
     db,
     connection,
@@ -3673,8 +3769,13 @@ def persist_connector_dataframe(
                             if connection.source_type == "zoho_books"
                             and resource_type
                             else (
-                                f"{connection.source_type}-{connection.id}-"
-                                f"{date.today().isoformat()}.csv"
+                                f"{connection.source_type}-{resource_type}-dataset.csv"
+                                if connection.source_type in {"sage", "xero"}
+                                and resource_type
+                                else (
+                                    f"{connection.source_type}-{connection.id}-"
+                                    f"{date.today().isoformat()}.csv"
+                                )
                             )
                         )
                     )
@@ -3998,6 +4099,12 @@ def run_data_source_sync(
 
     if connection.source_type == "zoho_books":
         return run_zoho_books_sync(db, connection, payload)
+
+    if connection.source_type == "sage":
+        return run_sage_sync(db, connection, payload)
+
+    if connection.source_type == "xero":
+        return run_xero_sync(db, connection, payload)
 
     if connection.source_type not in IMPLEMENTED_CONNECTOR_TYPES:
         raise ConnectorUnavailable(
