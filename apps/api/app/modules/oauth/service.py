@@ -577,7 +577,22 @@ def exchange_code(
         raise OAuthTokenExchangeError(
             "OAuth provider returned an invalid token response"
         ) from error
-    if not isinstance(payload, dict) or not payload.get("access_token"):
+    if not isinstance(payload, dict):
+        raise OAuthTokenExchangeError(
+            "OAuth provider returned an invalid token response"
+        )
+    if not payload.get("access_token"):
+        provider_detail = str(
+            payload.get("error_description")
+            or payload.get("error")
+            or payload.get("message")
+            or ""
+        ).strip()
+        if provider_detail:
+            raise OAuthTokenExchangeError(
+                f"{source_type.replace('_', ' ').title()} token exchange rejected: "
+                f"{provider_detail[:160]}"
+            )
         raise OAuthTokenExchangeError(
             "OAuth provider returned no access token"
         )

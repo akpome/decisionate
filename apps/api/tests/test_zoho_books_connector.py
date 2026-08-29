@@ -11,6 +11,7 @@ from app.modules.oauth.service import (
     build_authorization_url,
     exchange_code,
     normalize_zoho_books_accounts_server,
+    OAuthTokenExchangeError,
 )
 
 
@@ -109,6 +110,34 @@ class ZohoBooksConnectorTests(unittest.TestCase):
         self.assertEqual(query["client_id"], ["client-id"])
         self.assertEqual(query["client_secret"], ["client-secret"])
         self.assertIsNone(request.data)
+
+    def test_token_exchange_reports_provider_rejection_reason(self):
+        with patch.dict(
+            os.environ,
+            {
+                "ZOHO_BOOKS_CLIENT_ID": "client-id",
+                "ZOHO_BOOKS_CLIENT_SECRET": "client-secret",
+                "ZOHO_BOOKS_OAUTH_AUTHORIZATION_URL": (
+                    "https://accounts.zoho.com/oauth/v2/auth"
+                ),
+                "ZOHO_BOOKS_OAUTH_TOKEN_URL": (
+                    "https://accounts.zoho.com/oauth/v2/token"
+                ),
+                "ZOHO_BOOKS_OAUTH_SCOPES": "ZohoBooks.invoices.READ",
+                "OAUTH_CALLBACK_URL": "http://localhost:8000/oauth/callback",
+            },
+            clear=False,
+        ), patch("app.modules.oauth.service.urlopen") as mocked_urlopen:
+            response = MagicMock()
+            response.read.return_value = b'{"error":"invalid_code"}'
+            response.__enter__.return_value = response
+            mocked_urlopen.return_value = response
+
+            with self.assertRaisesRegex(
+                OAuthTokenExchangeError,
+                "Zoho Books token exchange rejected: invalid_code",
+            ):
+                exchange_code("zoho_books", "auth-code")
 
     def test_oauth_uses_offline_read_scopes(self):
         with patch.dict(
