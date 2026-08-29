@@ -439,6 +439,31 @@ def build_authorization_url(
     return f"{authorization_url}?{urlencode(params)}"
 
 
+def build_token_request(
+    source_type: str,
+    token_url: str,
+    params: dict[str, str],
+    headers: dict[str, str],
+) -> Request:
+    request_headers = {
+        **headers,
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    if source_type == "zoho_books":
+        separator = "&" if "?" in token_url else "?"
+        return Request(
+            f"{token_url}{separator}{urlencode(params)}",
+            headers=request_headers,
+            method="POST",
+        )
+    return Request(
+        token_url,
+        data=urlencode(params).encode("utf-8"),
+        headers=request_headers,
+        method="POST",
+    )
+
+
 def exchange_code(
     source_type: str,
     code: str,
@@ -486,14 +511,11 @@ def exchange_code(
         params["client_id"] = client_id
         params["client_secret"] = client_secret
 
-    request = Request(
+    request = build_token_request(
+        source_type,
         token_url,
-        data=urlencode(params).encode("utf-8"),
-        headers={
-            **headers,
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        method="POST",
+        params,
+        headers,
     )
     try:
         with urlopen(request, timeout=20) as response:
@@ -631,14 +653,11 @@ def refresh_oauth_token(
         params["client_id"] = client_id
         params["client_secret"] = client_secret
 
-    request = Request(
+    request = build_token_request(
+        source_type,
         token_url,
-        data=urlencode(params).encode("utf-8"),
-        headers={
-            **headers,
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        method="POST",
+        params,
+        headers,
     )
     try:
         with urlopen(request, timeout=20) as response:
