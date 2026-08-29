@@ -229,11 +229,16 @@ def process_oauth_callback(
                 or ""
             ).strip()
             if callback_accounts_server:
-                connection_config["accounts_server"] = (
-                    normalize_zoho_books_accounts_server(
-                        callback_accounts_server
+                try:
+                    connection_config["accounts_server"] = (
+                        normalize_zoho_books_accounts_server(
+                            callback_accounts_server
+                        )
                     )
-                )
+                except OAuthProviderUnavailable:
+                    # Keep the configured token endpoint when Zoho's optional
+                    # callback hint is not in a recognized URL form.
+                    connection_config.pop("accounts_server", None)
         payload = exchange_code(
             state.source_type,
             code,

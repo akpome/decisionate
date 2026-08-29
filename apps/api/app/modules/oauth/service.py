@@ -493,10 +493,16 @@ def exchange_code(
             config.get("accounts_server") or ""
         ).strip()
         if accounts_server:
-            token_url = (
-                f"{normalize_zoho_books_accounts_server(accounts_server)}"
-                "/oauth/v2/token"
-            )
+            try:
+                normalized_accounts_server = (
+                    normalize_zoho_books_accounts_server(accounts_server)
+                )
+            except OAuthProviderUnavailable:
+                normalized_accounts_server = ""
+            if normalized_accounts_server:
+                token_url = (
+                    f"{normalized_accounts_server}/oauth/v2/token"
+                )
 
     params = {
         "grant_type": "authorization_code",
@@ -636,10 +642,16 @@ def refresh_oauth_token(
             config.get("accounts_server") or ""
         ).strip()
         if accounts_server:
-            token_url = (
-                f"{normalize_zoho_books_accounts_server(accounts_server)}"
-                "/oauth/v2/token"
-            )
+            try:
+                normalized_accounts_server = (
+                    normalize_zoho_books_accounts_server(accounts_server)
+                )
+            except OAuthProviderUnavailable:
+                normalized_accounts_server = ""
+            if normalized_accounts_server:
+                token_url = (
+                    f"{normalized_accounts_server}/oauth/v2/token"
+                )
 
     params = {
         "grant_type": "refresh_token",

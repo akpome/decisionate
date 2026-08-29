@@ -29,6 +29,47 @@ class ZohoBooksConnectorTests(unittest.TestCase):
             "https://accounts.zoho.eu",
         )
 
+    def test_invalid_accounts_server_uses_configured_token_endpoint(self):
+        with patch.dict(
+            os.environ,
+            {
+                "ZOHO_BOOKS_CLIENT_ID": "client-id",
+                "ZOHO_BOOKS_CLIENT_SECRET": "client-secret",
+                "ZOHO_BOOKS_OAUTH_AUTHORIZATION_URL": (
+                    "https://accounts.zoho.com/oauth/v2/auth"
+                ),
+                "ZOHO_BOOKS_OAUTH_TOKEN_URL": (
+                    "https://accounts.zoho.com/oauth/v2/token"
+                ),
+                "ZOHO_BOOKS_OAUTH_SCOPES": (
+                    "ZohoBooks.settings.READ ZohoBooks.invoices.READ "
+                    "ZohoBooks.contacts.READ ZohoBooks.expenses.READ "
+                    "ZohoBooks.customerpayments.READ ZohoBooks.creditnotes.READ "
+                    "ZohoBooks.estimates.READ ZohoBooks.salesorders.READ "
+                    "ZohoBooks.projects.READ"
+                ),
+                "OAUTH_CALLBACK_URL": "http://localhost:8000/oauth/callback",
+            },
+            clear=False,
+        ), patch("app.modules.oauth.service.urlopen") as mocked_urlopen:
+            response = MagicMock()
+            response.read.return_value = b'{"access_token":"access"}'
+            response.__enter__.return_value = response
+            mocked_urlopen.return_value = response
+
+            exchange_code(
+                "zoho_books",
+                "auth-code",
+                {"accounts_server": "accounts.zoho.com"},
+            )
+
+        request = mocked_urlopen.call_args.args[0]
+        self.assertTrue(
+            request.full_url.startswith(
+                "https://accounts.zoho.com/oauth/v2/token?"
+            )
+        )
+
     def test_token_exchange_uses_query_parameters(self):
         with patch.dict(
             os.environ,
