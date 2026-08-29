@@ -446,14 +446,9 @@ body {
   line-height: 1.75rem;
 }
 
-/* Keep the dashboard content scrollable without a second visible page rail. */
-.dashboard-print-main {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.dashboard-print-main::-webkit-scrollbar {
-  display: none;
+/* The dashboard main element owns scrolling; prevent a duplicate document rail. */
+body:has(.dashboard-shell-layout) {
+  overflow: hidden;
 }
 
 @media print {
@@ -466,6 +461,7 @@ body {
   body {
     background: #ffffff !important;
     color: #111827 !important;
+    overflow: visible !important;
   }
 
   body {
