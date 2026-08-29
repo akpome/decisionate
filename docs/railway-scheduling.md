@@ -36,6 +36,8 @@ ALERTS_SCHEDULER_SECRET=<same-secret-configured-on-the-api-service>
 BILLING_SCHEDULER_SECRET=<same-secret-configured-on-the-api-service>
 SCHEDULED_JOBS=connectors,alerts,billing
 SCHEDULER_TIMEOUT_SECONDS=60
+SCHEDULER_RETRY_ATTEMPTS=3
+SCHEDULER_RETRY_DELAY_SECONDS=5
 ```
 
 `DECISIONATE_API_URL` must be the public domain of the existing persistent
@@ -66,6 +68,12 @@ The combined runner calls these protected endpoints in order:
 The runner continues if one job fails, prints a JSON result for each job, and
 returns exit code `1` when any selected job fails. Railway should mark that run
 failed so it is visible in deployment logs.
+
+Transient API failures (`408`, `429`, `502`, `503`, `504`) and network timeouts
+are retried. The defaults allow three attempts with a five-second delay. Set
+`SCHEDULER_RETRY_ATTEMPTS` and `SCHEDULER_RETRY_DELAY_SECONDS` on the scheduler
+service when the API deployment needs a longer warm-up window. Invalid or
+non-transient responses, such as `401`, `403`, and `404`, are not retried.
 
 ## Verify the setup
 
