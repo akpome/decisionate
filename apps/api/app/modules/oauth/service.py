@@ -6,7 +6,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from app.configuration import get_provider_setting, get_runtime_configuration
@@ -120,28 +120,6 @@ OAUTH_PROVIDERS = {
         use_basic_token_auth=True,
         required_scopes=("accounting.transactions",),
     ),
-    "zoho_books": OAuthProvider(
-        source_type="zoho_books",
-        authorization_url_env="ZOHO_BOOKS_OAUTH_AUTHORIZATION_URL",
-        token_url_env="ZOHO_BOOKS_OAUTH_TOKEN_URL",
-        client_id_env="ZOHO_BOOKS_CLIENT_ID",
-        client_secret_env="ZOHO_BOOKS_CLIENT_SECRET",
-        scopes_env="ZOHO_BOOKS_OAUTH_SCOPES",
-        required_scopes=(
-            "ZohoBooks.settings.READ",
-            "ZohoBooks.invoices.READ",
-            "ZohoBooks.contacts.READ",
-            "ZohoBooks.expenses.READ",
-            "ZohoBooks.customerpayments.READ",
-            "ZohoBooks.creditnotes.READ",
-            "ZohoBooks.estimates.READ",
-            "ZohoBooks.salesorders.READ",
-            "ZohoBooks.bills.READ",
-            "ZohoBooks.vendorpayments.READ",
-            "ZohoBooks.projects.READ",
-            "ZohoBooks.accountants.READ",
-        ),
-    ),
     "salesforce": OAuthProvider(
         source_type="salesforce",
         authorization_url_env="SALESFORCE_OAUTH_AUTHORIZATION_URL",
@@ -176,111 +154,6 @@ def get_provider(source_type: str) -> OAuthProvider:
             "OAuth is not supported for this connector"
         )
     return provider
-
-
-ZOHO_BOOKS_DATA_CENTER_SUFFIXES = (
-    "com",
-    "eu",
-    "in",
-    "com.au",
-    "jp",
-    "com.cn",
-    "sa",
-    "ca",
-)
-
-
-def normalize_zoho_books_accounts_server(value: str) -> str:
-    candidate = str(value or "").strip().rstrip("/")
-    parsed = urlparse(candidate)
-    hostname = (parsed.hostname or "").lower().rstrip(".")
-    allowed_hosts = {
-        f"accounts.zoho.{suffix}"
-        for suffix in ZOHO_BOOKS_DATA_CENTER_SUFFIXES
-    }
-    if (
-        parsed.scheme != "https"
-        or not parsed.netloc
-        or parsed.path not in ("", "/")
-        or hostname not in allowed_hosts
-    ):
-        raise OAuthProviderUnavailable(
-            "Zoho Books returned an invalid accounts server"
-        )
-    return f"https://{hostname}"
-
-
-def normalize_zoho_books_api_domain(value: str) -> str:
-    candidate = str(value or "").strip().rstrip("/")
-    parsed = urlparse(candidate)
-    hostname = (parsed.hostname or "").lower().rstrip(".")
-    allowed_hosts = {
-        f"zohoapis.{suffix}"
-        for suffix in ZOHO_BOOKS_DATA_CENTER_SUFFIXES
-    } | {
-        f"www.zohoapis.{suffix}"
-        for suffix in ZOHO_BOOKS_DATA_CENTER_SUFFIXES
-    }
-    if (
-        parsed.scheme != "https"
-        or not parsed.netloc
-        or hostname not in allowed_hosts
-        or parsed.username
-        or parsed.password
-    ):
-        raise OAuthProviderUnavailable(
-            "Zoho Books returned an invalid API domain"
-        )
-    return f"https://{hostname}"
-
-
-def get_zoho_books_organizations(
-    access_token: str,
-    api_domain: str,
-) -> list[dict]:
-    url = (
-        f"{normalize_zoho_books_api_domain(api_domain)}"
-        "/books/v3/organizations"
-    )
-    request = Request(
-        url,
-        headers={
-            "Accept": "application/json",
-            "Authorization": f"Zoho-oauthtoken {access_token}",
-        },
-        method="GET",
-    )
-    try:
-        with urlopen(request, timeout=20) as response:
-            body = response.read().decode("utf-8")
-    except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        raise OAuthTokenExchangeError(
-            "Zoho Books organization lookup failed with "
-            f"HTTP {error.code}: {detail[:240]}"
-        ) from error
-    except (URLError, TimeoutError, OSError) as error:
-        raise OAuthTokenExchangeError(
-            "Zoho Books organization lookup is unavailable"
-        ) from error
-
-    try:
-        payload = json.loads(body)
-    except json.JSONDecodeError as error:
-        raise OAuthTokenExchangeError(
-            "Zoho Books returned an invalid organization response"
-        ) from error
-
-    organizations = payload.get("organizations")
-    if not isinstance(organizations, list):
-        raise OAuthTokenExchangeError(
-            "Zoho Books returned no organizations"
-        )
-    return [
-        organization
-        for organization in organizations
-        if isinstance(organization, dict)
-    ]
 
 
 def get_sage_token_url(country: str | None = None) -> str:
@@ -349,10 +222,9 @@ def get_provider_endpoint(provider: OAuthProvider, endpoint: str) -> str:
 
 
 def get_provider_scopes(provider: OAuthProvider) -> tuple[str, ...]:
-    configured_scopes = get_provider_setting(provider.scopes_env)
     scopes = tuple(
         scope.strip()
-        for scope in configured_scopes.replace(",", " ").split()
+        for scope in get_provider_setting(provider.scopes_env).split()
         if scope.strip()
     )
     if not scopes:
@@ -423,15 +295,7 @@ def build_authorization_url(
         "state": state_token,
         "scope": " ".join(scopes),
     }
-    if provider.source_type == "zoho_books":
-        params.update(
-            {
-                "scope": ",".join(scopes),
-                "access_type": "offline",
-                "prompt": "consent",
-            }
-        )
-    elif provider.source_type == "google_analytics":
+    if provider.source_type == "google_analytics":
         params.update(
             {
                 "access_type": "offline",
@@ -462,15 +326,6 @@ def exchange_code(
             ) from error
     elif provider.source_type == "sage":
         token_url = get_sage_token_url(config.get("country"))
-    elif provider.source_type == "zoho_books":
-        accounts_server = str(
-            config.get("accounts_server") or ""
-        ).strip()
-        if accounts_server:
-            token_url = (
-                f"{normalize_zoho_books_accounts_server(accounts_server)}"
-                "/oauth/v2/token"
-            )
 
     params = {
         "grant_type": "authorization_code",
@@ -608,15 +463,6 @@ def refresh_oauth_token(
     token_url = get_provider_endpoint(provider, "token")
     if provider.source_type == "sage":
         token_url = get_sage_token_url(config.get("country"))
-    elif provider.source_type == "zoho_books":
-        accounts_server = str(
-            config.get("accounts_server") or ""
-        ).strip()
-        if accounts_server:
-            token_url = (
-                f"{normalize_zoho_books_accounts_server(accounts_server)}"
-                "/oauth/v2/token"
-            )
 
     params = {
         "grant_type": "refresh_token",

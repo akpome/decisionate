@@ -21,11 +21,8 @@ from app.modules.oauth.service import (
     encrypt_token,
     exchange_code,
     get_freshbooks_businesses,
-    get_zoho_books_organizations,
     get_xero_connections,
     get_web_app_url,
-    normalize_zoho_books_accounts_server,
-    normalize_zoho_books_api_domain,
     token_expiry,
 )
 
@@ -222,18 +219,6 @@ def process_oauth_callback(
             ).strip().upper()
             if callback_country:
                 connection_config["country"] = callback_country
-        if state.source_type == "zoho_books":
-            callback_accounts_server = str(
-                query.get("accounts-server")
-                or query.get("accounts_server")
-                or ""
-            ).strip()
-            if callback_accounts_server:
-                connection_config["accounts_server"] = (
-                    normalize_zoho_books_accounts_server(
-                        callback_accounts_server
-                    )
-                )
         payload = exchange_code(
             state.source_type,
             code,
@@ -344,67 +329,6 @@ def process_oauth_callback(
             connection_config["instance_url"] = get_salesforce_instance_url(
                 payload
             )
-            connection.connection_config = json.dumps(
-                connection_config,
-                sort_keys=True,
-            )
-        if state.source_type == "zoho_books":
-            access_token = str(payload.get("access_token") or "").strip()
-            api_domain = normalize_zoho_books_api_domain(
-                payload.get("api_domain")
-                or connection_config.get("api_domain")
-            )
-            organizations = [
-                organization
-                for organization in get_zoho_books_organizations(
-                    access_token,
-                    api_domain,
-                )
-                if organization.get("is_org_active") is not False
-            ]
-            configured_organization_id = str(
-                connection_config.get("organization_id") or ""
-            ).strip()
-            if configured_organization_id:
-                matching_organizations = [
-                    organization
-                    for organization in organizations
-                    if str(
-                        organization.get("organization_id") or ""
-                    ).strip()
-                    == configured_organization_id
-                ]
-            else:
-                default_organizations = [
-                    organization
-                    for organization in organizations
-                    if organization.get("is_default_org") is True
-                ]
-                matching_organizations = (
-                    default_organizations
-                    if len(default_organizations) == 1
-                    else organizations
-                )
-            if len(matching_organizations) != 1:
-                raise OAuthTokenExchangeError(
-                    "Zoho Books returned multiple active organizations; "
-                    "organization selection is required"
-                    if len(matching_organizations) > 1
-                    else "Zoho Books did not return an active organization"
-                )
-            selected_organization = matching_organizations[0]
-            organization_id = str(
-                selected_organization.get("organization_id") or ""
-            ).strip()
-            if not organization_id:
-                raise OAuthTokenExchangeError(
-                    "Zoho Books returned an organization without an identifier"
-                )
-            connection_config["organization_id"] = organization_id
-            connection_config["organization_name"] = str(
-                selected_organization.get("name") or ""
-            ).strip()
-            connection_config["api_domain"] = api_domain
             connection.connection_config = json.dumps(
                 connection_config,
                 sort_keys=True,

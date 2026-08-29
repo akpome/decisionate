@@ -23,7 +23,6 @@ IMPLEMENTED_CONNECTOR_TYPES = {
     "freshbooks",
     "sage",
     "xero",
-    "zoho_books",
     "salesforce",
     "postgresql",
     "mysql",
@@ -179,10 +178,10 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["resource_types"],
+        "config_keys": [],
         "description": (
-            "Choose one or more Sage Cloud Accounting objects to ingest through "
-            "OAuth. The connected business is selected automatically."
+            "Connect Sage Cloud Accounting sales invoice data through OAuth. "
+            "The connected business is selected automatically."
         ),
     },
     {
@@ -192,23 +191,9 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["tenant_id", "resource_types"],
+        "config_keys": ["tenant_id"],
         "description": (
-            "Choose one or more Xero Accounting objects to ingest through OAuth. "
-            "The connected organisation is selected automatically."
-        ),
-    },
-    {
-        "type": "zoho_books",
-        "label": "Zoho Books",
-        "category": "accounting",
-        "status": "planned",
-        "connection_type": "oauth",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["resource_types"],
-        "description": (
-            "Choose one or more Zoho Books accounting objects to ingest through OAuth. "
-            "The connected organization is selected automatically."
+            "Connect Xero invoice data."
         ),
     },
     {
@@ -282,10 +267,6 @@ DATASET_SOURCE_ENV_KEYS = {
         "XERO_CLIENT_ID",
         "XERO_CLIENT_SECRET",
     ],
-    "zoho_books": [
-        "ZOHO_BOOKS_CLIENT_ID",
-        "ZOHO_BOOKS_CLIENT_SECRET",
-    ],
     "hubspot": [
         "HUBSPOT_CLIENT_ID",
         "HUBSPOT_CLIENT_SECRET",
@@ -343,9 +324,6 @@ DATASET_SOURCE_RUNTIME_ENV_KEYS = {
     "xero": [
         "XERO_API_BASE_URL",
         "XERO_CONNECTIONS_API_URL",
-    ],
-    "zoho_books": [
-        "ZOHO_BOOKS_API_BASE_URL",
     ],
     "google_analytics": [
         "GOOGLE_ANALYTICS_OAUTH_AUTHORIZATION_URL",
@@ -502,7 +480,6 @@ def clone_dataset_source(source):
         "quickbooks",
         "freshbooks",
         "xero",
-        "zoho_books",
         "salesforce",
     }:
         if (

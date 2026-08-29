@@ -16,11 +16,9 @@ from app.configuration import get_provider_setting
 from app.db.models import DataSourceConnection
 from app.db.models import OAuthCredential
 from app.modules.oauth.service import (
-    OAuthProviderUnavailable,
     decrypt_token,
     encrypt_token,
     get_freshbooks_businesses,
-    normalize_zoho_books_api_domain,
     refresh_oauth_token,
     token_expiry,
 )
@@ -46,124 +44,6 @@ FRESHBOOKS_RESOURCE_TYPES = {
     "chart_of_accounts",
     "projects",
     *FRESHBOOKS_RESOURCE_PATHS,
-}
-
-SAGE_RESOURCE_TYPES = {
-    "sales_invoices": ("sales_invoices", "$items"),
-    "purchase_invoices": ("purchase_invoices", "$items"),
-    "sales_credit_notes": ("sales_credit_notes", "$items"),
-    "purchase_credit_notes": ("purchase_credit_notes", "$items"),
-    "contacts": ("contacts", "$items"),
-    "ledger_accounts": ("ledger_accounts", "$items"),
-    "products": ("products", "$items"),
-    "services": ("services", "$items"),
-    "bank_accounts": ("bank_accounts", "$items"),
-    "payments": ("contact_payments", "$items"),
-    "other_payments": ("other_payments", "$items"),
-    "journals": ("journals", "$items"),
-}
-SAGE_RESOURCE_ALIASES = {
-    "sales_invoice": "sales_invoices",
-    "sales_invoices": "sales_invoices",
-    "invoice": "sales_invoices",
-    "invoices": "sales_invoices",
-    "purchase_invoice": "purchase_invoices",
-    "purchase_invoices": "purchase_invoices",
-    "purchase_bill": "purchase_invoices",
-    "purchase_bills": "purchase_invoices",
-    "sales_credit_note": "sales_credit_notes",
-    "sales_credit_notes": "sales_credit_notes",
-    "purchase_credit_note": "purchase_credit_notes",
-    "purchase_credit_notes": "purchase_credit_notes",
-    "contact": "contacts",
-    "contacts": "contacts",
-    "customer": "contacts",
-    "customers": "contacts",
-    "supplier": "contacts",
-    "suppliers": "contacts",
-    "ledger_account": "ledger_accounts",
-    "ledger_accounts": "ledger_accounts",
-    "account": "ledger_accounts",
-    "accounts": "ledger_accounts",
-    "product": "products",
-    "products": "products",
-    "service": "services",
-    "services": "services",
-    "bank_account": "bank_accounts",
-    "bank_accounts": "bank_accounts",
-    "payment": "payments",
-    "payments": "payments",
-    "contact_payment": "payments",
-    "contact_payments": "payments",
-    "other_payment": "other_payments",
-    "other_payments": "other_payments",
-    "journal": "journals",
-    "journals": "journals",
-}
-SAGE_TRANSACTION_RESOURCES = {
-    "sales_invoices",
-    "purchase_invoices",
-    "sales_credit_notes",
-    "purchase_credit_notes",
-    "payments",
-    "other_payments",
-    "journals",
-}
-SAGE_DATE_FILTER_RESOURCES = {
-    "sales_invoices",
-    "purchase_invoices",
-    "sales_credit_notes",
-    "purchase_credit_notes",
-    "payments",
-    "other_payments",
-}
-
-XERO_RESOURCE_TYPES = {
-    "invoices": ("Invoices", "Invoices"),
-    "contacts": ("Contacts", "Contacts"),
-    "credit_notes": ("CreditNotes", "CreditNotes"),
-    "payments": ("Payments", "Payments"),
-    "bank_transactions": ("BankTransactions", "BankTransactions"),
-    "accounts": ("Accounts", "Accounts"),
-    "items": ("Items", "Items"),
-    "quotes": ("Quotes", "Quotes"),
-    "purchase_orders": ("PurchaseOrders", "PurchaseOrders"),
-    "manual_journals": ("ManualJournals", "ManualJournals"),
-}
-XERO_RESOURCE_ALIASES = {
-    "invoice": "invoices",
-    "invoices": "invoices",
-    "contact": "contacts",
-    "contacts": "contacts",
-    "credit_note": "credit_notes",
-    "credit_notes": "credit_notes",
-    "creditnote": "credit_notes",
-    "payment": "payments",
-    "payments": "payments",
-    "bank_transaction": "bank_transactions",
-    "bank_transactions": "bank_transactions",
-    "banktransaction": "bank_transactions",
-    "account": "accounts",
-    "accounts": "accounts",
-    "item": "items",
-    "items": "items",
-    "quote": "quotes",
-    "quotes": "quotes",
-    "purchase_order": "purchase_orders",
-    "purchase_orders": "purchase_orders",
-    "purchaseorder": "purchase_orders",
-    "manual_journal": "manual_journals",
-    "manual_journals": "manual_journals",
-    "manualjournal": "manual_journals",
-}
-XERO_TRANSACTION_RESOURCES = {
-    "invoices",
-    "credit_notes",
-    "payments",
-    "bank_transactions",
-    "quotes",
-    "purchase_orders",
-    "manual_journals",
 }
 
 
@@ -194,94 +74,6 @@ def normalize_freshbooks_resource_types(config: dict) -> list[str]:
     if not resources:
         raise ConnectorUnavailable(
             "Select at least one FreshBooks object before syncing"
-        )
-    return resources
-
-
-def normalize_sage_resource_type(value) -> str:
-    normalized = re.sub(
-        r"[\s-]+",
-        "_",
-        str(value or "").strip().lower(),
-    )
-    compact = normalized.replace("_", "")
-    resource_type = SAGE_RESOURCE_ALIASES.get(
-        normalized,
-        SAGE_RESOURCE_ALIASES.get(compact, normalized),
-    )
-    if resource_type not in SAGE_RESOURCE_TYPES:
-        raise ConnectorUnavailable(
-            "Sage resource_types contains an unsupported resource: "
-            f"{value}"
-        )
-    return resource_type
-
-
-def normalize_sage_resource_types(config: dict) -> list[str]:
-    """Return selected Sage Accounting resources in stable user order."""
-    configured = config.get("resource_types")
-    if isinstance(configured, list):
-        values = configured
-    elif isinstance(configured, str):
-        values = configured.split(",")
-    else:
-        values = [config.get("resource_type") or "sales_invoices"]
-
-    resources = []
-    for value in values:
-        if not str(value or "").strip():
-            continue
-        resource_type = normalize_sage_resource_type(value)
-        if resource_type not in resources:
-            resources.append(resource_type)
-
-    if not resources:
-        raise ConnectorUnavailable(
-            "Select at least one Sage Accounting object before syncing"
-        )
-    return resources
-
-
-def normalize_xero_resource_type(value) -> str:
-    normalized = re.sub(
-        r"[\s-]+",
-        "_",
-        str(value or "").strip().lower(),
-    )
-    compact = normalized.replace("_", "")
-    resource_type = XERO_RESOURCE_ALIASES.get(
-        normalized,
-        XERO_RESOURCE_ALIASES.get(compact, normalized),
-    )
-    if resource_type not in XERO_RESOURCE_TYPES:
-        raise ConnectorUnavailable(
-            "Xero resource_types contains an unsupported resource: "
-            f"{value}"
-        )
-    return resource_type
-
-
-def normalize_xero_resource_types(config: dict) -> list[str]:
-    """Return selected Xero Accounting resources in stable user order."""
-    configured = config.get("resource_types")
-    if isinstance(configured, list):
-        values = configured
-    elif isinstance(configured, str):
-        values = configured.split(",")
-    else:
-        values = [config.get("resource_type") or "invoices"]
-
-    resources = []
-    for value in values:
-        if not str(value or "").strip():
-            continue
-        resource_type = normalize_xero_resource_type(value)
-        if resource_type not in resources:
-            resources.append(resource_type)
-
-    if not resources:
-        raise ConnectorUnavailable(
-            "Select at least one Xero Accounting object before syncing"
         )
     return resources
 
@@ -328,77 +120,6 @@ QUICKBOOKS_TRANSACTION_RESOURCES = {
     "purchases",
 }
 
-ZOHO_BOOKS_RESOURCE_TYPES = {
-    "invoices": ("invoices", "invoices"),
-    "customers": ("contacts", "contacts"),
-    "vendors": ("contacts", "contacts"),
-    "expenses": ("expenses", "expenses"),
-    "payments": ("customerpayments", "customerpayments"),
-    "credit_notes": ("creditnotes", "creditnotes"),
-    "estimates": ("estimates", "estimates"),
-    "sales_orders": ("salesorders", "salesorders"),
-    "bills": ("bills", "bills"),
-    "vendor_payments": ("vendorpayments", "vendorpayments"),
-    "projects": ("projects", "projects"),
-    "accounts": ("chartofaccounts", "chartofaccounts"),
-    "products_services": ("items", "items"),
-}
-ZOHO_BOOKS_RESOURCE_ALIASES = {
-    "invoice": "invoices",
-    "contact": "customers",
-    "contacts": "customers",
-    "customer": "customers",
-    "customers": "customers",
-    "vendor": "vendors",
-    "vendors": "vendors",
-    "expense": "expenses",
-    "customerpayment": "payments",
-    "customerpayments": "payments",
-    "customer_payment": "payments",
-    "customer_payments": "payments",
-    "payment": "payments",
-    "payments": "payments",
-    "creditnote": "credit_notes",
-    "creditnotes": "credit_notes",
-    "estimate": "estimates",
-    "salesorder": "sales_orders",
-    "salesorders": "sales_orders",
-    "bill": "bills",
-    "bills": "bills",
-    "vendorpayment": "vendor_payments",
-    "vendorpayments": "vendor_payments",
-    "vendor_payment": "vendor_payments",
-    "vendor_payments": "vendor_payments",
-    "project": "projects",
-    "account": "accounts",
-    "accounts": "accounts",
-    "chartofaccounts": "accounts",
-    "chart_of_accounts": "accounts",
-    "item": "products_services",
-    "items": "products_services",
-    "products_services": "products_services",
-}
-ZOHO_BOOKS_TRANSACTION_RESOURCES = {
-    "invoices",
-    "expenses",
-    "payments",
-    "credit_notes",
-    "estimates",
-    "sales_orders",
-    "bills",
-    "vendor_payments",
-}
-ZOHO_BOOKS_DATE_FILTER_RESOURCES = {
-    "invoices",
-    "expenses",
-    "credit_notes",
-    "estimates",
-    "sales_orders",
-    "payments",
-    "bills",
-    "vendor_payments",
-}
-
 
 def normalize_quickbooks_resource_type(value) -> str:
     normalized = re.sub(
@@ -440,50 +161,6 @@ def normalize_quickbooks_resource_types(config: dict) -> list[str]:
     if not resources:
         raise ConnectorUnavailable(
             "Select at least one QuickBooks object before syncing"
-        )
-    return resources
-
-
-def normalize_zoho_books_resource_type(value) -> str:
-    normalized = re.sub(
-        r"[\s-]+",
-        "_",
-        str(value or "").strip().lower(),
-    )
-    compact = normalized.replace("_", "")
-    resource_type = ZOHO_BOOKS_RESOURCE_ALIASES.get(
-        normalized,
-        ZOHO_BOOKS_RESOURCE_ALIASES.get(compact, normalized),
-    )
-    if resource_type not in ZOHO_BOOKS_RESOURCE_TYPES:
-        raise ConnectorUnavailable(
-            "Zoho Books resource_types contains an unsupported resource: "
-            f"{value}"
-        )
-    return resource_type
-
-
-def normalize_zoho_books_resource_types(config: dict) -> list[str]:
-    """Return selected Zoho Books resources in stable user order."""
-    configured = config.get("resource_types")
-    if isinstance(configured, list):
-        values = configured
-    elif isinstance(configured, str):
-        values = configured.split(",")
-    else:
-        values = [config.get("resource_type") or "invoices"]
-
-    resources = []
-    for value in values:
-        if not str(value or "").strip():
-            continue
-        resource_type = normalize_zoho_books_resource_type(value)
-        if resource_type not in resources:
-            resources.append(resource_type)
-
-    if not resources:
-        raise ConnectorUnavailable(
-            "Select at least one Zoho Books object before syncing"
         )
     return resources
 
@@ -599,9 +276,6 @@ def load_connector_dataframe(
     end_date=None,
     quickbooks_resource_type: str | None = None,
     freshbooks_resource_type: str | None = None,
-    sage_resource_type: str | None = None,
-    xero_resource_type: str | None = None,
-    zoho_books_resource_type: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     if connection.source_type == "hubspot":
         return load_hubspot_dataframe(
@@ -659,7 +333,6 @@ def load_connector_dataframe(
             connection,
             start_date,
             end_date,
-            sage_resource_type,
         )
     if connection.source_type == "xero":
         return load_xero_dataframe(
@@ -667,15 +340,6 @@ def load_connector_dataframe(
             connection,
             start_date,
             end_date,
-            xero_resource_type,
-        )
-    if connection.source_type == "zoho_books":
-        return load_zoho_books_dataframe(
-            db,
-            connection,
-            start_date,
-            end_date,
-            resource_type_override=zoho_books_resource_type,
         )
     if connection.source_type in {"postgresql", "mysql", "sql_server"}:
         return load_database_dataframe(
@@ -2033,229 +1697,13 @@ def _load_freshbooks_account_resource(
     return rows
 
 
-def _sage_first_value(record: dict, *keys: str):
-    for key in keys:
-        value = record.get(key)
-        if value is not None and value != "":
-            return value
-    return None
-
-
-def _sage_nested_value(record: dict, field: str, *keys: str):
-    nested = record.get(field)
-    if not isinstance(nested, dict):
-        return None
-    return _sage_first_value(nested, *keys)
-
-
-def build_sage_normalized_fields(record: dict, resource_type: str) -> dict:
-    contact = record.get("contact")
-    contact = contact if isinstance(contact, dict) else {}
-    normalized = {
-        "record_id": _sage_first_value(
-            record,
-            "id",
-            "invoice_id",
-            "credit_note_id",
-            "contact_id",
-            "ledger_account_id",
-            "product_id",
-            "service_id",
-            "payment_id",
-            "journal_id",
-        ),
-        "resource_type": resource_type,
-        "created_at": _sage_first_value(
-            record,
-            "date",
-            "transaction_date",
-            "created_at",
-            "created_date",
-        ),
-        "updated_at": _sage_first_value(
-            record,
-            "updated_at",
-            "updated_date",
-        ),
-        "total_amount": _sage_first_value(
-            record,
-            "total_amount",
-            "total",
-            "amount",
-            "net_amount",
-        ),
-        "currency": (
-            _sage_nested_value(record, "currency", "displayed_as", "id")
-            or record.get("currency_code")
-        ),
-        "customer_id": (
-            _sage_first_value(record, "customer_id")
-            or _sage_first_value(contact, "id")
-        ),
-        "customer_name": (
-            _sage_first_value(record, "customer_name", "contact_name")
-            or _sage_first_value(contact, "displayed_as", "name")
-        ),
-        "status": _sage_first_value(record, "status", "status_id"),
-    }
-
-    if resource_type in {
-        "sales_invoices",
-        "purchase_invoices",
-    }:
-        normalized.update(
-            {
-                "invoice_id": record.get("id") or record.get("invoice_id"),
-                "invoice_number": _sage_first_value(
-                    record,
-                    "invoice_number",
-                    "displayed_as",
-                ),
-                "due_date": record.get("due_date"),
-                "reference": record.get("reference"),
-                "net_amount": record.get("net_amount"),
-                "tax_amount": record.get("tax_amount"),
-                "amount_due": record.get("amount_due"),
-                "amount_paid": record.get("amount_paid"),
-                "outstanding_amount": record.get("outstanding_amount"),
-            }
-        )
-    elif resource_type in {
-        "sales_credit_notes",
-        "purchase_credit_notes",
-    }:
-        normalized.update(
-            {
-                "credit_note_id": record.get("id")
-                or record.get("credit_note_id"),
-                "credit_note_number": _sage_first_value(
-                    record,
-                    "credit_note_number",
-                    "displayed_as",
-                ),
-                "reference": record.get("reference"),
-                "net_amount": record.get("net_amount"),
-                "tax_amount": record.get("tax_amount"),
-            }
-        )
-    elif resource_type == "contacts":
-        normalized.update(
-            {
-                "contact_id": record.get("id") or record.get("contact_id"),
-                "contact_name": _sage_first_value(
-                    record,
-                    "name",
-                    "displayed_as",
-                ),
-                "contact_type": _sage_first_value(
-                    record,
-                    "contact_type",
-                    "type",
-                ),
-                "email": record.get("email"),
-                "phone": record.get("phone"),
-                "balance": record.get("balance"),
-            }
-        )
-    elif resource_type == "ledger_accounts":
-        normalized.update(
-            {
-                "ledger_account_id": record.get("id")
-                or record.get("ledger_account_id"),
-                "account_name": _sage_first_value(
-                    record,
-                    "name",
-                    "displayed_as",
-                ),
-                "account_code": _sage_first_value(
-                    record,
-                    "ledger_account_code",
-                    "nominal_code",
-                    "code",
-                ),
-                "account_type": record.get("ledger_account_type"),
-                "is_active": record.get("is_active"),
-                "balance": record.get("balance"),
-            }
-        )
-    elif resource_type in {"products", "services"}:
-        normalized.update(
-            {
-                "product_service_id": record.get("id"),
-                "product_service_name": _sage_first_value(
-                    record,
-                    "name",
-                    "displayed_as",
-                ),
-                "sku": record.get("sku"),
-                "description": record.get("description"),
-                "sales_price": _sage_first_value(
-                    record,
-                    "sales_price",
-                    "price",
-                ),
-                "purchase_price": record.get("purchase_price"),
-            }
-        )
-    elif resource_type == "bank_accounts":
-        normalized.update(
-            {
-                "bank_account_id": record.get("id"),
-                "account_name": _sage_first_value(
-                    record,
-                    "name",
-                    "displayed_as",
-                ),
-                "account_number": record.get("account_number"),
-                "balance": record.get("balance"),
-                "status": _sage_first_value(
-                    record,
-                    "status",
-                    "is_active",
-                ),
-            }
-        )
-    elif resource_type in {"payments", "other_payments"}:
-        normalized.update(
-            {
-                "payment_id": record.get("id") or record.get("payment_id"),
-                "payment_reference": _sage_first_value(
-                    record,
-                    "reference",
-                    "displayed_as",
-                ),
-                "bank_account_id": record.get("bank_account_id"),
-                "contact_id": record.get("contact_id"),
-            }
-        )
-    elif resource_type == "journals":
-        normalized.update(
-            {
-                "journal_id": record.get("id") or record.get("journal_id"),
-                "journal_reference": _sage_first_value(
-                    record,
-                    "reference",
-                    "displayed_as",
-                ),
-                "journal_type": record.get("journal_type"),
-            }
-        )
-
-    return normalized
-
-
 def load_sage_dataframe(
     db,
     connection: DataSourceConnection,
     start_date=None,
     end_date=None,
-    resource_type_override: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
-    resource_type = normalize_sage_resource_type(
-        resource_type_override
-        or normalize_sage_resource_types(config)[0]
-    )
     business_id = str(
         config.get("business_id")
         or config.get("resource_owner_id")
@@ -2263,7 +1711,9 @@ def load_sage_dataframe(
         or ""
     ).strip()
     if not business_id:
-        raise ConnectorUnavailable("Connect a Sage business before syncing")
+        raise ConnectorUnavailable(
+            "Connect a Sage business before syncing"
+        )
 
     subscription_key = str(
         os.getenv("SAGE_API_SUBSCRIPTION_KEY", "") or ""
@@ -2280,28 +1730,24 @@ def load_sage_dataframe(
         raise ConnectorUnavailable(
             "SAGE_BUSINESS_HEADER is required for the Sage connector"
         )
-
-    resource_path, response_key = SAGE_RESOURCE_TYPES[resource_type]
     rows = []
     page = 1
     seen_pages = set()
+
     while True:
         if page in seen_pages:
-            raise ConnectorUnavailable(
-                "Sage returned a repeated pagination page"
-            )
+            break
         seen_pages.add(page)
         params = {
             "items_per_page": str(PAGE_SIZE),
             "page": str(page),
         }
-        if resource_type in SAGE_DATE_FILTER_RESOURCES:
-            if start_date:
-                params["from_date"] = start_date.isoformat()
-            if end_date:
-                params["to_date"] = end_date.isoformat()
+        if start_date:
+            params["from_date"] = start_date.isoformat()
+        if end_date:
+            params["to_date"] = end_date.isoformat()
         payload = connector_json_request(
-            f"{base_url}/{resource_path}?{urlencode(params)}",
+            f"{base_url}/sales_invoices?{urlencode(params)}",
             headers={
                 "Authorization": f"Bearer {access_token}",
                 business_header: business_id,
@@ -2309,43 +1755,56 @@ def load_sage_dataframe(
                 "Content-Type": "application/json",
             },
         )
-        records = payload.get(response_key)
-        if not isinstance(records, list):
-            records = payload.get("items")
-        if not isinstance(records, list):
-            records = payload.get("data")
-        if not isinstance(records, list):
-            raise ConnectorUnavailable(
-                f"Sage returned an invalid {resource_type} response"
-            )
+        invoices = payload.get("$items")
+        if not isinstance(invoices, list):
+            invoices = payload.get("items")
+        if not isinstance(invoices, list):
+            invoices = []
 
-        for record in records:
-            if not isinstance(record, dict):
+        for invoice in invoices:
+            if not isinstance(invoice, dict):
                 continue
+            contact = invoice.get("contact")
+            contact = contact if isinstance(contact, dict) else {}
+            currency = invoice.get("currency")
+            currency = currency if isinstance(currency, dict) else {}
+            normalized_row = {
+                "invoice_id": invoice.get("id"),
+                "invoice_number": (
+                    invoice.get("displayed_as")
+                    or invoice.get("invoice_number")
+                ),
+                "created_at": invoice.get("date") or invoice.get("created_at"),
+                "due_date": invoice.get("due_date"),
+                "status": invoice.get("status"),
+                "reference": invoice.get("reference"),
+                "net_amount": invoice.get("net_amount"),
+                "tax_amount": invoice.get("tax_amount"),
+                "total_amount": invoice.get("total_amount"),
+                "amount_due": invoice.get("amount_due"),
+                "amount_paid": invoice.get("amount_paid"),
+                "outstanding_amount": invoice.get("outstanding_amount"),
+                "currency": currency.get("displayed_as") or currency.get("id"),
+                "customer_id": contact.get("id"),
+                "customer_name": contact.get("displayed_as") or contact.get("name"),
+                "updated_at": invoice.get("updated_at"),
+            }
             rows.append(
                 build_dynamic_connector_row(
-                    record,
-                    build_sage_normalized_fields(record, resource_type),
-                    flatten_lists=True,
+                    invoice,
+                    normalized_row,
                 )
             )
 
-        next_page = payload.get("$next")
-        if (
-            not records
-            or len(records) < PAGE_SIZE
-            or not next_page
-        ):
+        if not invoices or len(invoices) < PAGE_SIZE:
             break
         page += 1
 
     dataframe = pd.DataFrame(rows)
-    if resource_type in SAGE_TRANSACTION_RESOURCES:
-        dataframe = filter_date_range(dataframe, start_date, end_date)
+    dataframe = filter_date_range(dataframe, start_date, end_date)
     return dataframe, {
         "connector": "sage",
-        "resource": resource_type,
-        "object_type": resource_path,
+        "resource": "sales_invoices",
         "business_id": business_id,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
@@ -2353,224 +1812,13 @@ def load_sage_dataframe(
     }
 
 
-def _xero_first_value(record: dict, *keys: str):
-    for key in keys:
-        value = record.get(key)
-        if value is not None and value != "":
-            return value
-    return None
-
-
-def build_xero_normalized_fields(record: dict, resource_type: str) -> dict:
-    contact = record.get("Contact")
-    contact = contact if isinstance(contact, dict) else {}
-    normalized = {
-        "record_id": _xero_first_value(
-            record,
-            "InvoiceID",
-            "ContactID",
-            "CreditNoteID",
-            "PaymentID",
-            "BankTransactionID",
-            "AccountID",
-            "ItemID",
-            "QuoteID",
-            "PurchaseOrderID",
-            "ManualJournalID",
-        ),
-        "resource_type": resource_type,
-        "created_at": parse_xero_date(
-            _xero_first_value(
-                record,
-                "DateString",
-                "Date",
-                "QuoteDateString",
-                "QuoteDate",
-                "OrderDateString",
-                "OrderDate",
-                "JournalDate",
-                "CreatedDateUTC",
-            )
-        ),
-        "updated_at": parse_xero_date(
-            _xero_first_value(
-                record,
-                "UpdatedDateUTC",
-                "UpdatedDateString",
-            )
-        ),
-        "total_amount": _xero_first_value(
-            record,
-            "Total",
-            "Amount",
-            "BankAmount",
-            "NetAmount",
-            "SubTotal",
-        ),
-        "currency": _xero_first_value(
-            record,
-            "CurrencyCode",
-            "Currency",
-        ),
-        "customer_id": _xero_first_value(
-            record,
-            "ContactID",
-        )
-        or contact.get("ContactID"),
-        "customer_name": _xero_first_value(
-            record,
-            "ContactName",
-        )
-        or contact.get("Name"),
-        "status": _xero_first_value(record, "Status"),
-    }
-
-    if resource_type == "invoices":
-        normalized.update(
-            {
-                "invoice_id": record.get("InvoiceID"),
-                "invoice_number": record.get("InvoiceNumber"),
-                "invoice_type": record.get("Type"),
-                "due_date": parse_xero_date(
-                    _xero_first_value(
-                        record,
-                        "DueDateString",
-                        "DueDate",
-                    )
-                ),
-                "fully_paid_on": parse_xero_date(
-                    record.get("FullyPaidOnDate")
-                ),
-                "subtotal": record.get("SubTotal"),
-                "total_tax": record.get("TotalTax"),
-                "total": record.get("Total"),
-                "amount_due": record.get("AmountDue"),
-                "amount_paid": record.get("AmountPaid"),
-                "reference": record.get("Reference"),
-                "sent_to_contact": record.get("SentToContact"),
-            }
-        )
-    elif resource_type == "contacts":
-        normalized.update(
-            {
-                "contact_id": record.get("ContactID"),
-                "contact_name": record.get("Name"),
-                "first_name": record.get("FirstName"),
-                "last_name": record.get("LastName"),
-                "email": record.get("EmailAddress"),
-                "contact_status": record.get("ContactStatus"),
-            }
-        )
-    elif resource_type == "credit_notes":
-        normalized.update(
-            {
-                "credit_note_id": record.get("CreditNoteID"),
-                "credit_note_number": record.get("CreditNoteNumber"),
-                "credit_note_type": record.get("Type"),
-                "subtotal": record.get("SubTotal"),
-                "total_tax": record.get("TotalTax"),
-                "total": record.get("Total"),
-                "remaining_credit": record.get("RemainingCredit"),
-            }
-        )
-    elif resource_type == "payments":
-        normalized.update(
-            {
-                "payment_id": record.get("PaymentID"),
-                "payment_type": record.get("PaymentType"),
-                "payment_amount": record.get("Amount"),
-                "bank_amount": record.get("BankAmount"),
-                "reference": record.get("Reference"),
-                "is_reconciled": record.get("IsReconciled"),
-            }
-        )
-    elif resource_type == "bank_transactions":
-        normalized.update(
-            {
-                "bank_transaction_id": record.get("BankTransactionID"),
-                "bank_transaction_type": record.get("Type"),
-                "subtotal": record.get("SubTotal"),
-                "total_tax": record.get("TotalTax"),
-                "total": record.get("Total"),
-                "reference": record.get("Reference"),
-            }
-        )
-    elif resource_type == "accounts":
-        normalized.update(
-            {
-                "account_id": record.get("AccountID"),
-                "account_code": record.get("Code"),
-                "account_name": record.get("Name"),
-                "account_type": record.get("Type"),
-                "account_class": record.get("Class"),
-                "account_status": record.get("Status"),
-                "description": record.get("Description"),
-            }
-        )
-    elif resource_type == "items":
-        normalized.update(
-            {
-                "item_id": record.get("ItemID"),
-                "item_code": record.get("Code"),
-                "item_name": record.get("Name"),
-                "sales_description": record.get("SalesDescription"),
-                "purchase_description": record.get("PurchaseDescription"),
-                "sales_unit_price": record.get("SalesDetails", {}).get(
-                    "UnitPrice"
-                )
-                if isinstance(record.get("SalesDetails"), dict)
-                else None,
-                "purchase_unit_price": record.get("PurchaseDetails", {}).get(
-                    "UnitPrice"
-                )
-                if isinstance(record.get("PurchaseDetails"), dict)
-                else None,
-            }
-        )
-    elif resource_type in {"quotes", "purchase_orders"}:
-        prefix = "quote" if resource_type == "quotes" else "purchase_order"
-        identifier = (
-            "QuoteID" if resource_type == "quotes" else "PurchaseOrderID"
-        )
-        number = (
-            "QuoteNumber"
-            if resource_type == "quotes"
-            else "PurchaseOrderNumber"
-        )
-        normalized.update(
-            {
-                f"{prefix}_id": record.get(identifier),
-                f"{prefix}_number": record.get(number),
-                "subtotal": record.get("SubTotal"),
-                "total_tax": record.get("TotalTax"),
-                "total": record.get("Total"),
-                "reference": record.get("Reference"),
-            }
-        )
-    elif resource_type == "manual_journals":
-        normalized.update(
-            {
-                "manual_journal_id": record.get("ManualJournalID"),
-                "journal_narration": record.get("Narration"),
-                "journal_status": record.get("Status"),
-            }
-        )
-
-    return normalized
-
-
 def load_xero_dataframe(
     db,
     connection: DataSourceConnection,
     start_date=None,
     end_date=None,
-    resource_type_override: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
-    resource_type = normalize_xero_resource_type(
-        resource_type_override
-        or normalize_xero_resource_types(config)[0]
-    )
     tenant_id = str(config.get("tenant_id") or "").strip()
     if not re.fullmatch(
         r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
@@ -2583,378 +1831,79 @@ def load_xero_dataframe(
 
     access_token = get_oauth_access_token(db, connection, "xero")
     base_url = require_provider_url("XERO_API_BASE_URL")
-    resource_path, response_key = XERO_RESOURCE_TYPES[resource_type]
     rows = []
     page = 1
     seen_pages = set()
+
     while True:
         if page in seen_pages:
-            raise ConnectorUnavailable(
-                "Xero returned a repeated pagination page"
-            )
+            break
         seen_pages.add(page)
         payload = connector_json_request(
-            f"{base_url}/{resource_path}?{urlencode({'page': page})}",
+            f"{base_url}/Invoices?{urlencode({'page': page})}",
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Xero-tenant-id": tenant_id,
             },
         )
-        records = payload.get(response_key)
-        if not isinstance(records, list):
-            raise ConnectorUnavailable(
-                f"Xero returned an invalid {resource_type} response"
-            )
+        invoices = payload.get("Invoices")
+        if not isinstance(invoices, list):
+            invoices = []
 
-        for record in records:
-            if not isinstance(record, dict):
+        for invoice in invoices:
+            if not isinstance(invoice, dict):
                 continue
+            contact = invoice.get("Contact")
+            contact = contact if isinstance(contact, dict) else {}
+            line_items = invoice.get("LineItems")
+            line_items = line_items if isinstance(line_items, list) else []
+            invoice_date = parse_xero_date(
+                invoice.get("DateString") or invoice.get("Date")
+            )
+            normalized_row = {
+                "invoice_id": invoice.get("InvoiceID"),
+                "invoice_number": invoice.get("InvoiceNumber"),
+                "invoice_type": invoice.get("Type"),
+                "status": invoice.get("Status"),
+                "created_at": invoice_date,
+                "due_date": parse_xero_date(
+                    invoice.get("DueDateString") or invoice.get("DueDate")
+                ),
+                "fully_paid_on": parse_xero_date(
+                    invoice.get("FullyPaidOnDate")
+                ),
+                "subtotal": invoice.get("SubTotal"),
+                "total_tax": invoice.get("TotalTax"),
+                "total": invoice.get("Total"),
+                "amount_due": invoice.get("AmountDue"),
+                "amount_paid": invoice.get("AmountPaid"),
+                "currency": invoice.get("CurrencyCode"),
+                "customer_id": contact.get("ContactID"),
+                "customer_name": contact.get("Name"),
+                "reference": invoice.get("Reference"),
+                "line_item_count": len(line_items),
+                "sent_to_contact": invoice.get("SentToContact"),
+                "updated_at": parse_xero_date(
+                    invoice.get("UpdatedDateUTC")
+                ),
+            }
             rows.append(
                 build_dynamic_connector_row(
-                    record,
-                    build_xero_normalized_fields(record, resource_type),
-                    flatten_lists=True,
+                    invoice,
+                    normalized_row,
                 )
             )
 
-        if not records or len(records) < PAGE_SIZE:
+        if not invoices or len(invoices) < PAGE_SIZE:
             break
         page += 1
 
     dataframe = pd.DataFrame(rows)
-    if resource_type in XERO_TRANSACTION_RESOURCES:
-        dataframe = filter_date_range(dataframe, start_date, end_date)
+    dataframe = filter_date_range(dataframe, start_date, end_date)
     return dataframe, {
         "connector": "xero",
-        "resource": resource_type,
-        "object_type": resource_path,
+        "resource": "Invoices",
         "tenant_id": tenant_id,
-        "start_date": date_value(start_date),
-        "end_date": date_value(end_date),
-        "row_count": len(dataframe),
-    }
-
-
-def _zoho_books_first_value(record: dict, *keys: str):
-    for key in keys:
-        value = record.get(key)
-        if value is not None and value != "":
-            return value
-    return None
-
-
-def build_zoho_books_normalized_fields(
-    record: dict,
-    resource_type: str,
-) -> dict:
-    """Expose stable analytical aliases without dropping Zoho's fields."""
-    record_id = _zoho_books_first_value(
-        record,
-        "invoice_id",
-        "contact_id",
-        "expense_id",
-        "payment_id",
-        "customerpayment_id",
-        "creditnote_id",
-        "estimate_id",
-        "salesorder_id",
-        "bill_id",
-        "vendorpayment_id",
-        "account_id",
-        "project_id",
-        "item_id",
-        "id",
-    )
-    created_at = _zoho_books_first_value(
-        record,
-        "date",
-        "created_time",
-        "creation_date",
-        "created_at",
-        "last_modified_time",
-        "updated_time",
-    )
-    normalized = {
-        "record_id": record_id,
-        "resource_type": resource_type,
-        "created_at": created_at,
-        "updated_at": _zoho_books_first_value(
-            record,
-            "last_modified_time",
-            "updated_time",
-            "updated_at",
-        ),
-        "total_amount": _zoho_books_first_value(
-            record,
-            "total",
-            "bcy_total",
-            "amount",
-            "bcy_amount",
-        ),
-        "balance": record.get("balance"),
-        "currency": _zoho_books_first_value(
-            record,
-            "currency_code",
-            "currency",
-        ),
-        "customer_id": record.get("customer_id"),
-        "customer_name": _zoho_books_first_value(
-            record,
-            "customer_name",
-            "contact_name",
-        ),
-    }
-
-    if resource_type == "invoices":
-        normalized.update(
-            {
-                "invoice_id": record.get("invoice_id"),
-                "invoice_number": record.get("invoice_number"),
-                "due_date": record.get("due_date"),
-                "status": record.get("status"),
-            }
-        )
-    elif resource_type in {"customers", "vendors"}:
-        normalized.update(
-            {
-                "contact_id": record.get("contact_id"),
-                "contact_name": record.get("contact_name"),
-                "company_name": record.get("company_name"),
-                "contact_type": record.get("contact_type"),
-                "email": record.get("email"),
-                "phone": record.get("phone"),
-                "status": record.get("status"),
-                "outstanding_receivable_amount": record.get(
-                    "outstanding_receivable_amount"
-                ),
-            }
-        )
-    elif resource_type == "expenses":
-        normalized.update(
-            {
-                "expense_id": record.get("expense_id"),
-                "account_name": record.get("account_name"),
-                "description": record.get("description"),
-                "status": record.get("status"),
-            }
-        )
-    elif resource_type in {"payments", "vendor_payments"}:
-        normalized.update(
-            {
-                "payment_id": _zoho_books_first_value(
-                    record,
-                    "payment_id",
-                    "customerpayment_id",
-                    "vendorpayment_id",
-                ),
-                "payment_number": record.get("payment_number"),
-                "payment_mode": record.get("payment_mode"),
-            }
-        )
-    elif resource_type == "credit_notes":
-        normalized.update(
-            {
-                "credit_note_id": record.get("creditnote_id"),
-                "credit_note_number": record.get("creditnote_number"),
-                "status": record.get("status"),
-            }
-        )
-    elif resource_type == "estimates":
-        normalized.update(
-            {
-                "estimate_id": record.get("estimate_id"),
-                "estimate_number": record.get("estimate_number"),
-                "status": record.get("status"),
-            }
-        )
-    elif resource_type == "sales_orders":
-        normalized.update(
-            {
-                "sales_order_id": record.get("salesorder_id"),
-                "sales_order_number": record.get("salesorder_number"),
-                "shipment_date": record.get("shipment_date"),
-                "status": record.get("status"),
-            }
-        )
-    elif resource_type == "bills":
-        normalized.update(
-            {
-                "bill_id": record.get("bill_id"),
-                "bill_number": record.get("bill_number"),
-                "vendor_id": record.get("vendor_id"),
-                "vendor_name": record.get("vendor_name"),
-                "due_date": record.get("due_date"),
-                "status": record.get("status"),
-            }
-        )
-    elif resource_type == "projects":
-        normalized.update(
-            {
-                "project_id": record.get("project_id"),
-                "project_name": record.get("project_name"),
-                "status": record.get("status"),
-                "rate": record.get("rate"),
-            }
-        )
-    elif resource_type == "vendor_payments":
-        normalized.update(
-            {
-                "vendor_payment_id": _zoho_books_first_value(
-                    record,
-                    "payment_id",
-                    "vendorpayment_id",
-                ),
-                "vendor_id": record.get("vendor_id"),
-                "vendor_name": record.get("vendor_name"),
-                "payment_number": record.get("payment_number"),
-                "payment_mode": record.get("payment_mode"),
-            }
-        )
-    elif resource_type == "accounts":
-        normalized.update(
-            {
-                "account_id": record.get("account_id"),
-                "account_name": record.get("account_name"),
-                "account_code": record.get("account_code"),
-                "account_type": record.get("account_type"),
-                "is_active": record.get("is_active"),
-                "current_balance": record.get("current_balance"),
-            }
-        )
-    elif resource_type == "products_services":
-        normalized.update(
-            {
-                "item_id": record.get("item_id"),
-                "item_name": record.get("name"),
-                "rate": record.get("rate"),
-                "purchase_rate": record.get("purchase_rate"),
-                "status": record.get("status"),
-                "stock_on_hand": record.get("stock_on_hand"),
-            }
-        )
-
-    return normalized
-
-
-def load_zoho_books_dataframe(
-    db,
-    connection: DataSourceConnection,
-    start_date=None,
-    end_date=None,
-    resource_type_override: str | None = None,
-) -> tuple[pd.DataFrame, dict]:
-    config = parse_connection_config(connection)
-    resource_type = normalize_zoho_books_resource_type(
-        resource_type_override
-        or normalize_zoho_books_resource_types(config)[0]
-    )
-    organization_id = str(
-        config.get("organization_id") or ""
-    ).strip()
-    if not re.fullmatch(r"\d+", organization_id):
-        raise ConnectorUnavailable(
-            "Connect a Zoho Books organization before syncing"
-        )
-
-    access_token = get_oauth_access_token(
-        db,
-        connection,
-        "zoho_books",
-    )
-    configured_domain = str(config.get("api_domain") or "").strip()
-    if not configured_domain:
-        configured_domain = require_provider_url(
-            "ZOHO_BOOKS_API_BASE_URL"
-        )
-    try:
-        api_domain = normalize_zoho_books_api_domain(configured_domain)
-    except OAuthProviderUnavailable as error:
-        raise ConnectorUnavailable(str(error)) from error
-
-    resource_path, response_key = ZOHO_BOOKS_RESOURCE_TYPES[resource_type]
-    rows = []
-    page = 1
-    seen_pages = set()
-    while True:
-        if page in seen_pages:
-            raise ConnectorUnavailable(
-                "Zoho Books returned a repeated pagination page"
-            )
-        seen_pages.add(page)
-        params = {
-            "organization_id": organization_id,
-            "page": str(page),
-            "per_page": str(PAGE_SIZE),
-        }
-        if resource_type in {"customers", "vendors"}:
-            params["contact_type"] = (
-                "customer"
-                if resource_type == "customers"
-                else "vendor"
-            )
-        if resource_type in ZOHO_BOOKS_DATE_FILTER_RESOURCES:
-            if start_date is not None:
-                params["date_start"] = start_date.isoformat()
-            if end_date is not None:
-                params["date_end"] = end_date.isoformat()
-        payload = connector_json_request(
-            f"{api_domain}/books/v3/{resource_path}?{urlencode(params)}",
-            headers={
-                "Authorization": f"Zoho-oauthtoken {access_token}",
-            },
-        )
-        records = payload.get(response_key)
-        if not isinstance(records, list):
-            raise ConnectorUnavailable(
-                "Zoho Books returned an invalid "
-                f"{resource_type} response"
-            )
-        for record in records:
-            if not isinstance(record, dict):
-                continue
-            rows.append(
-                build_dynamic_connector_row(
-                    record,
-                    build_zoho_books_normalized_fields(
-                        record,
-                        resource_type,
-                    ),
-                    flatten_lists=True,
-                )
-            )
-
-        page_context = payload.get("page_context")
-        if isinstance(page_context, list):
-            page_context = (
-                page_context[0]
-                if page_context and isinstance(page_context[0], dict)
-                else {}
-            )
-        if not isinstance(page_context, dict):
-            page_context = {}
-        has_more_page = page_context.get("has_more_page")
-        if (
-            not records
-            or len(records) < PAGE_SIZE
-            or has_more_page is False
-            or str(has_more_page).lower() == "false"
-        ):
-            break
-        page += 1
-
-    dataframe = pd.DataFrame(rows)
-    if resource_type in ZOHO_BOOKS_TRANSACTION_RESOURCES:
-        dataframe = filter_date_range(
-            dataframe,
-            start_date,
-            end_date,
-        )
-    return dataframe, {
-        "connector": "zoho_books",
-        "resource": resource_type,
-        "object_type": resource_path,
-        "organization_id": organization_id,
-        "api_domain": api_domain,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),

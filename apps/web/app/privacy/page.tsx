@@ -52,7 +52,7 @@ const processors = [
   ],
   [
     "Connected data providers",
-    "A provider such as HubSpot, Shopify, Xero, Zoho Books, Stripe, QuickBooks, FreshBooks, Meta Ads, or another enabled connector may provide source data after the workspace authorizes the connection.",
+    "A provider such as HubSpot, Shopify, Xero, Stripe, QuickBooks, FreshBooks, Meta Ads, or another enabled connector may provide source data after the workspace authorizes the connection.",
   ],
 ]
 
