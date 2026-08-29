@@ -446,6 +446,16 @@ body {
   line-height: 1.75rem;
 }
 
+/* Keep the dashboard content scrollable without a second visible page rail. */
+.dashboard-print-main {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.dashboard-print-main::-webkit-scrollbar {
+  display: none;
+}
+
 @media print {
   @page {
     size: landscape;
