@@ -111,6 +111,74 @@ class XeroConnectorTests(unittest.TestCase):
         ):
             connectors.normalize_xero_resource_type("bank_transactions")
 
+    def test_master_data_is_not_removed_by_transaction_date_window(self):
+        def json_request(url, headers):
+            return {
+                "Contacts": [{
+                    "ContactID": "contact-1",
+                    "Name": "Northstar Retail",
+                    "UpdatedDateUTCString": "2020-01-03T00:00:00Z",
+                }],
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="xero-access-token",
+        ), patch.object(
+            connectors,
+            "require_provider_url",
+            return_value="https://api.xero.com/api.xro/2.0",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ):
+            dataframe, _report = connectors.load_xero_dataframe(
+                None,
+                make_connection(),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+                "contacts",
+            )
+
+        self.assertEqual(len(dataframe), 1)
+        self.assertEqual(dataframe.iloc[0]["contact_name"], "Northstar Retail")
+
+    def test_transaction_sync_uses_updated_date_when_business_date_is_old(self):
+        def json_request(url, headers):
+            return {
+                "Invoices": [{
+                    "InvoiceID": "invoice-1",
+                    "DateString": "2020-01-02",
+                    "UpdatedDateUTCString": "2026-01-03T00:00:00Z",
+                    "Total": 125.5,
+                }],
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="xero-access-token",
+        ), patch.object(
+            connectors,
+            "require_provider_url",
+            return_value="https://api.xero.com/api.xro/2.0",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ):
+            dataframe, _report = connectors.load_xero_dataframe(
+                None,
+                make_connection(),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+                "invoices",
+            )
+
+        self.assertEqual(len(dataframe), 1)
+
     def test_xero_accepts_current_granular_read_scopes(self):
         provider = OAUTH_PROVIDERS["xero"]
         with patch.dict(

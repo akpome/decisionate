@@ -174,6 +174,7 @@ XERO_RESOURCE_TYPES = {
     "accounts": ("Accounts", "Accounts"),
     "items": ("Items", "Items"),
 }
+XERO_MASTER_DATA_RESOURCES = {"contacts", "accounts", "items"}
 XERO_RESOURCE_ALIASES = {
     "invoice": "invoices",
     "contact": "contacts",
@@ -2242,7 +2243,12 @@ def load_xero_dataframe(
         page += 1
 
     dataframe = pd.DataFrame(rows)
-    dataframe = filter_date_range(dataframe, start_date, end_date)
+    if resource_type not in XERO_MASTER_DATA_RESOURCES:
+        dataframe = filter_xero_sync_date_range(
+            dataframe,
+            start_date,
+            end_date,
+        )
     return dataframe, {
         "connector": "xero",
         "resource": resource_type,
@@ -2787,6 +2793,32 @@ def filter_date_range(dataframe: pd.DataFrame, start_date, end_date) -> pd.DataF
     )
     if not isinstance(dates, pd.Series) or dates.notna().sum() == 0:
         return dataframe
+    mask = dates.notna()
+    if start_date is not None:
+        mask &= dates.dt.date >= start_date
+    if end_date is not None:
+        mask &= dates.dt.date <= end_date
+    return dataframe.loc[mask].reset_index(drop=True)
+
+
+def filter_xero_sync_date_range(
+    dataframe: pd.DataFrame,
+    start_date,
+    end_date,
+) -> pd.DataFrame:
+    """Filter Xero transactions by change time, with a business-date fallback."""
+    if dataframe.empty or (start_date is None and end_date is None):
+        return dataframe
+
+    date_column = "updated_at" if "updated_at" in dataframe.columns else "created_at"
+    dates = pd.to_datetime(
+        dataframe[date_column],
+        errors="coerce",
+        utc=True,
+    )
+    if not isinstance(dates, pd.Series) or dates.notna().sum() == 0:
+        return dataframe
+
     mask = dates.notna()
     if start_date is not None:
         mask &= dates.dt.date >= start_date

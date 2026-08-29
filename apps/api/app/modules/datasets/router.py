@@ -3621,6 +3621,7 @@ def run_xero_sync(
         payload,
     )
     results = []
+    empty_resources = []
     for resource_type in resource_types:
         dataframe, report_config = load_connector_dataframe(
             db,
@@ -3629,13 +3630,29 @@ def run_xero_sync(
             end_date,
             xero_resource_type=resource_type,
         )
-        results.append(
-            persist_connector_dataframe(
-                db,
-                connection,
-                dataframe,
-                report_config,
+        try:
+            results.append(
+                persist_connector_dataframe(
+                    db,
+                    connection,
+                    dataframe,
+                    report_config,
+                )
             )
+        except ConnectorNoData:
+            empty_resources.append(resource_type)
+
+    if not results:
+        empty_resource_label = ", ".join(empty_resources) or "selected resources"
+        period = (
+            f" from {start_date} through {end_date}"
+            if start_date and end_date
+            else " for the selected sync period"
+        )
+        raise ConnectorNoData(
+            "Xero returned no records for "
+            f"{empty_resource_label}{period}. Verify that the connected "
+            "organisation contains data in this range."
         )
     return results
 
