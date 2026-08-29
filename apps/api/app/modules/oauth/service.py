@@ -136,7 +136,10 @@ OAUTH_PROVIDERS = {
             "ZohoBooks.creditnotes.READ",
             "ZohoBooks.estimates.READ",
             "ZohoBooks.salesorders.READ",
+            "ZohoBooks.bills.READ",
+            "ZohoBooks.vendorpayments.READ",
             "ZohoBooks.projects.READ",
+            "ZohoBooks.accountants.READ",
         ),
     ),
     "salesforce": OAuthProvider(

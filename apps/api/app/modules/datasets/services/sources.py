@@ -206,7 +206,7 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["resource_types"],
         "description": (
-            "Choose one or more Zoho Books resources to ingest through OAuth. "
+            "Choose one or more Zoho Books accounting objects to ingest through OAuth. "
             "The connected organization is selected automatically."
         ),
     },

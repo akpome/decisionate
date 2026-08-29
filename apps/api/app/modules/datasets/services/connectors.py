@@ -124,37 +124,63 @@ QUICKBOOKS_TRANSACTION_RESOURCES = {
 
 ZOHO_BOOKS_RESOURCE_TYPES = {
     "invoices": ("invoices", "invoices"),
-    "contacts": ("contacts", "contacts"),
+    "customers": ("contacts", "contacts"),
+    "vendors": ("contacts", "contacts"),
     "expenses": ("expenses", "expenses"),
-    "customer_payments": ("customerpayments", "customer_payments"),
+    "payments": ("customerpayments", "customerpayments"),
     "credit_notes": ("creditnotes", "creditnotes"),
     "estimates": ("estimates", "estimates"),
     "sales_orders": ("salesorders", "salesorders"),
+    "bills": ("bills", "bills"),
+    "vendor_payments": ("vendorpayments", "vendorpayments"),
     "projects": ("projects", "projects"),
-    "items": ("items", "items"),
+    "accounts": ("chartofaccounts", "chartofaccounts"),
+    "products_services": ("items", "items"),
 }
 ZOHO_BOOKS_RESOURCE_ALIASES = {
     "invoice": "invoices",
-    "contact": "contacts",
+    "contact": "customers",
+    "contacts": "customers",
+    "customer": "customers",
+    "customers": "customers",
+    "vendor": "vendors",
+    "vendors": "vendors",
     "expense": "expenses",
-    "customerpayment": "customer_payments",
-    "customerpayments": "customer_payments",
-    "customer_payment": "customer_payments",
+    "customerpayment": "payments",
+    "customerpayments": "payments",
+    "customer_payment": "payments",
+    "customer_payments": "payments",
+    "payment": "payments",
+    "payments": "payments",
     "creditnote": "credit_notes",
     "creditnotes": "credit_notes",
     "estimate": "estimates",
     "salesorder": "sales_orders",
     "salesorders": "sales_orders",
+    "bill": "bills",
+    "bills": "bills",
+    "vendorpayment": "vendor_payments",
+    "vendorpayments": "vendor_payments",
+    "vendor_payment": "vendor_payments",
+    "vendor_payments": "vendor_payments",
     "project": "projects",
-    "item": "items",
+    "account": "accounts",
+    "accounts": "accounts",
+    "chartofaccounts": "accounts",
+    "chart_of_accounts": "accounts",
+    "item": "products_services",
+    "items": "products_services",
+    "products_services": "products_services",
 }
 ZOHO_BOOKS_TRANSACTION_RESOURCES = {
     "invoices",
     "expenses",
-    "customer_payments",
+    "payments",
     "credit_notes",
     "estimates",
     "sales_orders",
+    "bills",
+    "vendor_payments",
 }
 ZOHO_BOOKS_DATE_FILTER_RESOURCES = {
     "invoices",
@@ -162,6 +188,9 @@ ZOHO_BOOKS_DATE_FILTER_RESOURCES = {
     "credit_notes",
     "estimates",
     "sales_orders",
+    "payments",
+    "bills",
+    "vendor_payments",
 }
 
 
@@ -2030,6 +2059,9 @@ def build_zoho_books_normalized_fields(
         "creditnote_id",
         "estimate_id",
         "salesorder_id",
+        "bill_id",
+        "vendorpayment_id",
+        "account_id",
         "project_id",
         "item_id",
         "id",
@@ -2083,7 +2115,7 @@ def build_zoho_books_normalized_fields(
                 "status": record.get("status"),
             }
         )
-    elif resource_type == "contacts":
+    elif resource_type in {"customers", "vendors"}:
         normalized.update(
             {
                 "contact_id": record.get("contact_id"),
@@ -2107,13 +2139,14 @@ def build_zoho_books_normalized_fields(
                 "status": record.get("status"),
             }
         )
-    elif resource_type == "customer_payments":
+    elif resource_type in {"payments", "vendor_payments"}:
         normalized.update(
             {
                 "payment_id": _zoho_books_first_value(
                     record,
                     "payment_id",
                     "customerpayment_id",
+                    "vendorpayment_id",
                 ),
                 "payment_number": record.get("payment_number"),
                 "payment_mode": record.get("payment_mode"),
@@ -2144,6 +2177,17 @@ def build_zoho_books_normalized_fields(
                 "status": record.get("status"),
             }
         )
+    elif resource_type == "bills":
+        normalized.update(
+            {
+                "bill_id": record.get("bill_id"),
+                "bill_number": record.get("bill_number"),
+                "vendor_id": record.get("vendor_id"),
+                "vendor_name": record.get("vendor_name"),
+                "due_date": record.get("due_date"),
+                "status": record.get("status"),
+            }
+        )
     elif resource_type == "projects":
         normalized.update(
             {
@@ -2153,7 +2197,32 @@ def build_zoho_books_normalized_fields(
                 "rate": record.get("rate"),
             }
         )
-    elif resource_type == "items":
+    elif resource_type == "vendor_payments":
+        normalized.update(
+            {
+                "vendor_payment_id": _zoho_books_first_value(
+                    record,
+                    "payment_id",
+                    "vendorpayment_id",
+                ),
+                "vendor_id": record.get("vendor_id"),
+                "vendor_name": record.get("vendor_name"),
+                "payment_number": record.get("payment_number"),
+                "payment_mode": record.get("payment_mode"),
+            }
+        )
+    elif resource_type == "accounts":
+        normalized.update(
+            {
+                "account_id": record.get("account_id"),
+                "account_name": record.get("account_name"),
+                "account_code": record.get("account_code"),
+                "account_type": record.get("account_type"),
+                "is_active": record.get("is_active"),
+                "current_balance": record.get("current_balance"),
+            }
+        )
+    elif resource_type == "products_services":
         normalized.update(
             {
                 "item_id": record.get("item_id"),
@@ -2218,6 +2287,12 @@ def load_zoho_books_dataframe(
             "page": str(page),
             "per_page": str(PAGE_SIZE),
         }
+        if resource_type in {"customers", "vendors"}:
+            params["contact_type"] = (
+                "customer"
+                if resource_type == "customers"
+                else "vendor"
+            )
         if resource_type in ZOHO_BOOKS_DATE_FILTER_RESOURCES:
             if start_date is not None:
                 params["date_start"] = start_date.isoformat()

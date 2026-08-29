@@ -32,7 +32,10 @@ class ZohoBooksConnectorTests(unittest.TestCase):
                     "ZohoBooks.creditnotes.READ,"
                     "ZohoBooks.estimates.READ,"
                     "ZohoBooks.salesorders.READ,"
-                    "ZohoBooks.projects.READ"
+                    "ZohoBooks.bills.READ,"
+                    "ZohoBooks.vendorpayments.READ,"
+                    "ZohoBooks.projects.READ,"
+                    "ZohoBooks.accountants.READ"
                 ),
                 "OAUTH_CALLBACK_URL": "http://localhost:8000/oauth/callback",
             },
@@ -48,7 +51,8 @@ class ZohoBooksConnectorTests(unittest.TestCase):
                 "ZohoBooks.contacts.READ,ZohoBooks.expenses.READ,"
                 "ZohoBooks.customerpayments.READ,ZohoBooks.creditnotes.READ,"
                 "ZohoBooks.estimates.READ,ZohoBooks.salesorders.READ,"
-                "ZohoBooks.projects.READ"
+                "ZohoBooks.bills.READ,ZohoBooks.vendorpayments.READ,"
+                "ZohoBooks.projects.READ,ZohoBooks.accountants.READ"
             ],
         )
         self.assertEqual(query["access_type"], ["offline"])
@@ -60,13 +64,33 @@ class ZohoBooksConnectorTests(unittest.TestCase):
                 {
                     "resource_types": [
                         "Invoices",
+                        "Payments",
                         "customer payments",
-                        "customer_payments",
                         "sales-orders",
                     ]
                 }
             ),
-            ["invoices", "customer_payments", "sales_orders"],
+            ["invoices", "payments", "sales_orders"],
+        )
+
+    def test_supported_objects_use_documented_zoho_resources(self):
+        self.assertEqual(
+            connectors.ZOHO_BOOKS_RESOURCE_TYPES,
+            {
+                "invoices": ("invoices", "invoices"),
+                "customers": ("contacts", "contacts"),
+                "vendors": ("contacts", "contacts"),
+                "expenses": ("expenses", "expenses"),
+                "payments": ("customerpayments", "customerpayments"),
+                "credit_notes": ("creditnotes", "creditnotes"),
+                "estimates": ("estimates", "estimates"),
+                "sales_orders": ("salesorders", "salesorders"),
+                "bills": ("bills", "bills"),
+                "vendor_payments": ("vendorpayments", "vendorpayments"),
+                "projects": ("projects", "projects"),
+                "accounts": ("chartofaccounts", "chartofaccounts"),
+                "products_services": ("items", "items"),
+            },
         )
 
     def test_invoice_sync_preserves_provider_fields(self):
@@ -137,7 +161,7 @@ class ZohoBooksConnectorTests(unittest.TestCase):
         self.assertEqual(report["connector"], "zoho_books")
         self.assertEqual(report["organization_id"], "123456789")
 
-    def test_customer_payment_sync_does_not_send_unsupported_range_filters(self):
+    def test_customer_payment_sync_uses_documented_range_filters(self):
         connection = SimpleNamespace(
             id=8,
             source_type="zoho_books",
@@ -152,10 +176,10 @@ class ZohoBooksConnectorTests(unittest.TestCase):
 
         def fake_request(url, headers):
             self.assertIn("/books/v3/customerpayments?", url)
-            self.assertNotIn("date_start", url)
-            self.assertNotIn("date_end", url)
+            self.assertIn("date_start=2026-01-01", url)
+            self.assertIn("date_end=2026-01-31", url)
             return {
-                "customer_payments": [
+                "customerpayments": [
                     {
                         "payment_id": "payment-1",
                         "date": "2026-01-02",

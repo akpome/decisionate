@@ -1034,14 +1034,18 @@ const QUICKBOOKS_RESOURCE_OPTIONS = [
 
 const ZOHO_BOOKS_RESOURCE_OPTIONS = [
   { value: "invoices", label: "Invoices" },
-  { value: "contacts", label: "Contacts" },
+  { value: "customers", label: "Customers" },
   { value: "expenses", label: "Expenses" },
-  { value: "customer_payments", label: "Customer payments" },
+  { value: "payments", label: "Payments" },
   { value: "credit_notes", label: "Credit notes" },
   { value: "estimates", label: "Estimates" },
   { value: "sales_orders", label: "Sales orders" },
+  { value: "bills", label: "Bills" },
+  { value: "vendor_payments", label: "Vendor payments" },
+  { value: "vendors", label: "Vendors" },
   { value: "projects", label: "Projects" },
-  { value: "items", label: "Items / products and services" },
+  { value: "accounts", label: "Chart of accounts" },
+  { value: "products_services", label: "Products and services" },
 ]
 
 const CONNECTION_FIELD_GUIDES: Record<
@@ -1111,7 +1115,7 @@ const CONNECTION_FIELD_GUIDES: Record<
   zoho_books: {
     resource_types: {
       description: "Select one or more Zoho Books objects. Each selected object is stored as its own dataset; the organization is selected automatically after OAuth authorization.",
-      example: "Invoices, Contacts",
+      example: "Invoices, Customers, Bills",
     },
   },
   xero: {
