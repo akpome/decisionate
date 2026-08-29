@@ -41,7 +41,7 @@ export function InsightCard({
               actionDisabled ||
               creatingDecision
             }
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:bg-[var(--decisionate-brand-primary-soft)] hover:text-[var(--decisionate-brand-primary-text)] disabled:cursor-not-allowed disabled:opacity-60 print:hidden"
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 print:hidden"
           >
             <ArrowRight size={15} />
             {creatingDecision
