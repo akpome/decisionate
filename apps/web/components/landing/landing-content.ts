@@ -147,9 +147,9 @@ export const integrations = [
   { name: "Shopify", status: "Available" },
   { name: "QuickBooks", status: "Available" },
   { name: "FreshBooks", status: "Available" },
-  { name: "Sage Cloud Accounting", status: "Available" },
+  { name: "Sage Cloud Accounting", status: "Upcoming" },
   { name: "Xero", status: "Available" },
-  { name: "Zoho Books", status: "Available" },
+  { name: "Zoho Books", status: "Upcoming" },
   { name: "HubSpot", status: "Available" },
   { name: "Meta Ads", status: "Available" },
 ] as const
