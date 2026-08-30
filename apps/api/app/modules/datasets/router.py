@@ -2738,42 +2738,79 @@ def find_connector_dataset(
 ):
     datasets = find_connector_datasets(db, connection)
 
+    requested_resource = None
+    if resource_type:
+        requested_resource = normalize_connector_dataset_resource(
+            connection,
+            resource_type,
+        )
+
     for dataset in datasets:
-        if resource_type:
-            source_config = parse_source_connection_config(
-                dataset.source_config
+        if (
+            requested_resource
+            and normalize_connector_dataset_resource(
+                connection,
+                dataset,
             )
-            dataset_resource = str(
-                source_config.get("resource_type")
-                or source_config.get("resource")
-                or "invoices"
-            ).strip().lower()
-            if connection.source_type == "quickbooks":
-                try:
-                    dataset_resource = normalize_quickbooks_resource_type(
-                        dataset_resource
-                    )
-                except ConnectorUnavailable:
-                    pass
-            if connection.source_type == "zoho_books":
-                try:
-                    dataset_resource = normalize_zoho_books_resource_type(
-                        dataset_resource
-                    )
-                except ConnectorUnavailable:
-                    pass
-            if connection.source_type == "xero":
-                try:
-                    dataset_resource = normalize_xero_resource_type(
-                        dataset_resource
-                    )
-                except ConnectorUnavailable:
-                    pass
-            if dataset_resource != resource_type:
-                continue
+            != requested_resource
+        ):
+            continue
         return dataset
 
     return None
+
+
+def normalize_connector_dataset_resource(
+    connection,
+    dataset_or_resource,
+):
+    """Return the stable identity used to reuse one dataset per connector object."""
+    source_type = normalize_dataset_source_type(
+        connection.source_type
+    )
+    if isinstance(dataset_or_resource, str):
+        raw_resource = dataset_or_resource
+    else:
+        source_config = parse_source_connection_config(
+            dataset_or_resource.source_config
+        )
+        raw_resource = (
+            source_config.get("resource_type")
+            or source_config.get("resource")
+            or (
+                "invoices"
+                if source_type
+                in {
+                    "quickbooks",
+                    "freshbooks",
+                    "zoho_books",
+                    "xero",
+                }
+                else "__default__"
+            )
+        )
+
+    resource = str(raw_resource or "").strip().lower()
+    if not resource:
+        return "__default__"
+
+    if source_type == "quickbooks":
+        try:
+            return normalize_quickbooks_resource_type(resource)
+        except ConnectorUnavailable:
+            pass
+    elif source_type == "zoho_books":
+        try:
+            return normalize_zoho_books_resource_type(resource)
+        except ConnectorUnavailable:
+            pass
+    elif source_type == "xero":
+        try:
+            return normalize_xero_resource_type(resource)
+        except ConnectorUnavailable:
+            pass
+
+    return resource
 
 
 def find_connector_datasets(
@@ -2794,6 +2831,7 @@ def find_connector_datasets(
     )
 
     matching_datasets = []
+    legacy_datasets = []
     for dataset in datasets:
         source_config = parse_source_connection_config(
             dataset.source_config
@@ -2802,8 +2840,46 @@ def find_connector_datasets(
             connection.id
         ):
             matching_datasets.append(dataset)
+        elif not source_config.get("connection_id"):
+            legacy_datasets.append(dataset)
 
-    return matching_datasets
+    # Datasets created before connector rows stored their connection id can
+    # still be reused when the workspace has only one connection for this
+    # provider. Never guess when more than one connection could own a row.
+    if legacy_datasets:
+        connection_count = (
+            db.query(DataSourceConnection)
+            .filter(
+                DataSourceConnection.workspace_id
+                == connection.workspace_id,
+                DataSourceConnection.source_type
+                == connection.source_type,
+            )
+            .count()
+        )
+        if connection_count == 1:
+            matching_datasets.extend(legacy_datasets)
+
+    matching_datasets.sort(
+        key=lambda dataset: (
+            dataset.created_at or datetime.min,
+            dataset.id,
+        ),
+        reverse=True,
+    )
+    canonical_datasets = []
+    seen_resources = set()
+    for dataset in matching_datasets:
+        resource = normalize_connector_dataset_resource(
+            connection,
+            dataset,
+        )
+        if resource in seen_resources:
+            continue
+        seen_resources.add(resource)
+        canonical_datasets.append(dataset)
+
+    return canonical_datasets
 
 
 CONNECTOR_PARTITION_DATE_COLUMNS = (

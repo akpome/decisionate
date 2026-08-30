@@ -523,6 +523,12 @@ function DataSourceConnectionRow({
         ]?.trim()
       )
     )
+  const datasetIds = connection.dataset_ids?.length
+    ? connection.dataset_ids
+    : connection.dataset_id
+      ? [connection.dataset_id]
+      : []
+  const datasetNames = connection.dataset_file_names ?? []
 
   return (
     <div className="flex flex-col gap-4 bg-white p-4 first:rounded-t-xl last:rounded-b-xl md:flex-row md:items-start md:justify-between">
@@ -884,23 +890,54 @@ function DataSourceConnectionRow({
                 </button>
               )}
 
-              {(connection.dataset_ids?.length
-                ? connection.dataset_ids
-                : connection.dataset_id
-                  ? [connection.dataset_id]
-                  : []
-              ).map((datasetId, index) => (
-                <Link
-                  key={datasetId}
-                  href={`/dashboard/datasets/${datasetId}`}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] sm:w-auto"
-                >
-                  <Database size={14} />
-                  {connection.dataset_file_names?.[index]
-                    ? `Go to ${connection.dataset_file_names[index]}`
-                    : "Go to dataset"}
-                </Link>
-              ))}
+              {datasetIds.length > 0 && (
+                <div className="flex min-w-0 w-full flex-wrap items-center gap-2 sm:w-auto">
+                  <span className="whitespace-nowrap text-xs text-gray-500">
+                    {datasetIds.length} dataset{datasetIds.length === 1 ? "" : "s"}
+                  </span>
+                  <Link
+                    href={`/dashboard/datasets/${datasetIds[0]}`}
+                    className="inline-flex min-w-0 max-w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)]"
+                  >
+                    <Database size={14} />
+                    <span className="max-w-48 truncate">
+                      {datasetNames[0]
+                        ? `Go to ${datasetNames[0]}`
+                        : "Go to dataset"}
+                    </span>
+                  </Link>
+                  {datasetIds.length > 1 && (
+                    <label
+                      className="sr-only"
+                      htmlFor={`connection-dataset-${connection.id}`}
+                    >
+                      Open another synced dataset
+                    </label>
+                  )}
+                  {datasetIds.length > 1 && (
+                    <select
+                      id={`connection-dataset-${connection.id}`}
+                      defaultValue=""
+                      onChange={(event) => {
+                        const datasetId = event.target.value
+                        if (datasetId) {
+                          window.location.assign(
+                            `/dashboard/datasets/${datasetId}`
+                          )
+                        }
+                      }}
+                      className="h-8 max-w-48 min-w-0 rounded-lg border border-gray-300 bg-white px-2 text-xs text-gray-700"
+                    >
+                      <option value="">Open another dataset</option>
+                      {datasetIds.slice(1).map((datasetId, index) => (
+                        <option key={datasetId} value={datasetId}>
+                          {datasetNames[index + 1] ?? `Dataset ${index + 2}`}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
 
               {canStartOAuth && (
                 <button
