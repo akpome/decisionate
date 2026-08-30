@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import {
   useEffect,
   useMemo,
@@ -985,7 +984,7 @@ function SharedDashboardContent({
   }
   const handleDemoCreateDecision = () => {
     setDemoNotice(
-      "This is a live demo. Decisions cannot be created here. Sign up for a free trial to create and track decisions."
+      "This is a live demo. Decisions cannot be created here because the demo is read-only."
     )
   }
   const demoPrimaryControls = sharedDemo ? (
@@ -1945,12 +1944,6 @@ function DemoPrimaryControls({
           Create decision
         </button>
 
-        <Link
-          href="/sign-up"
-          className="inline-flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md bg-blue-700 px-2.5 text-xs font-semibold text-white transition hover:bg-blue-800"
-        >
-          Start free trial
-        </Link>
       </div>
     </div>
   )
