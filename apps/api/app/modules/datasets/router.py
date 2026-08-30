@@ -135,7 +135,9 @@ from app.modules.datasets.services.multi_metric_analysis import (
     generate_multi_metric_ai_analysis,
 )
 from app.modules.datasets.services.source_metadata import (
+    build_connector_dataset_filename,
     build_dataset_source_metadata,
+    connector_dataset_display_name,
 )
 from app.modules.forecasting.services import (
     identify_forecast_columns,
@@ -647,7 +649,9 @@ def build_dataset_summary_response(
         **build_dataset_source_metadata(
             dataset
         ),
-        "file_name": dataset.file_name,
+        "file_name": connector_dataset_display_name(
+            dataset
+        ),
         "row_count": dataset.row_count,
         "column_count": dataset.column_count,
         "analytics": build_dataset_analytics_manifest(
@@ -837,7 +841,9 @@ def build_source_connection_response(
             else None
         ),
         "dataset_file_name": (
-            dataset_records[0].file_name
+            connector_dataset_display_name(
+                dataset_records[0]
+            )
             if dataset_records
             else None
         ),
@@ -846,7 +852,7 @@ def build_source_connection_response(
             for item in dataset_records
         ],
         "dataset_file_names": [
-            item.file_name
+            connector_dataset_display_name(item)
             for item in dataset_records
         ],
         "configured_resource_types": configured_resource_types,
@@ -1666,6 +1672,12 @@ async def get_datasets(
                 Dataset.id.desc(),
             )
             .all()
+        )
+        datasets = filter_canonical_connector_datasets(
+            db,
+            datasets,
+            user_id,
+            workspace_id,
         )
 
         return [
@@ -2777,6 +2789,7 @@ def normalize_connector_dataset_resource(
         raw_resource = (
             source_config.get("resource_type")
             or source_config.get("resource")
+            or source_config.get("object_type")
             or (
                 "invoices"
                 if source_type
@@ -2817,12 +2830,16 @@ def find_connector_datasets(
     db,
     connection,
 ):
-    datasets = (
-        db.query(Dataset)
-        .filter(
-            Dataset.workspace_id == connection.workspace_id,
-            Dataset.source_type == connection.source_type,
+    dataset_query = db.query(Dataset).filter(
+        Dataset.workspace_id == connection.workspace_id,
+        Dataset.source_type == connection.source_type,
+    )
+    if connection.workspace_id is None:
+        dataset_query = dataset_query.filter(
+            Dataset.user_id == connection.user_id,
         )
+    datasets = (
+        dataset_query
         .order_by(
             Dataset.created_at.desc(),
             Dataset.id.desc(),
@@ -2847,16 +2864,19 @@ def find_connector_datasets(
     # still be reused when the workspace has only one connection for this
     # provider. Never guess when more than one connection could own a row.
     if legacy_datasets:
-        connection_count = (
-            db.query(DataSourceConnection)
-            .filter(
-                DataSourceConnection.workspace_id
-                == connection.workspace_id,
-                DataSourceConnection.source_type
-                == connection.source_type,
-            )
-            .count()
+        connection_count_query = db.query(
+            DataSourceConnection
+        ).filter(
+            DataSourceConnection.workspace_id
+            == connection.workspace_id,
+            DataSourceConnection.source_type
+            == connection.source_type,
         )
+        if connection.workspace_id is None:
+            connection_count_query = connection_count_query.filter(
+                DataSourceConnection.user_id == connection.user_id,
+            )
+        connection_count = connection_count_query.count()
         if connection_count == 1:
             matching_datasets.extend(legacy_datasets)
 
@@ -2877,6 +2897,87 @@ def find_connector_datasets(
         if resource in seen_resources:
             continue
         seen_resources.add(resource)
+        canonical_datasets.append(dataset)
+
+    return canonical_datasets
+
+
+def filter_canonical_connector_datasets(
+    db,
+    datasets,
+    user_id,
+    workspace_id,
+):
+    """Remove duplicate connector rows from workspace dataset listings."""
+    connections = (
+        db.query(DataSourceConnection)
+        .filter(
+            filter_source_connections_for_workspace(
+                user_id,
+                workspace_id,
+            )
+        )
+        .all()
+    )
+    connector_connections = [
+        connection
+        for connection in connections
+        if normalize_dataset_source_type(
+            connection.source_type
+        ) in IMPLEMENTED_CONNECTOR_TYPES
+    ]
+    canonical_dataset_ids = set()
+    known_connection_ids = set()
+    source_connection_counts = {}
+    for connection in connector_connections:
+        source_type = normalize_dataset_source_type(
+            connection.source_type
+        )
+        source_connection_counts[source_type] = (
+            source_connection_counts.get(source_type, 0) + 1
+        )
+        known_connection_ids.add(str(connection.id))
+        canonical_dataset_ids.update(
+            dataset.id
+            for dataset in find_connector_datasets(
+                db,
+                connection,
+            )
+        )
+
+    single_connection_sources = {
+        source_type
+        for source_type, count in source_connection_counts.items()
+        if count == 1
+    }
+    canonical_datasets = []
+    for dataset in datasets:
+        source_type = normalize_dataset_source_type(
+            dataset.source_type
+        )
+        if source_type not in IMPLEMENTED_CONNECTOR_TYPES:
+            canonical_datasets.append(dataset)
+            continue
+
+        source_config = parse_source_connection_config(
+            dataset.source_config
+        )
+        connection_id = str(
+            source_config.get("connection_id") or ""
+        )
+        if connection_id in known_connection_ids:
+            if dataset.id in canonical_dataset_ids:
+                canonical_datasets.append(dataset)
+            continue
+        if (
+            not connection_id
+            and source_type in single_connection_sources
+        ):
+            if dataset.id in canonical_dataset_ids:
+                canonical_datasets.append(dataset)
+            continue
+
+        # Keep unlinked rows when ownership cannot be determined safely.
         canonical_datasets.append(dataset)
 
     return canonical_datasets
@@ -3743,13 +3844,16 @@ def persist_connector_dataframe(
     replaced_file_path = None
     try:
         report_config = report_config or {}
+        sync_resource = str(
+            report_config.get("resource")
+            or report_config.get("resource_type")
+            or report_config.get("object_type")
+            or ""
+        ).strip().lower() or None
         existing_dataset = find_connector_dataset(
             db,
             connection,
-            resource_type=str(
-                report_config.get("resource") or ""
-            ).strip().lower()
-            or None,
+            resource_type=sync_resource,
         )
 
         storage = get_object_storage()
@@ -3802,33 +3906,9 @@ def persist_connector_dataframe(
             connection.source_type,
             report_config,
         )
-        resource_type = str(
-            report_config.get("resource") or ""
-        ).strip().lower()
-        base_filename = (
-            existing_dataset.file_name
-            if existing_dataset
-            else sanitize_upload_filename(
-                (
-                    f"{connection.source_type}-{resource_type}-dataset.csv"
-                    if connection.source_type == "freshbooks"
-                    and resource_type
-                    else (
-                        f"{connection.source_type}-{resource_type}-dataset.csv"
-                        if connection.source_type == "quickbooks"
-                        and resource_type
-                        else (
-                            f"{connection.source_type}-{resource_type}-dataset.csv"
-                            if connection.source_type == "zoho_books"
-                            and resource_type
-                            else (
-                                f"{connection.source_type}-{connection.id}-"
-                                f"{date.today().isoformat()}.csv"
-                            )
-                        )
-                    )
-                )
-            )
+        base_filename = build_connector_dataset_filename(
+            connection.source_type,
+            report_config,
         )
         upload_filename = (
             os.path.splitext(
@@ -3949,8 +4029,8 @@ def persist_connector_dataframe(
             "ingestion_mode": "connector_sync",
             **merged_report_config,
         }
-        if resource_type:
-            next_source_config["resource_type"] = resource_type
+        if sync_resource:
+            next_source_config["resource_type"] = sync_resource
         if existing_dataset:
             previous_source_config = parse_source_connection_config(
                 existing_dataset.source_config
@@ -4400,7 +4480,7 @@ async def sync_source_connection(
                 "dataset_id": dataset.id,
                 "workspace_id": dataset.workspace_id,
                 **build_dataset_source_metadata(dataset),
-                "file_name": dataset.file_name,
+                "file_name": connector_dataset_display_name(dataset),
                 "file_path": dataset.file_path,
                 "row_count": dataset.row_count,
                 "column_count": dataset.column_count,
@@ -4490,7 +4570,7 @@ async def update_dataset_metric_selection(
 
         return {
             "dataset_id": dataset.id,
-            "file_name": dataset.file_name,
+            "file_name": connector_dataset_display_name(dataset),
             "numeric_columns": numeric_columns,
             "selected_metric_columns": selected_columns,
         }
@@ -4600,7 +4680,7 @@ async def dataset_preview(
 
         return {
             "dataset_id": dataset.id,
-            "file_name": dataset.file_name,
+            "file_name": connector_dataset_display_name(dataset),
             "preview": generate_preview(dataframe),
         }
 
@@ -4635,7 +4715,7 @@ async def dataset_metrics(
 
         return {
             "dataset_id": dataset.id,
-            "file_name": dataset.file_name,
+            "file_name": connector_dataset_display_name(dataset),
             "metrics": generate_metrics(dataframe),
         }
 
@@ -4690,7 +4770,7 @@ async def dataset_insights(
 
         return {
             "dataset_id": dataset.id,
-            "file_name": dataset.file_name,
+            "file_name": connector_dataset_display_name(dataset),
             "insights": generate_insights(dataframe),
             "ai_analysis": ai_analysis,
         }
@@ -4726,7 +4806,7 @@ async def dataset_chart_data(
 
         return {
             "dataset_id": dataset.id,
-            "file_name": dataset.file_name,
+            "file_name": connector_dataset_display_name(dataset),
             "chart": generate_chart_data(dataframe),
         }
 
@@ -4816,7 +4896,7 @@ async def dataset_anomalies(
 
         return {
             "dataset_id": dataset.id,
-            "file_name": dataset.file_name,
+            "file_name": connector_dataset_display_name(dataset),
             **result,
         }
 

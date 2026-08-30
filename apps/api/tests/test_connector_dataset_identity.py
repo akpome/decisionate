@@ -9,6 +9,9 @@ from app.db.models import DataSourceConnection
 from app.db.models import Dataset
 from app.modules.datasets.router import find_connector_dataset
 from app.modules.datasets.router import find_connector_datasets
+from app.modules.datasets.router import build_connector_dataset_filename
+from app.modules.datasets.router import connector_dataset_display_name
+from app.modules.datasets.router import filter_canonical_connector_datasets
 
 
 class ConnectorDatasetIdentityTests(unittest.TestCase):
@@ -87,9 +90,55 @@ class ConnectorDatasetIdentityTests(unittest.TestCase):
             find_connector_dataset(db, connection, "invoices").id,
             2,
         )
+        self.assertEqual(
+            [
+                dataset.id
+                for dataset in filter_canonical_connector_datasets(
+                    db,
+                    [
+                        db.get(Dataset, 3),
+                        db.get(Dataset, 2),
+                        db.get(Dataset, 1),
+                    ],
+                    "user-1",
+                    "workspace-1",
+                )
+            ],
+            [3, 2],
+        )
 
         db.close()
         engine.dispose()
+
+    def test_connector_names_use_object_without_sync_date(self):
+        self.assertEqual(
+            build_connector_dataset_filename(
+                "xero",
+                {"resource": "invoices"},
+            ),
+            "xero-invoices-dataset.csv",
+        )
+        self.assertEqual(
+            build_connector_dataset_filename(
+                "hubspot",
+                {"object_type": "deals"},
+            ),
+            "hubspot-deals-dataset.csv",
+        )
+
+        class DatasetStub:
+            source_type = "sage"
+            source_config = json.dumps({
+                "resource": "sales_invoices",
+                "start_date": "2026-08-01",
+                "end_date": "2026-08-30",
+            })
+            file_name = "sage-4-2026-08-30.parquet"
+
+        self.assertEqual(
+            connector_dataset_display_name(DatasetStub()),
+            "sage-sales_invoices-dataset.parquet",
+        )
 
     def test_single_connection_can_reuse_legacy_connector_dataset(self):
         engine = create_engine("sqlite:///:memory:")

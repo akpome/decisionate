@@ -28,6 +28,7 @@ from app.modules.datasets.services.joins import (
 )
 from app.modules.datasets.services.source_metadata import (
     build_dataset_source_metadata,
+    connector_dataset_display_name,
 )
 from app.modules.organizations.router import (
     DEFAULT_SELECTED_DASHBOARD,
@@ -440,7 +441,7 @@ def build_public_dashboard_dataset_response(
     dataframe,
 ):
     return {
-        "file_name": dataset.file_name,
+        "file_name": connector_dataset_display_name(dataset),
         "row_count": dataset.row_count,
         **build_dataset_source_metadata(
             dataset
