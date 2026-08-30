@@ -151,6 +151,7 @@ export const integrations = [
   { name: "Xero", status: "Available" },
   { name: "Zoho Books", status: "Upcoming" },
   { name: "HubSpot", status: "Available" },
+  { name: "Salesforce Sales Cloud", status: "Available" },
   { name: "Meta Ads", status: "Available" },
 ] as const
 
@@ -196,7 +197,7 @@ export const faqs = [
   },
   {
     question: "Which connectors are available?",
-    answer: "The current connector set includes Google Analytics, PostgreSQL, MySQL, SQL Server, Stripe, Shopify, QuickBooks, FreshBooks, Sage Cloud Accounting, Xero, Zoho Books, HubSpot and Meta Ads. Connector credentials and provider setup are managed before a workspace runs its first sync.",
+    answer: "The current connector set includes Google Analytics, PostgreSQL, MySQL, SQL Server, Stripe, Shopify, QuickBooks, FreshBooks, Xero, HubSpot, Meta Ads and Salesforce Sales Cloud. Salesforce Sales Cloud currently supports Accounts, Leads and Opportunities. Sage Cloud Accounting and Zoho Books are upcoming. Connector credentials and provider setup are managed before a workspace runs its first sync.",
   },
   {
     question: "What can I do with the dashboards?",
