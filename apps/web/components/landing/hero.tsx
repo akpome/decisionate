@@ -34,13 +34,6 @@ export function LandingHero() {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/sign-up"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"
-            >
-              Start Free Trial
-              <ArrowRight size={16} aria-hidden="true" />
-            </Link>
             <button
               type="button"
               onClick={() => setDemoOpen(true)}

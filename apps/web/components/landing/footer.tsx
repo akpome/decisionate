@@ -37,7 +37,7 @@ export function LandingFooter() {
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Resources</p>
           <div className="mt-4 flex flex-col gap-3 text-sm">
             <a href="#resources" className="hover:text-white">Integrations</a>
-            <Link href="/onboarding" className="hover:text-white">Onboarding</Link>
+            <Link href="/demo" className="hover:text-white">Live demo</Link>
             <a href="mailto:support@decisionate.ca" className="hover:text-white">Support</a>
           </div>
         </div>
@@ -45,8 +45,6 @@ export function LandingFooter() {
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Company</p>
           <div className="mt-4 flex flex-col gap-3 text-sm">
-            <Link href="/sign-in" className="hover:text-white">Sign In</Link>
-            <Link href="/sign-up" className="hover:text-white">Start Free Trial</Link>
             <Link href="/security" className="hover:text-white">Security</Link>
             <Link href="/privacy" className="hover:text-white">Privacy</Link>
             <Link href="/terms" className="hover:text-white">Terms</Link>

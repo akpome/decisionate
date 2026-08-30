@@ -136,8 +136,8 @@ export function IndustryDashboardsSection() {
           {industryDashboards.map(dashboard => (
             <Link
               key={dashboard.name}
-              href="/sign-up"
-              title={`Start a trial with the ${dashboard.name} dashboard`}
+              href="/demo"
+              title={`Open the live demo for the ${dashboard.name} dashboard`}
               className="group overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg"
             >
               <div className="h-28 border-b border-slate-100 bg-slate-50 p-4">
@@ -157,7 +157,7 @@ export function IndustryDashboardsSection() {
                   <span className="text-slate-300 transition group-hover:text-blue-600">-&gt;</span>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-500">{dashboard.description}</p>
-                <span className="mt-4 inline-block text-xs font-bold uppercase tracking-wide text-blue-600">Explore dashboard</span>
+                <span className="mt-4 inline-block text-xs font-bold uppercase tracking-wide text-blue-600">Open live demo</span>
               </div>
             </Link>
           ))}
@@ -364,8 +364,8 @@ export function PricingSection() {
       annualPrice: "$0 CAD/year",
       priceDetail: "CAD / month",
       description: "Start with one workspace and a practical monthly AI allowance.",
-      action: "Start Free Trial",
-      href: "/sign-up",
+      action: "Explore Live Demo",
+      href: "/demo",
       featured: false,
       items: [
         "1 workspace",
@@ -379,8 +379,8 @@ export function PricingSection() {
       annualPrice: "$790 CAD/year",
       priceDetail: "CAD / month",
       description: "Decision intelligence for a business managing its own workspace.",
-      action: "Start Professional",
-      href: "/sign-up",
+      action: "Explore Live Demo",
+      href: "/demo",
       featured: true,
       items: [
         "1 workspace",
@@ -398,8 +398,8 @@ export function PricingSection() {
       annualPrice: "$1,990 CAD/year",
       priceDetail: "CAD / month",
       description: "Manage an agency workspace and up to 10 client workspaces.",
-      action: "Start Agency",
-      href: "/sign-up",
+      action: "Explore Live Demo",
+      href: "/demo",
       featured: false,
       items: [
         "Up to 10 client workspaces",
@@ -541,8 +541,8 @@ export function FinalCTASection() {
         <Scale size={26} className="text-cyan-200" aria-hidden="true" />
         <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-5xl">Ready to make better decisions?</h2>
         <p className="mt-4 max-w-xl text-base leading-7 text-blue-100">Start with your data, create your first decision and build the habit of learning from what happens next.</p>
-        <Link href="/sign-up" className="mt-8 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-50">
-          Start Free Trial
+        <Link href="/demo" className="mt-8 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-50">
+          Open Live Demo
           <TrendingUp size={16} aria-hidden="true" />
         </Link>
       </div>

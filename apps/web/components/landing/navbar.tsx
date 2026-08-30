@@ -68,16 +68,10 @@ export function LandingNavbar() {
         <div className="hidden items-center gap-3 lg:flex">
           <ThemeToggle />
           <Link
-            href="/sign-in"
-            className="px-2 py-2 text-sm font-semibold text-slate-700 transition hover:text-slate-950"
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/sign-up"
+            href="/demo"
             className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
-            Start Free Trial
+            Open Live Demo
           </Link>
         </div>
 
@@ -109,20 +103,13 @@ export function LandingNavbar() {
                 {link.label}
               </a>
             ))}
-            <div className="mt-3 flex gap-3 border-t border-slate-100 pt-4">
+            <div className="mt-3 border-t border-slate-100 pt-4">
               <Link
-                href="/sign-in"
+                href="/demo"
                 onClick={closeMenu}
-                className="flex-1 rounded-lg border border-slate-200 px-4 py-2.5 text-center text-sm font-semibold text-slate-700"
+                className="block rounded-lg bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white"
               >
-                Sign In
-              </Link>
-              <Link
-                href="/sign-up"
-                onClick={closeMenu}
-                className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white"
-              >
-                Start Free Trial
+                Open Live Demo
               </Link>
             </div>
           </nav>
