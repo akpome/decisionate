@@ -581,6 +581,27 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(dataframe.iloc[0]["Custom_Score__c"], 0.84)
         self.assertEqual(dataframe.iloc[0]["record_id"], "006-test")
 
+    def test_salesforce_resource_selection_normalizes_multiple_objects(self):
+        self.assertEqual(
+            connectors.normalize_salesforce_resource_types({
+                "resource_types": "accounts,Opportunity,leads,accounts",
+            }),
+            ["accounts", "opportunities", "leads"],
+        )
+        self.assertEqual(
+            connectors.normalize_salesforce_resource_types({
+                "object_type": "Opportunity",
+            }),
+            ["opportunities"],
+        )
+
+    def test_salesforce_resource_selection_requires_an_object(self):
+        with self.assertRaisesRegex(
+            connectors.ConnectorUnavailable,
+            "Select at least one Salesforce object before syncing",
+        ):
+            connectors.normalize_salesforce_resource_types({})
+
     def test_database_connectors_load_read_only_rows(self):
         with tempfile.NamedTemporaryFile(suffix=".sqlite") as database_file:
             engine = create_engine(f"sqlite:///{database_file.name}")

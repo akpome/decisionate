@@ -127,11 +127,6 @@ export function DataSourceConnections({
         connection.configured_resource_types ?? []
       ).join(",")
     }
-    if (hasObjectTypeSelection(source)) {
-      emptyConfig.object_type =
-        connection.configured_object_type ?? ""
-    }
-
     setConfiguringConnectionId(
       connection.id
     )
@@ -429,11 +424,6 @@ function DataSourceConnectionRow({
     source?.status === "planned"
   const hasResourceSelection =
     hasResourceTypeSelection(source)
-  const hasObjectSelection =
-    hasObjectTypeSelection(source)
-  const hasConfiguredObject =
-    !hasObjectSelection ||
-    Boolean(connection.configured_object_type)
   const stripeKeyConfigured =
     connection.source_type !== "stripe" ||
     connection.has_config
@@ -468,7 +458,6 @@ function DataSourceConnectionRow({
       connection.status === "connected") &&
     (!hasResourceSelection ||
       (connection.configured_resource_types?.length ?? 0) > 0) &&
-    hasConfiguredObject &&
     Boolean(onSyncConnection)
   const canStartOAuth =
     source?.connection_type === "oauth" &&
@@ -615,10 +604,6 @@ function DataSourceConnectionRow({
             ? connection.configured_resource_types?.length
               ? "Objects selected"
               : "No objects selected"
-            : hasObjectSelection
-              ? connection.configured_object_type
-                ? `Object selected: ${connection.configured_object_type}`
-                : "No object selected"
             : connection.source_type === "quickbooks"
             ? connection.status === "connected"
               ? "OAuth configured"
@@ -1013,8 +998,6 @@ function DataSourceConnectionRow({
                     ? "Close"
                     : hasResourceSelection
                       ? "Select objects"
-                      : hasObjectSelection
-                        ? "Select object"
                       : "Configure"}
                 </button>
               )}
@@ -1126,6 +1109,12 @@ const HUBSPOT_RESOURCE_OPTIONS = [
   { value: "tickets", label: "Tickets" },
 ]
 
+const SALESFORCE_RESOURCE_OPTIONS = [
+  { value: "accounts", label: "Accounts" },
+  { value: "leads", label: "Leads" },
+  { value: "opportunities", label: "Opportunities" },
+]
+
 const CONNECTION_FIELD_GUIDES: Record<
   string,
   Record<string, ConnectionFieldGuide>
@@ -1209,9 +1198,9 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   salesforce: {
-    object_type: {
-      description: "Choose the Sales Cloud object to ingest.",
-      example: "Opportunity",
+    resource_types: {
+      description: "Select one or more Salesforce Sales Cloud objects. Each selected object is stored as its own dataset.",
+      example: "Accounts, Opportunities",
     },
   },
   meta_ads: {
@@ -1391,21 +1380,50 @@ function ConnectionConfigField({
   const sharedClassName =
     "mt-1 min-w-0 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 text-sm normal-case tracking-normal text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
 
-  if (sourceType === "salesforce" && configKey === "object_type") {
+  if (sourceType === "salesforce" && configKey === "resource_types") {
+    const selectedResources = new Set(
+      value
+        .split(",")
+        .map((resource) => resource.trim())
+        .filter(Boolean)
+    )
+
     return (
-      <label className="block min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
-        {label}
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={`${sharedClassName} h-9`}
-        >
-          <option value="">Select a Sales Cloud object</option>
-          <option value="Account">Accounts</option>
-          <option value="Lead">Leads</option>
-          <option value="Opportunity">Opportunities</option>
-        </select>
-      </label>
+      <fieldset className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
+        <legend>Salesforce objects to ingest</legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {SALESFORCE_RESOURCE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 normal-case tracking-normal text-gray-700"
+            >
+              <input
+                type="checkbox"
+                checked={selectedResources.has(option.value)}
+                onChange={(event) => {
+                  const nextResources = new Set(selectedResources)
+                  if (event.target.checked) {
+                    nextResources.add(option.value)
+                  } else {
+                    nextResources.delete(option.value)
+                  }
+                  onChange(
+                    SALESFORCE_RESOURCE_OPTIONS
+                      .map((item) => item.value)
+                      .filter((item) => nextResources.has(item))
+                      .join(",")
+                  )
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-2 normal-case tracking-normal text-gray-500">
+          Each checked object creates or updates a separate dataset.
+        </p>
+      </fieldset>
     )
   }
 
@@ -1753,12 +1771,6 @@ function hasResourceTypeSelection(
   source?: DatasetSourceOption
 ) {
   return source?.config_keys?.includes("resource_types") === true
-}
-
-function hasObjectTypeSelection(
-  source?: DatasetSourceOption
-) {
-  return source?.config_keys?.includes("object_type") === true
 }
 
 function getExternalCredentialLabel(

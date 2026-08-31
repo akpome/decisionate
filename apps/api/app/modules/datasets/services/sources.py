@@ -231,10 +231,10 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["object_type"],
+        "config_keys": ["resource_types"],
         "description": (
-            "Connect one Sales Cloud object at a time. Accounts, leads, and "
-            "opportunities are discovered with their available provider fields."
+            "Choose one or more Sales Cloud objects to ingest: accounts, leads, "
+            "or opportunities. Each selected object is stored as its own dataset."
         ),
     },
     {

@@ -33,6 +33,19 @@ SALESFORCE_OBJECT_TYPES = {
     "Lead",
     "Opportunity",
 }
+SALESFORCE_RESOURCE_TYPES = {
+    "accounts": "Account",
+    "leads": "Lead",
+    "opportunities": "Opportunity",
+}
+SALESFORCE_RESOURCE_ALIASES = {
+    "account": "accounts",
+    "accounts": "accounts",
+    "lead": "leads",
+    "leads": "leads",
+    "opportunity": "opportunities",
+    "opportunities": "opportunities",
+}
 SALESFORCE_MAX_SOQL_LENGTH = 6000
 FRESHBOOKS_RESOURCE_PATHS = {
     "invoices": ("invoices/invoices", "invoices"),
@@ -54,6 +67,56 @@ HUBSPOT_RESOURCE_TYPES = {
     "deals",
     "tickets",
 }
+
+
+def normalize_salesforce_resource_type(value) -> str:
+    normalized = re.sub(
+        r"[\s-]+",
+        "_",
+        str(value or "").strip().lower(),
+    )
+    resource_type = SALESFORCE_RESOURCE_ALIASES.get(
+        normalized,
+        normalized,
+    )
+    if resource_type not in SALESFORCE_RESOURCE_TYPES:
+        raise ConnectorUnavailable(
+            "Salesforce resource_types contains an unsupported object: "
+            f"{value}"
+        )
+    return resource_type
+
+
+def normalize_salesforce_resource_types(config: dict) -> list[str]:
+    """Return selected Salesforce objects in stable user order.
+
+    ``object_type`` remains a compatibility fallback for connections created
+    before Salesforce used the shared multi-object selector.
+    """
+    configured = config.get("resource_types")
+    if configured is None or configured == "":
+        configured = config.get("object_type") or config.get("resource_type")
+
+    if isinstance(configured, list):
+        values = configured
+    elif isinstance(configured, str):
+        values = configured.split(",")
+    else:
+        values = []
+
+    resources = []
+    for value in values:
+        if not str(value or "").strip():
+            continue
+        resource_type = normalize_salesforce_resource_type(value)
+        if resource_type not in resources:
+            resources.append(resource_type)
+
+    if not resources:
+        raise ConnectorUnavailable(
+            "Select at least one Salesforce object before syncing"
+        )
+    return resources
 
 
 def normalize_hubspot_resource_type(value) -> str:
@@ -593,6 +656,7 @@ def load_connector_dataframe(
     xero_resource_type: str | None = None,
     zoho_books_resource_type: str | None = None,
     hubspot_resource_type: str | None = None,
+    salesforce_resource_type: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     if connection.source_type == "hubspot":
         return load_hubspot_dataframe(
@@ -608,6 +672,7 @@ def load_connector_dataframe(
             connection,
             start_date,
             end_date,
+            salesforce_resource_type,
         )
     if connection.source_type == "stripe":
         return load_stripe_dataframe(
@@ -898,13 +963,16 @@ def load_salesforce_dataframe(
     connection: DataSourceConnection,
     start_date=None,
     end_date=None,
+    resource_type_override: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
-    object_type = str(config.get("object_type") or "").strip()
-    if object_type not in SALESFORCE_OBJECT_TYPES:
-        raise ConnectorUnavailable(
-            "Salesforce object_type must be Account, Lead, or Opportunity"
-        )
+    resource_type = normalize_salesforce_resource_type(
+        resource_type_override
+        or config.get("resource_type")
+        or config.get("object_type")
+        or normalize_salesforce_resource_types(config)[0]
+    )
+    object_type = SALESFORCE_RESOURCE_TYPES[resource_type]
 
     instance_url = validate_salesforce_instance_url(
         config.get("instance_url")
@@ -997,6 +1065,8 @@ def load_salesforce_dataframe(
     dataframe = pd.DataFrame(records_by_id.values())
     return dataframe, {
         "connector": "salesforce",
+        "resource": resource_type,
+        "resource_type": resource_type,
         "object_type": object_type,
         "api_version": api_version,
         "field_count": len(field_names),

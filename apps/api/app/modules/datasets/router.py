@@ -160,6 +160,8 @@ from app.modules.datasets.services.connectors import (
     STRIPE_ENCRYPTED_API_KEY_CONFIG,
     load_connector_dataframe,
     normalize_hubspot_resource_types,
+    normalize_salesforce_resource_type,
+    normalize_salesforce_resource_types,
     normalize_quickbooks_resource_type,
     normalize_quickbooks_resource_types,
     normalize_freshbooks_resource_types,
@@ -803,6 +805,13 @@ def build_source_connection_response(
         connection.connection_config
     ):
         configured_resource_types = normalize_xero_resource_types(
+            parsed_config
+        )
+    elif source_type == "salesforce" and any(
+        parsed_config.get(key)
+        for key in ("resource_types", "resource_type", "object_type")
+    ):
+        configured_resource_types = normalize_salesforce_resource_types(
             parsed_config
         )
     has_config = has_source_connection_config(
@@ -2834,6 +2843,11 @@ def normalize_connector_dataset_resource(
             return normalize_xero_resource_type(resource)
         except ConnectorUnavailable:
             pass
+    elif source_type == "salesforce":
+        try:
+            return normalize_salesforce_resource_type(resource)
+        except ConnectorUnavailable:
+            pass
 
     return resource
 
@@ -3898,6 +3912,61 @@ def run_xero_sync(
     return results
 
 
+def run_salesforce_sync(
+    db,
+    connection: DataSourceConnection,
+    payload: DataSourceConnectionSync,
+):
+    connection_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    resource_types = normalize_salesforce_resource_types(
+        connection_config
+    )
+    start_date, end_date = get_incremental_sync_window(
+        connection,
+        payload,
+    )
+    results = []
+    empty_resources = []
+    for resource_type in resource_types:
+        dataframe, report_config = load_connector_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            salesforce_resource_type=resource_type,
+        )
+        try:
+            results.append(
+                persist_connector_dataframe(
+                    db,
+                    connection,
+                    dataframe,
+                    report_config,
+                )
+            )
+        except ConnectorNoData:
+            empty_resources.append(resource_type)
+
+    if not results:
+        labels = ", ".join(
+            resource.replace("_", " ").title()
+            for resource in empty_resources
+        ) or "selected objects"
+        period = (
+            f" from {start_date} through {end_date}"
+            if start_date and end_date
+            else " for the selected sync period"
+        )
+        raise ConnectorNoData(
+            "Salesforce returned no records for "
+            f"{labels}{period}. Verify that the connected "
+            "org contains data in this range."
+        )
+    return results
+
+
 def persist_connector_dataframe(
     db,
     connection,
@@ -4297,6 +4366,9 @@ def run_data_source_sync(
 
     if connection.source_type == "xero":
         return run_xero_sync(db, connection, payload)
+
+    if connection.source_type == "salesforce":
+        return run_salesforce_sync(db, connection, payload)
 
     if connection.source_type not in IMPLEMENTED_CONNECTOR_TYPES:
         raise ConnectorUnavailable(
