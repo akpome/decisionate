@@ -443,12 +443,11 @@ function DataSourceConnectionRow({
     configuredResourceTypes.length
       ? configuredResourceTypes
       : defaultResourceTypes
-  const [syncMetrics, setSyncMetrics] =
-    useState([
-      "activeUsers",
-      "sessions",
-      "totalRevenue",
-    ])
+  const syncMetrics = [
+    "activeUsers",
+    "sessions",
+    "totalRevenue",
+  ]
   const stripeKeyConfigured =
     connection.source_type !== "stripe" ||
     connection.has_config
@@ -489,8 +488,6 @@ function DataSourceConnectionRow({
     (Array.isArray(connection.missing_config_keys)
       ? connection.missing_config_keys.length === 0
       : connection.has_config)
-  const [showInlineConnectionConfig, setShowInlineConnectionConfig] =
-    useState(!hasRequiredConnectionConfig)
   const canSyncConnector =
     [
       "google_analytics",
@@ -542,20 +539,6 @@ function DataSourceConnectionRow({
   const [scheduleDayOfWeek, setScheduleDayOfWeek] =
     useState(String(connection.sync_day_of_week ?? 0))
 
-
-  function toggleSyncMetric(metric: string) {
-    setSyncMetrics((currentMetrics) =>
-      currentMetrics.includes(metric)
-        ? currentMetrics.filter(
-            (currentMetric) =>
-              currentMetric !== metric
-          )
-        : [
-            ...currentMetrics,
-            metric,
-          ]
-    )
-  }
 
   function syncConnection() {
     onSyncConnection?.(
@@ -822,44 +805,6 @@ function DataSourceConnectionRow({
           </div>
         )}
 
-        {connection.source_type === "google_analytics" &&
-          canSyncConnector && (
-          <div className="mt-4 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
-              Google Analytics metrics
-            </p>
-
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
-              {[
-                "activeUsers",
-                "sessions",
-                "totalRevenue",
-                "screenPageViews",
-                "conversions",
-              ].map((metric) => (
-                <label
-                  key={metric}
-                  className="inline-flex items-center gap-2 text-xs text-gray-700"
-                >
-                  <input
-                    type="checkbox"
-                    checked={syncMetrics.includes(metric)}
-                    onChange={() =>
-                      toggleSyncMetric(metric)
-                    }
-                    className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
-                  />
-                  {metric}
-                </label>
-              ))}
-            </div>
-
-            <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
-              Select at least one metric.
-            </p>
-          </div>
-        )}
-
       </div>
 
       <div className="flex w-full min-w-0 shrink-0 flex-col items-start gap-2 lg:max-w-xl lg:items-end">
@@ -891,8 +836,7 @@ function DataSourceConnectionRow({
                     syncingConnectionId ===
                       connection.id ||
                     updatingConnectionId ===
-                      connection.id ||
-                    syncMetrics.length === 0
+                      connection.id
                   }
                   className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
@@ -1010,36 +954,6 @@ function DataSourceConnectionRow({
                       : "Configure"}
                 </button>
               )}
-
-              {inlineConnectionConfigKeys.length > 0 &&
-                !sourceIsPlanned && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowInlineConnectionConfig(
-                        (visible) => !visible
-                      )
-                    }
-                    disabled={
-                      updatingConnectionId ===
-                      connection.id
-                    }
-                    aria-expanded={
-                      showInlineConnectionConfig
-                    }
-                    aria-controls={`connection-settings-${connection.id}`}
-                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                  >
-                    {showInlineConnectionConfig
-                      ? <EyeOff size={14} aria-hidden="true" />
-                      : <Eye size={14} aria-hidden="true" />}
-                    <span>
-                      {showInlineConnectionConfig
-                        ? "Hide settings"
-                        : "Show settings"}
-                    </span>
-                  </button>
-                )}
 
               {onRenameConnection && (
                 <button
@@ -1183,9 +1097,7 @@ function DataSourceConnectionRow({
         </div>
       )}
 
-      {inlineConnectionConfigKeys.length > 0 &&
-        !sourceIsPlanned &&
-        showInlineConnectionConfig && (
+      {inlineConnectionConfigKeys.length > 0 && (
           <div
             id={`connection-settings-${connection.id}`}
             className="h-full min-w-0 lg:col-start-2 lg:row-start-2"
@@ -1220,10 +1132,7 @@ function DataSourceConnectionRow({
               <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <button
                   type="button"
-                  onClick={() => {
-                    saveConfiguration(connection)
-                    setShowInlineConnectionConfig(false)
-                  }}
+                  onClick={() => saveConfiguration(connection)}
                   disabled={
                     updatingConnectionId ===
                       connection.id ||
@@ -1240,10 +1149,7 @@ function DataSourceConnectionRow({
                 {connection.has_config && (
                   <button
                     type="button"
-                    onClick={() => {
-                      clearConfiguration(connection)
-                      setShowInlineConnectionConfig(false)
-                    }}
+                    onClick={() => clearConfiguration(connection)}
                     disabled={
                       updatingConnectionId ===
                       connection.id
@@ -1799,7 +1705,12 @@ function ConnectionConfigField({
     : fieldGuide.example
   const sharedClassName =
     "mt-1 min-w-0 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 text-sm normal-case tracking-normal text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-  const maskValue = secret || hasSavedConfig
+  const maskValue =
+    secret ||
+    hasSavedConfig ||
+    VISIBILITY_TOGGLE_SOURCE_TYPES.has(
+      sourceType ?? ""
+    )
   const valueVisibilityLabel = showValue
     ? `Hide ${label.toLowerCase()}`
     : `Show ${label.toLowerCase()}`
