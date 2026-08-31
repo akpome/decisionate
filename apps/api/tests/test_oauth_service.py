@@ -8,8 +8,10 @@ from cryptography.fernet import Fernet
 
 from app.modules.oauth.service import (
     build_authorization_url,
+    create_pkce_challenge,
     decrypt_token,
     encrypt_token,
+    exchange_code,
     is_oauth_provider_configured,
 )
 from app.modules.datasets.services.scheduling import (
@@ -20,6 +22,82 @@ from app.modules.datasets.services.scheduling import (
 
 
 class OAuthAndSchedulingTests(unittest.TestCase):
+    def test_pkce_challenge_matches_rfc7636_s256(self):
+        self.assertEqual(
+            create_pkce_challenge(
+                "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+            ),
+            "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        )
+
+    def test_salesforce_authorization_url_includes_pkce(self):
+        with patch.dict(
+            os.environ,
+            {
+                "SALESFORCE_CLIENT_ID": "client-id",
+                "SALESFORCE_CLIENT_SECRET": "client-secret",
+                "SALESFORCE_OAUTH_AUTHORIZATION_URL": (
+                    "https://login.salesforce.com/services/oauth2/authorize"
+                ),
+                "SALESFORCE_OAUTH_TOKEN_URL": (
+                    "https://login.salesforce.com/services/oauth2/token"
+                ),
+                "SALESFORCE_OAUTH_SCOPES": "api refresh_token",
+                "OAUTH_CALLBACK_URL": (
+                    "https://api.example.com/oauth/callback"
+                ),
+            },
+            clear=False,
+        ):
+            url = build_authorization_url(
+                "salesforce",
+                "state-1",
+                code_challenge="challenge-1",
+            )
+
+        query = parse_qs(urlparse(url).query)
+        self.assertEqual(query["code_challenge"], ["challenge-1"])
+        self.assertEqual(query["code_challenge_method"], ["S256"])
+
+    def test_salesforce_token_exchange_includes_pkce_verifier(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"access_token":"access-token"}'
+
+        with patch.dict(
+            os.environ,
+            {
+                "SALESFORCE_CLIENT_ID": "client-id",
+                "SALESFORCE_CLIENT_SECRET": "client-secret",
+                "SALESFORCE_OAUTH_TOKEN_URL": (
+                    "https://login.salesforce.com/services/oauth2/token"
+                ),
+                "OAUTH_CALLBACK_URL": (
+                    "https://api.example.com/oauth/callback"
+                ),
+            },
+            clear=False,
+        ), patch(
+            "app.modules.oauth.service.urlopen",
+            return_value=FakeResponse(),
+        ) as mocked_urlopen:
+            payload = exchange_code(
+                "salesforce",
+                "auth-code",
+                code_verifier="verifier-1",
+            )
+
+        request = mocked_urlopen.call_args.args[0]
+        body = parse_qs(request.data.decode("utf-8"))
+        self.assertEqual(payload["access_token"], "access-token")
+        self.assertEqual(body["code_verifier"], ["verifier-1"])
+
     def test_provider_url_and_encrypted_token(self):
         key = Fernet.generate_key().decode()
         with patch.dict(

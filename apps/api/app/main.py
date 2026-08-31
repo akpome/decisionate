@@ -158,6 +158,24 @@ def ensure_dataset_relationship_columns():
 ensure_dataset_relationship_columns()
 
 
+def ensure_oauth_connection_state_columns():
+    with engine.begin() as connection:
+        column_names = get_table_columns(
+            connection,
+            "oauth_connection_states",
+        )
+        if "code_verifier" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE oauth_connection_states "
+                    "ADD COLUMN code_verifier TEXT"
+                )
+            )
+
+
+ensure_oauth_connection_state_columns()
+
+
 def ensure_platform_admin_role_columns():
     with engine.begin() as connection:
         column_names = get_table_columns(

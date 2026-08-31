@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import secrets
@@ -37,6 +39,7 @@ class OAuthProvider:
     client_secret_env: str
     scopes_env: str
     use_basic_token_auth: bool = False
+    use_pkce: bool = False
     required_scopes: tuple[str, ...] = ()
     required_scope_groups: tuple[tuple[str, ...], ...] = ()
 
@@ -168,6 +171,7 @@ OAUTH_PROVIDERS = {
         client_id_env="SALESFORCE_CLIENT_ID",
         client_secret_env="SALESFORCE_CLIENT_SECRET",
         scopes_env="SALESFORCE_OAUTH_SCOPES",
+        use_pkce=True,
         required_scopes=("api", "refresh_token"),
     ),
     "google_analytics": OAuthProvider(
@@ -421,10 +425,23 @@ def create_state_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def create_pkce_verifier() -> str:
+    """Create an RFC 7636 verifier suitable for the S256 method."""
+    return secrets.token_urlsafe(64)
+
+
+def create_pkce_challenge(code_verifier: str) -> str:
+    if not code_verifier:
+        raise ValueError("A PKCE code verifier is required")
+    digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
 def build_authorization_url(
     source_type: str,
     state_token: str,
     connection_config: dict | None = None,
+    code_challenge: str | None = None,
 ) -> str:
     provider = get_provider(source_type)
     client_id, _client_secret = get_provider_credentials(provider)
@@ -455,6 +472,17 @@ def build_authorization_url(
         "state": state_token,
         "scope": " ".join(scopes),
     }
+    if provider.use_pkce:
+        if not code_challenge:
+            raise OAuthProviderUnavailable(
+                f"{source_type} OAuth requires a PKCE code challenge"
+            )
+        params.update(
+            {
+                "code_challenge": code_challenge,
+                "code_challenge_method": "S256",
+            }
+        )
     if provider.source_type == "zoho_books":
         params.update(
             {
@@ -503,6 +531,7 @@ def exchange_code(
     source_type: str,
     code: str,
     connection_config: dict | None = None,
+    code_verifier: str | None = None,
 ) -> dict:
     provider = get_provider(source_type)
     client_id, client_secret = get_provider_credentials(provider)
@@ -540,6 +569,12 @@ def exchange_code(
         "code": code,
         "redirect_uri": get_callback_url(source_type),
     }
+    if provider.use_pkce:
+        if not code_verifier:
+            raise OAuthTokenExchangeError(
+                f"{source_type} OAuth requires a PKCE code verifier"
+            )
+        params["code_verifier"] = code_verifier
     headers = {"Accept": "application/json"}
     if provider.use_basic_token_auth:
         import base64

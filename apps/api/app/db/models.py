@@ -520,6 +520,11 @@ class OAuthConnectionState(Base):
         nullable=False,
     )
 
+    code_verifier = Column(
+        Text,
+        nullable=True,
+    )
+
     expires_at = Column(
         DateTime,
         nullable=False,

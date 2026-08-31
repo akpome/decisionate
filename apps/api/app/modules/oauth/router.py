@@ -17,10 +17,14 @@ from app.modules.oauth.service import (
     OAuthProviderUnavailable,
     OAuthTokenExchangeError,
     build_authorization_url,
+    create_pkce_challenge,
+    create_pkce_verifier,
     create_state_token,
+    decrypt_token,
     encrypt_token,
     exchange_code,
     get_freshbooks_businesses,
+    get_provider,
     get_zoho_books_organizations,
     get_xero_connections,
     get_web_app_url,
@@ -93,10 +97,19 @@ async def start_oauth_connection(
         connection = get_workspace_connection(db, connection_id, auth_context)
         config = parse_source_connection_config(connection.connection_config)
         state_token = create_state_token()
+        provider = get_provider(connection.source_type)
+        code_verifier = (
+            create_pkce_verifier()
+            if provider.use_pkce
+            else None
+        )
         authorization_url = build_authorization_url(
             connection.source_type,
             state_token,
             config,
+            create_pkce_challenge(code_verifier)
+            if code_verifier
+            else None,
         )
         db.add(
             OAuthConnectionState(
@@ -105,6 +118,7 @@ async def start_oauth_connection(
                 workspace_id=auth_context.workspace_id,
                 user_id=auth_context.user_id,
                 source_type=connection.source_type,
+                code_verifier=encrypt_token(code_verifier),
                 expires_at=datetime.now(UTC).replace(tzinfo=None)
                 + timedelta(minutes=STATE_TTL_MINUTES),
             )
@@ -239,10 +253,12 @@ def process_oauth_callback(
                     # Keep the configured token endpoint when Zoho's optional
                     # callback hint is not in a recognized URL form.
                     connection_config.pop("accounts_server", None)
+        code_verifier = decrypt_token(state.code_verifier)
         payload = exchange_code(
             state.source_type,
             code,
             connection_config,
+            code_verifier=code_verifier,
         )
         if state.source_type == "freshbooks":
             access_token = str(payload.get("access_token") or "").strip()
