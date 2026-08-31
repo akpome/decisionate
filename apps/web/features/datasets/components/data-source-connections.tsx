@@ -463,9 +463,12 @@ function DataSourceConnectionRow({
         source?.connection_type !== "oauth" &&
         source?.connection_type !== "api_key"
     )
+  const usesVisibilityToggle =
+    VISIBILITY_TOGGLE_SOURCE_TYPES.has(
+      connection.source_type
+    )
   const inlineConnectionConfigKeys =
-    source?.connection_type === "oauth" ||
-    source?.connection_type === "api_key"
+    usesVisibilityToggle
       ? editableConfigKeys.filter(
           (configKey) =>
             configKey !== "resource_types"
@@ -1022,11 +1025,20 @@ function DataSourceConnectionRow({
                       updatingConnectionId ===
                       connection.id
                     }
-                    className="w-full rounded-lg border px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                    aria-expanded={
+                      showInlineConnectionConfig
+                    }
+                    aria-controls={`connection-settings-${connection.id}`}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
                     {showInlineConnectionConfig
-                      ? "Hide settings"
-                      : "Show settings"}
+                      ? <EyeOff size={14} aria-hidden="true" />
+                      : <Eye size={14} aria-hidden="true" />}
+                    <span>
+                      {showInlineConnectionConfig
+                        ? "Hide settings"
+                        : "Show settings"}
+                    </span>
                   </button>
                 )}
 
@@ -1176,7 +1188,10 @@ function DataSourceConnectionRow({
         !sourceIsPlanned &&
         (!hasRequiredConnectionConfig ||
           showInlineConnectionConfig) && (
-          <div className="h-full min-w-0 lg:col-start-2 lg:row-start-2">
+          <div
+            id={`connection-settings-${connection.id}`}
+            className="h-full min-w-0 lg:col-start-2 lg:row-start-2"
+          >
             <div className="h-full rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
               <ConnectionConfigFieldGroup
                 title="Connection settings"
@@ -1272,6 +1287,13 @@ type ConnectionFieldGuide = {
   description: string
   example: string
 }
+
+const VISIBILITY_TOGGLE_SOURCE_TYPES = new Set([
+  "shopify",
+  "google_analytics",
+  "meta_ads",
+  "stripe",
+])
 
 const FRESHBOOKS_RESOURCE_OPTIONS = [
   { value: "profile", label: "Profile" },
