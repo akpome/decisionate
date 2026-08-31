@@ -389,12 +389,6 @@ function DataSourceConnectionRow({
     editingConnectionId === connection.id
   const isConfiguring =
     configuringConnectionId === connection.id
-  const [syncMetrics, setSyncMetrics] =
-    useState([
-      "activeUsers",
-      "sessions",
-      "totalRevenue",
-    ])
   const source =
     getConnectionSource(
       connection,
@@ -424,13 +418,43 @@ function DataSourceConnectionRow({
     source?.status === "planned"
   const hasResourceSelection =
     hasResourceTypeSelection(source)
+  const resourceOptions =
+    getResourceSelectionOptions(
+      connection.source_type
+    )
+  const configuredResourceTypes = (
+    connection.configured_resource_types ?? []
+  ).filter((resource) =>
+    resourceOptions.some(
+      (option) => option.value === resource
+    )
+  )
+  const defaultResourceTypes =
+    getDefaultResourceTypes(
+      connection.source_type
+    )
+  const configuredResourceKey =
+    configuredResourceTypes.join(",")
+  const selectedResourceTypes =
+    configuredResourceTypes.length
+      ? configuredResourceTypes
+      : defaultResourceTypes
+  const [syncMetrics, setSyncMetrics] =
+    useState([
+      "activeUsers",
+      "sessions",
+      "totalRevenue",
+    ])
   const stripeKeyConfigured =
     connection.source_type !== "stripe" ||
     connection.has_config
   const canConfigure =
     Boolean(
       onConfigureConnection &&
-        editableConfigKeys.length > 0 &&
+        editableConfigKeys.some(
+          (configKey) =>
+            configKey !== "resource_types"
+        ) &&
         !sourceIsPlanned
     )
   const canSyncConnector =
@@ -457,7 +481,7 @@ function DataSourceConnectionRow({
     (source?.connection_type !== "oauth" ||
       connection.status === "connected") &&
     (!hasResourceSelection ||
-      (connection.configured_resource_types?.length ?? 0) > 0) &&
+      selectedResourceTypes.length > 0) &&
     Boolean(onSyncConnection)
   const canStartOAuth =
     source?.connection_type === "oauth" &&
@@ -528,8 +552,36 @@ function DataSourceConnectionRow({
       : []
   const datasetNames = connection.dataset_file_names ?? []
 
+  function handleResourceSelectionChange(
+    resource: string,
+    checked: boolean
+  ) {
+    const nextResources = new Set(
+      selectedResourceTypes
+    )
+    if (checked) {
+      nextResources.add(resource)
+    } else {
+      nextResources.delete(resource)
+    }
+
+    if (!nextResources.size) {
+      return
+    }
+
+    const nextSelectedResources = resourceOptions
+      .map((option) => option.value)
+      .filter((option) => nextResources.has(option))
+    onConfigureConnection?.(
+      connection,
+      {
+        resource_types: nextSelectedResources.join(","),
+      }
+    )
+  }
+
   return (
-    <div className="flex flex-col gap-4 bg-white p-4 first:rounded-t-xl last:rounded-b-xl md:flex-row md:items-start md:justify-between">
+    <div className="flex flex-col gap-4 bg-white p-4 first:rounded-t-xl last:rounded-b-xl lg:flex-row lg:items-start lg:justify-between">
       <div className="min-w-0 flex-1">
         {isEditing ? (
           <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -601,7 +653,7 @@ function DataSourceConnectionRow({
 
         <p className="mt-2 text-xs font-medium uppercase text-gray-400">
           {hasResourceSelection
-            ? connection.configured_resource_types?.length
+            ? selectedResourceTypes.length
               ? "Objects selected"
               : "No objects selected"
             : connection.source_type === "quickbooks"
@@ -641,6 +693,24 @@ function DataSourceConnectionRow({
             </p>
           )}
 
+        {hasResourceSelection &&
+          resourceOptions.length > 0 && (
+            <ConnectionResourceSelector
+              key={`${connection.id}-${configuredResourceKey}`}
+              sourceType={connection.source_type}
+              options={resourceOptions}
+              selectedValues={selectedResourceTypes}
+              disabled={
+                !onConfigureConnection ||
+                sourceIsPlanned ||
+                updatingConnectionId === connection.id
+              }
+              onChange={
+                handleResourceSelectionChange
+              }
+            />
+          )}
+
         {isConfiguring && (
           <div className="mt-4 max-w-2xl rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
@@ -649,10 +719,16 @@ function DataSourceConnectionRow({
                 : "Configure connection settings"}
             </p>
 
-            {configKeys.length > 0 && (
+            {configKeys.filter(
+              (configKey) =>
+                configKey !== "resource_types"
+            ).length > 0 && (
               <ConnectionConfigFieldGroup
                 title="Dataset Settings"
-                configKeys={configKeys}
+                configKeys={configKeys.filter(
+                  (configKey) =>
+                    configKey !== "resource_types"
+                )}
                 sourceType={connection.source_type}
                 editingConnectionConfig={
                   editingConnectionConfig
@@ -853,7 +929,7 @@ function DataSourceConnectionRow({
         )}
       </div>
 
-      <div className="flex w-full shrink-0 flex-col items-start gap-2 md:w-auto md:items-end">
+      <div className="flex w-full min-w-0 shrink-0 flex-col items-start gap-2 lg:max-w-xl lg:items-end">
         <span
           className={getConnectionStatusClassName(
             connection.status
@@ -871,7 +947,7 @@ function DataSourceConnectionRow({
             canSyncConnector ||
             canStartOAuth ||
             canCancelOAuth) && (
-            <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
+            <div className="flex w-full min-w-0 flex-wrap items-center justify-start gap-2 lg:justify-end">
               {canSyncConnector && (
                 <button
                   type="button"
@@ -996,9 +1072,7 @@ function DataSourceConnectionRow({
                 >
                   {isConfiguring
                     ? "Close"
-                    : hasResourceSelection
-                      ? "Select objects"
-                      : "Configure"}
+                    : "Configure"}
                 </button>
               )}
 
@@ -1114,6 +1188,160 @@ const SALESFORCE_RESOURCE_OPTIONS = [
   { value: "leads", label: "Leads" },
   { value: "opportunities", label: "Opportunities" },
 ]
+
+type ResourceSelectionOption = {
+  value: string
+  label: string
+}
+
+function getResourceSelectionOptions(
+  sourceType: string
+): ResourceSelectionOption[] {
+  switch (sourceType) {
+    case "freshbooks":
+      return FRESHBOOKS_RESOURCE_OPTIONS
+    case "quickbooks":
+      return QUICKBOOKS_RESOURCE_OPTIONS
+    case "xero":
+      return XERO_RESOURCE_OPTIONS
+    case "zoho_books":
+      return ZOHO_BOOKS_RESOURCE_OPTIONS
+    case "hubspot":
+      return HUBSPOT_RESOURCE_OPTIONS
+    case "salesforce":
+      return SALESFORCE_RESOURCE_OPTIONS
+    default:
+      return []
+  }
+}
+
+function getDefaultResourceTypes(
+  sourceType: string
+): string[] {
+  switch (sourceType) {
+    case "hubspot":
+      return ["deals"]
+    case "salesforce":
+      return ["opportunities"]
+    case "freshbooks":
+    case "quickbooks":
+    case "xero":
+    case "zoho_books":
+      return ["invoices"]
+    default:
+      return []
+  }
+}
+
+function getResourceSelectionTitle(
+  sourceType: string
+) {
+  switch (sourceType) {
+    case "freshbooks":
+      return "FreshBooks objects to ingest"
+    case "quickbooks":
+      return "QuickBooks resources to ingest"
+    case "xero":
+      return "Xero objects to ingest"
+    case "zoho_books":
+      return "Zoho Books objects to ingest"
+    case "hubspot":
+      return "HubSpot objects to ingest"
+    case "salesforce":
+      return "Salesforce objects to ingest"
+    default:
+      return "Objects to ingest"
+  }
+}
+
+function ConnectionResourceSelector({
+  sourceType,
+  options,
+  selectedValues,
+  disabled,
+  onChange,
+}: {
+  sourceType: string
+  options: ResourceSelectionOption[]
+  selectedValues: string[]
+  disabled: boolean
+  onChange: (resource: string, checked: boolean) => void
+}) {
+  const [selectedResourceValues, setSelectedResourceValues] =
+    useState(selectedValues)
+  const selectedResources = new Set(
+    selectedResourceValues
+  )
+
+  function handleChange(
+    resource: string,
+    checked: boolean
+  ) {
+    const nextResources = new Set(
+      selectedResourceValues
+    )
+    if (checked) {
+      nextResources.add(resource)
+    } else {
+      nextResources.delete(resource)
+    }
+
+    if (!nextResources.size) {
+      return
+    }
+
+    const nextSelectedValues = options
+      .map((option) => option.value)
+      .filter((option) => nextResources.has(option))
+    setSelectedResourceValues(nextSelectedValues)
+    onChange(resource, checked)
+  }
+
+  return (
+    <fieldset className="mt-3 min-w-0 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
+      <legend className="px-1 text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
+        {getResourceSelectionTitle(sourceType)}
+      </legend>
+      <div className="mt-2 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {options.map((option) => (
+          <label
+            key={option.value}
+            title={
+              selectedResourceValues.length === 1 &&
+              selectedResources.has(option.value)
+                ? "At least one object must remain selected"
+                : undefined
+            }
+            className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700"
+          >
+            <input
+              type="checkbox"
+              checked={selectedResources.has(option.value)}
+              disabled={
+                disabled ||
+                (selectedResourceValues.length === 1 &&
+                  selectedResources.has(option.value))
+              }
+              onChange={(event) =>
+                handleChange(
+                  option.value,
+                  event.target.checked
+                )
+              }
+              className="h-4 w-4 shrink-0 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+            />
+            <span className="min-w-0 break-words">
+              {option.label}
+            </span>
+          </label>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
+        At least one object is required. Each selected object creates or updates a separate dataset.
+      </p>
+    </fieldset>
+  )
+}
 
 const CONNECTION_FIELD_GUIDES: Record<
   string,

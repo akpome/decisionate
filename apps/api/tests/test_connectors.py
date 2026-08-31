@@ -271,6 +271,10 @@ class ConnectorSmokeTests(unittest.TestCase):
             }),
             ["companies"],
         )
+        self.assertEqual(
+            connectors.normalize_hubspot_resource_types({}),
+            ["deals"],
+        )
 
     def test_quickbooks_resource_selections_load_supported_entities(self):
         def json_request(url, headers):
@@ -595,12 +599,11 @@ class ConnectorSmokeTests(unittest.TestCase):
             ["opportunities"],
         )
 
-    def test_salesforce_resource_selection_requires_an_object(self):
-        with self.assertRaisesRegex(
-            connectors.ConnectorUnavailable,
-            "Select at least one Salesforce object before syncing",
-        ):
-            connectors.normalize_salesforce_resource_types({})
+    def test_salesforce_resource_selection_defaults_to_opportunities(self):
+        self.assertEqual(
+            connectors.normalize_salesforce_resource_types({}),
+            ["opportunities"],
+        )
 
     def test_database_connectors_load_read_only_rows(self):
         with tempfile.NamedTemporaryFile(suffix=".sqlite") as database_file:

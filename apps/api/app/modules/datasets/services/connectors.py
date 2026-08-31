@@ -95,7 +95,11 @@ def normalize_salesforce_resource_types(config: dict) -> list[str]:
     """
     configured = config.get("resource_types")
     if configured is None or configured == "":
-        configured = config.get("object_type") or config.get("resource_type")
+        configured = (
+            config.get("object_type")
+            or config.get("resource_type")
+            or "opportunities"
+        )
 
     if isinstance(configured, list):
         values = configured
@@ -137,7 +141,7 @@ def normalize_hubspot_resource_types(config: dict) -> list[str]:
     """
     configured = config.get("resource_types")
     if configured is None or configured == "":
-        configured = config.get("object_type")
+        configured = config.get("object_type") or "deals"
 
     if isinstance(configured, list):
         values = configured
