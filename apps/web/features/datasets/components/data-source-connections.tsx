@@ -1668,8 +1668,8 @@ export function ConnectionSetupGuide({
       open={!compact}
       className={
         compact
-          ? "mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2"
-          : "mt-3 rounded-lg border border-blue-100 bg-white/70 px-3 py-2"
+          ? "mt-3 w-full min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2"
+          : "mt-3 w-full min-w-0 rounded-lg border border-blue-100 bg-white/70 px-3 py-2"
       }
     >
       <summary className="cursor-pointer text-xs font-semibold text-gray-700">
@@ -1682,11 +1682,11 @@ export function ConnectionSetupGuide({
             <p className="font-semibold text-gray-800">
               Enter in this connection
             </p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
               {fieldGuides.map((field) => (
                 <div
                   key={field.configKey}
-                  className="rounded-md border border-gray-200 bg-white p-2"
+                  className="min-w-0 rounded-md border border-gray-200 bg-white p-2"
                 >
                   <p className="font-semibold text-gray-800">
                     {formatConnectionConfigKey(field.configKey)}

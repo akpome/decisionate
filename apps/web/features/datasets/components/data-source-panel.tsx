@@ -113,9 +113,9 @@ export function DataSourcePanel({
                   return (
                     <div
                       key={source.type}
-                      className="flex min-w-0 flex-col gap-3 bg-white p-4 first:rounded-t-xl last:rounded-b-xl sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                      className="grid min-w-0 grid-cols-1 gap-3 bg-white p-4 first:rounded-t-xl last:rounded-b-xl sm:grid-cols-[minmax(0,1fr)_14rem] sm:items-start sm:gap-4"
                     >
-                      <div className="min-w-0">
+                      <div className="min-w-0 w-full">
                         <h4 className="break-words font-medium">
                           {source.label}
                         </h4>
