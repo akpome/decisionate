@@ -78,6 +78,7 @@ DATASET_SOURCES = [
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["property_id"],
+        "required_config_keys": ["property_id"],
         "description": (
             "Connect website and campaign performance data. The property ID "
             "identifies the Analytics property. Authorize the Google account "
@@ -92,6 +93,7 @@ DATASET_SOURCES = [
         "connection_type": "database",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["connection_name", "query"],
+        "required_config_keys": ["query"],
         "description": (
             "Connect transactional PostgreSQL data for operational reporting."
         ),
@@ -104,6 +106,7 @@ DATASET_SOURCES = [
         "connection_type": "database",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["connection_name", "query"],
+        "required_config_keys": ["query"],
         "description": (
             "Connect MySQL operational data for analysis and decision support."
         ),
@@ -116,6 +119,7 @@ DATASET_SOURCES = [
         "connection_type": "database",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["connection_name", "query"],
+        "required_config_keys": ["query"],
         "description": (
             "Connect Microsoft SQL Server data for operational reporting."
         ),
@@ -128,6 +132,7 @@ DATASET_SOURCES = [
         "connection_type": "api_key",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["api_key"],
+        "required_config_keys": ["api_key"],
         "description": (
             "Connect your Stripe account with a read-only restricted API key. "
             "No Stripe Connect relationship or account ID is required."
@@ -141,6 +146,7 @@ DATASET_SOURCES = [
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["shop_domain"],
+        "required_config_keys": ["shop_domain"],
         "description": (
             "Connect store orders, products, and customer data."
         ),
@@ -245,6 +251,7 @@ DATASET_SOURCES = [
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["ad_account_id"],
+        "required_config_keys": ["ad_account_id"],
         "description": (
             "Connect Facebook and Instagram campaign performance data."
         ),
@@ -398,6 +405,9 @@ def clone_dataset_source(source):
         ],
         "config_keys": [
             *source["config_keys"],
+        ],
+        "required_config_keys": [
+            *source.get("required_config_keys", []),
         ],
     }
     env_keys = DATASET_SOURCE_ENV_KEYS.get(

@@ -396,6 +396,7 @@ export type DatasetSourceOption = {
   connection_type?: string
   sync_modes?: string[]
   config_keys?: string[]
+  required_config_keys?: string[]
   status: DatasetSourceStatus
   description: string
   availability_note?: string | null
@@ -426,6 +427,9 @@ export type DataSourceConnection = {
   display_name: string
   status: DataSourceConnectionStatus
   has_config: boolean
+  required_config_keys?: string[]
+  configured_config_keys?: string[]
+  missing_config_keys?: string[]
   dataset_id?: number | null
   dataset_file_name?: string | null
   dataset_ids?: number[]

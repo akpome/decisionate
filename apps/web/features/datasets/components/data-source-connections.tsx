@@ -471,9 +471,15 @@ function DataSourceConnectionRow({
         editingConnectionConfig[configKey]?.trim()
       )
     )
-  const hasRequiredInlineOAuthConfig =
-    inlineOAuthConfigKeys.length === 0 ||
-    connection.has_config
+  const requiredConnectionConfigKeys =
+    connection.required_config_keys ??
+    source?.required_config_keys ??
+    []
+  const hasRequiredConnectionConfig =
+    requiredConnectionConfigKeys.length === 0 ||
+    (Array.isArray(connection.missing_config_keys)
+      ? connection.missing_config_keys.length === 0
+      : connection.has_config)
   const canSyncConnector =
     [
       "google_analytics",
@@ -495,7 +501,7 @@ function DataSourceConnectionRow({
     ) &&
     source?.status === "available" &&
     stripeKeyConfigured &&
-    hasRequiredInlineOAuthConfig &&
+    hasRequiredConnectionConfig &&
     (source?.connection_type !== "oauth" ||
       connection.status === "connected") &&
     (!hasResourceSelection ||
@@ -711,8 +717,9 @@ function DataSourceConnectionRow({
             </p>
           )}
 
-        {inlineOAuthConfigKeys.length > 0 &&
-          !connection.has_config && (
+        {requiredConnectionConfigKeys.length > 0 &&
+          !hasRequiredConnectionConfig &&
+          connection.source_type !== "stripe" && (
             <p className="mt-1 break-words text-xs text-amber-700">
               Enter and save the required connection settings before syncing.
             </p>

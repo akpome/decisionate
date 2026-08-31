@@ -29,6 +29,8 @@ from app.modules.datasets.router import (
     generate_share_token,
     get_dataset_upload_dir,
     has_source_connection_config,
+    get_source_connection_config_status,
+    require_source_connection_sync_config,
     remove_dataset_preference_entry,
     remove_dataset_file,
     sanitize_source_connection_config,
@@ -47,6 +49,7 @@ from app.modules.datasets.services.sources import (
     list_dataset_sources,
     normalize_dataset_source_type,
 )
+from app.modules.datasets.services.connectors import ConnectorUnavailable
 from app.modules.datasets.services.file_loader import (
     build_upload_source_config,
     get_dataset_file_type,
@@ -1588,6 +1591,38 @@ class DatasetSharingTests(unittest.TestCase):
         self.assertNotIn(
             "connection_config",
             response,
+        )
+
+    def test_required_connection_config_status_exposes_only_safe_field_names(self):
+        source = get_dataset_source("stripe")
+
+        self.assertEqual(
+            get_source_connection_config_status(
+                source,
+                {"_stripe_api_key_encrypted": "ciphertext"},
+            ),
+            (["api_key"], ["api_key"], []),
+        )
+        self.assertEqual(
+            get_source_connection_config_status(
+                get_dataset_source("postgresql"),
+                {"query": "SELECT 1"},
+            ),
+            (["query"], ["query"], []),
+        )
+
+    def test_sync_requires_customer_configuration_before_loading(self):
+        connection = SimpleNamespace(
+            source_type="stripe",
+            connection_config=None,
+        )
+
+        with self.assertRaises(ConnectorUnavailable) as context:
+            require_source_connection_sync_config(connection)
+
+        self.assertEqual(
+            str(context.exception),
+            "Configure and save the customer-provided API key before syncing",
         )
 
     def test_has_source_connection_config_ignores_blank_values(self):

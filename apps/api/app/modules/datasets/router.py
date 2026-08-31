@@ -821,6 +821,12 @@ def build_source_connection_response(
         has_config = bool(
             parsed_config.get(STRIPE_ENCRYPTED_API_KEY_CONFIG)
         )
+    required_config_keys, configured_config_keys, missing_config_keys = (
+        get_source_connection_config_status(
+            source,
+            parsed_config,
+        )
+    )
 
     return {
         "id": connection.id,
@@ -851,6 +857,9 @@ def build_source_connection_response(
         "display_name": connection.display_name,
         "status": connection.status,
         "has_config": has_config,
+        "required_config_keys": required_config_keys,
+        "configured_config_keys": configured_config_keys,
+        "missing_config_keys": missing_config_keys,
         "dataset_id": (
             dataset_records[0].id
             if dataset_records
@@ -965,6 +974,72 @@ def has_config_value(
         )
 
     return True
+
+
+def get_source_connection_config_status(
+    source,
+    parsed_config,
+):
+    required_config_keys = [
+        str(key).strip()
+        for key in (source or {}).get(
+            "required_config_keys",
+            [],
+        )
+        if str(key).strip()
+    ]
+    configured_config_keys = []
+
+    for config_key in required_config_keys:
+        configured_value = parsed_config.get(config_key)
+        if (
+            source
+            and source.get("type") == "stripe"
+            and config_key == "api_key"
+        ):
+            configured_value = parsed_config.get(
+                STRIPE_ENCRYPTED_API_KEY_CONFIG
+            )
+        if has_config_value(configured_value):
+            configured_config_keys.append(config_key)
+
+    missing_config_keys = [
+        key
+        for key in required_config_keys
+        if key not in configured_config_keys
+    ]
+    return (
+        required_config_keys,
+        configured_config_keys,
+        missing_config_keys,
+    )
+
+
+def require_source_connection_sync_config(connection):
+    source = get_dataset_source(connection.source_type)
+    _, _, missing_config_keys = get_source_connection_config_status(
+        source,
+        parse_source_connection_config(connection.connection_config),
+    )
+    if not missing_config_keys:
+        return
+
+    field_labels = {
+        "api_key": "the customer-provided API key",
+        "property_id": "the GA4 property ID",
+        "shop_domain": "the Shopify shop domain",
+        "ad_account_id": "the Meta Ads account ID",
+        "query": "a read-only SQL query",
+    }
+    missing_labels = [
+        field_labels.get(key, key)
+        for key in missing_config_keys
+    ]
+    raise ConnectorUnavailable(
+        "Configure and save "
+        + ", ".join(missing_labels)
+        + " before syncing"
+    )
 
 
 def parse_source_connection_config(
@@ -4349,6 +4424,8 @@ def run_data_source_sync(
     connection,
     payload: DataSourceConnectionSync,
 ):
+    require_source_connection_sync_config(connection)
+
     if connection.source_type == "google_analytics":
         return [run_google_analytics_sync(db, connection, payload)]
 
