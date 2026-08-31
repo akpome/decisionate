@@ -707,62 +707,6 @@ function DataSourceConnectionRow({
             </p>
           )}
 
-        {inlineOAuthConfigKeys.length > 0 &&
-          !sourceIsPlanned && (
-            <div className="mt-4 max-w-2xl rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
-              <ConnectionConfigFieldGroup
-                title="Connection settings"
-                configKeys={inlineOAuthConfigKeys}
-                sourceType={connection.source_type}
-                editingConnectionConfig={
-                  editingConnectionConfig
-                }
-                hasSavedConfig={
-                  connection.has_config
-                }
-                setEditingConnectionConfig={
-                  setEditingConnectionConfig
-                }
-              />
-
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                <button
-                  type="button"
-                  onClick={() =>
-                    saveConfiguration(connection)
-                  }
-                  disabled={
-                    updatingConnectionId ===
-                      connection.id ||
-                    !hasEditedInlineOAuthConfig
-                  }
-                  className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                >
-                  {updatingConnectionId ===
-                  connection.id
-                    ? "Saving..."
-                    : "Save settings"}
-                </button>
-
-                {connection.has_config && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      clearConfiguration(connection)
-                    }
-                    disabled={
-                      updatingConnectionId ===
-                      connection.id
-                    }
-                    className="w-full rounded-lg border border-red-100 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                  >
-                    Clear saved settings
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
         {isConfiguring && (
           <div className="mt-4 max-w-2xl rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
@@ -1174,6 +1118,70 @@ function DataSourceConnectionRow({
         </div>
       )}
 
+      {inlineOAuthConfigKeys.length > 0 &&
+        !sourceIsPlanned && (
+          <div className="h-full min-w-0 lg:col-start-2 lg:row-start-2">
+            <div className="h-full rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
+              <ConnectionConfigFieldGroup
+                title="Connection settings"
+                configKeys={inlineOAuthConfigKeys}
+                sourceType={connection.source_type}
+                editingConnectionConfig={
+                  editingConnectionConfig
+                }
+                hasSavedConfig={
+                  connection.has_config
+                }
+                setEditingConnectionConfig={
+                  setEditingConnectionConfig
+                }
+              />
+
+              {connection.source_type === "meta_ads" && (
+                <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
+                  A Meta Ads account ID is required to create a usable connection and sync data.
+                </p>
+              )}
+
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <button
+                  type="button"
+                  onClick={() =>
+                    saveConfiguration(connection)
+                  }
+                  disabled={
+                    updatingConnectionId ===
+                      connection.id ||
+                    !hasEditedInlineOAuthConfig
+                  }
+                  className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  {updatingConnectionId ===
+                  connection.id
+                    ? "Saving..."
+                    : "Save settings"}
+                </button>
+
+                {connection.has_config && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      clearConfiguration(connection)
+                    }
+                    disabled={
+                      updatingConnectionId ===
+                      connection.id
+                    }
+                    className="w-full rounded-lg border border-red-100 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  >
+                    Clear saved settings
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
       {hasResourceSelection &&
         resourceOptions.length > 0 && (
           <div className="h-full min-w-0 lg:col-start-2 lg:row-start-2">
@@ -1506,7 +1514,7 @@ const CONNECTION_FIELD_GUIDES: Record<
   },
   meta_ads: {
     ad_account_id: {
-      description: "The Meta advertising account ID. The act_ prefix is accepted or added.",
+      description: "Required to create a usable Meta Ads connection and sync data. The act_ prefix is accepted or added.",
       example: "act_123456789012345",
     },
   },
