@@ -460,17 +460,19 @@ function DataSourceConnectionRow({
             configKey !== "resource_types"
         ) &&
         !sourceIsPlanned &&
-        source?.connection_type !== "oauth"
+        source?.connection_type !== "oauth" &&
+        source?.connection_type !== "api_key"
     )
-  const inlineOAuthConfigKeys =
-    source?.connection_type === "oauth"
+  const inlineConnectionConfigKeys =
+    source?.connection_type === "oauth" ||
+    source?.connection_type === "api_key"
       ? editableConfigKeys.filter(
           (configKey) =>
             configKey !== "resource_types"
         )
       : []
-  const hasEditedInlineOAuthConfig =
-    inlineOAuthConfigKeys.some((configKey) =>
+  const hasEditedInlineConnectionConfig =
+    inlineConnectionConfigKeys.some((configKey) =>
       Boolean(
         editingConnectionConfig[configKey]?.trim()
       )
@@ -484,7 +486,7 @@ function DataSourceConnectionRow({
     (Array.isArray(connection.missing_config_keys)
       ? connection.missing_config_keys.length === 0
       : connection.has_config)
-  const [showInlineOAuthConfig, setShowInlineOAuthConfig] =
+  const [showInlineConnectionConfig, setShowInlineConnectionConfig] =
     useState(false)
   const canSyncConnector =
     [
@@ -1006,13 +1008,13 @@ function DataSourceConnectionRow({
                 </button>
               )}
 
-              {inlineOAuthConfigKeys.length > 0 &&
+              {inlineConnectionConfigKeys.length > 0 &&
                 !sourceIsPlanned &&
                 hasRequiredConnectionConfig && (
                   <button
                     type="button"
                     onClick={() =>
-                      setShowInlineOAuthConfig(
+                      setShowInlineConnectionConfig(
                         (visible) => !visible
                       )
                     }
@@ -1022,7 +1024,7 @@ function DataSourceConnectionRow({
                     }
                     className="w-full rounded-lg border px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
-                    {showInlineOAuthConfig
+                    {showInlineConnectionConfig
                       ? "Hide settings"
                       : "Show settings"}
                   </button>
@@ -1170,15 +1172,15 @@ function DataSourceConnectionRow({
         </div>
       )}
 
-      {inlineOAuthConfigKeys.length > 0 &&
+      {inlineConnectionConfigKeys.length > 0 &&
         !sourceIsPlanned &&
         (!hasRequiredConnectionConfig ||
-          showInlineOAuthConfig) && (
+          showInlineConnectionConfig) && (
           <div className="h-full min-w-0 lg:col-start-2 lg:row-start-2">
             <div className="h-full rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
               <ConnectionConfigFieldGroup
                 title="Connection settings"
-                configKeys={inlineOAuthConfigKeys}
+                configKeys={inlineConnectionConfigKeys}
                 sourceType={connection.source_type}
                 editingConnectionConfig={
                   editingConnectionConfig
@@ -1189,6 +1191,7 @@ function DataSourceConnectionRow({
                 setEditingConnectionConfig={
                   setEditingConnectionConfig
                 }
+                secret={connection.source_type === "stripe"}
               />
 
               {connection.source_type === "meta_ads" && (
@@ -1206,12 +1209,12 @@ function DataSourceConnectionRow({
                   type="button"
                   onClick={() => {
                     saveConfiguration(connection)
-                    setShowInlineOAuthConfig(false)
+                    setShowInlineConnectionConfig(false)
                   }}
                   disabled={
                     updatingConnectionId ===
                       connection.id ||
-                    !hasEditedInlineOAuthConfig
+                      !hasEditedInlineConnectionConfig
                   }
                   className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
@@ -1226,7 +1229,7 @@ function DataSourceConnectionRow({
                     type="button"
                     onClick={() => {
                       clearConfiguration(connection)
-                      setShowInlineOAuthConfig(false)
+                      setShowInlineConnectionConfig(false)
                     }}
                     disabled={
                       updatingConnectionId ===
