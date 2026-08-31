@@ -719,7 +719,7 @@ function DataSourceConnectionRow({
         {connection.source_type === "stripe" &&
           !connection.has_config && (
             <p className="mt-1 break-words text-xs text-amber-700">
-              Enter and save the customer&apos;s read-only Stripe restricted API key before syncing.
+              Enter and save the customer&apos;s read-only Stripe restricted API key before syncing. Without it, no Stripe data will be ingested.
             </p>
           )}
 
@@ -727,7 +727,7 @@ function DataSourceConnectionRow({
           !hasRequiredConnectionConfig &&
           connection.source_type !== "stripe" && (
             <p className="mt-1 break-words text-xs text-amber-700">
-              Enter and save the required connection settings before syncing.
+              Enter and save the required connection settings before syncing. Without them, no data will be ingested.
             </p>
           )}
 
@@ -737,6 +737,10 @@ function DataSourceConnectionRow({
               {hasResourceSelection
                 ? `${source?.label ?? "Connection"} objects to ingest`
                 : "Configure connection settings"}
+            </p>
+
+            <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
+              Required settings must be saved before data can be ingested. Without them, this connection will ingest no data.
             </p>
 
             {configKeys.filter(
@@ -1192,6 +1196,10 @@ function DataSourceConnectionRow({
                   A Meta Ads account ID is required to create a usable connection and sync data.
                 </p>
               )}
+
+              <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
+                Save the required setting before data can be ingested. Without it, this connection will ingest no data.
+              </p>
 
               <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <button
