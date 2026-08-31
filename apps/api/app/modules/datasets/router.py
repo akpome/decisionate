@@ -159,6 +159,7 @@ from app.modules.datasets.services.connectors import (
     ConnectorUnavailable,
     STRIPE_ENCRYPTED_API_KEY_CONFIG,
     load_connector_dataframe,
+    normalize_hubspot_resource_types,
     normalize_quickbooks_resource_type,
     normalize_quickbooks_resource_types,
     normalize_freshbooks_resource_types,
@@ -774,7 +775,13 @@ def build_source_connection_response(
         else ([dataset] if dataset else [])
     )
     configured_resource_types = []
-    if source_type == "freshbooks" and has_source_connection_config(
+    if source_type == "hubspot" and has_source_connection_config(
+        connection.connection_config
+    ):
+        configured_resource_types = normalize_hubspot_resource_types(
+            parsed_config
+        )
+    elif source_type == "freshbooks" and has_source_connection_config(
         connection.connection_config
     ):
         configured_resource_types = normalize_freshbooks_resource_types(
@@ -3712,6 +3719,58 @@ def run_quickbooks_sync(
     return results
 
 
+def run_hubspot_sync(
+    db,
+    connection,
+    payload: DataSourceConnectionSync,
+):
+    connection_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    resource_types = normalize_hubspot_resource_types(
+        connection_config
+    )
+    start_date, end_date = get_incremental_sync_window(
+        connection,
+        payload,
+    )
+    results = []
+    empty_resources = []
+    for resource_type in resource_types:
+        dataframe, report_config = load_connector_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            hubspot_resource_type=resource_type,
+        )
+        try:
+            results.append(
+                persist_connector_dataframe(
+                    db,
+                    connection,
+                    dataframe,
+                    report_config,
+                )
+            )
+        except ConnectorNoData:
+            empty_resources.append(resource_type)
+
+    if not results:
+        empty_resource_label = ", ".join(empty_resources) or "selected objects"
+        period = (
+            f" from {start_date} through {end_date}"
+            if start_date and end_date
+            else " for the selected sync period"
+        )
+        raise ConnectorNoData(
+            "HubSpot returned no records for "
+            f"{empty_resource_label}{period}. Verify that the connected "
+            "account contains data in this range."
+        )
+    return results
+
+
 def run_freshbooks_sync(
     db,
     connection,
@@ -4218,6 +4277,9 @@ def run_data_source_sync(
 ):
     if connection.source_type == "google_analytics":
         return [run_google_analytics_sync(db, connection, payload)]
+
+    if connection.source_type == "hubspot":
+        return run_hubspot_sync(db, connection, payload)
 
     if connection.source_type == "quickbooks":
         return run_quickbooks_sync(db, connection, payload)

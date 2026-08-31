@@ -126,7 +126,8 @@ export function DataSourceConnections({
       connection.source_type === "freshbooks" ||
       connection.source_type === "quickbooks" ||
       connection.source_type === "xero" ||
-      connection.source_type === "zoho_books"
+      connection.source_type === "zoho_books" ||
+      connection.source_type === "hubspot"
     ) {
       emptyConfig.resource_types = (
         connection.configured_resource_types ?? []
@@ -428,6 +429,8 @@ function DataSourceConnectionRow({
     getExternalCredentialLabel(source)
   const sourceIsPlanned =
     source?.status === "planned"
+  const isHubSpot =
+    connection.source_type === "hubspot"
   const stripeKeyConfigured =
     connection.source_type !== "stripe" ||
     connection.has_config
@@ -460,6 +463,8 @@ function DataSourceConnectionRow({
     stripeKeyConfigured &&
     (source?.connection_type !== "oauth" ||
       connection.status === "connected") &&
+    (!isHubSpot ||
+      (connection.configured_resource_types?.length ?? 0) > 0) &&
     Boolean(onSyncConnection)
   const canStartOAuth =
     source?.connection_type === "oauth" &&
@@ -602,7 +607,11 @@ function DataSourceConnectionRow({
         )}
 
         <p className="mt-2 text-xs font-medium uppercase text-gray-400">
-          {connection.source_type === "quickbooks"
+          {isHubSpot
+            ? connection.configured_resource_types?.length
+              ? "Objects selected"
+              : "No objects selected"
+            : connection.source_type === "quickbooks"
             ? connection.status === "connected"
               ? "OAuth configured"
               : "OAuth not configured"
@@ -642,7 +651,9 @@ function DataSourceConnectionRow({
         {isConfiguring && (
           <div className="mt-4 max-w-2xl rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
-              Configure connection settings
+              {isHubSpot
+                ? "HubSpot objects to ingest"
+                : "Configure connection settings"}
             </p>
 
             {configKeys.length > 0 && (
@@ -992,7 +1003,9 @@ function DataSourceConnectionRow({
                 >
                   {isConfiguring
                     ? "Close"
-                    : "Configure"}
+                    : isHubSpot
+                      ? "Select objects"
+                      : "Configure"}
                 </button>
               )}
 
@@ -1096,6 +1109,13 @@ const ZOHO_BOOKS_RESOURCE_OPTIONS = [
   { value: "items", label: "Items / products and services" },
 ]
 
+const HUBSPOT_RESOURCE_OPTIONS = [
+  { value: "contacts", label: "Contacts" },
+  { value: "companies", label: "Companies" },
+  { value: "deals", label: "Deals" },
+  { value: "tickets", label: "Tickets" },
+]
+
 const CONNECTION_FIELD_GUIDES: Record<
   string,
   Record<string, ConnectionFieldGuide>
@@ -1173,13 +1193,9 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   hubspot: {
-    object_type: {
-      description: "The HubSpot CRM object to retrieve.",
-      example: "deals",
-    },
-    properties: {
-      description: "Optional comma-separated HubSpot property names to request.",
-      example: "amount,dealstage,closedate",
+    resource_types: {
+      description: "Select one or more HubSpot CRM objects. Each selected object is stored as its own dataset after OAuth authorization.",
+      example: "Contacts, Deals",
     },
   },
   salesforce: {
@@ -1271,7 +1287,9 @@ export function ConnectionSetupGuide({
 
         {source.connection_type === "oauth" && (
           <p className="rounded-md bg-blue-50 px-2 py-2 leading-4 text-blue-800">
-            Save the connection fields first, then use Connect with OAuth to authorize the provider account.
+            {source.type === "hubspot"
+              ? "Use Connect with OAuth to authorize the provider account, then select the HubSpot objects to ingest."
+              : "Save the connection fields first, then use Connect with OAuth to authorize the provider account."}
           </p>
         )}
 
@@ -1551,6 +1569,53 @@ function ConnectionConfigField({
                   }
                   onChange(
                     ZOHO_BOOKS_RESOURCE_OPTIONS
+                      .map((item) => item.value)
+                      .filter((item) => nextResources.has(item))
+                      .join(",")
+                  )
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-2 normal-case tracking-normal text-gray-500">
+          Each checked object creates or updates a separate dataset.
+        </p>
+      </fieldset>
+    )
+  }
+
+  if (sourceType === "hubspot" && configKey === "resource_types") {
+    const selectedResources = new Set(
+      value
+        .split(",")
+        .map((resource) => resource.trim())
+        .filter(Boolean)
+    )
+
+    return (
+      <fieldset className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
+        <legend>HubSpot objects to ingest</legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {HUBSPOT_RESOURCE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 normal-case tracking-normal text-gray-700"
+            >
+              <input
+                type="checkbox"
+                checked={selectedResources.has(option.value)}
+                onChange={(event) => {
+                  const nextResources = new Set(selectedResources)
+                  if (event.target.checked) {
+                    nextResources.add(option.value)
+                  } else {
+                    nextResources.delete(option.value)
+                  }
+                  onChange(
+                    HUBSPOT_RESOURCE_OPTIONS
                       .map((item) => item.value)
                       .filter((item) => nextResources.has(item))
                       .join(",")

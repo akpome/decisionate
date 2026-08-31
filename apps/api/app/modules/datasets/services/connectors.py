@@ -48,6 +48,55 @@ FRESHBOOKS_RESOURCE_TYPES = {
     *FRESHBOOKS_RESOURCE_PATHS,
 }
 
+HUBSPOT_RESOURCE_TYPES = {
+    "contacts",
+    "companies",
+    "deals",
+    "tickets",
+}
+
+
+def normalize_hubspot_resource_type(value) -> str:
+    resource_type = str(value or "").strip().lower()
+    if resource_type not in HUBSPOT_RESOURCE_TYPES:
+        raise ConnectorUnavailable(
+            "HubSpot resource_types contains an unsupported object: "
+            f"{value}"
+        )
+    return resource_type
+
+
+def normalize_hubspot_resource_types(config: dict) -> list[str]:
+    """Return selected HubSpot CRM objects in stable user order.
+
+    ``object_type`` remains a compatibility fallback for connections created
+    before the object checklist was introduced.
+    """
+    configured = config.get("resource_types")
+    if configured is None or configured == "":
+        configured = config.get("object_type")
+
+    if isinstance(configured, list):
+        values = configured
+    elif isinstance(configured, str):
+        values = configured.split(",")
+    else:
+        values = []
+
+    resources = []
+    for value in values:
+        if not str(value or "").strip():
+            continue
+        resource_type = normalize_hubspot_resource_type(value)
+        if resource_type not in resources:
+            resources.append(resource_type)
+
+    if not resources:
+        raise ConnectorUnavailable(
+            "Select at least one HubSpot object before syncing"
+        )
+    return resources
+
 
 def normalize_freshbooks_resource_types(config: dict) -> list[str]:
     """Return the selected FreshBooks resources in stable user order."""
@@ -435,6 +484,7 @@ def load_connector_dataframe(
     freshbooks_resource_type: str | None = None,
     xero_resource_type: str | None = None,
     zoho_books_resource_type: str | None = None,
+    hubspot_resource_type: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     if connection.source_type == "hubspot":
         return load_hubspot_dataframe(
@@ -442,6 +492,7 @@ def load_connector_dataframe(
             connection,
             start_date,
             end_date,
+            hubspot_resource_type,
         )
     if connection.source_type == "salesforce":
         return load_salesforce_dataframe(
@@ -525,13 +576,13 @@ def load_hubspot_dataframe(
     connection: DataSourceConnection,
     start_date=None,
     end_date=None,
+    resource_type_override: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
-    object_type = str(config.get("object_type") or "deals").strip().lower()
-    if object_type not in {"contacts", "companies", "deals", "tickets"}:
-        raise ConnectorUnavailable(
-            "HubSpot object_type must be contacts, companies, deals, or tickets"
-        )
+    object_type = normalize_hubspot_resource_type(
+        resource_type_override
+        or normalize_hubspot_resource_types(config)[0]
+    )
 
     access_token = get_oauth_access_token(db, connection, "hubspot")
     configured_properties = config.get("properties")

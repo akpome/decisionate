@@ -218,9 +218,10 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["object_type", "properties"],
+        "config_keys": ["resource_types"],
         "description": (
-            "Connect contacts, companies, deals, and sales pipeline data."
+            "Choose one or more HubSpot CRM objects to ingest through OAuth. "
+            "Each selected object is stored as its own dataset."
         ),
     },
     {

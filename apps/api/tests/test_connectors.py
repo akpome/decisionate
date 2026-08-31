@@ -220,6 +220,20 @@ class ConnectorSmokeTests(unittest.TestCase):
             ["invoices", "customers", "sales_receipts"],
         )
 
+    def test_hubspot_resource_selection_accepts_multiple_objects(self):
+        self.assertEqual(
+            connectors.normalize_hubspot_resource_types({
+                "resource_types": "contacts, deals, contacts, tickets",
+            }),
+            ["contacts", "deals", "tickets"],
+        )
+        self.assertEqual(
+            connectors.normalize_hubspot_resource_types({
+                "object_type": "companies",
+            }),
+            ["companies"],
+        )
+
     def test_quickbooks_resource_selections_load_supported_entities(self):
         def json_request(url, headers):
             query = parse_qs(urlsplit(url).query)["query"][0]
