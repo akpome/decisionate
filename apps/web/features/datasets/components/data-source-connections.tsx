@@ -490,7 +490,7 @@ function DataSourceConnectionRow({
       ? connection.missing_config_keys.length === 0
       : connection.has_config)
   const [showInlineConnectionConfig, setShowInlineConnectionConfig] =
-    useState(false)
+    useState(!hasRequiredConnectionConfig)
   const canSyncConnector =
     [
       "google_analytics",
@@ -1012,8 +1012,7 @@ function DataSourceConnectionRow({
               )}
 
               {inlineConnectionConfigKeys.length > 0 &&
-                !sourceIsPlanned &&
-                hasRequiredConnectionConfig && (
+                !sourceIsPlanned && (
                   <button
                     type="button"
                     onClick={() =>
@@ -1186,8 +1185,7 @@ function DataSourceConnectionRow({
 
       {inlineConnectionConfigKeys.length > 0 &&
         !sourceIsPlanned &&
-        (!hasRequiredConnectionConfig ||
-          showInlineConnectionConfig) && (
+        showInlineConnectionConfig && (
           <div
             id={`connection-settings-${connection.id}`}
             className="h-full min-w-0 lg:col-start-2 lg:row-start-2"
