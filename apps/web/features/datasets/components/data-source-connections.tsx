@@ -127,6 +127,10 @@ export function DataSourceConnections({
         connection.configured_resource_types ?? []
       ).join(",")
     }
+    if (hasObjectTypeSelection(source)) {
+      emptyConfig.object_type =
+        connection.configured_object_type ?? ""
+    }
 
     setConfiguringConnectionId(
       connection.id
@@ -427,6 +431,9 @@ function DataSourceConnectionRow({
     hasResourceTypeSelection(source)
   const hasObjectSelection =
     hasObjectTypeSelection(source)
+  const hasConfiguredObject =
+    !hasObjectSelection ||
+    Boolean(connection.configured_object_type)
   const stripeKeyConfigured =
     connection.source_type !== "stripe" ||
     connection.has_config
@@ -461,6 +468,7 @@ function DataSourceConnectionRow({
       connection.status === "connected") &&
     (!hasResourceSelection ||
       (connection.configured_resource_types?.length ?? 0) > 0) &&
+    hasConfiguredObject &&
     Boolean(onSyncConnection)
   const canStartOAuth =
     source?.connection_type === "oauth" &&
@@ -607,6 +615,10 @@ function DataSourceConnectionRow({
             ? connection.configured_resource_types?.length
               ? "Objects selected"
               : "No objects selected"
+            : hasObjectSelection
+              ? connection.configured_object_type
+                ? `Object selected: ${connection.configured_object_type}`
+                : "No object selected"
             : connection.source_type === "quickbooks"
             ? connection.status === "connected"
               ? "OAuth configured"

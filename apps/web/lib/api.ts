@@ -431,6 +431,7 @@ export type DataSourceConnection = {
   dataset_ids?: number[]
   dataset_file_names?: string[]
   configured_resource_types?: string[]
+  configured_object_type?: string | null
   last_synced_at?: string | null
   sync_enabled?: boolean
   sync_interval_hours?: number

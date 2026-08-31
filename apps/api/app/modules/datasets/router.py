@@ -863,6 +863,11 @@ def build_source_connection_response(
             for item in dataset_records
         ],
         "configured_resource_types": configured_resource_types,
+        "configured_object_type": (
+            str(parsed_config.get("object_type") or "").strip()
+            if source_type == "salesforce"
+            else None
+        ),
         "last_synced_at": connection.last_synced_at,
         "sync_enabled": sync_enabled,
         "sync_interval_hours": sync_interval_hours,
