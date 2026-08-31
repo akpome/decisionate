@@ -702,11 +702,11 @@ class DatasetSharingTests(unittest.TestCase):
         self.assertEqual(source["connection_type"], "oauth")
         self.assertEqual(source["config_keys"], ["resource_types"])
 
-    def test_sage_business_id_is_discovered_by_oauth(self):
+    def test_sage_exposes_resource_selector(self):
         source = get_dataset_source("sage")
 
         self.assertEqual(source["connection_type"], "oauth")
-        self.assertEqual(source["config_keys"], [])
+        self.assertEqual(source["config_keys"], ["resource_types"])
 
     def test_freshbooks_exposes_resource_selector(self):
         source = get_dataset_source("freshbooks")

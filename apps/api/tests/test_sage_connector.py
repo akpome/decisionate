@@ -91,6 +91,69 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.iloc[0]["total_amount"], 1200)
         self.assertEqual(report["connector"], "sage")
 
+    def test_sage_resource_selection_uses_documented_endpoint(self):
+        connection = SimpleNamespace(
+            id=8,
+            source_type="sage",
+            connection_config=json.dumps(
+                {
+                    "business_id": "business-1",
+                    "resource_types": ["contacts", "ledger_accounts"],
+                }
+            ),
+        )
+
+        def fake_request(url, headers):
+            self.assertIn("/contacts?", url)
+            self.assertIn("items_per_page=100", url)
+            self.assertIn("page=1", url)
+            self.assertEqual(headers["X-Site"], "business-1")
+            return {
+                "$items": [{
+                    "id": "contact-1",
+                    "displayed_as": "Acme Ltd",
+                    "email": "finance@example.com",
+                }],
+                "$next": None,
+            }
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_API_SUBSCRIPTION_KEY": "subscription-key",
+                "SAGE_API_BASE_URL": "https://api.example/sage",
+                "SAGE_BUSINESS_HEADER": "X-Site",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="sage-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=fake_request,
+        ):
+            dataframe, report = connectors.load_sage_dataframe(
+                None,
+                connection,
+                resource_type_override="contacts",
+            )
+
+        self.assertEqual(len(dataframe), 1)
+        self.assertEqual(dataframe.iloc[0]["contact_id"], "contact-1")
+        self.assertEqual(dataframe.iloc[0]["contact_name"], "Acme Ltd")
+        self.assertEqual(report["resource"], "contacts")
+
+    def test_sage_requires_at_least_one_supported_resource(self):
+        with self.assertRaises(connectors.ConnectorUnavailable):
+            connectors.normalize_sage_resource_types({"resource_types": []})
+
+        self.assertEqual(
+            connectors.normalize_sage_resource_types({}),
+            ["sales_invoices"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

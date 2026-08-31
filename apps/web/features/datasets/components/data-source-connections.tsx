@@ -1342,6 +1342,21 @@ const ZOHO_BOOKS_RESOURCE_OPTIONS = [
   { value: "items", label: "Items / products and services" },
 ]
 
+const SAGE_RESOURCE_OPTIONS = [
+  { value: "sales_invoices", label: "Sales invoices" },
+  { value: "purchase_invoices", label: "Purchase invoices" },
+  { value: "sales_credit_notes", label: "Sales credit notes" },
+  { value: "purchase_credit_notes", label: "Purchase credit notes" },
+  { value: "contacts", label: "Contacts" },
+  { value: "ledger_accounts", label: "Ledger accounts" },
+  { value: "products", label: "Products" },
+  { value: "services", label: "Services" },
+  { value: "bank_accounts", label: "Bank accounts" },
+  { value: "payments", label: "Contact payments" },
+  { value: "other_payments", label: "Other payments" },
+  { value: "journals", label: "Journals" },
+]
+
 const HUBSPOT_RESOURCE_OPTIONS = [
   { value: "contacts", label: "Contacts" },
   { value: "companies", label: "Companies" },
@@ -1372,6 +1387,8 @@ function getResourceSelectionOptions(
       return XERO_RESOURCE_OPTIONS
     case "zoho_books":
       return ZOHO_BOOKS_RESOURCE_OPTIONS
+    case "sage":
+      return SAGE_RESOURCE_OPTIONS
     case "hubspot":
       return HUBSPOT_RESOURCE_OPTIONS
     case "salesforce":
@@ -1394,6 +1411,8 @@ function getDefaultResourceTypes(
     case "xero":
     case "zoho_books":
       return ["invoices"]
+    case "sage":
+      return ["sales_invoices"]
     default:
       return []
   }
@@ -1411,6 +1430,8 @@ function getResourceSelectionTitle(
       return "Xero objects to ingest"
     case "zoho_books":
       return "Zoho Books objects to ingest"
+    case "sage":
+      return "Sage Cloud Accounting objects to ingest"
     case "hubspot":
       return "HubSpot objects to ingest"
     case "salesforce":
@@ -1583,6 +1604,12 @@ const CONNECTION_FIELD_GUIDES: Record<
     resource_types: {
       description: "Select one or more Xero resources. Each selected resource is stored as its own dataset after OAuth authorization.",
       example: "Invoices, Contacts",
+    },
+  },
+  sage: {
+    resource_types: {
+      description: "Select one or more Sage Cloud Accounting objects. Each selected object is stored as its own dataset after OAuth authorization.",
+      example: "Sales invoices, Contacts, Ledger accounts",
     },
   },
   hubspot: {
@@ -2009,6 +2036,54 @@ function ConnectionConfigField({
         </div>
         <p className="mt-2 normal-case tracking-normal text-gray-500">
           Each checked object creates or updates a separate dataset.
+        </p>
+      </fieldset>
+    )
+  }
+
+  if (sourceType === "sage" && configKey === "resource_types") {
+    const selectedResources = new Set(
+      value
+        .split(",")
+        .map((resource) => resource.trim())
+        .filter(Boolean)
+    )
+
+    return (
+      <fieldset className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
+        <legend>Sage Cloud Accounting objects to ingest</legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {SAGE_RESOURCE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 normal-case tracking-normal text-gray-700"
+            >
+              <input
+                type="checkbox"
+                checked={selectedResources.has(option.value)}
+                onChange={(event) => {
+                  const nextResources = new Set(selectedResources)
+                  if (event.target.checked) {
+                    nextResources.add(option.value)
+                  } else {
+                    nextResources.delete(option.value)
+                  }
+                  if (!nextResources.size) return
+                  onChange(
+                    SAGE_RESOURCE_OPTIONS
+                      .map((item) => item.value)
+                      .filter((item) => nextResources.has(item))
+                      .join(",")
+                  )
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-2 normal-case tracking-normal text-gray-500">
+          At least one object is required. Each checked object creates or updates a separate dataset.
         </p>
       </fieldset>
     )

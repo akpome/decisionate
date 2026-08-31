@@ -185,9 +185,12 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": [],
+        "config_keys": ["resource_types"],
         "description": (
-            "Connect Sage Cloud Accounting sales invoice data through OAuth. "
+            "Choose one or more Sage Cloud Accounting objects to ingest through "
+            "OAuth: sales invoices, purchase invoices, sales credit notes, "
+            "purchase credit notes, contacts, ledger accounts, products, "
+            "services, bank accounts, payments, other payments, or journals. "
             "The connected business is selected automatically."
         ),
     },
