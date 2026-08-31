@@ -2,7 +2,11 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Database } from "lucide-react"
+import {
+  Database,
+  Eye,
+  EyeOff,
+} from "lucide-react"
 
 import {
   type DataSourceConnection,
@@ -480,6 +484,8 @@ function DataSourceConnectionRow({
     (Array.isArray(connection.missing_config_keys)
       ? connection.missing_config_keys.length === 0
       : connection.has_config)
+  const [showInlineOAuthConfig, setShowInlineOAuthConfig] =
+    useState(false)
   const canSyncConnector =
     [
       "google_analytics",
@@ -989,10 +995,34 @@ function DataSourceConnectionRow({
                   className="w-full rounded-lg border px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {isConfiguring
-                    ? "Close"
-                    : "Configure"}
+                    ? "Hide settings"
+                    : hasRequiredConnectionConfig
+                      ? "Show settings"
+                      : "Configure"}
                 </button>
               )}
+
+              {inlineOAuthConfigKeys.length > 0 &&
+                !sourceIsPlanned &&
+                hasRequiredConnectionConfig && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowInlineOAuthConfig(
+                        (visible) => !visible
+                      )
+                    }
+                    disabled={
+                      updatingConnectionId ===
+                      connection.id
+                    }
+                    className="w-full rounded-lg border px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  >
+                    {showInlineOAuthConfig
+                      ? "Hide settings"
+                      : "Show settings"}
+                  </button>
+                )}
 
               {onRenameConnection && (
                 <button
@@ -1137,7 +1167,9 @@ function DataSourceConnectionRow({
       )}
 
       {inlineOAuthConfigKeys.length > 0 &&
-        !sourceIsPlanned && (
+        !sourceIsPlanned &&
+        (!hasRequiredConnectionConfig ||
+          showInlineOAuthConfig) && (
           <div className="h-full min-w-0 lg:col-start-2 lg:row-start-2">
             <div className="h-full rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
               <ConnectionConfigFieldGroup
@@ -1164,9 +1196,10 @@ function DataSourceConnectionRow({
               <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
                     saveConfiguration(connection)
-                  }
+                    setShowInlineOAuthConfig(false)
+                  }}
                   disabled={
                     updatingConnectionId ===
                       connection.id ||
@@ -1183,9 +1216,10 @@ function DataSourceConnectionRow({
                 {connection.has_config && (
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
                       clearConfiguration(connection)
-                    }
+                      setShowInlineOAuthConfig(false)
+                    }}
                     disabled={
                       updatingConnectionId ===
                       connection.id
@@ -1695,6 +1729,7 @@ function ConnectionConfigField({
   secret?: boolean
   onChange: (value: string) => void
 }) {
+  const [showValue, setShowValue] = useState(false)
   const label =
     formatConnectionConfigKey(configKey)
   const fieldGuide = getConnectionFieldGuide(
@@ -1706,6 +1741,10 @@ function ConnectionConfigField({
     : fieldGuide.example
   const sharedClassName =
     "mt-1 min-w-0 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 text-sm normal-case tracking-normal text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+  const maskValue = secret || hasSavedConfig
+  const valueVisibilityLabel = showValue
+    ? `Hide ${label.toLowerCase()}`
+    : `Show ${label.toLowerCase()}`
 
   if (sourceType === "salesforce" && configKey === "resource_types") {
     const selectedResources = new Set(
@@ -2004,17 +2043,36 @@ function ConnectionConfigField({
           placeholder={placeholder}
         />
       ) : (
-        <input
-          type={secret ? "password" : "text"}
-          value={value}
-          onChange={(event) =>
-            onChange(
-              event.target.value
-            )
-          }
-          className={`${sharedClassName} h-9`}
-          placeholder={placeholder}
-        />
+        <div className="relative mt-1 min-w-0">
+          <input
+            type={maskValue && !showValue ? "password" : "text"}
+            value={value}
+            onChange={(event) =>
+              onChange(
+                event.target.value
+              )
+            }
+            className={`${sharedClassName} mt-0 h-9 ${maskValue ? "pr-10" : ""}`}
+            placeholder={placeholder}
+          />
+          {maskValue && (
+            <button
+              type="button"
+              aria-label={valueVisibilityLabel}
+              aria-pressed={showValue}
+              onClick={() =>
+                setShowValue((visible) => !visible)
+              }
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            >
+              {showValue ? (
+                <EyeOff size={16} />
+              ) : (
+                <Eye size={16} />
+              )}
+            </button>
+          )}
+        </div>
       )}
     </label>
   )
