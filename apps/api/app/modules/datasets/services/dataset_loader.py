@@ -10,6 +10,12 @@ from app.modules.datasets.services.analytics_adapters import (
 from app.modules.datasets.services.metric_selection import (
     filter_dataframe_to_selected_metrics,
 )
+from app.modules.datasets.services.connectors import (
+    normalize_connector_dataframe_dates,
+)
+from app.modules.datasets.services.sources import (
+    IMPLEMENTED_CONNECTOR_TYPES,
+)
 
 
 def load_dataset(
@@ -38,6 +44,10 @@ def load_dataframe_from_dataset(
         dataframe = load_dataset_dataframe(
             dataset
         )
+        if str(dataset.source_type or "").strip().lower() in (
+            IMPLEMENTED_CONNECTOR_TYPES
+        ):
+            dataframe = normalize_connector_dataframe_dates(dataframe)
         if apply_metric_selection:
             return filter_dataframe_to_selected_metrics(
                 dataset,

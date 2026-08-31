@@ -455,10 +455,76 @@ def flatten_connector_record(
     return flattened
 
 
+CONNECTOR_DATE_COLUMN_NAMES = {
+    "closedate",
+    "closed_date",
+    "createdat",
+    "created_at",
+    "createddate",
+    "created_date",
+    "createtime",
+    "create_time",
+    "date",
+    "dateend",
+    "date_end",
+    "datestart",
+    "date_start",
+    "deliverydate",
+    "delivery_date",
+    "duedate",
+    "due_date",
+    "expirydate",
+    "expiry_date",
+    "invoicedate",
+    "invoice_date",
+    "lastmodifiedat",
+    "last_modified_at",
+    "lastmodifieddate",
+    "last_modified_date",
+    "timestamp",
+    "transactiondate",
+    "transaction_date",
+    "updatedat",
+    "updated_at",
+    "updateddate",
+    "updated_date",
+    "updatetime",
+    "update_time",
+}
+
+
+def is_connector_date_column(column) -> bool:
+    """Identify provider date fields without changing their column names."""
+    tokens = re.findall(r"[a-z0-9]+", str(column or "").lower())
+    if not tokens:
+        return False
+
+    normalized_name = "".join(tokens)
+    normalized_with_underscores = "_".join(tokens)
+    leaf_name = tokens[-1]
+    return (
+        normalized_name in CONNECTOR_DATE_COLUMN_NAMES
+        or normalized_with_underscores in CONNECTOR_DATE_COLUMN_NAMES
+        or leaf_name in CONNECTOR_DATE_COLUMN_NAMES
+    )
+
+
 def normalize_connector_date(value):
     """Return canonical connector dates as UTC calendar dates."""
-    if value is None or value == "":
+    if value is None:
         return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        # Provider epoch fields such as Stripe's ``created`` remain numeric;
+        # only date-like strings and datetime values are normalized here.
+        return value
+
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
 
     parsed_value = pd.to_datetime(
         value,
@@ -480,19 +546,41 @@ def build_dynamic_connector_row(
         source_record,
         flatten_lists=flatten_lists,
     )
+    row = {
+        key: (
+            normalize_connector_date(value)
+            if is_connector_date_column(key)
+            else value
+        )
+        for key, value in row.items()
+    }
     for key, value in normalized_fields.items():
         if value is None:
             continue
-        if key in {"created_at", "updated_at"}:
+        if is_connector_date_column(key):
             value = normalize_connector_date(value)
         if key in row and row[key] not in (None, "") and row[key] != value:
-            if key in {"created_at", "updated_at"}:
+            if is_connector_date_column(key):
                 row[key] = value
                 continue
             row[f"decisionate__{key}"] = value
             continue
         row[key] = value
     return row
+
+
+def normalize_connector_dataframe_dates(dataframe: pd.DataFrame):
+    """Normalize date-like columns in persisted connector data for querying."""
+    if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
+        return dataframe
+
+    normalized_dataframe = dataframe.copy()
+    for column in normalized_dataframe.columns:
+        if is_connector_date_column(column):
+            normalized_dataframe[column] = normalized_dataframe[column].map(
+                normalize_connector_date
+            )
+    return normalized_dataframe
 
 
 def load_connector_dataframe(

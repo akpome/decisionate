@@ -51,6 +51,9 @@ class ConnectorSmokeTests(unittest.TestCase):
             {
                 "id": "record-1",
                 "createdAt": "2026-08-30T22:43:09.318Z",
+                "MetaData": {
+                    "CreateTime": "2026-08-30T22:43:09.318Z",
+                },
             },
             {
                 "created_at": "2026-08-30T22:43:09.318Z",
@@ -60,6 +63,26 @@ class ConnectorSmokeTests(unittest.TestCase):
 
         self.assertEqual(row["created_at"], "2026-08-30")
         self.assertEqual(row["updated_at"], "2026-08-30")
+        self.assertEqual(row["createdAt"], "2026-08-30")
+        self.assertEqual(row["MetaData__CreateTime"], "2026-08-30")
+
+    def test_persisted_connector_date_columns_are_normalized_on_read(self):
+        dataframe = pd.DataFrame(
+            [{
+                "createdAt": "2026-08-30T22:43:09.318Z",
+                "MetaData__CreateTime": "2026-08-30T22:43:09.318Z",
+                "created": 1767139200,
+            }]
+        )
+
+        normalized = connectors.normalize_connector_dataframe_dates(dataframe)
+
+        self.assertEqual(normalized.loc[0, "createdAt"], "2026-08-30")
+        self.assertEqual(
+            normalized.loc[0, "MetaData__CreateTime"],
+            "2026-08-30",
+        )
+        self.assertEqual(normalized.loc[0, "created"], 1767139200)
 
     def test_freshbooks_resource_selections_load_documented_resources(self):
         identity_url = "https://api.freshbooks.com/auth/api/v1/users/me"
