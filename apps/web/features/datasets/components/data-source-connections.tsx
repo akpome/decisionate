@@ -122,13 +122,7 @@ export function DataSourceConnections({
           source
         ).map((key) => [key, ""])
       )
-    if (
-      connection.source_type === "freshbooks" ||
-      connection.source_type === "quickbooks" ||
-      connection.source_type === "xero" ||
-      connection.source_type === "zoho_books" ||
-      connection.source_type === "hubspot"
-    ) {
+    if (hasResourceTypeSelection(source)) {
       emptyConfig.resource_types = (
         connection.configured_resource_types ?? []
       ).join(",")
@@ -429,8 +423,10 @@ function DataSourceConnectionRow({
     getExternalCredentialLabel(source)
   const sourceIsPlanned =
     source?.status === "planned"
-  const isHubSpot =
-    connection.source_type === "hubspot"
+  const hasResourceSelection =
+    hasResourceTypeSelection(source)
+  const hasObjectSelection =
+    hasObjectTypeSelection(source)
   const stripeKeyConfigured =
     connection.source_type !== "stripe" ||
     connection.has_config
@@ -463,7 +459,7 @@ function DataSourceConnectionRow({
     stripeKeyConfigured &&
     (source?.connection_type !== "oauth" ||
       connection.status === "connected") &&
-    (!isHubSpot ||
+    (!hasResourceSelection ||
       (connection.configured_resource_types?.length ?? 0) > 0) &&
     Boolean(onSyncConnection)
   const canStartOAuth =
@@ -607,7 +603,7 @@ function DataSourceConnectionRow({
         )}
 
         <p className="mt-2 text-xs font-medium uppercase text-gray-400">
-          {isHubSpot
+          {hasResourceSelection
             ? connection.configured_resource_types?.length
               ? "Objects selected"
               : "No objects selected"
@@ -651,8 +647,8 @@ function DataSourceConnectionRow({
         {isConfiguring && (
           <div className="mt-4 max-w-2xl rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
-              {isHubSpot
-                ? "HubSpot objects to ingest"
+              {hasResourceSelection
+                ? `${source?.label ?? "Connection"} objects to ingest`
                 : "Configure connection settings"}
             </p>
 
@@ -1003,8 +999,10 @@ function DataSourceConnectionRow({
                 >
                   {isConfiguring
                     ? "Close"
-                    : isHubSpot
+                    : hasResourceSelection
                       ? "Select objects"
+                      : hasObjectSelection
+                        ? "Select object"
                       : "Configure"}
                 </button>
               )}
@@ -1287,8 +1285,8 @@ export function ConnectionSetupGuide({
 
         {source.connection_type === "oauth" && (
           <p className="rounded-md bg-blue-50 px-2 py-2 leading-4 text-blue-800">
-            {source.type === "hubspot"
-              ? "Use Connect with OAuth to authorize the provider account, then select the HubSpot objects to ingest."
+            {hasResourceTypeSelection(source)
+              ? `Use Connect with OAuth to authorize the provider account, then select the ${source.label} objects to ingest.`
               : "Save the connection fields first, then use Connect with OAuth to authorize the provider account."}
           </p>
         )}
@@ -1737,6 +1735,18 @@ function getEditableConnectionConfigKeys(
   source?: DatasetSourceOption
 ) {
   return [...(source?.config_keys ?? [])]
+}
+
+function hasResourceTypeSelection(
+  source?: DatasetSourceOption
+) {
+  return source?.config_keys?.includes("resource_types") === true
+}
+
+function hasObjectTypeSelection(
+  source?: DatasetSourceOption
+) {
+  return source?.config_keys?.includes("object_type") === true
 }
 
 function getExternalCredentialLabel(
