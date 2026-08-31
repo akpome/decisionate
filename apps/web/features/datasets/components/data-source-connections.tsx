@@ -581,7 +581,7 @@ function DataSourceConnectionRow({
   }
 
   return (
-    <div className="flex flex-col gap-4 bg-white p-4 first:rounded-t-xl last:rounded-b-xl lg:flex-row lg:items-start lg:justify-between">
+    <div className="grid min-w-0 grid-cols-1 gap-4 bg-white p-4 first:rounded-t-xl last:rounded-b-xl lg:grid-cols-2 lg:items-start">
       <div className="min-w-0 flex-1">
         {isEditing ? (
           <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -691,24 +691,6 @@ function DataSourceConnectionRow({
             <p className="mt-1 break-words text-xs text-amber-700">
               Enter and save the customer&apos;s read-only Stripe restricted API key before syncing.
             </p>
-          )}
-
-        {hasResourceSelection &&
-          resourceOptions.length > 0 && (
-            <ConnectionResourceSelector
-              key={`${connection.id}-${configuredResourceKey}`}
-              sourceType={connection.source_type}
-              options={resourceOptions}
-              selectedValues={selectedResourceTypes}
-              disabled={
-                !onConfigureConnection ||
-                sourceIsPlanned ||
-                updatingConnectionId === connection.id
-              }
-              onChange={
-                handleResourceSelectionChange
-              }
-            />
           )}
 
         {isConfiguring && (
@@ -831,102 +813,6 @@ function DataSourceConnectionRow({
           </div>
         )}
 
-        {canSchedule && (
-          <div className="mt-4 rounded-xl border bg-gray-50 p-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={scheduleEnabled}
-                  onChange={(event) =>
-                    setScheduleEnabled(event.target.checked)
-                  }
-                  className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
-                />
-                Enable automatic sync
-              </label>
-
-              <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-600">
-                Frequency
-                <select
-                  value={scheduleIntervalHours}
-                  onChange={(event) =>
-                    setScheduleIntervalHours(event.target.value)
-                  }
-                  className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
-                >
-                  <option value="24">Daily</option>
-                  <option value="168">Weekly</option>
-                </select>
-              </label>
-
-              {scheduleIntervalHours === "168" && (
-                <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-600">
-                  On
-                  <select
-                    value={scheduleDayOfWeek}
-                    onChange={(event) =>
-                      setScheduleDayOfWeek(event.target.value)
-                    }
-                    className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
-                  >
-                    {[
-                      [0, "Sunday"],
-                      [1, "Monday"],
-                      [2, "Tuesday"],
-                      [3, "Wednesday"],
-                      [4, "Thursday"],
-                      [5, "Friday"],
-                      [6, "Saturday"],
-                    ].map(([day, label]) => (
-                      <option key={day} value={day}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-
-              <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-600">
-                At local time
-                <input
-                  type="time"
-                  value={scheduleTimeOfDay}
-                  onChange={(event) =>
-                    setScheduleTimeOfDay(event.target.value)
-                  }
-                  className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
-                />
-              </label>
-
-              <button
-                type="button"
-                onClick={() =>
-                  onUpdateSchedule?.(
-                    connection,
-                    scheduleEnabled,
-                    Number(scheduleIntervalHours),
-                    scheduleTimeOfDay,
-                    scheduleTimezone || getBrowserTimezone(),
-                    Number(scheduleDayOfWeek)
-                  )
-                }
-                disabled={updatingConnectionId === connection.id}
-                className="h-9 rounded-lg border px-3 text-xs font-medium text-gray-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {updatingConnectionId === connection.id
-                  ? "Saving..."
-                  : "Save schedule"}
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-gray-500">
-              Syncs follow this local time in {scheduleTimezone || "your local timezone"}.
-            </p>
-            <p className="mt-1 text-xs text-gray-500">
-              Connector data is kept raw for 24 months, then summarized for permanent historical analysis.
-            </p>
-          </div>
-        )}
       </div>
 
       <div className="flex w-full min-w-0 shrink-0 flex-col items-start gap-2 lg:max-w-xl lg:items-end">
@@ -1120,6 +1006,123 @@ function DataSourceConnectionRow({
             </div>
           )}
       </div>
+
+      {canSchedule && (
+        <div className="h-full min-w-0 rounded-xl border bg-gray-50 p-3 lg:col-start-1 lg:row-start-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={scheduleEnabled}
+                onChange={(event) =>
+                  setScheduleEnabled(event.target.checked)
+                }
+                className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+              Enable automatic sync
+            </label>
+
+            <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-600">
+              Frequency
+              <select
+                value={scheduleIntervalHours}
+                onChange={(event) =>
+                  setScheduleIntervalHours(event.target.value)
+                }
+                className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
+              >
+                <option value="24">Daily</option>
+                <option value="168">Weekly</option>
+              </select>
+            </label>
+
+            {scheduleIntervalHours === "168" && (
+              <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-600">
+                On
+                <select
+                  value={scheduleDayOfWeek}
+                  onChange={(event) =>
+                    setScheduleDayOfWeek(event.target.value)
+                  }
+                  className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
+                >
+                  {[
+                    [0, "Sunday"],
+                    [1, "Monday"],
+                    [2, "Tuesday"],
+                    [3, "Wednesday"],
+                    [4, "Thursday"],
+                    [5, "Friday"],
+                    [6, "Saturday"],
+                  ].map(([day, label]) => (
+                    <option key={day} value={day}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-600">
+              At local time
+              <input
+                type="time"
+                value={scheduleTimeOfDay}
+                onChange={(event) =>
+                  setScheduleTimeOfDay(event.target.value)
+                }
+                className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() =>
+                onUpdateSchedule?.(
+                  connection,
+                  scheduleEnabled,
+                  Number(scheduleIntervalHours),
+                  scheduleTimeOfDay,
+                  scheduleTimezone || getBrowserTimezone(),
+                  Number(scheduleDayOfWeek)
+                )
+              }
+              disabled={updatingConnectionId === connection.id}
+              className="h-9 rounded-lg border px-3 text-xs font-medium text-gray-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {updatingConnectionId === connection.id
+                ? "Saving..."
+                : "Save schedule"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-gray-500">
+            Syncs follow this local time in {scheduleTimezone || "your local timezone"}.
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            Connector data is kept raw for 24 months, then summarized for permanent historical analysis.
+          </p>
+        </div>
+      )}
+
+      {hasResourceSelection &&
+        resourceOptions.length > 0 && (
+          <div className="h-full min-w-0 lg:col-start-2 lg:row-start-2">
+            <ConnectionResourceSelector
+              key={`${connection.id}-${configuredResourceKey}`}
+              sourceType={connection.source_type}
+              options={resourceOptions}
+              selectedValues={selectedResourceTypes}
+              disabled={
+                !onConfigureConnection ||
+                sourceIsPlanned ||
+                updatingConnectionId === connection.id
+              }
+              onChange={
+                handleResourceSelectionChange
+              }
+            />
+          </div>
+        )}
     </div>
   )
 }
@@ -1298,7 +1301,7 @@ function ConnectionResourceSelector({
   }
 
   return (
-    <fieldset className="mt-3 min-w-0 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
+    <fieldset className="h-full min-w-0 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
       <legend className="px-1 text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
         {getResourceSelectionTitle(sourceType)}
       </legend>
