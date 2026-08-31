@@ -62,7 +62,7 @@ OAUTH_PROVIDERS = {
             "crm.objects.contacts.read",
             "crm.objects.companies.read",
             "crm.objects.deals.read",
-            "crm.objects.tickets.read",
+            "tickets",
         ),
     ),
     "meta_ads": OAuthProvider(
