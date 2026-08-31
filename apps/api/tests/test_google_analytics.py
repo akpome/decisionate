@@ -214,7 +214,7 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
         )
         self.assertEqual(
             dataframe.iloc[0].tolist(),
-            ["20260101", "12", "9"],
+            ["2026-01-01", 12, 9],
         )
         self.assertEqual(report["row_count"], 1)
 
@@ -286,8 +286,6 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
 
             self.assertEqual(response["dataset_id"], 1)
             self.assertEqual(response["row_count"], 1)
-            self.assertTrue(dataset_path.exists())
-
         db = Session()
         try:
             connection = db.query(DataSourceConnection).one()
@@ -296,6 +294,7 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             self.assertIsNotNone(connection.last_synced_at)
             self.assertEqual(dataset.source_type, "google_analytics")
             self.assertEqual(dataset.row_count, 1)
+            self.assertTrue(Path(dataset.file_path).exists())
         finally:
             db.close()
             engine.dispose()

@@ -24,6 +24,17 @@ class GoogleAnalyticsConnectorUnavailable(RuntimeError):
     pass
 
 
+def format_google_analytics_error(error: Exception) -> str:
+    """Keep provider failures actionable without returning credentials."""
+    detail = " ".join(str(error or "").split())
+    if not detail:
+        detail = error.__class__.__name__
+    return (
+        "Google Analytics report request failed: "
+        f"{detail[:240]}"
+    )
+
+
 def get_google_analytics_service_account_path() -> str:
     return str(
         os.getenv(
@@ -260,28 +271,33 @@ def load_google_analytics_report(
             service_account,
         )
 
-    client = BetaAnalyticsDataClient(
-        credentials=credentials,
-    )
-    response = client.run_report(
-        RunReportRequest(
-            property=f"properties/{clean_property_id}",
-            dimensions=[
-                Dimension(name=dimension)
-                for dimension in clean_dimensions
-            ],
-            metrics=[
-                Metric(name=metric)
-                for metric in clean_metrics
-            ],
-            date_ranges=[
-                DateRange(
-                    start_date=clean_start_date,
-                    end_date=clean_end_date,
-                )
-            ],
+    try:
+        client = BetaAnalyticsDataClient(
+            credentials=credentials,
         )
-    )
+        response = client.run_report(
+            RunReportRequest(
+                property=f"properties/{clean_property_id}",
+                dimensions=[
+                    Dimension(name=dimension)
+                    for dimension in clean_dimensions
+                ],
+                metrics=[
+                    Metric(name=metric)
+                    for metric in clean_metrics
+                ],
+                date_ranges=[
+                    DateRange(
+                        start_date=clean_start_date,
+                        end_date=clean_end_date,
+                    )
+                ],
+            )
+        )
+    except Exception as error:
+        raise GoogleAnalyticsConnectorUnavailable(
+            format_google_analytics_error(error)
+        ) from error
 
     columns = [
         header.name
@@ -303,7 +319,27 @@ def load_google_analytics_report(
             ]
         )
 
-    return pd.DataFrame(rows, columns=columns), {
+    dataframe = pd.DataFrame(rows, columns=columns)
+    for metric in clean_metrics:
+        if metric in dataframe.columns:
+            dataframe[metric] = pd.to_numeric(
+                dataframe[metric],
+                errors="coerce",
+            )
+
+    if "date" in dataframe.columns and not dataframe.empty:
+        parsed_dates = pd.to_datetime(
+            dataframe["date"],
+            format="%Y%m%d",
+            errors="coerce",
+        )
+        normalized_dates = parsed_dates.dt.strftime("%Y-%m-%d")
+        dataframe["date"] = normalized_dates.where(
+            parsed_dates.notna(),
+            dataframe["date"],
+        )
+
+    return dataframe, {
         "property_id": clean_property_id,
         "start_date": clean_start_date,
         "end_date": clean_end_date,

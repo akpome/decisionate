@@ -471,6 +471,9 @@ function DataSourceConnectionRow({
         editingConnectionConfig[configKey]?.trim()
       )
     )
+  const hasRequiredInlineOAuthConfig =
+    inlineOAuthConfigKeys.length === 0 ||
+    connection.has_config
   const canSyncConnector =
     [
       "google_analytics",
@@ -492,6 +495,7 @@ function DataSourceConnectionRow({
     ) &&
     source?.status === "available" &&
     stripeKeyConfigured &&
+    hasRequiredInlineOAuthConfig &&
     (source?.connection_type !== "oauth" ||
       connection.status === "connected") &&
     (!hasResourceSelection ||
@@ -704,6 +708,13 @@ function DataSourceConnectionRow({
           !connection.has_config && (
             <p className="mt-1 break-words text-xs text-amber-700">
               Enter and save the customer&apos;s read-only Stripe restricted API key before syncing.
+            </p>
+          )}
+
+        {inlineOAuthConfigKeys.length > 0 &&
+          !connection.has_config && (
+            <p className="mt-1 break-words text-xs text-amber-700">
+              Enter and save the required connection settings before syncing.
             </p>
           )}
 
