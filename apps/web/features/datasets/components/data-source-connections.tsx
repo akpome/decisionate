@@ -455,7 +455,21 @@ function DataSourceConnectionRow({
           (configKey) =>
             configKey !== "resource_types"
         ) &&
-        !sourceIsPlanned
+        !sourceIsPlanned &&
+        source?.connection_type !== "oauth"
+    )
+  const inlineOAuthConfigKeys =
+    source?.connection_type === "oauth"
+      ? editableConfigKeys.filter(
+          (configKey) =>
+            configKey !== "resource_types"
+        )
+      : []
+  const hasEditedInlineOAuthConfig =
+    inlineOAuthConfigKeys.some((configKey) =>
+      Boolean(
+        editingConnectionConfig[configKey]?.trim()
+      )
     )
   const canSyncConnector =
     [
@@ -691,6 +705,62 @@ function DataSourceConnectionRow({
             <p className="mt-1 break-words text-xs text-amber-700">
               Enter and save the customer&apos;s read-only Stripe restricted API key before syncing.
             </p>
+          )}
+
+        {inlineOAuthConfigKeys.length > 0 &&
+          !sourceIsPlanned && (
+            <div className="mt-4 max-w-2xl rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
+              <ConnectionConfigFieldGroup
+                title="Connection settings"
+                configKeys={inlineOAuthConfigKeys}
+                sourceType={connection.source_type}
+                editingConnectionConfig={
+                  editingConnectionConfig
+                }
+                hasSavedConfig={
+                  connection.has_config
+                }
+                setEditingConnectionConfig={
+                  setEditingConnectionConfig
+                }
+              />
+
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <button
+                  type="button"
+                  onClick={() =>
+                    saveConfiguration(connection)
+                  }
+                  disabled={
+                    updatingConnectionId ===
+                      connection.id ||
+                    !hasEditedInlineOAuthConfig
+                  }
+                  className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  {updatingConnectionId ===
+                  connection.id
+                    ? "Saving..."
+                    : "Save settings"}
+                </button>
+
+                {connection.has_config && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      clearConfiguration(connection)
+                    }
+                    disabled={
+                      updatingConnectionId ===
+                      connection.id
+                    }
+                    className="w-full rounded-lg border border-red-100 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  >
+                    Clear saved settings
+                  </button>
+                )}
+              </div>
+            </div>
           )}
 
         {isConfiguring && (
