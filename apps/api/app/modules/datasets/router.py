@@ -4561,6 +4561,14 @@ async def sync_source_connection(
             detail=str(error),
         ) from error
     except (GoogleAnalyticsConnectorUnavailable, ConnectorUnavailable) as error:
+        logger.warning(
+            "Connector sync unavailable",
+            extra={
+                "connection_id": connection_id,
+                "source_type": getattr(connection, "source_type", None),
+                "reason": str(error)[:500],
+            },
+        )
         raise HTTPException(
             status_code=503,
             detail=str(error),
