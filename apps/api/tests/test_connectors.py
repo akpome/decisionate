@@ -46,6 +46,21 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(row["record_id"], "record-1")
         self.assertNotIn("missing_alias", row)
 
+    def test_canonical_connector_dates_use_calendar_date_values(self):
+        row = connectors.build_dynamic_connector_row(
+            {
+                "id": "record-1",
+                "createdAt": "2026-08-30T22:43:09.318Z",
+            },
+            {
+                "created_at": "2026-08-30T22:43:09.318Z",
+                "updated_at": "2026-08-30T23:00:00Z",
+            },
+        )
+
+        self.assertEqual(row["created_at"], "2026-08-30")
+        self.assertEqual(row["updated_at"], "2026-08-30")
+
     def test_freshbooks_resource_selections_load_documented_resources(self):
         identity_url = "https://api.freshbooks.com/auth/api/v1/users/me"
 

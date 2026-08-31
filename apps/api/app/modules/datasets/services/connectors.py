@@ -455,6 +455,21 @@ def flatten_connector_record(
     return flattened
 
 
+def normalize_connector_date(value):
+    """Return canonical connector dates as UTC calendar dates."""
+    if value is None or value == "":
+        return None
+
+    parsed_value = pd.to_datetime(
+        value,
+        errors="coerce",
+        utc=True,
+    )
+    if pd.isna(parsed_value):
+        return value
+    return parsed_value.date().isoformat()
+
+
 def build_dynamic_connector_row(
     source_record: dict,
     normalized_fields: dict,
@@ -468,7 +483,12 @@ def build_dynamic_connector_row(
     for key, value in normalized_fields.items():
         if value is None:
             continue
+        if key in {"created_at", "updated_at"}:
+            value = normalize_connector_date(value)
         if key in row and row[key] not in (None, "") and row[key] != value:
+            if key in {"created_at", "updated_at"}:
+                row[key] = value
+                continue
             row[f"decisionate__{key}"] = value
             continue
         row[key] = value
