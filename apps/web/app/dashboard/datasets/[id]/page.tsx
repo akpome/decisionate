@@ -27,7 +27,6 @@ import {
   MetricSelector,
   formatMetricLabel,
 } from "@/features/dashboard/components/metric-selector"
-import { InsightCard } from "@/features/insights/components/insight-card"
 import {
   AIAnalysisPanel,
 } from "@/features/ai/components/analysis-panel"
@@ -37,8 +36,6 @@ import {
 import {
   buildAIRecommendationDecisionPayload,
 } from "@/features/decisions/lib/ai-decision-handoff"
-import { MetricTrendChart } from "@/features/dashboard/components/metric-trend-chart"
-
 import {
   createDecision,
   getDatasetAIAnalysis,
@@ -56,9 +53,6 @@ import {
   formatSourceValue,
   getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
-import {
-  buildInsightDecisionPayload,
-} from "@/features/decisions/lib/decision-handoff"
 
 type DatasetCellValue =
   | string
@@ -76,13 +70,6 @@ type DatasetMetric = {
   average: number
 }
 
-type DatasetInsight = {
-  column?: string
-  type?: string
-  title: string
-  description: string
-}
-
 type DatasetDetails = {
   file_name: string
   source_type?: string | null
@@ -94,13 +81,7 @@ type DatasetDetails = {
   numeric_columns?: string[]
   selected_metric_columns?: string[]
   metrics?: DatasetMetric[]
-  insights?: DatasetInsight[]
   ai_analysis?: AIAnalysis
-  chart?: {
-    data: DatasetRow[]
-    x_key: string
-    y_key: string
-  }
   preview?: DatasetRow[]
 }
 
@@ -190,8 +171,6 @@ export default function DatasetDetailsPage() {
     useState("")
   const [metricSearch, setMetricSearch] =
     useState("")
-  const [insightSearch, setInsightSearch] =
-    useState("")
   const [savingMetricSelection, setSavingMetricSelection] =
     useState(false)
   const [metricSelectionError, setMetricSelectionError] =
@@ -251,7 +230,6 @@ export default function DatasetDetailsPage() {
       setSelectedMetricColumns([])
       setColumnSearch("")
       setMetricSearch("")
-      setInsightSearch("")
       setMetricSelectionError("")
       setErrorMessage("")
       setLoading(true)
@@ -508,11 +486,6 @@ export default function DatasetDetailsPage() {
       metrics,
       effectiveSelectedMetric
     )
-  const displayedInsights =
-    getMetricFilteredDatasetInsights(
-      dataset.insights ?? [],
-      effectiveSelectedMetric
-    )
   const normalizedMetricSearch =
     metricSearch.trim().toLowerCase()
   const visibleMetrics = normalizedMetricSearch
@@ -520,13 +493,6 @@ export default function DatasetDetailsPage() {
       `${metric.column} ${formatMetricLabel(metric.column)}`
     ).toLowerCase().includes(normalizedMetricSearch))
     : displayedMetrics
-  const normalizedInsightSearch =
-    insightSearch.trim().toLowerCase()
-  const visibleInsights = normalizedInsightSearch
-    ? displayedInsights.filter(insight => (
-      `${insight.title} ${insight.description} ${insight.type || ""} ${insight.column || ""}`
-    ).toLowerCase().includes(normalizedInsightSearch))
-    : displayedInsights
   const aiRecommendationMetric =
     effectiveSelectedMetric ||
     (metricColumns.length === 1
@@ -630,50 +596,6 @@ export default function DatasetDetailsPage() {
   async function handleUnselectAllMetricSelection() {
     setSelectedMetricColumns([])
     await saveMetricSelection([])
-  }
-
-  async function handleCreateDecision(
-    insight: DatasetInsight,
-    insightKey: string
-  ) {
-    if (
-      !userId ||
-      !datasetId ||
-      !canManageWorkspaceData ||
-      creatingDecisionKey
-    ) {
-      return
-    }
-
-    try {
-      setCreatingDecisionKey(insightKey)
-      setErrorMessage("")
-
-      const createdDecision =
-        await createDecision(
-          buildInsightDecisionPayload(
-            datasetId,
-            insight,
-            effectiveSelectedMetric,
-            dataset?.file_name
-          ),
-          userId,
-          activeWorkspaceId
-        )
-
-      router.push(
-        `/dashboard/decisions/${createdDecision.id}`
-      )
-    } catch (error) {
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          "Unable to create a decision from this insight."
-        )
-      )
-    } finally {
-      setCreatingDecisionKey(undefined)
-    }
   }
 
   async function handleCreateAIRecommendation() {
@@ -828,7 +750,7 @@ export default function DatasetDetailsPage() {
             </h2>
 
             <p className="text-sm text-gray-500">
-              Choose a metric to focus the summary cards, insights, and trend chart.
+              Choose a metric to focus the summary cards and analysis.
             </p>
           </div>
         </div>
@@ -993,86 +915,6 @@ export default function DatasetDetailsPage() {
           </div>
         )}
       </div>
-
-      {/* Insights */}
-
-      <div>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-2xl font-bold">
-            Insights
-          </h2>
-          <label className="block w-full sm:w-64">
-            <span className="sr-only">
-              Search insights
-            </span>
-            <input
-              type="search"
-              value={insightSearch}
-              onChange={(event) => {
-                setInsightSearch(event.target.value)
-              }}
-              placeholder="Search insights"
-              aria-label="Search insights by name"
-              className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </label>
-        </div>
-
-        {visibleInsights.length ? (
-          <div className="max-h-[32rem] overflow-y-auto pr-1">
-            <div className="grid gap-6 md:grid-cols-2">
-              {visibleInsights.map((
-                insight,
-                index: number
-              ) => (
-                <InsightCard
-                  key={`${insight.title}-${index}`}
-                  insight={insight}
-                  label={insight.type || "Insight"}
-                  onCreateDecision={
-                    canManageWorkspaceData
-                      ? () => {
-                        void handleCreateDecision(
-                          insight,
-                          `${index}:${insight.title}`
-                        )
-                      }
-                      : undefined
-                  }
-                  creatingDecision={
-                    creatingDecisionKey ===
-                    `${index}:${insight.title}`
-                  }
-                  actionDisabled={
-                    Boolean(creatingDecisionKey)
-                  }
-                />
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-dashed bg-gray-50 p-4 text-sm text-gray-500">
-            {normalizedInsightSearch
-              ? "No insights match your search."
-              : effectiveSelectedMetric
-              ? "No automated insights match the selected metric yet."
-              : "No automated insights are available for this dataset yet."}
-          </div>
-        )}
-      </div>
-
-      {/* Chart */}
-
-      {dataset.chart && (
-        <MetricTrendChart
-          data={dataset.chart.data}
-          xKey={dataset.chart.x_key}
-          yKey={
-            effectiveSelectedMetric ??
-            dataset.chart.y_key
-          }
-        />
-      )}
 
       {/* Preview */}
 
@@ -1303,49 +1145,4 @@ function prioritizeDatasetMetrics(
         metric.column !== selectedMetric
     ),
   ]
-}
-
-function getMetricFilteredDatasetInsights(
-  insights: DatasetInsight[],
-  selectedMetric: string | undefined
-) {
-  if (!selectedMetric) {
-    return insights
-  }
-
-  const selectedMetricText =
-    normalizeDatasetMetricText(selectedMetric)
-
-  return insights.filter(insight => {
-    const insightColumn =
-      normalizeDatasetMetricText(
-        insight.column
-      )
-
-    if (
-      insightColumn &&
-      insightColumn === selectedMetricText
-    ) {
-      return true
-    }
-
-    const insightText =
-      normalizeDatasetMetricText(
-        `${insight.title} ${insight.description}`
-      )
-
-    return insightText.includes(
-      selectedMetricText
-    )
-  })
-}
-
-function normalizeDatasetMetricText(
-  value: string | undefined
-) {
-  return (value ?? "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase()
 }
