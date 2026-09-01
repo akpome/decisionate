@@ -211,16 +211,17 @@ ZOHO_BOOKS_DATA_CENTER_SUFFIXES = (
     "sa",
     "ca",
 )
+ZOHO_BOOKS_ACCOUNTS_SERVER_HOSTS = {
+    *(f"accounts.zoho.{suffix}" for suffix in ZOHO_BOOKS_DATA_CENTER_SUFFIXES),
+    # Zoho uses this host for the Canadian Accounts data center.
+    "accounts.zohocloud.ca",
+}
 
 
 def normalize_zoho_books_accounts_server(value: str) -> str:
     candidate = str(value or "").strip().rstrip("/")
     parsed = urlparse(candidate)
     hostname = (parsed.hostname or "").lower().rstrip(".")
-    allowed_hosts = {
-        f"accounts.zoho.{suffix}"
-        for suffix in ZOHO_BOOKS_DATA_CENTER_SUFFIXES
-    }
     if (
         parsed.scheme != "https"
         or not parsed.netloc
@@ -229,7 +230,7 @@ def normalize_zoho_books_accounts_server(value: str) -> str:
         or parsed.fragment
         or parsed.username
         or parsed.password
-        or hostname not in allowed_hosts
+        or hostname not in ZOHO_BOOKS_ACCOUNTS_SERVER_HOSTS
     ):
         raise OAuthProviderUnavailable(
             "Zoho Books returned an invalid accounts server"
