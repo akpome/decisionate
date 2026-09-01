@@ -508,9 +508,14 @@ def build_token_request(
     params: dict[str, str],
     headers: dict[str, str],
 ) -> Request:
+    content_type = (
+        "application/data"
+        if source_type == "zoho_books"
+        else "application/x-www-form-urlencoded"
+    )
     request_headers = {
         **headers,
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Type": content_type,
     }
     if source_type == "zoho_books":
         separator = "&" if "?" in token_url else "?"
@@ -624,6 +629,14 @@ def exchange_code(
             or ""
         ).strip()
         if provider_detail:
+            if (
+                source_type == "zoho_books"
+                and provider_detail.lower() == "invalid_code"
+            ):
+                provider_detail = (
+                    "authorization code expired or was already used; "
+                    "start a new authorization and complete it once"
+                )
             raise OAuthTokenExchangeError(
                 f"{source_type.replace('_', ' ').title()} token exchange rejected: "
                 f"{provider_detail[:160]}"

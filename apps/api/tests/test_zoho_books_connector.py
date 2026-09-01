@@ -109,6 +109,10 @@ class ZohoBooksConnectorTests(unittest.TestCase):
         self.assertEqual(query["code"], ["auth-code"])
         self.assertEqual(query["client_id"], ["client-id"])
         self.assertEqual(query["client_secret"], ["client-secret"])
+        self.assertEqual(
+            request.headers["Content-type"],
+            "application/data",
+        )
         self.assertIsNone(request.data)
 
     def test_token_exchange_reports_provider_rejection_reason(self):
@@ -135,7 +139,7 @@ class ZohoBooksConnectorTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 OAuthTokenExchangeError,
-                "Zoho Books token exchange rejected: invalid_code",
+                "Zoho Books token exchange rejected: authorization code expired or was already used",
             ):
                 exchange_code("zoho_books", "auth-code")
 

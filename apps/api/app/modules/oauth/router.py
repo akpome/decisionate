@@ -191,6 +191,8 @@ def process_oauth_callback(
         return oauth_redirect("missing_code")
 
     db = SessionLocal()
+    state_source_type = None
+    state_connection_id = None
     try:
         state = (
             db.query(OAuthConnectionState)
@@ -225,10 +227,13 @@ def process_oauth_callback(
             db.commit()
             return oauth_redirect("missing_connection")
 
+        state_source_type = state.source_type
+        state_connection_id = state.connection_id
+
         connection_config = parse_source_connection_config(
             connection.connection_config
         )
-        if state.source_type == "sage":
+        if state_source_type == "sage":
             callback_country = str(
                 query.get("country")
                 or query.get("country_code")
@@ -236,7 +241,7 @@ def process_oauth_callback(
             ).strip().upper()
             if callback_country:
                 connection_config["country"] = callback_country
-        if state.source_type == "zoho_books":
+        if state_source_type == "zoho_books":
             callback_accounts_server = str(
                 query.get("accounts-server")
                 or query.get("accounts_server")
@@ -255,12 +260,12 @@ def process_oauth_callback(
                     connection_config.pop("accounts_server", None)
         code_verifier = decrypt_token(state.code_verifier)
         payload = exchange_code(
-            state.source_type,
+            state_source_type,
             code,
             connection_config,
             code_verifier=code_verifier,
         )
-        if state.source_type == "freshbooks":
+        if state_source_type == "freshbooks":
             access_token = str(payload.get("access_token") or "").strip()
             businesses = get_freshbooks_businesses(access_token)
             configured_account_id = str(
@@ -302,7 +307,7 @@ def process_oauth_callback(
                 raise OAuthTokenExchangeError(
                     "FreshBooks returned multiple business accounts; account selection is required"
                 )
-        if state.source_type == "quickbooks":
+        if state_source_type == "quickbooks":
             realm_id = str(query.get("realmId") or "").strip()
             if not realm_id:
                 raise OAuthTokenExchangeError(
@@ -316,7 +321,7 @@ def process_oauth_callback(
                 connection_config,
                 sort_keys=True,
             )
-        if state.source_type == "xero":
+        if state_source_type == "xero":
             access_token = str(payload.get("access_token") or "").strip()
             xero_connections = get_xero_connections(access_token)
             selected_connection = next(
@@ -344,7 +349,7 @@ def process_oauth_callback(
                 connection_config,
                 sort_keys=True,
             )
-        if state.source_type == "sage":
+        if state_source_type == "sage":
             business_id = str(
                 payload.get("resource_owner_id")
                 or payload.get("business_id")
@@ -361,7 +366,7 @@ def process_oauth_callback(
                 connection_config,
                 sort_keys=True,
             )
-        if state.source_type == "salesforce":
+        if state_source_type == "salesforce":
             connection_config["instance_url"] = get_salesforce_instance_url(
                 payload
             )
@@ -369,7 +374,7 @@ def process_oauth_callback(
                 connection_config,
                 sort_keys=True,
             )
-        if state.source_type == "zoho_books":
+        if state_source_type == "zoho_books":
             access_token = str(payload.get("access_token") or "").strip()
             api_domain = normalize_zoho_books_api_domain(
                 payload.get("api_domain")
@@ -439,7 +444,7 @@ def process_oauth_callback(
             credential = OAuthCredential(
                 connection_id=connection.id,
                 workspace_id=state.workspace_id,
-                source_type=state.source_type,
+                source_type=state_source_type,
             )
             db.add(credential)
 
@@ -461,9 +466,40 @@ def process_oauth_callback(
         connection.status = "connected"
         db.delete(state)
         db.commit()
-        return oauth_redirect("connected", state.source_type)
+        return oauth_redirect("connected", state_source_type)
     except (OAuthProviderUnavailable, OAuthTokenExchangeError) as error:
         db.rollback()
+        if (
+            state_source_type == "zoho_books"
+            and "Zoho Books token exchange rejected" in str(error)
+            and "authorization code expired or was already used" in str(error)
+        ):
+            # An OAuth callback can be delivered twice. Zoho permits a grant
+            # code only once, so the second callback may report invalid_code
+            # after the first callback has already stored the credential.
+            credential = (
+                db.query(OAuthCredential)
+                .filter(
+                    OAuthCredential.connection_id == state_connection_id,
+                    OAuthCredential.source_type == state_source_type,
+                )
+                .first()
+            )
+            refreshed_connection = (
+                db.query(DataSourceConnection)
+                .filter(DataSourceConnection.id == state_connection_id)
+                .first()
+            )
+            if (
+                refreshed_connection
+                and refreshed_connection.status == "connected"
+                and credential
+                and (
+                    credential.access_token_encrypted
+                    or credential.refresh_token_encrypted
+                )
+            ):
+                return oauth_redirect("connected", state_source_type)
         return oauth_redirect(str(error)[:120])
     finally:
         db.close()
