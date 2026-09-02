@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useRef,
   useState,
 } from "react"
 import {
@@ -169,8 +170,6 @@ export default function DatasetDetailsPage() {
     useState<string[]>([])
   const [columnSearch, setColumnSearch] =
     useState("")
-  const [metricSearch, setMetricSearch] =
-    useState("")
   const [savingMetricSelection, setSavingMetricSelection] =
     useState(false)
   const [metricSelectionError, setMetricSelectionError] =
@@ -190,6 +189,14 @@ export default function DatasetDetailsPage() {
     useState(0)
   const [creatingDecisionKey, setCreatingDecisionKey] =
     useState<string>()
+  const [previewTableWidth, setPreviewTableWidth] =
+    useState(0)
+  const previewTableRef =
+    useRef<HTMLTableElement>(null)
+  const previewTopScrollRef =
+    useRef<HTMLDivElement>(null)
+  const previewHorizontalScrollRef =
+    useRef<HTMLDivElement>(null)
 
   const {
     isLoaded: authLoaded,
@@ -229,7 +236,6 @@ export default function DatasetDetailsPage() {
       setSelectedMetric(undefined)
       setSelectedMetricColumns([])
       setColumnSearch("")
-      setMetricSearch("")
       setMetricSelectionError("")
       setErrorMessage("")
       setLoading(true)
@@ -363,6 +369,36 @@ export default function DatasetDetailsPage() {
     metricColumns.includes(selectedMetric)
       ? selectedMetric
       : undefined
+  const previewColumnSignature =
+    visiblePreviewColumns.join("\u0000")
+
+  useEffect(() => {
+    const table = previewTableRef.current
+    if (!table) {
+      return
+    }
+
+    const updateTableWidth = () => {
+      setPreviewTableWidth(table.scrollWidth)
+    }
+    const frame = window.requestAnimationFrame(
+      updateTableWidth
+    )
+    const observer = new ResizeObserver(
+      updateTableWidth
+    )
+
+    observer.observe(table)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [
+    dataset?.file_name,
+    dataset?.preview?.length,
+    previewColumnSignature,
+  ])
 
   useEffect(() => {
     if (
@@ -486,13 +522,6 @@ export default function DatasetDetailsPage() {
       metrics,
       effectiveSelectedMetric
     )
-  const normalizedMetricSearch =
-    metricSearch.trim().toLowerCase()
-  const visibleMetrics = normalizedMetricSearch
-    ? displayedMetrics.filter(metric => (
-      `${metric.column} ${formatMetricLabel(metric.column)}`
-    ).toLowerCase().includes(normalizedMetricSearch))
-    : displayedMetrics
   const aiRecommendationMetric =
     effectiveSelectedMetric ||
     (metricColumns.length === 1
@@ -873,45 +902,26 @@ export default function DatasetDetailsPage() {
       {/* Metrics */}
 
       <div>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-4">
           <h2 className="text-2xl font-bold">
             Metrics
           </h2>
-          <label className="block w-full sm:w-64">
-            <span className="sr-only">
-              Search metrics
-            </span>
-            <input
-              type="search"
-              value={metricSearch}
-              onChange={(event) => {
-                setMetricSearch(event.target.value)
-              }}
-              placeholder="Search metrics"
-              aria-label="Search metrics by name"
-              className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </label>
         </div>
 
-        {visibleMetrics.length ? (
-          <div className="max-h-[32rem] overflow-y-auto pr-1">
-            <div className="grid gap-6 md:grid-cols-3">
-              {visibleMetrics.map((metric) => (
-                  <MetricCard
-                    key={metric.column}
-                    title={formatMetricLabel(metric.column)}
-                    value={metric.total}
-                  description={`Average ${metric.average}`}
-                />
-              ))}
-            </div>
+        {displayedMetrics.length ? (
+          <div className="grid gap-6 md:grid-cols-3">
+            {displayedMetrics.map((metric) => (
+                <MetricCard
+                  key={metric.column}
+                  title={formatMetricLabel(metric.column)}
+                  value={metric.total}
+                description={`Average ${metric.average}`}
+              />
+            ))}
           </div>
         ) : (
           <div className="rounded-xl border border-dashed bg-gray-50 p-4 text-sm text-gray-500">
-            {normalizedMetricSearch
-              ? "No metrics match your search."
-              : "No numeric metrics were detected for this dataset yet."}
+            No numeric metrics were detected for this dataset yet.
           </div>
         )}
       </div>
@@ -993,13 +1003,57 @@ export default function DatasetDetailsPage() {
           </p>
         )}
 
-        <div
-          className="max-h-[32rem] overflow-auto"
-        >
-          <table
-            aria-label={`Preview rows for ${dataset.file_name}`}
-            className="min-w-full border-collapse text-sm"
+        {previewTableWidth > 0 && (
+          <div
+            ref={previewTopScrollRef}
+            className="dataset-preview-top-scroll mb-2 overflow-x-auto"
+            onScroll={(event) => {
+              const tableScroll =
+                previewHorizontalScrollRef.current
+              if (
+                tableScroll &&
+                tableScroll.scrollLeft !==
+                  event.currentTarget.scrollLeft
+              ) {
+                tableScroll.scrollLeft =
+                  event.currentTarget.scrollLeft
+              }
+            }}
+            role="region"
+            aria-label="Horizontal scroll for dataset preview"
           >
+            <div
+              aria-hidden="true"
+              className="h-px"
+              style={{
+                width: `${previewTableWidth}px`,
+              }}
+            />
+          </div>
+        )}
+
+        <div className="max-h-[32rem] overflow-y-auto">
+          <div
+            ref={previewHorizontalScrollRef}
+            className="dataset-preview-horizontal-scroll overflow-x-auto"
+            onScroll={(event) => {
+              const topScroll =
+                previewTopScrollRef.current
+              if (
+                topScroll &&
+                topScroll.scrollLeft !==
+                  event.currentTarget.scrollLeft
+              ) {
+                topScroll.scrollLeft =
+                  event.currentTarget.scrollLeft
+              }
+            }}
+          >
+            <table
+              ref={previewTableRef}
+              aria-label={`Preview rows for ${dataset.file_name}`}
+              className="min-w-full border-collapse text-sm"
+            >
             <thead className="bg-gray-50">
               <tr>
                 {visiblePreviewColumns.map((column) => {
@@ -1086,7 +1140,8 @@ export default function DatasetDetailsPage() {
                 </tr>
               )}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
 
         {previewColumns.length === 0 ? (

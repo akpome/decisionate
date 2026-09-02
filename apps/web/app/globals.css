@@ -67,6 +67,15 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.dataset-preview-horizontal-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.dataset-preview-horizontal-scroll::-webkit-scrollbar {
+  height: 0;
+}
+
 :root[data-theme="dark"] .bg-white {
   background-color: var(--decisionate-app-surface);
 }
