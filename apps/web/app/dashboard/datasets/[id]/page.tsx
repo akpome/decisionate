@@ -1032,7 +1032,7 @@ export default function DatasetDetailsPage() {
           </div>
         )}
 
-        <div className="max-h-[32rem] overflow-y-auto">
+        <div>
           <div
             ref={previewHorizontalScrollRef}
             className="dataset-preview-horizontal-scroll overflow-x-auto"
