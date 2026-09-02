@@ -174,7 +174,7 @@ export function LandingProductDemo() {
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950 text-white shadow-2xl">
-      <div className="flex items-center border-b border-slate-800 px-4 py-3 sm:px-5">
+      <div className="sticky top-[4.5rem] z-10 flex items-center justify-between border-b border-slate-800 bg-slate-950 px-4 py-3 sm:static sm:px-5">
         <div className="flex items-center gap-2">
           <div className="flex gap-1.5" aria-hidden="true">
             <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
@@ -185,6 +185,15 @@ export function LandingProductDemo() {
             Decisionate / Product demo
           </span>
         </div>
+        <button
+          type="button"
+          onClick={() => setPlaying(current => !current)}
+          title={playing ? "Pause demo" : "Play demo"}
+          aria-label={playing ? "Pause demo" : "Play demo"}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+        >
+          {playing ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
+        </button>
       </div>
 
       <div className="grid min-h-[31rem] lg:grid-cols-[13rem_minmax(0,1fr)]">
