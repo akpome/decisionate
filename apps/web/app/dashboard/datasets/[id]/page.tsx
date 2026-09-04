@@ -158,6 +158,40 @@ function getPreviewNumericColumns(
   })
 }
 
+function isIdentifierColumn(
+  column: string
+) {
+  const words = column
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[^a-z0-9]+/i)
+
+  return words.some(
+    word => word.toLowerCase() === "id"
+  )
+}
+
+function excludeIdentifierColumns(
+  columns: string[]
+) {
+  return columns.filter(
+    column => !isIdentifierColumn(column)
+  )
+}
+
+function getSelectedMetricColumns(
+  dataset: DatasetDetails
+) {
+  return excludeIdentifierColumns(
+    dataset.selected_metric_columns ??
+    dataset.numeric_columns ??
+    dataset.metrics?.map(
+      metric => metric.column
+    ) ??
+    []
+  )
+}
+
 export default function DatasetDetailsPage() {
   const params = useParams()
   const router = useRouter()
@@ -266,12 +300,7 @@ export default function DatasetDetailsPage() {
         setDataset(data)
         setSelectedMetric(undefined)
         setSelectedMetricColumns(
-          data.selected_metric_columns ??
-          data.numeric_columns ??
-          data.metrics?.map(
-            (metric: DatasetMetric) => metric.column
-          ) ??
-          []
+          getSelectedMetricColumns(data)
         )
         setErrorMessage("")
       } catch (error) {
@@ -336,9 +365,11 @@ export default function DatasetDetailsPage() {
   const datasetId =
     getDatasetRouteId(params.id)
   const metricColumns =
-    dataset?.metrics?.map(
-      metric => metric.column
-    ) ?? []
+    excludeIdentifierColumns(
+      dataset?.metrics?.map(
+        metric => metric.column
+      ) ?? []
+    )
   const previewColumns =
     dataset?.columns ??
     (dataset?.preview?.[0]
@@ -352,14 +383,16 @@ export default function DatasetDetailsPage() {
     )
     : previewColumns
   const numericMetricColumns = new Set([
-    ...(dataset?.numeric_columns ?? []),
-    ...getPreviewNumericColumns(
-      previewColumns,
-      dataset?.preview
-    ),
-    ...(dataset?.numeric_columns?.length
-      ? []
-      : metricColumns),
+    ...excludeIdentifierColumns([
+      ...(dataset?.numeric_columns ?? []),
+      ...getPreviewNumericColumns(
+        previewColumns,
+        dataset?.preview
+      ),
+      ...(dataset?.numeric_columns?.length
+        ? []
+        : metricColumns),
+    ]),
   ])
   const selectedMetricColumnSet = new Set(
     selectedMetricColumns
@@ -516,7 +549,9 @@ export default function DatasetDetailsPage() {
       dataset.source_label
     )
   const metrics =
-    dataset.metrics ?? []
+    (dataset.metrics ?? []).filter(
+      metric => !isIdentifierColumn(metric.column)
+    )
   const displayedMetrics =
     prioritizeDatasetMetrics(
       metrics,
@@ -585,12 +620,7 @@ export default function DatasetDetailsPage() {
       )
       setDataset(refreshedDataset)
       setSelectedMetricColumns(
-        refreshedDataset.selected_metric_columns ??
-        refreshedDataset.numeric_columns ??
-        refreshedDataset.metrics?.map(
-          (metric: DatasetMetric) => metric.column
-        ) ??
-        []
+        getSelectedMetricColumns(refreshedDataset)
       )
       setSelectedMetric(currentMetric =>
         refreshedDataset.metrics?.some(
