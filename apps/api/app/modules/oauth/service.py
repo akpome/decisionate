@@ -331,31 +331,11 @@ def get_sage_token_url(country: str | None = None) -> str:
     )
 
 
-def get_callback_url(source_type: str | None = None) -> str:
-    if source_type == "google_analytics":
-        google_configured = clean_env(
-            "GOOGLE_ANALYTICS_OAUTH_CALLBACK_URL"
-        )
-        if google_configured:
-            return google_configured.rstrip("/")
-
+def get_callback_url() -> str:
     configured = clean_env("OAUTH_CALLBACK_URL")
     if configured:
-        callback_url = configured.rstrip("/")
-        if (
-            source_type == "google_analytics"
-            and callback_url.endswith("/oauth/callback")
-        ):
-            return callback_url.removesuffix(
-                "/oauth/callback"
-            ) + "/oauth/google-analytics/callback"
-        return callback_url
+        return configured.rstrip("/")
     api_url = get_runtime_configuration().api_url
-    if source_type == "google_analytics":
-        return (
-            f"{api_url.rstrip('/')}/oauth/"
-            "google-analytics/callback"
-        )
     return f"{api_url.rstrip('/')}/oauth/callback"
 
 
@@ -479,7 +459,7 @@ def build_authorization_url(
 
     params = {
         "client_id": client_id,
-        "redirect_uri": get_callback_url(source_type),
+        "redirect_uri": get_callback_url(),
         "response_type": "code",
         "state": state_token,
         "scope": " ".join(scopes),
@@ -584,7 +564,7 @@ def exchange_code(
     params = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": get_callback_url(source_type),
+        "redirect_uri": get_callback_url(),
     }
     if provider.use_pkce:
         if not code_verifier:

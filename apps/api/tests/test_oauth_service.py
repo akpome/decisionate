@@ -128,7 +128,7 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             self.assertNotEqual(encrypted, "access-token")
             self.assertEqual(decrypt_token(encrypted), "access-token")
 
-    def test_google_analytics_uses_dedicated_offline_callback(self):
+    def test_google_analytics_uses_default_offline_callback(self):
         key = Fernet.generate_key().decode()
         with patch.dict(
             os.environ,
@@ -160,7 +160,7 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         self.assertEqual(
             query["redirect_uri"],
             [
-                "http://localhost:8000/oauth/google-analytics/callback"
+                "http://localhost:8000/oauth/callback"
             ],
         )
         self.assertEqual(query["access_type"], ["offline"])
