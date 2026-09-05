@@ -166,9 +166,10 @@ function isIdentifierColumn(
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
     .split(/[^a-z0-9]+/i)
 
-  return words.some(
-    word => word.toLowerCase() === "id"
-  )
+  return words.some(word => {
+    const normalizedWord = word.toLowerCase()
+    return normalizedWord === "id" || normalizedWord === "key"
+  })
 }
 
 function excludeIdentifierColumns(
