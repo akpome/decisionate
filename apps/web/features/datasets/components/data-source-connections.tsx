@@ -526,6 +526,54 @@ function DataSourceConnectionRow({
     (Array.isArray(connection.missing_config_keys)
       ? connection.missing_config_keys.length === 0
       : connection.has_config)
+  const isGoogleAdsConnection =
+    connection.source_type === "google_ads"
+  const googleAdsAccountOptions =
+    googleAdsAccounts?.[connection.id] ?? []
+  const configuredGoogleAdsAccountId =
+    connection.configured_customer_id ?? ""
+  const configuredGoogleAdsAccount = googleAdsAccountOptions.find(
+    (account) => account.customer_id === configuredGoogleAdsAccountId
+  )
+  const configuredGoogleAdsManager =
+    configuredGoogleAdsAccount?.is_manager === true
+  const selectableGoogleAdsAccounts =
+    configuredGoogleAdsAccountId &&
+    !configuredGoogleAdsManager &&
+    configuredGoogleAdsAccount?.status === "ENABLED" &&
+    !googleAdsAccountOptions.some(
+      (account) =>
+        account.customer_id === configuredGoogleAdsAccountId
+    )
+      ? [
+          {
+            customer_id: configuredGoogleAdsAccountId,
+            login_customer_id:
+              connection.configured_login_customer_id,
+            name: "Currently selected account",
+            is_manager: false,
+            status: "ENABLED",
+          },
+          ...googleAdsAccountOptions.filter(
+            (account) =>
+              !account.is_manager &&
+              account.status === "ENABLED"
+          ),
+        ]
+      : googleAdsAccountOptions.filter(
+          (account) =>
+            !account.is_manager &&
+            account.status === "ENABLED"
+        )
+  const googleAdsAccountsLoaded =
+    !isGoogleAdsConnection ||
+    googleAdsAccounts?.[connection.id] !== undefined
+  const googleAdsAccountReady =
+    !isGoogleAdsConnection ||
+    (googleAdsAccountsLoaded &&
+      Boolean(configuredGoogleAdsAccountId) &&
+      configuredGoogleAdsAccount?.is_manager !== true &&
+      configuredGoogleAdsAccount?.status === "ENABLED")
   const canSyncConnector =
     [
       "google_analytics",
@@ -551,6 +599,7 @@ function DataSourceConnectionRow({
     hasRequiredConnectionConfig &&
     (source?.connection_type !== "oauth" ||
       connection.status === "connected") &&
+    googleAdsAccountReady &&
     (!hasResourceSelection ||
       selectedResourceTypes.length > 0) &&
     Boolean(onSyncConnection)
@@ -563,39 +612,6 @@ function DataSourceConnectionRow({
     source?.connection_type === "oauth" &&
     connection.status === "connected" &&
     Boolean(onCancelOAuthAuthorization)
-  const isGoogleAdsConnection =
-    connection.source_type === "google_ads"
-  const googleAdsAccountOptions =
-    googleAdsAccounts?.[connection.id] ?? []
-  const configuredGoogleAdsAccountId =
-    connection.configured_customer_id ?? ""
-  const configuredGoogleAdsAccount = googleAdsAccountOptions.find(
-    (account) => account.customer_id === configuredGoogleAdsAccountId
-  )
-  const configuredGoogleAdsManager =
-    configuredGoogleAdsAccount?.is_manager === true
-  const selectableGoogleAdsAccounts =
-    configuredGoogleAdsAccountId &&
-    !configuredGoogleAdsManager &&
-    !googleAdsAccountOptions.some(
-      (account) =>
-        account.customer_id === configuredGoogleAdsAccountId
-    )
-      ? [
-          {
-            customer_id: configuredGoogleAdsAccountId,
-            login_customer_id:
-              connection.configured_login_customer_id,
-            name: "Currently selected account",
-            is_manager: false,
-          },
-          ...googleAdsAccountOptions.filter(
-            (account) => !account.is_manager
-          ),
-        ]
-      : googleAdsAccountOptions.filter(
-          (account) => !account.is_manager
-        )
   const canSchedule =
     source?.sync_modes?.includes("scheduled") === true &&
     Boolean(onUpdateSchedule) &&
@@ -793,7 +809,15 @@ function DataSourceConnectionRow({
             <p className="mt-1 break-words text-xs text-amber-700">
               {connection.source_type === "google_ads"
                 ? "Select a Google Ads account before syncing. Without it, no data will be ingested."
-                : "Enter and save the required connection settings before syncing. Without them, no data will be ingested."}
+              : "Enter and save the required connection settings before syncing. Without them, no data will be ingested."}
+            </p>
+          )}
+
+        {isGoogleAdsConnection &&
+          connection.status === "connected" &&
+          !googleAdsAccountReady && (
+            <p className="mt-1 break-words text-xs text-amber-700">
+              Sync is unavailable until an enabled Google Ads client account is selected. Manager, setup-in-progress, suspended, and deactivated accounts cannot be synced.
             </p>
           )}
 
@@ -1093,6 +1117,22 @@ function DataSourceConnectionRow({
                   The selected account is a manager account. Select a client account to ingest campaign data; the manager will be used automatically for access.
                 </p>
               )}
+
+              {configuredGoogleAdsAccount &&
+                !configuredGoogleAdsManager &&
+                configuredGoogleAdsAccount.status !== "ENABLED" && (
+                  <p className="mt-2 text-xs leading-4 text-amber-800">
+                    This account is not enabled for reporting. Select an enabled client account before syncing.
+                  </p>
+                )}
+
+              {configuredGoogleAdsAccountId &&
+                !configuredGoogleAdsAccount &&
+                googleAdsAccountsLoaded && (
+                  <p className="mt-2 text-xs leading-4 text-amber-800">
+                    The selected account is not accessible or no longer exists. Select an enabled client account before syncing.
+                  </p>
+                )}
 
               {selectableGoogleAdsAccounts.length > 0 ? (
                 <select
