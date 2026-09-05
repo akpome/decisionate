@@ -1613,7 +1613,10 @@ export function ConnectionSetupGuide({
                   className="min-w-0 rounded-md border border-gray-200 bg-white p-2"
                 >
                   <p className="font-semibold text-gray-800">
-                    {formatConnectionConfigKey(field.configKey)}
+                    {formatConnectionConfigLabel(
+                      field.configKey,
+                      source.type
+                    )}
                   </p>
                   <p className="mt-1 leading-4">
                     {field.description}
@@ -1712,8 +1715,10 @@ function ConnectionConfigField({
   onChange: (value: string) => void
 }) {
   const [showValue, setShowValue] = useState(false)
-  const label =
-    formatConnectionConfigKey(configKey)
+  const label = formatConnectionConfigLabel(
+    configKey,
+    sourceType
+  )
   const fieldGuide = getConnectionFieldGuide(
     sourceType,
     configKey
@@ -2226,4 +2231,21 @@ function formatConnectionConfigKey(
     .replace(/\b\w/g, (letter) =>
       letter.toUpperCase()
     )
+}
+
+function formatConnectionConfigLabel(
+  key: string,
+  sourceType?: string
+) {
+  if (sourceType === "google_ads") {
+    if (key === "customer_id") {
+      return "Customer account ID"
+    }
+
+    if (key === "login_customer_id") {
+      return "Manager account ID (optional)"
+    }
+  }
+
+  return formatConnectionConfigKey(key)
 }
