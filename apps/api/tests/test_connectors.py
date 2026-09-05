@@ -681,6 +681,95 @@ class ConnectorSmokeTests(unittest.TestCase):
         ):
             connectors.normalize_google_ads_customer_id("12345")
 
+    def test_google_ads_account_discovery_lists_manager_clients(self):
+        accessible_payload = {
+            "resourceNames": ["customers/9107036696"],
+        }
+
+        def search_request(url, headers, payload):
+            query = payload["query"]
+            if "FROM customer_client" in query:
+                return [{
+                    "results": [
+                        {
+                            "customerClient": {
+                                "id": "9107036696",
+                                "level": "0",
+                                "manager": True,
+                                "descriptiveName": "Decisionate Manager",
+                                "currencyCode": "CAD",
+                                "timeZone": "America/Halifax",
+                                "status": "ENABLED",
+                            },
+                        },
+                        {
+                            "customerClient": {
+                                "id": "6987660396",
+                                "level": "1",
+                                "manager": False,
+                                "descriptiveName": "Decisionate Inc.",
+                                "currencyCode": "CAD",
+                                "timeZone": "America/Halifax",
+                                "status": "ENABLED",
+                            },
+                        },
+                    ],
+                }]
+
+            return [{
+                "results": [{
+                    "customer": {
+                        "id": "9107036696",
+                        "descriptiveName": "Decisionate Manager",
+                        "manager": True,
+                        "currencyCode": "CAD",
+                        "timeZone": "America/Halifax",
+                    },
+                }],
+            }]
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="google-ads-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            return_value=accessible_payload,
+        ), patch.object(
+            connectors,
+            "connector_json_post_request",
+            side_effect=search_request,
+        ), patch.dict(
+            os.environ,
+            {
+                "GOOGLE_ADS_API_BASE_URL": (
+                    "https://googleads.googleapis.com"
+                ),
+                "GOOGLE_ADS_API_VERSION": "v22",
+                "GOOGLE_ADS_DEVELOPER_TOKEN": "developer-token",
+            },
+            clear=False,
+        ):
+            accounts = connectors.list_google_ads_accounts(
+                None,
+                make_connection("google_ads", {}),
+            )
+
+        self.assertEqual(
+            accounts[0]["customer_id"],
+            "9107036696",
+        )
+        self.assertTrue(accounts[0]["is_manager"])
+        self.assertEqual(
+            accounts[1]["customer_id"],
+            "6987660396",
+        )
+        self.assertEqual(
+            accounts[1]["login_customer_id"],
+            "9107036696",
+        )
+
     def test_database_connectors_load_read_only_rows(self):
         with tempfile.NamedTemporaryFile(suffix=".sqlite") as database_file:
             engine = create_engine(f"sqlite:///{database_file.name}")

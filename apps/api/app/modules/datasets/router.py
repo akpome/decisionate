@@ -171,6 +171,7 @@ from app.modules.datasets.services.connectors import (
     normalize_xero_resource_type,
     normalize_zoho_books_resource_type,
     normalize_zoho_books_resource_types,
+    list_google_ads_accounts,
 )
 from app.modules.datasets.services.scheduling import (
     connection_sync_is_due,
@@ -890,6 +891,20 @@ def build_source_connection_response(
             for item in dataset_records
         ],
         "configured_resource_types": configured_resource_types,
+        "configured_customer_id": (
+            str(parsed_config.get("customer_id") or "")
+            .strip()
+            .replace("-", "")
+            if source_type == "google_ads"
+            else None
+        ),
+        "configured_login_customer_id": (
+            str(parsed_config.get("login_customer_id") or "")
+            .strip()
+            .replace("-", "")
+            if source_type == "google_ads"
+            else None
+        ),
         "configured_object_type": (
             str(parsed_config.get("object_type") or "").strip()
             if source_type == "salesforce"
@@ -2662,6 +2677,13 @@ async def update_source_connection(
             )
 
         if payload.connection_config is not None:
+            google_ads_manager_id_cleared = (
+                connection.source_type == "google_ads"
+                and "login_customer_id" in payload.connection_config
+                and not has_config_value(
+                    payload.connection_config.get("login_customer_id")
+                )
+            )
             existing_config = parse_schedule_config(
                 connection.connection_config
             )
@@ -2726,6 +2748,8 @@ async def update_source_connection(
                     and config_key not in next_config
                 ):
                     next_config[config_key] = config_value
+            if google_ads_manager_id_cleared:
+                next_config.pop("login_customer_id", None)
             if (
                 connection.source_type == "stripe"
                 and "api_key" not in next_config
@@ -2832,6 +2856,43 @@ async def update_source_connection_schedule(
                 connection,
             ),
         )
+    finally:
+        db.close()
+
+
+@router.get("/source-connections/{connection_id}/google-ads/accounts")
+async def get_google_ads_connection_accounts(
+    request: Request,
+    connection_id: int,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(request, user_id)
+    require_workspace_data_manager(request)
+    db = SessionLocal()
+    try:
+        connection = get_owned_source_connection(
+            db,
+            connection_id,
+            user_id,
+            workspace_id,
+        )
+        if connection.source_type != "google_ads":
+            raise HTTPException(
+                status_code=400,
+                detail="Account selection is only available for Google Ads",
+            )
+        if connection.status != "connected":
+            raise HTTPException(
+                status_code=409,
+                detail="Authorize Google Ads before selecting an account",
+            )
+
+        return {
+            "connection_id": connection.id,
+            "accounts": list_google_ads_accounts(db, connection),
+        }
+    except (ConnectorUnavailable, OAuthProviderUnavailable) as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     finally:
         db.close()
 

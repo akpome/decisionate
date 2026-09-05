@@ -1576,6 +1576,271 @@ def google_ads_micros_to_units(value):
     return numeric / 1_000_000
 
 
+GOOGLE_ADS_CUSTOMER_QUERY = " ".join([
+    "SELECT",
+    "customer.id,",
+    "customer.descriptive_name,",
+    "customer.manager,",
+    "customer.currency_code,",
+    "customer.time_zone",
+    "FROM customer",
+])
+GOOGLE_ADS_CUSTOMER_CLIENT_QUERY = " ".join([
+    "SELECT",
+    "customer_client.client_customer,",
+    "customer_client.level,",
+    "customer_client.manager,",
+    "customer_client.descriptive_name,",
+    "customer_client.currency_code,",
+    "customer_client.time_zone,",
+    "customer_client.id,",
+    "customer_client.status,",
+    "customer_client.test_account",
+    "FROM customer_client",
+    "WHERE customer_client.level <= 1",
+])
+
+
+def _google_ads_search_stream_results(
+    base_url: str,
+    api_version: str,
+    customer_id: str,
+    access_token: str,
+    developer_token: str,
+    query: str,
+    login_customer_id: str | None = None,
+) -> list[dict]:
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "developer-token": developer_token,
+    }
+    if login_customer_id:
+        headers["login-customer-id"] = login_customer_id
+
+    payload = connector_json_post_request(
+        (
+            f"{base_url}/{api_version}/customers/{customer_id}/"
+            "googleAds:searchStream"
+        ),
+        headers,
+        {"query": query},
+    )
+    if not isinstance(payload, list):
+        raise ConnectorUnavailable(
+            "Google Ads returned an invalid account discovery response"
+        )
+
+    results = []
+    for chunk in payload:
+        if not isinstance(chunk, dict):
+            raise ConnectorUnavailable(
+                "Google Ads returned an invalid account discovery response"
+            )
+        chunk_results = chunk.get("results")
+        if chunk_results is None:
+            continue
+        if not isinstance(chunk_results, list):
+            raise ConnectorUnavailable(
+                "Google Ads returned invalid account discovery results"
+            )
+        results.extend(
+            item
+            for item in chunk_results
+            if isinstance(item, dict)
+        )
+    return results
+
+
+def _google_ads_customer_id_from_resource(value) -> str | None:
+    match = re.fullmatch(
+        r"customers/(\d+)",
+        str(value or "").strip(),
+    )
+    return match.group(1) if match else None
+
+
+def _google_ads_account_option(
+    customer: dict,
+    login_customer_id: str | None = None,
+    level=None,
+) -> dict | None:
+    customer_id = str(customer.get("id") or "").strip()
+    if not customer_id:
+        customer_id = (
+            _google_ads_customer_id_from_resource(
+                customer.get("clientCustomer")
+            )
+            or ""
+        )
+    if not re.fullmatch(r"\d{10}", customer_id):
+        return None
+
+    normalized_level = None
+    try:
+        normalized_level = int(level)
+    except (TypeError, ValueError):
+        pass
+
+    descriptive_name = str(
+        customer.get("descriptiveName") or ""
+    ).strip()
+    return {
+        "customer_id": customer_id,
+        "login_customer_id": login_customer_id,
+        "name": descriptive_name or f"Google Ads account {customer_id}",
+        "is_manager": customer.get("manager") is True,
+        "currency_code": str(
+            customer.get("currencyCode") or ""
+        ).strip() or None,
+        "time_zone": str(
+            customer.get("timeZone") or ""
+        ).strip() or None,
+        "status": str(customer.get("status") or "").strip() or None,
+        "test_account": customer.get("testAccount") is True,
+        "level": normalized_level,
+    }
+
+
+def list_google_ads_accounts(
+    db,
+    connection: DataSourceConnection,
+) -> list[dict]:
+    """Return selectable customer accounts available to the OAuth user."""
+    access_token = get_oauth_access_token(
+        db,
+        connection,
+        "google_ads",
+    )
+    developer_token = get_provider_setting(
+        "GOOGLE_ADS_DEVELOPER_TOKEN"
+    ).strip()
+    if not developer_token:
+        raise ConnectorUnavailable(
+            "GOOGLE_ADS_DEVELOPER_TOKEN is required for account selection"
+        )
+
+    api_version = get_google_ads_api_version()
+    base_url = require_provider_url("GOOGLE_ADS_API_BASE_URL")
+    accessible_payload = connector_json_request(
+        f"{base_url}/{api_version}/customers:listAccessibleCustomers",
+        {
+            "Authorization": f"Bearer {access_token}",
+            "developer-token": developer_token,
+        },
+    )
+    resource_names = accessible_payload.get("resourceNames")
+    if not isinstance(resource_names, list):
+        raise ConnectorUnavailable(
+            "Google Ads returned no accessible customer accounts"
+        )
+
+    seed_customer_ids = []
+    for resource_name in resource_names:
+        customer_id = _google_ads_customer_id_from_resource(
+            resource_name
+        )
+        if customer_id and customer_id not in seed_customer_ids:
+            seed_customer_ids.append(customer_id)
+
+    if not seed_customer_ids:
+        raise ConnectorUnavailable(
+            "Google Ads returned no accessible customer accounts"
+        )
+
+    accounts_by_id = {}
+    for seed_customer_id in seed_customer_ids:
+        customer_results = _google_ads_search_stream_results(
+            base_url,
+            api_version,
+            seed_customer_id,
+            access_token,
+            developer_token,
+            GOOGLE_ADS_CUSTOMER_QUERY,
+        )
+        customer = (
+            customer_results[0].get("customer")
+            if customer_results
+            else None
+        )
+        customer = customer if isinstance(customer, dict) else {}
+        seed_option = _google_ads_account_option(customer)
+        if seed_option:
+            accounts_by_id[seed_customer_id] = seed_option
+
+        if customer.get("manager") is not True:
+            continue
+
+        pending_managers = [seed_customer_id]
+        visited_managers = set()
+        while pending_managers:
+            manager_id = pending_managers.pop(0)
+            if manager_id in visited_managers:
+                continue
+            visited_managers.add(manager_id)
+
+            hierarchy_results = _google_ads_search_stream_results(
+                base_url,
+                api_version,
+                manager_id,
+                access_token,
+                developer_token,
+                GOOGLE_ADS_CUSTOMER_CLIENT_QUERY,
+                login_customer_id=seed_customer_id,
+            )
+            for result in hierarchy_results:
+                customer_client = result.get("customerClient")
+                if not isinstance(customer_client, dict):
+                    continue
+                client_id = str(
+                    customer_client.get("id") or ""
+                ).strip()
+                if not client_id:
+                    client_id = (
+                        _google_ads_customer_id_from_resource(
+                            customer_client.get("clientCustomer")
+                        )
+                        or ""
+                    )
+                option = _google_ads_account_option(
+                    customer_client,
+                    login_customer_id=(
+                        None
+                        if client_id == seed_customer_id
+                        else seed_customer_id
+                    ),
+                    level=customer_client.get("level"),
+                )
+                if not option:
+                    continue
+
+                existing = accounts_by_id.get(option["customer_id"])
+                if (
+                    existing is None
+                    or (
+                        existing.get("login_customer_id")
+                        and not option.get("login_customer_id")
+                    )
+                ):
+                    accounts_by_id[option["customer_id"]] = option
+
+                if (
+                    option["is_manager"]
+                    and option["customer_id"] != manager_id
+                    and option["customer_id"] not in visited_managers
+                ):
+                    pending_managers.append(option["customer_id"])
+
+    accounts = list(accounts_by_id.values())
+    accounts.sort(
+        key=lambda item: (
+            not item["is_manager"],
+            item["name"].lower(),
+            item["customer_id"],
+        )
+    )
+    return accounts
+
+
 def load_google_ads_dataframe(
     db,
     connection: DataSourceConnection,

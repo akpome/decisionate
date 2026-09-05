@@ -435,6 +435,8 @@ export type DataSourceConnection = {
   dataset_ids?: number[]
   dataset_file_names?: string[]
   configured_resource_types?: string[]
+  configured_customer_id?: string | null
+  configured_login_customer_id?: string | null
   configured_object_type?: string | null
   last_synced_at?: string | null
   sync_enabled?: boolean
@@ -444,6 +446,23 @@ export type DataSourceConnection = {
   sync_day_of_week?: number | null
   created_at?: string
   updated_at?: string
+}
+
+export type GoogleAdsAccount = {
+  customer_id: string
+  login_customer_id?: string | null
+  name: string
+  is_manager: boolean
+  currency_code?: string | null
+  time_zone?: string | null
+  status?: string | null
+  test_account?: boolean
+  level?: number | null
+}
+
+export type GoogleAdsAccountsResponse = {
+  connection_id: number
+  accounts: GoogleAdsAccount[]
 }
 
 export type DataSourceConnectionCreatePayload = {
@@ -4428,6 +4447,35 @@ export async function startOAuthConnection(
     await throwApiError(
       response,
       "Failed to start connector authorization"
+    )
+  }
+
+  return response.json()
+}
+
+export async function getGoogleAdsAccounts(
+  connectionId: number,
+  userId: string,
+  workspaceId?: string
+): Promise<GoogleAdsAccountsResponse> {
+  const cleanConnectionId = cleanPositiveIntegerId(
+    connectionId,
+    "Connection id"
+  )
+  const response = await apiFetch(
+    `${API_URL}/datasets/source-connections/${cleanConnectionId}/google-ads/accounts`,
+    {
+      headers: await workspaceHeaders(
+        userId,
+        workspaceId
+      ),
+    }
+  )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to load Google Ads accounts"
     )
   }
 
