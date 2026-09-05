@@ -491,6 +491,7 @@ function DataSourceConnectionRow({
   const canSyncConnector =
     [
       "google_analytics",
+      "google_ads",
       "hubspot",
       "stripe",
       "shopify",
@@ -1125,6 +1126,12 @@ function DataSourceConnectionRow({
                 </p>
               )}
 
+              {connection.source_type === "google_ads" && (
+                <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
+                  A Google Ads customer ID is required before data can be ingested. The manager account ID is only needed when access is through a manager account.
+                </p>
+              )}
+
               <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
                 Save the required setting before data can be ingested. Without it, this connection will ingest no data.
               </p>
@@ -1195,6 +1202,7 @@ type ConnectionFieldGuide = {
 const VISIBILITY_TOGGLE_SOURCE_TYPES = new Set([
   "shopify",
   "google_analytics",
+  "google_ads",
   "meta_ads",
   "stripe",
 ])
@@ -1442,6 +1450,16 @@ const CONNECTION_FIELD_GUIDES: Record<
     property_id: {
       description: "The numeric GA4 property ID that owns the reports.",
       example: "123456789",
+    },
+  },
+  google_ads: {
+    customer_id: {
+      description: "The 10-digit Google Ads customer account ID to query. Hyphens are accepted and removed automatically.",
+      example: "1234567890",
+    },
+    login_customer_id: {
+      description: "Optional 10-digit manager account ID. Enter it when the authorized Google user reaches the customer account through a manager account; leave blank for direct access.",
+      example: "0987654321",
     },
   },
   postgresql: {

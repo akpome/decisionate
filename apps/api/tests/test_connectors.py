@@ -605,6 +605,82 @@ class ConnectorSmokeTests(unittest.TestCase):
             ["opportunities"],
         )
 
+    def test_google_ads_campaign_report_loads_daily_metrics(self):
+        response = [{
+            "results": [{
+                "campaign": {
+                    "id": "1234567890",
+                    "name": "Spring campaign",
+                    "status": "ENABLED",
+                    "advertisingChannelType": "SEARCH",
+                },
+                "segments": {"date": "2026-01-02"},
+                "metrics": {
+                    "impressions": "100",
+                    "clicks": "5",
+                    "costMicros": "1250000",
+                    "conversions": "2.0",
+                    "conversionsValue": "200.0",
+                    "ctr": "0.05",
+                    "averageCpc": "250000",
+                },
+            }],
+        }]
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="google-ads-token",
+        ), patch.object(
+            connectors,
+            "connector_json_post_request",
+            return_value=response,
+        ) as mocked_request, patch.dict(
+            os.environ,
+            {
+                "GOOGLE_ADS_API_BASE_URL": (
+                    "https://googleads.googleapis.com"
+                ),
+                "GOOGLE_ADS_API_VERSION": "v22",
+                "GOOGLE_ADS_DEVELOPER_TOKEN": "developer-token",
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_google_ads_dataframe(
+                None,
+                make_connection("google_ads", {
+                    "customer_id": "123-456-7890",
+                    "login_customer_id": "098-765-4321",
+                }),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            )
+
+        url, headers, body = mocked_request.call_args.args
+        self.assertEqual(
+            url,
+            "https://googleads.googleapis.com/v22/customers/1234567890/"
+            "googleAds:searchStream",
+        )
+        self.assertEqual(headers["Authorization"], "Bearer google-ads-token")
+        self.assertEqual(headers["developer-token"], "developer-token")
+        self.assertEqual(headers["login-customer-id"], "0987654321")
+        self.assertIn("segments.date BETWEEN '2026-01-01'", body["query"])
+        self.assertFalse(dataframe.empty)
+        self.assertEqual(dataframe.iloc[0]["date"], "2026-01-02")
+        self.assertEqual(dataframe.iloc[0]["impressions"], 100)
+        self.assertEqual(dataframe.iloc[0]["cost_micros"], 1250000)
+        self.assertEqual(dataframe.iloc[0]["cost"], 1.25)
+        self.assertEqual(report["customer_id"], "1234567890")
+        self.assertEqual(report["login_customer_id"], "0987654321")
+
+    def test_google_ads_customer_id_requires_ten_digits(self):
+        with self.assertRaisesRegex(
+            connectors.ConnectorUnavailable,
+            "Google Ads customer_id must be a 10-digit customer ID",
+        ):
+            connectors.normalize_google_ads_customer_id("12345")
+
     def test_database_connectors_load_read_only_rows(self):
         with tempfile.NamedTemporaryFile(suffix=".sqlite") as database_file:
             engine = create_engine(f"sqlite:///{database_file.name}")

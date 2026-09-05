@@ -777,6 +777,13 @@ def load_connector_dataframe(
     hubspot_resource_type: str | None = None,
     salesforce_resource_type: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
+    if connection.source_type == "google_ads":
+        return load_google_ads_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+        )
     if connection.source_type == "hubspot":
         return load_hubspot_dataframe(
             db,
@@ -977,6 +984,25 @@ def validate_salesforce_instance_url(value) -> str:
             "Salesforce authorization did not provide a valid instance URL"
         )
     return instance_url
+
+
+def normalize_google_ads_customer_id(value, field_name="customer_id") -> str:
+    customer_id = str(value or "").strip().replace("-", "")
+    if not re.fullmatch(r"\d{10}", customer_id):
+        raise ConnectorUnavailable(
+            f"Google Ads {field_name} must be a 10-digit customer ID"
+        )
+    return customer_id
+
+
+def get_google_ads_api_version() -> str:
+    value = get_provider_setting("GOOGLE_ADS_API_VERSION").strip()
+    normalized = value.removeprefix("v")
+    if not re.fullmatch(r"\d+", normalized):
+        raise ConnectorUnavailable(
+            "GOOGLE_ADS_API_VERSION must be a Google Ads version such as v22"
+        )
+    return f"v{normalized}"
 
 
 def get_salesforce_api_version() -> str:
@@ -1529,6 +1555,184 @@ def load_meta_ads_dataframe(
         "start_date": since.isoformat(),
         "end_date": until.isoformat(),
         "time_increment": time_increment,
+        "row_count": len(dataframe),
+    }
+
+
+def google_ads_numeric(value):
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return value
+    return int(numeric) if numeric.is_integer() else numeric
+
+
+def google_ads_micros_to_units(value):
+    numeric = google_ads_numeric(value)
+    if not isinstance(numeric, (int, float)):
+        return None
+    return numeric / 1_000_000
+
+
+def load_google_ads_dataframe(
+    db,
+    connection: DataSourceConnection,
+    start_date=None,
+    end_date=None,
+) -> tuple[pd.DataFrame, dict]:
+    config = parse_connection_config(connection)
+    customer_id = normalize_google_ads_customer_id(
+        config.get("customer_id"),
+    )
+    login_customer_id = str(
+        config.get("login_customer_id") or ""
+    ).strip()
+    if login_customer_id:
+        login_customer_id = normalize_google_ads_customer_id(
+            login_customer_id,
+            "login_customer_id",
+        )
+
+    access_token = get_oauth_access_token(
+        db,
+        connection,
+        "google_ads",
+    )
+    developer_token = get_provider_setting(
+        "GOOGLE_ADS_DEVELOPER_TOKEN"
+    ).strip()
+    if not developer_token:
+        raise ConnectorUnavailable(
+            "GOOGLE_ADS_DEVELOPER_TOKEN is required for the Google Ads connector"
+        )
+
+    api_version = get_google_ads_api_version()
+    base_url = require_provider_url("GOOGLE_ADS_API_BASE_URL")
+    since = start_date or date.today() - timedelta(days=30)
+    until = end_date or date.today()
+    if since > until:
+        raise ConnectorUnavailable(
+            "Google Ads start_date must be on or before end_date"
+        )
+
+    query = " ".join([
+        "SELECT",
+        "campaign.id,",
+        "campaign.name,",
+        "campaign.status,",
+        "campaign.advertising_channel_type,",
+        "segments.date,",
+        "metrics.impressions,",
+        "metrics.clicks,",
+        "metrics.cost_micros,",
+        "metrics.conversions,",
+        "metrics.conversions_value,",
+        "metrics.ctr,",
+        "metrics.average_cpc",
+        "FROM campaign",
+        f"WHERE segments.date BETWEEN '{since.isoformat()}'",
+        f"AND '{until.isoformat()}'",
+        "ORDER BY segments.date, campaign.id",
+    ])
+    url = (
+        f"{base_url}/{api_version}/customers/{customer_id}/"
+        "googleAds:searchStream"
+    )
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "developer-token": developer_token,
+    }
+    if login_customer_id:
+        headers["login-customer-id"] = login_customer_id
+
+    payload = connector_json_post_request(
+        url,
+        headers,
+        {"query": query},
+    )
+    if not isinstance(payload, list):
+        raise ConnectorUnavailable(
+            "Google Ads returned an invalid SearchStream response"
+        )
+
+    rows = []
+    for chunk in payload:
+        if not isinstance(chunk, dict):
+            raise ConnectorUnavailable(
+                "Google Ads returned an invalid SearchStream response"
+            )
+        records = chunk.get("results")
+        if records is None:
+            continue
+        if not isinstance(records, list):
+            raise ConnectorUnavailable(
+                "Google Ads returned invalid campaign results"
+            )
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            campaign = record.get("campaign")
+            campaign = campaign if isinstance(campaign, dict) else {}
+            metrics = record.get("metrics")
+            metrics = metrics if isinstance(metrics, dict) else {}
+            segments = record.get("segments")
+            segments = segments if isinstance(segments, dict) else {}
+            report_date = segments.get("date")
+            campaign_id = campaign.get("id")
+            if report_date is None or campaign_id is None:
+                continue
+            normalized_row = {
+                "record_id": f"{customer_id}:{campaign_id}:{report_date}",
+                "customer_id": customer_id,
+                "date": report_date,
+                "campaign_id": campaign_id,
+                "campaign_name": campaign.get("name"),
+                "campaign_status": campaign.get("status"),
+                "advertising_channel_type": campaign.get(
+                    "advertisingChannelType"
+                ),
+                "impressions": google_ads_numeric(
+                    metrics.get("impressions")
+                ),
+                "clicks": google_ads_numeric(metrics.get("clicks")),
+                "cost_micros": google_ads_numeric(
+                    metrics.get("costMicros")
+                ),
+                "cost": google_ads_micros_to_units(
+                    metrics.get("costMicros")
+                ),
+                "conversions": google_ads_numeric(
+                    metrics.get("conversions")
+                ),
+                "conversions_value": google_ads_numeric(
+                    metrics.get("conversionsValue")
+                ),
+                "ctr": google_ads_numeric(metrics.get("ctr")),
+                "average_cpc_micros": google_ads_numeric(
+                    metrics.get("averageCpc")
+                ),
+                "average_cpc": google_ads_micros_to_units(
+                    metrics.get("averageCpc")
+                ),
+            }
+            rows.append(
+                build_dynamic_connector_row(
+                    record,
+                    normalized_row,
+                )
+            )
+
+    dataframe = pd.DataFrame(rows)
+    return dataframe, {
+        "connector": "google_ads",
+        "resource": "campaign_performance",
+        "customer_id": customer_id,
+        "login_customer_id": login_customer_id or None,
+        "api_version": api_version,
+        "start_date": since.isoformat(),
+        "end_date": until.isoformat(),
         "row_count": len(dataframe),
     }
 
@@ -3257,6 +3461,41 @@ def connector_json_request_with_headers(
     if not isinstance(payload, dict):
         raise ConnectorUnavailable("Connector returned an invalid response")
     return payload, response_headers
+
+
+def connector_json_post_request(
+    url: str,
+    headers: dict[str, str],
+    payload: dict,
+):
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            **headers,
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=60) as response:
+            body = response.read().decode("utf-8")
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise ConnectorUnavailable(
+            f"Connector request failed with HTTP {error.code}: {detail[:240]}"
+        ) from error
+    except (URLError, TimeoutError, OSError) as error:
+        raise ConnectorUnavailable("Connector service is unavailable") from error
+
+    try:
+        parsed_payload = json.loads(body)
+    except json.JSONDecodeError as error:
+        raise ConnectorUnavailable("Connector returned an invalid response") from error
+    if not isinstance(parsed_payload, (dict, list)):
+        raise ConnectorUnavailable("Connector returned an invalid response")
+    return parsed_payload
 
 
 def validate_read_query(value) -> str:

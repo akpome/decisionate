@@ -241,7 +241,7 @@ webhook endpoint consumes the raw request body and rejects duplicate event IDs.
 ## OAuth Connectors And Automated Sync
 
 Owner-only OAuth authorization is available for Shopify, QuickBooks, FreshBooks,
-Sage Cloud Accounting, HubSpot, Meta Ads, and Xero. Configure each
+Sage Cloud Accounting, HubSpot, Google Ads, Meta Ads, and Xero. Configure each
 provider's client ID and secret, `OAUTH_CALLBACK_URL`, and a Fernet
 `OAUTH_TOKEN_ENCRYPTION_KEY`.
 OAuth callbacks store encrypted access and refresh tokens in the database; raw
@@ -263,6 +263,15 @@ server before authorization can begin. Stripe data ingestion uses a restricted,
 read-only API key supplied by each customer on their own connection; it does not
 use Stripe Connect or a global customer-data key. Keep `STRIPE_SECRET_KEY`
 separate for Decisionate billing.
+Google Ads requires the server-side OAuth app credentials, a Google Ads
+developer token, and the `https://www.googleapis.com/auth/adwords` scope.
+The customer enters the target 10-digit `customer_id` on the connection;
+`login_customer_id` is optional and is used when the authorized user reaches
+that customer through a manager account. The adapter uses the read-only
+campaign performance `SearchStream` report and stores one row per campaign and
+day. Configure `GOOGLE_ADS_API_BASE_URL`, `GOOGLE_ADS_API_VERSION`, and
+`GOOGLE_ADS_DEVELOPER_TOKEN` alongside the Google Ads OAuth settings in
+`.env.example`.
 Sage requires `SAGE_CLIENT_ID`, `SAGE_CLIENT_SECRET`,
 `SAGE_API_SUBSCRIPTION_KEY`, and an encrypted OAuth token key. Sage is imported
 with the provider's read-only OAuth consent and the selected business resource

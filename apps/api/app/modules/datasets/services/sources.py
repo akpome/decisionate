@@ -15,6 +15,7 @@ from app.modules.oauth.service import (
 
 IMPLEMENTED_CONNECTOR_TYPES = {
     "google_analytics",
+    "google_ads",
     "hubspot",
     "stripe",
     "shopify",
@@ -83,6 +84,21 @@ DATASET_SOURCES = [
             "Connect website and campaign performance data. The property ID "
             "identifies the Analytics property. Authorize the Google account "
             "that has access to that property."
+        ),
+    },
+    {
+        "type": "google_ads",
+        "label": "Google Ads",
+        "category": "business_apps",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["customer_id", "login_customer_id"],
+        "required_config_keys": ["customer_id"],
+        "description": (
+            "Connect Google Ads campaign performance data. Enter the 10-digit "
+            "customer account ID; a manager account ID is optional when the "
+            "authorized Google user reaches the account through a manager."
         ),
     },
     {
@@ -309,6 +325,10 @@ DATASET_SOURCE_ENV_KEYS = {
         "GOOGLE_ANALYTICS_CLIENT_ID",
         "GOOGLE_ANALYTICS_CLIENT_SECRET",
     ],
+    "google_ads": [
+        "GOOGLE_ADS_CLIENT_ID",
+        "GOOGLE_ADS_CLIENT_SECRET",
+    ],
     "meta_ads": [
         "META_ADS_APP_ID",
         "META_ADS_APP_SECRET",
@@ -362,6 +382,14 @@ DATASET_SOURCE_RUNTIME_ENV_KEYS = {
         "GOOGLE_ANALYTICS_OAUTH_AUTHORIZATION_URL",
         "GOOGLE_ANALYTICS_OAUTH_TOKEN_URL",
         "GOOGLE_ANALYTICS_OAUTH_SCOPES",
+    ],
+    "google_ads": [
+        "GOOGLE_ADS_API_BASE_URL",
+        "GOOGLE_ADS_API_VERSION",
+        "GOOGLE_ADS_DEVELOPER_TOKEN",
+        "GOOGLE_ADS_OAUTH_AUTHORIZATION_URL",
+        "GOOGLE_ADS_OAUTH_TOKEN_URL",
+        "GOOGLE_ADS_OAUTH_SCOPES",
     ],
 }
 
@@ -518,6 +546,7 @@ def clone_dataset_source(source):
         "xero",
         "zoho_books",
         "salesforce",
+        "google_ads",
     }:
         if (
             is_oauth_provider_configured(source["type"])

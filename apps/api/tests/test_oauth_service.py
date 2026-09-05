@@ -170,6 +170,42 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             ["https://www.googleapis.com/auth/analytics.readonly"],
         )
 
+    def test_google_ads_authorization_uses_offline_adwords_scope(self):
+        key = Fernet.generate_key().decode()
+        with patch.dict(
+            os.environ,
+            {
+                "GOOGLE_ADS_CLIENT_ID": "client-id",
+                "GOOGLE_ADS_CLIENT_SECRET": "client-secret",
+                "GOOGLE_ADS_OAUTH_AUTHORIZATION_URL": (
+                    "https://accounts.google.com/o/oauth2/v2/auth"
+                ),
+                "GOOGLE_ADS_OAUTH_TOKEN_URL": (
+                    "https://oauth2.googleapis.com/token"
+                ),
+                "GOOGLE_ADS_OAUTH_SCOPES": (
+                    "https://www.googleapis.com/auth/adwords"
+                ),
+                "OAUTH_CALLBACK_URL": (
+                    "https://api.example.com/oauth/callback"
+                ),
+                "OAUTH_TOKEN_ENCRYPTION_KEY": key,
+            },
+            clear=False,
+        ):
+            url = build_authorization_url(
+                "google_ads",
+                "state-1",
+            )
+
+        query = parse_qs(urlparse(url).query)
+        self.assertEqual(
+            query["scope"],
+            ["https://www.googleapis.com/auth/adwords"],
+        )
+        self.assertEqual(query["access_type"], ["offline"])
+        self.assertEqual(query["prompt"], ["consent"])
+
     def test_schedule_is_explicit_and_due(self):
         config = write_connection_schedule(
             '{"property_id":"123"}',

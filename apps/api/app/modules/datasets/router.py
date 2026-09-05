@@ -206,6 +206,7 @@ CONNECTOR_DEDUP_KEYS = {
     "stripe": ["charge_id"],
     "shopify": ["order_id"],
     "meta_ads": ["date_start", "campaign_id"],
+    "google_ads": ["date", "campaign_id"],
     "quickbooks": ["record_id"],
     "freshbooks": ["record_id"],
     "xero": ["invoice_id"],
@@ -1037,6 +1038,8 @@ def require_source_connection_sync_config(connection):
         "property_id": "the GA4 property ID",
         "shop_domain": "the Shopify shop domain",
         "ad_account_id": "the Meta Ads account ID",
+        "customer_id": "the Google Ads customer ID",
+        "login_customer_id": "the optional Google Ads manager account ID",
         "query": "a read-only SQL query",
     }
     missing_labels = [

@@ -185,6 +185,17 @@ OAUTH_PROVIDERS = {
             "https://www.googleapis.com/auth/analytics.readonly",
         ),
     ),
+    "google_ads": OAuthProvider(
+        source_type="google_ads",
+        authorization_url_env="GOOGLE_ADS_OAUTH_AUTHORIZATION_URL",
+        token_url_env="GOOGLE_ADS_OAUTH_TOKEN_URL",
+        client_id_env="GOOGLE_ADS_CLIENT_ID",
+        client_secret_env="GOOGLE_ADS_CLIENT_SECRET",
+        scopes_env="GOOGLE_ADS_OAUTH_SCOPES",
+        required_scopes=(
+            "https://www.googleapis.com/auth/adwords",
+        ),
+    ),
 }
 
 
@@ -492,7 +503,7 @@ def build_authorization_url(
                 "prompt": "consent",
             }
         )
-    elif provider.source_type == "google_analytics":
+    elif provider.source_type in {"google_analytics", "google_ads"}:
         params.update(
             {
                 "access_type": "offline",
