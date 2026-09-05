@@ -683,7 +683,7 @@ class ConnectorSmokeTests(unittest.TestCase):
 
     def test_google_ads_error_detail_exposes_authorization_code(self):
         detail = connectors.format_connector_error_detail(
-            json.dumps(
+            json.dumps([
                 {
                     "error": {
                         "details": [
@@ -708,7 +708,7 @@ class ConnectorSmokeTests(unittest.TestCase):
                         ]
                     }
                 }
-            )
+            ])
         )
 
         self.assertEqual(

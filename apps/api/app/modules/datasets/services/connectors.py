@@ -1756,6 +1756,7 @@ def list_google_ads_accounts(
             access_token,
             developer_token,
             GOOGLE_ADS_CUSTOMER_QUERY,
+            login_customer_id=seed_customer_id,
         )
         customer = (
             customer_results[0].get("customer")
@@ -3772,42 +3773,52 @@ def format_connector_error_detail(detail: str) -> str:
     except (TypeError, json.JSONDecodeError):
         return detail
 
-    error = payload.get("error") if isinstance(payload, dict) else None
-    if not isinstance(error, dict):
-        return detail
-
     google_ads_errors = []
-    for item in error.get("details") or []:
-        if not isinstance(item, dict):
+    messages = []
+    error_payloads = payload if isinstance(payload, list) else [payload]
+    for error_payload in error_payloads:
+        if not isinstance(error_payload, dict):
             continue
-        if not str(item.get("@type") or "").endswith("GoogleAdsFailure"):
+        error = error_payload.get("error")
+        if not isinstance(error, dict):
             continue
-        for failure in item.get("errors") or []:
-            if not isinstance(failure, dict):
+        message = str(error.get("message") or "").strip()
+        if message:
+            messages.append(message)
+        for item in error.get("details") or []:
+            if not isinstance(item, dict):
                 continue
-            error_code = failure.get("errorCode")
-            if isinstance(error_code, dict):
-                code = next(
-                    (
-                        str(value).strip()
-                        for value in error_code.values()
-                        if str(value).strip()
-                    ),
-                    "",
-                )
-            else:
-                code = str(error_code or "").strip()
-            message = str(failure.get("message") or "").strip()
-            if code and message:
-                google_ads_errors.append(f"{code}: {message}")
-            elif message:
-                google_ads_errors.append(message)
+            if not str(item.get("@type") or "").endswith("GoogleAdsFailure"):
+                continue
+            for failure in item.get("errors") or []:
+                if not isinstance(failure, dict):
+                    continue
+                error_code = failure.get("errorCode")
+                if isinstance(error_code, dict):
+                    code = next(
+                        (
+                            str(value).strip()
+                            for value in error_code.values()
+                            if str(value).strip()
+                        ),
+                        "",
+                    )
+                else:
+                    code = str(error_code or "").strip()
+                failure_message = str(
+                    failure.get("message") or ""
+                ).strip()
+                if code and failure_message:
+                    google_ads_errors.append(
+                        f"{code}: {failure_message}"
+                    )
+                elif failure_message:
+                    google_ads_errors.append(failure_message)
 
     if google_ads_errors:
         return "Google Ads " + "; ".join(google_ads_errors)
 
-    message = str(error.get("message") or "").strip()
-    return message or detail
+    return "; ".join(messages) or detail
 
 
 def validate_read_query(value) -> str:
