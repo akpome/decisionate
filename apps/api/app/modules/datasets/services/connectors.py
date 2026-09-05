@@ -3714,7 +3714,8 @@ def connector_json_request_with_headers(
     except HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise ConnectorUnavailable(
-            f"Connector request failed with HTTP {error.code}: {detail[:240]}"
+            f"Connector request failed with HTTP {error.code}: "
+            f"{format_connector_error_detail(detail)[:240]}"
         ) from error
     except (URLError, TimeoutError, OSError) as error:
         raise ConnectorUnavailable("Connector service is unavailable") from error
@@ -3749,7 +3750,8 @@ def connector_json_post_request(
     except HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise ConnectorUnavailable(
-            f"Connector request failed with HTTP {error.code}: {detail[:240]}"
+            f"Connector request failed with HTTP {error.code}: "
+            f"{format_connector_error_detail(detail)[:240]}"
         ) from error
     except (URLError, TimeoutError, OSError) as error:
         raise ConnectorUnavailable("Connector service is unavailable") from error
@@ -3761,6 +3763,51 @@ def connector_json_post_request(
     if not isinstance(parsed_payload, (dict, list)):
         raise ConnectorUnavailable("Connector returned an invalid response")
     return parsed_payload
+
+
+def format_connector_error_detail(detail: str) -> str:
+    """Keep provider error codes visible in the user-facing API message."""
+    try:
+        payload = json.loads(detail)
+    except (TypeError, json.JSONDecodeError):
+        return detail
+
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if not isinstance(error, dict):
+        return detail
+
+    google_ads_errors = []
+    for item in error.get("details") or []:
+        if not isinstance(item, dict):
+            continue
+        if not str(item.get("@type") or "").endswith("GoogleAdsFailure"):
+            continue
+        for failure in item.get("errors") or []:
+            if not isinstance(failure, dict):
+                continue
+            error_code = failure.get("errorCode")
+            if isinstance(error_code, dict):
+                code = next(
+                    (
+                        str(value).strip()
+                        for value in error_code.values()
+                        if str(value).strip()
+                    ),
+                    "",
+                )
+            else:
+                code = str(error_code or "").strip()
+            message = str(failure.get("message") or "").strip()
+            if code and message:
+                google_ads_errors.append(f"{code}: {message}")
+            elif message:
+                google_ads_errors.append(message)
+
+    if google_ads_errors:
+        return "Google Ads " + "; ".join(google_ads_errors)
+
+    message = str(error.get("message") or "").strip()
+    return message or detail
 
 
 def validate_read_query(value) -> str:

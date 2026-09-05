@@ -681,6 +681,41 @@ class ConnectorSmokeTests(unittest.TestCase):
         ):
             connectors.normalize_google_ads_customer_id("12345")
 
+    def test_google_ads_error_detail_exposes_authorization_code(self):
+        detail = connectors.format_connector_error_detail(
+            json.dumps(
+                {
+                    "error": {
+                        "details": [
+                            {
+                                "@type": (
+                                    "type.googleapis.com/google.ads."
+                                    "googleads.v22.errors.GoogleAdsFailure"
+                                ),
+                                "errors": [
+                                    {
+                                        "errorCode": {
+                                            "authorizationError": (
+                                                "USER_PERMISSION_DENIED"
+                                            )
+                                        },
+                                        "message": (
+                                            "User does not have access"
+                                        ),
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            )
+        )
+
+        self.assertEqual(
+            detail,
+            "Google Ads USER_PERMISSION_DENIED: User does not have access",
+        )
+
     def test_google_ads_account_discovery_lists_manager_clients(self):
         accessible_payload = {
             "resourceNames": ["customers/9107036696"],

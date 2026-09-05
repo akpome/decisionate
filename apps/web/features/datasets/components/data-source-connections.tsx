@@ -569,8 +569,14 @@ function DataSourceConnectionRow({
     googleAdsAccounts?.[connection.id] ?? []
   const configuredGoogleAdsAccountId =
     connection.configured_customer_id ?? ""
+  const configuredGoogleAdsAccount = googleAdsAccountOptions.find(
+    (account) => account.customer_id === configuredGoogleAdsAccountId
+  )
+  const configuredGoogleAdsManager =
+    configuredGoogleAdsAccount?.is_manager === true
   const selectableGoogleAdsAccounts =
     configuredGoogleAdsAccountId &&
+    !configuredGoogleAdsManager &&
     !googleAdsAccountOptions.some(
       (account) =>
         account.customer_id === configuredGoogleAdsAccountId
@@ -583,9 +589,13 @@ function DataSourceConnectionRow({
             name: "Currently selected account",
             is_manager: false,
           },
-          ...googleAdsAccountOptions,
+          ...googleAdsAccountOptions.filter(
+            (account) => !account.is_manager
+          ),
         ]
-      : googleAdsAccountOptions
+      : googleAdsAccountOptions.filter(
+          (account) => !account.is_manager
+        )
   const canSchedule =
     source?.sync_modes?.includes("scheduled") === true &&
     Boolean(onUpdateSchedule) &&
@@ -1078,10 +1088,20 @@ function DataSourceConnectionRow({
                 Choose the account whose campaign data should be ingested. If it is reached through a manager, that manager is applied automatically.
               </p>
 
-              {googleAdsAccountOptions.length > 0 ? (
+              {configuredGoogleAdsManager && (
+                <p className="mt-2 text-xs leading-4 text-amber-800">
+                  The selected account is a manager account. Select a client account to ingest campaign data; the manager will be used automatically for access.
+                </p>
+              )}
+
+              {selectableGoogleAdsAccounts.length > 0 ? (
                 <select
                   aria-label="Google Ads account"
-                  value={configuredGoogleAdsAccountId}
+                  value={
+                    configuredGoogleAdsManager
+                      ? ""
+                      : configuredGoogleAdsAccountId
+                  }
                   onChange={(event) => {
                     const account =
                       selectableGoogleAdsAccounts.find(
