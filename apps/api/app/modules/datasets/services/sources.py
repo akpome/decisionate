@@ -93,12 +93,11 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["customer_id", "login_customer_id"],
+        "config_keys": ["customer_id"],
         "required_config_keys": ["customer_id"],
         "description": (
             "Connect Google Ads campaign performance data. Enter the 10-digit "
-            "customer account ID; a manager account ID is optional when the "
-            "authorized Google user reaches the account through a manager."
+            "customer account ID."
         ),
     },
     {

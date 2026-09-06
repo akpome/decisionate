@@ -650,7 +650,6 @@ class ConnectorSmokeTests(unittest.TestCase):
                 None,
                 make_connection("google_ads", {
                     "customer_id": "123-456-7890",
-                    "login_customer_id": "098-765-4321",
                 }),
                 date(2026, 1, 1),
                 date(2026, 1, 31),
@@ -664,7 +663,7 @@ class ConnectorSmokeTests(unittest.TestCase):
         )
         self.assertEqual(headers["Authorization"], "Bearer google-ads-token")
         self.assertEqual(headers["developer-token"], "developer-token")
-        self.assertEqual(headers["login-customer-id"], "0987654321")
+        self.assertNotIn("login-customer-id", headers)
         self.assertIn("segments.date BETWEEN '2026-01-01'", body["query"])
         self.assertFalse(dataframe.empty)
         self.assertEqual(dataframe.iloc[0]["date"], "2026-01-02")
@@ -672,8 +671,6 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(dataframe.iloc[0]["cost_micros"], 1250000)
         self.assertEqual(dataframe.iloc[0]["cost"], 1.25)
         self.assertEqual(report["customer_id"], "1234567890")
-        self.assertEqual(report["login_customer_id"], "0987654321")
-
     def test_google_ads_customer_id_requires_ten_digits(self):
         with self.assertRaisesRegex(
             connectors.ConnectorUnavailable,
@@ -714,95 +711,6 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(
             detail,
             "Google Ads USER_PERMISSION_DENIED: User does not have access",
-        )
-
-    def test_google_ads_account_discovery_lists_manager_clients(self):
-        accessible_payload = {
-            "resourceNames": ["customers/9107036696"],
-        }
-
-        def search_request(url, headers, payload):
-            query = payload["query"]
-            if "FROM customer_client" in query:
-                return [{
-                    "results": [
-                        {
-                            "customerClient": {
-                                "id": "9107036696",
-                                "level": "0",
-                                "manager": True,
-                                "descriptiveName": "Decisionate Manager",
-                                "currencyCode": "CAD",
-                                "timeZone": "America/Halifax",
-                                "status": "ENABLED",
-                            },
-                        },
-                        {
-                            "customerClient": {
-                                "id": "6987660396",
-                                "level": "1",
-                                "manager": False,
-                                "descriptiveName": "Decisionate Inc.",
-                                "currencyCode": "CAD",
-                                "timeZone": "America/Halifax",
-                                "status": "ENABLED",
-                            },
-                        },
-                    ],
-                }]
-
-            return [{
-                "results": [{
-                    "customer": {
-                        "id": "9107036696",
-                        "descriptiveName": "Decisionate Manager",
-                        "manager": True,
-                        "currencyCode": "CAD",
-                        "timeZone": "America/Halifax",
-                    },
-                }],
-            }]
-
-        with patch.object(
-            connectors,
-            "get_oauth_access_token",
-            return_value="google-ads-token",
-        ), patch.object(
-            connectors,
-            "connector_json_request",
-            return_value=accessible_payload,
-        ), patch.object(
-            connectors,
-            "connector_json_post_request",
-            side_effect=search_request,
-        ), patch.dict(
-            os.environ,
-            {
-                "GOOGLE_ADS_API_BASE_URL": (
-                    "https://googleads.googleapis.com"
-                ),
-                "GOOGLE_ADS_API_VERSION": "v22",
-                "GOOGLE_ADS_DEVELOPER_TOKEN": "developer-token",
-            },
-            clear=False,
-        ):
-            accounts = connectors.list_google_ads_accounts(
-                None,
-                make_connection("google_ads", {}),
-            )
-
-        self.assertEqual(
-            accounts[0]["customer_id"],
-            "9107036696",
-        )
-        self.assertTrue(accounts[0]["is_manager"])
-        self.assertEqual(
-            accounts[1]["customer_id"],
-            "6987660396",
-        )
-        self.assertEqual(
-            accounts[1]["login_customer_id"],
-            "9107036696",
         )
 
     def test_database_connectors_load_read_only_rows(self):

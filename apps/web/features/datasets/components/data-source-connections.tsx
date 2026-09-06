@@ -491,9 +491,6 @@ function DataSourceConnectionRow({
     connection.source_type === "google_ads"
   const configuredGoogleAdsAccountId =
     connection.configured_customer_id ?? ""
-  const googleAdsAccountReady =
-    !isGoogleAdsConnection ||
-    Boolean(configuredGoogleAdsAccountId.trim())
   const canSyncConnector =
     [
       "google_analytics",
@@ -519,7 +516,6 @@ function DataSourceConnectionRow({
     hasRequiredConnectionConfig &&
     (source?.connection_type !== "oauth" ||
       connection.status === "connected") &&
-    googleAdsAccountReady &&
     (!hasResourceSelection ||
       selectedResourceTypes.length > 0) &&
     Boolean(onSyncConnection)
@@ -731,14 +727,6 @@ function DataSourceConnectionRow({
               {connection.source_type === "google_ads"
                 ? "Enter and save the Google Ads customer ID before connecting or syncing. Without it, no data will be ingested."
               : "Enter and save the required connection settings before syncing. Without them, no data will be ingested."}
-            </p>
-          )}
-
-        {isGoogleAdsConnection &&
-          connection.status === "connected" &&
-          !googleAdsAccountReady && (
-            <p className="mt-1 break-words text-xs text-amber-700">
-              Sync is unavailable until an enabled Google Ads client account is selected. Manager, setup-in-progress, suspended, and deactivated accounts cannot be synced.
             </p>
           )}
 
@@ -1150,7 +1138,7 @@ function DataSourceConnectionRow({
 
               {connection.source_type === "google_ads" && (
                 <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
-                  Enter and save the Google Ads customer ID before connecting with OAuth or ingesting data. The manager account ID is only needed when access is through a manager account.
+                  Enter and save the Google Ads customer ID before connecting with OAuth or ingesting data.
                 </p>
               )}
 
@@ -1478,10 +1466,6 @@ const CONNECTION_FIELD_GUIDES: Record<
     customer_id: {
       description: "The 10-digit Google Ads customer account ID to query. Hyphens are accepted and removed automatically.",
       example: "1234567890",
-    },
-    login_customer_id: {
-      description: "Optional 10-digit manager account ID. Enter it when the authorized Google user reaches the customer account through a manager account; leave blank for direct access.",
-      example: "0987654321",
     },
   },
   postgresql: {
@@ -2264,9 +2248,6 @@ function formatConnectionConfigLabel(
       return "Customer account ID"
     }
 
-    if (key === "login_customer_id") {
-      return "Manager account ID (optional)"
-    }
   }
 
   return formatConnectionConfigKey(key)

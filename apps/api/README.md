@@ -265,9 +265,7 @@ use Stripe Connect or a global customer-data key. Keep `STRIPE_SECRET_KEY`
 separate for Decisionate billing.
 Google Ads requires the server-side OAuth app credentials, a Google Ads
 developer token, and the `https://www.googleapis.com/auth/adwords` scope.
-The customer enters the target 10-digit `customer_id` on the connection;
-`login_customer_id` is optional and is used when the authorized user reaches
-that customer through a manager account. The adapter uses the read-only
+The customer enters the target 10-digit `customer_id` on the connection. The adapter uses the read-only
 campaign performance `SearchStream` report and stores one row per campaign and
 day. Configure `GOOGLE_ADS_API_BASE_URL`, `GOOGLE_ADS_API_VERSION`, and
 `GOOGLE_ADS_DEVELOPER_TOKEN` alongside the Google Ads OAuth settings in
