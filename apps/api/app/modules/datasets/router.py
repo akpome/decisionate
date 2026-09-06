@@ -171,6 +171,7 @@ from app.modules.datasets.services.connectors import (
     normalize_xero_resource_type,
     normalize_zoho_books_resource_type,
     normalize_zoho_books_resource_types,
+    normalize_shop_domain,
 )
 from app.modules.datasets.services.scheduling import (
     connection_sync_is_due,
@@ -1015,6 +1016,14 @@ def get_source_connection_config_status(
         ):
             configured_value = parsed_config.get(
                 STRIPE_ENCRYPTED_API_KEY_CONFIG
+            )
+        elif (
+            source
+            and source.get("type") == "shopify"
+            and config_key == "shop_domain"
+        ):
+            configured_value = normalize_shop_domain(
+                configured_value
             )
         if has_config_value(configured_value):
             configured_config_keys.append(config_key)

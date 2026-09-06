@@ -1611,6 +1611,24 @@ class DatasetSharingTests(unittest.TestCase):
             (["query"], ["query"], []),
         )
 
+    def test_shopify_domain_must_be_usable_before_oauth(self):
+        source = get_dataset_source("shopify")
+
+        self.assertEqual(
+            get_source_connection_config_status(
+                source,
+                {"shop_domain": "https://"},
+            ),
+            (["shop_domain"], [], ["shop_domain"]),
+        )
+        self.assertEqual(
+            get_source_connection_config_status(
+                source,
+                {"shop_domain": "store.myshopify.com"},
+            ),
+            (["shop_domain"], ["shop_domain"], []),
+        )
+
     def test_sync_requires_customer_configuration_before_loading(self):
         connection = SimpleNamespace(
             source_type="stripe",
