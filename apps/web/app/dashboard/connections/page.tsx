@@ -489,6 +489,16 @@ function ConnectionsPageContent({
           result.dataset_id == null &&
           result.row_count == null)
 
+      if (result.status === "error") {
+        showConnectionFeedback(
+          connection.id,
+          "error",
+          result.message ??
+            `${connection.source_label} could not be synced right now. Please try again shortly.`
+        )
+        return
+      }
+
       if (isEmptySyncResult) {
         showConnectionFeedback(
           connection.id,

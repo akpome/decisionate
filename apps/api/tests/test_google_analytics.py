@@ -21,6 +21,7 @@ from app.modules.datasets.services.google_analytics import (
     validate_report_request,
 )
 from app.modules.datasets.services.connectors import ConnectorNoData
+from app.modules.datasets.services.connectors import ConnectorUnavailable
 
 
 class GoogleAnalyticsConnectorTests(unittest.TestCase):
@@ -353,6 +354,67 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             {
                 "connection_id": 1,
                 "status": "no_data",
+                "message": message,
+                "datasets": [],
+            },
+        )
+        db = Session()
+        try:
+            self.assertEqual(db.query(Dataset).count(), 0)
+        finally:
+            db.close()
+            engine.dispose()
+
+    def test_sync_route_returns_connector_error_notification(self):
+        engine = create_engine("sqlite:///:memory:")
+        DataSourceConnection.__table__.create(engine)
+        Dataset.__table__.create(engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+        db.add(
+            DataSourceConnection(
+                id=1,
+                user_id="user-1",
+                workspace_id="workspace-1",
+                source_type="google_analytics",
+                display_name="Marketing analytics",
+                status="connected",
+                connection_config='{"property_id": "123456"}',
+            )
+        )
+        db.commit()
+        db.close()
+
+        message = "Google Analytics authorization is no longer valid"
+        with patch(
+            "app.modules.datasets.router.SessionLocal",
+            Session,
+        ), patch(
+            "app.modules.datasets.router.get_user_id",
+            return_value="user-1",
+        ), patch(
+            "app.modules.datasets.router.get_workspace_id",
+            return_value="workspace-1",
+        ), patch(
+            "app.modules.datasets.router.run_data_source_sync",
+            side_effect=ConnectorUnavailable(message),
+        ):
+            response = asyncio.run(
+                sync_source_connection(
+                    types.SimpleNamespace(),
+                    1,
+                    DataSourceConnectionSync(
+                        start_date="2026-08-07",
+                        end_date="2026-09-06",
+                    ),
+                )
+            )
+
+        self.assertEqual(
+            response,
+            {
+                "connection_id": 1,
+                "status": "error",
                 "message": message,
                 "datasets": [],
             },

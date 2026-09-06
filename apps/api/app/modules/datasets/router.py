@@ -4832,15 +4832,19 @@ async def sync_source_connection(
                 "reason": str(error)[:500],
             },
         )
-        raise HTTPException(
-            status_code=503,
-            detail=str(error),
-        ) from error
+        return {
+            "connection_id": connection.id,
+            "status": "error",
+            "message": str(error),
+            "datasets": [],
+        }
     except ValueError as error:
-        raise HTTPException(
-            status_code=422,
-            detail=str(error),
-        ) from error
+        return {
+            "connection_id": connection.id,
+            "status": "error",
+            "message": str(error),
+            "datasets": [],
+        }
     except HTTPException:
         raise
     except Exception:

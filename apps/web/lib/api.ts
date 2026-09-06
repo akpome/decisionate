@@ -468,7 +468,7 @@ export type DataSourceConnectionSchedulePayload = {
 
 export type DataSourceConnectionSyncResult = {
   connection_id: number
-  status?: "synced" | "no_data"
+  status?: "synced" | "no_data" | "error"
   message?: string
   dataset_id?: number
   workspace_id?: string | null
