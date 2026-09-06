@@ -2,7 +2,7 @@ import json
 import os
 import tempfile
 import unittest
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
@@ -825,6 +825,98 @@ class ConnectorSmokeTests(unittest.TestCase):
                 connectors.ConnectorUnavailable(detail),
             )
         )
+
+    def test_scheduled_oauth_heartbeat_checks_refresh_credentials(self):
+        credential = SimpleNamespace(
+            refresh_token_encrypted="encrypted-refresh-token",
+        )
+
+        class Query:
+            def filter(self, *_args):
+                return self
+
+            def first(self):
+                return credential
+
+        class FakeDb:
+            def query(self, *_args):
+                return Query()
+
+        connection = make_connection(
+            "quickbooks",
+            {"schedule_enabled": True},
+        )
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="access-token",
+        ) as mocked_get_token:
+            self.assertTrue(
+                connectors.refresh_oauth_access_token_if_due(
+                    FakeDb(),
+                    connection,
+                )
+            )
+
+        mocked_get_token.assert_called_once()
+        self.assertEqual(
+            mocked_get_token.call_args.args[1:],
+            (connection, "quickbooks"),
+        )
+
+    def test_oauth_access_token_refreshes_with_ten_minute_leeway(self):
+        credential = SimpleNamespace(
+            access_token_encrypted="encrypted-access-token",
+            refresh_token_encrypted="encrypted-refresh-token",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(
+                minutes=5,
+            ),
+            token_type=None,
+            scope=None,
+        )
+
+        class Query:
+            def filter(self, *_args):
+                return self
+
+            def first(self):
+                return credential
+
+        class FakeDb:
+            def query(self, *_args):
+                return Query()
+
+            def commit(self):
+                return None
+
+        connection = make_connection("quickbooks", {})
+        with patch.object(
+            connectors,
+            "decrypt_token",
+            side_effect=lambda value: {
+                "encrypted-access-token": "old-access-token",
+                "encrypted-refresh-token": "refresh-token",
+            }.get(value),
+        ), patch.object(
+            connectors,
+            "encrypt_token",
+            side_effect=lambda value: f"encrypted-{value}",
+        ), patch.object(
+            connectors,
+            "refresh_oauth_token",
+            return_value={
+                "access_token": "new-access-token",
+                "expires_in": 3600,
+            },
+        ) as mocked_refresh:
+            token = connectors.get_oauth_access_token(
+                FakeDb(),
+                connection,
+                "quickbooks",
+            )
+
+        self.assertEqual(token, "new-access-token")
+        mocked_refresh.assert_called_once()
 
     def test_database_connectors_load_read_only_rows(self):
         with tempfile.NamedTemporaryFile(suffix=".sqlite") as database_file:

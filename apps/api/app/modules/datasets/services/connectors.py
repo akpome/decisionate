@@ -17,6 +17,7 @@ from app.db.models import DataSourceConnection
 from app.db.models import OAuthCredential
 from app.modules.oauth.service import (
     OAuthProviderUnavailable,
+    OAuthTokenExchangeError,
     decrypt_token,
     encrypt_token,
     get_freshbooks_businesses,
@@ -27,6 +28,7 @@ from app.modules.oauth.service import (
 
 
 PAGE_SIZE = 100
+OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(minutes=10)
 STRIPE_ENCRYPTED_API_KEY_CONFIG = "_stripe_api_key_encrypted"
 SALESFORCE_OBJECT_TYPES = {
     "Account",
@@ -3525,11 +3527,6 @@ def get_oauth_access_token(
         raise ConnectorUnavailable(
             f"The stored {source_type} authorization could not be read"
         ) from error
-    if not token:
-        raise ConnectorUnavailable(
-            f"Connect the {source_type} account before syncing"
-        )
-
     refresh_token = None
     if credential.refresh_token_encrypted:
         try:
@@ -3539,10 +3536,22 @@ def get_oauth_access_token(
                 f"The stored {source_type} refresh authorization could not be read"
             ) from error
     expires_at = credential.expires_at
-    refresh_deadline = datetime.now(UTC).replace(tzinfo=None) + timedelta(
-        seconds=60
+    refresh_deadline = (
+        datetime.now(UTC).replace(tzinfo=None)
+        + OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY
     )
-    if refresh_token and expires_at and expires_at <= refresh_deadline:
+    if not token and not refresh_token:
+        raise ConnectorUnavailable(
+            f"Connect the {source_type} account before syncing"
+        )
+
+    if refresh_token and (
+        not token
+        or (
+            expires_at
+            and expires_at <= refresh_deadline
+        )
+    ):
         try:
             payload = refresh_oauth_token(
                 source_type,
@@ -3573,11 +3582,38 @@ def get_oauth_access_token(
             db.commit()
         except ConnectorUnavailable:
             raise
+        except OAuthTokenExchangeError as error:
+            if oauth_refresh_requires_reauthorization(error):
+                raise ConnectorUnavailable(
+                    f"{connector_display_name(source_type)} authorization is "
+                    "no longer valid. Reconnect the account and try again."
+                ) from error
+            raise ConnectorUnavailable(
+                f"{connector_display_name(source_type)} authorization could "
+                "not be refreshed. Try again later."
+            ) from error
         except Exception as error:
             raise ConnectorUnavailable(
                 f"The {source_type} authorization could not be refreshed"
             ) from error
     return token
+
+
+def refresh_oauth_access_token_if_due(
+    db,
+    connection: DataSourceConnection,
+) -> bool:
+    """Check an OAuth credential during every scheduled connector heartbeat."""
+    credential = (
+        db.query(OAuthCredential)
+        .filter(OAuthCredential.connection_id == connection.id)
+        .first()
+    )
+    if not credential or not credential.refresh_token_encrypted:
+        return False
+
+    get_oauth_access_token(db, connection, connection.source_type)
+    return True
 
 
 def connector_json_request(url: str, headers: dict[str, str]) -> dict:
@@ -3742,13 +3778,49 @@ def connector_requires_reauthorization(
     error: Exception,
 ) -> bool:
     """Identify OAuth failures that need a fresh provider authorization."""
+    normalized_message = str(error or "").lower()
+    if "authorization is no longer valid" in normalized_message:
+        return True
     if source_type != "quickbooks":
         return False
-    normalized_message = str(error or "").lower()
     return (
         "applicationauthorizationfailed" in normalized_message
         or "errorcode=003100" in normalized_message
         or "quickbooks authorization is no longer valid" in normalized_message
+    )
+
+
+def connector_display_name(source_type: str) -> str:
+    return {
+        "google_analytics": "Google Analytics",
+        "google_ads": "Google Ads",
+        "meta_ads": "Meta Ads",
+        "quickbooks": "QuickBooks",
+        "freshbooks": "FreshBooks",
+        "zoho_books": "Zoho Books",
+    }.get(
+        source_type,
+        str(source_type or "Connector").replace("_", " ").title(),
+    )
+
+
+def oauth_refresh_requires_reauthorization(
+    error: Exception,
+) -> bool:
+    normalized_message = str(error or "").lower()
+    return any(
+        marker in normalized_message
+        for marker in (
+            "invalid_grant",
+            "invalid_token",
+            "token_expired",
+            "refresh token expired",
+            "refresh token revoked",
+            "authorization failed",
+            "unauthorized",
+            "applicationauthorizationfailed",
+            "errorcode=003100",
+        )
     )
 
 

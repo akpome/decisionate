@@ -173,6 +173,7 @@ from app.modules.datasets.services.connectors import (
     normalize_zoho_books_resource_types,
     normalize_shop_domain,
     connector_requires_reauthorization,
+    refresh_oauth_access_token_if_due,
 )
 from app.modules.datasets.services.scheduling import (
     connection_sync_is_due,
@@ -4639,6 +4640,12 @@ async def sync_due_source_connections(request: Request):
 
             source = get_dataset_source(connection.source_type)
             if (
+                source
+                and source.get("connection_type") == "oauth"
+                and connection.status != "connected"
+            ):
+                continue
+            if (
                 connection.status != "connected"
                 and not (
                     has_source_connection_config(
@@ -4662,7 +4669,34 @@ async def sync_due_source_connections(request: Request):
             ) = read_connection_schedule_details(
                 connection.connection_config
             )
-            if not enabled or not connection_sync_is_due(
+            if not enabled:
+                continue
+
+            if source and source.get("connection_type") == "oauth":
+                try:
+                    refresh_oauth_access_token_if_due(
+                        db,
+                        connection,
+                    )
+                except (
+                    GoogleAnalyticsConnectorUnavailable,
+                    ConnectorUnavailable,
+                ) as error:
+                    db.rollback()
+                    if connector_requires_reauthorization(
+                        connection.source_type,
+                        error,
+                    ):
+                        connection.status = "draft"
+                        db.commit()
+                    results.append({
+                        "connection_id": connection.id,
+                        "status": "failed",
+                        "detail": str(error),
+                    })
+                    continue
+
+            if not connection_sync_is_due(
                 connection.last_synced_at,
                 now,
                 interval_hours,
