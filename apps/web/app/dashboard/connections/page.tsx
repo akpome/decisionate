@@ -95,8 +95,21 @@ function getMissingRequiredConnectionConfigKeys(
 }
 
 function isNoDataMessage(message: string) {
-  return /\bno (records|data|rows)\b|no[_ -]?data/.test(
-    message.toLowerCase()
+  const normalizedMessage = message.toLowerCase()
+  return (
+    /\bno\s+(records?|data|rows?|results?|transactions?|items?|entries?)\b/.test(
+      normalizedMessage
+    ) ||
+    /\b(returned|found|available)\s+no\b/.test(
+      normalizedMessage
+    ) ||
+    /\b(empty|zero)\s+(dataset|result|response|records?|rows?)\b/.test(
+      normalizedMessage
+    ) ||
+    normalizedMessage.includes(
+      "nothing to ingest"
+    ) ||
+    /no[_ -]?data/.test(normalizedMessage)
   )
 }
 
@@ -304,11 +317,15 @@ function ConnectionsPageContent({
     tone: DataSourceConnectionFeedback["tone"],
     message: string
   ) {
+    const displayTone =
+      tone === "error" && isNoDataMessage(message)
+        ? "no_data"
+        : tone
     const token = Date.now()
     setConnectionFeedback((currentFeedback) => ({
       ...currentFeedback,
       [connectionId]: {
-        tone,
+        tone: displayTone,
         message,
         token,
       },
@@ -461,7 +478,14 @@ function ConnectionsPageContent({
           payload
         )
 
-      if (result.status === "no_data") {
+      const isEmptySyncResult =
+        result.status === "no_data" ||
+        (Array.isArray(result.datasets) &&
+          result.datasets.length === 0 &&
+          result.dataset_id == null &&
+          result.row_count == null)
+
+      if (isEmptySyncResult) {
         showConnectionFeedback(
           connection.id,
           "no_data",
