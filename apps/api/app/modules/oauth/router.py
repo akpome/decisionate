@@ -96,6 +96,13 @@ async def start_oauth_connection(
     try:
         connection = get_workspace_connection(db, connection_id, auth_context)
         config = parse_source_connection_config(connection.connection_config)
+        if connection.source_type == "google_ads" and not str(
+            config.get("customer_id") or ""
+        ).strip():
+            raise HTTPException(
+                status_code=422,
+                detail="Enter and save the Google Ads customer ID before connecting with OAuth",
+            )
         state_token = create_state_token()
         provider = get_provider(connection.source_type)
         code_verifier = (

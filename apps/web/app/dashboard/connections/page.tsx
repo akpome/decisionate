@@ -326,6 +326,15 @@ function ConnectionsPageContent({
     connection: DataSourceConnection
   ) {
     if (!user?.id) return
+    if (
+      connection.source_type === "google_ads" &&
+      !connection.configured_customer_id?.trim()
+    ) {
+      setConnectionError(
+        "Enter and save the Google Ads customer ID before connecting with OAuth."
+      )
+      return
+    }
 
     setOAuthConnectionId(connection.id)
     setConnectionError("")

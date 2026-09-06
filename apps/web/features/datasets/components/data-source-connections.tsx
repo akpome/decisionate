@@ -506,9 +506,7 @@ function DataSourceConnectionRow({
   const inlineConnectionConfigKeys =
     usesVisibilityToggle
       ? editableConfigKeys.filter(
-          (configKey) =>
-            configKey !== "resource_types" &&
-            connection.source_type !== "google_ads"
+          (configKey) => configKey !== "resource_types"
         )
       : []
   const hasEditedInlineConnectionConfig =
@@ -607,6 +605,7 @@ function DataSourceConnectionRow({
     source?.connection_type === "oauth" &&
     source.status === "available" &&
     connection.status !== "connected" &&
+    (!isGoogleAdsConnection || Boolean(configuredGoogleAdsAccountId.trim())) &&
     Boolean(onStartOAuthConnection)
   const canCancelOAuth =
     source?.connection_type === "oauth" &&
@@ -768,8 +767,8 @@ function DataSourceConnectionRow({
               : "OAuth not configured"
             : connection.source_type === "google_ads"
               ? configuredGoogleAdsAccountId
-                ? "Account selected"
-                : "Account not selected"
+                ? "Customer ID saved"
+                : "Customer ID not saved"
             : connection.has_config
               ? "Config saved"
               : "No config saved"}
@@ -808,7 +807,7 @@ function DataSourceConnectionRow({
           connection.source_type !== "stripe" && (
             <p className="mt-1 break-words text-xs text-amber-700">
               {connection.source_type === "google_ads"
-                ? "Select a Google Ads account before syncing. Without it, no data will be ingested."
+                ? "Enter and save the Google Ads customer ID before connecting or syncing. Without it, no data will be ingested."
               : "Enter and save the required connection settings before syncing. Without them, no data will be ingested."}
             </p>
           )}
@@ -1335,7 +1334,7 @@ function DataSourceConnectionRow({
 
               {connection.source_type === "google_ads" && (
                 <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
-                  A Google Ads customer ID is required before data can be ingested. The manager account ID is only needed when access is through a manager account.
+                  Enter and save the Google Ads customer ID before connecting with OAuth or ingesting data. The manager account ID is only needed when access is through a manager account.
                 </p>
               )}
 
