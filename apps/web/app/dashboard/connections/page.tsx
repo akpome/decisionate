@@ -5,7 +5,7 @@ import { useUser } from "@clerk/nextjs"
 
 import {
   DataSourceConnections,
-  type DataSourceConnectionSyncFeedback,
+  type DataSourceConnectionFeedback,
 } from "@/features/datasets/components/data-source-connections"
 import { DataSourcePanel } from "@/features/datasets/components/data-source-panel"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
@@ -38,6 +38,66 @@ function getErrorMessage(
     error.message
     ? error.message
     : fallback
+}
+
+function getRequiredConnectionConfigKeys(
+  connection: DataSourceConnection,
+  sources: DatasetSourceOption[]
+) {
+  const source = sources.find(
+    (candidate) =>
+      candidate.type === connection.source_type
+  )
+
+  return Array.from(
+    new Set([
+      ...(source?.required_config_keys ?? []),
+      ...(connection.required_config_keys ?? []),
+    ])
+  )
+}
+
+function getMissingRequiredConnectionConfigKeys(
+  connection: DataSourceConnection,
+  sources: DatasetSourceOption[]
+) {
+  const requiredConfigKeys =
+    getRequiredConnectionConfigKeys(
+      connection,
+      sources
+    )
+
+  if (requiredConfigKeys.length === 0) {
+    return []
+  }
+
+  if (
+    Array.isArray(
+      connection.configured_config_keys
+    )
+  ) {
+    return requiredConfigKeys.filter(
+      (configKey) =>
+        !connection.configured_config_keys?.includes(
+          configKey
+        )
+    )
+  }
+
+  if (
+    Array.isArray(connection.missing_config_keys) &&
+    connection.missing_config_keys.length > 0
+  ) {
+    return connection.missing_config_keys
+  }
+
+  return requiredConfigKeys
+}
+
+function isNoDataMessage(message: string) {
+  return /\bno (records|data|rows)\b|no[_ -]?data/.test(
+    message.toLowerCase()
+  )
 }
 
 export default function ConnectionsPage() {
@@ -123,9 +183,9 @@ function ConnectionsPageContent({
     useState("")
   const [connectionNotice, setConnectionNotice] =
     useState("")
-  const [syncFeedback, setSyncFeedback] =
+  const [connectionFeedback, setConnectionFeedback] =
     useState<
-      Record<number, DataSourceConnectionSyncFeedback>
+      Record<number, DataSourceConnectionFeedback>
     >({})
   const [, setOAuthConnectionId] =
     useState<number | null>(null)
@@ -171,6 +231,54 @@ function ConnectionsPageContent({
       )
       console.error(error)
     }
+  }
+
+  function clearConnectionFeedback(
+    connectionId: number
+  ) {
+    setConnectionFeedback((currentFeedback) => {
+      if (!currentFeedback[connectionId]) {
+        return currentFeedback
+      }
+
+      const nextFeedback = {
+        ...currentFeedback,
+      }
+      delete nextFeedback[connectionId]
+      return nextFeedback
+    })
+  }
+
+  function showConnectionFeedback(
+    connectionId: number,
+    tone: DataSourceConnectionFeedback["tone"],
+    message: string
+  ) {
+    const token = Date.now()
+    setConnectionFeedback((currentFeedback) => ({
+      ...currentFeedback,
+      [connectionId]: {
+        tone,
+        message,
+        token,
+      },
+    }))
+    window.setTimeout(() => {
+      setConnectionFeedback((currentFeedback) => {
+        if (
+          currentFeedback[connectionId]?.token !==
+          token
+        ) {
+          return currentFeedback
+        }
+
+        const nextFeedback = {
+          ...currentFeedback,
+        }
+        delete nextFeedback[connectionId]
+        return nextFeedback
+      })
+    }, 6000)
   }
 
   async function handleCreateSourceConnection(
@@ -292,48 +400,7 @@ function ConnectionsPageContent({
     setSyncingConnectionId(connection.id)
     setConnectionError("")
     setConnectionNotice("")
-    setSyncFeedback((currentFeedback) => {
-      if (!currentFeedback[connection.id]) {
-        return currentFeedback
-      }
-
-      const nextFeedback = {
-        ...currentFeedback,
-      }
-      delete nextFeedback[connection.id]
-      return nextFeedback
-    })
-
-    const showSyncFeedback = (
-      tone: DataSourceConnectionSyncFeedback["tone"],
-      message: string
-    ) => {
-      const token = Date.now()
-      setSyncFeedback((currentFeedback) => ({
-        ...currentFeedback,
-        [connection.id]: {
-          tone,
-          message,
-          token,
-        },
-      }))
-      window.setTimeout(() => {
-        setSyncFeedback((currentFeedback) => {
-          if (
-            currentFeedback[connection.id]?.token !==
-            token
-          ) {
-            return currentFeedback
-          }
-
-          const nextFeedback = {
-            ...currentFeedback,
-          }
-          delete nextFeedback[connection.id]
-          return nextFeedback
-        })
-      }, 6000)
-    }
+    clearConnectionFeedback(connection.id)
 
     try {
       const result =
@@ -345,7 +412,8 @@ function ConnectionsPageContent({
         )
 
       if (result.status === "no_data") {
-        showSyncFeedback(
+        showConnectionFeedback(
+          connection.id,
           "no_data",
           result.message ??
             "No records were found for the selected sync period."
@@ -354,7 +422,8 @@ function ConnectionsPageContent({
       }
 
       const syncedDatasets = result.datasets ?? [result]
-      showSyncFeedback(
+      showConnectionFeedback(
+        connection.id,
         "success",
         syncedDatasets.length > 1
           ? `Synced ${syncedDatasets.length} datasets.`
@@ -362,14 +431,17 @@ function ConnectionsPageContent({
       )
       await loadConnections()
     } catch (error) {
-      showSyncFeedback(
-        "error",
-        getErrorMessage(
-          error,
-          "Could not sync connector data."
-        )
+      const message = getErrorMessage(
+        error,
+        "Could not sync connector data."
       )
-      console.error(error)
+      showConnectionFeedback(
+        connection.id,
+        isNoDataMessage(message)
+          ? "no_data"
+          : "error",
+        message
+      )
     } finally {
       setSyncingConnectionId(null)
     }
@@ -379,9 +451,15 @@ function ConnectionsPageContent({
     connection: DataSourceConnection
   ) {
     if (!user?.id) return
-    const missingConfigKeys = connection.missing_config_keys ?? []
+    const missingConfigKeys =
+      getMissingRequiredConnectionConfigKeys(
+        connection,
+        sources
+      )
     if (missingConfigKeys.length > 0) {
-      setConnectionError(
+      showConnectionFeedback(
+        connection.id,
+        "error",
         connection.source_type === "google_ads"
           ? "Enter and save the Google Ads customer ID before connecting with OAuth."
           : "Enter and save the required connection settings before connecting with OAuth."
@@ -400,13 +478,14 @@ function ConnectionsPageContent({
       )
       window.location.assign(result.authorization_url)
     } catch (error) {
-      setConnectionError(
+      showConnectionFeedback(
+        connection.id,
+        "error",
         getErrorMessage(
           error,
           "Could not start connector authorization."
         )
       )
-      console.error(error)
       setOAuthConnectionId(null)
     }
   }
@@ -722,7 +801,7 @@ function ConnectionsPageContent({
             syncingConnectionId={
               syncingConnectionId
             }
-            syncFeedback={syncFeedback}
+            connectionFeedback={connectionFeedback}
             onDeleteConnection={
               canConfigureWorkspace
                 ? handleDeleteSourceConnection

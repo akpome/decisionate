@@ -15,7 +15,7 @@ import {
   type DatasetSourceOption,
 } from "@/lib/api"
 
-export type DataSourceConnectionSyncFeedback = {
+export type DataSourceConnectionFeedback = {
   tone: "success" | "no_data" | "error"
   message: string
   token: number
@@ -25,9 +25,9 @@ interface DataSourceConnectionsProps {
   connections: DataSourceConnection[]
   loadError?: boolean
   sources?: DatasetSourceOption[]
-  syncFeedback?: Record<
+  connectionFeedback?: Record<
     number,
-    DataSourceConnectionSyncFeedback
+    DataSourceConnectionFeedback
   >
   deletingConnectionId?: number | null
   updatingConnectionId?: number | null
@@ -78,7 +78,7 @@ export function DataSourceConnections({
   connections,
   loadError = false,
   sources = [],
-  syncFeedback = {},
+  connectionFeedback = {},
   deletingConnectionId,
   updatingConnectionId,
   syncingConnectionId,
@@ -249,7 +249,7 @@ export function DataSourceConnections({
         <DataSourceConnectionRow
           key={connection.id}
           connection={connection}
-          syncFeedback={syncFeedback[connection.id]}
+          connectionFeedback={connectionFeedback[connection.id]}
           deletingConnectionId={
             deletingConnectionId
           }
@@ -314,7 +314,7 @@ export function DataSourceConnections({
 
 function DataSourceConnectionRow({
   connection,
-  syncFeedback,
+  connectionFeedback,
   deletingConnectionId,
   updatingConnectionId,
   syncingConnectionId,
@@ -341,7 +341,7 @@ function DataSourceConnectionRow({
   clearConfiguration,
 }: {
   connection: DataSourceConnection
-  syncFeedback?: DataSourceConnectionSyncFeedback
+  connectionFeedback?: DataSourceConnectionFeedback
   deletingConnectionId?: number | null
   updatingConnectionId?: number | null
   syncingConnectionId?: number | null
@@ -493,14 +493,24 @@ function DataSourceConnectionRow({
       )
     )
   const requiredConnectionConfigKeys =
-    connection.required_config_keys ??
-    source?.required_config_keys ??
-    []
+    Array.from(
+      new Set([
+        ...(source?.required_config_keys ?? []),
+        ...(connection.required_config_keys ?? []),
+      ])
+    )
   const hasRequiredConnectionConfig =
     requiredConnectionConfigKeys.length === 0 ||
-    (Array.isArray(connection.missing_config_keys)
-      ? connection.missing_config_keys.length === 0
-      : connection.has_config)
+    (Array.isArray(
+      connection.configured_config_keys
+    )
+      ? requiredConnectionConfigKeys.every(
+          (configKey) =>
+            connection.configured_config_keys?.includes(
+              configKey
+            )
+        )
+      : false)
   const configuredGoogleAdsAccountId =
     connection.configured_customer_id ?? ""
   const canSyncConnector =
@@ -1213,22 +1223,22 @@ function DataSourceConnectionRow({
           </div>
         )}
 
-      {syncFeedback && (
+      {connectionFeedback && (
         <div
           role={
-            syncFeedback.tone === "error"
+            connectionFeedback.tone === "error"
               ? "alert"
               : "status"
           }
           className={
-            syncFeedback.tone === "success"
+            connectionFeedback.tone === "success"
               ? "min-w-0 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 lg:col-span-2"
-              : syncFeedback.tone === "no_data"
+              : connectionFeedback.tone === "no_data"
                 ? "min-w-0 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 lg:col-span-2"
                 : "min-w-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 lg:col-span-2"
           }
         >
-          {syncFeedback.message}
+          {connectionFeedback.message}
         </div>
       )}
     </div>
