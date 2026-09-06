@@ -176,6 +176,28 @@ def ensure_oauth_connection_state_columns():
 ensure_oauth_connection_state_columns()
 
 
+def ensure_data_source_connection_status_columns():
+    with engine.begin() as connection:
+        column_names = get_table_columns(
+            connection,
+            "data_source_connections",
+        )
+        for column_name, column_type in [
+            ("authorization_error", "TEXT"),
+            ("authorization_error_at", "TIMESTAMP"),
+        ]:
+            if column_name not in column_names:
+                connection.execute(
+                    text(
+                        "ALTER TABLE data_source_connections "
+                        f"ADD COLUMN {column_name} {column_type}"
+                    )
+                )
+
+
+ensure_data_source_connection_status_columns()
+
+
 def ensure_platform_admin_role_columns():
     with engine.begin() as connection:
         column_names = get_table_columns(

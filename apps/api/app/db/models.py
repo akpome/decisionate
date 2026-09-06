@@ -470,6 +470,16 @@ class DataSourceConnection(Base):
         nullable=True,
     )
 
+    authorization_error = Column(
+        Text,
+        nullable=True,
+    )
+
+    authorization_error_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
     created_at = Column(
         DateTime,
         default=utc_now,

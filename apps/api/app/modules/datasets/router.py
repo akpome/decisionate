@@ -906,6 +906,16 @@ def build_source_connection_response(
             else None
         ),
         "last_synced_at": connection.last_synced_at,
+        "authorization_error": getattr(
+            connection,
+            "authorization_error",
+            None,
+        ),
+        "authorization_error_at": getattr(
+            connection,
+            "authorization_error_at",
+            None,
+        ),
         "sync_enabled": sync_enabled,
         "sync_interval_hours": sync_interval_hours,
         "sync_time_of_day": sync_time_of_day,
@@ -914,6 +924,15 @@ def build_source_connection_response(
         "created_at": connection.created_at,
         "updated_at": connection.updated_at,
     }
+
+
+def mark_connection_authorization_failed(
+    connection,
+    error: Exception,
+):
+    connection.status = "draft"
+    connection.authorization_error = str(error)[:500]
+    connection.authorization_error_at = utc_now()
 
 
 def has_source_connection_config(
@@ -4386,6 +4405,8 @@ def persist_connector_dataframe(
 
         connection.status = "connected"
         connection.last_synced_at = utc_now()
+        connection.authorization_error = None
+        connection.authorization_error_at = None
         db.flush()
         return dataset, merged_report_config, file_path, replaced_file_path
     except Exception:
@@ -4687,7 +4708,10 @@ async def sync_due_source_connections(request: Request):
                         connection.source_type,
                         error,
                     ):
-                        connection.status = "draft"
+                        mark_connection_authorization_failed(
+                            connection,
+                            error,
+                        )
                         db.commit()
                     results.append({
                         "connection_id": connection.id,
@@ -4762,7 +4786,10 @@ async def sync_due_source_connections(request: Request):
                     connection.source_type,
                     error,
                 ):
-                    connection.status = "draft"
+                    mark_connection_authorization_failed(
+                        connection,
+                        error,
+                    )
                     db.commit()
                 results.append({
                     "connection_id": connection.id,
@@ -4877,7 +4904,10 @@ async def sync_source_connection(
             connection.source_type,
             error,
         ):
-            connection.status = "draft"
+            mark_connection_authorization_failed(
+                connection,
+                error,
+            )
             db.commit()
         return {
             "connection_id": connection.id,

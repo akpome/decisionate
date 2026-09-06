@@ -422,6 +422,10 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
         db = Session()
         try:
             self.assertEqual(db.query(Dataset).count(), 0)
+            connection = db.query(DataSourceConnection).one()
+            self.assertEqual(connection.status, "draft")
+            self.assertEqual(connection.authorization_error, message)
+            self.assertIsNotNone(connection.authorization_error_at)
         finally:
             db.close()
             engine.dispose()

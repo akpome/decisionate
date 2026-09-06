@@ -209,6 +209,8 @@ async def cancel_oauth_authorization(
             OAuthConnectionState.connection_id == connection.id
         ).delete(synchronize_session=False)
         connection.status = "draft"
+        connection.authorization_error = None
+        connection.authorization_error_at = None
         db.commit()
         return {
             "message": "Connector authorization cancelled",
@@ -492,6 +494,8 @@ def process_oauth_callback(request: Request):
         ) or None
         credential.expires_at = token_expiry(payload)
         connection.status = "connected"
+        connection.authorization_error = None
+        connection.authorization_error_at = None
         db.delete(state)
         db.commit()
         return oauth_redirect("connected", state_source_type)

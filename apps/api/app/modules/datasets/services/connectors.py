@@ -3779,14 +3779,42 @@ def connector_requires_reauthorization(
 ) -> bool:
     """Identify OAuth failures that need a fresh provider authorization."""
     normalized_message = str(error or "").lower()
-    if "authorization is no longer valid" in normalized_message:
+    if source_type in {
+        "google_analytics",
+        "google_ads",
+        "hubspot",
+        "meta_ads",
+        "quickbooks",
+        "freshbooks",
+        "sage",
+        "xero",
+        "zoho_books",
+        "salesforce",
+        "shopify",
+    } and any(
+        marker in normalized_message
+        for marker in (
+            "authorization is no longer valid",
+            "invalid_grant",
+            "invalid_token",
+            "token_expired",
+            "refresh token expired",
+            "refresh token revoked",
+            "authentication failed",
+            "user_permission_denied",
+            "http 401",
+            "http 403",
+        )
+    ):
         return True
-    if source_type != "quickbooks":
-        return False
     return (
-        "applicationauthorizationfailed" in normalized_message
-        or "errorcode=003100" in normalized_message
-        or "quickbooks authorization is no longer valid" in normalized_message
+        source_type == "quickbooks"
+        and (
+            "applicationauthorizationfailed" in normalized_message
+            or "errorcode=003100" in normalized_message
+            or "quickbooks authorization is no longer valid"
+            in normalized_message
+        )
     )
 
 

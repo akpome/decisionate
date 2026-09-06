@@ -438,6 +438,8 @@ export type DataSourceConnection = {
   configured_customer_id?: string | null
   configured_object_type?: string | null
   last_synced_at?: string | null
+  authorization_error?: string | null
+  authorization_error_at?: string | null
   sync_enabled?: boolean
   sync_interval_hours?: number
   sync_time_of_day?: string | null
