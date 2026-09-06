@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs"
 
 import {
   DataSourceConnections,
+  REQUIRED_CONNECTION_CONFIG_KEYS,
   type DataSourceConnectionFeedback,
 } from "@/features/datasets/components/data-source-connections"
 import { DataSourcePanel } from "@/features/datasets/components/data-source-panel"
@@ -51,6 +52,9 @@ function getRequiredConnectionConfigKeys(
 
   return Array.from(
     new Set([
+      ...(REQUIRED_CONNECTION_CONFIG_KEYS[
+        connection.source_type
+      ] ?? []),
       ...(source?.required_config_keys ?? []),
       ...(connection.required_config_keys ?? []),
     ])

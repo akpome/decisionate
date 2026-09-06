@@ -21,6 +21,17 @@ export type DataSourceConnectionFeedback = {
   token: number
 }
 
+export const REQUIRED_CONNECTION_CONFIG_KEYS: Record<
+  string,
+  string[]
+> = {
+  google_analytics: ["property_id"],
+  google_ads: ["customer_id"],
+  stripe: ["api_key"],
+  shopify: ["shop_domain"],
+  meta_ads: ["ad_account_id"],
+}
+
 interface DataSourceConnectionsProps {
   connections: DataSourceConnection[]
   loadError?: boolean
@@ -495,6 +506,9 @@ function DataSourceConnectionRow({
   const requiredConnectionConfigKeys =
     Array.from(
       new Set([
+        ...(REQUIRED_CONNECTION_CONFIG_KEYS[
+          connection.source_type
+        ] ?? []),
         ...(source?.required_config_keys ?? []),
         ...(connection.required_config_keys ?? []),
       ])
