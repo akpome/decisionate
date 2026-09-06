@@ -185,6 +185,8 @@ def ensure_data_source_connection_status_columns():
         for column_name, column_type in [
             ("authorization_error", "TEXT"),
             ("authorization_error_at", "TIMESTAMP"),
+            ("authorization_notification_error", "TEXT"),
+            ("authorization_notification_sent_at", "TIMESTAMP"),
         ]:
             if column_name not in column_names:
                 connection.execute(

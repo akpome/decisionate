@@ -15,7 +15,14 @@ from app.modules.auth_context import get_auth_context
 from app.modules.datasets.router import (
     get_dataset_source,
     get_source_connection_config_status,
+    mark_connection_authorization_failed,
     parse_source_connection_config,
+)
+from app.modules.datasets.services.authorization_notifications import (
+    notify_workspace_owner_of_authorization_failure,
+)
+from app.modules.datasets.services.connectors import (
+    connector_requires_reauthorization,
 )
 from app.modules.oauth.service import (
     OAuthProviderUnavailable,
@@ -211,6 +218,8 @@ async def cancel_oauth_authorization(
         connection.status = "draft"
         connection.authorization_error = None
         connection.authorization_error_at = None
+        connection.authorization_notification_error = None
+        connection.authorization_notification_sent_at = None
         db.commit()
         return {
             "message": "Connector authorization cancelled",
@@ -496,6 +505,8 @@ def process_oauth_callback(request: Request):
         connection.status = "connected"
         connection.authorization_error = None
         connection.authorization_error_at = None
+        connection.authorization_notification_error = None
+        connection.authorization_notification_sent_at = None
         db.delete(state)
         db.commit()
         return oauth_redirect("connected", state_source_type)
@@ -532,6 +543,28 @@ def process_oauth_callback(request: Request):
                 )
             ):
                 return oauth_redirect("connected", state_source_type)
+        if (
+            state_connection_id
+            and connector_requires_reauthorization(
+                state_source_type,
+                error,
+            )
+        ):
+            failed_connection = (
+                db.query(DataSourceConnection)
+                .filter(DataSourceConnection.id == state_connection_id)
+                .first()
+            )
+            if failed_connection:
+                mark_connection_authorization_failed(
+                    failed_connection,
+                    error,
+                )
+                db.commit()
+                notify_workspace_owner_of_authorization_failure(
+                    db,
+                    failed_connection,
+                )
         return oauth_redirect(str(error)[:120])
     finally:
         db.close()

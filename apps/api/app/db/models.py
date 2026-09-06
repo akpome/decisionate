@@ -480,6 +480,16 @@ class DataSourceConnection(Base):
         nullable=True,
     )
 
+    authorization_notification_error = Column(
+        Text,
+        nullable=True,
+    )
+
+    authorization_notification_sent_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
     created_at = Column(
         DateTime,
         default=utc_now,

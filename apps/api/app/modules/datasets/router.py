@@ -175,6 +175,9 @@ from app.modules.datasets.services.connectors import (
     connector_requires_reauthorization,
     refresh_oauth_access_token_if_due,
 )
+from app.modules.datasets.services.authorization_notifications import (
+    notify_workspace_owner_of_authorization_failure,
+)
 from app.modules.datasets.services.scheduling import (
     connection_sync_is_due,
     parse_connection_config as parse_schedule_config,
@@ -4407,6 +4410,8 @@ def persist_connector_dataframe(
         connection.last_synced_at = utc_now()
         connection.authorization_error = None
         connection.authorization_error_at = None
+        connection.authorization_notification_error = None
+        connection.authorization_notification_sent_at = None
         db.flush()
         return dataset, merged_report_config, file_path, replaced_file_path
     except Exception:
@@ -4665,6 +4670,11 @@ async def sync_due_source_connections(request: Request):
                 and source.get("connection_type") == "oauth"
                 and connection.status != "connected"
             ):
+                if getattr(connection, "authorization_error", None):
+                    notify_workspace_owner_of_authorization_failure(
+                        db,
+                        connection,
+                    )
                 continue
             if (
                 connection.status != "connected"
@@ -4713,6 +4723,10 @@ async def sync_due_source_connections(request: Request):
                             error,
                         )
                         db.commit()
+                        notify_workspace_owner_of_authorization_failure(
+                            db,
+                            connection,
+                        )
                     results.append({
                         "connection_id": connection.id,
                         "status": "failed",
@@ -4791,6 +4805,10 @@ async def sync_due_source_connections(request: Request):
                         error,
                     )
                     db.commit()
+                    notify_workspace_owner_of_authorization_failure(
+                        db,
+                        connection,
+                    )
                 results.append({
                     "connection_id": connection.id,
                     "status": "failed",
@@ -4909,6 +4927,10 @@ async def sync_source_connection(
                 error,
             )
             db.commit()
+            notify_workspace_owner_of_authorization_failure(
+                db,
+                connection,
+            )
         return {
             "connection_id": connection.id,
             "status": "error",
