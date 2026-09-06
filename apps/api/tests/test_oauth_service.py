@@ -14,6 +14,9 @@ from app.modules.oauth.service import (
     exchange_code,
     is_oauth_provider_configured,
 )
+from app.modules.oauth.router import (
+    get_oauth_config_requirement_error,
+)
 from app.modules.datasets.services.scheduling import (
     connection_sync_is_due,
     read_connection_schedule,
@@ -205,6 +208,36 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         )
         self.assertEqual(query["access_type"], ["offline"])
         self.assertEqual(query["prompt"], ["consent"])
+
+    def test_oauth_requires_connector_specific_configuration(self):
+        self.assertEqual(
+            get_oauth_config_requirement_error(
+                "google_analytics",
+                {},
+            ),
+            "Enter and save the GA4 property ID before connecting with OAuth",
+        )
+        self.assertEqual(
+            get_oauth_config_requirement_error(
+                "shopify",
+                {"shop_domain": "store.myshopify.com"},
+            ),
+            None,
+        )
+        self.assertEqual(
+            get_oauth_config_requirement_error(
+                "meta_ads",
+                {},
+            ),
+            "Enter and save the Meta Ads account ID before connecting with OAuth",
+        )
+        self.assertEqual(
+            get_oauth_config_requirement_error(
+                "google_ads",
+                {},
+            ),
+            "Enter and save the Google Ads customer ID before connecting with OAuth",
+        )
 
     def test_schedule_is_explicit_and_due(self):
         config = write_connection_schedule(

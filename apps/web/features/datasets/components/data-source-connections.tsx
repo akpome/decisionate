@@ -487,8 +487,6 @@ function DataSourceConnectionRow({
     (Array.isArray(connection.missing_config_keys)
       ? connection.missing_config_keys.length === 0
       : connection.has_config)
-  const isGoogleAdsConnection =
-    connection.source_type === "google_ads"
   const configuredGoogleAdsAccountId =
     connection.configured_customer_id ?? ""
   const canSyncConnector =
@@ -523,7 +521,7 @@ function DataSourceConnectionRow({
     source?.connection_type === "oauth" &&
     source.status === "available" &&
     connection.status !== "connected" &&
-    (!isGoogleAdsConnection || Boolean(configuredGoogleAdsAccountId.trim())) &&
+    hasRequiredConnectionConfig &&
     Boolean(onStartOAuthConnection)
   const canCancelOAuth =
     source?.connection_type === "oauth" &&

@@ -4705,6 +4705,13 @@ async def sync_due_source_connections(request: Request):
                     ],
                     "report": primary_report,
                 })
+            except ConnectorNoData as error:
+                db.rollback()
+                results.append({
+                    "connection_id": connection.id,
+                    "status": "no_data",
+                    "detail": str(error),
+                })
             except (GoogleAnalyticsConnectorUnavailable, ConnectorUnavailable) as error:
                 db.rollback()
                 results.append({
@@ -4801,10 +4808,12 @@ async def sync_source_connection(
             "datasets": datasets,
         }
     except ConnectorNoData as error:
-        raise HTTPException(
-            status_code=422,
-            detail=str(error),
-        ) from error
+        return {
+            "connection_id": connection.id,
+            "status": "no_data",
+            "message": str(error),
+            "datasets": [],
+        }
     except (GoogleAnalyticsConnectorUnavailable, ConnectorUnavailable) as error:
         logger.warning(
             "Connector sync unavailable",

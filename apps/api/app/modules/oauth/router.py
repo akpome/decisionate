@@ -12,7 +12,11 @@ from app.db.models import DataSourceConnection
 from app.db.models import OAuthConnectionState
 from app.db.models import OAuthCredential
 from app.modules.auth_context import get_auth_context
-from app.modules.datasets.router import parse_source_connection_config
+from app.modules.datasets.router import (
+    get_dataset_source,
+    get_source_connection_config_status,
+    parse_source_connection_config,
+)
 from app.modules.oauth.service import (
     OAuthProviderUnavailable,
     OAuthTokenExchangeError,
@@ -36,6 +40,35 @@ from app.modules.oauth.service import (
 
 router = APIRouter()
 STATE_TTL_MINUTES = 10
+
+
+def get_oauth_config_requirement_error(
+    source_type: str,
+    connection_config: dict,
+):
+    source = get_dataset_source(source_type)
+    _, _, missing_config_keys = get_source_connection_config_status(
+        source,
+        connection_config,
+    )
+    if not missing_config_keys:
+        return None
+
+    field_labels = {
+        "property_id": "the GA4 property ID",
+        "shop_domain": "the Shopify shop domain",
+        "ad_account_id": "the Meta Ads account ID",
+        "customer_id": "the Google Ads customer ID",
+    }
+    missing_labels = [
+        field_labels.get(key, key)
+        for key in missing_config_keys
+    ]
+    return (
+        "Enter and save "
+        + ", ".join(missing_labels)
+        + " before connecting with OAuth"
+    )
 
 
 def get_salesforce_instance_url(payload: dict) -> str:
@@ -96,12 +129,14 @@ async def start_oauth_connection(
     try:
         connection = get_workspace_connection(db, connection_id, auth_context)
         config = parse_source_connection_config(connection.connection_config)
-        if connection.source_type == "google_ads" and not str(
-            config.get("customer_id") or ""
-        ).strip():
+        config_requirement_error = get_oauth_config_requirement_error(
+            connection.source_type,
+            config,
+        )
+        if config_requirement_error:
             raise HTTPException(
                 status_code=422,
-                detail="Enter and save the Google Ads customer ID before connecting with OAuth",
+                detail=config_requirement_error,
             )
         state_token = create_state_token()
         provider = get_provider(connection.source_type)

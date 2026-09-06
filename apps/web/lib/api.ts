@@ -468,16 +468,18 @@ export type DataSourceConnectionSchedulePayload = {
 
 export type DataSourceConnectionSyncResult = {
   connection_id: number
-  dataset_id: number
+  status?: "synced" | "no_data"
+  message?: string
+  dataset_id?: number
   workspace_id?: string | null
-  source_type: string
-  source_label: string
+  source_type?: string
+  source_label?: string
   source_config?: string | null
-  file_name: string
-  file_path: string
-  row_count: number
-  column_count: number
-  report: Record<string, unknown>
+  file_name?: string
+  file_path?: string
+  row_count?: number
+  column_count?: number
+  report?: Record<string, unknown>
   datasets?: DataSourceConnectionSyncResult[]
 }
 

@@ -20,6 +20,7 @@ from app.modules.datasets.services.google_analytics import (
     load_google_analytics_report,
     validate_report_request,
 )
+from app.modules.datasets.services.connectors import ConnectorNoData
 
 
 class GoogleAnalyticsConnectorTests(unittest.TestCase):
@@ -295,6 +296,70 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             self.assertEqual(dataset.source_type, "google_analytics")
             self.assertEqual(dataset.row_count, 1)
             self.assertTrue(Path(dataset.file_path).exists())
+        finally:
+            db.close()
+            engine.dispose()
+
+    def test_sync_route_returns_no_data_notification(self):
+        engine = create_engine("sqlite:///:memory:")
+        DataSourceConnection.__table__.create(engine)
+        Dataset.__table__.create(engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+        db.add(
+            DataSourceConnection(
+                id=1,
+                user_id="user-1",
+                workspace_id="workspace-1",
+                source_type="google_analytics",
+                display_name="Marketing analytics",
+                status="connected",
+                connection_config='{"property_id": "123456"}',
+            )
+        )
+        db.commit()
+        db.close()
+
+        message = (
+            "Google Ads returned no records from 2026-08-07 through "
+            "2026-09-06."
+        )
+        with patch(
+            "app.modules.datasets.router.SessionLocal",
+            Session,
+        ), patch(
+            "app.modules.datasets.router.get_user_id",
+            return_value="user-1",
+        ), patch(
+            "app.modules.datasets.router.get_workspace_id",
+            return_value="workspace-1",
+        ), patch(
+            "app.modules.datasets.router.run_data_source_sync",
+            side_effect=ConnectorNoData(message),
+        ):
+            response = asyncio.run(
+                sync_source_connection(
+                    types.SimpleNamespace(),
+                    1,
+                    DataSourceConnectionSync(
+                        start_date="2026-08-07",
+                        end_date="2026-09-06",
+                    ),
+                )
+            )
+
+        self.assertEqual(
+            response,
+            {
+                "connection_id": 1,
+                "status": "no_data",
+                "message": message,
+                "datasets": [],
+            },
+        )
+        db = Session()
+        try:
+            self.assertEqual(db.query(Dataset).count(), 0)
         finally:
             db.close()
             engine.dispose()

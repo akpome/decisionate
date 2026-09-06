@@ -295,6 +295,14 @@ function ConnectionsPageContent({
           payload
         )
 
+      if (result.status === "no_data") {
+        setConnectionNotice(
+          result.message ??
+            "No records were found for the selected sync period."
+        )
+        return
+      }
+
       const syncedDatasets = result.datasets ?? [result]
       setConnectionNotice(
         syncedDatasets.length > 1
@@ -319,12 +327,12 @@ function ConnectionsPageContent({
     connection: DataSourceConnection
   ) {
     if (!user?.id) return
-    if (
-      connection.source_type === "google_ads" &&
-      !connection.configured_customer_id?.trim()
-    ) {
+    const missingConfigKeys = connection.missing_config_keys ?? []
+    if (missingConfigKeys.length > 0) {
       setConnectionError(
-        "Enter and save the Google Ads customer ID before connecting with OAuth."
+        connection.source_type === "google_ads"
+          ? "Enter and save the Google Ads customer ID before connecting with OAuth."
+          : "Enter and save the required connection settings before connecting with OAuth."
       )
       return
     }
