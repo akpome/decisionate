@@ -1576,6 +1576,151 @@ def google_ads_micros_to_units(value):
     return numeric / 1_000_000
 
 
+GOOGLE_ADS_CUSTOMER_CLIENT_QUERY = " ".join([
+    "SELECT",
+    "customer_client.client_customer,",
+    "customer_client.id,",
+    "customer_client.manager",
+    "FROM customer_client",
+    "WHERE customer_client.level <= 1",
+])
+
+
+def _google_ads_search_stream_results(
+    base_url: str,
+    api_version: str,
+    customer_id: str,
+    access_token: str,
+    developer_token: str,
+    query: str,
+    login_customer_id: str,
+) -> list[dict]:
+    payload = connector_json_post_request(
+        (
+            f"{base_url}/{api_version}/customers/{customer_id}/"
+            "googleAds:searchStream"
+        ),
+        {
+            "Authorization": f"Bearer {access_token}",
+            "developer-token": developer_token,
+            "login-customer-id": login_customer_id,
+        },
+        {"query": query},
+    )
+    if not isinstance(payload, list):
+        raise ConnectorUnavailable(
+            "Google Ads returned an invalid account hierarchy response"
+        )
+
+    results = []
+    for chunk in payload:
+        if not isinstance(chunk, dict):
+            raise ConnectorUnavailable(
+                "Google Ads returned an invalid account hierarchy response"
+            )
+        chunk_results = chunk.get("results")
+        if chunk_results is None:
+            continue
+        if not isinstance(chunk_results, list):
+            raise ConnectorUnavailable(
+                "Google Ads returned invalid account hierarchy results"
+            )
+        results.extend(
+            item
+            for item in chunk_results
+            if isinstance(item, dict)
+        )
+    return results
+
+
+def _google_ads_customer_id_from_resource(value) -> str | None:
+    match = re.fullmatch(
+        r"customers/(\d+)",
+        str(value or "").strip(),
+    )
+    return match.group(1) if match else None
+
+
+def resolve_google_ads_login_customer_id(
+    base_url: str,
+    api_version: str,
+    access_token: str,
+    developer_token: str,
+    target_customer_id: str,
+) -> str | None:
+    """Find an authorized manager without exposing it as connection config."""
+    accessible_payload = connector_json_request(
+        f"{base_url}/{api_version}/customers:listAccessibleCustomers",
+        {
+            "Authorization": f"Bearer {access_token}",
+            "developer-token": developer_token,
+        },
+    )
+    resource_names = accessible_payload.get("resourceNames")
+    if not isinstance(resource_names, list):
+        return None
+
+    seed_customer_ids = []
+    for resource_name in resource_names:
+        customer_id = _google_ads_customer_id_from_resource(
+            resource_name
+        )
+        if customer_id and customer_id not in seed_customer_ids:
+            seed_customer_ids.append(customer_id)
+
+    for seed_customer_id in seed_customer_ids:
+        if seed_customer_id == target_customer_id:
+            continue
+
+        pending_customer_ids = [seed_customer_id]
+        visited_customer_ids = set()
+        while pending_customer_ids:
+            manager_customer_id = pending_customer_ids.pop(0)
+            if manager_customer_id in visited_customer_ids:
+                continue
+            visited_customer_ids.add(manager_customer_id)
+
+            try:
+                hierarchy_results = _google_ads_search_stream_results(
+                    base_url,
+                    api_version,
+                    manager_customer_id,
+                    access_token,
+                    developer_token,
+                    GOOGLE_ADS_CUSTOMER_CLIENT_QUERY,
+                    login_customer_id=seed_customer_id,
+                )
+            except ConnectorUnavailable:
+                continue
+
+            for result in hierarchy_results:
+                customer_client = result.get("customerClient")
+                if not isinstance(customer_client, dict):
+                    continue
+
+                client_customer_id = str(
+                    customer_client.get("id") or ""
+                ).strip()
+                if not client_customer_id:
+                    client_customer_id = (
+                        _google_ads_customer_id_from_resource(
+                            customer_client.get("clientCustomer")
+                        )
+                        or ""
+                    )
+                if client_customer_id == target_customer_id:
+                    return seed_customer_id
+
+                if (
+                    customer_client.get("manager") is True
+                    and client_customer_id
+                    and client_customer_id not in visited_customer_ids
+                ):
+                    pending_customer_ids.append(client_customer_id)
+
+    return None
+
+
 def load_google_ads_dataframe(
     db,
     connection: DataSourceConnection,
@@ -1635,11 +1780,34 @@ def load_google_ads_dataframe(
         "Authorization": f"Bearer {access_token}",
         "developer-token": developer_token,
     }
-    payload = connector_json_post_request(
-        url,
-        headers,
-        {"query": query},
-    )
+    try:
+        payload = connector_json_post_request(
+            url,
+            headers,
+            {"query": query},
+        )
+    except ConnectorUnavailable as error:
+        if "USER_PERMISSION_DENIED" not in str(error):
+            raise
+
+        manager_customer_id = resolve_google_ads_login_customer_id(
+            base_url,
+            api_version,
+            access_token,
+            developer_token,
+            customer_id,
+        )
+        if not manager_customer_id:
+            raise
+
+        payload = connector_json_post_request(
+            url,
+            {
+                **headers,
+                "login-customer-id": manager_customer_id,
+            },
+            {"query": query},
+        )
     if not isinstance(payload, list):
         raise ConnectorUnavailable(
             "Google Ads returned an invalid SearchStream response"

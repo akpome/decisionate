@@ -671,6 +671,92 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(dataframe.iloc[0]["cost_micros"], 1250000)
         self.assertEqual(dataframe.iloc[0]["cost"], 1.25)
         self.assertEqual(report["customer_id"], "1234567890")
+
+    def test_google_ads_campaign_report_resolves_manager_automatically(self):
+        response = [{
+            "results": [{
+                "campaign": {
+                    "id": "1234567890",
+                    "name": "Spring campaign",
+                    "status": "ENABLED",
+                    "advertisingChannelType": "SEARCH",
+                },
+                "segments": {"date": "2026-01-02"},
+                "metrics": {
+                    "impressions": "100",
+                    "clicks": "5",
+                    "costMicros": "1250000",
+                    "conversions": "2.0",
+                    "conversionsValue": "200.0",
+                    "ctr": "0.05",
+                    "averageCpc": "250000",
+                },
+            }],
+        }]
+        permission_error = connectors.ConnectorUnavailable(
+            "Connector request failed with HTTP 403: Google Ads "
+            "USER_PERMISSION_DENIED: User doesn't have permission to access customer"
+        )
+        post_calls = []
+
+        def post_request(url, headers, payload):
+            post_calls.append((url, headers, payload))
+            if len(post_calls) == 1:
+                raise permission_error
+            if "FROM customer_client" in payload["query"]:
+                self.assertEqual(
+                    headers["login-customer-id"],
+                    "9107036696",
+                )
+                return [{
+                    "results": [{
+                        "customerClient": {
+                            "id": "1234567890",
+                            "manager": False,
+                        },
+                    }],
+                }]
+
+            return response
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="google-ads-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            return_value={
+                "resourceNames": ["customers/9107036696"],
+            },
+        ), patch.object(
+            connectors,
+            "connector_json_post_request",
+            side_effect=post_request,
+        ), patch.dict(
+            os.environ,
+            {
+                "GOOGLE_ADS_API_BASE_URL": (
+                    "https://googleads.googleapis.com"
+                ),
+                "GOOGLE_ADS_API_VERSION": "v22",
+                "GOOGLE_ADS_DEVELOPER_TOKEN": "developer-token",
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_google_ads_dataframe(
+                None,
+                make_connection("google_ads", {
+                    "customer_id": "123-456-7890",
+                }),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            )
+
+        self.assertFalse(dataframe.empty)
+        self.assertEqual(report["customer_id"], "1234567890")
+        self.assertEqual(len(post_calls), 3)
+
     def test_google_ads_customer_id_requires_ten_digits(self):
         with self.assertRaisesRegex(
             connectors.ConnectorUnavailable,
