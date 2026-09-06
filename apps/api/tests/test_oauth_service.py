@@ -1,4 +1,6 @@
+import json
 import os
+import types
 import unittest
 from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlparse
@@ -13,9 +15,11 @@ from app.modules.oauth.service import (
     encrypt_token,
     exchange_code,
     is_oauth_provider_configured,
+    revoke_oauth_token,
 )
 from app.modules.oauth.router import (
     get_oauth_config_requirement_error,
+    revoke_stale_quickbooks_authorization,
 )
 from app.modules.datasets.services.scheduling import (
     connection_sync_is_due,
@@ -25,6 +29,55 @@ from app.modules.datasets.services.scheduling import (
 
 
 class OAuthAndSchedulingTests(unittest.TestCase):
+    def test_quickbooks_reconnect_removes_failed_stored_credential(self):
+        credential = types.SimpleNamespace(
+            refresh_token_encrypted="encrypted-refresh-token",
+            access_token_encrypted="encrypted-access-token",
+        )
+
+        class FakeQuery:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def first(self):
+                return credential
+
+        class FakeDb:
+            def __init__(self):
+                self.deleted = None
+                self.commit_count = 0
+
+            def query(self, _model):
+                return FakeQuery()
+
+            def delete(self, value):
+                self.deleted = value
+
+            def commit(self):
+                self.commit_count += 1
+
+        db = FakeDb()
+        connection = types.SimpleNamespace(
+            id=42,
+            source_type="quickbooks",
+            authorization_error="QuickBooks authorization is no longer valid",
+        )
+
+        with patch(
+            "app.modules.oauth.router.decrypt_token",
+            return_value="refresh-token",
+        ), patch(
+            "app.modules.oauth.router.revoke_oauth_token",
+        ) as revoke_token:
+            revoke_stale_quickbooks_authorization(db, connection)
+
+        revoke_token.assert_called_once_with(
+            "quickbooks",
+            "refresh-token",
+        )
+        self.assertIs(db.deleted, credential)
+        self.assertEqual(db.commit_count, 1)
+
     def test_pkce_challenge_matches_rfc7636_s256(self):
         self.assertEqual(
             create_pkce_challenge(
@@ -208,6 +261,47 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         )
         self.assertEqual(query["access_type"], ["offline"])
         self.assertEqual(query["prompt"], ["consent"])
+
+    def test_quickbooks_token_revocation_uses_the_intuit_endpoint(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        with patch.dict(
+            os.environ,
+            {
+                "QUICKBOOKS_CLIENT_ID": "client-id",
+                "QUICKBOOKS_CLIENT_SECRET": "client-secret",
+                "QUICKBOOKS_OAUTH_TOKEN_URL": (
+                    "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
+                ),
+                "QUICKBOOKS_OAUTH_REVOCATION_URL": (
+                    "https://developer.api.intuit.com/v2/oauth2/tokens/revoke"
+                ),
+            },
+            clear=False,
+        ), patch(
+            "app.modules.oauth.service.urlopen",
+            return_value=FakeResponse(),
+        ) as mocked_urlopen:
+            revoke_oauth_token(
+                "quickbooks",
+                "refresh-token",
+            )
+
+        request = mocked_urlopen.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "https://developer.api.intuit.com/v2/oauth2/tokens/revoke",
+        )
+        self.assertEqual(
+            json.loads(request.data.decode("utf-8")),
+            {"token": "refresh-token"},
+        )
+        self.assertTrue(request.headers["Authorization"].startswith("Basic "))
 
     def test_oauth_requires_connector_specific_configuration(self):
         self.assertEqual(

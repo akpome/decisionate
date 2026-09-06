@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode, urlparse
 
@@ -41,12 +42,59 @@ from app.modules.oauth.service import (
     get_web_app_url,
     normalize_zoho_books_accounts_server,
     normalize_zoho_books_api_domain,
+    revoke_oauth_token,
     token_expiry,
 )
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 STATE_TTL_MINUTES = 10
+
+
+def revoke_stale_quickbooks_authorization(
+    db,
+    connection,
+) -> None:
+    """Remove a failed QuickBooks grant before starting a new OAuth flow."""
+    if (
+        connection.source_type != "quickbooks"
+        or not getattr(connection, "authorization_error", None)
+    ):
+        return
+
+    credential = (
+        db.query(OAuthCredential)
+        .filter(
+            OAuthCredential.connection_id == connection.id,
+            OAuthCredential.source_type == "quickbooks",
+        )
+        .first()
+    )
+    if not credential:
+        return
+
+    encrypted_token = (
+        credential.refresh_token_encrypted
+        or credential.access_token_encrypted
+    )
+    if encrypted_token:
+        try:
+            revoke_oauth_token(
+                "quickbooks",
+                decrypt_token(encrypted_token),
+            )
+        except Exception:
+            # The grant may already be revoked or expired. Local credentials
+            # are removed either way so the next flow cannot reuse them.
+            logger.warning(
+                "Could not revoke stale QuickBooks authorization before reconnect",
+                extra={"connection_id": connection.id},
+                exc_info=True,
+            )
+
+    db.delete(credential)
+    db.commit()
 
 
 def get_oauth_config_requirement_error(
@@ -145,6 +193,10 @@ async def start_oauth_connection(
                 status_code=422,
                 detail=config_requirement_error,
             )
+        revoke_stale_quickbooks_authorization(
+            db,
+            connection,
+        )
         state_token = create_state_token()
         provider = get_provider(connection.source_type)
         code_verifier = (

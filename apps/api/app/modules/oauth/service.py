@@ -787,6 +787,50 @@ def refresh_oauth_token(
     return payload
 
 
+def revoke_oauth_token(
+    source_type: str,
+    token: str,
+) -> None:
+    """Revoke a provider token before a forced reauthorization."""
+    provider = get_provider(source_type)
+    if provider.source_type != "quickbooks":
+        raise OAuthProviderUnavailable(
+            f"OAuth token revocation is not configured for {source_type}"
+        )
+
+    client_id, client_secret = get_provider_credentials(provider)
+    revocation_url = (
+        get_provider_setting("QUICKBOOKS_OAUTH_REVOCATION_URL")
+        or "https://developer.api.intuit.com/v2/oauth2/tokens/revoke"
+    )
+    encoded = base64.b64encode(
+        f"{client_id}:{client_secret}".encode("utf-8")
+    ).decode("ascii")
+    request = Request(
+        revocation_url,
+        data=json.dumps({"token": str(token).strip()}).encode("utf-8"),
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Basic {encoded}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=20):
+            return
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise OAuthTokenExchangeError(
+            f"OAuth token revocation failed with HTTP {error.code}: "
+            f"{detail[:240]}"
+        ) from error
+    except (URLError, TimeoutError, OSError) as error:
+        raise OAuthTokenExchangeError(
+            "OAuth provider is unavailable while revoking the token"
+        ) from error
+
+
 def get_xero_connections(access_token: str) -> list[dict]:
     connections_url = get_provider_setting("XERO_CONNECTIONS_API_URL")
     if not connections_url:
