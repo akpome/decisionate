@@ -1591,6 +1591,19 @@ GOOGLE_ADS_CUSTOMER_CLIENT_QUERY = " ".join([
     "WHERE customer_client.level <= 1",
 ])
 
+GOOGLE_ADS_CAMPAIGN_METADATA_QUERY = " ".join([
+    "SELECT",
+    "campaign.id,",
+    "campaign.name,",
+    "campaign.status,",
+    "campaign.advertising_channel_type,",
+    "campaign.start_date,",
+    "campaign.end_date",
+    "FROM campaign",
+    "WHERE campaign.status != 'REMOVED'",
+    "ORDER BY campaign.id",
+])
+
 
 def _google_ads_search_stream_results(
     base_url: str,
@@ -1786,10 +1799,11 @@ def load_google_ads_dataframe(
         "Authorization": f"Bearer {access_token}",
         "developer-token": developer_token,
     }
+    request_headers = headers
     try:
         payload = connector_json_post_request(
             url,
-            headers,
+            request_headers,
             {"query": query},
         )
     except ConnectorUnavailable as error:
@@ -1814,6 +1828,10 @@ def load_google_ads_dataframe(
             },
             {"query": query},
         )
+        request_headers = {
+            **headers,
+            "login-customer-id": manager_customer_id,
+        }
     if not isinstance(payload, list):
         raise ConnectorUnavailable(
             "Google Ads returned an invalid SearchStream response"
@@ -1886,6 +1904,68 @@ def load_google_ads_dataframe(
                 )
             )
 
+    data_mode = "campaign_performance"
+    if not rows:
+        metadata_payload = connector_json_post_request(
+            url,
+            request_headers,
+            {"query": GOOGLE_ADS_CAMPAIGN_METADATA_QUERY},
+        )
+        if not isinstance(metadata_payload, list):
+            raise ConnectorUnavailable(
+                "Google Ads returned an invalid campaign metadata response"
+            )
+
+        for chunk in metadata_payload:
+            if not isinstance(chunk, dict):
+                raise ConnectorUnavailable(
+                    "Google Ads returned an invalid campaign metadata response"
+                )
+            records = chunk.get("results")
+            if records is None:
+                continue
+            if not isinstance(records, list):
+                raise ConnectorUnavailable(
+                    "Google Ads returned invalid campaign metadata results"
+                )
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                campaign = record.get("campaign")
+                campaign = campaign if isinstance(campaign, dict) else {}
+                campaign_id = campaign.get("id")
+                if campaign_id is None:
+                    continue
+                normalized_row = {
+                    "record_id": f"{customer_id}:{campaign_id}",
+                    "customer_id": customer_id,
+                    "campaign_id": campaign_id,
+                    "campaign_name": campaign.get("name"),
+                    "campaign_status": campaign.get("status"),
+                    "advertising_channel_type": campaign.get(
+                        "advertisingChannelType"
+                    ),
+                    "campaign_start_date": campaign.get("startDate"),
+                    "campaign_end_date": campaign.get("endDate"),
+                    "impressions": 0,
+                    "clicks": 0,
+                    "cost_micros": 0,
+                    "cost": 0,
+                    "conversions": 0,
+                    "conversions_value": 0,
+                    "ctr": 0,
+                    "average_cpc_micros": 0,
+                    "average_cpc": 0,
+                }
+                rows.append(
+                    build_dynamic_connector_row(
+                        record,
+                        normalized_row,
+                    )
+                )
+        if rows:
+            data_mode = "campaign_metadata"
+
     dataframe = pd.DataFrame(rows)
     return dataframe, {
         "connector": "google_ads",
@@ -1895,6 +1975,7 @@ def load_google_ads_dataframe(
         "start_date": since.isoformat(),
         "end_date": until.isoformat(),
         "row_count": len(dataframe),
+        "data_mode": data_mode,
     }
 
 

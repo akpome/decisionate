@@ -738,6 +738,71 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(dataframe.iloc[0]["cost"], 1.25)
         self.assertEqual(report["customer_id"], "1234567890")
 
+    def test_google_ads_campaign_report_loads_metadata_when_metrics_are_empty(self):
+        metadata_response = [{
+            "results": [{
+                "campaign": {
+                    "id": "1234567890",
+                    "name": "Test campaign",
+                    "status": "PAUSED",
+                    "advertisingChannelType": "SEARCH",
+                    "startDate": "2026-01-02",
+                    "endDate": "2026-12-31",
+                },
+            }],
+        }]
+        post_calls = []
+
+        def post_request(url, headers, payload):
+            post_calls.append((url, headers, payload))
+            if "segments.date" in payload["query"]:
+                return [{"results": []}]
+            self.assertEqual(
+                payload["query"],
+                connectors.GOOGLE_ADS_CAMPAIGN_METADATA_QUERY,
+            )
+            return metadata_response
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="google-ads-token",
+        ), patch.object(
+            connectors,
+            "connector_json_post_request",
+            side_effect=post_request,
+        ), patch.dict(
+            os.environ,
+            {
+                "GOOGLE_ADS_API_BASE_URL": (
+                    "https://googleads.googleapis.com"
+                ),
+                "GOOGLE_ADS_API_VERSION": "v22",
+                "GOOGLE_ADS_DEVELOPER_TOKEN": "developer-token",
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_google_ads_dataframe(
+                None,
+                make_connection("google_ads", {
+                    "customer_id": "123-456-7890",
+                }),
+                date(2026, 8, 7),
+                date(2026, 9, 6),
+            )
+
+        self.assertEqual(len(post_calls), 2)
+        self.assertFalse(dataframe.empty)
+        self.assertEqual(dataframe.iloc[0]["campaign_name"], "Test campaign")
+        self.assertEqual(
+            dataframe.iloc[0]["campaign_start_date"],
+            "2026-01-02",
+        )
+        self.assertEqual(dataframe.iloc[0]["impressions"], 0)
+        self.assertEqual(dataframe.iloc[0]["cost"], 0)
+        self.assertEqual(report["data_mode"], "campaign_metadata")
+        self.assertEqual(report["row_count"], 1)
+
     def test_google_ads_campaign_report_resolves_manager_automatically(self):
         response = [{
             "results": [{
