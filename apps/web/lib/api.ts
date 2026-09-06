@@ -1543,6 +1543,7 @@ type AuthenticatedHeaders =
 
 const clerkTokenTimeoutMs = 1500
 const apiRequestTimeoutMs = 10000
+const connectorSyncRequestTimeoutMs = 120000
 const apiMutationTimeoutMs = 30000
 const connectionRequestTimeoutMs = 30000
 const datasetDetailsRequestTimeoutMs = 30000
@@ -4363,7 +4364,8 @@ export async function syncDataSourceConnection(
           workspaceId
         ),
         body: JSON.stringify(payload),
-      }
+      },
+      connectorSyncRequestTimeoutMs
     )
 
   if (!response.ok) {
