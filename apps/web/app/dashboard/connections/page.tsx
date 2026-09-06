@@ -496,6 +496,7 @@ function ConnectionsPageContent({
           result.message ??
             `${connection.source_label} could not be synced right now. Please try again shortly.`
         )
+        await loadConnections()
         return
       }
 

@@ -172,6 +172,7 @@ from app.modules.datasets.services.connectors import (
     normalize_zoho_books_resource_type,
     normalize_zoho_books_resource_types,
     normalize_shop_domain,
+    connector_requires_reauthorization,
 )
 from app.modules.datasets.services.scheduling import (
     connection_sync_is_due,
@@ -4723,6 +4724,12 @@ async def sync_due_source_connections(request: Request):
                 })
             except (GoogleAnalyticsConnectorUnavailable, ConnectorUnavailable) as error:
                 db.rollback()
+                if connector_requires_reauthorization(
+                    connection.source_type,
+                    error,
+                ):
+                    connection.status = "draft"
+                    db.commit()
                 results.append({
                     "connection_id": connection.id,
                     "status": "failed",
@@ -4832,6 +4839,12 @@ async def sync_source_connection(
                 "reason": str(error)[:500],
             },
         )
+        if connector_requires_reauthorization(
+            connection.source_type,
+            error,
+        ):
+            connection.status = "draft"
+            db.commit()
         return {
             "connection_id": connection.id,
             "status": "error",

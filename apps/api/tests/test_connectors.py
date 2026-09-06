@@ -799,6 +799,33 @@ class ConnectorSmokeTests(unittest.TestCase):
             "Google Ads USER_PERMISSION_DENIED: User does not have access",
         )
 
+    def test_quickbooks_authorization_error_is_customer_safe(self):
+        detail = connectors.format_connector_error_detail(
+            json.dumps({
+                "fault": {
+                    "error": [{
+                        "message": (
+                            "message=ApplicationAuthorizationFailed; "
+                            "errorCode=003100; statusCode=403"
+                        ),
+                        "code": "3100",
+                    }],
+                },
+            })
+        )
+
+        self.assertEqual(
+            detail,
+            "QuickBooks authorization is no longer valid. "
+            "Reconnect QuickBooks and try again.",
+        )
+        self.assertTrue(
+            connectors.connector_requires_reauthorization(
+                "quickbooks",
+                connectors.ConnectorUnavailable(detail),
+            )
+        )
+
     def test_database_connectors_load_read_only_rows(self):
         with tempfile.NamedTemporaryFile(suffix=".sqlite") as database_file:
             engine = create_engine(f"sqlite:///{database_file.name}")

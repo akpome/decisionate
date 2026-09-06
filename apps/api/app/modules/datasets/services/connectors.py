@@ -3662,9 +3662,36 @@ def format_connector_error_detail(detail: str) -> str:
     except (TypeError, json.JSONDecodeError):
         return detail
 
+    error_payloads = payload if isinstance(payload, list) else [payload]
+    for error_payload in error_payloads:
+        if not isinstance(error_payload, dict):
+            continue
+        fault = error_payload.get("fault")
+        fault_errors = (
+            fault.get("error")
+            if isinstance(fault, dict)
+            else None
+        )
+        if not isinstance(fault_errors, list):
+            continue
+        for fault_error in fault_errors:
+            if not isinstance(fault_error, dict):
+                continue
+            code = str(fault_error.get("code") or "").strip()
+            message = str(fault_error.get("message") or "").strip()
+            normalized_message = message.lower()
+            if (
+                code == "3100"
+                or "applicationauthorizationfailed" in normalized_message
+                or "errorcode=003100" in normalized_message
+            ):
+                return (
+                    "QuickBooks authorization is no longer valid. "
+                    "Reconnect QuickBooks and try again."
+                )
+
     google_ads_errors = []
     messages = []
-    error_payloads = payload if isinstance(payload, list) else [payload]
     for error_payload in error_payloads:
         if not isinstance(error_payload, dict):
             continue
@@ -3708,6 +3735,21 @@ def format_connector_error_detail(detail: str) -> str:
         return "Google Ads " + "; ".join(google_ads_errors)
 
     return "; ".join(messages) or detail
+
+
+def connector_requires_reauthorization(
+    source_type: str,
+    error: Exception,
+) -> bool:
+    """Identify OAuth failures that need a fresh provider authorization."""
+    if source_type != "quickbooks":
+        return False
+    normalized_message = str(error or "").lower()
+    return (
+        "applicationauthorizationfailed" in normalized_message
+        or "errorcode=003100" in normalized_message
+        or "quickbooks authorization is no longer valid" in normalized_message
+    )
 
 
 def validate_read_query(value) -> str:
