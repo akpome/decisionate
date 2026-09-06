@@ -329,6 +329,72 @@ class ConnectorSmokeTests(unittest.TestCase):
                 self.assertEqual(report["resource"], resource_type)
                 self.assertEqual(report["object_type"], entity)
 
+    def test_quickbooks_sync_falls_back_to_the_other_api_environment(self):
+        requested_urls = []
+
+        def json_request(url, headers):
+            requested_urls.append(url)
+            if "sandbox-quickbooks.api.intuit.com" not in url:
+                raise connectors.ConnectorUnavailable(
+                    "QuickBooks authorization is no longer valid. "
+                    "Reconnect QuickBooks and try again."
+                )
+            return {
+                "QueryResponse": {
+                    "Invoice": [{
+                        "Id": "sandbox-invoice-1",
+                        "TxnDate": "2026-01-02",
+                    }],
+                },
+            }
+
+        connection = make_connection(
+            "quickbooks",
+            {
+                "company_id": "sandbox-company",
+                "resource_types": ["invoices"],
+            },
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "QUICKBOOKS_API_BASE_URL": (
+                    "https://quickbooks.api.intuit.com"
+                ),
+                "QUICKBOOKS_API_VERSION": "v3",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="quickbooks-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ):
+            dataframe, report = connectors.load_quickbooks_dataframe(
+                None,
+                connection,
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            )
+
+        self.assertFalse(dataframe.empty)
+        self.assertEqual(report["resource"], "invoices")
+        self.assertIn(
+            "https://quickbooks.api.intuit.com",
+            requested_urls[0],
+        )
+        self.assertIn(
+            "https://sandbox-quickbooks.api.intuit.com",
+            requested_urls[1],
+        )
+        self.assertIn(
+            connectors.QUICKBOOKS_API_BASE_URL_CONFIG_KEY,
+            json.loads(connection.connection_config),
+        )
+
     def test_quickbooks_nested_lists_are_flattened_for_analysis(self):
         row = connectors.build_dynamic_connector_row(
             {

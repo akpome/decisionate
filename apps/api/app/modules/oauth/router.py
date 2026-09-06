@@ -414,6 +414,7 @@ def process_oauth_callback(request: Request):
                 connection.connection_config
             )
             connection_config["company_id"] = realm_id
+            connection_config.pop("_quickbooks_api_base_url", None)
             connection.connection_config = json.dumps(
                 connection_config,
                 sort_keys=True,

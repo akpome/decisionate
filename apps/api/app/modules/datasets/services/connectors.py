@@ -354,6 +354,9 @@ QUICKBOOKS_TRANSACTION_RESOURCES = {
     "bills",
     "purchases",
 }
+QUICKBOOKS_PRODUCTION_API_BASE_URL = "https://quickbooks.api.intuit.com"
+QUICKBOOKS_SANDBOX_API_BASE_URL = "https://sandbox-quickbooks.api.intuit.com"
+QUICKBOOKS_API_BASE_URL_CONFIG_KEY = "_quickbooks_api_base_url"
 
 ZOHO_BOOKS_RESOURCE_TYPES = {
     "invoices": ("invoices", "invoices"),
@@ -2021,7 +2024,10 @@ def load_quickbooks_dataframe(
         )
 
     access_token = get_oauth_access_token(db, connection, "quickbooks")
-    base_url = require_provider_url("QUICKBOOKS_API_BASE_URL")
+    configured_base_url = str(
+        config.get(QUICKBOOKS_API_BASE_URL_CONFIG_KEY)
+        or require_provider_url("QUICKBOOKS_API_BASE_URL")
+    ).rstrip("/")
     api_version = get_provider_setting("QUICKBOOKS_API_VERSION")
     if not api_version:
         raise ConnectorUnavailable(
@@ -2042,14 +2048,20 @@ def load_quickbooks_dataframe(
             start_date,
             end_date,
         )
-        url = (
-            f"{base_url}/{api_version}/company/{company_id}/query?"
-            f"{urlencode({'query': query})}"
+        payload, base_url = quickbooks_json_request(
+            configured_base_url,
+            api_version,
+            company_id,
+            query,
+            access_token,
         )
-        payload = connector_json_request(
-            url,
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
+        if base_url != configured_base_url:
+            configured_base_url = base_url
+            config[QUICKBOOKS_API_BASE_URL_CONFIG_KEY] = base_url
+            connection.connection_config = json.dumps(
+                config,
+                sort_keys=True,
+            )
         query_response = payload.get("QueryResponse")
         records = (
             query_response.get(entity)
@@ -2089,6 +2101,50 @@ def load_quickbooks_dataframe(
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
     }
+
+
+def quickbooks_json_request(
+    configured_base_url: str,
+    api_version: str,
+    company_id: str,
+    query: str,
+    access_token: str,
+) -> tuple[dict, str]:
+    """Query QBO and recover when a grant belongs to the other environment."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    base_urls = [configured_base_url]
+    alternate_base_url = {
+        QUICKBOOKS_PRODUCTION_API_BASE_URL: QUICKBOOKS_SANDBOX_API_BASE_URL,
+        QUICKBOOKS_SANDBOX_API_BASE_URL: QUICKBOOKS_PRODUCTION_API_BASE_URL,
+    }.get(configured_base_url)
+    if alternate_base_url:
+        base_urls.append(alternate_base_url)
+
+    last_error = None
+    for index, base_url in enumerate(base_urls):
+        url = (
+            f"{base_url}/{api_version}/company/{company_id}/query?"
+            f"{urlencode({'query': query})}"
+        )
+        try:
+            return connector_json_request(url, headers=headers), base_url
+        except ConnectorUnavailable as error:
+            last_error = error
+            if index == 0 and not is_quickbooks_environment_error(error):
+                raise
+
+    if last_error:
+        raise last_error
+    raise ConnectorUnavailable("QuickBooks API request failed")
+
+
+def is_quickbooks_environment_error(error: Exception) -> bool:
+    normalized_message = str(error or "").lower()
+    return (
+        "quickbooks authorization is no longer valid" in normalized_message
+        or "applicationauthorizationfailed" in normalized_message
+        or "errorcode=003100" in normalized_message
+    )
 
 
 def load_freshbooks_dataframe(
