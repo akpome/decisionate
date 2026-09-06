@@ -228,7 +228,7 @@ export function DashboardShell({
 
       return initialDetail && !initialDetail.available
         ? initialDetail.message ||
-            "The API service is unavailable."
+            "The service is temporarily unavailable."
         : ""
     })
   const [subscriptionAccess, setSubscriptionAccess] =
@@ -470,7 +470,7 @@ export function DashboardShell({
 
       setApiUnavailableMessage(
         detail?.message ||
-          "The API service is unavailable."
+          "The service is temporarily unavailable."
       )
     }
 

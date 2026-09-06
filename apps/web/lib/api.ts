@@ -1670,13 +1670,13 @@ async function apiFetch(
         }
 
         throw new Error(
-          "API request timed out. Check that the backend is running and responding."
+          "The service is taking longer than expected. Please try again shortly."
         )
       }
 
       if (error instanceof TypeError) {
         throw new Error(
-          "API service is unavailable. Check that the backend is running and reachable."
+          "The service is temporarily unavailable. Please try again shortly."
         )
       }
 
@@ -1732,7 +1732,7 @@ async function apiFetch(
       notifyApiAvailability({
         available: false,
         message:
-          "The API service returned an error. Check the backend logs and try again.",
+          "The service is temporarily unavailable. Please try again shortly.",
       })
     } else {
       notifyApiAvailability({
@@ -1748,7 +1748,7 @@ async function apiFetch(
       }
 
       const message =
-        "API request timed out. Check that the backend is running and responding."
+        "The service is taking longer than expected. Please try again shortly."
       notifyApiAvailability({
         available: false,
         message,
@@ -1758,7 +1758,7 @@ async function apiFetch(
 
     if (error instanceof TypeError) {
       const message =
-        "API service is unavailable. Check that the backend is running and reachable."
+        "The service is temporarily unavailable. Please try again shortly."
       notifyApiAvailability({
         available: false,
         message,
@@ -5087,7 +5087,7 @@ export async function getPublicSharedDashboard(
 
     if (error instanceof TypeError) {
       throw new Error(
-        "API service is unavailable. Check that the backend is running and reachable."
+        "The service is temporarily unavailable. Please try again shortly."
       )
     }
 
@@ -5164,7 +5164,7 @@ export async function getPublicDemoDashboard(
     }
     if (error instanceof TypeError) {
       throw new Error(
-        "API service is unavailable. Check that the backend is running and reachable."
+        "The service is temporarily unavailable. Please try again shortly."
       )
     }
     throw error

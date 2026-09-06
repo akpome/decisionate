@@ -100,6 +100,56 @@ function isNoDataMessage(message: string) {
   )
 }
 
+function isInternalApiErrorMessage(message: string) {
+  const normalizedMessage = message.toLowerCase()
+  return (
+    normalizedMessage.includes(
+      "api service returned an error"
+    ) ||
+    normalizedMessage.includes(
+      "api service is unavailable"
+    ) ||
+    normalizedMessage.includes(
+      "the service is temporarily unavailable"
+    ) ||
+    normalizedMessage.includes(
+      "api request timed out"
+    ) ||
+    normalizedMessage.includes(
+      "the service is taking longer than expected"
+    ) ||
+    normalizedMessage.includes(
+      "check that the backend"
+    ) ||
+    normalizedMessage.includes(
+      "check the backend logs"
+    )
+  )
+}
+
+function getCustomerFacingConnectionError(
+  error: unknown,
+  fallback: string
+) {
+  const message = getErrorMessage(
+    error,
+    fallback
+  )
+  const status =
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error
+      ? error.status
+      : undefined
+  const isServerError =
+    typeof status === "number" && status >= 500
+
+  return isServerError ||
+    isInternalApiErrorMessage(message)
+    ? fallback
+    : message
+}
+
 export default function ConnectionsPage() {
   const { user } = useUser()
   const {
@@ -433,14 +483,17 @@ function ConnectionsPageContent({
     } catch (error) {
       const message = getErrorMessage(
         error,
-        "Could not sync connector data."
+        `${connection.source_label} could not be synced right now. Please try again shortly.`
       )
       showConnectionFeedback(
         connection.id,
         isNoDataMessage(message)
           ? "no_data"
           : "error",
-        message
+        getCustomerFacingConnectionError(
+          error,
+          `${connection.source_label} could not be synced right now. Please try again shortly.`
+        )
       )
     } finally {
       setSyncingConnectionId(null)
@@ -481,9 +534,9 @@ function ConnectionsPageContent({
       showConnectionFeedback(
         connection.id,
         "error",
-        getErrorMessage(
+        getCustomerFacingConnectionError(
           error,
-          "Could not start connector authorization."
+          `${connection.source_label} authorization could not be started right now. Please try again shortly.`
         )
       )
       setOAuthConnectionId(null)

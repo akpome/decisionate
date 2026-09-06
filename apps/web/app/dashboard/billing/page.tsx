@@ -22,9 +22,9 @@ function getErrorMessage(error: unknown) {
 
 function isGlobalApiAvailabilityError(message: string) {
   return message ===
-      "API request timed out. Check that the backend is running and responding." ||
+      "The service is taking longer than expected. Please try again shortly." ||
     message ===
-      "API service is unavailable. Check that the backend is running and reachable."
+      "The service is temporarily unavailable. Please try again shortly."
 }
 
 export default function BillingPage() {
