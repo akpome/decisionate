@@ -16,6 +16,7 @@ from app.configuration import get_provider_setting
 from app.db.models import DataSourceConnection
 from app.db.models import OAuthCredential
 from app.modules.oauth.service import (
+    OAUTH_PROVIDERS,
     OAuthProviderUnavailable,
     OAuthTokenExchangeError,
     decrypt_token,
@@ -3702,6 +3703,22 @@ def format_connector_error_detail(detail: str) -> str:
     for error_payload in error_payloads:
         if not isinstance(error_payload, dict):
             continue
+        provider_error = error_payload.get("error")
+        if isinstance(provider_error, dict):
+            provider_error_type = str(
+                provider_error.get("type") or ""
+            ).strip().lower()
+            provider_error_code = str(
+                provider_error.get("code") or ""
+            ).strip()
+            if (
+                provider_error_type == "oauthexception"
+                and provider_error_code == "190"
+            ):
+                return (
+                    "OAuth authorization is no longer valid. "
+                    "Reconnect the account and try again."
+                )
         fault = error_payload.get("fault")
         fault_errors = (
             fault.get("error")
@@ -3778,20 +3795,9 @@ def connector_requires_reauthorization(
     error: Exception,
 ) -> bool:
     """Identify OAuth failures that need a fresh provider authorization."""
+    normalized_source_type = str(source_type or "").strip().lower()
     normalized_message = str(error or "").lower()
-    if source_type in {
-        "google_analytics",
-        "google_ads",
-        "hubspot",
-        "meta_ads",
-        "quickbooks",
-        "freshbooks",
-        "sage",
-        "xero",
-        "zoho_books",
-        "salesforce",
-        "shopify",
-    } and any(
+    if normalized_source_type in OAUTH_PROVIDERS and any(
         marker in normalized_message
         for marker in (
             "authorization is no longer valid",
@@ -3812,20 +3818,29 @@ def connector_requires_reauthorization(
             "authorization revoked",
             "access revoked",
             "authentication failed",
+            "authentication error",
+            "oauthexception",
+            "invalid oauth access token",
+            "invalid access token",
+            "access token is invalid",
+            "access token has been invalidated",
+            "access token revoked",
+            "expired access token",
+            "session has expired",
+            "error validating access token",
+            "permission denied",
+            "permission_denied",
+            "unauthorized",
             "user_permission_denied",
             "http 401",
             "http 403",
         )
     ):
         return True
-    return (
-        source_type == "quickbooks"
-        and (
-            "applicationauthorizationfailed" in normalized_message
-            or "errorcode=003100" in normalized_message
-            or "quickbooks authorization is no longer valid"
-            in normalized_message
-        )
+    return normalized_source_type == "quickbooks" and (
+        "applicationauthorizationfailed" in normalized_message
+        or "errorcode=003100" in normalized_message
+        or "quickbooks authorization is no longer valid" in normalized_message
     )
 
 

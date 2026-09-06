@@ -52,22 +52,25 @@ logger = logging.getLogger(__name__)
 STATE_TTL_MINUTES = 10
 
 
-def revoke_stale_quickbooks_authorization(
+def clear_stale_oauth_authorization(
     db,
     connection,
 ) -> None:
-    """Remove a failed QuickBooks grant before starting a new OAuth flow."""
-    if (
-        connection.source_type != "quickbooks"
-        or not getattr(connection, "authorization_error", None)
-    ):
+    """Remove a failed OAuth grant before starting a new authorization flow."""
+    source_type = str(getattr(connection, "source_type", "") or "").strip().lower()
+    if not getattr(connection, "authorization_error", None):
+        return
+
+    try:
+        provider = get_provider(source_type)
+    except OAuthProviderUnavailable:
         return
 
     credential = (
         db.query(OAuthCredential)
         .filter(
             OAuthCredential.connection_id == connection.id,
-            OAuthCredential.source_type == "quickbooks",
+            OAuthCredential.source_type == provider.source_type,
         )
         .first()
     )
@@ -78,18 +81,21 @@ def revoke_stale_quickbooks_authorization(
         credential.refresh_token_encrypted
         or credential.access_token_encrypted
     )
-    if encrypted_token:
+    if encrypted_token and provider.source_type == "quickbooks":
         try:
             revoke_oauth_token(
-                "quickbooks",
+                provider.source_type,
                 decrypt_token(encrypted_token),
             )
         except Exception:
             # The grant may already be revoked or expired. Local credentials
             # are removed either way so the next flow cannot reuse them.
             logger.warning(
-                "Could not revoke stale QuickBooks authorization before reconnect",
-                extra={"connection_id": connection.id},
+                "Could not revoke stale OAuth authorization before reconnect",
+                extra={
+                    "connection_id": connection.id,
+                    "source_type": provider.source_type,
+                },
                 exc_info=True,
             )
 
@@ -193,7 +199,7 @@ async def start_oauth_connection(
                 status_code=422,
                 detail=config_requirement_error,
             )
-        revoke_stale_quickbooks_authorization(
+        clear_stale_oauth_authorization(
             db,
             connection,
         )

@@ -18,8 +18,8 @@ from app.modules.oauth.service import (
     revoke_oauth_token,
 )
 from app.modules.oauth.router import (
+    clear_stale_oauth_authorization,
     get_oauth_config_requirement_error,
-    revoke_stale_quickbooks_authorization,
 )
 from app.modules.datasets.services.scheduling import (
     connection_sync_is_due,
@@ -29,7 +29,7 @@ from app.modules.datasets.services.scheduling import (
 
 
 class OAuthAndSchedulingTests(unittest.TestCase):
-    def test_quickbooks_reconnect_removes_failed_stored_credential(self):
+    def test_reconnect_removes_failed_stored_credential_for_every_oauth_connector(self):
         credential = types.SimpleNamespace(
             refresh_token_encrypted="encrypted-refresh-token",
             access_token_encrypted="encrypted-access-token",
@@ -56,27 +56,44 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             def commit(self):
                 self.commit_count += 1
 
-        db = FakeDb()
-        connection = types.SimpleNamespace(
-            id=42,
-            source_type="quickbooks",
-            authorization_error="QuickBooks authorization is no longer valid",
-        )
-
-        with patch(
-            "app.modules.oauth.router.decrypt_token",
-            return_value="refresh-token",
-        ), patch(
-            "app.modules.oauth.router.revoke_oauth_token",
-        ) as revoke_token:
-            revoke_stale_quickbooks_authorization(db, connection)
-
-        revoke_token.assert_called_once_with(
+        for source_type in (
+            "google_analytics",
+            "google_ads",
+            "hubspot",
+            "meta_ads",
             "quickbooks",
-            "refresh-token",
-        )
-        self.assertIs(db.deleted, credential)
-        self.assertEqual(db.commit_count, 1)
+            "freshbooks",
+            "sage",
+            "xero",
+            "zoho_books",
+            "salesforce",
+            "shopify",
+        ):
+            with self.subTest(source_type=source_type):
+                db = FakeDb()
+                connection = types.SimpleNamespace(
+                    id=42,
+                    source_type=source_type,
+                    authorization_error="authorization is no longer valid",
+                )
+
+                with patch(
+                    "app.modules.oauth.router.decrypt_token",
+                    return_value="refresh-token",
+                ), patch(
+                    "app.modules.oauth.router.revoke_oauth_token",
+                ) as revoke_token:
+                    clear_stale_oauth_authorization(db, connection)
+
+                self.assertIs(db.deleted, credential)
+                self.assertEqual(db.commit_count, 1)
+                if source_type == "quickbooks":
+                    revoke_token.assert_called_once_with(
+                        "quickbooks",
+                        "refresh-token",
+                    )
+                else:
+                    revoke_token.assert_not_called()
 
     def test_pkce_challenge_matches_rfc7636_s256(self):
         self.assertEqual(

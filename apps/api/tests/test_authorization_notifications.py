@@ -164,6 +164,22 @@ class AuthorizationNotificationTests(unittest.TestCase):
                         )
                     )
 
+    def test_recognizes_provider_specific_oauth_api_failures(self):
+        failures = {
+            "meta_ads": "Connector request failed with HTTP 400: OAuthException code 190",
+            "google_analytics": "Google Analytics report request failed: 403 Permission denied",
+            "shopify": "Connector request failed with HTTP 401: access token is invalid",
+        }
+
+        for source_type, message in failures.items():
+            with self.subTest(source_type=source_type):
+                self.assertTrue(
+                    connector_requires_reauthorization(
+                        source_type,
+                        ConnectorUnavailable(message),
+                    )
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -826,6 +826,31 @@ class ConnectorSmokeTests(unittest.TestCase):
             )
         )
 
+    def test_meta_expired_oauth_error_is_customer_safe(self):
+        detail = connectors.format_connector_error_detail(
+            json.dumps({
+                "error": {
+                    "message": (
+                        "Error validating access token: Session has expired"
+                    ),
+                    "type": "OAuthException",
+                    "code": 190,
+                },
+            })
+        )
+
+        self.assertEqual(
+            detail,
+            "OAuth authorization is no longer valid. "
+            "Reconnect the account and try again.",
+        )
+        self.assertTrue(
+            connectors.connector_requires_reauthorization(
+                "meta_ads",
+                connectors.ConnectorUnavailable(detail),
+            )
+        )
+
     def test_scheduled_oauth_heartbeat_checks_refresh_credentials(self):
         credential = SimpleNamespace(
             refresh_token_encrypted="encrypted-refresh-token",
