@@ -12,7 +12,6 @@ import {
   deleteDataSourceConnection,
   getDataSourceConnections,
   getDatasetSources,
-  getGoogleAdsAccounts,
   syncDataSourceConnection,
   startOAuthConnection,
   updateDataSourceConnectionSchedule,
@@ -20,7 +19,6 @@ import {
   type DataSourceConnection,
   type DataSourceConnectionSyncPayload,
   type DatasetSourceOption,
-  type GoogleAdsAccount,
 } from "@/lib/api"
 import {
   useActiveWorkspace,
@@ -128,11 +126,6 @@ function ConnectionsPageContent({
     useState("")
   const [loadRetryKey, setLoadRetryKey] =
     useState(0)
-  const [googleAdsAccounts, setGoogleAdsAccounts] =
-    useState<Record<number, GoogleAdsAccount[]>>({})
-  const [loadingGoogleAdsAccountsId, setLoadingGoogleAdsAccountsId] =
-    useState<number | null>(null)
-
   const { user } = useUser()
   const {
     activeWorkspaceId,
@@ -387,57 +380,6 @@ function ConnectionsPageContent({
     } finally {
       setUpdatingConnectionId(null)
     }
-  }
-
-  async function handleLoadGoogleAdsAccounts(
-    connection: DataSourceConnection
-  ) {
-    if (!user?.id) return
-
-    setLoadingGoogleAdsAccountsId(connection.id)
-    setConnectionError("")
-    try {
-      const result = await getGoogleAdsAccounts(
-        connection.id,
-        user.id,
-        activeWorkspaceId
-      )
-      setGoogleAdsAccounts((currentAccounts) => ({
-        ...currentAccounts,
-        [connection.id]: result.accounts,
-      }))
-      if (!result.accounts.length) {
-        setConnectionError(
-          "Google Ads returned no accounts accessible to the authorized user."
-        )
-      }
-    } catch (error) {
-      setConnectionError(
-        getErrorMessage(
-          error,
-          "Could not load Google Ads accounts."
-        )
-      )
-      console.error(error)
-    } finally {
-      setLoadingGoogleAdsAccountsId(null)
-    }
-  }
-
-  async function handleSelectGoogleAdsAccount(
-    connection: DataSourceConnection,
-    account: GoogleAdsAccount
-  ) {
-    await updateConnection(
-      connection,
-      {
-        connection_config: {
-          customer_id: account.customer_id,
-          login_customer_id: account.login_customer_id ?? null,
-        },
-      },
-      "Could not select the Google Ads account."
-    )
   }
 
   async function handleUpdateConnectionSchedule(
@@ -748,20 +690,6 @@ function ConnectionsPageContent({
             onCancelOAuthAuthorization={
               canConfigureWorkspace
                 ? handleCancelOAuthAuthorization
-                : undefined
-            }
-            googleAdsAccounts={googleAdsAccounts}
-            loadingGoogleAdsAccountsId={
-              loadingGoogleAdsAccountsId
-            }
-            onLoadGoogleAdsAccounts={
-              canConfigureWorkspace
-                ? handleLoadGoogleAdsAccounts
-                : undefined
-            }
-            onSelectGoogleAdsAccount={
-              canConfigureWorkspace
-                ? handleSelectGoogleAdsAccount
                 : undefined
             }
             onUpdateSchedule={

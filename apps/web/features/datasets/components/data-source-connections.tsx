@@ -13,7 +13,6 @@ import {
   type DataSourceConnectionStatus,
   type DataSourceConnectionSyncPayload,
   type DatasetSourceOption,
-  type GoogleAdsAccount,
 } from "@/lib/api"
 
 interface DataSourceConnectionsProps {
@@ -43,15 +42,6 @@ interface DataSourceConnectionsProps {
   ) => void
   onCancelOAuthAuthorization?: (
     connection: DataSourceConnection
-  ) => void
-  googleAdsAccounts?: Record<number, GoogleAdsAccount[]>
-  loadingGoogleAdsAccountsId?: number | null
-  onLoadGoogleAdsAccounts?: (
-    connection: DataSourceConnection
-  ) => void
-  onSelectGoogleAdsAccount?: (
-    connection: DataSourceConnection,
-    account: GoogleAdsAccount
   ) => void
   onUpdateSchedule?: (
     connection: DataSourceConnection,
@@ -87,10 +77,6 @@ export function DataSourceConnections({
   onSyncConnection,
   onStartOAuthConnection,
   onCancelOAuthAuthorization,
-  googleAdsAccounts,
-  loadingGoogleAdsAccountsId,
-  onLoadGoogleAdsAccounts,
-  onSelectGoogleAdsAccount,
   onUpdateSchedule,
 }: DataSourceConnectionsProps) {
   const [
@@ -291,16 +277,6 @@ export function DataSourceConnections({
           onCancelOAuthAuthorization={
             onCancelOAuthAuthorization
           }
-          googleAdsAccounts={googleAdsAccounts}
-          loadingGoogleAdsAccountsId={
-            loadingGoogleAdsAccountsId
-          }
-          onLoadGoogleAdsAccounts={
-            onLoadGoogleAdsAccounts
-          }
-          onSelectGoogleAdsAccount={
-            onSelectGoogleAdsAccount
-          }
           onUpdateSchedule={onUpdateSchedule}
           sources={sources}
           configuringConnectionId={
@@ -341,10 +317,6 @@ function DataSourceConnectionRow({
   onSyncConnection,
   onStartOAuthConnection,
   onCancelOAuthAuthorization,
-  googleAdsAccounts,
-  loadingGoogleAdsAccountsId,
-  onLoadGoogleAdsAccounts,
-  onSelectGoogleAdsAccount,
   onUpdateSchedule,
   sources,
   configuringConnectionId,
@@ -391,15 +363,6 @@ function DataSourceConnectionRow({
   ) => void
   onCancelOAuthAuthorization?: (
     connection: DataSourceConnection
-  ) => void
-  googleAdsAccounts?: Record<number, GoogleAdsAccount[]>
-  loadingGoogleAdsAccountsId?: number | null
-  onLoadGoogleAdsAccounts?: (
-    connection: DataSourceConnection
-  ) => void
-  onSelectGoogleAdsAccount?: (
-    connection: DataSourceConnection,
-    account: GoogleAdsAccount
   ) => void
   onUpdateSchedule?: (
     connection: DataSourceConnection,
@@ -526,52 +489,11 @@ function DataSourceConnectionRow({
       : connection.has_config)
   const isGoogleAdsConnection =
     connection.source_type === "google_ads"
-  const googleAdsAccountOptions =
-    googleAdsAccounts?.[connection.id] ?? []
   const configuredGoogleAdsAccountId =
     connection.configured_customer_id ?? ""
-  const configuredGoogleAdsAccount = googleAdsAccountOptions.find(
-    (account) => account.customer_id === configuredGoogleAdsAccountId
-  )
-  const configuredGoogleAdsManager =
-    configuredGoogleAdsAccount?.is_manager === true
-  const selectableGoogleAdsAccounts =
-    configuredGoogleAdsAccountId &&
-    !configuredGoogleAdsManager &&
-    configuredGoogleAdsAccount?.status === "ENABLED" &&
-    !googleAdsAccountOptions.some(
-      (account) =>
-        account.customer_id === configuredGoogleAdsAccountId
-    )
-      ? [
-          {
-            customer_id: configuredGoogleAdsAccountId,
-            login_customer_id:
-              connection.configured_login_customer_id,
-            name: "Currently selected account",
-            is_manager: false,
-            status: "ENABLED",
-          },
-          ...googleAdsAccountOptions.filter(
-            (account) =>
-              !account.is_manager &&
-              account.status === "ENABLED"
-          ),
-        ]
-      : googleAdsAccountOptions.filter(
-          (account) =>
-            !account.is_manager &&
-            account.status === "ENABLED"
-        )
-  const googleAdsAccountsLoaded =
-    !isGoogleAdsConnection ||
-    googleAdsAccounts?.[connection.id] !== undefined
   const googleAdsAccountReady =
     !isGoogleAdsConnection ||
-    (googleAdsAccountsLoaded &&
-      Boolean(configuredGoogleAdsAccountId) &&
-      configuredGoogleAdsAccount?.is_manager !== true &&
-      configuredGoogleAdsAccount?.status === "ENABLED")
+    Boolean(configuredGoogleAdsAccountId.trim())
   const canSyncConnector =
     [
       "google_analytics",
@@ -1096,112 +1018,6 @@ function DataSourceConnectionRow({
                     ? "Removing..."
                     : "Remove"}
                 </button>
-              )}
-            </div>
-          )}
-        {isGoogleAdsConnection &&
-          connection.status === "connected" &&
-          onLoadGoogleAdsAccounts &&
-          onSelectGoogleAdsAccount && (
-            <div className="mt-2 w-full min-w-0 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
-              <p className="text-xs font-semibold text-[var(--decisionate-brand-primary-text)]">
-                Google Ads account
-              </p>
-              <p className="mt-1 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
-                Choose the account whose campaign data should be ingested. If it is reached through a manager, that manager is applied automatically.
-              </p>
-
-              {configuredGoogleAdsManager && (
-                <p className="mt-2 text-xs leading-4 text-amber-800">
-                  The selected account is a manager account. Select a client account to ingest campaign data; the manager will be used automatically for access.
-                </p>
-              )}
-
-              {configuredGoogleAdsAccount &&
-                !configuredGoogleAdsManager &&
-                configuredGoogleAdsAccount.status !== "ENABLED" && (
-                  <p className="mt-2 text-xs leading-4 text-amber-800">
-                    This account is not enabled for reporting. Select an enabled client account before syncing.
-                  </p>
-                )}
-
-              {configuredGoogleAdsAccountId &&
-                !configuredGoogleAdsAccount &&
-                googleAdsAccountsLoaded && (
-                  <p className="mt-2 text-xs leading-4 text-amber-800">
-                    The selected account is not accessible or no longer exists. Select an enabled client account before syncing.
-                  </p>
-                )}
-
-              {selectableGoogleAdsAccounts.length > 0 ? (
-                <select
-                  aria-label="Google Ads account"
-                  value={
-                    configuredGoogleAdsManager
-                      ? ""
-                      : configuredGoogleAdsAccountId
-                  }
-                  onChange={(event) => {
-                    const account =
-                      selectableGoogleAdsAccounts.find(
-                        (item) =>
-                          item.customer_id ===
-                          event.target.value
-                      )
-                    if (account) {
-                      onSelectGoogleAdsAccount(
-                        connection,
-                        account
-                      )
-                    }
-                  }}
-                  disabled={
-                    updatingConnectionId === connection.id
-                  }
-                  className="mt-2 h-9 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
-                >
-                  <option value="">Select an account</option>
-                  {selectableGoogleAdsAccounts.map(
-                    (account) => (
-                      <option
-                        key={account.customer_id}
-                        value={account.customer_id}
-                      >
-                        {account.name} ({account.customer_id})
-                        {account.is_manager
-                          ? " - Manager"
-                          : ""}
-                      </option>
-                    )
-                  )}
-                </select>
-              ) : (
-                <>
-                  {configuredGoogleAdsAccountId && (
-                    <p className="mt-2 text-xs text-gray-700">
-                      Selected account: {configuredGoogleAdsAccountId}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onLoadGoogleAdsAccounts(connection)
-                    }
-                    disabled={
-                      loadingGoogleAdsAccountsId ===
-                        connection.id ||
-                      updatingConnectionId === connection.id
-                    }
-                    className="mt-2 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                  >
-                    {loadingGoogleAdsAccountsId ===
-                    connection.id
-                      ? "Loading accounts..."
-                      : configuredGoogleAdsAccountId
-                        ? "Change account"
-                        : "Select Google Ads account"}
-                  </button>
-                </>
               )}
             </div>
           )}
