@@ -15,10 +15,20 @@ import {
   type DatasetSourceOption,
 } from "@/lib/api"
 
+export type DataSourceConnectionSyncFeedback = {
+  tone: "success" | "no_data" | "error"
+  message: string
+  token: number
+}
+
 interface DataSourceConnectionsProps {
   connections: DataSourceConnection[]
   loadError?: boolean
   sources?: DatasetSourceOption[]
+  syncFeedback?: Record<
+    number,
+    DataSourceConnectionSyncFeedback
+  >
   deletingConnectionId?: number | null
   updatingConnectionId?: number | null
   syncingConnectionId?: number | null
@@ -68,6 +78,7 @@ export function DataSourceConnections({
   connections,
   loadError = false,
   sources = [],
+  syncFeedback = {},
   deletingConnectionId,
   updatingConnectionId,
   syncingConnectionId,
@@ -238,6 +249,7 @@ export function DataSourceConnections({
         <DataSourceConnectionRow
           key={connection.id}
           connection={connection}
+          syncFeedback={syncFeedback[connection.id]}
           deletingConnectionId={
             deletingConnectionId
           }
@@ -302,6 +314,7 @@ export function DataSourceConnections({
 
 function DataSourceConnectionRow({
   connection,
+  syncFeedback,
   deletingConnectionId,
   updatingConnectionId,
   syncingConnectionId,
@@ -328,6 +341,7 @@ function DataSourceConnectionRow({
   clearConfiguration,
 }: {
   connection: DataSourceConnection
+  syncFeedback?: DataSourceConnectionSyncFeedback
   deletingConnectionId?: number | null
   updatingConnectionId?: number | null
   syncingConnectionId?: number | null
@@ -1198,6 +1212,25 @@ function DataSourceConnectionRow({
             />
           </div>
         )}
+
+      {syncFeedback && (
+        <div
+          role={
+            syncFeedback.tone === "error"
+              ? "alert"
+              : "status"
+          }
+          className={
+            syncFeedback.tone === "success"
+              ? "min-w-0 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 lg:col-span-2"
+              : syncFeedback.tone === "no_data"
+                ? "min-w-0 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 lg:col-span-2"
+                : "min-w-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 lg:col-span-2"
+          }
+        >
+          {syncFeedback.message}
+        </div>
+      )}
     </div>
   )
 }

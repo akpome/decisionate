@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react"
 import { useUser } from "@clerk/nextjs"
 
-import { DataSourceConnections } from "@/features/datasets/components/data-source-connections"
+import {
+  DataSourceConnections,
+  type DataSourceConnectionSyncFeedback,
+} from "@/features/datasets/components/data-source-connections"
 import { DataSourcePanel } from "@/features/datasets/components/data-source-panel"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import {
@@ -120,6 +123,10 @@ function ConnectionsPageContent({
     useState("")
   const [connectionNotice, setConnectionNotice] =
     useState("")
+  const [syncFeedback, setSyncFeedback] =
+    useState<
+      Record<number, DataSourceConnectionSyncFeedback>
+    >({})
   const [, setOAuthConnectionId] =
     useState<number | null>(null)
   const [connectionLoadError, setConnectionLoadError] =
@@ -285,6 +292,48 @@ function ConnectionsPageContent({
     setSyncingConnectionId(connection.id)
     setConnectionError("")
     setConnectionNotice("")
+    setSyncFeedback((currentFeedback) => {
+      if (!currentFeedback[connection.id]) {
+        return currentFeedback
+      }
+
+      const nextFeedback = {
+        ...currentFeedback,
+      }
+      delete nextFeedback[connection.id]
+      return nextFeedback
+    })
+
+    const showSyncFeedback = (
+      tone: DataSourceConnectionSyncFeedback["tone"],
+      message: string
+    ) => {
+      const token = Date.now()
+      setSyncFeedback((currentFeedback) => ({
+        ...currentFeedback,
+        [connection.id]: {
+          tone,
+          message,
+          token,
+        },
+      }))
+      window.setTimeout(() => {
+        setSyncFeedback((currentFeedback) => {
+          if (
+            currentFeedback[connection.id]?.token !==
+            token
+          ) {
+            return currentFeedback
+          }
+
+          const nextFeedback = {
+            ...currentFeedback,
+          }
+          delete nextFeedback[connection.id]
+          return nextFeedback
+        })
+      }, 6000)
+    }
 
     try {
       const result =
@@ -296,7 +345,8 @@ function ConnectionsPageContent({
         )
 
       if (result.status === "no_data") {
-        setConnectionNotice(
+        showSyncFeedback(
+          "no_data",
           result.message ??
             "No records were found for the selected sync period."
         )
@@ -304,14 +354,16 @@ function ConnectionsPageContent({
       }
 
       const syncedDatasets = result.datasets ?? [result]
-      setConnectionNotice(
+      showSyncFeedback(
+        "success",
         syncedDatasets.length > 1
           ? `Synced ${syncedDatasets.length} datasets.`
           : `Synced ${result.file_name} with ${result.row_count} rows.`
       )
       await loadConnections()
     } catch (error) {
-      setConnectionError(
+      showSyncFeedback(
+        "error",
         getErrorMessage(
           error,
           "Could not sync connector data."
@@ -670,6 +722,7 @@ function ConnectionsPageContent({
             syncingConnectionId={
               syncingConnectionId
             }
+            syncFeedback={syncFeedback}
             onDeleteConnection={
               canConfigureWorkspace
                 ? handleDeleteSourceConnection
