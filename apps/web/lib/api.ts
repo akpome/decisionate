@@ -518,6 +518,7 @@ export type BillingStatus = {
   ai_credit_pack_configured: boolean
   included_ai_credits: number
   annual_additional_client_workspace_ai_credits: number
+  client_workspace_addon_options: ClientWorkspaceAddonOption[]
   annual_ai_credit_limit: number
   ai_credits_used: number
   ai_credits_remaining: number
@@ -528,6 +529,14 @@ export type BillingStatus = {
   days_remaining?: number | null
   access_reason: string
   plan_options: BillingPlanOption[]
+}
+
+export type ClientWorkspaceAddonOption = {
+  additional_client_workspaces: number
+  monthly_price_cents: number
+  annual_price_cents: number
+  monthly_ai_credits: number
+  annual_ai_credits: number
 }
 
 export type BillingAccessStatus = {

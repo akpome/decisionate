@@ -36,6 +36,7 @@ ADDITIONAL_CLIENT_WORKSPACE_PRICE_CENTS = 2000
 ADDITIONAL_CLIENT_WORKSPACE_ANNUAL_PRICE_CENTS = 20000
 AI_CREDIT_PACK_SIZE = 5000
 ANNUAL_AI_CREDIT_MULTIPLIER = 12
+CLIENT_WORKSPACE_ADDON_QUANTITIES = (1, 5, 10)
 DEFAULT_ADDITIONAL_CLIENT_WORKSPACE_AI_CREDITS = 2500
 DEFAULT_AGENCY_CLIENT_AI_CREDITS = 2500
 AI_CREDIT_ALLOCATION_COLUMNS = {
@@ -299,6 +300,31 @@ def get_client_workspace_limit(
     return int(included) + max(int(additional_client_workspaces or 0), 0)
 
 
+def get_client_workspace_addon_options() -> list[dict]:
+    monthly_ai_credits = get_ai_credit_allocations().get(
+        "additional_client_workspace",
+        DEFAULT_ADDITIONAL_CLIENT_WORKSPACE_AI_CREDITS,
+    )
+    annual_ai_credits = get_billing_period_ai_credit_limit(
+        monthly_ai_credits,
+        BILLING_INTERVAL_YEAR,
+    )
+    return [
+        {
+            "additional_client_workspaces": quantity,
+            "monthly_price_cents": (
+                ADDITIONAL_CLIENT_WORKSPACE_PRICE_CENTS * quantity
+            ),
+            "annual_price_cents": (
+                ADDITIONAL_CLIENT_WORKSPACE_ANNUAL_PRICE_CENTS * quantity
+            ),
+            "monthly_ai_credits": monthly_ai_credits * quantity,
+            "annual_ai_credits": annual_ai_credits * quantity,
+        }
+        for quantity in CLIENT_WORKSPACE_ADDON_QUANTITIES
+    ]
+
+
 def is_agency_plan(plan: str | None) -> bool:
     return get_billing_plan_definition(plan)["billing_model"] == "agency"
 
@@ -348,6 +374,13 @@ def create_checkout_session(
             f"Billing price is not configured for {plan_definition['name']}"
         )
     additional_count = max(int(additional_client_workspaces or 0), 0)
+    if (
+        additional_count
+        and additional_count not in CLIENT_WORKSPACE_ADDON_QUANTITIES
+    ):
+        raise BillingProviderUnavailable(
+            "Choose 1, 5, or 10 additional client workspaces"
+        )
     if not is_agency_plan(normalized_plan) and additional_count:
         raise BillingProviderUnavailable(
             "Additional client workspaces are available only on Agency plans"

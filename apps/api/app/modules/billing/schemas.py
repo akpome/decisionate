@@ -3,6 +3,14 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class ClientWorkspaceAddonOption(BaseModel):
+    additional_client_workspaces: int
+    monthly_price_cents: int
+    annual_price_cents: int
+    monthly_ai_credits: int
+    annual_ai_credits: int
+
+
 class BillingPlanOption(BaseModel):
     plan: str
     name: str
@@ -42,6 +50,7 @@ class BillingStatusResponse(BaseModel):
     ai_credit_pack_configured: bool = False
     additional_client_workspace_ai_credits: int = 2500
     annual_additional_client_workspace_ai_credits: int = 30000
+    client_workspace_addon_options: list[ClientWorkspaceAddonOption] = []
     included_ai_credits: int = 0
     annual_ai_credit_limit: int = 0
     ai_credits_used: int = 0

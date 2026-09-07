@@ -12,8 +12,10 @@ from app.modules.billing.lifecycle import build_subscription_access_state
 from app.modules.billing.service import (
     ANNUAL_AI_CREDIT_MULTIPLIER,
     BillingWebhookSignatureError,
+    CLIENT_WORKSPACE_ADDON_QUANTITIES,
     create_checkout_session,
     get_billing_period_ai_credit_limit,
+    get_client_workspace_addon_options,
     get_client_workspace_limit,
     verify_stripe_webhook,
 )
@@ -34,6 +36,26 @@ class FakeResponse:
 
 
 class BillingServiceTests(unittest.TestCase):
+    def test_client_workspace_addon_options_include_credit_totals(self):
+        with patch(
+            "app.modules.billing.service.get_ai_credit_allocations",
+            return_value={"additional_client_workspace": 2500},
+        ):
+            options = get_client_workspace_addon_options()
+
+        self.assertEqual(
+            [option["additional_client_workspaces"] for option in options],
+            list(CLIENT_WORKSPACE_ADDON_QUANTITIES),
+        )
+        self.assertEqual(
+            [option["monthly_ai_credits"] for option in options],
+            [2500, 12500, 25000],
+        )
+        self.assertEqual(
+            [option["annual_ai_credits"] for option in options],
+            [30000, 150000, 300000],
+        )
+
     def test_trial_plan_workspace_entitlements(self):
         self.assertEqual(
             get_client_workspace_limit("professional"),
