@@ -33,6 +33,7 @@ from app.modules.datasets.router import (
     require_source_connection_sync_config,
     remove_dataset_preference_entry,
     remove_dataset_file,
+    protect_source_connection_config,
     sanitize_source_connection_config,
     sanitize_source_connection_display_name,
     update_source_connection,
@@ -49,7 +50,10 @@ from app.modules.datasets.services.sources import (
     list_dataset_sources,
     normalize_dataset_source_type,
 )
-from app.modules.datasets.services.connectors import ConnectorUnavailable
+from app.modules.datasets.services.connectors import (
+    ConnectorUnavailable,
+    POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG,
+)
 from app.modules.datasets.services.file_loader import (
     build_upload_source_config,
     get_dataset_file_type,
@@ -1606,9 +1610,34 @@ class DatasetSharingTests(unittest.TestCase):
         self.assertEqual(
             get_source_connection_config_status(
                 get_dataset_source("postgresql"),
-                {"query": "SELECT 1"},
+                {
+                    "host": "db.example.com",
+                    "database": "customer_reporting",
+                    "username": "reader",
+                    POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG: "ciphertext",
+                    "query": "SELECT 1",
+                },
             ),
-            (["query"], ["query"], []),
+            (
+                ["host", "database", "username", "password", "query"],
+                ["host", "database", "username", "password", "query"],
+                [],
+            ),
+        )
+
+    def test_postgresql_password_is_encrypted_before_persistence(self):
+        with patch(
+            "app.modules.datasets.router.encrypt_token",
+            return_value="ciphertext",
+        ):
+            protected = protect_source_connection_config(
+                "postgresql",
+                '{"host": "db.example.com", "password": "secret"}',
+            )
+
+        self.assertEqual(
+            protected,
+            '{"_postgresql_password_encrypted": "ciphertext", "host": "db.example.com"}',
         )
 
     def test_shopify_domain_must_be_usable_before_oauth(self):

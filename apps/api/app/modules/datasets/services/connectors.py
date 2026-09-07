@@ -33,6 +33,7 @@ PAGE_SIZE = 100
 # early so several heartbeat attempts remain available before expiry.
 OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(hours=1)
 STRIPE_ENCRYPTED_API_KEY_CONFIG = "_stripe_api_key_encrypted"
+POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG = "_postgresql_password_encrypted"
 SALESFORCE_OBJECT_TYPES = {
     "Account",
     "Lead",
@@ -580,6 +581,76 @@ def parse_connection_config(connection: DataSourceConnection) -> dict:
     except (TypeError, json.JSONDecodeError):
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def build_postgresql_database_url(config: dict, sqlalchemy):
+    """Build a customer-specific SQLAlchemy URL without string interpolation."""
+    host = str(config.get("host") or "").strip()
+    database = str(config.get("database") or "").strip()
+    username = str(config.get("username") or "").strip()
+    password = str(config.get("password") or "").strip()
+
+    if not password:
+        encrypted_password = str(
+            config.get(POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG) or ""
+        ).strip()
+        if encrypted_password:
+            try:
+                password = str(decrypt_token(encrypted_password) or "").strip()
+            except OAuthProviderUnavailable as error:
+                raise ConnectorUnavailable(
+                    "The stored PostgreSQL password could not be decrypted"
+                ) from error
+
+    missing = [
+        label
+        for label, value in (
+            ("host", host),
+            ("database", database),
+            ("username", username),
+            ("password", password),
+        )
+        if not value
+    ]
+    if missing:
+        raise ConnectorUnavailable(
+            "PostgreSQL connection settings are missing: "
+            + ", ".join(missing)
+        )
+
+    try:
+        port = int(str(config.get("port") or "5432").strip())
+    except (TypeError, ValueError) as error:
+        raise ConnectorUnavailable(
+            "PostgreSQL port must be a number between 1 and 65535"
+        ) from error
+    if not 1 <= port <= 65535:
+        raise ConnectorUnavailable(
+            "PostgreSQL port must be a number between 1 and 65535"
+        )
+
+    sslmode = str(config.get("sslmode") or "require").strip().lower()
+    if sslmode not in {
+        "disable",
+        "allow",
+        "prefer",
+        "require",
+        "verify-ca",
+        "verify-full",
+    }:
+        raise ConnectorUnavailable(
+            "PostgreSQL SSL mode is invalid"
+        )
+
+    return sqlalchemy.engine.URL.create(
+        drivername="postgresql+psycopg",
+        username=username,
+        password=password,
+        host=host,
+        port=port,
+        database=database,
+        query={"sslmode": sslmode},
+    )
 
 
 def _dynamic_column_name(prefix: str, key) -> str:
@@ -3599,16 +3670,6 @@ def load_database_dataframe(
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
     query = validate_read_query(config.get("query"))
-    url_env = {
-        "postgresql": "POSTGRESQL_SOURCE_URL",
-        "mysql": "MYSQL_SOURCE_URL",
-        "sql_server": "SQL_SERVER_SOURCE_URL",
-    }[connection.source_type]
-    database_url = str(os.getenv(url_env, "") or "").strip()
-    if not database_url:
-        raise ConnectorUnavailable(
-            f"{url_env} is required for the {connection.source_type} connector"
-        )
 
     try:
         sqlalchemy = importlib.import_module("sqlalchemy")
@@ -3616,6 +3677,32 @@ def load_database_dataframe(
         raise ConnectorUnavailable(
             "Database connectors require SQLAlchemy"
         ) from error
+
+    if connection.source_type == "postgresql" and any(
+        config.get(key)
+        for key in (
+            "host",
+            "database",
+            "username",
+            "password",
+            POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG,
+        )
+    ):
+        database_url = build_postgresql_database_url(
+            config,
+            sqlalchemy,
+        )
+    else:
+        url_env = {
+            "postgresql": "POSTGRESQL_SOURCE_URL",
+            "mysql": "MYSQL_SOURCE_URL",
+            "sql_server": "SQL_SERVER_SOURCE_URL",
+        }[connection.source_type]
+        database_url = str(os.getenv(url_env, "") or "").strip()
+        if not database_url:
+            raise ConnectorUnavailable(
+                f"{url_env} is required for the {connection.source_type} connector"
+            )
 
     bounded_query = bound_database_query(connection.source_type, query)
     engine = sqlalchemy.create_engine(

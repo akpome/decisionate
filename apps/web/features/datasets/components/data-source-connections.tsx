@@ -818,6 +818,11 @@ function DataSourceConnectionRow({
                   setEditingConnectionConfig
                 }
                 secret={connection.source_type === "stripe"}
+                secretKeys={
+                  connection.source_type === "postgresql"
+                    ? ["password"]
+                    : []
+                }
               />
             )}
 
@@ -1545,9 +1550,29 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   postgresql: {
-    connection_name: {
-      description: "A name for this read-only database connection.",
-      example: "Reporting database",
+    host: {
+      description: "The hostname or IP address of the customer's PostgreSQL server.",
+      example: "db.customer.com",
+    },
+    port: {
+      description: "The PostgreSQL port. Leave it blank to use the standard 5432 port.",
+      example: "5432",
+    },
+    database: {
+      description: "The name of the customer's PostgreSQL database.",
+      example: "customer_reporting",
+    },
+    username: {
+      description: "A dedicated PostgreSQL user with read-only access to the selected dataset.",
+      example: "decisionate_reader",
+    },
+    password: {
+      description: "The password for the read-only PostgreSQL user. It is encrypted before storage.",
+      example: "Enter the database password",
+    },
+    sslmode: {
+      description: "The PostgreSQL SSL mode. Leave it blank to require encrypted transport.",
+      example: "require",
     },
     query: {
       description: "One read-only SELECT or WITH query using your own table and column names.",
@@ -1722,7 +1747,7 @@ export function ConnectionSetupGuide({
 
         {source.connection_type === "database" && (
           <p className="rounded-md bg-amber-50 px-2 py-2 leading-4 text-amber-800">
-            The query must be a single read-only SELECT or WITH statement and should use the tables and columns in your database.
+            Use a dedicated read-only database user. The PostgreSQL server must be reachable from the Decisionate API, and the query must be a single read-only SELECT or WITH statement using your database&apos;s tables and columns.
           </p>
         )}
       </div>
@@ -1738,6 +1763,7 @@ function ConnectionConfigFieldGroup({
   hasSavedConfig,
   setEditingConnectionConfig,
   secret = false,
+  secretKeys = [],
 }: {
   title: string
   configKeys: string[]
@@ -1748,6 +1774,7 @@ function ConnectionConfigFieldGroup({
     value: Record<string, string>
   ) => void
   secret?: boolean
+  secretKeys?: string[]
 }) {
   return (
     <div className="mt-3">
@@ -1768,6 +1795,7 @@ function ConnectionConfigFieldGroup({
             }
             hasSavedConfig={hasSavedConfig}
             secret={secret}
+            secretKeys={secretKeys}
             onChange={(value) =>
               setEditingConnectionConfig({
                 ...editingConnectionConfig,
@@ -1787,6 +1815,7 @@ function ConnectionConfigField({
   value,
   hasSavedConfig,
   secret,
+  secretKeys = [],
   onChange,
 }: {
   configKey: string
@@ -1794,6 +1823,7 @@ function ConnectionConfigField({
   value: string
   hasSavedConfig: boolean
   secret?: boolean
+  secretKeys?: string[]
   onChange: (value: string) => void
 }) {
   const [showValue, setShowValue] = useState(false)
@@ -1812,10 +1842,11 @@ function ConnectionConfigField({
     "mt-1 min-w-0 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 text-sm normal-case tracking-normal text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
   const maskValue =
     secret ||
-    hasSavedConfig ||
+    secretKeys?.includes(configKey) ||
+    (hasSavedConfig &&
     VISIBILITY_TOGGLE_SOURCE_TYPES.has(
       sourceType ?? ""
-    )
+    ))
   const valueVisibilityLabel = showValue
     ? `Hide ${label.toLowerCase()}`
     : `Show ${label.toLowerCase()}`

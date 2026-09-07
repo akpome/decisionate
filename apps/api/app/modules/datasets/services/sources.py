@@ -104,13 +104,28 @@ DATASET_SOURCES = [
         "type": "postgresql",
         "label": "PostgreSQL",
         "category": "databases",
-        "status": "planned",
+        "status": "available",
         "connection_type": "database",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["connection_name", "query"],
-        "required_config_keys": ["query"],
+        "config_keys": [
+            "host",
+            "port",
+            "database",
+            "username",
+            "password",
+            "sslmode",
+            "query",
+        ],
+        "required_config_keys": [
+            "host",
+            "database",
+            "username",
+            "password",
+            "query",
+        ],
         "description": (
-            "Connect transactional PostgreSQL data for operational reporting."
+            "Connect a customer PostgreSQL database with a read-only account "
+            "and ingest a selected dataset query."
         ),
     },
     {
@@ -278,9 +293,6 @@ DATASET_SOURCES = [
 
 
 DATASET_SOURCE_ENV_KEYS = {
-    "postgresql": [
-        "POSTGRESQL_SOURCE_URL",
-    ],
     "mysql": [
         "MYSQL_SOURCE_URL",
     ],
@@ -581,7 +593,6 @@ def clone_dataset_source(source):
             )
 
     database_environment_keys = {
-        "postgresql": "POSTGRESQL_SOURCE_URL",
         "mysql": "MYSQL_SOURCE_URL",
         "sql_server": "SQL_SERVER_SOURCE_URL",
     }

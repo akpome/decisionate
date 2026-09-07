@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 import pandas as pd
+import sqlalchemy
 from sqlalchemy import create_engine, text
 
 from app.modules.datasets.services import connectors
@@ -1113,6 +1114,34 @@ class ConnectorSmokeTests(unittest.TestCase):
                     )
                     self.assertEqual(len(dataframe), 1, source_type)
                     self.assertEqual(report["connector"], source_type)
+
+    def test_postgresql_customer_config_builds_a_driver_url(self):
+        with patch.object(
+            connectors,
+            "decrypt_token",
+            return_value="secret password",
+        ):
+            url = connectors.build_postgresql_database_url(
+                {
+                    "host": "db.example.com",
+                    "database": "customer_reporting",
+                    "username": "reader",
+                    "_postgresql_password_encrypted": "ciphertext",
+                },
+                sqlalchemy,
+            )
+
+        self.assertEqual(url.drivername, "postgresql+psycopg")
+        self.assertEqual(url.port, 5432)
+        self.assertEqual(url.query["sslmode"], "require")
+        self.assertIn(
+            "secret%20password",
+            url.render_as_string(hide_password=False),
+        )
+        self.assertNotIn(
+            "secret password",
+            str(url),
+        )
 
     def test_database_queries_reject_mutations_and_multiple_statements(self):
         with self.assertRaises(connectors.ConnectorUnavailable):

@@ -157,6 +157,7 @@ from app.modules.datasets.services.google_analytics import (
 from app.modules.datasets.services.connectors import (
     ConnectorNoData,
     ConnectorUnavailable,
+    POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG,
     STRIPE_ENCRYPTED_API_KEY_CONFIG,
     load_connector_dataframe,
     normalize_hubspot_resource_types,
@@ -1043,6 +1044,14 @@ def get_source_connection_config_status(
             )
         elif (
             source
+            and source.get("type") == "postgresql"
+            and config_key == "password"
+        ):
+            configured_value = parsed_config.get(
+                POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG
+            )
+        elif (
+            source
             and source.get("type") == "shopify"
             and config_key == "shop_domain"
         ):
@@ -1079,6 +1088,10 @@ def require_source_connection_sync_config(connection):
         "shop_domain": "the Shopify shop domain",
         "ad_account_id": "the Meta Ads account ID",
         "customer_id": "the Google Ads customer ID",
+        "host": "the PostgreSQL host",
+        "database": "the PostgreSQL database name",
+        "username": "a PostgreSQL read-only username",
+        "password": "the PostgreSQL password",
         "query": "a read-only SQL query",
     }
     missing_labels = [
@@ -1365,19 +1378,23 @@ def protect_source_connection_config(
 ):
     """Encrypt customer-provided connector secrets before persistence."""
     parsed_config = parse_source_connection_config(connection_config)
-    if source_type != "stripe":
+    if source_type not in {"stripe", "postgresql"}:
         return (
             json.dumps(parsed_config, sort_keys=True)
             if parsed_config
             else None
         )
 
-    api_key = str(parsed_config.pop("api_key", "") or "").strip()
-    if api_key:
+    if source_type == "stripe":
+        secret = str(parsed_config.pop("api_key", "") or "").strip()
+        encrypted_config_key = STRIPE_ENCRYPTED_API_KEY_CONFIG
+    else:
+        secret = str(parsed_config.pop("password", "") or "").strip()
+        encrypted_config_key = POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG
+
+    if secret:
         try:
-            parsed_config[STRIPE_ENCRYPTED_API_KEY_CONFIG] = encrypt_token(
-                api_key
-            )
+            parsed_config[encrypted_config_key] = encrypt_token(secret)
         except OAuthProviderUnavailable as error:
             raise HTTPException(status_code=503, detail=str(error)) from error
 
@@ -2770,6 +2787,11 @@ async def update_source_connection(
                 and "api_key" not in next_config
             ):
                 next_config.pop(STRIPE_ENCRYPTED_API_KEY_CONFIG, None)
+            if (
+                connection.source_type == "postgresql"
+                and payload.connection_config == {}
+            ):
+                next_config.pop(POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG, None)
             connection.connection_config = (
                 protect_source_connection_config(
                     connection.source_type,
