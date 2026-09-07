@@ -591,7 +591,7 @@ function SharedDashboardContent({
                 ? dashboardPreference.joinedDatasetResult
                 : null)
         const availableMetrics =
-          nextJoinedDatasetResult
+          (nextJoinedDatasetResult
             ? nextJoinedDatasetResult.datasets
               .filter(
                 column => column.column_type === "numeric"
@@ -599,7 +599,11 @@ function SharedDashboardContent({
               .map(column => column.label)
             : data.metrics?.map(
               (metric) => metric.column
-            ) ?? []
+            ) ?? []).filter(
+              metric =>
+                !effectDemo ||
+                !isDemoIdentifierColumn(metric)
+            )
         const savedDashboardMetrics =
           getValidSavedSelectedMetrics(
             dashboardPreference.selectedMetrics,
@@ -805,7 +809,7 @@ function SharedDashboardContent({
   const datasetMetrics =
     useMemo(
       () =>
-        joinedDatasetResult
+        (joinedDatasetResult
           ? joinedDatasetResult.datasets
             .filter(
               column => column.column_type === "numeric"
@@ -813,9 +817,16 @@ function SharedDashboardContent({
             .map(column => ({
               column: column.label,
             }))
-          : dataset?.metrics ?? [],
-      [dataset, joinedDatasetResult]
+          : dataset?.metrics ?? []).filter(
+            metric =>
+              !sharedDemo ||
+              !isDemoIdentifierColumn(metric.column)
+          ),
+      [dataset, joinedDatasetResult, sharedDemo]
     )
+  const demoMetricOptions = datasetMetrics.map(
+    metric => metric.column
+  )
   const dashboardColorPalette = dashboardChartPalette
   const sharedPrimaryTextColor =
     getReadableBrandTextColor(
@@ -911,9 +922,7 @@ function SharedDashboardContent({
     metrics[0]?.column ??
     ""
   const targetMetric =
-    datasetMetrics.some(
-      metric => metric.column === targetMetricSelection
-    )
+    demoMetricOptions.includes(targetMetricSelection)
       ? targetMetricSelection
       : primaryMetric
   const primaryMetricTarget =
@@ -1041,19 +1050,17 @@ function SharedDashboardContent({
       }
       metricMapping={dashboardMetricMapping}
       autoMetricMapping={dashboardAutoMetricMapping}
-      metricOptions={datasetMetrics.map(
-        metric => metric.column
-      )}
+      metricOptions={demoMetricOptions}
       selectedMetrics={selectedMetrics}
       metricTargets={targets}
       targetMetric={targetMetric}
       notice={demoNotice}
       onMetricsChange={values => {
         const nextSelectedMetrics =
-          values.length > 0
+            values.length > 0
             ? values
-            : datasetMetrics[0]
-              ? [datasetMetrics[0].column]
+            : demoMetricOptions[0]
+              ? [demoMetricOptions[0]]
               : []
         setSelectedMetrics(nextSelectedMetrics)
         setTargetMetricSelection(current =>
@@ -2347,6 +2354,18 @@ function getDemoDatasetRows(dataset: DashboardDataset) {
   return dataset.chart?.data?.length
     ? dataset.chart.data
     : dataset.preview ?? []
+}
+
+function isDemoIdentifierColumn(column: string) {
+  const words = column
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[^a-z0-9]+/i)
+
+  return words.some(word => {
+    const normalizedWord = word.toLowerCase()
+    return normalizedWord === "id" || normalizedWord === "key"
+  })
 }
 
 function getDemoDateKey(
