@@ -70,7 +70,6 @@ class OrganizationWorkspaceResponse(BaseModel):
     industry: str | None = None
     company_size: str | None = None
     agency_client_count: str | None = None
-    role: str | None = None
     primary_goal: str | None = None
     agency_owner_access_enabled: bool = False
     billing_notice: str | None = None

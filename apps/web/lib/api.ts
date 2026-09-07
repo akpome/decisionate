@@ -1516,7 +1516,6 @@ export type OrganizationWorkspaceRecord = {
   industry?: string | null
   company_size?: string | null
   agency_client_count?: string | null
-  role?: string | null
   primary_goal?: string | null
   agency_owner_access_enabled?: boolean
   billing_notice?: string | null
