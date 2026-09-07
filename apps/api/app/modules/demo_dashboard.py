@@ -36,6 +36,19 @@ DEMO_DATASET_DEFINITIONS = {
             "Direct",
         ),
     },
+    "google-ads": {
+        "source_type": "google_ads",
+        "label": "Google Ads",
+        "file_name": "demo-google-ads-365-days.parquet",
+        "dimensions": (
+            "Brand Awareness",
+            "Search Acquisition",
+            "Remarketing",
+            "Lead Generation",
+            "Product Launch",
+            "Local Services",
+        ),
+    },
     "stripe": {
         "source_type": "stripe",
         "label": "Stripe",
@@ -122,6 +135,20 @@ DEMO_DATASET_DEFINITIONS = {
             "Tax and Fees",
         ),
     },
+    "zoho-books": {
+        "source_type": "zoho_books",
+        "label": "Zoho Books",
+        "file_name": "demo-zoho-books-365-days.parquet",
+        "dimensions": (
+            "Sales Invoices",
+            "Expenses",
+            "Customer Payments",
+            "Bills",
+            "Credit Notes",
+            "Projects",
+            "Banking",
+        ),
+    },
     "hubspot": {
         "source_type": "hubspot",
         "label": "HubSpot",
@@ -135,6 +162,19 @@ DEMO_DATASET_DEFINITIONS = {
             "Opportunity",
             "Customer",
             "Evangelist",
+        ),
+    },
+    "salesforce": {
+        "source_type": "salesforce",
+        "label": "Salesforce Sales Cloud",
+        "file_name": "demo-salesforce-365-days.parquet",
+        "dimensions": (
+            "Account",
+            "Lead",
+            "Opportunity",
+            "Customer",
+            "Partner",
+            "Prospect",
         ),
     },
     "meta-ads": {
@@ -239,6 +279,44 @@ def build_demo_dataframe(dataset_key: str) -> pd.DataFrame:
                 "bounce_rate": round(0.57 - (index % 9) * 0.009, 3),
                 "engagement_rate": round(0.43 + (index % 8) * 0.012, 3),
                 "avg_session_duration_seconds": round(128 + index % 11 * 9),
+            })
+        elif dataset_key == "google-ads":
+            campaign_factor = _category_factor(
+                index,
+                (0.72, 1.24, 0.94, 1.18, 0.86, 1.08),
+            )
+            media_day_factor = _weekday_factor(
+                current_date,
+                (0.74, 0.91, 1.04, 1.12, 1.18, 1.08, 0.82),
+            )
+            impressions = round(
+                _wave(index, 17, 7200, 36000)
+                * campaign_factor
+                * media_day_factor
+                * (1 + 0.14 * math.sin(index / 49))
+                * _event_factor(index, (10, 11, 12), 1.42)
+                * (1 + trend * 0.24)
+            )
+            clicks = round(impressions * (0.032 + 0.004 * math.sin(index / 19)))
+            conversions = round(clicks * (0.11 + 0.018 * math.sin(index / 16)))
+            cost = clicks * (1.62 + 0.18 * math.sin(index / 23))
+            conversions_value = conversions * (128 + 16 * math.sin(index / 21))
+            rows.append({
+                "date": current_date.isoformat(),
+                "customer_id": "6987660396",
+                "campaign_id": f"google_campaign_{index % 12 + 1:02d}",
+                "campaign_name": dimension,
+                "campaign_status": "ENABLED" if index % 9 else "PAUSED",
+                "advertising_channel_type": ("SEARCH", "DISPLAY", "VIDEO")[index % 3],
+                "impressions": max(impressions, 0),
+                "clicks": max(clicks, 0),
+                "cost_micros": round(max(cost, 0) * 1_000_000),
+                "cost": round(max(cost, 0), 2),
+                "conversions": max(conversions, 0),
+                "conversions_value": round(max(conversions_value, 0), 2),
+                "ctr": round(clicks / max(impressions, 1), 4),
+                "average_cpc": round(cost / max(clicks, 1), 2),
+                "average_cpc_micros": round(max(cost / max(clicks, 1), 0) * 1_000_000),
             })
         elif dataset_key == "shopify":
             product_factor = _category_factor(
@@ -511,6 +589,47 @@ def build_demo_dataframe(dataset_key: str) -> pd.DataFrame:
                 "line_item_count": max(round(invoices * 1.8), 1),
                 "sent_to_contact": "true" if index % 6 else "false",
             })
+        elif dataset_key == "zoho-books":
+            account_factor = _category_factor(
+                index,
+                (1.22, 0.78, 1.08, 0.92, 1.16, 0.7, 0.86),
+            )
+            month_end_factor = 1.32 if current_date.day >= 25 else 1.0
+            transactions = round(
+                _wave(index, 24, 10, 36)
+                * account_factor
+                * month_end_factor
+                * (1 + 0.1 * math.cos(index / 18))
+                * (1 + trend * 0.17)
+            )
+            revenue = transactions * (405 + 44 * math.sin(index / 20))
+            expenses = revenue * (0.47 + 0.05 * math.sin(index / 25))
+            payments = revenue * (0.79 + 0.05 * math.sin(index / 22))
+            tax = revenue * 0.13
+            rows.append({
+                "date": current_date.isoformat(),
+                "created_at": current_date.isoformat(),
+                "updated_at": current_date.isoformat(),
+                "due_date": (current_date + timedelta(days=30)).isoformat(),
+                "record_id": f"zoho_{index + 1:04d}",
+                "resource_type": ("invoices", "expenses", "customer_payments", "bills")[index % 4],
+                "transaction_number": f"ZB-{index + 8001}",
+                "account_category": dimension,
+                "customer_id": f"zoho_customer_{index % 58 + 1:03d}",
+                "customer_name": ("Maple Manufacturing", "Harbour Health", "Summit Retail")[index % 3],
+                "status": "paid" if index % 5 else "overdue",
+                "currency": "CAD",
+                "transactions": max(transactions, 0),
+                "invoices": max(round(transactions * 0.62), 0),
+                "revenue": round(max(revenue, 0), 2),
+                "expenses": round(max(expenses, 0), 2),
+                "payments": round(max(payments, 0), 2),
+                "tax_amount": round(max(tax, 0), 2),
+                "total_amount": round(max(revenue, 0), 2),
+                "amount_paid": round(max(payments, 0), 2),
+                "amount_due": round(max(revenue - payments, 0), 2),
+                "outstanding_amount": round(max(revenue - payments, 0), 2),
+            })
         elif dataset_key == "meta-ads":
             campaign_factor = _category_factor(
                 index,
@@ -554,6 +673,40 @@ def build_demo_dataframe(dataset_key: str) -> pd.DataFrame:
                 "conversions": max(conversions, 0),
                 "purchases": max(round(conversions * 0.72), 0),
                 "attributed_revenue": round(max(conversions * 185, 0), 2),
+            })
+        elif dataset_key == "salesforce":
+            stage_factor = _category_factor(
+                index,
+                (0.84, 0.96, 1.22, 1.08, 0.76, 1.14),
+            )
+            records = round(
+                _wave(index, 20, 9, 34)
+                * stage_factor
+                * (1 + 0.11 * math.sin(index / 31))
+                * (1 + trend * 0.2)
+            )
+            opportunity_count = max(round(records * 0.42), 0)
+            amount = opportunity_count * (2750 + index % 7 * 380)
+            rows.append({
+                "date": current_date.isoformat(),
+                "created_at": current_date.isoformat(),
+                "updated_at": current_date.isoformat(),
+                "record_id": f"sf_record_{index + 1:04d}",
+                "object_type": ("Account", "Lead", "Opportunity")[index % 3],
+                "name": f"Decisionate Demo {index + 1:03d}",
+                "account_name": ("Maple Systems", "Coastal Health", "Granite Builders")[index % 3],
+                "industry": ("Technology", "Retail", "Healthcare", "Professional Services")[index % 4],
+                "lead_source": ("Web", "Partner Referral", "Campaign", "Event")[index % 4],
+                "stage": ("Prospecting", "Qualification", "Proposal", "Negotiation", "Closed Won")[index % 5],
+                "status": "Open" if index % 5 else "Closed Won",
+                "country": ("Canada", "United States", "United Kingdom")[index % 3],
+                "employee_count": 18 + index % 11 * 7,
+                "record_count": max(records, 0),
+                "lead_count": max(round(records * 0.5), 0),
+                "opportunity_count": opportunity_count,
+                "amount": round(max(amount, 0), 2),
+                "probability": round(0.18 + (index % 6) * 0.12, 2),
+                "expected_revenue": round(max(amount * (0.18 + (index % 6) * 0.12), 0), 2),
             })
         else:
             stage_factor = _category_factor(

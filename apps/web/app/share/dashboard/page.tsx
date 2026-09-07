@@ -2279,13 +2279,16 @@ function DemoMetricMappingPanel({
 
 const demoDatasetNumericIds: Record<string, number> = {
   "google-analytics": 900001,
+  "google-ads": 900010,
   stripe: 900002,
   shopify: 900003,
   quickbooks: 900004,
   freshbooks: 900005,
   sage: 900006,
   xero: 900007,
+  "zoho-books": 900011,
   hubspot: 900008,
+  salesforce: 900012,
   "meta-ads": 900009,
 }
 
