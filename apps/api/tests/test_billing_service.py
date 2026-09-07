@@ -42,6 +42,10 @@ class BillingServiceTests(unittest.TestCase):
             get_billing_period_ai_credit_limit(5000, "month"),
             5000,
         )
+        self.assertEqual(
+            get_billing_period_ai_credit_limit(2500, "year"),
+            30000,
+        )
 
     def test_subscription_lifecycle_allows_active_period(self):
         now = datetime(2026, 1, 1)

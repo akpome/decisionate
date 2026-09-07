@@ -467,7 +467,7 @@ export function PricingSection() {
                 ["Free", "$0 CAD", "$0 CAD", "1", "1,000 / 12,000"],
                 ["Professional", "$79 CAD", "$790 CAD", "1", "5,000 / 60,000"],
                 ["Agency", "$199 CAD", "$1,990 CAD", "10", "25,000 / 300,000"],
-                ["Additional client workspace", "+$20 CAD", "+$200 CAD", "+1", "TBD"],
+                ["Additional client workspace", "+$20 CAD", "+$200 CAD", "+1", "2,500 / 30,000"],
               ].map(([name, price, annual, workspaces, credits]) => (
                 <tr key={name}>
                   <th className="px-4 py-3 font-semibold text-slate-900">{name}</th>
@@ -483,7 +483,7 @@ export function PricingSection() {
 
         <div className="mx-auto mt-6 grid max-w-4xl gap-3 text-center text-sm text-slate-600 sm:grid-cols-2">
           <p className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            Need more capacity? Add client workspaces for $20 CAD/month each or $200 CAD/year each. Additional AI allowance is configurable and will be confirmed separately.
+            Need more capacity? Add client workspaces for $20 CAD/month each or $200 CAD/year each. Each additional client workspace includes 2,500 AI credits/month or 30,000/year.
           </p>
           <p className="rounded-lg border border-slate-200 bg-white px-4 py-3">
             Additional AI credit packs are available when your usage grows.

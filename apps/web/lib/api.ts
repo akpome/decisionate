@@ -517,6 +517,7 @@ export type BillingStatus = {
   ai_credit_pack_size: number
   ai_credit_pack_configured: boolean
   included_ai_credits: number
+  annual_additional_client_workspace_ai_credits: number
   annual_ai_credit_limit: number
   ai_credits_used: number
   ai_credits_remaining: number

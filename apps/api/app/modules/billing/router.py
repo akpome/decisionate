@@ -211,6 +211,10 @@ async def get_billing_status(
                 billing_interval,
             )
         )
+        annual_additional_client_workspace_ai_credits = (
+            additional_client_workspace_ai_credits
+            * ANNUAL_AI_CREDIT_MULTIPLIER
+        )
         ai_credits_used = int(
             subscription.ai_credits_used
             if subscription
@@ -272,6 +276,9 @@ async def get_billing_status(
             ),
             additional_client_workspace_ai_credits=(
                 effective_additional_client_workspace_ai_credits
+            ),
+            annual_additional_client_workspace_ai_credits=(
+                annual_additional_client_workspace_ai_credits
             ),
             included_ai_credits=included_ai_credits,
             annual_ai_credit_limit=annual_ai_credit_limit,

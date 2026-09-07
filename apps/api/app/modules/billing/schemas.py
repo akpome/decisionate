@@ -41,6 +41,7 @@ class BillingStatusResponse(BaseModel):
     ai_credit_pack_size: int = 5000
     ai_credit_pack_configured: bool = False
     additional_client_workspace_ai_credits: int = 2500
+    annual_additional_client_workspace_ai_credits: int = 30000
     included_ai_credits: int = 0
     annual_ai_credit_limit: int = 0
     ai_credits_used: int = 0
