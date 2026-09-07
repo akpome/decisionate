@@ -2063,6 +2063,30 @@ function DemoModeBanner({
           {showMetricSelection && (
             <fieldset className="min-w-0 text-xs font-semibold text-blue-900 sm:col-span-2 xl:col-span-4">
               <legend className="mb-1">Metrics &amp; targets</legend>
+              <div className="mb-2 flex justify-end">
+                <label className="flex min-w-0 items-center gap-2 text-xs font-semibold text-blue-900">
+                  <span className="shrink-0">Target KPI metric</span>
+                  <select
+                    aria-label="Target KPI metric"
+                    value={targetMetric}
+                    onChange={event =>
+                      onTargetMetricChange(event.target.value)
+                    }
+                    disabled={metricOptions.length === 0}
+                    className="h-8 max-w-[14rem] rounded-md border border-blue-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  >
+                    {metricOptions.length === 0 ? (
+                      <option value="">Loading metrics...</option>
+                    ) : (
+                      metricOptions.map(metric => (
+                        <option key={metric} value={metric}>
+                          {formatMetricName(metric)}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </label>
+              </div>
               <div className="grid max-h-32 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-blue-200 bg-white px-3 py-2 sm:grid-cols-2 xl:grid-cols-4">
                 {metricOptions.length > 0 ? (
                   metricOptions.map(metric => (
@@ -2149,33 +2173,6 @@ function DemoModeBanner({
             />
           )}
       </div>
-
-      {showMetricSelection && (
-        <div className="mt-3 flex justify-end">
-          <label className="flex min-w-0 items-center gap-2 text-xs font-semibold text-blue-900">
-            <span className="shrink-0">Target KPI metric</span>
-            <select
-              aria-label="Target KPI metric"
-              value={targetMetric}
-              onChange={event =>
-                onTargetMetricChange(event.target.value)
-              }
-              disabled={metricOptions.length === 0}
-              className="h-8 max-w-[14rem] rounded-md border border-blue-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100"
-            >
-              {metricOptions.length === 0 ? (
-                <option value="">Loading metrics...</option>
-              ) : (
-                metricOptions.map(metric => (
-                  <option key={metric} value={metric}>
-                    {formatMetricName(metric)}
-                  </option>
-                ))
-              )}
-            </select>
-          </label>
-        </div>
-      )}
 
       {notice && (
         <p
