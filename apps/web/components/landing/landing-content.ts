@@ -246,7 +246,7 @@ export const faqs = [
   },
   {
     question: "What are Decisionate AI credits?",
-    answer: "Decisionate AI credits are an application usage allowance, not OpenAI credits or currency. The default monthly allocations are 1,000 for Free, 5,000 for Professional and 25,000 for Agency; annual allocations are twelve times those amounts: 12,000, 60,000 and 300,000. Each additional client workspace includes 2,500 AI credits/month or 30,000/year. Allocations can be adjusted by the platform administrator as usage and provider costs change.",
+    answer: "Decisionate AI credits are an application usage allowance, not OpenAI credits or currency. The default monthly allocations are 1,000 for Free, 5,000 for Professional and 25,000 for Agency. Free has no annual allocation; Professional and Agency annual allocations are twelve times their monthly amounts: 60,000 and 300,000. Each additional client workspace includes 2,500 AI credits/month or 30,000/year. Allocations can be adjusted by the platform administrator as usage and provider costs change.",
   },
   {
     question: "Is my data secure?",

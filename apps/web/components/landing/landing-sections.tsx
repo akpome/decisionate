@@ -369,7 +369,7 @@ export function PricingSection() {
       featured: false,
       items: [
         "1 workspace",
-        "1,000 AI credits/month or 12,000/year",
+        "1,000 AI credits/month; annual allocation: N/A",
         "Full access for 30 days",
       ],
     },
@@ -464,7 +464,7 @@ export function PricingSection() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {[
-                ["Free", "$0 CAD", "$0 CAD", "1", "1,000 / 12,000"],
+                ["Free", "$0 CAD", "$0 CAD", "1", "1,000 / N/A"],
                 ["Professional", "$79 CAD", "$790 CAD", "1", "5,000 / 60,000"],
                 ["Agency", "$199 CAD", "$1,990 CAD", "10", "25,000 / 300,000"],
                 ["Additional client workspace", "+$20 CAD", "+$200 CAD", "+1", "2,500 / 30,000"],
