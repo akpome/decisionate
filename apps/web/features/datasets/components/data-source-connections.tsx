@@ -785,101 +785,6 @@ function DataSourceConnectionRow({
             </p>
           )}
 
-        {isConfiguring && (
-          <div className="mt-4 max-w-2xl rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
-              {hasResourceSelection
-                ? `${source?.label ?? "Connection"} objects to ingest`
-                : "Configure connection settings"}
-            </p>
-
-            <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
-              Required settings must be saved before data can be ingested. Without them, this connection will ingest no data.
-            </p>
-
-            {configKeys.filter(
-              (configKey) =>
-                configKey !== "resource_types"
-            ).length > 0 && (
-              <ConnectionConfigFieldGroup
-                title="Dataset Settings"
-                configKeys={configKeys.filter(
-                  (configKey) =>
-                    configKey !== "resource_types"
-                )}
-                sourceType={connection.source_type}
-                editingConnectionConfig={
-                  editingConnectionConfig
-                }
-                hasSavedConfig={
-                  connection.has_config
-                }
-                setEditingConnectionConfig={
-                  setEditingConnectionConfig
-                }
-                secret={connection.source_type === "stripe"}
-                secretKeys={
-                  [
-                    "postgresql",
-                    "mysql",
-                    "sql_server",
-                  ].includes(connection.source_type)
-                    ? ["password"]
-                    : []
-                }
-              />
-            )}
-
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <button
-                type="button"
-                onClick={() =>
-                  saveConfiguration(
-                    connection
-                  )
-                }
-                disabled={
-                  updatingConnectionId ===
-                    connection.id ||
-                  !hasEditedConfig
-                }
-                className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-              >
-                {updatingConnectionId ===
-                connection.id
-                  ? "Saving..."
-                  : "Save Replacement"}
-              </button>
-
-              {connection.has_config && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    clearConfiguration(
-                      connection
-                    )
-                  }
-                  disabled={
-                    updatingConnectionId ===
-                    connection.id
-                  }
-                  className="w-full rounded-lg border border-red-100 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                >
-                  Clear Saved Config
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={stopConfiguring}
-                className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
       </div>
 
       <div className="flex w-full min-w-0 shrink-0 flex-col items-start gap-2 lg:max-w-xl lg:items-end">
@@ -1076,6 +981,103 @@ function DataSourceConnectionRow({
             </div>
           )}
       </div>
+
+      {isConfiguring && (
+        <div className="h-full min-w-0 lg:col-start-2 lg:row-start-2">
+          <div className="h-full rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
+              {hasResourceSelection
+                ? `${source?.label ?? "Connection"} objects to ingest`
+                : "Configure connection settings"}
+            </p>
+
+            <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
+              Required settings must be saved before data can be ingested. Without them, this connection will ingest no data.
+            </p>
+
+            {configKeys.filter(
+              (configKey) =>
+                configKey !== "resource_types"
+            ).length > 0 && (
+              <ConnectionConfigFieldGroup
+                title="Dataset Settings"
+                configKeys={configKeys.filter(
+                  (configKey) =>
+                    configKey !== "resource_types"
+                )}
+                sourceType={connection.source_type}
+                editingConnectionConfig={
+                  editingConnectionConfig
+                }
+                hasSavedConfig={
+                  connection.has_config
+                }
+                setEditingConnectionConfig={
+                  setEditingConnectionConfig
+                }
+                secret={connection.source_type === "stripe"}
+                secretKeys={
+                  [
+                    "postgresql",
+                    "mysql",
+                    "sql_server",
+                  ].includes(connection.source_type)
+                    ? ["password"]
+                    : []
+                }
+              />
+            )}
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <button
+                type="button"
+                onClick={() =>
+                  saveConfiguration(
+                    connection
+                  )
+                }
+                disabled={
+                  updatingConnectionId ===
+                    connection.id ||
+                  !hasEditedConfig
+                }
+                className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              >
+                {updatingConnectionId ===
+                connection.id
+                  ? "Saving..."
+                  : "Save Replacement"}
+              </button>
+
+              {connection.has_config && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    clearConfiguration(
+                      connection
+                    )
+                  }
+                  disabled={
+                    updatingConnectionId ===
+                    connection.id
+                  }
+                  className="w-full rounded-lg border border-red-100 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  Clear Saved Config
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={stopConfiguring}
+                className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {canSchedule && (
         <div className="h-full min-w-0 rounded-xl border bg-gray-50 p-3 lg:col-start-1 lg:row-start-2">
