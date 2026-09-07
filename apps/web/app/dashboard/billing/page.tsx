@@ -49,10 +49,6 @@ function BillingPageContent() {
     useState(0)
   const [additionalAICreditPacks, setAdditionalAICreditPacks] =
     useState(0)
-  const addonOptions = billing?.client_workspace_addon_options ?? []
-  const selectedAddonOption = addonOptions.find(
-    option => option.additional_client_workspaces === additionalClientWorkspaces
-  )
 
   useEffect(() => {
     if (
@@ -79,14 +75,11 @@ function BillingPageContent() {
             setSelectedPlan(result.plan)
           }
           if (result.plan === "agency") {
-            const currentAddonQuantity = result.additional_client_workspaces
-            const hasSupportedAddonQuantity =
-              currentAddonQuantity === 0 ||
-              result.client_workspace_addon_options.some(
-                option => option.additional_client_workspaces === currentAddonQuantity
-              )
             setAdditionalClientWorkspaces(
-              hasSupportedAddonQuantity ? currentAddonQuantity : 0
+              Math.max(
+                0,
+                Math.min(1000, result.additional_client_workspaces || 0)
+              )
             )
           }
         }
@@ -408,40 +401,30 @@ function BillingPageContent() {
               <div>
                 <p className="text-sm font-medium text-gray-900">Additional client workspaces</p>
                 <p className="mt-1 text-sm text-gray-500">
-                  Choose a package of 1, 5, or 10 additional client workspaces.
+                  Add capacity at ${(
+                    (billingInterval === "year"
+                      ? billing.additional_client_workspace_annual_price_cents
+                      : billing.additional_client_workspace_price_cents) / 100
+                  ).toLocaleString()} CAD/{billingInterval === "year" ? "year" : "month"} per workspace. Each added workspace includes {(
+                    billingInterval === "year"
+                      ? billing.annual_additional_client_workspace_ai_credits
+                      : billing.additional_client_workspace_ai_credits
+                  ).toLocaleString()} AI credits.
                 </p>
-                {selectedAddonOption && (
-                  <p className="mt-2 text-xs text-gray-500">
-                    Includes {(
-                      billingInterval === "year"
-                        ? selectedAddonOption.annual_ai_credits
-                        : selectedAddonOption.monthly_ai_credits
-                    ).toLocaleString()} AI credits per {billingInterval === "year" ? "year" : "month"} for ${(
-                      (billingInterval === "year"
-                        ? selectedAddonOption.annual_price_cents
-                        : selectedAddonOption.monthly_price_cents) / 100
-                    ).toLocaleString()} CAD/{billingInterval === "year" ? "year" : "month"}.
-                  </p>
-                )}
               </div>
               <label className="text-xs font-medium text-gray-600">
-                Workspace package
-                <select
-                  aria-label="Additional client workspace package"
+                Extra workspaces
+                <input
+                  type="number"
+                  min="0"
+                  max="1000"
+                  aria-label="Additional client workspaces"
                   value={additionalClientWorkspaces}
-                  onChange={event => setAdditionalClientWorkspaces(Number(event.target.value))}
-                  className="mt-1 block min-w-56 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
-                >
-                  <option value={0}>No additional workspaces</option>
-                  {addonOptions.map(option => (
-                    <option
-                      key={option.additional_client_workspaces}
-                      value={option.additional_client_workspaces}
-                    >
-                      {option.additional_client_workspaces} additional {option.additional_client_workspaces === 1 ? "workspace" : "workspaces"}
-                    </option>
-                  ))}
-                </select>
+                  onChange={event => setAdditionalClientWorkspaces(
+                    Math.max(0, Math.min(1000, Number(event.target.value) || 0))
+                  )}
+                  className="mt-1 block w-32 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
+                />
               </label>
             </div>
           )}

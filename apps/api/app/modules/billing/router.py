@@ -38,10 +38,8 @@ from app.modules.billing.service import (
     ADDITIONAL_CLIENT_WORKSPACE_PRICE_CENTS,
     ADDITIONAL_CLIENT_WORKSPACE_ANNUAL_PRICE_CENTS,
     ANNUAL_AI_CREDIT_MULTIPLIER,
-    CLIENT_WORKSPACE_ADDON_QUANTITIES,
     get_ai_credit_allocations,
     get_ai_credit_pack_size,
-    get_client_workspace_addon_options,
     get_billing_period_ai_credit_limit,
     normalize_billing_plan,
     PUBLIC_BILLING_PLANS,
@@ -283,9 +281,6 @@ async def get_billing_status(
             annual_additional_client_workspace_ai_credits=(
                 annual_additional_client_workspace_ai_credits
             ),
-            client_workspace_addon_options=(
-                get_client_workspace_addon_options()
-            ),
             included_ai_credits=included_ai_credits,
             annual_ai_credit_limit=annual_ai_credit_limit,
             ai_credits_used=ai_credits_used,
@@ -355,15 +350,6 @@ async def create_billing_checkout(
         raise HTTPException(
             status_code=400,
             detail="Additional client workspaces are available only on Agency plans",
-        )
-    if (
-        payload.additional_client_workspaces
-        and payload.additional_client_workspaces
-        not in CLIENT_WORKSPACE_ADDON_QUANTITIES
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Choose 1, 5, or 10 additional client workspaces",
         )
     if payload.additional_ai_credit_packs < 0:
         raise HTTPException(

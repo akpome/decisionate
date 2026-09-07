@@ -12,10 +12,8 @@ from app.modules.billing.lifecycle import build_subscription_access_state
 from app.modules.billing.service import (
     ANNUAL_AI_CREDIT_MULTIPLIER,
     BillingWebhookSignatureError,
-    CLIENT_WORKSPACE_ADDON_QUANTITIES,
     create_checkout_session,
     get_billing_period_ai_credit_limit,
-    get_client_workspace_addon_options,
     get_client_workspace_limit,
     verify_stripe_webhook,
 )
@@ -36,26 +34,6 @@ class FakeResponse:
 
 
 class BillingServiceTests(unittest.TestCase):
-    def test_client_workspace_addon_options_include_credit_totals(self):
-        with patch(
-            "app.modules.billing.service.get_ai_credit_allocations",
-            return_value={"additional_client_workspace": 2500},
-        ):
-            options = get_client_workspace_addon_options()
-
-        self.assertEqual(
-            [option["additional_client_workspaces"] for option in options],
-            list(CLIENT_WORKSPACE_ADDON_QUANTITIES),
-        )
-        self.assertEqual(
-            [option["monthly_ai_credits"] for option in options],
-            [2500, 12500, 25000],
-        )
-        self.assertEqual(
-            [option["annual_ai_credits"] for option in options],
-            [30000, 150000, 300000],
-        )
-
     def test_trial_plan_workspace_entitlements(self):
         self.assertEqual(
             get_client_workspace_limit("professional"),
@@ -150,6 +128,8 @@ class BillingServiceTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
+                "BILLING_PROVIDER": "stripe",
+                "STRIPE_API_URL": "https://api.stripe.test",
                 "STRIPE_SECRET_KEY": "sk_test",
                 "STRIPE_PRICE_ID": "price_test",
                 "DECISIONATE_WEB_APP_URL": "https://app.test",
@@ -179,6 +159,8 @@ class BillingServiceTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
+                "BILLING_PROVIDER": "stripe",
+                "STRIPE_API_URL": "https://api.stripe.test",
                 "STRIPE_SECRET_KEY": "sk_test",
                 "STRIPE_PRICE_ID": "price_test",
                 "DECISIONATE_WEB_APP_URL": "https://app.test",
@@ -199,6 +181,39 @@ class BillingServiceTests(unittest.TestCase):
         body = mocked_urlopen.call_args.args[0].data.decode()
         self.assertNotIn("trial_period_days", body)
         self.assertNotIn("payment_method_collection", body)
+
+    def test_checkout_supports_arbitrary_client_workspace_quantity(self):
+        response = {"id": "cs_test", "url": "https://checkout.test"}
+        with patch.dict(
+            os.environ,
+            {
+                "BILLING_PROVIDER": "stripe",
+                "STRIPE_API_URL": "https://api.stripe.test",
+                "STRIPE_SECRET_KEY": "sk_test",
+                "STRIPE_AGENCY_PRICE_ID": "price_agency_test",
+                "STRIPE_CLIENT_WORKSPACE_ADDON_PRICE_ID": "price_workspace_test",
+                "DECISIONATE_WEB_APP_URL": "https://app.test",
+            },
+            clear=False,
+        ), patch(
+            "app.modules.billing.service.urlopen",
+            return_value=FakeResponse(json.dumps(response).encode()),
+        ) as mocked_urlopen:
+            create_checkout_session(
+                workspace_id="workspace_1",
+                owner_user_id="user_1",
+                owner_email="owner@example.com",
+                organization_name="Acme",
+                plan="agency",
+                additional_client_workspaces=12,
+            )
+
+        body = mocked_urlopen.call_args.args[0].data.decode()
+        self.assertIn("line_items%5B1%5D%5Bquantity%5D=12", body)
+        self.assertIn(
+            "metadata%5Badditional_client_workspaces%5D=12",
+            body,
+        )
 
 
 if __name__ == "__main__":
