@@ -383,7 +383,7 @@ export function PricingSection() {
       href: "/demo",
       featured: true,
       items: [
-        "1 workspace",
+        "1 workspace during the trial",
         "Unlimited datasets",
         "All industry dashboards",
         "AI-powered recommendations",
@@ -402,7 +402,7 @@ export function PricingSection() {
       href: "/demo",
       featured: false,
       items: [
-        "Up to 10 client workspaces",
+        "10 client workspaces during the trial",
         "White-label client portal",
         "Agency branding",
         "Industry dashboards",

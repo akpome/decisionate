@@ -14,6 +14,7 @@ from app.modules.billing.service import (
     BillingWebhookSignatureError,
     create_checkout_session,
     get_billing_period_ai_credit_limit,
+    get_client_workspace_limit,
     verify_stripe_webhook,
 )
 
@@ -33,6 +34,16 @@ class FakeResponse:
 
 
 class BillingServiceTests(unittest.TestCase):
+    def test_trial_plan_workspace_entitlements(self):
+        self.assertEqual(
+            get_client_workspace_limit("professional"),
+            1,
+        )
+        self.assertEqual(
+            get_client_workspace_limit("agency"),
+            10,
+        )
+
     def test_annual_ai_credit_limit_is_twelve_months(self):
         self.assertEqual(
             get_billing_period_ai_credit_limit(5000, "year"),
