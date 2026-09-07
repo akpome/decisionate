@@ -2062,10 +2062,10 @@ function DemoModeBanner({
       <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {showMetricSelection && (
             <fieldset className="min-w-0 text-xs font-semibold text-blue-900 sm:col-span-2 xl:col-span-4">
-              <legend className="mb-1">Metrics &amp; targets</legend>
-              <div className="mb-2 flex justify-end">
-                <label className="flex min-w-0 items-center gap-2 text-xs font-semibold text-blue-900">
-                  <span className="shrink-0">Target KPI metric</span>
+              <legend className="mb-2 flex w-full min-w-0 items-center justify-between gap-3">
+                <span className="shrink-0">Metrics &amp; targets</span>
+                <label className="flex min-w-0 flex-1 items-center justify-end gap-2 font-semibold text-blue-900">
+                  <span className="shrink-0">Target KPI</span>
                   <select
                     aria-label="Target KPI metric"
                     value={targetMetric}
@@ -2073,7 +2073,7 @@ function DemoModeBanner({
                       onTargetMetricChange(event.target.value)
                     }
                     disabled={metricOptions.length === 0}
-                    className="h-8 max-w-[14rem] rounded-md border border-blue-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100"
+                    className="h-8 w-full min-w-0 max-w-[14rem] rounded-md border border-blue-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100"
                   >
                     {metricOptions.length === 0 ? (
                       <option value="">Loading metrics...</option>
@@ -2086,7 +2086,7 @@ function DemoModeBanner({
                     )}
                   </select>
                 </label>
-              </div>
+              </legend>
               <div className="grid max-h-32 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-blue-200 bg-white px-3 py-2 sm:grid-cols-2 xl:grid-cols-4">
                 {metricOptions.length > 0 ? (
                   metricOptions.map(metric => (
