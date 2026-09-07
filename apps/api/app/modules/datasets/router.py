@@ -4690,19 +4690,6 @@ async def sync_due_source_connections(request: Request):
             ):
                 continue
 
-            (
-                enabled,
-                interval_hours,
-                time_of_day,
-                timezone_name,
-                anchor_date,
-                day_of_week,
-            ) = read_connection_schedule_details(
-                connection.connection_config
-            )
-            if not enabled:
-                continue
-
             if source and source.get("connection_type") == "oauth":
                 try:
                     refresh_oauth_access_token_if_due(
@@ -4733,6 +4720,19 @@ async def sync_due_source_connections(request: Request):
                         "detail": str(error),
                     })
                     continue
+
+            (
+                enabled,
+                interval_hours,
+                time_of_day,
+                timezone_name,
+                anchor_date,
+                day_of_week,
+            ) = read_connection_schedule_details(
+                connection.connection_config
+            )
+            if not enabled:
+                continue
 
             if not connection_sync_is_due(
                 connection.last_synced_at,

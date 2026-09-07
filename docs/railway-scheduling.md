@@ -67,10 +67,12 @@ The runner continues if one job fails, prints a JSON result for each job, and
 returns exit code `1` when any selected job fails. Railway should mark that run
 failed so it is visible in deployment logs.
 
-For connections with automatic sync enabled, the API also checks OAuth
-credentials during each connector scheduler heartbeat, even when that
+The API checks every connected OAuth credential during each connector scheduler
+heartbeat, whether or not automatic dataset sync is enabled and even when that
 connection's data sync is not due yet. Access tokens are refreshed before they
-expire when a refresh token is available. If a provider rejects a refresh
+expire when a refresh token is available. The default refresh safety window is
+30 minutes, which gives the 15-minute scheduler enough time to retry a
+temporary provider failure. If a provider rejects a refresh
 because authorization is no longer valid, the connection is moved to Draft and
 the scheduler reports the failure so it cannot appear healthy indefinitely.
 Temporary provider failures remain retryable on the next heartbeat. A revoked

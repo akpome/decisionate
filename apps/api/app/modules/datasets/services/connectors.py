@@ -29,7 +29,9 @@ from app.modules.oauth.service import (
 
 
 PAGE_SIZE = 100
-OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(minutes=10)
+# The Railway scheduler normally runs every 15 minutes. Refresh with enough
+# lead time to cover one heartbeat plus provider/network delays.
+OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(minutes=30)
 STRIPE_ENCRYPTED_API_KEY_CONFIG = "_stripe_api_key_encrypted"
 SALESFORCE_OBJECT_TYPES = {
     "Account",
