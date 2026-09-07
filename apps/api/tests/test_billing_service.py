@@ -123,6 +123,33 @@ class BillingServiceTests(unittest.TestCase):
         self.assertIn("client_reference_id=workspace_1", body)
         self.assertIn("subscription_data%5Bmetadata%5D%5Bworkspace_id%5D=workspace_1", body)
         self.assertIn("subscription_data%5Btrial_period_days%5D=30", body)
+        self.assertIn("payment_method_collection=if_required", body)
+
+    def test_checkout_after_local_trial_does_not_start_another_trial(self):
+        response = {"id": "cs_test", "url": "https://checkout.test"}
+        with patch.dict(
+            os.environ,
+            {
+                "STRIPE_SECRET_KEY": "sk_test",
+                "STRIPE_PRICE_ID": "price_test",
+                "DECISIONATE_WEB_APP_URL": "https://app.test",
+            },
+            clear=False,
+        ), patch(
+            "app.modules.billing.service.urlopen",
+            return_value=FakeResponse(json.dumps(response).encode()),
+        ) as mocked_urlopen:
+            create_checkout_session(
+                workspace_id="workspace_1",
+                owner_user_id="user_1",
+                owner_email="owner@example.com",
+                organization_name="Acme",
+                trial_period_days=None,
+            )
+
+        body = mocked_urlopen.call_args.args[0].data.decode()
+        self.assertNotIn("trial_period_days", body)
+        self.assertNotIn("payment_method_collection", body)
 
 
 if __name__ == "__main__":

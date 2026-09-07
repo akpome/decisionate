@@ -242,7 +242,7 @@ export const faqs = [
   },
   {
     question: "What does the free trial include?",
-    answer: "The 30-day free trial provides full access without feature restrictions. Professional is $79 CAD/month or $790 CAD/year. Agency is $199 CAD/month or $1,990 CAD/year and includes up to 10 client workspaces. Additional client workspaces are $20 CAD/month or $200 CAD/year each.",
+    answer: "The 30-day free trial provides the full Professional or Agency feature set, with the plan's included AI credits, and no credit card is required. Professional is $79 CAD/month or $790 CAD/year. Agency is $199 CAD/month or $1,990 CAD/year and includes up to 10 client workspaces. Additional client workspaces are $20 CAD/month or $200 CAD/year each.",
   },
   {
     question: "What are Decisionate AI credits?",

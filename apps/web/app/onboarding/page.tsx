@@ -257,7 +257,7 @@ export default function OnboardingPage() {
               </div>
 
               <p className="mt-2 text-xs text-gray-500">
-                No payment is required during setup. You can manage billing after your trial begins.
+                Full plan access for one month. No credit card is required; add payment details only if you decide to continue.
               </p>
             </fieldset>
 

@@ -40,6 +40,7 @@ from app.modules.billing.service import (
     get_ai_credit_pack_size,
     normalize_billing_plan,
     PUBLIC_BILLING_PLANS,
+    TRIAL_PERIOD_DAYS,
     get_billing_plan_definition,
     get_billing_plan_options,
     get_client_workspace_limit,
@@ -344,6 +345,7 @@ async def create_billing_checkout(
             subscription
             and subscription.plan != FREE_PLAN
             and access_state.access_allowed
+            and subscription.provider_subscription_id
         ):
             raise HTTPException(
                 status_code=409,
@@ -357,6 +359,13 @@ async def create_billing_checkout(
                 == auth_context.workspace_id,
             )
             .first()
+        )
+        trial_already_started = bool(
+            subscription
+            and (
+                subscription.current_period_start
+                or subscription.current_period_end
+            )
         )
         try:
             result = create_checkout_session(
@@ -378,6 +387,11 @@ async def create_billing_checkout(
                 ),
                 additional_ai_credit_packs=(
                     payload.additional_ai_credit_packs
+                ),
+                trial_period_days=(
+                    None
+                    if trial_already_started
+                    else TRIAL_PERIOD_DAYS
                 ),
             )
         except BillingProviderUnavailable as error:

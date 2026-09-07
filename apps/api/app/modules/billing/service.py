@@ -31,7 +31,7 @@ LEGACY_PLAN_ALIASES = {
 BILLING_INTERVAL_MONTH = "month"
 BILLING_INTERVAL_YEAR = "year"
 TRIAL_PERIOD_DAYS = 30
-ANNUAL_TRIAL_PERIOD_DAYS = 60
+ANNUAL_TRIAL_PERIOD_DAYS = TRIAL_PERIOD_DAYS
 ADDITIONAL_CLIENT_WORKSPACE_PRICE_CENTS = 2000
 ADDITIONAL_CLIENT_WORKSPACE_ANNUAL_PRICE_CENTS = 20000
 AI_CREDIT_PACK_SIZE = 5000
@@ -311,6 +311,7 @@ def create_checkout_session(
     billing_interval: str = BILLING_INTERVAL_MONTH,
     additional_client_workspaces: int = 0,
     additional_ai_credit_packs: int = 0,
+    trial_period_days: int | None = TRIAL_PERIOD_DAYS,
 ) -> dict:
     config = require_billing_config()
     normalized_plan = normalize_billing_plan(plan)
@@ -380,11 +381,6 @@ def create_checkout_session(
         "subscription_data[metadata][additional_ai_credit_packs]": str(
             ai_credit_pack_count
         ),
-        "subscription_data[trial_period_days]": str(
-            ANNUAL_TRIAL_PERIOD_DAYS
-            if normalized_interval == BILLING_INTERVAL_YEAR
-            else TRIAL_PERIOD_DAYS
-        ),
         "metadata[workspace_id]": workspace_id,
         "metadata[owner_user_id]": owner_user_id,
         "metadata[plan]": normalized_plan,
@@ -415,6 +411,14 @@ def create_checkout_session(
 
     if organization_name:
         params["metadata[organization_name]"] = organization_name[:500]
+
+    if trial_period_days is not None:
+        clean_trial_period_days = max(int(trial_period_days), 0)
+        if clean_trial_period_days:
+            params["subscription_data[trial_period_days]"] = str(
+                clean_trial_period_days
+            )
+            params["payment_method_collection"] = "if_required"
 
     response = stripe_request(
         "/checkout/sessions",

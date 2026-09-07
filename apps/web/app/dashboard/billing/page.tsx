@@ -69,7 +69,12 @@ function BillingPageContent() {
           userId,
           activeWorkspaceId
         )
-        if (!ignore) setBilling(result)
+        if (!ignore) {
+          setBilling(result)
+          if (result.plan === "professional" || result.plan === "agency") {
+            setSelectedPlan(result.plan)
+          }
+        }
       } catch (loadError) {
         if (!ignore) {
           const message = getErrorMessage(loadError)
@@ -189,7 +194,7 @@ function BillingPageContent() {
           <div>
             <h2 className="font-semibold text-gray-900">Workspace plan</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Monthly checkout includes a 30-day trial; annual checkout includes a 60-day trial. Additional client capacity is added to the existing subscription and billed on the next renewal invoice. Subscription state is updated from verified billing webhooks.
+              Start with a 30-day full-access trial without a credit card. Add payment details only when you choose to continue. Additional client capacity is added to the existing subscription and billed on the next renewal invoice.
             </p>
           </div>
         </div>
@@ -243,7 +248,7 @@ function BillingPageContent() {
 
         {!loading && billing && (
           <div className="mt-6 flex flex-wrap gap-3">
-            {isSubscribed(billing) || billing.customer_portal_available ? (
+            {isSubscribed(billing) ? (
               <button
                 type="button"
                 onClick={openPortal}
@@ -265,7 +270,7 @@ function BillingPageContent() {
                 className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <CreditCard size={16} />
-                {busy ? "Opening..." : "Start 30-day free trial"}
+                {busy ? "Opening..." : getCheckoutButtonLabel(billing, billingInterval)}
               </button>
             )}
           </div>
@@ -445,10 +450,10 @@ function BillingPageContent() {
             <p className="text-sm text-gray-500">
               {selectedPlan === "professional"
                 ? billingInterval === "year"
-                  ? "Includes a 60-day full-access annual trial."
+                  ? "Includes a 30-day full-access annual trial."
                   : "Includes a 30-day full-access trial."
                 : billingInterval === "year"
-                  ? "Includes a 60-day annual trial and agency client portal features."
+                  ? "Includes a 30-day annual trial and agency client portal features."
                   : "Includes a 30-day full-access trial and agency client portal features."}
             </p>
             <button
@@ -468,8 +473,12 @@ function BillingPageContent() {
               <CreditCard size={16} />
               {busy
                 ? "Opening..."
+                : hasStartedTrial(billing)
+                  ? billingInterval === "year"
+                    ? "Continue to annual plan"
+                    : "Continue to paid plan"
                 : billingInterval === "year"
-                  ? "Start annual trial"
+                  ? "Start 30-day free trial"
                   : "Start 30-day free trial"}
             </button>
           </div>
@@ -490,7 +499,24 @@ function BillingPageContent() {
 }
 
 function isSubscribed(billing: BillingStatus) {
-  return billing.access_allowed && billing.plan !== "free"
+  return billing.plan !== "free" && billing.customer_portal_available
+}
+
+function hasStartedTrial(billing: BillingStatus) {
+  return billing.plan !== "free" && Boolean(billing.current_period_end)
+}
+
+function getCheckoutButtonLabel(
+  billing: BillingStatus,
+  billingInterval: "month" | "year"
+) {
+  if (hasStartedTrial(billing)) {
+    return billingInterval === "year"
+      ? "Continue to annual plan"
+      : "Continue to paid plan"
+  }
+
+  return "Start 30-day free trial"
 }
 
 function formatBillingPlan(plan: string) {
