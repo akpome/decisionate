@@ -1625,6 +1625,28 @@ class DatasetSharingTests(unittest.TestCase):
             ),
         )
 
+        for source_type, encrypted_key in (
+            ("mysql", "_mysql_password_encrypted"),
+            ("sql_server", "_sql_server_password_encrypted"),
+        ):
+            self.assertEqual(
+                get_source_connection_config_status(
+                    get_dataset_source(source_type),
+                    {
+                        "host": "db.example.com",
+                        "database": "customer_reporting",
+                        "username": "reader",
+                        encrypted_key: "ciphertext",
+                        "query": "SELECT 1",
+                    },
+                ),
+                (
+                    ["host", "database", "username", "password", "query"],
+                    ["host", "database", "username", "password", "query"],
+                    [],
+                ),
+            )
+
     def test_postgresql_password_is_encrypted_before_persistence(self):
         with patch(
             "app.modules.datasets.router.encrypt_token",
@@ -1638,6 +1660,36 @@ class DatasetSharingTests(unittest.TestCase):
         self.assertEqual(
             protected,
             '{"_postgresql_password_encrypted": "ciphertext", "host": "db.example.com"}',
+        )
+
+    def test_mysql_password_is_encrypted_before_persistence(self):
+        with patch(
+            "app.modules.datasets.router.encrypt_token",
+            return_value="ciphertext",
+        ):
+            protected = protect_source_connection_config(
+                "mysql",
+                '{"host": "db.example.com", "password": "secret"}',
+            )
+
+        self.assertEqual(
+            protected,
+            '{"_mysql_password_encrypted": "ciphertext", "host": "db.example.com"}',
+        )
+
+    def test_sql_server_password_is_encrypted_before_persistence(self):
+        with patch(
+            "app.modules.datasets.router.encrypt_token",
+            return_value="ciphertext",
+        ):
+            protected = protect_source_connection_config(
+                "sql_server",
+                '{"host": "db.example.com", "password": "secret"}',
+            )
+
+        self.assertEqual(
+            protected,
+            '{"_sql_server_password_encrypted": "ciphertext", "host": "db.example.com"}',
         )
 
     def test_shopify_domain_must_be_usable_before_oauth(self):

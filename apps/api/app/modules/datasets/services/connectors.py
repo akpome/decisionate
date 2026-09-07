@@ -34,6 +34,19 @@ PAGE_SIZE = 100
 OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(hours=1)
 STRIPE_ENCRYPTED_API_KEY_CONFIG = "_stripe_api_key_encrypted"
 POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG = "_postgresql_password_encrypted"
+MYSQL_ENCRYPTED_PASSWORD_CONFIG = "_mysql_password_encrypted"
+SQL_SERVER_ENCRYPTED_PASSWORD_CONFIG = "_sql_server_password_encrypted"
+DATABASE_CONNECTOR_TYPES = {"postgresql", "mysql", "sql_server"}
+DATABASE_ENCRYPTED_PASSWORD_CONFIGS = {
+    "postgresql": POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG,
+    "mysql": MYSQL_ENCRYPTED_PASSWORD_CONFIG,
+    "sql_server": SQL_SERVER_ENCRYPTED_PASSWORD_CONFIG,
+}
+DATABASE_DEFAULT_PORTS = {
+    "postgresql": 5432,
+    "mysql": 3306,
+    "sql_server": 1433,
+}
 SALESFORCE_OBJECT_TYPES = {
     "Account",
     "Lead",
@@ -583,8 +596,22 @@ def parse_connection_config(connection: DataSourceConnection) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
-def build_postgresql_database_url(config: dict, sqlalchemy):
+def get_database_encrypted_password_config(source_type: str) -> str:
+    try:
+        return DATABASE_ENCRYPTED_PASSWORD_CONFIGS[source_type]
+    except KeyError as error:
+        raise ConnectorUnavailable(
+            f"{source_type} is not a supported database connector"
+        ) from error
+
+
+def build_database_url(source_type: str, config: dict, sqlalchemy):
     """Build a customer-specific SQLAlchemy URL without string interpolation."""
+    if source_type not in DATABASE_CONNECTOR_TYPES:
+        raise ConnectorUnavailable(
+            f"{source_type} is not a supported database connector"
+        )
+
     host = str(config.get("host") or "").strip()
     database = str(config.get("database") or "").strip()
     username = str(config.get("username") or "").strip()
@@ -592,14 +619,14 @@ def build_postgresql_database_url(config: dict, sqlalchemy):
 
     if not password:
         encrypted_password = str(
-            config.get(POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG) or ""
+            config.get(get_database_encrypted_password_config(source_type)) or ""
         ).strip()
         if encrypted_password:
             try:
                 password = str(decrypt_token(encrypted_password) or "").strip()
             except OAuthProviderUnavailable as error:
                 raise ConnectorUnavailable(
-                    "The stored PostgreSQL password could not be decrypted"
+                    f"The stored {source_type} password could not be decrypted"
                 ) from error
 
     missing = [
@@ -614,43 +641,62 @@ def build_postgresql_database_url(config: dict, sqlalchemy):
     ]
     if missing:
         raise ConnectorUnavailable(
-            "PostgreSQL connection settings are missing: "
+            f"{source_type} connection settings are missing: "
             + ", ".join(missing)
         )
 
     try:
-        port = int(str(config.get("port") or "5432").strip())
+        port = int(
+            str(config.get("port") or DATABASE_DEFAULT_PORTS[source_type]).strip()
+        )
     except (TypeError, ValueError) as error:
         raise ConnectorUnavailable(
-            "PostgreSQL port must be a number between 1 and 65535"
+            f"{source_type} port must be a number between 1 and 65535"
         ) from error
     if not 1 <= port <= 65535:
         raise ConnectorUnavailable(
-            "PostgreSQL port must be a number between 1 and 65535"
+            f"{source_type} port must be a number between 1 and 65535"
         )
 
-    sslmode = str(config.get("sslmode") or "require").strip().lower()
-    if sslmode not in {
-        "disable",
-        "allow",
-        "prefer",
-        "require",
-        "verify-ca",
-        "verify-full",
-    }:
-        raise ConnectorUnavailable(
-            "PostgreSQL SSL mode is invalid"
-        )
+    if source_type == "postgresql":
+        sslmode = str(config.get("sslmode") or "require").strip().lower()
+        if sslmode not in {
+            "disable",
+            "allow",
+            "prefer",
+            "require",
+            "verify-ca",
+            "verify-full",
+        }:
+            raise ConnectorUnavailable("PostgreSQL SSL mode is invalid")
+        drivername = "postgresql+psycopg"
+        query = {"sslmode": sslmode}
+    elif source_type == "mysql":
+        sslmode = str(config.get("sslmode") or "require").strip().lower()
+        if sslmode not in {"disable", "prefer", "require"}:
+            raise ConnectorUnavailable("MySQL SSL mode must be disable, prefer, or require")
+        drivername = "mysql+pymysql"
+        # PyMySQL negotiates TLS by default when the server supports it. The
+        # explicit disable mode is the only mode that needs a driver option.
+        query = {"ssl_disabled": "true"} if sslmode == "disable" else {}
+    else:
+        drivername = "mssql+pymssql"
+        query = {}
 
     return sqlalchemy.engine.URL.create(
-        drivername="postgresql+psycopg",
+        drivername=drivername,
         username=username,
         password=password,
         host=host,
         port=port,
         database=database,
-        query={"sslmode": sslmode},
+        query=query,
     )
+
+
+def build_postgresql_database_url(config: dict, sqlalchemy):
+    """Backward-compatible PostgreSQL URL helper for existing callers."""
+    return build_database_url("postgresql", config, sqlalchemy)
 
 
 def _dynamic_column_name(prefix: str, key) -> str:
@@ -3678,17 +3724,18 @@ def load_database_dataframe(
             "Database connectors require SQLAlchemy"
         ) from error
 
-    if connection.source_type == "postgresql" and any(
+    if connection.source_type in DATABASE_CONNECTOR_TYPES and any(
         config.get(key)
         for key in (
             "host",
             "database",
             "username",
             "password",
-            POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG,
+            get_database_encrypted_password_config(connection.source_type),
         )
     ):
-        database_url = build_postgresql_database_url(
+        database_url = build_database_url(
+            connection.source_type,
             config,
             sqlalchemy,
         )

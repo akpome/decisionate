@@ -1134,14 +1134,56 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(url.drivername, "postgresql+psycopg")
         self.assertEqual(url.port, 5432)
         self.assertEqual(url.query["sslmode"], "require")
-        self.assertIn(
-            "secret%20password",
-            url.render_as_string(hide_password=False),
-        )
+        self.assertEqual(url.password, "secret password")
         self.assertNotIn(
             "secret password",
             str(url),
         )
+
+    def test_mysql_customer_config_builds_a_driver_url(self):
+        with patch.object(
+            connectors,
+            "decrypt_token",
+            return_value="secret password",
+        ):
+            url = connectors.build_database_url(
+                "mysql",
+                {
+                    "host": "mysql.example.com",
+                    "database": "customer_reporting",
+                    "username": "reader",
+                    "_mysql_password_encrypted": "ciphertext",
+                },
+                sqlalchemy,
+            )
+
+        self.assertEqual(url.drivername, "mysql+pymysql")
+        self.assertEqual(url.port, 3306)
+        self.assertEqual(url.query, {})
+        self.assertEqual(url.password, "secret password")
+        self.assertNotIn("secret password", str(url))
+
+    def test_sql_server_customer_config_builds_a_driver_url(self):
+        with patch.object(
+            connectors,
+            "decrypt_token",
+            return_value="secret password",
+        ):
+            url = connectors.build_database_url(
+                "sql_server",
+                {
+                    "host": "sql.example.com",
+                    "database": "CustomerReporting",
+                    "username": "reader",
+                    "_sql_server_password_encrypted": "ciphertext",
+                },
+                sqlalchemy,
+            )
+
+        self.assertEqual(url.drivername, "mssql+pymssql")
+        self.assertEqual(url.port, 1433)
+        self.assertEqual(url.password, "secret password")
+        self.assertNotIn("secret password", str(url))
 
     def test_database_queries_reject_mutations_and_multiple_statements(self):
         with self.assertRaises(connectors.ConnectorUnavailable):

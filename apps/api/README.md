@@ -276,12 +276,14 @@ with the provider's read-only OAuth consent and the selected business resource
 owner ID returned during authorization. The default adapter targets the Sage
 UK/Ireland Accounting API path; set `SAGE_API_BASE_URL` for another supported
 country or deployment endpoint.
-PostgreSQL, MySQL, and SQL Server require their corresponding read-only source
-URL and a SELECT or WITH query on the connection. Connector source status in
-the Connections page reports which server-side requirement is missing. Use
-provider-native read-only or minimum-scope credentials wherever available;
-SQL validation is an additional guard, not a replacement for a read-only
-database role.
+PostgreSQL, MySQL, and SQL Server use customer-specific connection settings:
+host, optional port, database, read-only username, password, and a SELECT or
+WITH query. Passwords are encrypted before persistence. PostgreSQL and MySQL
+also expose an SSL mode; SQL Server uses the `pymssql` driver. The three
+legacy `*_SOURCE_URL` environment variables remain optional fallbacks for old
+rows, but new connections do not require server-wide database credentials.
+Use provider-native read-only credentials wherever available; SQL validation is
+an additional guard, not a replacement for a read-only database role.
 
 ## Analytics Engine
 

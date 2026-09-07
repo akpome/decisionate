@@ -132,26 +132,55 @@ DATASET_SOURCES = [
         "type": "mysql",
         "label": "MySQL",
         "category": "databases",
-        "status": "planned",
+        "status": "available",
         "connection_type": "database",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["connection_name", "query"],
-        "required_config_keys": ["query"],
+        "config_keys": [
+            "host",
+            "port",
+            "database",
+            "username",
+            "password",
+            "sslmode",
+            "query",
+        ],
+        "required_config_keys": [
+            "host",
+            "database",
+            "username",
+            "password",
+            "query",
+        ],
         "description": (
-            "Connect MySQL operational data for analysis and decision support."
+            "Connect a customer MySQL database with a read-only account "
+            "and ingest a selected dataset query."
         ),
     },
     {
         "type": "sql_server",
         "label": "SQL Server",
         "category": "databases",
-        "status": "planned",
+        "status": "available",
         "connection_type": "database",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["connection_name", "query"],
-        "required_config_keys": ["query"],
+        "config_keys": [
+            "host",
+            "port",
+            "database",
+            "username",
+            "password",
+            "query",
+        ],
+        "required_config_keys": [
+            "host",
+            "database",
+            "username",
+            "password",
+            "query",
+        ],
         "description": (
-            "Connect Microsoft SQL Server data for operational reporting."
+            "Connect a customer Microsoft SQL Server database with a "
+            "read-only account and ingest a selected dataset query."
         ),
     },
     {
@@ -293,12 +322,6 @@ DATASET_SOURCES = [
 
 
 DATASET_SOURCE_ENV_KEYS = {
-    "mysql": [
-        "MYSQL_SOURCE_URL",
-    ],
-    "sql_server": [
-        "SQL_SERVER_SOURCE_URL",
-    ],
     "shopify": [
         "SHOPIFY_CLIENT_ID",
         "SHOPIFY_CLIENT_SECRET",
@@ -590,21 +613,6 @@ def clone_dataset_source(source):
                     "key, and token encryption on the Decisionate server to "
                     "enable sync.",
                 )
-            )
-
-    database_environment_keys = {
-        "mysql": "MYSQL_SOURCE_URL",
-        "sql_server": "SQL_SERVER_SOURCE_URL",
-    }
-    if source["type"] in database_environment_keys:
-        environment_key = database_environment_keys[source["type"]]
-        if str(os.getenv(environment_key, "") or "").strip():
-            cloned_source["status"] = "available"
-        else:
-            cloned_source["status"] = "needs_setup"
-            cloned_source["availability_note"] = (
-                f"Configure {environment_key} on the Decisionate server "
-                "before running a read-only query."
             )
 
     return cloned_source

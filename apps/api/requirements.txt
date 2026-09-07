@@ -11,6 +11,8 @@ PyJWT
 python-multipart
 cryptography
 psycopg[binary]
+pymysql
+pymssql
 boto3
 azure-storage-blob
 google-cloud-storage

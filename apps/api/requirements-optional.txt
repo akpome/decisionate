@@ -6,6 +6,5 @@ google-cloud-bigquery
 # Future analytics and connector packages.
 # duckdb
 # psycopg[binary]
-# pymysql
 # pyodbc
 # snowflake-connector-python

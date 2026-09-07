@@ -819,7 +819,11 @@ function DataSourceConnectionRow({
                 }
                 secret={connection.source_type === "stripe"}
                 secretKeys={
-                  connection.source_type === "postgresql"
+                  [
+                    "postgresql",
+                    "mysql",
+                    "sql_server",
+                  ].includes(connection.source_type)
                     ? ["password"]
                     : []
                 }
@@ -1580,9 +1584,29 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   mysql: {
-    connection_name: {
-      description: "A name for this read-only database connection.",
-      example: "Reporting database",
+    host: {
+      description: "The hostname or IP address of the customer's MySQL server.",
+      example: "mysql.customer.com",
+    },
+    port: {
+      description: "The MySQL port. Leave it blank to use the standard 3306 port.",
+      example: "3306",
+    },
+    database: {
+      description: "The name of the customer's MySQL database.",
+      example: "customer_reporting",
+    },
+    username: {
+      description: "A dedicated MySQL user with read-only access to the selected dataset.",
+      example: "decisionate_reader",
+    },
+    password: {
+      description: "The password for the read-only MySQL user. It is encrypted before storage.",
+      example: "Enter the database password",
+    },
+    sslmode: {
+      description: "Use require for the normal encrypted connection. Choose disable only for a trusted private network.",
+      example: "require",
     },
     query: {
       description: "One read-only SELECT or WITH query using your own table and column names.",
@@ -1590,9 +1614,25 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   sql_server: {
-    connection_name: {
-      description: "A name for this read-only database connection.",
-      example: "Reporting database",
+    host: {
+      description: "The hostname or IP address of the customer's SQL Server.",
+      example: "sql.customer.com",
+    },
+    port: {
+      description: "The SQL Server port. Leave it blank to use the standard 1433 port.",
+      example: "1433",
+    },
+    database: {
+      description: "The name of the customer's SQL Server database.",
+      example: "CustomerReporting",
+    },
+    username: {
+      description: "A dedicated SQL Server login with read-only access to the selected dataset.",
+      example: "decisionate_reader",
+    },
+    password: {
+      description: "The password for the read-only SQL Server login. It is encrypted before storage.",
+      example: "Enter the database password",
     },
     query: {
       description: "One read-only SELECT or WITH query using your own table and column names.",
@@ -1747,7 +1787,7 @@ export function ConnectionSetupGuide({
 
         {source.connection_type === "database" && (
           <p className="rounded-md bg-amber-50 px-2 py-2 leading-4 text-amber-800">
-            Use a dedicated read-only database user. The PostgreSQL server must be reachable from the Decisionate API, and the query must be a single read-only SELECT or WITH statement using your database&apos;s tables and columns.
+            Use a dedicated read-only database user. The database server must be reachable from the Decisionate API, and the query must be a single read-only SELECT or WITH statement using your database&apos;s tables and columns.
           </p>
         )}
       </div>
