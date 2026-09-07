@@ -72,6 +72,29 @@ class AICreditTests(unittest.TestCase):
                 estimated_tokens=1000,
             )
 
+    def test_annual_subscription_gets_twelve_monthly_credits(self):
+        subscription = WorkspaceSubscription(
+            workspace_id="workspace-1",
+            plan="professional",
+            billing_interval="year",
+            additional_client_workspaces=0,
+            additional_ai_credit_packs=0,
+        )
+
+        with patch.object(
+            credits,
+            "get_billing_plan_definition",
+            return_value={"ai_credit_limit": 5000},
+        ), patch.object(
+            credits,
+            "get_ai_credit_allocations",
+            return_value={"additional_client_workspace": 2500},
+        ):
+            self.assertEqual(
+                credits._get_credit_limit(subscription),
+                60000,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

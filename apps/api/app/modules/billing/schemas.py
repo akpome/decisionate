@@ -11,6 +11,7 @@ class BillingPlanOption(BaseModel):
     annual_price_cents: int | None = None
     included_client_workspaces: int | None = None
     ai_credit_limit: int
+    annual_ai_credit_limit: int
     configured: bool
     monthly_configured: bool = False
     annual_configured: bool = False
@@ -28,6 +29,7 @@ class BillingStatusResponse(BaseModel):
     customer_portal_available: bool = False
     plan_name: str = "Free"
     billing_model: str = "direct"
+    billing_interval: str = "month"
     monthly_price_cents: int | None = None
     included_client_workspaces: int | None = 0
     client_workspace_limit: int | None = 0
@@ -40,6 +42,7 @@ class BillingStatusResponse(BaseModel):
     ai_credit_pack_configured: bool = False
     additional_client_workspace_ai_credits: int = 2500
     included_ai_credits: int = 0
+    annual_ai_credit_limit: int = 0
     ai_credits_used: int = 0
     ai_credits_remaining: int = 0
     access_status: str = "untracked"

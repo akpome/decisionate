@@ -504,6 +504,7 @@ export type BillingStatus = {
   customer_portal_available: boolean
   plan_name: string
   billing_model: "direct" | "agency"
+  billing_interval: "month" | "year"
   monthly_price_cents?: number | null
   included_client_workspaces?: number | null
   client_workspace_limit?: number | null
@@ -516,6 +517,7 @@ export type BillingStatus = {
   ai_credit_pack_size: number
   ai_credit_pack_configured: boolean
   included_ai_credits: number
+  annual_ai_credit_limit: number
   ai_credits_used: number
   ai_credits_remaining: number
   access_status: string
@@ -548,6 +550,7 @@ export type BillingPlanOption = {
   annual_price_cents?: number | null
   included_client_workspaces?: number | null
   ai_credit_limit: number
+  annual_ai_credit_limit: number
   configured: boolean
   monthly_configured: boolean
   annual_configured: boolean

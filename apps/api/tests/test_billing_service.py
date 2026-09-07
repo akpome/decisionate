@@ -10,8 +10,10 @@ from unittest.mock import patch
 from app.db.models import WorkspaceSubscription
 from app.modules.billing.lifecycle import build_subscription_access_state
 from app.modules.billing.service import (
+    ANNUAL_AI_CREDIT_MULTIPLIER,
     BillingWebhookSignatureError,
     create_checkout_session,
+    get_billing_period_ai_credit_limit,
     verify_stripe_webhook,
 )
 
@@ -31,6 +33,16 @@ class FakeResponse:
 
 
 class BillingServiceTests(unittest.TestCase):
+    def test_annual_ai_credit_limit_is_twelve_months(self):
+        self.assertEqual(
+            get_billing_period_ai_credit_limit(5000, "year"),
+            5000 * ANNUAL_AI_CREDIT_MULTIPLIER,
+        )
+        self.assertEqual(
+            get_billing_period_ai_credit_limit(5000, "month"),
+            5000,
+        )
+
     def test_subscription_lifecycle_allows_active_period(self):
         now = datetime(2026, 1, 1)
         subscription = WorkspaceSubscription(

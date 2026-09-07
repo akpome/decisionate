@@ -242,11 +242,11 @@ export const faqs = [
   },
   {
     question: "What does the free trial include?",
-    answer: "The 30-day free trial provides the full Professional or Agency feature set, with the plan's included AI credits, and no credit card is required. Professional is $79 CAD/month or $790 CAD/year. Agency is $199 CAD/month or $1,990 CAD/year and includes up to 10 client workspaces. Additional client workspaces are $20 CAD/month or $200 CAD/year each.",
+    answer: "The 30-day free trial provides the full Professional or Agency feature set, with the plan's included AI credits, and no credit card is required. Professional includes 5,000 AI credits/month or 60,000/year and costs $79 CAD/month or $790 CAD/year. Agency includes 25,000 AI credits/month or 300,000/year and costs $199 CAD/month or $1,990 CAD/year, with up to 10 client workspaces. Additional client workspaces are $20 CAD/month or $200 CAD/year each.",
   },
   {
     question: "What are Decisionate AI credits?",
-    answer: "Decisionate AI credits are an application usage allowance, not OpenAI credits or currency. The default allocations are 1,000 for Free, 5,000 for Professional and 25,000 for Agency. Allocations can be adjusted by the platform administrator as usage and provider costs change.",
+    answer: "Decisionate AI credits are an application usage allowance, not OpenAI credits or currency. The default monthly allocations are 1,000 for Free, 5,000 for Professional and 25,000 for Agency; annual allocations are twelve times those amounts: 12,000, 60,000 and 300,000. Allocations can be adjusted by the platform administrator as usage and provider costs change.",
   },
   {
     question: "Is my data secure?",

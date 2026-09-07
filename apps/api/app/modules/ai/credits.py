@@ -11,6 +11,7 @@ from app.configuration import get_runtime_configuration
 from app.modules.billing.service import (
     FREE_PLAN,
     get_billing_plan_definition,
+    get_billing_period_ai_credit_limit,
     get_ai_credit_allocations,
     get_ai_credit_pack_size,
     get_billing_config,
@@ -129,16 +130,20 @@ def _get_credit_limit(
 ) -> int | None:
     plan = normalize_billing_plan(subscription.plan)
     if ":client:" in str(subscription.workspace_id or ""):
-        plan_limit = int(
+        monthly_plan_limit = int(
             get_ai_credit_allocations().get(
                 "agency_client",
                 0,
             )
         )
     else:
-        plan_limit = int(
+        monthly_plan_limit = int(
             get_billing_plan_definition(plan)["ai_credit_limit"]
         )
+    plan_limit = get_billing_period_ai_credit_limit(
+        monthly_plan_limit,
+        subscription.billing_interval,
+    )
     additional_packs = max(
         int(subscription.additional_ai_credit_packs or 0),
         0,
@@ -147,9 +152,13 @@ def _get_credit_limit(
         int(subscription.additional_client_workspaces or 0),
         0,
     )
-    additional_workspace_credits = get_ai_credit_allocations().get(
+    monthly_additional_workspace_credits = get_ai_credit_allocations().get(
         "additional_client_workspace",
         0,
+    )
+    additional_workspace_credits = get_billing_period_ai_credit_limit(
+        monthly_additional_workspace_credits,
+        subscription.billing_interval,
     )
     return (
         plan_limit

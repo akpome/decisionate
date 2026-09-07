@@ -35,6 +35,7 @@ ANNUAL_TRIAL_PERIOD_DAYS = TRIAL_PERIOD_DAYS
 ADDITIONAL_CLIENT_WORKSPACE_PRICE_CENTS = 2000
 ADDITIONAL_CLIENT_WORKSPACE_ANNUAL_PRICE_CENTS = 20000
 AI_CREDIT_PACK_SIZE = 5000
+ANNUAL_AI_CREDIT_MULTIPLIER = 12
 DEFAULT_ADDITIONAL_CLIENT_WORKSPACE_AI_CREDITS = 2500
 DEFAULT_AGENCY_CLIENT_AI_CREDITS = 2500
 AI_CREDIT_ALLOCATION_COLUMNS = {
@@ -241,7 +242,24 @@ def get_billing_plan_definition(plan: str | None) -> dict:
         normalized_plan,
         definition["ai_credit_limit"],
     )
+    definition["annual_ai_credit_limit"] = (
+        definition["ai_credit_limit"]
+        * ANNUAL_AI_CREDIT_MULTIPLIER
+    )
     return definition
+
+
+def get_billing_period_ai_credit_limit(
+    monthly_limit: int,
+    billing_interval: str | None = BILLING_INTERVAL_MONTH,
+) -> int:
+    multiplier = (
+        ANNUAL_AI_CREDIT_MULTIPLIER
+        if normalize_billing_interval(billing_interval)
+        == BILLING_INTERVAL_YEAR
+        else 1
+    )
+    return max(int(monthly_limit or 0), 0) * multiplier
 
 
 def get_billing_plan_options() -> list[dict]:

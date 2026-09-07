@@ -369,7 +369,7 @@ export function PricingSection() {
       featured: false,
       items: [
         "1 workspace",
-        "1,000 included Decisionate AI credits",
+        "1,000 AI credits/month or 12,000/year",
         "Full access for 30 days",
       ],
     },
@@ -389,7 +389,7 @@ export function PricingSection() {
         "AI-powered recommendations",
         "Decision management",
         "Outcome tracking",
-        "5,000 included Decisionate AI credits",
+        "5,000 AI credits/month or 60,000/year",
       ],
     },
     {
@@ -406,7 +406,7 @@ export function PricingSection() {
         "White-label client portal",
         "Agency branding",
         "Industry dashboards",
-        "25,000 included Decisionate AI credits",
+        "25,000 AI credits/month or 300,000/year",
       ],
     },
   ] as const
@@ -459,14 +459,14 @@ export function PricingSection() {
                 <th className="px-4 py-3 text-right font-bold">Price (CAD)</th>
                 <th className="px-4 py-3 text-right font-bold">Annual (CAD)</th>
                 <th className="px-4 py-3 text-right font-bold">Client workspaces</th>
-                <th className="px-4 py-3 text-right font-bold">AI credits</th>
+                <th className="px-4 py-3 text-right font-bold">AI credits (monthly / annual)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {[
-                ["Free", "$0 CAD", "$0 CAD", "1", "1,000"],
-                ["Professional", "$79 CAD", "$790 CAD", "1", "5,000"],
-                ["Agency", "$199 CAD", "$1,990 CAD", "10", "25,000"],
+                ["Free", "$0 CAD", "$0 CAD", "1", "1,000 / 12,000"],
+                ["Professional", "$79 CAD", "$790 CAD", "1", "5,000 / 60,000"],
+                ["Agency", "$199 CAD", "$1,990 CAD", "10", "25,000 / 300,000"],
                 ["Additional client workspace", "+$20 CAD", "+$200 CAD", "+1", "TBD"],
               ].map(([name, price, annual, workspaces, credits]) => (
                 <tr key={name}>

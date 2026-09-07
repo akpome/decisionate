@@ -366,7 +366,10 @@ function BillingPageContent() {
                         : "1 workspace with full access"}
                     </p>
                     <p className="mt-2 text-sm text-gray-600">
-                      {option.ai_credit_limit.toLocaleString()} included AI credits per billing period
+                      {(billingInterval === "year"
+                        ? option.annual_ai_credit_limit
+                        : option.ai_credit_limit
+                      ).toLocaleString()} included AI credits per {billingInterval === "year" ? "year" : "month"}
                     </p>
                     <p className="mt-3 text-xs leading-5 text-gray-500">
                       {isAgency

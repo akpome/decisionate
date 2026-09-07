@@ -36,8 +36,10 @@ from app.modules.billing.service import (
     PROFESSIONAL_PLAN,
     ADDITIONAL_CLIENT_WORKSPACE_PRICE_CENTS,
     ADDITIONAL_CLIENT_WORKSPACE_ANNUAL_PRICE_CENTS,
+    ANNUAL_AI_CREDIT_MULTIPLIER,
     get_ai_credit_allocations,
     get_ai_credit_pack_size,
+    get_billing_period_ai_credit_limit,
     normalize_billing_plan,
     PUBLIC_BILLING_PLANS,
     TRIAL_PERIOD_DAYS,
@@ -166,6 +168,11 @@ async def get_billing_status(
             subscription.plan if subscription else FREE_PLAN
         )
         plan_definition = get_billing_plan_definition(plan)
+        billing_interval = normalize_billing_interval(
+            subscription.billing_interval
+            if subscription
+            else None
+        )
         additional_client_workspaces = int(
             subscription.additional_client_workspaces
             if subscription
@@ -180,15 +187,29 @@ async def get_billing_status(
             additional_client_workspaces,
         )
         ai_credit_allocations = get_ai_credit_allocations()
-        included_ai_credits = int(
+        monthly_included_ai_credits = int(
             ai_credit_allocations["agency_client"]
             if ":client:" in auth_context.workspace_id
             else plan_definition["ai_credit_limit"]
+        )
+        annual_ai_credit_limit = (
+            monthly_included_ai_credits
+            * ANNUAL_AI_CREDIT_MULTIPLIER
+        )
+        included_ai_credits = get_billing_period_ai_credit_limit(
+            monthly_included_ai_credits,
+            billing_interval,
         )
         additional_client_workspace_ai_credits = int(
             ai_credit_allocations[
                 "additional_client_workspace"
             ]
+        )
+        effective_additional_client_workspace_ai_credits = (
+            get_billing_period_ai_credit_limit(
+                additional_client_workspace_ai_credits,
+                billing_interval,
+            )
         )
         ai_credits_used = int(
             subscription.ai_credits_used
@@ -203,7 +224,7 @@ async def get_billing_status(
         total_ai_credit_limit = (
             included_ai_credits
             + additional_client_workspaces
-            * additional_client_workspace_ai_credits
+            * effective_additional_client_workspace_ai_credits
             + additional_ai_credit_packs
             * get_ai_credit_pack_size()
         )
@@ -230,6 +251,7 @@ async def get_billing_status(
             ),
             plan_name=plan_definition["name"],
             billing_model=plan_definition["billing_model"],
+            billing_interval=billing_interval,
             monthly_price_cents=plan_definition["monthly_price_cents"],
             included_client_workspaces=plan_definition[
                 "included_client_workspaces"
@@ -249,9 +271,10 @@ async def get_billing_status(
                 config.get("ai_credit_pack_price_id")
             ),
             additional_client_workspace_ai_credits=(
-                additional_client_workspace_ai_credits
+                effective_additional_client_workspace_ai_credits
             ),
             included_ai_credits=included_ai_credits,
+            annual_ai_credit_limit=annual_ai_credit_limit,
             ai_credits_used=ai_credits_used,
             ai_credits_remaining=max(
                 total_ai_credit_limit - ai_credits_used,
