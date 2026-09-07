@@ -67,6 +67,50 @@ router = APIRouter()
 MAX_DASHBOARD_TITLE_LENGTH = 120
 MAX_DASHBOARD_SUBTITLE_LENGTH = 220
 MAX_DASHBOARD_CHART_TITLE_LENGTH = 80
+ONBOARDING_BUSINESS_TYPES = {"business", "agency"}
+ONBOARDING_COUNTRIES = {
+    "Australia",
+    "Canada",
+    "Nigeria",
+    "United Kingdom",
+    "United States",
+    "Other",
+}
+ONBOARDING_INDUSTRIES = {
+    "Agriculture",
+    "Construction",
+    "Education",
+    "Financial services",
+    "Healthcare",
+    "Hospitality",
+    "Manufacturing",
+    "Marketing and advertising",
+    "Nonprofit",
+    "Professional services",
+    "Real estate",
+    "Retail and ecommerce",
+    "Technology",
+    "Other",
+}
+ONBOARDING_COMPANY_SIZES = {"1-10", "11-50", "51-250", "251-1000", "1000+"}
+ONBOARDING_AGENCY_CLIENT_COUNTS = {"1-5", "6-10", "11-25", "26-50", "50+"}
+ONBOARDING_ROLES = {
+    "Business owner or founder",
+    "Agency owner or lead",
+    "Finance",
+    "Marketing",
+    "Operations",
+    "Analyst",
+    "Other",
+}
+ONBOARDING_GOALS = {
+    "Understand business performance",
+    "Automate reporting",
+    "Find growth opportunities",
+    "Improve operational decisions",
+    "Monitor outcomes and accountability",
+    "Other",
+}
 DEFAULT_SELECTED_DASHBOARD = "general-business"
 VALID_SELECTED_DASHBOARDS = {
     DEFAULT_SELECTED_DASHBOARD,
@@ -716,6 +760,33 @@ def clean_organization_name(
     return clean_name
 
 
+def clean_required_onboarding_value(
+    value,
+    field_label: str,
+    allowed_values: set[str] | None = None,
+    lowercase: bool = False,
+):
+    clean_value = clean_optional_organization_text(
+        value,
+        field_label,
+        120,
+    )
+    if clean_value is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field_label} is required",
+        )
+
+    normalized_value = clean_value.lower() if lowercase else clean_value
+    if allowed_values and normalized_value not in allowed_values:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Choose a valid {field_label.lower()}",
+        )
+
+    return normalized_value
+
+
 def clean_optional_organization_text(
     value,
     field_label: str,
@@ -868,6 +939,13 @@ def build_organization_response(
         "primary_color": organization.primary_color,
         "accent_color": organization.accent_color,
         "report_display_name": organization.report_display_name,
+        "business_type": organization.business_type,
+        "country": organization.country,
+        "industry": organization.industry,
+        "company_size": organization.company_size,
+        "agency_client_count": organization.agency_client_count,
+        "role": organization.role,
+        "primary_goal": organization.primary_goal,
         "agency_owner_access_enabled": bool(
             organization.agency_owner_access_enabled
         ),
@@ -1352,6 +1430,63 @@ async def create_organization(
             detail="Choose Professional or Agency for your free trial",
         )
 
+    first_name = clean_required_onboarding_value(
+        organization.first_name,
+        "First name",
+    )
+    last_name = clean_required_onboarding_value(
+        organization.last_name,
+        "Last name",
+    )
+    business_type = clean_required_onboarding_value(
+        organization.business_type,
+        "Business type",
+        ONBOARDING_BUSINESS_TYPES,
+        lowercase=True,
+    )
+    expected_plan = (
+        AGENCY_PLAN
+        if business_type == "agency"
+        else PROFESSIONAL_PLAN
+    )
+    if selected_plan != expected_plan:
+        raise HTTPException(
+            status_code=400,
+            detail="Business type and trial plan must match",
+        )
+    country = clean_required_onboarding_value(
+        organization.country,
+        "Country",
+        ONBOARDING_COUNTRIES,
+    )
+    industry = clean_required_onboarding_value(
+        organization.industry,
+        "Industry",
+        ONBOARDING_INDUSTRIES,
+    )
+    company_size = clean_required_onboarding_value(
+        organization.company_size,
+        "Company size",
+        ONBOARDING_COMPANY_SIZES,
+    )
+    role = clean_required_onboarding_value(
+        organization.role,
+        "Role",
+        ONBOARDING_ROLES,
+    )
+    primary_goal = clean_required_onboarding_value(
+        organization.primary_goal,
+        "Primary goal",
+        ONBOARDING_GOALS,
+    )
+    agency_client_count = None
+    if business_type == "agency":
+        agency_client_count = clean_required_onboarding_value(
+            organization.agency_client_count,
+            "Agency client count",
+            ONBOARDING_AGENCY_CLIENT_COUNTS,
+        )
+
     db = SessionLocal()
 
     try:
@@ -1370,6 +1505,13 @@ async def create_organization(
                 organization.name,
             ),
             owner_user_id=user_id,
+            business_type=business_type,
+            country=country,
+            industry=industry,
+            company_size=company_size,
+            agency_client_count=agency_client_count,
+            role=role,
+            primary_goal=primary_goal,
         )
         apply_organization_branding(
             organization_record,
@@ -1379,6 +1521,18 @@ async def create_organization(
         db.add(organization_record)
 
         db.flush()
+
+        profile_user = (
+            db.query(AppUser)
+            .filter(AppUser.id == user_id)
+            .first()
+        )
+        if profile_user:
+            profile_user.first_name = first_name
+            profile_user.last_name = last_name
+            profile_user.display_name = f"{first_name} {last_name}"
+            if auth_context.email and not profile_user.email:
+                profile_user.email = auth_context.email
 
         ensure_owner_membership(
             db,

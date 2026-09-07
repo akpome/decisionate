@@ -78,8 +78,8 @@ export default function PrivacyPage() {
 
       <PolicySection title="2. Information we handle">
         <ul className="list-disc space-y-2 pl-6">
-          <li>Account and identity data such as name, email address, external authentication identifier, and internal Decisionate user identifier.</li>
-          <li>Workspace data such as workspace name, members, roles, invitations, branding, preferences, subscriptions, and access records.</li>
+          <li>Account and identity data such as first and last name, work email address, password or other authentication handled by Clerk, external authentication identifier, and internal Decisionate user identifier.</li>
+          <li>Workspace and onboarding data such as workspace name, business type, country, industry, company size, agency client-count range, role, primary goal, members, roles, invitations, branding, preferences, subscriptions, and access records.</li>
           <li>Business data such as uploaded files, connector data, dataset columns and metrics, reports, forecasts, relationships, alerts, decisions, expected and actual outcomes, and lessons learned.</li>
           <li>Operational data such as usage events, AI-credit consumption, delivery status, audit activity, error context, and service configuration.</li>
           <li>Billing data needed to identify a subscription and process webhooks. Stripe handles payment-card details through its checkout and billing services.</li>

@@ -25,22 +25,83 @@ const onboardingUseCases = [
   "Shared client reporting portal",
 ]
 
-const signupPlans = [
+const workspaceTypes = [
   {
-    value: "professional",
-    name: "Professional",
-    description: "For one business workspace.",
-    detail: "5,000 Decisionate AI credits/month",
+    value: "business",
+    name: "Business",
+    description: "For your own business workspace.",
+    detail: "Professional trial · 5,000 Decisionate AI credits/month",
   },
   {
     value: "agency",
     name: "Agency",
-    description: "For an agency managing clients.",
-    detail: "Up to 10 client workspaces · 25,000 credits/month",
+    description: "For an agency managing client workspaces.",
+    detail: "Agency trial · Up to 10 client workspaces · 25,000 credits/month",
   },
 ] as const
 
-type SignupPlan = (typeof signupPlans)[number]["value"]
+type BusinessType = (typeof workspaceTypes)[number]["value"]
+
+const countryOptions = [
+  "Canada",
+  "United States",
+  "United Kingdom",
+  "Australia",
+  "Nigeria",
+  "Other",
+]
+
+const industryOptions = [
+  "Agriculture",
+  "Construction",
+  "Education",
+  "Financial services",
+  "Healthcare",
+  "Hospitality",
+  "Manufacturing",
+  "Marketing and advertising",
+  "Nonprofit",
+  "Professional services",
+  "Real estate",
+  "Retail and ecommerce",
+  "Technology",
+  "Other",
+]
+
+const companySizeOptions = [
+  "1-10",
+  "11-50",
+  "51-250",
+  "251-1000",
+  "1000+",
+]
+
+const agencyClientCountOptions = [
+  "1-5",
+  "6-10",
+  "11-25",
+  "26-50",
+  "50+",
+]
+
+const roleOptions = [
+  "Business owner or founder",
+  "Agency owner or lead",
+  "Finance",
+  "Marketing",
+  "Operations",
+  "Analyst",
+  "Other",
+]
+
+const primaryGoalOptions = [
+  "Understand business performance",
+  "Automate reporting",
+  "Find growth opportunities",
+  "Improve operational decisions",
+  "Monitor outcomes and accountability",
+  "Other",
+]
 
 function getOnboardingErrorMessage(
   error: unknown,
@@ -63,8 +124,17 @@ export default function OnboardingPage() {
 
   const [organizationName, setOrganizationName] =
     useState("")
-  const [selectedPlan, setSelectedPlan] =
-    useState<SignupPlan>("professional")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [businessType, setBusinessType] =
+    useState<BusinessType>("business")
+  const [country, setCountry] = useState("")
+  const [industry, setIndustry] = useState("")
+  const [companySize, setCompanySize] = useState("")
+  const [agencyClientCount, setAgencyClientCount] = useState("")
+  const [role, setRole] = useState("")
+  const [primaryGoal, setPrimaryGoal] = useState("")
+  const [step, setStep] = useState<1 | 2>(1)
 
   const [loading, setLoading] =
     useState(false)
@@ -77,25 +147,68 @@ export default function OnboardingPage() {
   const [errorMessage, setErrorMessage] =
     useState("")
 
-  const canCreateOrganization =
-    Boolean(organizationName.trim()) &&
+  const resolvedFirstName = firstName.trim() || user?.firstName || ""
+  const resolvedLastName = lastName.trim() || user?.lastName || ""
+  const canContinue =
+    Boolean(
+      resolvedFirstName &&
+      resolvedLastName &&
+      userEmail &&
+      organizationName.trim() &&
+      businessType &&
+      country
+    ) &&
     !loading &&
     !checkingOrganization
+  const canCreateOrganization =
+    canContinue &&
+    Boolean(
+      industry &&
+      companySize &&
+      role &&
+      primaryGoal &&
+      (businessType !== "agency" || agencyClientCount)
+    )
 
   async function handleSubmit(
     event: FormEvent
   ) {
     event.preventDefault()
 
-    if (!user?.id || !canCreateOrganization) return
+    if (!user?.id) return
+
+    if (step === 1) {
+      if (canContinue) {
+        setErrorMessage("")
+        setStep(2)
+      }
+      return
+    }
+
+    if (!canCreateOrganization) return
 
     try {
       setLoading(true)
       setErrorMessage("")
 
+      await user.update({
+        firstName: resolvedFirstName,
+        lastName: resolvedLastName,
+      })
+
       const organizationPayload: OrganizationCreatePayload = {
         name: organizationName.trim(),
-        plan: selectedPlan,
+        plan: businessType === "agency" ? "agency" : "professional",
+        first_name: resolvedFirstName,
+        last_name: resolvedLastName,
+        business_type: businessType,
+        country,
+        industry,
+        company_size: companySize,
+        agency_client_count:
+          businessType === "agency" ? agencyClientCount : null,
+        role,
+        primary_goal: primaryGoal,
       }
 
       await createOrganization(
@@ -202,109 +315,202 @@ export default function OnboardingPage() {
                 : "Checking existing workspace..."}
             </p>
           ) : (
-            <form
-              onSubmit={handleSubmit}
-              className="mt-8 space-y-4"
-            >
-            <fieldset>
-              <legend className="text-sm font-medium">
-                Choose your 30-day free trial
-              </legend>
+            <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Step {step} of 2
+              </p>
 
-              <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                {signupPlans.map((plan) => {
-                  const selected = selectedPlan === plan.value
-
-                  return (
-                    <label
-                      key={plan.value}
-                      className={`cursor-pointer rounded-xl border p-4 transition ${
-                        selected
-                          ? "border-[var(--decisionate-brand-primary)] bg-blue-50 ring-2 ring-blue-100"
-                          : "border-gray-200 bg-white hover:border-gray-300"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="signup-plan"
-                        value={plan.value}
-                        checked={selected}
-                        onChange={() => setSelectedPlan(plan.value)}
-                        className="sr-only"
-                      />
-                      <span className="flex items-center justify-between gap-3">
-                        <span className="font-semibold text-gray-900">
-                          {plan.name}
-                        </span>
-                        <span
-                          aria-hidden="true"
-                          className={`h-4 w-4 rounded-full border-4 ${
-                            selected
-                              ? "border-[var(--decisionate-brand-primary)]"
-                              : "border-gray-300"
-                          }`}
+              {step === 1 ? (
+                <>
+                  <fieldset className="space-y-4">
+                    <legend className="text-sm font-semibold text-gray-900">
+                      Your details
+                    </legend>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        First name
+                        <input
+                          type="text"
+                          value={firstName || user?.firstName || ""}
+                          onChange={(event) => setFirstName(event.target.value)}
+                          className="mt-2 w-full rounded-xl border p-3 font-normal text-gray-900"
+                          autoComplete="given-name"
+                          required
                         />
-                      </span>
-                      <span className="mt-2 block text-sm text-gray-600">
-                        {plan.description}
-                      </span>
-                      <span className="mt-2 block text-xs font-medium text-gray-500">
-                        {plan.detail}
-                      </span>
+                      </label>
+                      <label className="text-sm font-medium text-gray-700">
+                        Last name
+                        <input
+                          type="text"
+                          value={lastName || user?.lastName || ""}
+                          onChange={(event) => setLastName(event.target.value)}
+                          className="mt-2 w-full rounded-xl border p-3 font-normal text-gray-900"
+                          autoComplete="family-name"
+                          required
+                        />
+                      </label>
+                    </div>
+                    <p className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                      Work email: <span className="font-medium text-gray-900">{userEmail || "Not available"}</span>
+                    </p>
+                  </fieldset>
+
+                  <fieldset className="space-y-4">
+                    <legend className="text-sm font-semibold text-gray-900">
+                      Create your workspace
+                    </legend>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Company or agency name
+                      <input
+                        type="text"
+                        value={organizationName}
+                        onChange={(event) => {
+                          setOrganizationName(event.target.value)
+                          setErrorMessage("")
+                        }}
+                        placeholder="Acme Inc"
+                        className="mt-2 w-full rounded-xl border p-3 font-normal text-gray-900"
+                        autoComplete="organization"
+                        required
+                      />
                     </label>
-                  )
-                })}
-              </div>
 
-              <p className="mt-2 text-xs text-gray-500">
-                Full plan access for one month. No credit card is required; add payment details only if you decide to continue.
-              </p>
-            </fieldset>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Workspace type</p>
+                      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                        {workspaceTypes.map((type) => {
+                          const selected = businessType === type.value
+                          return (
+                            <label
+                              key={type.value}
+                              className={`cursor-pointer rounded-xl border p-4 transition ${
+                                selected
+                                  ? "border-[var(--decisionate-brand-primary)] bg-blue-50 ring-2 ring-blue-100"
+                                  : "border-gray-200 bg-white hover:border-gray-300"
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="business-type"
+                                value={type.value}
+                                checked={selected}
+                                onChange={() => setBusinessType(type.value)}
+                                className="sr-only"
+                              />
+                              <span className="flex items-center justify-between gap-3">
+                                <span className="font-semibold text-gray-900">{type.name}</span>
+                                <span
+                                  aria-hidden="true"
+                                  className={`h-4 w-4 rounded-full border-4 ${
+                                    selected
+                                      ? "border-[var(--decisionate-brand-primary)]"
+                                      : "border-gray-300"
+                                  }`}
+                                />
+                              </span>
+                              <span className="mt-2 block text-sm text-gray-600">{type.description}</span>
+                              <span className="mt-2 block text-xs font-medium text-gray-500">{type.detail}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
 
-            <div>
-              <label
-                htmlFor="organization-name"
-                className="mb-2 block text-sm font-medium"
-              >
-                Workspace name
-              </label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Country
+                      <select
+                        value={country}
+                        onChange={(event) => setCountry(event.target.value)}
+                        className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900"
+                        required
+                      >
+                        <option value="">Select a country</option>
+                        {countryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </label>
+                  </fieldset>
 
-              <input
-                id="organization-name"
-                type="text"
-                value={
-                  organizationName
-                }
-                onChange={(event) => {
-                  setOrganizationName(
-                    event.target.value
-                  )
-                  setErrorMessage("")
-                }}
-                placeholder="Acme Inc"
-                className="w-full rounded-xl border p-3"
-                required
-              />
-            </div>
+                  {errorMessage && <p role="alert" className="text-sm font-medium text-red-600">{errorMessage}</p>}
 
-            {errorMessage && (
-              <p
-                role="alert"
-                className="text-sm font-medium text-red-600"
-              >
-                {errorMessage}
-              </p>
-            )}
+                  <button
+                    type="submit"
+                    disabled={!canContinue}
+                    className="w-full rounded-xl bg-[var(--decisionate-brand-primary)] px-6 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 sm:w-auto"
+                  >
+                    Continue
+                  </button>
+                </>
+              ) : (
+                <>
+                  <fieldset className="space-y-4">
+                    <legend className="text-sm font-semibold text-gray-900">
+                      Personalize Decisionate
+                    </legend>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Industry
+                        <select value={industry} onChange={(event) => setIndustry(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900" required>
+                          <option value="">Select an industry</option>
+                          {industryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-sm font-medium text-gray-700">
+                        Company size
+                        <select value={companySize} onChange={(event) => setCompanySize(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900" required>
+                          <option value="">Select company size</option>
+                          {companySizeOptions.map((option) => <option key={option} value={option}>{option} people</option>)}
+                        </select>
+                      </label>
+                      {businessType === "agency" && (
+                        <label className="text-sm font-medium text-gray-700">
+                          Clients currently managed
+                          <select value={agencyClientCount} onChange={(event) => setAgencyClientCount(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900" required>
+                            <option value="">Select client count</option>
+                            {agencyClientCountOptions.map((option) => <option key={option} value={option}>{option} clients</option>)}
+                          </select>
+                        </label>
+                      )}
+                      <label className="text-sm font-medium text-gray-700">
+                        Role or job function
+                        <select value={role} onChange={(event) => setRole(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900" required>
+                          <option value="">Select your role</option>
+                          {roleOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Primary goal with Decisionate
+                      <select value={primaryGoal} onChange={(event) => setPrimaryGoal(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900" required>
+                        <option value="">Select your primary goal</option>
+                        {primaryGoalOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </label>
+                  </fieldset>
 
-            <button
-              type="submit"
-              disabled={!canCreateOrganization}
-              className="w-full rounded-xl bg-[var(--decisionate-brand-primary)] px-6 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 sm:w-auto"
-            >
-              {loading
-                ? "Creating..."
-                : "Continue"}
-            </button>
+                  <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
+                    Your {businessType === "agency" ? "Agency" : "Professional"} trial includes full plan access for one month. No credit card is required.
+                  </p>
+
+                  {errorMessage && <p role="alert" className="text-sm font-medium text-red-600">{errorMessage}</p>}
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!canCreateOrganization || loading}
+                      className="rounded-xl bg-[var(--decisionate-brand-primary)] px-6 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                    >
+                      {loading ? "Creating workspace..." : "Create workspace"}
+                    </button>
+                  </div>
+                </>
+              )}
             </form>
           )}
         </section>

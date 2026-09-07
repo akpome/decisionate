@@ -6,6 +6,15 @@ from pydantic import BaseModel
 class OrganizationCreate(BaseModel):
     name: str
     plan: str = "professional"
+    first_name: str | None = None
+    last_name: str | None = None
+    business_type: str | None = None
+    country: str | None = None
+    industry: str | None = None
+    company_size: str | None = None
+    agency_client_count: str | None = None
+    role: str | None = None
+    primary_goal: str | None = None
     logo_url: str | None = None
     primary_color: str | None = None
     accent_color: str | None = None
@@ -37,6 +46,13 @@ class OrganizationResponse(BaseModel):
     primary_color: str | None = None
     accent_color: str | None = None
     report_display_name: str | None = None
+    business_type: str | None = None
+    country: str | None = None
+    industry: str | None = None
+    company_size: str | None = None
+    agency_client_count: str | None = None
+    role: str | None = None
+    primary_goal: str | None = None
     agency_owner_access_enabled: bool = False
 
 
@@ -49,6 +65,13 @@ class OrganizationWorkspaceResponse(BaseModel):
     primary_color: str | None = None
     accent_color: str | None = None
     report_display_name: str | None = None
+    business_type: str | None = None
+    country: str | None = None
+    industry: str | None = None
+    company_size: str | None = None
+    agency_client_count: str | None = None
+    role: str | None = None
+    primary_goal: str | None = None
     agency_owner_access_enabled: bool = False
     billing_notice: str | None = None
 

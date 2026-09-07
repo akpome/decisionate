@@ -1465,6 +1465,13 @@ export type OrganizationRecord = {
   primary_color?: string | null
   accent_color?: string | null
   report_display_name?: string | null
+  business_type?: "business" | "agency" | string | null
+  country?: string | null
+  industry?: string | null
+  company_size?: string | null
+  agency_client_count?: string | null
+  role?: string | null
+  primary_goal?: string | null
   agency_owner_access_enabled?: boolean
   billing_notice?: string | null
 }
@@ -1480,6 +1487,15 @@ export type OrganizationBrandingPayload = {
 export type OrganizationCreatePayload =
   OrganizationBrandingPayload & {
     plan?: "professional" | "agency"
+    first_name?: string
+    last_name?: string
+    business_type?: "business" | "agency"
+    country?: string
+    industry?: string
+    company_size?: string
+    agency_client_count?: string | null
+    role?: string
+    primary_goal?: string
   }
 
 export type OrganizationWorkspaceRecord = {
@@ -1491,6 +1507,13 @@ export type OrganizationWorkspaceRecord = {
   primary_color?: string | null
   accent_color?: string | null
   report_display_name?: string | null
+  business_type?: "business" | "agency" | string | null
+  country?: string | null
+  industry?: string | null
+  company_size?: string | null
+  agency_client_count?: string | null
+  role?: string | null
+  primary_goal?: string | null
   agency_owner_access_enabled?: boolean
   billing_notice?: string | null
 }

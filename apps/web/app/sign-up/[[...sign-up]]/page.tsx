@@ -8,7 +8,7 @@ export default function SignUpPage() {
   return (
     <AuthShell
       title="Create your Decisionate workspace"
-      description="Start with your own business workspace, then add agency branding, teammates, or client access when you need it."
+      description="Create your account with a work email, then tell us about your business or agency so Decisionate can set up the right workspace. No credit card is required."
     >
       <AuthCard mode="sign-up" />
     </AuthShell>

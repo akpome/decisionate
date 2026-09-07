@@ -39,6 +39,16 @@ class AppUser(Base):
         nullable=True,
     )
 
+    first_name = Column(
+        String,
+        nullable=True,
+    )
+
+    last_name = Column(
+        String,
+        nullable=True,
+    )
+
     created_at = Column(
         DateTime,
         default=utc_now,
@@ -657,6 +667,41 @@ class Organization(Base):
     )
 
     report_display_name = Column(
+        String,
+        nullable=True,
+    )
+
+    business_type = Column(
+        String,
+        nullable=True,
+    )
+
+    country = Column(
+        String,
+        nullable=True,
+    )
+
+    industry = Column(
+        String,
+        nullable=True,
+    )
+
+    company_size = Column(
+        String,
+        nullable=True,
+    )
+
+    agency_client_count = Column(
+        String,
+        nullable=True,
+    )
+
+    role = Column(
+        String,
+        nullable=True,
+    )
+
+    primary_goal = Column(
         String,
         nullable=True,
     )

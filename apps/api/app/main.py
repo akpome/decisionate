@@ -255,6 +255,40 @@ def ensure_organization_branding_columns():
 ensure_organization_branding_columns()
 
 
+def ensure_onboarding_profile_columns():
+    with engine.begin() as connection:
+        for table_name, columns in {
+            "app_users": [
+                ("first_name", "VARCHAR"),
+                ("last_name", "VARCHAR"),
+            ],
+            "organizations": [
+                ("business_type", "VARCHAR"),
+                ("country", "VARCHAR"),
+                ("industry", "VARCHAR"),
+                ("company_size", "VARCHAR"),
+                ("agency_client_count", "VARCHAR"),
+                ("role", "VARCHAR"),
+                ("primary_goal", "VARCHAR"),
+            ],
+        }.items():
+            column_names = get_table_columns(
+                connection,
+                table_name,
+            )
+            for column_name, column_type in columns:
+                if column_name not in column_names:
+                    connection.execute(
+                        text(
+                            f"ALTER TABLE {table_name} "
+                            f"ADD COLUMN {column_name} {column_type}"
+                        )
+                    )
+
+
+ensure_onboarding_profile_columns()
+
+
 def ensure_platform_email_provider_columns():
     with engine.begin() as connection:
         column_names = get_table_columns(
