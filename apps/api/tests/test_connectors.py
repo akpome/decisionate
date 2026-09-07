@@ -1020,12 +1020,12 @@ class ConnectorSmokeTests(unittest.TestCase):
             (connection, "quickbooks"),
         )
 
-    def test_oauth_access_token_refreshes_with_thirty_minute_leeway(self):
+    def test_oauth_access_token_refreshes_with_one_hour_leeway(self):
         credential = SimpleNamespace(
             access_token_encrypted="encrypted-access-token",
             refresh_token_encrypted="encrypted-refresh-token",
             expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(
-                minutes=20,
+                minutes=50,
             ),
             token_type=None,
             scope=None,

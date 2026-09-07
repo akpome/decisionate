@@ -71,8 +71,9 @@ The API checks every connected OAuth credential during each connector scheduler
 heartbeat, whether or not automatic dataset sync is enabled and even when that
 connection's data sync is not due yet. Access tokens are refreshed before they
 expire when a refresh token is available. The default refresh safety window is
-30 minutes, which gives the 15-minute scheduler enough time to retry a
-temporary provider failure. If a provider rejects a refresh
+one hour. With the scheduler running every 15 minutes, a temporary refresh
+failure is retried on the next heartbeat while the token remains within that
+window. If a provider rejects a refresh
 because authorization is no longer valid, the connection is moved to Draft and
 the scheduler reports the failure so it cannot appear healthy indefinitely.
 Temporary provider failures remain retryable on the next heartbeat. A revoked
