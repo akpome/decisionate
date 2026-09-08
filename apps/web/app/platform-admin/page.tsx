@@ -84,6 +84,60 @@ function formatAdminLabel(value?: string | null) {
     : "Not provided"
 }
 
+function formatAdminDate(value?: string | null) {
+  if (!value) {
+    return "Not provided"
+  }
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime())
+    ? "Not provided"
+    : new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(parsed)
+}
+
+function formatAdminDateTime(value?: string | null) {
+  if (!value) {
+    return "Not available"
+  }
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime())
+    ? "Not available"
+    : new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(parsed)
+}
+
+function getCustomerAccountStatus(
+  customer: PlatformAdminOrganization,
+) {
+  const accountStatus = customer.account_status?.trim().toLowerCase()
+  if (accountStatus) {
+    return accountStatus
+  }
+
+  const subscriptionStatus = customer.subscription_status.trim().toLowerCase()
+  if (subscriptionStatus === "trialing") {
+    return "trial"
+  }
+  if (
+    customer.plan !== "free" &&
+    ["active", "canceling", "checkout_completed", "grace_period", "past_due"].includes(subscriptionStatus)
+  ) {
+    return "paid"
+  }
+  return "free"
+}
+
+function customerStatusClasses(status: string) {
+  if (status === "paid") {
+    return "border-green-200 bg-green-50 text-green-800"
+  }
+  if (status === "trial") {
+    return "border-blue-200 bg-blue-50 text-blue-800"
+  }
+  return "border-gray-200 bg-gray-50 text-gray-700"
+}
+
 function dateInputValue(value?: string | null) {
   return value ? value.slice(0, 10) : ""
 }
@@ -365,6 +419,8 @@ export default function PlatformAdminPage() {
     useState("")
   const [customerSearch, setCustomerSearch] =
     useState("")
+  const [customerStatusFilter, setCustomerStatusFilter] =
+    useState<"all" | "trial" | "paid" | "free">("all")
   const [userSearch, setUserSearch] =
     useState("")
 
@@ -1529,6 +1585,11 @@ export default function PlatformAdminPage() {
   )
   const visibleCustomers = organizations
     .filter(organization => organization.plan !== "client")
+    .filter(organization => (
+      customerStatusFilter === "all"
+        ? true
+        : getCustomerAccountStatus(organization) === customerStatusFilter
+    ))
     .filter(organization => {
       const search = customerSearch.trim().toLowerCase()
       if (!search) {
@@ -1536,7 +1597,10 @@ export default function PlatformAdminPage() {
       }
 
       return [
+        organization.id,
         organization.name,
+        organization.owner_name || "",
+        organization.owner_user_id,
         organization.owner_email || "",
         organization.business_type || "",
         organization.country || "",
@@ -1547,7 +1611,26 @@ export default function PlatformAdminPage() {
         organization.primary_goal || "",
         organization.plan,
         organization.subscription_status,
-      ].some(value => value.toLowerCase().includes(search))
+        getCustomerAccountStatus(organization),
+        organization.trial_started_at || "",
+        organization.trial_ends_at || "",
+        organization.billing_provider || "",
+        organization.billing_interval || "",
+        organization.provider_customer_id || "",
+        organization.provider_subscription_id || "",
+        organization.price_id || "",
+        organization.additional_client_workspaces || 0,
+        organization.additional_ai_credit_packs || 0,
+        organization.ai_credits_used || 0,
+        organization.ai_credit_limit || 0,
+        organization.ai_credits_remaining || 0,
+        organization.member_count,
+        organization.dataset_count,
+        organization.decision_count,
+        organization.evaluated_decision_count,
+        organization.last_activity_at || "",
+        organization.created_at || "",
+      ].some(value => String(value ?? "").toLowerCase().includes(search))
     })
   const visibleAuditEvents = auditEvents.filter(event => {
     const search = auditSearch.trim().toLowerCase()

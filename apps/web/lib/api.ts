@@ -924,6 +924,23 @@ export type PlatformAdminOrganization = {
   plan: string
   subscription_status: string
   billing_expires_at?: string | null
+  account_status?: "free" | "trial" | "paid" | "managed" | string
+  trial_started_at?: string | null
+  trial_ends_at?: string | null
+  billing_provider?: string | null
+  billing_interval?: string | null
+  provider_customer_id?: string | null
+  provider_subscription_id?: string | null
+  price_id?: string | null
+  current_period_start?: string | null
+  cancel_at_period_end?: boolean
+  canceled_at?: string | null
+  additional_client_workspaces?: number
+  additional_ai_credit_packs?: number
+  ai_credits_used?: number
+  ai_credit_limit?: number
+  ai_credits_remaining?: number
+  last_activity_at?: string | null
   member_count: number
   dataset_count: number
   decision_count: number

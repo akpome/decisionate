@@ -47,6 +47,7 @@ from app.modules.alerts.email_delivery import (
 )
 from app.modules.auth_context import get_auth_context
 from app.modules.billing.notifications import get_workspace_owner_email
+from app.modules.billing.lifecycle import build_subscription_access_state
 from app.modules.billing.service import (
     AGENCY_PLAN,
     PROFESSIONAL_PLAN,
@@ -155,6 +156,23 @@ class PlatformAdminOrganizationResponse(BaseModel):
     plan: str
     subscription_status: str
     billing_expires_at: str | None = None
+    account_status: str = "free"
+    trial_started_at: str | None = None
+    trial_ends_at: str | None = None
+    billing_provider: str | None = None
+    billing_interval: str | None = None
+    provider_customer_id: str | None = None
+    provider_subscription_id: str | None = None
+    price_id: str | None = None
+    current_period_start: str | None = None
+    cancel_at_period_end: bool = False
+    canceled_at: str | None = None
+    additional_client_workspaces: int = 0
+    additional_ai_credit_packs: int = 0
+    ai_credits_used: int = 0
+    ai_credit_limit: int = 0
+    ai_credits_remaining: int = 0
+    last_activity_at: str | None = None
     member_count: int
     dataset_count: int
     decision_count: int
@@ -1503,123 +1521,10 @@ async def get_platform_admin_organizations(
             )
             .all()
         )
-        responses = []
-
-        for organization in organizations:
-            workspace_id = organization.owner_user_id or ""
-            is_client_workspace = ":client:" in workspace_id
-            subscription = (
-                db.query(WorkspaceSubscription)
-                .filter(
-                    WorkspaceSubscription.workspace_id == workspace_id,
-                )
-                .first()
-            )
-            dataset_filter = or_(
-                Dataset.workspace_id == workspace_id,
-                and_(
-                    Dataset.workspace_id.is_(None),
-                    Dataset.user_id == workspace_id,
-                ),
-            )
-            decision_filter = or_(
-                Decision.workspace_id == workspace_id,
-                and_(
-                    Decision.workspace_id.is_(None),
-                    Decision.clerk_user_id == workspace_id,
-                ),
-            )
-            evaluated_decision_filter = and_(
-                decision_filter,
-                has_meaningful_text(
-                    Decision.expected_outcome
-                ),
-                has_meaningful_text(
-                    Decision.outcome_status
-                ),
-            )
-
-            responses.append(
-                PlatformAdminOrganizationResponse(
-                    id=organization.id,
-                    name=organization.name,
-                    owner_user_id=workspace_id,
-                    owner_email=platform_admin_user_email(
-                        db,
-                        workspace_id,
-                    ),
-                    owner_name=platform_admin_user_name(
-                        db,
-                        workspace_id,
-                    ),
-                    business_type=organization.business_type,
-                    country=organization.country,
-                    industry=organization.industry,
-                    company_size=organization.company_size,
-                    agency_client_count=organization.agency_client_count,
-                    role=organization.role,
-                    primary_goal=organization.primary_goal,
-                    client_workspace_count=(
-                        count_platform_admin_client_workspaces(
-                            db,
-                            workspace_id,
-                        )
-                    ),
-                    created_at=(
-                        organization.created_at.isoformat()
-                        if organization.created_at
-                        else None
-                    ),
-                    plan=(
-                        "client"
-                        if is_client_workspace
-                        else normalize_billing_plan(
-                            subscription.plan if subscription else "free",
-                        )
-                    ),
-                    subscription_status=(
-                        "managed"
-                        if is_client_workspace
-                        else (
-                            subscription.status
-                            if subscription
-                            else "untracked"
-                        )
-                    ),
-                    billing_expires_at=(
-                        None
-                        if is_client_workspace
-                        else (
-                            subscription.current_period_end.isoformat()
-                            if subscription and subscription.current_period_end
-                            else None
-                        )
-                    ),
-                    member_count=(
-                        count_platform_admin_members(db, organization.id)
-                    ),
-                    dataset_count=(
-                        db.query(func.count(Dataset.id))
-                        .filter(dataset_filter)
-                        .scalar()
-                        or 0
-                    ),
-                    decision_count=(
-                        db.query(func.count(Decision.id))
-                        .filter(decision_filter)
-                        .scalar()
-                        or 0
-                    ),
-                    evaluated_decision_count=(
-                        db.query(func.count(Decision.id))
-                        .filter(evaluated_decision_filter)
-                        .scalar()
-                        or 0
-                    ),
-                )
-            )
-
-        return responses
+        return [
+            serialize_platform_admin_organization(db, organization)
+            for organization in organizations
+        ]
     finally:
         db.close()
 
@@ -1718,6 +1623,90 @@ def get_or_create_platform_admin_owner(
     return owner
 
 
+def platform_admin_account_status(
+    subscription: WorkspaceSubscription | None,
+    is_client_workspace: bool,
+) -> str:
+    if is_client_workspace:
+        return "managed"
+    if subscription is None:
+        return "free"
+
+    access_state = build_subscription_access_state(subscription)
+    if access_state.status == "trialing":
+        return "trial"
+    if access_state.status in {
+        "active",
+        "canceling",
+        "grace_period",
+    } and access_state.plan != "free":
+        return "paid"
+    return "free"
+
+
+def platform_admin_ai_credit_limit(
+    subscription: WorkspaceSubscription | None,
+    workspace_id: str,
+) -> int:
+    plan = normalize_billing_plan(
+        subscription.plan if subscription else "free",
+    )
+    allocations = get_ai_credit_allocations()
+    monthly_included_credits = int(
+        allocations.get(
+            "agency_client" if ":client:" in workspace_id else plan,
+            allocations.get("free", 0),
+        )
+    )
+    interval = str(
+        subscription.billing_interval if subscription else "month"
+    ).strip().lower()
+    period_multiplier = 12 if interval in {"year", "annual"} else 1
+    additional_workspaces = max(
+        int(subscription.additional_client_workspaces or 0)
+        if subscription
+        else 0,
+        0,
+    )
+    additional_packs = max(
+        int(subscription.additional_ai_credit_packs or 0)
+        if subscription
+        else 0,
+        0,
+    )
+    return (
+        monthly_included_credits * period_multiplier
+        + additional_workspaces
+        * int(allocations.get("additional_client_workspace", 0))
+        * period_multiplier
+        + additional_packs * get_ai_credit_pack_size()
+    )
+
+
+def platform_admin_last_activity_at(
+    db,
+    workspace_id: str,
+    dataset_filter,
+    decision_filter,
+) -> datetime | None:
+    timestamps = [
+        db.query(func.max(Dataset.created_at))
+        .filter(dataset_filter)
+        .scalar(),
+        db.query(func.max(Decision.created_at))
+        .filter(decision_filter)
+        .scalar(),
+        db.query(func.max(UsageActivityEvent.created_at))
+        .filter(UsageActivityEvent.workspace_id == workspace_id)
+        .scalar(),
+        db.query(func.max(AIUsageEvent.created_at))
+        .filter(AIUsageEvent.workspace_id == workspace_id)
+        .scalar(),
+    ]
+    timestamps = [timestamp for timestamp in timestamps if timestamp]
+    return max(timestamps) if timestamps else None
+
+
 def serialize_platform_admin_organization(
     db,
     organization: Organization,
@@ -1749,6 +1738,26 @@ def serialize_platform_admin_organization(
         decision_filter,
         has_meaningful_text(Decision.expected_outcome),
         has_meaningful_text(Decision.outcome_status),
+    )
+    account_status = platform_admin_account_status(
+        subscription,
+        is_client_workspace,
+    )
+    ai_credits_used = max(
+        int(subscription.ai_credits_used or 0)
+        if subscription
+        else 0,
+        0,
+    )
+    ai_credit_limit = platform_admin_ai_credit_limit(
+        subscription,
+        workspace_id,
+    )
+    last_activity_at = platform_admin_last_activity_at(
+        db,
+        workspace_id,
+        dataset_filter,
+        decision_filter,
     )
     return PlatformAdminOrganizationResponse(
         id=organization.id,
@@ -1800,6 +1809,79 @@ def serialize_platform_admin_organization(
                 if subscription and subscription.current_period_end
                 else None
             )
+        ),
+        account_status=account_status,
+        trial_started_at=(
+            subscription.current_period_start.isoformat()
+            if subscription and account_status == "trial"
+            and subscription.current_period_start
+            else None
+        ),
+        trial_ends_at=(
+            subscription.current_period_end.isoformat()
+            if subscription and account_status == "trial"
+            and subscription.current_period_end
+            else None
+        ),
+        billing_provider=(
+            subscription.provider
+            if subscription and not is_client_workspace
+            else None
+        ),
+        billing_interval=(
+            subscription.billing_interval
+            if subscription and not is_client_workspace
+            else None
+        ),
+        provider_customer_id=(
+            subscription.provider_customer_id
+            if subscription and not is_client_workspace
+            else None
+        ),
+        provider_subscription_id=(
+            subscription.provider_subscription_id
+            if subscription and not is_client_workspace
+            else None
+        ),
+        price_id=(
+            subscription.price_id
+            if subscription and not is_client_workspace
+            else None
+        ),
+        current_period_start=(
+            subscription.current_period_start.isoformat()
+            if subscription and not is_client_workspace
+            and subscription.current_period_start
+            else None
+        ),
+        cancel_at_period_end=bool(
+            subscription.cancel_at_period_end
+            if subscription and not is_client_workspace
+            else False
+        ),
+        canceled_at=(
+            subscription.canceled_at.isoformat()
+            if subscription and not is_client_workspace
+            and subscription.canceled_at
+            else None
+        ),
+        additional_client_workspaces=(
+            max(int(subscription.additional_client_workspaces or 0), 0)
+            if subscription and not is_client_workspace
+            else 0
+        ),
+        additional_ai_credit_packs=(
+            max(int(subscription.additional_ai_credit_packs or 0), 0)
+            if subscription and not is_client_workspace
+            else 0
+        ),
+        ai_credits_used=ai_credits_used,
+        ai_credit_limit=ai_credit_limit,
+        ai_credits_remaining=max(ai_credit_limit - ai_credits_used, 0),
+        last_activity_at=(
+            last_activity_at.isoformat()
+            if last_activity_at
+            else None
         ),
         member_count=count_platform_admin_members(db, organization.id),
         dataset_count=(
