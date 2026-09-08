@@ -185,7 +185,7 @@ function BillingPageContent() {
     <div className="space-y-6">
       <DashboardPageHeader
         title="Billing"
-        description="Choose the plan that matches how you manage businesses: one direct workspace or an agency client portfolio."
+        description="Review your current plan, trial status, usage, and billing options."
       />
 
       {error && (
@@ -291,7 +291,7 @@ function BillingPageContent() {
         )}
       </section>
 
-      {!loading && billing && !isSubscribed(billing) && (
+      {!loading && billing && shouldShowPlanSelection(billing) && (
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
           <div>
             <h2 className="font-semibold text-gray-900">Choose your Decisionate plan</h2>
@@ -516,6 +516,11 @@ function BillingPageContent() {
 
 function isSubscribed(billing: BillingStatus) {
   return billing.plan !== "free" && billing.customer_portal_available
+}
+
+function shouldShowPlanSelection(billing: BillingStatus) {
+  return billing.plan === "free" ||
+    billing.access_status === "expired"
 }
 
 function hasStartedTrial(billing: BillingStatus) {
