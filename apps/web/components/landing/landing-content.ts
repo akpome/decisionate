@@ -186,7 +186,7 @@ export const benefits = [
 export const faqs = [
   {
     question: "What is Decisionate?",
-    answer: "Decisionate is a decision automation platform for growing businesses and agencies. It connects business data to analysis, forecasts, recommendations, accountable decisions and outcome learning.",
+    answer: "Decisionate is a decision intelligence platform for growing businesses and agencies. It connects business data to analysis, forecasts, recommendations, accountable decisions and outcome learning.",
   },
   {
     question: "How does decision automation work?",
