@@ -8,15 +8,19 @@ import {
   Bell,
   PlusCircle,
   Save,
+  Send,
 } from "lucide-react"
 
 import {
   getDatasetRelationships,
   createDecision,
+  getWeeklyReportDeliveryConfig,
   getWeeklyReportDigest,
   getWeeklyReportPreference,
+  sendWeeklyReportTestEmail,
   updateWeeklyReportPreference,
   type DatasetRelationship,
+  type WeeklyReportDeliveryConfig,
   type WeeklyReportDigest,
   type WeeklyReportDigestMetric,
   type WeeklyReportPreference,
@@ -50,18 +54,7 @@ const defaultWeeklyReportPreference: WeeklyReportPreference = {
   metric_targets: {},
   relationship_focus: [],
   include_recommendations: true,
-  sender_name: "",
-  sender_email: "",
-  reply_to_email: "",
   subject_prefix: "",
-  smtp_host: "",
-  smtp_port: 587,
-  smtp_username: "",
-  smtp_password: "",
-  smtp_clear_password: false,
-  smtp_password_set: false,
-  smtp_use_tls: true,
-  smtp_use_ssl: false,
   last_sent_at: null,
   last_send_status: null,
   last_send_error: null,
@@ -165,6 +158,8 @@ function AlertsPageContent({
     useState<DatasetMetricOption[]>([])
   const [relationshipOptions, setRelationshipOptions] =
     useState<DatasetRelationship[]>([])
+  const [deliveryConfig, setDeliveryConfig] =
+    useState<WeeklyReportDeliveryConfig | null>(null)
   const [weeklyReportDigest, setWeeklyReportDigest] =
     useState<WeeklyReportDigest | null>(null)
   const [setupRequestPending, setSetupRequestPending] =
@@ -176,6 +171,8 @@ function AlertsPageContent({
   const [supportingDataUnavailable, setSupportingDataUnavailable] =
     useState(false)
   const [saving, setSaving] =
+    useState(false)
+  const [sendingTestEmail, setSendingTestEmail] =
     useState(false)
   const [statusMessage, setStatusMessage] =
     useState("")
@@ -209,6 +206,10 @@ function AlertsPageContent({
           : `Relationship ${relationshipId}`
       }
     )
+  const canSendTestEmail = Boolean(
+    weeklyReportPreference.recipient_emails.length > 0 &&
+    deliveryConfig?.email_delivery_configured
+  )
   const effectiveSelectedDecisionMetricKey = useMemo(() => {
     const metrics = weeklyReportDigest?.metrics ?? []
     const selectedMetricStillExists = metrics.some(
@@ -332,6 +333,7 @@ function AlertsPageContent({
         )
         setMetricOptions([])
         setRelationshipOptions([])
+        setDeliveryConfig(null)
         setWeeklyReportDigest(null)
         setStatusMessage("")
         setWarningMessage("")
@@ -412,6 +414,7 @@ function AlertsPageContent({
         const [
           relationshipsResult,
           digestResult,
+          deliveryConfigResult,
         ] = await Promise.allSettled([
           getDatasetRelationships(
             userId,
@@ -425,6 +428,11 @@ function AlertsPageContent({
               notifyAvailability: false,
               includeAIAnalysis: false,
             }
+          ),
+          getWeeklyReportDeliveryConfig(
+            userId,
+            activeWorkspaceId,
+            { notifyAvailability: false }
           ),
         ])
 
@@ -450,6 +458,11 @@ function AlertsPageContent({
             ? relationshipsResult.value
             : []
         )
+        setDeliveryConfig(
+          deliveryConfigResult.status === "fulfilled"
+            ? deliveryConfigResult.value
+            : null
+        )
         setWeeklyReportDigest(
           digestResult.status === "fulfilled"
             ? digestResult.value
@@ -464,7 +477,8 @@ function AlertsPageContent({
 
         const supportingDataRequestFailed =
           relationshipsResult.status === "rejected" ||
-          digestResult.status === "rejected"
+          digestResult.status === "rejected" ||
+          deliveryConfigResult.status === "rejected"
 
         setSupportingDataUnavailable(
           supportingDataRequestFailed
@@ -612,6 +626,27 @@ function toggleMetricFocus(
       return
     }
 
+    if (
+      weeklyReportPreference.enabled &&
+      weeklyReportPreference.recipient_emails.length === 0
+    ) {
+      setErrorMessage(
+        "Add at least one recipient before enabling email notifications."
+      )
+      return
+    }
+
+    if (
+      weeklyReportPreference.enabled &&
+      weeklyReportPreference.metric_focus.length === 0 &&
+      weeklyReportPreference.relationship_focus.length === 0
+    ) {
+      setErrorMessage(
+        "Select a KPI or relationship before enabling email notifications."
+      )
+      return
+    }
+
     try {
       setSaving(true)
       setErrorMessage("")
@@ -662,6 +697,44 @@ function toggleMetricFocus(
       )
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleSendTestEmail() {
+    if (
+      !user?.id ||
+      sendingTestEmail ||
+      setupRequestPending ||
+      !canSendTestEmail
+    ) {
+      return
+    }
+
+    try {
+      setSendingTestEmail(true)
+      setErrorMessage("")
+      setStatusMessage("")
+
+      const result =
+        await sendWeeklyReportTestEmail(
+          user.id,
+          activeWorkspaceId
+        )
+
+      setStatusMessage(
+        `Test email sent to ${result.delivered_count} recipient${
+          result.delivered_count === 1 ? "" : "s"
+        }.`
+      )
+    } catch (error) {
+      setErrorMessage(
+        getErrorMessage(
+          error,
+          "Test email could not be sent."
+        )
+      )
+    } finally {
+      setSendingTestEmail(false)
     }
   }
 
@@ -801,6 +874,92 @@ function toggleMetricFocus(
                   Preparing your saved notification settings...
                 </p>
               )}
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <label className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={weeklyReportPreference.enabled}
+                    onChange={(event) =>
+                      updateWeeklyReportDraft({
+                        enabled: event.target.checked,
+                      })
+                    }
+                    className="mt-0.5 h-4 w-4 accent-[var(--decisionate-brand-primary)]"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-gray-900">
+                      Enable email notifications
+                    </span>
+                    <span className="mt-1 block text-xs text-gray-500">
+                      Send the saved KPI and relationship digest on the selected day.
+                    </span>
+                  </span>
+                </label>
+
+                <div>
+                  <label
+                    htmlFor="alert-delivery-day"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Notification schedule
+                  </label>
+                  <select
+                    id="alert-delivery-day"
+                    value={weeklyReportPreference.delivery_day}
+                    onChange={(event) =>
+                      updateWeeklyReportDraft({
+                        delivery_day: event.target.value as WeeklyReportPreference["delivery_day"],
+                      })
+                    }
+                    className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                  >
+                    {[
+                      ["monday", "Every Monday"],
+                      ["tuesday", "Every Tuesday"],
+                      ["wednesday", "Every Wednesday"],
+                      ["thursday", "Every Thursday"],
+                      ["friday", "Every Friday"],
+                      ["saturday", "Every Saturday"],
+                      ["sunday", "Every Sunday"],
+                    ].map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    The schedule applies when email notifications are enabled.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="alert-recipients"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Notification recipients
+                </label>
+                <textarea
+                  id="alert-recipients"
+                  value={weeklyReportPreference.recipient_emails.join("\n")}
+                  onChange={(event) =>
+                    updateWeeklyReportDraft({
+                      recipient_emails: event.target.value
+                        .split(/[\n,]+/)
+                        .map((email) => email.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  rows={3}
+                  placeholder="owner@example.com\nclient@example.com"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Add one email per line or separate addresses with commas. Email transport is managed by Decisionate.
+                </p>
+              </div>
 
               <div>
                 <p className="text-sm font-medium text-gray-700">
@@ -985,17 +1144,42 @@ function toggleMetricFocus(
                     ? "Saving..."
                     : "Save KPI Setup"}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSendTestEmail()}
+                  disabled={
+                    saving ||
+                    sendingTestEmail ||
+                    !canSendTestEmail
+                  }
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-white px-5 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 sm:w-auto"
+                >
+                  <Send
+                    size={16}
+                    className="shrink-0"
+                  />
+                  {sendingTestEmail
+                    ? "Sending test..."
+                    : "Send test email"}
+                </button>
               </div>
 
               <p className="text-xs text-gray-500">
-                Delivery settings, recipients, and manual sending are managed in Settings.
-                {" "}
-                <Link
-                  href="/dashboard/settings"
-                  className="font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
-                >
-                  Open alert delivery settings
-                </Link>
+                {!weeklyReportPreference.recipient_emails.length
+                  ? "Add a recipient in Alert preferences before sending a test email."
+                  : deliveryConfig === null
+                    ? "Checking email delivery readiness..."
+                    : !deliveryConfig.email_delivery_configured
+                      ? (
+                        <>
+                          Email delivery is managed by a platform administrator before sending a test email.
+                        </>
+                      )
+                      : (
+                        <>
+                          Send a test of the platform-managed alert delivery setup to the saved recipients.
+                        </>
+                      )}
               </p>
             </fieldset>
           )}

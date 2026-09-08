@@ -724,18 +724,7 @@ export type WeeklyReportPreference = {
   metric_targets: Record<string, number | null>
   relationship_focus: number[]
   include_recommendations: boolean
-  sender_name: string
-  sender_email: string
-  reply_to_email: string
   subject_prefix: string
-  smtp_host: string
-  smtp_port?: number | null
-  smtp_username: string
-  smtp_password?: string
-  smtp_clear_password?: boolean
-  smtp_password_set: boolean
-  smtp_use_tls: boolean
-  smtp_use_ssl: boolean
   last_sent_at?: string | null
   last_send_status?: string | null
   last_send_error?: string | null
@@ -862,10 +851,12 @@ export type WeeklyReportDeliveryLog = {
 export type WeeklyReportDeliveryConfig = {
   email_delivery_configured: boolean
   email_delivery_source?:
-    | "workspace"
     | "decisionate"
     | "unconfigured"
-  workspace_smtp_configured?: boolean
+  email_delivery_provider?:
+    | "resend"
+    | "smtp"
+    | "unconfigured"
   scheduler_configured: boolean
   required_email_environment_keys: string[]
   optional_email_environment_keys: string[]
@@ -3442,7 +3433,10 @@ export async function getWeeklyReportDigest(
 
 export async function getWeeklyReportDeliveryConfig(
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  options?: {
+    notifyAvailability?: boolean
+  }
 ): Promise<WeeklyReportDeliveryConfig> {
   const response =
     await apiFetch(
@@ -3452,7 +3446,9 @@ export async function getWeeklyReportDeliveryConfig(
           userId,
           workspaceId
         ),
-      }
+      },
+      apiRequestTimeoutMs,
+      options?.notifyAvailability !== false
     )
 
   if (!response.ok) {

@@ -90,7 +90,7 @@ def clean_env_int(
 
 
 def get_platform_email_settings() -> dict:
-    """Return persisted Decisionate SMTP settings with env fallback."""
+    """Return persisted platform email settings with env fallback."""
     saved_settings = None
     db = SessionLocal()
     try:
@@ -232,26 +232,18 @@ def is_email_delivery_configured(
     sender_email: str | None = None,
     smtp_host: str | None = None,
 ) -> bool:
-    platform_settings = get_platform_email_settings()
-    workspace_host = str(smtp_host or "").strip()
-    workspace_sender = str(sender_email or "").strip()
+    """Return readiness for the platform mail provider only.
 
-    if workspace_host and (
-        workspace_sender or platform_settings["smtp_from_email"]
-    ):
-        return True
+    The arguments remain for compatibility with older callers, but workspace
+    sender and SMTP values are intentionally ignored.
+    """
+    platform_settings = get_platform_email_settings()
 
     if platform_settings["provider"] == "resend":
         return bool(platform_settings["configured"])
     return bool(
-        (
-            workspace_host
-            or platform_settings["smtp_host"]
-        )
-        and (
-            platform_settings["smtp_from_email"]
-            or workspace_sender
-        )
+        platform_settings["smtp_host"]
+        and platform_settings["smtp_from_email"]
     )
 
 
@@ -274,19 +266,6 @@ def get_email_delivery_source(
     sender_email: str | None = None,
     smtp_host: str | None = None,
 ) -> str:
-    workspace_host = str(
-        smtp_host or ""
-    ).strip()
-    workspace_sender = str(
-        sender_email or ""
-    ).strip()
-
-    if workspace_host and (
-        workspace_sender or
-        get_platform_email_settings()["smtp_from_email"]
-    ):
-        return "workspace"
-
     if is_email_delivery_configured():
         return "decisionate"
 
@@ -305,7 +284,7 @@ def require_email_delivery_configured(
             status_code=503,
             detail=(
                 "Email delivery is not configured. "
-                "Configure Decisionate email delivery or a workspace SMTP sender."
+                "A platform administrator must configure the Decisionate email provider."
             ),
         )
 
@@ -377,7 +356,7 @@ def send_platform_system_email(
     body: str,
     reply_to: str | None = None,
 ) -> None:
-    """Send a Decisionate-owned system message through platform SMTP."""
+    """Send a Decisionate-owned system message through the platform provider."""
     clean_recipient = str(recipient or "").strip()
     if not clean_recipient:
         raise HTTPException(
@@ -640,14 +619,8 @@ def build_weekly_report_email_message(
         platform_settings
         or get_platform_email_settings()
     )
-    from_email = (
-        digest.sender_email
-        or platform_settings["smtp_from_email"]
-    )
-    from_name = (
-        digest.sender_name
-        or platform_settings["smtp_from_name"]
-        or digest.brand_name
+    from_email, from_name = get_platform_sender_details(
+        platform_settings
     )
     sender = (
         f"{from_name} <{from_email}>"
@@ -659,8 +632,6 @@ def build_weekly_report_email_message(
     message["Subject"] = digest.subject
     message["From"] = sender
     message["To"] = recipient
-    if digest.reply_to_email:
-        message["Reply-To"] = digest.reply_to_email
     message.set_content(
         build_weekly_report_email_text(
             digest
@@ -674,60 +645,16 @@ def send_weekly_report_email(
     digest: WeeklyReportDigestResponse,
     smtp_settings: dict | None = None,
 ) -> dict:
+    """Send a report through the platform-configured provider only."""
     platform_settings = get_platform_email_settings()
-    workspace_smtp_host = str(
-        (smtp_settings or {}).get(
-            "smtp_host",
-            "",
-        )
-        or ""
-    ).strip()
-    require_email_delivery_configured(
-        digest.sender_email,
-        workspace_smtp_host,
-    )
+    require_email_delivery_configured()
 
-    if workspace_smtp_host:
-        host = workspace_smtp_host
-        port = int(
-            (smtp_settings or {}).get(
-                "smtp_port",
-            )
-            or 587
-        )
-        username = str(
-            (smtp_settings or {}).get(
-                "smtp_username",
-                "",
-            )
-            or ""
-        ).strip()
-        password = str(
-            (smtp_settings or {}).get(
-                "smtp_password",
-                "",
-            )
-            or ""
-        )
-        use_tls = bool(
-            (smtp_settings or {}).get(
-                "smtp_use_tls",
-                True,
-            )
-        )
-        use_ssl = bool(
-            (smtp_settings or {}).get(
-                "smtp_use_ssl",
-                False,
-            )
-        )
-    else:
-        host = platform_settings["smtp_host"]
-        port = platform_settings["smtp_port"]
-        username = platform_settings["smtp_username"]
-        password = platform_settings["smtp_password"]
-        use_tls = platform_settings["smtp_use_tls"]
-        use_ssl = platform_settings["smtp_use_ssl"]
+    host = platform_settings["smtp_host"]
+    port = platform_settings["smtp_port"]
+    username = platform_settings["smtp_username"]
+    password = platform_settings["smtp_password"]
+    use_tls = platform_settings["smtp_use_tls"]
+    use_ssl = platform_settings["smtp_use_ssl"]
     timeout_seconds = platform_settings["smtp_timeout_seconds"]
 
     if not digest.recipient_emails:
@@ -736,7 +663,7 @@ def send_weekly_report_email(
             detail="No weekly report recipients are configured",
         )
 
-    if not workspace_smtp_host and platform_settings["provider"] == "resend":
+    if platform_settings["provider"] == "resend":
         delivered_recipients: list[str] = []
         try:
             for recipient in digest.recipient_emails:

@@ -2275,7 +2275,7 @@ export default function PlatformAdminPage() {
                   </div>
                   <div className="sm:col-span-2">
                     <p className="text-xs text-gray-500">
-                      Platform email settings are managed below. Workspace-specific SMTP settings remain available for customer alert overrides.
+                      Platform email settings are managed below. Workspace owners can manage alert recipients and schedules, but cannot override the platform provider.
                     </p>
                   </div>
                 </dl>
@@ -2291,7 +2291,7 @@ export default function PlatformAdminPage() {
                   <p className="mt-1 text-sm text-gray-500">
                     Configure the provider used for Decisionate system email,
                     including support, signup, subscription, and AI credit messages.
-                    Customer workspace SMTP settings remain separate.
+                    Workspace alerts use this same platform-managed provider.
                   </p>
                 </div>
               </div>
@@ -2332,7 +2332,7 @@ export default function PlatformAdminPage() {
                     </label>
                     <p className="self-end text-xs text-gray-500">
                       Resend is recommended for Decisionate-owned system mail.
-                      Workspace SMTP overrides remain available for customer reports.
+                      Workspace users manage recipients and schedules only.
                     </p>
                   </div>
 

@@ -426,10 +426,10 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Configure and verify alert delivery",
         steps: [
-          "Open Settings and locate the alert delivery configuration. Configure recipients, sender details, and the approved SMTP or email delivery source as required by the workspace.",
+          "Open Analysis -> Alerts and configure notification recipients and schedule alongside the KPI setup. Email transport is managed centrally by a platform administrator.",
           "Confirm that the selected alert metrics and relationships belong to the active workspace.",
           "Use the test delivery action where available and inspect the delivery status or history.",
-          "Enable the schedule only after confirming recipients and delivery configuration.",
+          "Enable the schedule only after confirming recipients and platform email readiness.",
           "If a relationship is deleted, remove it from the alert selection. A deleted relationship should not remain an active alert focus.",
         ],
       },
@@ -555,7 +555,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Open Manage -> Settings as a workspace owner.",
           "Review workspace name, organization details, branding, logo, and report display name.",
           "Manage agency members, client workspace access, client members, invitations, ownership assignments, and invitation revocation where those controls are available to your plan and role.",
-          "Configure workspace email or alert delivery settings separately from Decisionate system email settings.",
+          "Configure workspace alert recipients and schedule in Analysis -> Alerts. The email provider is managed centrally by the platform.",
           "Save one section at a time and verify the resulting workspace name, branding, and access behavior in a fresh page load.",
         ],
       },

@@ -91,7 +91,7 @@ def build_readiness() -> dict[str, Any]:
                 ).strip()
             ),
             "detail": (
-                "Workspace SMTP can also be configured per workspace"
+                "Email transport is configured centrally at the platform level"
             ),
         },
         "connectors": {

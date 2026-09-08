@@ -217,20 +217,20 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
                 is_email_delivery_configured()
             )
 
-            self.assertTrue(
+            self.assertFalse(
                 is_email_delivery_configured(
                     "workspace@example.com",
                 )
             )
 
-            self.assertTrue(
+            self.assertFalse(
                 is_email_delivery_configured(
                     "workspace@example.com",
                     "smtp.workspace.example",
                 )
             )
 
-    def test_workspace_smtp_override_still_works_with_resend_platform(self):
+    def test_workspace_smtp_override_cannot_bypass_platform_provider(self):
         with patch(
             "app.modules.alerts.email_delivery.get_platform_email_settings",
             return_value={
@@ -239,7 +239,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
                 "smtp_from_email": "",
             },
         ):
-            self.assertTrue(
+            self.assertFalse(
                 is_email_delivery_configured(
                     "workspace@example.com",
                     "smtp.workspace.example",
@@ -355,15 +355,15 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         )
         self.assertEqual(
             digest.sender_name,
-            "Agency Insights",
+            "",
         )
         self.assertEqual(
             digest.sender_email,
-            "reports@agency.example",
+            "",
         )
         self.assertEqual(
             digest.reply_to_email,
-            "success@agency.example",
+            "",
         )
 
     def test_weekly_report_test_digest_uses_recipients_without_metrics(self):
@@ -410,7 +410,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         )
         self.assertEqual(
             digest.sender_email,
-            "reports@example.com",
+            "",
         )
 
     def test_weekly_report_email_text_contains_dataset_kpis(self):
@@ -526,7 +526,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
 
         self.assertEqual(
             message["From"],
-            "Acme Retail <reports@example.com>",
+            "Decisionate <reports@example.com>",
         )
 
     def test_weekly_report_email_message_uses_workspace_sender_and_reply_to(self):
@@ -566,14 +566,14 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
 
         self.assertEqual(
             message["From"],
-            "Agency Insights <reports@agency.example>",
+            "Decisionate <reports@example.com>",
         )
         self.assertEqual(
             message["Reply-To"],
-            "success@agency.example",
+            None,
         )
 
-    def test_weekly_report_email_uses_workspace_smtp_settings(self):
+    def test_weekly_report_email_uses_platform_smtp_settings(self):
         digest = WeeklyReportDigestResponse(
             enabled=True,
             cadence="weekly",
@@ -646,7 +646,14 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
 
         with patch.dict(
             "os.environ",
-            {},
+            {
+                "SMTP_HOST": "smtp.platform.example",
+                "SMTP_PORT": "2526",
+                "SMTP_USERNAME": "platform-user",
+                "SMTP_PASSWORD": "platform-secret",
+                "SMTP_FROM_EMAIL": "reports@platform.example",
+                "SMTP_FROM_NAME": "Decisionate Platform",
+            },
             clear=True,
         ), patch(
             "app.modules.alerts.email_delivery.smtplib.SMTP",
@@ -671,8 +678,8 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         self.assertEqual(
             smtp_events["connect"][:2],
             (
-                "smtp.workspace.example",
-                2525,
+            "smtp.platform.example",
+            2526,
             ),
         )
         self.assertTrue(
@@ -681,13 +688,13 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         self.assertEqual(
             smtp_events["login"],
             (
-                "apikey",
-                "secret",
+                "platform-user",
+                "platform-secret",
             ),
         )
         self.assertEqual(
             smtp_events["messages"][0]["From"],
-            "Agency Insights <reports@agency.example>",
+            "Decisionate Platform <reports@platform.example>",
         )
 
     def test_weekly_report_delivery_requires_matching_dataset_metrics(self):
@@ -775,7 +782,10 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
 
         with patch.dict(
             "os.environ",
-            {},
+            {
+                "SMTP_HOST": "smtp.platform.example",
+                "SMTP_FROM_EMAIL": "reports@platform.example",
+            },
             clear=True,
         ), patch(
             "app.modules.alerts.email_delivery.smtplib.SMTP",
@@ -901,12 +911,13 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         self.assertTrue(
             config.scheduler_configured,
         )
-        self.assertIn(
+        self.assertNotIn(
             "SMTP_HOST",
             config.required_email_environment_keys,
         )
+        self.assertEqual(config.email_delivery_provider, "smtp")
 
-    def test_delivery_config_reports_workspace_smtp_readiness(self):
+    def test_delivery_config_ignores_workspace_smtp_readiness(self):
         request = SimpleNamespace()
         preference = SimpleNamespace(
             sender_email="reports@example.com",
@@ -933,17 +944,8 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
                 )
             )
 
-        self.assertTrue(
-            config.email_delivery_configured,
-        )
-        self.assertNotIn(
-            "SMTP_HOST",
-            config.required_email_environment_keys,
-        )
-        self.assertNotIn(
-            "SMTP_FROM_EMAIL",
-            config.required_email_environment_keys,
-        )
+        self.assertFalse(config.email_delivery_configured)
+        self.assertEqual(config.email_delivery_provider, "unconfigured")
 
     def test_weekly_report_update_can_clear_saved_smtp_password(self):
         request = SimpleNamespace()
@@ -1015,9 +1017,13 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             preference.smtp_password,
             "",
         )
-        self.assertFalse(
-            response.smtp_password_set,
-        )
+        self.assertEqual(preference.sender_name, "")
+        self.assertEqual(preference.sender_email, "")
+        self.assertEqual(preference.reply_to_email, "")
+        self.assertEqual(preference.smtp_host, "")
+        self.assertIsNone(preference.smtp_port)
+        self.assertEqual(preference.smtp_username, "")
+        self.assertEqual(preference.smtp_password, "")
 
 
 if __name__ == "__main__":

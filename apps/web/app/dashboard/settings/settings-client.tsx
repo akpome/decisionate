@@ -51,7 +51,6 @@ import {
   notifyWorkspaceAccessChanged,
 } from "@/lib/workspace-context"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
-import { AlertDeliverySettings } from "@/features/alerts/components/alert-delivery-settings"
 import {
   useWorkspaceAccess,
 } from "@/lib/use-workspace-access"
@@ -1867,10 +1866,6 @@ export function SettingsClient({
           </div>
         </div>
       </div>
-      )}
-
-      {!isClientPortalUser && (
-        <AlertDeliverySettings userId={userId} />
       )}
 
       {/* =========================

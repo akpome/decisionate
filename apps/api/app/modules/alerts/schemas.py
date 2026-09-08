@@ -17,17 +17,7 @@ class WeeklyReportPreferenceUpdate(BaseModel):
     )
     relationship_focus: list[int] = []
     include_recommendations: bool = True
-    sender_name: str = ""
-    sender_email: str = ""
-    reply_to_email: str = ""
     subject_prefix: str = ""
-    smtp_host: str = ""
-    smtp_port: int | None = None
-    smtp_username: str = ""
-    smtp_password: str = ""
-    smtp_clear_password: bool = False
-    smtp_use_tls: bool = True
-    smtp_use_ssl: bool = False
 
 
 class WeeklyReportPreferenceResponse(BaseModel):
@@ -41,16 +31,7 @@ class WeeklyReportPreferenceResponse(BaseModel):
     )
     relationship_focus: list[int] = []
     include_recommendations: bool
-    sender_name: str = ""
-    sender_email: str = ""
-    reply_to_email: str = ""
     subject_prefix: str = ""
-    smtp_host: str = ""
-    smtp_port: int | None = None
-    smtp_username: str = ""
-    smtp_password_set: bool = False
-    smtp_use_tls: bool = True
-    smtp_use_ssl: bool = False
     last_sent_at: str | None = None
     last_send_status: str | None = None
     last_send_error: str | None = None
@@ -146,7 +127,7 @@ class WeeklyReportDeliveryLogResponse(BaseModel):
 class WeeklyReportDeliveryConfigResponse(BaseModel):
     email_delivery_configured: bool
     email_delivery_source: str = "unconfigured"
-    workspace_smtp_configured: bool = False
+    email_delivery_provider: str = "unconfigured"
     scheduler_configured: bool
     required_email_environment_keys: list[str]
     optional_email_environment_keys: list[str]

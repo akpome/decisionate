@@ -23,6 +23,7 @@ from app.db.models import WeeklyReportDeliveryLog
 from app.db.models import WeeklyReportPreference
 from app.modules.alerts.email_delivery import (
     get_email_delivery_source,
+    get_platform_email_settings,
     is_email_delivery_configured,
     send_weekly_report_email,
 )
@@ -58,7 +59,6 @@ from app.modules.decisions.models import Decision
 from app.modules.decisions.templates import (
     build_decision_template_url,
 )
-from app.security.secrets import decrypt_secret, encrypt_secret
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -103,57 +103,6 @@ def clean_optional_text(
         )
 
     return clean_value
-
-
-def clean_optional_email(
-    value: str | None,
-    field_name: str,
-) -> str:
-    clean_value = clean_optional_text(
-        value,
-        field_name,
-        254,
-    ).lower()
-
-    if not clean_value:
-        return ""
-
-    if not re.fullmatch(
-        r"[^@\s]+@[^@\s]+\.[^@\s]+",
-        clean_value,
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail=f"{field_name} must be a valid email address",
-        )
-
-    return clean_value
-
-
-def clean_optional_port(
-    value: int | None,
-) -> int | None:
-    if value in {
-        None,
-        "",
-    }:
-        return None
-
-    try:
-        clean_port = int(value)
-    except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=400,
-            detail="SMTP port must be a number",
-        ) from None
-
-    if clean_port < 1 or clean_port > 65535:
-        raise HTTPException(
-            status_code=400,
-            detail="SMTP port must be between 1 and 65535",
-        )
-
-    return clean_port
 
 
 def clean_delivery_day(
@@ -375,16 +324,7 @@ def build_weekly_report_preference_response(
             metric_targets={},
             relationship_focus=[],
             include_recommendations=True,
-            sender_name="",
-            sender_email="",
-            reply_to_email="",
             subject_prefix="",
-            smtp_host="",
-            smtp_port=None,
-            smtp_username="",
-            smtp_password_set=False,
-            smtp_use_tls=True,
-            smtp_use_ssl=False,
             last_sent_at=None,
             last_send_status=None,
             last_send_error=None,
@@ -424,24 +364,7 @@ def build_weekly_report_preference_response(
         include_recommendations=bool(
             preference.include_recommendations
         ),
-        sender_name=preference.sender_name or "",
-        sender_email=preference.sender_email or "",
-        reply_to_email=preference.reply_to_email or "",
         subject_prefix=preference.subject_prefix or "",
-        smtp_host=preference.smtp_host or "",
-        smtp_port=preference.smtp_port,
-        smtp_username=preference.smtp_username or "",
-        smtp_password_set=bool(
-            preference.smtp_password
-        ),
-        smtp_use_tls=(
-            True
-            if preference.smtp_use_tls is None
-            else bool(preference.smtp_use_tls)
-        ),
-        smtp_use_ssl=bool(
-            preference.smtp_use_ssl
-        ),
         last_sent_at=(
             format_sent_at(preference.last_sent_at)
             if preference.last_sent_at
@@ -809,9 +732,9 @@ def build_weekly_report_digest(
         recipient_emails=preference.recipient_emails,
         metric_focus=preference.metric_focus,
         relationship_focus=preference.relationship_focus,
-        sender_name=preference.sender_name,
-        sender_email=preference.sender_email,
-        reply_to_email=preference.reply_to_email,
+        sender_name="",
+        sender_email="",
+        reply_to_email="",
         subject_prefix=subject_prefix,
         brand_name=clean_brand_name,
         subject=subject,
@@ -1192,28 +1115,6 @@ def update_weekly_report_delivery_status(
         preference.last_sent_at = sent_at
 
 
-def build_weekly_report_smtp_settings(
-    preference: WeeklyReportPreference | None,
-) -> dict:
-    if not preference:
-        return {}
-
-    return {
-        "smtp_host": preference.smtp_host or "",
-        "smtp_port": preference.smtp_port,
-        "smtp_username": preference.smtp_username or "",
-        "smtp_password": decrypt_secret(preference.smtp_password),
-        "smtp_use_tls": (
-            True
-            if preference.smtp_use_tls is None
-            else bool(preference.smtp_use_tls)
-        ),
-        "smtp_use_ssl": bool(
-            preference.smtp_use_ssl
-        ),
-    }
-
-
 def build_weekly_report_delivery_response(
     workspace_id: str,
     digest: WeeklyReportDigestResponse,
@@ -1331,9 +1232,9 @@ def build_weekly_report_test_digest(
         delivery_day=preference_response.delivery_day,
         recipient_emails=preference_response.recipient_emails,
         metric_focus=[],
-        sender_name=preference_response.sender_name,
-        sender_email=preference_response.sender_email,
-        reply_to_email=preference_response.reply_to_email,
+        sender_name="",
+        sender_email="",
+        reply_to_email="",
         subject_prefix="",
         brand_name=clean_brand_name,
         subject=subject,
@@ -1498,63 +1399,39 @@ async def get_weekly_report_delivery_config(
     db = SessionLocal()
 
     try:
-        workspace_id = getattr(
-            auth_context,
-            "workspace_id",
-            "",
+        platform_settings = get_platform_email_settings()
+        platform_provider = platform_settings["provider"] or (
+            "smtp"
+            if platform_settings["smtp_host"]
+            and platform_settings["smtp_from_email"]
+            else "unconfigured"
         )
-        preference = (
-            get_weekly_report_preference_record(
-                db,
-                workspace_id,
-            )
-            if isinstance(
-                workspace_id,
-                str,
-            )
-            and workspace_id
-            else None
-        )
-        sender_email = (
-            preference.sender_email
-            if preference
-            else ""
-        )
-        smtp_host = (
-            preference.smtp_host
-            if preference
-            else ""
-        )
+        required_email_keys = []
+        if platform_provider == "resend":
+            if not platform_settings["resend_api_key"]:
+                required_email_keys.append("RESEND_API_KEY")
+            if not platform_settings["resend_from_email"]:
+                required_email_keys.append("RESEND_FROM_EMAIL")
+        elif platform_provider == "smtp":
+            if not platform_settings["smtp_host"]:
+                required_email_keys.append("SMTP_HOST")
+            if not platform_settings["smtp_from_email"]:
+                required_email_keys.append("SMTP_FROM_EMAIL")
         ai_status = build_ai_status()
 
         return WeeklyReportDeliveryConfigResponse(
-            email_delivery_configured=is_email_delivery_configured(
-                sender_email,
-                smtp_host,
-            ),
-            email_delivery_source=get_email_delivery_source(
-                sender_email,
-                smtp_host,
-            ),
-            workspace_smtp_configured=bool(
-                str(smtp_host or "").strip()
-            ),
+            email_delivery_configured=is_email_delivery_configured(),
+            email_delivery_source=get_email_delivery_source(),
+            email_delivery_provider=platform_provider,
             scheduler_configured=bool(
                 get_alerts_scheduler_secret()
             ),
-            required_email_environment_keys=[
-                *(
-                    []
-                    if smtp_host
-                    else ["SMTP_HOST"]
-                ),
-                *(
-                    []
-                    if sender_email
-                    else ["SMTP_FROM_EMAIL"]
-                ),
-            ],
+            required_email_environment_keys=required_email_keys,
             optional_email_environment_keys=[
+                "EMAIL_PROVIDER",
+                "RESEND_API_KEY",
+                "RESEND_FROM_EMAIL",
+                "RESEND_FROM_NAME",
                 "SMTP_PORT",
                 "SMTP_USERNAME",
                 "SMTP_PASSWORD",
@@ -1649,9 +1526,6 @@ async def send_weekly_report_now(
             delivery_result = await asyncio.to_thread(
                 send_weekly_report_email,
                 digest,
-                build_weekly_report_smtp_settings(
-                    preference
-                ),
             )
             sent_at = get_utc_now()
             update_weekly_report_delivery_status(
@@ -1767,9 +1641,6 @@ async def send_weekly_report_test_email(
             delivery_result = await asyncio.to_thread(
                 send_weekly_report_email,
                 digest,
-                build_weekly_report_smtp_settings(
-                    preference
-                ),
             )
             sent_at = get_utc_now()
             update_weekly_report_delivery_status(
@@ -1912,9 +1783,6 @@ async def send_due_weekly_reports(
                 delivery_result = await asyncio.to_thread(
                     send_weekly_report_email,
                     digest,
-                    build_weekly_report_smtp_settings(
-                        preference
-                    ),
                 )
                 sent_at = get_utc_now()
                 update_weekly_report_delivery_status(
@@ -2059,39 +1927,9 @@ async def update_weekly_report_preference(
         payload.metric_targets,
         clean_focus,
     )
-    clean_sender_name = clean_optional_text(
-        payload.sender_name,
-        "Sender name",
-    )
-    clean_sender_email = clean_optional_email(
-        payload.sender_email,
-        "Sender email",
-    )
-    clean_reply_to_email = clean_optional_email(
-        payload.reply_to_email,
-        "Reply-to email",
-    )
     clean_subject_prefix = clean_optional_text(
         payload.subject_prefix,
         "Subject prefix",
-    )
-    clean_smtp_host = clean_optional_text(
-        payload.smtp_host,
-        "SMTP host",
-        255,
-    )
-    clean_smtp_port = clean_optional_port(
-        payload.smtp_port
-    )
-    clean_smtp_username = clean_optional_text(
-        payload.smtp_username,
-        "SMTP username",
-        255,
-    )
-    clean_smtp_password = clean_optional_text(
-        payload.smtp_password,
-        "SMTP password",
-        2048,
     )
 
     db = SessionLocal()
@@ -2148,25 +1986,18 @@ async def update_weekly_report_preference(
         preference.include_recommendations = (
             1 if payload.include_recommendations else 0
         )
-        preference.sender_name = clean_sender_name
-        preference.sender_email = clean_sender_email
-        preference.reply_to_email = clean_reply_to_email
         preference.subject_prefix = clean_subject_prefix
-        preference.smtp_host = clean_smtp_host
-        preference.smtp_port = clean_smtp_port
-        preference.smtp_username = clean_smtp_username
-
-        if payload.smtp_clear_password:
-            preference.smtp_password = ""
-        elif clean_smtp_password:
-            preference.smtp_password = encrypt_secret(clean_smtp_password) or ""
-
-        preference.smtp_use_tls = (
-            1 if payload.smtp_use_tls else 0
-        )
-        preference.smtp_use_ssl = (
-            1 if payload.smtp_use_ssl else 0
-        )
+        # Workspace mail transport is platform-managed. Clear legacy values
+        # so older workspace SMTP overrides can never be used for delivery.
+        preference.sender_name = ""
+        preference.sender_email = ""
+        preference.reply_to_email = ""
+        preference.smtp_host = ""
+        preference.smtp_port = None
+        preference.smtp_username = ""
+        preference.smtp_password = ""
+        preference.smtp_use_tls = 1
+        preference.smtp_use_ssl = 0
         preference.last_send_error = None
         preference.last_send_status = (
             "configured"

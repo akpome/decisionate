@@ -20,7 +20,7 @@ const processors = [
   ],
   [
     "Resend or configured SMTP provider",
-    "System emails, support messages, reports, and alerts when email delivery is enabled. A workspace may configure its own SMTP provider for workspace emails.",
+    "System emails, support messages, reports, and alerts when platform email delivery is enabled. Email transport is configured centrally by Decisionate.",
   ],
   [
     "Cloudflare R2 or Amazon S3",
@@ -170,8 +170,9 @@ export default function PrivacyPage() {
       <PolicySection title="7. Credentials and security">
         <p>
           OAuth credentials are encrypted by the application when the required
-          encryption key is configured. Platform and workspace SMTP secrets are
-          also protected through the application secret-encryption path. HTTPS,
+          encryption key is configured. Platform SMTP secrets are also protected
+          through the application secret-encryption path. Workspace
+          users do not receive platform mail credentials. HTTPS,
           managed database access, remote object-storage controls, provider
           account permissions, backups, and Sentry scrubbing remain deployment
           responsibilities and must be configured before production use.

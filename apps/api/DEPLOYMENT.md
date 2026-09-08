@@ -76,7 +76,8 @@ routes.
 ## Email, AI, billing
 
 - `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, and `RESEND_FROM_EMAIL` deliver
-  Decisionate-owned system mail. Workspace SMTP overrides remain separate.
+  Decisionate-owned system mail and workspace alerts. Workspace users do not
+  configure a separate mail provider.
 - `AI_PROVIDER=openai`, `OPENAI_API_KEY`, and `OPENAI_MODEL` enable AI analysis.
 - `BILLING_PROVIDER=stripe` and the Stripe secret, price, and webhook settings
   enable billing.
