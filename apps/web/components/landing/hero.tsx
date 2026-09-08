@@ -21,13 +21,13 @@ export function LandingHero() {
       <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[0.86fr_1.14fr] lg:items-center lg:gap-10 lg:py-24">
         <div className="max-w-xl">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-            Decision automation for growing businesses
+            Decision intelligence for growing businesses
           </p>
           <h1 className="mt-5 text-4xl font-bold leading-[1.04] tracking-tight sm:text-6xl">
             Turn your business data into better decisions.
           </h1>
           <p className="mt-6 max-w-lg text-base leading-7 text-slate-300 sm:text-lg">
-            Decisionate is a decision automation platform powered by your business data. Connect your data, generate AI-powered insights and recommendations, make better decisions and measure outcomes.
+            Decisionate is a decision intelligence platform powered by your business data. Connect your data, generate AI-powered insights and recommendations, make better decisions and measure outcomes.
           </p>
           <p className="mt-3 max-w-lg text-sm leading-6 text-slate-400">
             Business intelligence dashboards give your team a clear view of performance before the next decision.

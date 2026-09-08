@@ -106,7 +106,7 @@ export const featureCards = [
     icon: "chart",
   },
   {
-    title: "Decision Automation",
+    title: "Decision Intelligence",
     description: "Move from meaningful signals to evidence-backed recommendations and accountable choices.",
     icon: "chart",
   },
@@ -186,10 +186,10 @@ export const benefits = [
 export const faqs = [
   {
     question: "What is Decisionate?",
-    answer: "Decisionate is a decision automation platform for growing businesses and agencies. It connects business data to analysis, forecasts, recommendations, accountable decisions and outcome learning.",
+    answer: "Decisionate is a decision intelligence platform for growing businesses and agencies. It connects business data to analysis, forecasts, recommendations, accountable decisions and outcome learning.",
   },
   {
-    question: "How does decision automation work?",
+    question: "How does decision intelligence work?",
     answer: "Decisionate follows a connected workflow: bring in business data, analyze the signals, review a recommendation, create an owned decision, record the outcome and capture the lesson for future recommendations. Decisions remain accountable to your team; the platform supports the decision rather than taking unapproved action.",
   },
   {

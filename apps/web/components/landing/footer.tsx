@@ -20,7 +20,7 @@ export function LandingFooter() {
             </span>
           </Link>
           <p className="mt-4 max-w-xs text-sm leading-6 text-slate-400">
-            Decision automation for teams that want to act on evidence and learn from the choices they make.
+            Decision intelligence for teams that want to act on evidence and learn from the choices they make.
           </p>
         </div>
 

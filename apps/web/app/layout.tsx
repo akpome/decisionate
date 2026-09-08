@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     template: "%s | Decisionate",
   },
   description:
-    "Business intelligence dashboards and decision automation for growing businesses, with forecasts, AI recommendations, and accountable decisions.",
+    "Business intelligence dashboards and decision intelligence for growing businesses, with forecasts, AI recommendations, and accountable decisions.",
   applicationName: "Decisionate",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
