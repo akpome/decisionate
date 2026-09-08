@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import {
@@ -68,6 +68,11 @@ type DatasetMetricOption = {
   column: string
   label: string
   datasetName: string
+}
+
+type TestEmailNotice = {
+  tone: "sending" | "success" | "error"
+  message: string
 }
 
 function getErrorMessage(
@@ -174,6 +179,9 @@ function AlertsPageContent({
     useState(false)
   const [sendingTestEmail, setSendingTestEmail] =
     useState(false)
+  const [testEmailNotice, setTestEmailNotice] =
+    useState<TestEmailNotice | null>(null)
+  const testEmailNoticeTimer = useRef<number | null>(null)
   const [statusMessage, setStatusMessage] =
     useState("")
   const [warningMessage, setWarningMessage] =
@@ -210,6 +218,22 @@ function AlertsPageContent({
     weeklyReportPreference.recipient_emails.length > 0 &&
     deliveryConfig?.email_delivery_configured
   )
+
+  function showTestEmailNotice(notice: TestEmailNotice) {
+    if (testEmailNoticeTimer.current !== null) {
+      window.clearTimeout(testEmailNoticeTimer.current)
+      testEmailNoticeTimer.current = null
+    }
+
+    setTestEmailNotice(notice)
+
+    if (notice.tone !== "sending") {
+      testEmailNoticeTimer.current = window.setTimeout(() => {
+        setTestEmailNotice(null)
+        testEmailNoticeTimer.current = null
+      }, 6000)
+    }
+  }
   const effectiveSelectedDecisionMetricKey = useMemo(() => {
     const metrics = weeklyReportDigest?.metrics ?? []
     const selectedMetricStillExists = metrics.some(
@@ -536,6 +560,14 @@ function AlertsPageContent({
     workspaceVersion,
   ])
 
+  useEffect(() => {
+    return () => {
+      if (testEmailNoticeTimer.current !== null) {
+        window.clearTimeout(testEmailNoticeTimer.current)
+      }
+    }
+  }, [])
+
   function updateWeeklyReportDraft(
     patch: Partial<WeeklyReportPreference>
   ) {
@@ -713,7 +745,10 @@ function toggleMetricFocus(
     try {
       setSendingTestEmail(true)
       setErrorMessage("")
-      setStatusMessage("")
+      showTestEmailNotice({
+        tone: "sending",
+        message: "Sending test email...",
+      })
 
       const result =
         await sendWeeklyReportTestEmail(
@@ -721,17 +756,23 @@ function toggleMetricFocus(
           activeWorkspaceId
         )
 
-      setStatusMessage(
-        `Test email sent to ${result.delivered_count} recipient${
+      showTestEmailNotice({
+        tone: "success",
+        message: `Test email sent to ${result.delivered_count} recipient${
           result.delivered_count === 1 ? "" : "s"
-        }.`
-      )
+        }.`,
+      })
     } catch (error) {
+      const message = getErrorMessage(
+        error,
+        "Test email could not be sent."
+      )
+      showTestEmailNotice({
+        tone: "error",
+        message,
+      })
       setErrorMessage(
-        getErrorMessage(
-          error,
-          "Test email could not be sent."
-        )
+        message
       )
     } finally {
       setSendingTestEmail(false)
@@ -1163,6 +1204,22 @@ function toggleMetricFocus(
                     : "Send test email"}
                 </button>
               </div>
+
+              {testEmailNotice && (
+                <p
+                  role={testEmailNotice.tone === "error" ? "alert" : "status"}
+                  aria-live="polite"
+                  className={`rounded-xl border px-3 py-2 text-sm ${
+                    testEmailNotice.tone === "success"
+                      ? "border-green-200 bg-green-50 text-green-700"
+                      : testEmailNotice.tone === "error"
+                        ? "border-red-200 bg-red-50 text-red-700"
+                        : "border-blue-200 bg-blue-50 text-blue-700"
+                  }`}
+                >
+                  {testEmailNotice.message}
+                </p>
+              )}
 
               <p className="text-xs text-gray-500">
                 {!weeklyReportPreference.recipient_emails.length
