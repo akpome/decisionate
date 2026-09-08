@@ -193,6 +193,39 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             )
         )
 
+    def test_weekly_report_digest_does_not_repopulate_removed_metrics(self):
+        preference = WeeklyReportPreferenceResponse(
+            enabled=False,
+            cadence="weekly",
+            delivery_day="monday",
+            recipient_emails=[],
+            metric_focus=[],
+            include_recommendations=True,
+        )
+        dataset = SimpleNamespace(
+            id=42,
+            file_name="sales.csv",
+        )
+
+        with patch(
+            "app.modules.alerts.router.load_dataframe_from_dataset",
+            return_value=pd.DataFrame({
+                "Gross Revenue": [10, 20],
+                "Cost": [4, 6],
+            }),
+        ):
+            digest = build_weekly_report_digest(
+                preference,
+                [dataset],
+                brand_name="Acme Retail",
+            )
+
+        self.assertEqual(digest.metrics, [])
+        self.assertEqual(
+            [metric.column for metric in digest.available_metrics],
+            ["Gross Revenue", "Cost"],
+        )
+
     def test_email_delivery_configuration_requires_host_and_sender(self):
         with patch.dict(
             "os.environ",

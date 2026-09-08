@@ -613,7 +613,11 @@ function AlertsPageContent({
     })
   }
 
-  function removeDigestMetric(metric: WeeklyReportDigestMetric) {
+  async function removeDigestMetric(metric: WeeklyReportDigestMetric) {
+    if (!user?.id || saving || !canManageAlertAnalysis) {
+      return
+    }
+
     const metricKey = `${metric.dataset_id}:${metric.column}`
     const matchingFocus = weeklyReportPreference.metric_focus.find(
       (focusedMetric) =>
@@ -621,11 +625,86 @@ function AlertsPageContent({
         focusedMetric.toLowerCase() === metric.column.toLowerCase()
     )
 
-    if (matchingFocus) {
-      toggleMetricFocus(matchingFocus)
-      setStatusMessage(
-        "Metric removed from the digest selection. Save KPI Setup to apply the change."
+    if (!matchingFocus) {
+      return
+    }
+
+    const previousPreference = weeklyReportPreference
+    const previousDigest = weeklyReportDigest
+    const nextMetricFocus = previousPreference.metric_focus.filter(
+      (focusedMetric) => focusedMetric !== matchingFocus
+    )
+    const nextMetricTargets = {
+      ...previousPreference.metric_targets,
+    }
+    delete nextMetricTargets[matchingFocus]
+    delete nextMetricTargets[metricKey]
+    delete nextMetricTargets[metric.column]
+
+    const nextPreference = normalizeWeeklyReportPreference({
+      ...previousPreference,
+      metric_focus: nextMetricFocus,
+      metric_targets: nextMetricTargets,
+    })
+
+    setWeeklyReportPreference(nextPreference)
+    setWeeklyReportDigest((currentDigest) =>
+      currentDigest
+        ? {
+          ...currentDigest,
+          metrics: currentDigest.metrics.filter(
+            (digestMetric) =>
+              !(
+                String(digestMetric.dataset_id) === String(metric.dataset_id) &&
+                digestMetric.column.toLowerCase() === metric.column.toLowerCase()
+              )
+          ),
+        }
+        : currentDigest
+    )
+    setSaving(true)
+    setErrorMessage("")
+    setStatusMessage("")
+    setWarningMessage("")
+
+    try {
+      const savedPreference = await updateWeeklyReportPreference(
+        {
+          ...nextPreference,
+          cadence: "weekly",
+          recipient_emails: nextPreference.recipient_emails,
+        },
+        user.id,
+        activeWorkspaceId
       )
+      setWeeklyReportPreference(
+        normalizeWeeklyReportPreference(savedPreference)
+      )
+
+      try {
+        setWeeklyReportDigest(
+          await getWeeklyReportDigest(
+            user.id,
+            activeWorkspaceId,
+            { notifyAvailability: false }
+          )
+        )
+      } catch {
+        setWarningMessage("The digest preview could not be refreshed yet.")
+      }
+
+      setStatusMessage("Metric removed from the saved digest.")
+    } catch (error) {
+      setWeeklyReportPreference(previousPreference)
+      setWeeklyReportDigest(previousDigest)
+      setErrorMessage(
+        getErrorMessage(
+          error,
+          "The metric could not be removed from the saved digest."
+        )
+      )
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1282,6 +1361,7 @@ function AlertsPageContent({
                 ? removeDigestMetric
                 : undefined
             }
+            saving={saving}
             selectedMetricKey={
               effectiveSelectedDecisionMetricKey
             }
@@ -1310,6 +1390,7 @@ function WeeklyReportDigestPreview({
   selectedMetricLabels,
   onCreateDecision,
   onRemoveMetric,
+  saving,
   selectedMetricKey,
   selectedDecisionMetricLabel,
   onSelectMetric,
@@ -1321,7 +1402,8 @@ function WeeklyReportDigestPreview({
   unavailable: boolean
   selectedMetricLabels: string[]
   onCreateDecision?: () => void
-  onRemoveMetric?: (metric: WeeklyReportDigestMetric) => void
+  onRemoveMetric?: (metric: WeeklyReportDigestMetric) => void | Promise<void>
+  saving: boolean
   selectedMetricKey: string
   selectedDecisionMetricLabel?: string
   onSelectMetric: (value: string) => void
@@ -1420,10 +1502,11 @@ function WeeklyReportDigestPreview({
                 {onRemoveMetric && (
                   <button
                     type="button"
-                    onClick={() => onRemoveMetric(metric)}
+                    onClick={() => void onRemoveMetric(metric)}
+                    disabled={saving}
                     aria-label={`Remove ${formatMetricName(metric.column)} from digest`}
                     title="Remove metric from digest"
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <X size={15} />
                   </button>

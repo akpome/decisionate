@@ -623,14 +623,11 @@ def build_weekly_report_digest(
             }
             available_digest_metrics.append(metric_record)
 
-            if focus_keys and not metric_focus_matches(
+            if not focus_keys or not metric_focus_matches(
                 focus_keys,
                 dataset.id,
                 column,
             ):
-                continue
-
-            if not focus_keys and preference.relationship_focus:
                 continue
 
             digest_metrics.append(metric_record)
