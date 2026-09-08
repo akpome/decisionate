@@ -16,6 +16,7 @@ from sqlalchemy import func
 from sqlalchemy import or_
 
 from app.db.database import SessionLocal
+from app.configuration import get_runtime_configuration
 from app.db.models import Dataset
 from app.db.models import DatasetRelationship
 from app.db.models import Organization
@@ -72,6 +73,8 @@ allowed_delivery_days = {
 }
 
 default_weekly_report_brand_name = "Decisionate"
+default_weekly_report_primary_color = "#0F766E"
+default_weekly_report_accent_color = "#1D4ED8"
 
 
 def clean_weekly_report_brand_name(
@@ -514,10 +517,20 @@ def build_digest_recommendations(
     return recommendations[:5]
 
 
-def get_weekly_report_brand_name(
+def clean_weekly_report_brand_color(
+    value: str | None,
+    default: str,
+) -> str:
+    clean_value = str(value or "").strip()
+    if re.fullmatch(r"#[0-9a-fA-F]{6}", clean_value):
+        return clean_value
+    return default
+
+
+def get_weekly_report_branding(
     db,
     workspace_id: str,
-) -> str:
+) -> dict:
     organization = (
         db.query(Organization)
         .filter(
@@ -528,12 +541,82 @@ def get_weekly_report_brand_name(
     )
 
     if not organization:
-        return default_weekly_report_brand_name
+        return {
+            "brand_name": default_weekly_report_brand_name,
+            "workspace_name": "",
+            "brand_logo_url": None,
+            "brand_primary_color": default_weekly_report_primary_color,
+            "brand_accent_color": default_weekly_report_accent_color,
+            "is_managed_client": False,
+            "review_url": build_weekly_report_review_url(),
+        }
 
-    return clean_weekly_report_brand_name(
-        organization.report_display_name
-        or organization.name
+    is_managed_client = ":client:" in str(
+        organization.owner_user_id or "",
     )
+    brand_organization = organization
+    if is_managed_client:
+        agency_user_id = str(
+            organization.owner_user_id,
+        ).split(":client:", 1)[0]
+        brand_organization = (
+            db.query(Organization)
+            .filter(
+                Organization.owner_user_id == agency_user_id,
+            )
+            .first()
+            or organization
+        )
+
+    try:
+        review_url = (
+            get_runtime_configuration().web_url.rstrip("/")
+            + "/dashboard"
+        )
+    except Exception:
+        review_url = None
+
+    return {
+        "brand_name": clean_weekly_report_brand_name(
+            brand_organization.report_display_name
+            or brand_organization.name,
+        ),
+        "workspace_name": clean_weekly_report_brand_name(
+            organization.name,
+        ),
+        "brand_logo_url": brand_organization.logo_url,
+        "brand_primary_color": clean_weekly_report_brand_color(
+            brand_organization.primary_color,
+            default_weekly_report_primary_color,
+        ),
+        "brand_accent_color": clean_weekly_report_brand_color(
+            brand_organization.accent_color,
+            default_weekly_report_accent_color,
+        ),
+        "is_managed_client": is_managed_client,
+        "review_url": review_url,
+    }
+
+
+def build_weekly_report_review_url() -> str | None:
+    try:
+        return (
+            get_runtime_configuration().web_url.rstrip("/")
+            + "/dashboard"
+        )
+    except Exception:
+        return None
+
+
+def get_weekly_report_brand_name(
+    db,
+    workspace_id: str,
+) -> str:
+    """Keep the existing brand-name helper for non-email callers."""
+    return get_weekly_report_branding(
+        db,
+        workspace_id,
+    )["brand_name"]
 
 
 def build_weekly_report_digest(
@@ -544,9 +627,17 @@ def build_weekly_report_digest(
     workspace_id: str | None = None,
     relationships: list[dict] | None = None,
     include_ai_analysis: bool = True,
+    branding: dict | None = None,
 ) -> WeeklyReportDigestResponse:
+    branding = branding or {}
     clean_brand_name = clean_weekly_report_brand_name(
         brand_name,
+    )
+    workspace_name = clean_weekly_report_brand_name(
+        branding.get("workspace_name"),
+    ) if branding.get("workspace_name") else ""
+    is_managed_client = bool(
+        branding.get("is_managed_client", False)
     )
     relationship_results = relationships or []
     focus_keys = {
@@ -642,7 +733,9 @@ def build_weekly_report_digest(
         digest_metrics
     )
     subject_base = (
-        f"{clean_brand_name} KPI digest — {generated_date}"
+        f"Weekly Performance Alert — {workspace_name}"
+        if is_managed_client and workspace_name
+        else f"{clean_brand_name} KPI digest — {generated_date}"
     )
     subject_prefix = clean_optional_text(
         preference.subject_prefix,
@@ -734,6 +827,18 @@ def build_weekly_report_digest(
         reply_to_email="",
         subject_prefix=subject_prefix,
         brand_name=clean_brand_name,
+        workspace_name=workspace_name,
+        brand_logo_url=branding.get("brand_logo_url"),
+        brand_primary_color=clean_weekly_report_brand_color(
+            branding.get("brand_primary_color"),
+            default_weekly_report_primary_color,
+        ),
+        brand_accent_color=clean_weekly_report_brand_color(
+            branding.get("brand_accent_color"),
+            default_weekly_report_accent_color,
+        ),
+        is_managed_client=is_managed_client,
+        review_url=branding.get("review_url"),
         subject=subject,
         preview_text=preview_text,
         ai_analysis=ai_analysis,
@@ -968,14 +1073,15 @@ def build_weekly_report_digest_for_workspace(
         datasets,
         workspace_id,
     )
+    branding = get_weekly_report_branding(
+        db,
+        workspace_id,
+    )
 
     return build_weekly_report_digest(
         preference_response,
         datasets,
-        get_weekly_report_brand_name(
-            db,
-            workspace_id,
-        ),
+        branding["brand_name"],
         build_workspace_decision_learning_context(
             db,
             user_id,
@@ -988,6 +1094,7 @@ def build_weekly_report_digest_for_workspace(
         ),
         workspace_id,
         relationship_results,
+        branding=branding,
     )
 
 
@@ -1008,7 +1115,7 @@ async def build_weekly_report_digest_for_workspace_async(
     preference_response = build_weekly_report_preference_response(
         preference
     )
-    brand_name = get_weekly_report_brand_name(
+    branding = get_weekly_report_branding(
         db,
         workspace_id,
     )
@@ -1037,11 +1144,12 @@ async def build_weekly_report_digest_for_workspace_async(
         build_weekly_report_digest,
         preference_response,
         datasets,
-        brand_name,
+        branding["brand_name"],
         learning_context,
         workspace_id,
         relationship_results,
         include_ai_analysis,
+        branding,
     )
 
 
@@ -1208,7 +1316,9 @@ def build_weekly_report_delivery_log_response(log):
 def build_weekly_report_test_digest(
     preference: WeeklyReportPreference | None,
     brand_name: str,
+    branding: dict | None = None,
 ) -> WeeklyReportDigestResponse:
+    branding = branding or {}
     preference_response = build_weekly_report_preference_response(
         preference
     )
@@ -1220,7 +1330,12 @@ def build_weekly_report_test_digest(
         brand_name
     )
     subject = (
-        f"{clean_brand_name} KPI email test — {generated_date}"
+        (
+            f"Weekly Performance Alert — {branding['workspace_name']}"
+            if branding.get("is_managed_client")
+            and branding.get("workspace_name")
+            else f"{clean_brand_name} KPI email test — {generated_date}"
+        )
     )
 
     return WeeklyReportDigestResponse(
@@ -1234,6 +1349,20 @@ def build_weekly_report_test_digest(
         reply_to_email="",
         subject_prefix="",
         brand_name=clean_brand_name,
+        workspace_name=branding.get("workspace_name", ""),
+        brand_logo_url=branding.get("brand_logo_url"),
+        brand_primary_color=clean_weekly_report_brand_color(
+            branding.get("brand_primary_color"),
+            default_weekly_report_primary_color,
+        ),
+        brand_accent_color=clean_weekly_report_brand_color(
+            branding.get("brand_accent_color"),
+            default_weekly_report_accent_color,
+        ),
+        is_managed_client=bool(
+            branding.get("is_managed_client", False)
+        ),
+        review_url=branding.get("review_url"),
         subject=subject,
         preview_text=(
             "This test confirms KPI email delivery is configured."
@@ -1628,12 +1757,14 @@ async def send_weekly_report_test_email(
         )
         digest = None
         try:
+            branding = get_weekly_report_branding(
+                db,
+                auth_context.workspace_id,
+            )
             digest = build_weekly_report_test_digest(
                 preference,
-                get_weekly_report_brand_name(
-                    db,
-                    auth_context.workspace_id,
-                ),
+                branding["brand_name"],
+                branding,
             )
             delivery_result = await asyncio.to_thread(
                 send_weekly_report_email,

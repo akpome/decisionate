@@ -815,6 +815,12 @@ export type WeeklyReportDigest = {
   reply_to_email: string
   subject_prefix: string
   brand_name: string
+  workspace_name?: string
+  brand_logo_url?: string | null
+  brand_primary_color?: string
+  brand_accent_color?: string
+  is_managed_client?: boolean
+  review_url?: string | null
   subject: string
   preview_text: string
   ai_analysis?: WeeklyReportAIAnalysis | null

@@ -19,6 +19,7 @@ from app.modules.alerts.schemas import (
 from app.modules.alerts.email_delivery import (
     _send_resend_message,
     build_weekly_report_email_message,
+    build_weekly_report_email_html,
     build_weekly_report_email_text,
     is_email_delivery_configured,
     send_weekly_report_email,
@@ -30,6 +31,7 @@ from app.modules.alerts.router import (
     clean_metric_focus,
     clean_recipient_emails,
     get_weekly_report_delivery_config,
+    get_weekly_report_branding,
     require_alerts_scheduler_secret,
     require_weekly_report_manager,
     update_weekly_report_preference,
@@ -39,6 +41,176 @@ from app.modules.alerts.router import (
 
 
 class WeeklyReportPreferenceTests(unittest.TestCase):
+    def test_managed_client_branding_uses_agency_identity_and_client_name(self):
+        agency = SimpleNamespace(
+            name="ABC Marketing",
+            owner_user_id="agency-user",
+            logo_url="https://cdn.example.com/abc-logo.png",
+            primary_color="#123456",
+            accent_color="#654321",
+            report_display_name="",
+        )
+        client = SimpleNamespace(
+            name="Smith Dental",
+            owner_user_id="agency-user:client:smith-dental",
+            logo_url="https://cdn.example.com/old-logo.png",
+            primary_color="#FFFFFF",
+            accent_color="#000000",
+            report_display_name="ABC Marketing",
+        )
+
+        class FakeOrganizationQuery:
+            def __init__(self, organizations, query_number):
+                self.organizations = organizations
+                self.query_number = query_number
+
+            def filter(self, *args, **kwargs):
+                return self
+
+            def first(self):
+                return (
+                    self.organizations[1]
+                    if self.query_number == 1
+                    else self.organizations[0]
+                )
+
+        class FakeDB:
+            def __init__(self):
+                self.query_number = 0
+
+            def query(self, model):
+                self.query_number += 1
+                return FakeOrganizationQuery(
+                    [agency, client],
+                    self.query_number,
+                )
+
+        branding = get_weekly_report_branding(
+            FakeDB(),
+            client.owner_user_id,
+        )
+
+        self.assertEqual(
+            branding["brand_name"],
+            "ABC Marketing",
+        )
+        self.assertEqual(
+            branding["workspace_name"],
+            "Smith Dental",
+        )
+        self.assertTrue(branding["is_managed_client"])
+        self.assertEqual(
+            branding["brand_logo_url"],
+            agency.logo_url,
+        )
+        self.assertEqual(
+            branding["brand_primary_color"],
+            agency.primary_color,
+        )
+
+    def test_managed_client_digest_uses_client_alert_subject(self):
+        preference = WeeklyReportPreferenceResponse(
+            enabled=True,
+            cadence="weekly",
+            delivery_day="monday",
+            recipient_emails=["owner@smithdental.example"],
+            metric_focus=[],
+            metric_targets={},
+            relationship_focus=[],
+            include_recommendations=True,
+            subject_prefix="",
+        )
+
+        digest = build_weekly_report_digest(
+            preference,
+            [],
+            "ABC Marketing",
+            workspace_id="agency-user:client:smith-dental",
+            include_ai_analysis=False,
+            branding={
+                "workspace_name": "Smith Dental",
+                "brand_logo_url": "https://cdn.example.com/abc-logo.png",
+                "brand_primary_color": "#123456",
+                "brand_accent_color": "#654321",
+                "is_managed_client": True,
+                "review_url": "https://app.example.com/dashboard",
+            },
+        )
+
+        self.assertEqual(
+            digest.subject,
+            "Weekly Performance Alert — Smith Dental",
+        )
+        self.assertTrue(digest.is_managed_client)
+
+    def test_managed_client_email_is_branded_and_uses_platform_sender(self):
+        digest = WeeklyReportDigestResponse(
+            enabled=True,
+            cadence="weekly",
+            delivery_day="monday",
+            recipient_emails=["owner@smithdental.example"],
+            metric_focus=["Revenue"],
+            brand_name="ABC Marketing",
+            workspace_name="Smith Dental",
+            brand_logo_url="https://cdn.example.com/abc-logo.png",
+            brand_primary_color="#123456",
+            brand_accent_color="#654321",
+            is_managed_client=True,
+            review_url="https://app.example.com/dashboard",
+            subject="Weekly Performance Alert — Smith Dental",
+            preview_text="1 dataset KPI metric ready for review.",
+            dataset_count=1,
+            metrics=[
+                WeeklyReportDigestMetric(
+                    dataset_id=1,
+                    dataset_name="sales.csv",
+                    column="Revenue",
+                    total=42500,
+                    average=42500,
+                    minimum=42500,
+                    maximum=42500,
+                ),
+            ],
+            recommendations=[
+                "Review the recent decline in conversion before increasing spend.",
+            ],
+            unavailable_datasets=[],
+        )
+
+        message = build_weekly_report_email_message(
+            digest,
+            "owner@smithdental.example",
+            {
+                "provider": "resend",
+                "resend_from_email": "alerts@decisionate.ca",
+                "resend_from_name": "Decisionate",
+            },
+        )
+        html_body = message.get_body(
+            preferencelist=("html",)
+        ).get_content()
+
+        self.assertEqual(
+            message["From"],
+            "ABC Marketing via Decisionate <alerts@decisionate.ca>",
+        )
+        self.assertIn(
+            "Smith Dental",
+            html_body,
+        )
+        self.assertIn(
+            "ABC Marketing",
+            html_body,
+        )
+        self.assertIn(
+            "Review in Dashboard",
+            html_body,
+        )
+        self.assertIn(
+            "https://cdn.example.com/abc-logo.png",
+            html_body,
+        )
+
     def test_clean_recipient_emails_normalizes_and_deduplicates(self):
         self.assertEqual(
             clean_recipient_emails(
@@ -286,6 +458,10 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         message["Subject"] = "Decisionate test"
         message["Reply-To"] = "reply@example.com"
         message.set_content("A test message")
+        message.add_alternative(
+            "<p>A test message</p>",
+            subtype="html",
+        )
         settings = {
             "resend_api_url": "https://api.resend.com/emails",
             "resend_api_key": "re_test_key",
@@ -333,6 +509,14 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         self.assertEqual(
             payload["to"],
             ["recipient@example.com"],
+        )
+        self.assertEqual(
+            payload["text"],
+            "A test message\n",
+        )
+        self.assertEqual(
+            payload["html"],
+            "<p>A test message</p>\n",
         )
         self.assertEqual(
             payload["reply_to"],

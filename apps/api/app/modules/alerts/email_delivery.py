@@ -1,11 +1,15 @@
 import os
 import logging
 import json
+import re
 import smtplib
 from datetime import datetime
 from datetime import timezone
 from email.message import EmailMessage
+from email.utils import parseaddr
+from html import escape as escape_html
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from fastapi import HTTPException
@@ -293,15 +297,36 @@ def _send_resend_message(
     message: EmailMessage,
     settings: dict,
 ) -> None:
-    body = message.get_content()
+    plain_part = message.get_body(
+        preferencelist=("plain",)
+    )
+    html_part = message.get_body(
+        preferencelist=("html",)
+    )
+    body = (
+        plain_part.get_content()
+        if plain_part is not None
+        else message.get_content()
+    )
     sender_name = settings["resend_from_name"] or "Decisionate"
     sender_email = settings["resend_from_email"]
+    requested_sender_name, requested_sender_email = parseaddr(
+        str(message.get("From") or "")
+    )
+    if (
+        requested_sender_email
+        and requested_sender_email.casefold()
+        == sender_email.casefold()
+    ):
+        sender_name = requested_sender_name or sender_name
     payload = {
         "from": f"{sender_name} <{sender_email}>",
         "to": [message["To"]],
         "subject": str(message["Subject"] or "Decisionate message"),
         "text": body,
     }
+    if html_part is not None:
+        payload["html"] = html_part.get_content()
     if message.get("Reply-To"):
         payload["reply_to"] = [message["Reply-To"]]
 
@@ -582,6 +607,188 @@ def build_weekly_report_email_text(
     return "\n".join(lines)
 
 
+def clean_email_brand_color(
+    value: str | None,
+    default: str,
+) -> str:
+    clean_value = str(value or "").strip()
+    if re.fullmatch(r"#[0-9a-fA-F]{6}", clean_value):
+        return clean_value
+    return default
+
+
+def clean_email_logo_url(
+    value: str | None,
+) -> str | None:
+    clean_value = str(value or "").strip()
+    if not clean_value:
+        return None
+
+    parsed_url = urlparse(clean_value)
+    if parsed_url.scheme in {"http", "https"}:
+        return clean_value
+    if clean_value.lower().startswith("data:image/"):
+        return clean_value
+    return None
+
+
+def build_weekly_report_email_html(
+    digest: WeeklyReportDigestResponse,
+) -> str:
+    primary_color = clean_email_brand_color(
+        digest.brand_primary_color,
+        "#0F766E",
+    )
+    accent_color = clean_email_brand_color(
+        digest.brand_accent_color,
+        "#1D4ED8",
+    )
+    raw_brand_name = str(digest.brand_name or "Decisionate")
+    raw_workspace_name = str(
+        digest.workspace_name or digest.brand_name
+    )
+    brand_name = escape_html(raw_brand_name)
+    workspace_name = escape_html(raw_workspace_name)
+    logo_url = clean_email_logo_url(digest.brand_logo_url)
+    logo = (
+        f'<img src="{escape_html(logo_url, quote=True)}" '
+        f'alt="{brand_name}" width="160" '
+        'style="display:block;max-width:160px;height:auto;margin:0 auto 24px;">'
+        if logo_url
+        else (
+            f'<div style="color:{primary_color};font-size:20px;'
+            f'font-weight:700;margin:0 auto 24px;text-align:center;">'
+            f"{brand_name}</div>"
+        )
+    )
+    title = (
+        "Weekly Performance Alert"
+        if digest.is_managed_client
+        else "KPI Performance Digest"
+    )
+    escaped_title = escape_html(title)
+    escaped_subject = escape_html(digest.subject)
+
+    metric_rows = []
+    for metric in digest.metrics:
+        metric_name = escape_html(metric.column)
+        dataset_name = escape_html(metric.dataset_name)
+        metric_value = format_digest_number(
+            metric.total
+            if metric.total is not None
+            else metric.average
+        )
+        target_markup = ""
+        if metric.target is not None:
+            target_markup = (
+                '<div style="color:#64748B;font-size:12px;margin-top:4px;">'
+                "Target: "
+                f"{escape_html(format_digest_number(metric.target))}"
+                "</div>"
+            )
+        metric_rows.append(
+            "<tr>"
+            '<td style="border-bottom:1px solid #E2E8F0;padding:14px 0;">'
+            f'<div style="color:#0F172A;font-size:15px;font-weight:700;">{metric_name}</div>'
+            f'<div style="color:#64748B;font-size:12px;margin-top:3px;">{dataset_name}</div>'
+            f"{target_markup}"
+            "</td>"
+            '<td align="right" style="border-bottom:1px solid #E2E8F0;'
+            'padding:14px 0;color:#0F172A;font-size:17px;font-weight:700;'
+            f'white-space:nowrap;">{escape_html(metric_value)}</td>'
+            "</tr>"
+        )
+    metrics_markup = "".join(metric_rows)
+    if not metrics_markup:
+        metrics_markup = (
+            '<tr><td colspan="2" style="color:#64748B;padding:14px 0;">'
+            "No matching KPI metrics are available yet."
+            "</td></tr>"
+        )
+
+    recommendation_items = "".join(
+        f'<li style="margin:0 0 10px;">{escape_html(recommendation)}</li>'
+        for recommendation in digest.recommendations
+    )
+    if not recommendation_items:
+        recommendation_items = (
+            '<li style="margin:0;">No recommendation is available yet.</li>'
+        )
+    recommendation_heading = (
+        "Recommendation"
+        if len(digest.recommendations) == 1
+        else "Recommendations"
+    )
+    analysis_markup = ""
+    if digest.ai_analysis:
+        analysis_markup = (
+            '<p style="color:#475569;font-size:14px;line-height:1.6;'
+            f'margin:0 0 20px;">{escape_html(digest.ai_analysis.summary)}</p>'
+        )
+    review_url = digest.review_url or digest.decision_template_url
+    review_markup = ""
+    if review_url:
+        review_markup = (
+            '<table role="presentation" cellpadding="0" cellspacing="0" '
+            'border="0" style="margin:28px auto 0;">'
+            "<tr><td>"
+            f'<a href="{escape_html(review_url, quote=True)}" '
+            f'style="background:{accent_color};border-radius:5px;color:#FFFFFF;'
+            'display:inline-block;font-size:14px;font-weight:700;padding:12px 20px;'
+            'text-decoration:none;">Review in Dashboard</a>'
+            "</td></tr></table>"
+        )
+
+    if digest.workspace_name:
+        prepared_for = (
+            f"Prepared for {raw_workspace_name} by {raw_brand_name}"
+        )
+    else:
+        prepared_for = f"Prepared by {raw_brand_name}"
+    escaped_prepared_for = escape_html(prepared_for)
+
+    return (
+        "<!doctype html>"
+        '<html lang="en"><body style="margin:0;background:#F8FAFC;'
+        'font-family:Arial,Helvetica,sans-serif;color:#0F172A;">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'border="0" style="background:#F8FAFC;"><tr><td align="center" '
+        'style="padding:32px 16px;">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'border="0" style="max-width:600px;background:#FFFFFF;border:1px solid '
+        '#E2E8F0;border-radius:8px;overflow:hidden;">'
+        f'<tr><td style="height:6px;background:{primary_color};font-size:0;">&nbsp;</td></tr>'
+        '<tr><td style="padding:34px 40px 28px;">'
+        f"{logo}"
+        f'<p style="color:#64748B;font-size:12px;letter-spacing:.04em;'
+        f'margin:0 0 8px;text-align:center;text-transform:uppercase;">{brand_name}</p>'
+        f'<h1 style="color:#0F172A;font-size:26px;line-height:1.2;margin:0;'
+        f'text-align:center;">{escaped_title}</h1>'
+        f'<p style="color:#334155;font-size:18px;margin:8px 0 6px;text-align:center;">'
+        f"{workspace_name}</p>"
+        f'<p style="color:#64748B;font-size:12px;margin:0;text-align:center;">'
+        f"{escaped_subject}</p>"
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'border="0" style="margin-top:30px;">'
+        f"{metrics_markup}"
+        "</table>"
+        f'<div style="border-left:4px solid {primary_color};margin-top:30px;'
+        'padding:2px 0 2px 16px;">'
+        f'<h2 style="color:#0F172A;font-size:14px;letter-spacing:.04em;'
+        f'margin:0 0 12px;text-transform:uppercase;">{recommendation_heading}</h2>'
+        f"{analysis_markup}"
+        f'<ul style="color:#334155;font-size:14px;line-height:1.5;margin:0;padding-left:20px;">'
+        f"{recommendation_items}</ul></div>"
+        f"{review_markup}"
+        '<div style="border-top:1px solid #E2E8F0;margin-top:34px;padding-top:20px;'
+        'text-align:center;">'
+        f'<p style="color:#475569;font-size:13px;margin:0 0 8px;">{escaped_prepared_for}</p>'
+        '<p style="color:#94A3B8;font-size:12px;margin:0;">Powered by Decisionate</p>'
+        '</div></td></tr></table></td></tr></table>'
+        "</body></html>"
+    )
+
+
 def get_weekly_report_analysis_source_label(
     analysis: WeeklyReportAIAnalysis,
 ) -> str:
@@ -622,6 +829,8 @@ def build_weekly_report_email_message(
     from_email, from_name = get_platform_sender_details(
         platform_settings
     )
+    if digest.is_managed_client:
+        from_name = f"{digest.brand_name} via Decisionate"
     sender = (
         f"{from_name} <{from_email}>"
         if from_name
@@ -636,6 +845,12 @@ def build_weekly_report_email_message(
         build_weekly_report_email_text(
             digest
         )
+    )
+    message.add_alternative(
+        build_weekly_report_email_html(
+            digest
+        ),
+        subtype="html",
     )
 
     return message

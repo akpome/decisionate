@@ -87,6 +87,12 @@ class WeeklyReportDigestResponse(BaseModel):
     reply_to_email: str = ""
     subject_prefix: str = ""
     brand_name: str = "Decisionate"
+    workspace_name: str = ""
+    brand_logo_url: str | None = None
+    brand_primary_color: str = "#0F766E"
+    brand_accent_color: str = "#1D4ED8"
+    is_managed_client: bool = False
+    review_url: str | None = None
     subject: str
     preview_text: str
     dataset_count: int
