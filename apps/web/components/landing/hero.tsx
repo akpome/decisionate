@@ -20,7 +20,7 @@ export function LandingHero() {
     <section className="overflow-hidden bg-slate-950 text-white">
       <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[0.86fr_1.14fr] lg:items-center lg:gap-10 lg:py-24">
         <div className="max-w-xl">
-          <p className="whitespace-nowrap text-xs font-bold uppercase text-slate-400 sm:text-sm">
+          <p className="whitespace-nowrap text-[13px] font-bold uppercase text-slate-400 sm:text-[15px]">
             Decision intelligence for growing businesses & agencies
           </p>
           <h1 className="mt-5 text-4xl font-bold leading-[1.04] tracking-tight sm:text-6xl">
