@@ -170,28 +170,62 @@ def _parse_dates(
     return parsed
 
 
+def _safe_parse_dates(
+    series: pd.Series,
+    reference_year: int | None = None,
+) -> pd.Series:
+    try:
+        return _parse_dates(
+            series,
+            reference_year=reference_year,
+        )
+    except (
+        AssertionError,
+        AttributeError,
+        IndexError,
+        OverflowError,
+        TypeError,
+        ValueError,
+    ):
+        return pd.Series(
+            pd.NaT,
+            index=series.index,
+            dtype="datetime64[ns]",
+        )
+
+
 def infer_date_columns(dataframe: pd.DataFrame) -> list[str]:
     candidates: list[tuple[str, float, bool]] = []
 
     for column in dataframe.columns:
-        series = dataframe[column]
-        if pd.api.types.is_numeric_dtype(series):
-            continue
+        try:
+            series = dataframe[column]
+            if pd.api.types.is_numeric_dtype(series):
+                continue
 
-        parsed = _parse_dates(series)
-        valid_ratio = float(parsed.notna().mean())
-        if valid_ratio < 0.6:
-            continue
+            parsed = _safe_parse_dates(series)
+            valid_ratio = float(parsed.notna().mean())
+            if valid_ratio < 0.6:
+                continue
 
-        column_name = str(column).lower()
-        keyword_match = any(
-            keyword in column_name
-            for keyword in DATE_COLUMN_KEYWORDS
-        )
-        if keyword_match or valid_ratio >= 0.8:
-            candidates.append(
-                (str(column), valid_ratio, keyword_match)
+            column_name = str(column).lower()
+            keyword_match = any(
+                keyword in column_name
+                for keyword in DATE_COLUMN_KEYWORDS
             )
+            if keyword_match or valid_ratio >= 0.8:
+                candidates.append(
+                    (str(column), valid_ratio, keyword_match)
+                )
+        except (
+            AssertionError,
+            AttributeError,
+            IndexError,
+            OverflowError,
+            TypeError,
+            ValueError,
+        ):
+            continue
 
     candidates.sort(
         key=lambda item: (
@@ -213,7 +247,7 @@ def _infer_explicit_year(series: pd.Series) -> int | None:
     if explicit_values.empty:
         return None
 
-    parsed = _parse_dates(explicit_values).dropna()
+    parsed = _safe_parse_dates(explicit_values).dropna()
     if parsed.empty:
         return None
 
@@ -259,7 +293,7 @@ def build_join_dataset_metadata(
         "end": None,
     }
     if date_columns:
-        parsed = _parse_dates(
+        parsed = _safe_parse_dates(
             dataframe[date_columns[0]]
         ).dropna()
         if not parsed.empty:
@@ -499,7 +533,7 @@ def build_joined_dataset(
                 date_column,
                 f"Join date column for {getattr(_dataset, 'file_name', dataset_id)}",
             )
-            parsed_dates = _parse_dates(
+            parsed_dates = _safe_parse_dates(
                 dataframe[date_column],
                 reference_year=reference_year,
             ).dropna()
@@ -558,7 +592,7 @@ def build_joined_dataset(
             for column, _series in get_numeric_columns(dataframe)
         }
 
-        dates = _parse_dates(
+        dates = _safe_parse_dates(
             dataframe[date_column],
             reference_year=reference_year,
         )

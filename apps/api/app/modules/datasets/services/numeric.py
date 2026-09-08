@@ -111,31 +111,41 @@ def get_numeric_columns(
     numeric_columns = []
 
     for column in dataframe.columns:
-        series = dataframe[column]
-        numeric_series = coerce_numeric_series(
-            series
-        )
-        text_values = (
-            series
-            .astype("string")
-            .str.strip()
-            .str.lower()
-        )
-        meaningful_values = (
-            series.notna()
-            & ~text_values.isin(
-                NUMERIC_MISSING_VALUES
+        try:
+            series = dataframe[column]
+            numeric_series = coerce_numeric_series(
+                series
             )
-        )
+            text_values = (
+                series
+                .astype("string")
+                .str.strip()
+                .str.lower()
+            )
+            meaningful_values = (
+                series.notna()
+                & ~text_values.isin(
+                    NUMERIC_MISSING_VALUES
+                )
+            )
 
-        if (
-            meaningful_values.any()
-            and numeric_series[meaningful_values]
-            .notna()
-            .all()
+            if (
+                meaningful_values.any()
+                and numeric_series[meaningful_values]
+                .notna()
+                .all()
+            ):
+                numeric_columns.append(
+                    (column, numeric_series)
+                )
+        except (
+            AssertionError,
+            AttributeError,
+            IndexError,
+            OverflowError,
+            TypeError,
+            ValueError,
         ):
-            numeric_columns.append(
-                (column, numeric_series)
-            )
+            continue
 
     return numeric_columns
