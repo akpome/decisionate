@@ -2467,9 +2467,11 @@ export default function PlatformAdminPage() {
                     <div className="flex h-full min-h-0 flex-col">
                       <h3 className="font-medium text-gray-900">Recent activity</h3>
                       {visibleUsageEvents.length === 0 ? (
-                        <p className="mt-3 text-sm text-gray-500">No usage recorded for this period.</p>
+                        <div className="mt-3 min-h-80 flex-1 rounded-lg border border-gray-200 p-3">
+                          <p className="text-sm text-gray-500">No usage recorded for this period.</p>
+                        </div>
                       ) : (
-                        <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-lg border border-gray-200">
+                        <div className="mt-3 min-h-80 flex-1 overflow-auto rounded-lg border border-gray-200">
                           <table className="min-w-full text-left text-sm">
                             <thead className="sticky top-0 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                               <tr>
