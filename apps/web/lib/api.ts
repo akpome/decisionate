@@ -924,7 +924,7 @@ export type PlatformAdminOrganization = {
   plan: string
   subscription_status: string
   billing_expires_at?: string | null
-  account_status?: "free" | "trial" | "paid" | "managed" | string
+  account_status?: "free" | "trial" | "trial_expired" | "paid" | "managed" | string
   trial_started_at?: string | null
   trial_ends_at?: string | null
   billing_provider?: string | null

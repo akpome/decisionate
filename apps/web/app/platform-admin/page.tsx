@@ -135,7 +135,20 @@ function customerStatusClasses(status: string) {
   if (status === "trial") {
     return "border-blue-200 bg-blue-50 text-blue-800"
   }
+  if (status === "trial_expired") {
+    return "border-amber-200 bg-amber-50 text-amber-800"
+  }
   return "border-gray-200 bg-gray-50 text-gray-700"
+}
+
+function formatCustomerStatus(status: string) {
+  if (status === "trial") {
+    return "Free trial"
+  }
+  if (status === "trial_expired") {
+    return "Trial expired"
+  }
+  return formatAdminLabel(status)
 }
 
 function dateInputValue(value?: string | null) {
@@ -420,7 +433,7 @@ export default function PlatformAdminPage() {
   const [customerSearch, setCustomerSearch] =
     useState("")
   const [customerStatusFilter, setCustomerStatusFilter] =
-    useState<"all" | "trial" | "paid" | "free">("all")
+    useState<"all" | "trial" | "trial_expired" | "paid" | "free">("all")
   const [userSearch, setUserSearch] =
     useState("")
 
@@ -2972,37 +2985,59 @@ export default function PlatformAdminPage() {
                   <div>
                     <h2 className="font-semibold">Customers</h2>
                     <p className="mt-1 text-sm text-gray-500">
-                      One row per primary customer workspace, including signup details, plan status, and current activity. Managed agency client workspaces are listed below.
+                      One row per primary customer workspace. Trial, paid, and free accounts include signup, billing, workspace, usage, and activity details. Managed agency client workspaces are listed below.
                     </p>
                   </div>
-                  <label className="text-xs font-medium text-gray-600">
-                    Search customers
-                    <input
-                      value={customerSearch}
-                      onChange={(event) => setCustomerSearch(event.target.value)}
-                      placeholder="Name, email, or company"
-                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 sm:w-60"
-                    />
-                  </label>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <label className="text-xs font-medium text-gray-600">
+                      Account status
+                      <select
+                        value={customerStatusFilter}
+                        onChange={(event) => setCustomerStatusFilter(event.target.value as typeof customerStatusFilter)}
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 sm:w-36"
+                      >
+                        <option value="all">All accounts</option>
+                        <option value="trial">Free trials</option>
+                        <option value="trial_expired">Expired trials</option>
+                        <option value="paid">Paid</option>
+                        <option value="free">Free</option>
+                      </select>
+                    </label>
+                    <label className="text-xs font-medium text-gray-600">
+                      Search customers
+                      <input
+                        value={customerSearch}
+                        onChange={(event) => setCustomerSearch(event.target.value)}
+                        placeholder="Search all customer details"
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 sm:w-64"
+                      />
+                    </label>
+                  </div>
                 </div>
+                <p className="mt-3 text-xs text-gray-500">
+                  Showing {formatCount(visibleCustomers.length)} of {formatCount(organizations.filter(organization => organization.plan !== "client").length)} customer accounts.
+                </p>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-[1040px] divide-y divide-gray-200 text-left text-sm">
+                <table className="min-w-[1760px] divide-y divide-gray-200 text-left text-sm">
                   <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                     <tr>
                       <th className="px-5 py-3 font-medium">Customer</th>
                       <th className="px-5 py-3 font-medium">Business</th>
                       <th className="px-5 py-3 font-medium">Profile</th>
                       <th className="px-5 py-3 font-medium">Role and goal</th>
-                      <th className="px-5 py-3 font-medium">Plan and status</th>
+                      <th className="px-5 py-3 font-medium">Account</th>
+                      <th className="px-5 py-3 font-medium">Billing</th>
                       <th className="px-5 py-3 font-medium">Workspaces</th>
-                      <th className="px-5 py-3 font-medium">Activity</th>
+                      <th className="px-5 py-3 font-medium">Usage and activity</th>
                       <th className="px-5 py-3 font-medium">Joined</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {visibleCustomers.map((customer) => (
+                    {visibleCustomers.map((customer) => {
+                      const accountStatus = getCustomerAccountStatus(customer)
+                      return (
                       <tr key={customer.id}>
                         <td className="max-w-56 px-5 py-3 align-top">
                           <p className="font-medium text-gray-900">{customer.name}</p>
@@ -3011,6 +3046,9 @@ export default function PlatformAdminPage() {
                           </p>
                           <p className="mt-1 break-all text-xs text-gray-500">
                             {customer.owner_email || customer.owner_user_id}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-400">
+                            Organization #{customer.id}
                           </p>
                         </td>
                         <td className="px-5 py-3 align-top text-gray-700">
@@ -3032,20 +3070,63 @@ export default function PlatformAdminPage() {
                           </p>
                         </td>
                         <td className="px-5 py-3 align-top text-gray-700">
-                          <p className="font-medium">{formatAdminLabel(customer.plan)}</p>
+                          <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium ${customerStatusClasses(accountStatus)}`}>
+                            {formatCustomerStatus(accountStatus)}
+                          </span>
+                          <p className="mt-2 font-medium">{formatAdminLabel(customer.plan)}</p>
                           <p className="mt-1 text-xs text-gray-500">
                             {formatAdminLabel(customer.subscription_status)}
                           </p>
                           <p className="mt-1 text-xs text-gray-500">
-                            {customer.billing_expires_at
-                              ? `Expires ${new Date(customer.billing_expires_at).toLocaleDateString()}`
-                              : "No expiry"}
+                            {accountStatus === "trial"
+                              ? `Trial ends ${formatAdminDate(customer.trial_ends_at)}`
+                              : accountStatus === "trial_expired"
+                                ? `Trial ended ${formatAdminDate(customer.trial_ends_at)}`
+                                : customer.billing_expires_at
+                                  ? `Period ends ${formatAdminDate(customer.billing_expires_at)}`
+                                  : "No period end"}
                           </p>
+                        </td>
+                        <td className="max-w-64 px-5 py-3 align-top text-gray-700">
+                          <p>{formatAdminLabel(customer.billing_provider)}</p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {customer.billing_interval
+                              ? `${formatAdminLabel(customer.billing_interval)} billing`
+                              : "No billing interval"}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Period started: {formatAdminDate(customer.current_period_start)}
+                          </p>
+                          <p className="mt-2 break-all text-xs text-gray-500" title={customer.provider_customer_id || undefined}>
+                            Customer ID: {displayAdminValue(customer.provider_customer_id)}
+                          </p>
+                          <p className="mt-1 break-all text-xs text-gray-500" title={customer.provider_subscription_id || undefined}>
+                            Subscription ID: {displayAdminValue(customer.provider_subscription_id)}
+                          </p>
+                          <p className="mt-1 break-all text-xs text-gray-500" title={customer.price_id || undefined}>
+                            Price ID: {displayAdminValue(customer.price_id)}
+                          </p>
+                          {customer.cancel_at_period_end && (
+                            <p className="mt-1 text-xs font-medium text-amber-700">
+                              Cancels at period end
+                            </p>
+                          )}
+                          {customer.canceled_at && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              Canceled {formatAdminDate(customer.canceled_at)}
+                            </p>
+                          )}
                         </td>
                         <td className="px-5 py-3 align-top text-gray-700">
                           <p>{formatCount(customer.client_workspace_count || 0)} managed client workspaces</p>
                           <p className="mt-1 text-xs text-gray-500">
                             {formatCount(customer.member_count)} members
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {formatCount(customer.additional_client_workspaces || 0)} additional purchased
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {formatCount(customer.additional_ai_credit_packs || 0)} AI credit packs
                           </p>
                           {customer.agency_client_count && (
                             <p className="mt-1 text-xs text-gray-500">
@@ -3053,26 +3134,40 @@ export default function PlatformAdminPage() {
                             </p>
                           )}
                         </td>
-                        <td className="px-5 py-3 align-top text-gray-700">
+                        <td className="max-w-64 px-5 py-3 align-top text-gray-700">
                           <p>{formatCount(customer.dataset_count)} datasets</p>
                           <p className="mt-1 text-xs text-gray-500">
                             {formatCount(customer.decision_count)} decisions
                           </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {formatCount(customer.evaluated_decision_count)} evaluated decisions
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            AI credits: {formatCount(customer.ai_credits_used || 0)} used / {formatCount(customer.ai_credit_limit || 0)} limit
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {formatCount(customer.ai_credits_remaining || 0)} credits remaining
+                          </p>
+                          <p className="mt-2 text-xs text-gray-500">
+                            Last activity: {formatAdminDateTime(customer.last_activity_at)}
+                          </p>
                         </td>
                         <td className="whitespace-nowrap px-5 py-3 align-top text-gray-500">
-                          {customer.created_at
-                            ? new Date(customer.created_at).toLocaleDateString()
-                            : "Not provided"}
+                          <p>{formatAdminDate(customer.created_at)}</p>
+                          <p className="mt-1 text-xs">
+                            Trial started: {formatAdminDate(customer.trial_started_at)}
+                          </p>
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
 
               {visibleCustomers.length === 0 && (
                 <p className="px-5 py-4 text-sm text-gray-500">
-                  {customerSearch.trim()
+                  {customerSearch.trim() || customerStatusFilter !== "all"
                     ? "No customers match this search."
                     : "No customers are available."}
                 </p>

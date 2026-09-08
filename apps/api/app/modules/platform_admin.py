@@ -1632,6 +1632,13 @@ def platform_admin_account_status(
     if subscription is None:
         return "free"
 
+    if (
+        str(subscription.status or "").strip().lower() == "trialing"
+        and subscription.current_period_end
+        and utc_now() >= subscription.current_period_end
+    ):
+        return "trial_expired"
+
     access_state = build_subscription_access_state(subscription)
     if access_state.status == "trialing":
         return "trial"
@@ -1813,13 +1820,13 @@ def serialize_platform_admin_organization(
         account_status=account_status,
         trial_started_at=(
             subscription.current_period_start.isoformat()
-            if subscription and account_status == "trial"
+            if subscription and account_status in {"trial", "trial_expired"}
             and subscription.current_period_start
             else None
         ),
         trial_ends_at=(
             subscription.current_period_end.isoformat()
-            if subscription and account_status == "trial"
+            if subscription and account_status in {"trial", "trial_expired"}
             and subscription.current_period_end
             else None
         ),
