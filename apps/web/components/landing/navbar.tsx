@@ -48,7 +48,7 @@ export function LandingNavbar() {
               Decisionate
             </span>
             <span className="mt-1 whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-              Decisions, automated.
+              Decisions from Data.
             </span>
           </span>
         </Link>

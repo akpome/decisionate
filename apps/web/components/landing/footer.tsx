@@ -15,7 +15,7 @@ export function LandingFooter() {
             <span className="flex flex-col leading-none">
               <span className="text-[17px] font-bold tracking-tight">Decisionate</span>
               <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Decisions, automated.
+                Decisions from Data.
               </span>
             </span>
           </Link>
