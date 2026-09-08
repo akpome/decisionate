@@ -93,6 +93,10 @@ def get_runtime_configuration() -> RuntimeConfiguration:
     """Read the deployment contract from the current process environment."""
     app_env = _env("APP_ENV", "development").lower() or "development"
     raw_database_url = _env("DATABASE_URL")
+    object_storage_provider = (
+        _env("OBJECT_STORAGE_PROVIDER", "local").lower()
+        or "local"
+    )
     if app_env in {"staging", "production"}:
         if not raw_database_url:
             raise RuntimeError(
@@ -103,6 +107,11 @@ def get_runtime_configuration() -> RuntimeConfiguration:
         if normalized_database_url.startswith("sqlite"):
             raise RuntimeError(
                 "DATABASE_URL must point to PostgreSQL for staging and production"
+            )
+        if object_storage_provider == "local":
+            raise RuntimeError(
+                "OBJECT_STORAGE_PROVIDER must use remote object storage "
+                "for staging and production"
             )
 
     cors_origins = tuple(
@@ -118,10 +127,7 @@ def get_runtime_configuration() -> RuntimeConfiguration:
         web_url=_env("DECISIONATE_WEB_APP_URL", "http://localhost:3000"),
         cors_allowed_origins=cors_origins,
         dataset_upload_dir=_env("DATASET_UPLOAD_DIR", "uploads") or "uploads",
-        object_storage_provider=(
-            _env("OBJECT_STORAGE_PROVIDER", "local").lower()
-            or "local"
-        ),
+        object_storage_provider=object_storage_provider,
         object_storage_bucket=_first_env(
             "OBJECT_STORAGE_BUCKET",
             "R2_BUCKET",

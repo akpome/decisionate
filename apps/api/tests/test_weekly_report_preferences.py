@@ -174,6 +174,16 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             30.0,
         )
         self.assertEqual(
+            [
+                metric.column
+                for metric in digest.available_metrics
+            ],
+            [
+                "Gross Revenue",
+                "Cost",
+            ],
+        )
+        self.assertEqual(
             digest.brand_name,
             "Acme Retail",
         )

@@ -46,9 +46,12 @@ Use the API directory as the Railway service root. Start the service with:
 python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
-Set `APP_ENV=production`, the deployed web origin in
-`CORS_ALLOWED_ORIGINS`, and the Railway Postgres `DATABASE_URL`. The API
-normalizes Railway's `postgres://` URL to the `psycopg` SQLAlchemy driver.
+Set `APP_ENV` to `staging` or `production`, the deployed web origin in
+`CORS_ALLOWED_ORIGINS`, the Railway Postgres `DATABASE_URL`, and a remote
+`OBJECT_STORAGE_PROVIDER` such as `r2` or `s3`. Dataset metadata and files must
+use shared persistent services; local filesystem storage is rejected for
+staging and production. The API normalizes Railway's `postgres://` URL to the
+`psycopg` SQLAlchemy driver.
 
 ## Parquet on Cloudflare R2
 

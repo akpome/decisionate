@@ -110,6 +110,9 @@ class WeeklyReportDigestResponse(BaseModel):
     preview_text: str
     dataset_count: int
     metrics: list[WeeklyReportDigestMetric]
+    available_metrics: list[WeeklyReportDigestMetric] = Field(
+        default_factory=list
+    )
     relationships: list[WeeklyReportDigestRelationship] = Field(
         default_factory=list
     )

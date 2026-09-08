@@ -1,10 +1,26 @@
 "use client"
 
-import { ClerkProvider } from "@clerk/nextjs"
+import { ClerkProvider, useAuth } from "@clerk/nextjs"
+import { useEffect } from "react"
 import type { ReactNode } from "react"
+import { setClerkSessionTokenProvider } from "@/lib/api"
 
 type AppClerkProviderProps = {
   children: ReactNode
+}
+
+function ClerkTokenBridge() {
+  const { getToken } = useAuth()
+
+  useEffect(() => {
+    setClerkSessionTokenProvider(getToken)
+
+    return () => {
+      setClerkSessionTokenProvider(null)
+    }
+  }, [getToken])
+
+  return null
 }
 
 export function AppClerkProvider({
@@ -17,6 +33,7 @@ export function AppClerkProvider({
       signUpFallbackRedirectUrl="/onboarding"
       signUpForceRedirectUrl="/onboarding"
     >
+      <ClerkTokenBridge />
       {children}
     </ClerkProvider>
   )

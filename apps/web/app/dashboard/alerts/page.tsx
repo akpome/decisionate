@@ -11,16 +11,14 @@ import {
 } from "lucide-react"
 
 import {
-  getDatasetDetails,
   getDatasetRelationships,
-  getDatasets,
   createDecision,
   getWeeklyReportDigest,
   getWeeklyReportPreference,
   updateWeeklyReportPreference,
-  type DatasetSummary,
   type DatasetRelationship,
   type WeeklyReportDigest,
+  type WeeklyReportDigestMetric,
   type WeeklyReportPreference,
 } from "@/lib/api"
 import {
@@ -69,16 +67,8 @@ const defaultWeeklyReportPreference: WeeklyReportPreference = {
   last_send_error: null,
 }
 
-type DatasetMetric = {
-  column: string
-  total?: number
-  average?: number
-}
-
-type DatasetDetails = {
-  file_name?: string
-  metrics?: DatasetMetric[]
-}
+const notificationSetupUiTimeoutMs = 10000
+const digestPreviewUiTimeoutMs = 10000
 
 type DatasetMetricOption = {
   value: string
@@ -177,11 +167,19 @@ function AlertsPageContent({
     useState<DatasetRelationship[]>([])
   const [weeklyReportDigest, setWeeklyReportDigest] =
     useState<WeeklyReportDigest | null>(null)
-  const [loading, setLoading] =
+  const [setupRequestPending, setSetupRequestPending] =
     useState(true)
+  const [setupUnavailable, setSetupUnavailable] =
+    useState(false)
+  const [supportingDataLoading, setSupportingDataLoading] =
+    useState(true)
+  const [supportingDataUnavailable, setSupportingDataUnavailable] =
+    useState(false)
   const [saving, setSaving] =
     useState(false)
   const [statusMessage, setStatusMessage] =
+    useState("")
+  const [warningMessage, setWarningMessage] =
     useState("")
   const [errorMessage, setErrorMessage] =
     useState("")
@@ -310,7 +308,10 @@ function AlertsPageContent({
 
     if (!isSignedIn || !user?.id) {
       queueMicrotask(() => {
-        setLoading(false)
+        setSetupRequestPending(false)
+        setSetupUnavailable(true)
+        setSupportingDataLoading(false)
+        setSupportingDataUnavailable(true)
         setErrorMessage(
           "Sign in to load notification setup."
         )
@@ -319,6 +320,8 @@ function AlertsPageContent({
     }
 
     let ignoreResult = false
+    let setupTimeoutId: number | undefined
+    let supportingDataTimeoutId: number | undefined
 
     async function loadPreference(
       userId: string
@@ -331,60 +334,115 @@ function AlertsPageContent({
         setRelationshipOptions([])
         setWeeklyReportDigest(null)
         setStatusMessage("")
-        setLoading(true)
+        setWarningMessage("")
+        setSetupUnavailable(false)
+        setSetupRequestPending(true)
+        setSupportingDataUnavailable(false)
+        setSupportingDataLoading(false)
         setErrorMessage("")
 
-        const [
-          preferenceResult,
-          datasetsResult,
-          relationshipsResult,
-          digestResult,
-        ] = await Promise.allSettled([
-          getWeeklyReportPreference(
-            userId,
-            activeWorkspaceId
-          ),
-          getDatasets(
-            userId,
-            activeWorkspaceId,
-            user?.primaryEmailAddress?.emailAddress
-          ),
-          getDatasetRelationships(
-            userId,
-            activeWorkspaceId
-          ),
-          getWeeklyReportDigest(
-            userId,
-            activeWorkspaceId
-          ),
-        ])
+        setupTimeoutId = window.setTimeout(() => {
+          if (!ignoreResult) {
+            setSetupRequestPending(false)
+            setSetupUnavailable(true)
+            setSupportingDataLoading(false)
+            setSupportingDataUnavailable(true)
+            setErrorMessage(
+              "Notification setup is taking longer than expected. Please retry."
+            )
+          }
+        }, notificationSetupUiTimeoutMs)
 
-        if (preferenceResult.status === "rejected") {
-          throw preferenceResult.reason
+        let preference: WeeklyReportPreference
+        try {
+          preference =
+            await getWeeklyReportPreference(
+              userId,
+              activeWorkspaceId
+            )
+        } catch (error) {
+          if (setupTimeoutId !== undefined) {
+            window.clearTimeout(setupTimeoutId)
+          }
+          if (!ignoreResult) {
+            setSetupUnavailable(true)
+            setSupportingDataUnavailable(true)
+            setErrorMessage(
+              getErrorMessage(
+                error,
+                "Notification setup could not be loaded."
+              )
+            )
+            setSetupRequestPending(false)
+            setSupportingDataLoading(false)
+          }
+          return
         }
-
-        const preference =
-          preferenceResult.value
-        const workspaceDatasets =
-          datasetsResult.status === "fulfilled"
-            ? datasetsResult.value
-            : []
-
-        const nextMetricOptions =
-          await loadDatasetMetricOptions(
-            workspaceDatasets,
-            userId,
-            activeWorkspaceId
-          )
 
         if (ignoreResult) {
           return
         }
 
-        const supportingDataUnavailable =
-          datasetsResult.status === "rejected" ||
-          relationshipsResult.status === "rejected" ||
-          digestResult.status === "rejected"
+        if (setupTimeoutId !== undefined) {
+          window.clearTimeout(setupTimeoutId)
+        }
+
+        const normalizedPreference =
+          normalizeWeeklyReportPreference(
+            preference
+          )
+        setWeeklyReportPreference(
+          normalizedPreference
+        )
+        setSetupUnavailable(false)
+        setSetupRequestPending(false)
+        setErrorMessage("")
+        setSupportingDataLoading(true)
+
+        supportingDataTimeoutId = window.setTimeout(() => {
+          if (!ignoreResult) {
+            setSupportingDataLoading(false)
+            setSupportingDataUnavailable(true)
+            setWarningMessage(
+              "Notification settings are ready, but the digest preview is taking longer than expected."
+            )
+          }
+        }, digestPreviewUiTimeoutMs)
+
+        const [
+          relationshipsResult,
+          digestResult,
+        ] = await Promise.allSettled([
+          getDatasetRelationships(
+            userId,
+            activeWorkspaceId,
+            { notifyAvailability: false }
+          ),
+          getWeeklyReportDigest(
+            userId,
+            activeWorkspaceId,
+            {
+              notifyAvailability: false,
+              includeAIAnalysis: false,
+            }
+          ),
+        ])
+
+        if (ignoreResult) {
+          return
+        }
+
+        if (supportingDataTimeoutId !== undefined) {
+          window.clearTimeout(supportingDataTimeoutId)
+        }
+
+        const nextMetricOptions =
+          loadDatasetMetricOptions(
+            digestResult.status === "fulfilled"
+              ? digestResult.value.available_metrics ??
+                digestResult.value.metrics
+              : []
+          )
 
         setMetricOptions(nextMetricOptions)
         setRelationshipOptions(
@@ -399,29 +457,47 @@ function AlertsPageContent({
         )
         setWeeklyReportPreference(
           reconcileMetricFocusWithOptions(
-            normalizeWeeklyReportPreference(
-              preference
-            ),
+            normalizedPreference,
             nextMetricOptions
           )
         )
-        if (supportingDataUnavailable) {
-          setErrorMessage(
+
+        const supportingDataRequestFailed =
+          relationshipsResult.status === "rejected" ||
+          digestResult.status === "rejected"
+
+        setSupportingDataUnavailable(
+          supportingDataRequestFailed
+        )
+        if (supportingDataRequestFailed) {
+          setWarningMessage(
             "Notification setup loaded, but some supporting status data is temporarily unavailable."
           )
+        } else {
+          setWarningMessage("")
         }
       } catch (error) {
         if (!ignoreResult) {
+          setSetupUnavailable(true)
+          setSupportingDataUnavailable(true)
           setErrorMessage(
             getErrorMessage(
               error,
               "Notification setup could not be loaded."
             )
           )
+          setSetupRequestPending(false)
+          setSupportingDataLoading(false)
         }
       } finally {
+        if (setupTimeoutId !== undefined) {
+          window.clearTimeout(setupTimeoutId)
+        }
+        if (supportingDataTimeoutId !== undefined) {
+          window.clearTimeout(supportingDataTimeoutId)
+        }
         if (!ignoreResult) {
-          setLoading(false)
+          setSupportingDataLoading(false)
         }
       }
     }
@@ -430,6 +506,12 @@ function AlertsPageContent({
 
     return () => {
       ignoreResult = true
+      if (setupTimeoutId !== undefined) {
+        window.clearTimeout(setupTimeoutId)
+      }
+      if (supportingDataTimeoutId !== undefined) {
+        window.clearTimeout(supportingDataTimeoutId)
+      }
     }
   }, [
     activeWorkspaceId,
@@ -451,6 +533,7 @@ function AlertsPageContent({
         })
     )
     setStatusMessage("")
+    setWarningMessage("")
     setErrorMessage("")
   }
 
@@ -533,6 +616,7 @@ function toggleMetricFocus(
       setSaving(true)
       setErrorMessage("")
       setStatusMessage("")
+      setWarningMessage("")
 
       const savedPreference =
         await updateWeeklyReportPreference(
@@ -558,13 +642,15 @@ function toggleMetricFocus(
         setWeeklyReportDigest(
           await getWeeklyReportDigest(
             user.id,
-            activeWorkspaceId
+            activeWorkspaceId,
+            { notifyAvailability: false }
           )
         )
         setStatusMessage("Notification setup saved.")
       } catch {
-        setStatusMessage(
-          "Notification setup saved. Digest preview is temporarily unavailable."
+        setStatusMessage("Notification setup saved.")
+        setWarningMessage(
+          "Digest preview is temporarily unavailable."
         )
       }
     } catch (error) {
@@ -599,7 +685,7 @@ function toggleMetricFocus(
         >
           <span>{errorMessage}</span>
 
-          {!loading && (
+          {!setupRequestPending && (
             <button
               type="button"
               onClick={() =>
@@ -622,6 +708,16 @@ function toggleMetricFocus(
           className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
         >
           {statusMessage}
+        </div>
+      )}
+
+      {warningMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+        >
+          {warningMessage}
         </div>
       )}
 
@@ -662,13 +758,28 @@ function toggleMetricFocus(
             </span>
           </div>
 
-          {loading ? (
+          {setupUnavailable ? (
             <div
-              role="status"
-              aria-live="polite"
-              className="mt-6 rounded-xl border bg-gray-50 p-4 text-sm text-gray-500"
+              role="alert"
+              className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
             >
-              Loading notification setup...
+              <p className="font-medium">
+                Notification setup is temporarily unavailable.
+              </p>
+              <p className="mt-1">
+                Retry to load your saved notification settings.
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setLoadRetryKey(
+                    currentKey => currentKey + 1
+                  )
+                }
+                className="mt-3 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
+              >
+                Retry notification setup
+              </button>
             </div>
           ) : !canManageAlertAnalysis ? (
             <ReadOnlyNotificationSummary
@@ -677,7 +788,20 @@ function toggleMetricFocus(
               selectedRelationshipLabels={selectedRelationshipLabels}
             />
           ) : (
-            <div className="mt-5 space-y-4">
+            <fieldset
+              disabled={setupRequestPending}
+              className="mt-5 space-y-4 disabled:opacity-60"
+            >
+              {setupRequestPending && (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800"
+                >
+                  Preparing your saved notification settings...
+                </p>
+              )}
+
               <div>
                 <p className="text-sm font-medium text-gray-700">
                   KPI focus by dataset
@@ -873,14 +997,16 @@ function toggleMetricFocus(
                   Open alert delivery settings
                 </Link>
               </p>
-            </div>
+            </fieldset>
           )}
         </div>
 
         <div>
           <WeeklyReportDigestPreview
             digest={weeklyReportDigest}
-            loading={loading}
+            setupPending={setupRequestPending}
+            loading={supportingDataLoading}
+            unavailable={supportingDataUnavailable}
             selectedMetricLabels={selectedMetricLabels}
             onCreateDecision={
               canManageWorkspaceData &&
@@ -915,7 +1041,9 @@ function toggleMetricFocus(
 
 function WeeklyReportDigestPreview({
   digest,
+  setupPending,
   loading,
+  unavailable,
   selectedMetricLabels,
   onCreateDecision,
   selectedMetricKey,
@@ -924,7 +1052,9 @@ function WeeklyReportDigestPreview({
   creatingDecision,
 }: {
   digest: WeeklyReportDigest | null
+  setupPending: boolean
   loading: boolean
+  unavailable: boolean
   selectedMetricLabels: string[]
   onCreateDecision?: () => void
   selectedMetricKey: string
@@ -932,6 +1062,14 @@ function WeeklyReportDigestPreview({
   onSelectMetric: (value: string) => void
   creatingDecision: boolean
 }) {
+  if (setupPending) {
+    return (
+      <div className="h-full rounded-2xl border bg-white p-5 text-sm text-gray-500 shadow-sm">
+        The digest preview will appear after notification settings load.
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div
@@ -940,6 +1078,14 @@ function WeeklyReportDigestPreview({
         className="h-full rounded-2xl border bg-white p-5 text-sm text-gray-500 shadow-sm"
       >
         Loading digest preview...
+      </div>
+    )
+  }
+
+  if (!digest && unavailable) {
+    return (
+      <div className="h-full rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800 shadow-sm">
+        Digest preview is temporarily unavailable. Your notification settings are ready.
       </div>
     )
   }
@@ -1168,61 +1314,32 @@ function normalizeWeeklyReportPreference(
   }
 }
 
-async function loadDatasetMetricOptions(
-  datasets: DatasetSummary[],
-  userId: string,
-  activeWorkspaceId: string | undefined
-): Promise<DatasetMetricOption[]> {
-  const detailResults =
-    await Promise.allSettled(
-      datasets.map((dataset) =>
-        getDatasetDetails(
-          dataset.id,
-          userId,
-          activeWorkspaceId,
-          { includeAIAnalysis: false }
-        ) as Promise<DatasetDetails>
-      )
-    )
-
+function loadDatasetMetricOptions(
+  metrics: WeeklyReportDigestMetric[]
+): DatasetMetricOption[] {
   const metricOptionsByKey =
     new Map<string, DatasetMetricOption>()
 
-  detailResults.forEach((result, index) => {
-    if (result.status !== "fulfilled") {
+  metrics.forEach((metric) => {
+    const metricColumn = metric.column.trim()
+
+    if (!metricColumn) {
       return
     }
 
-    const datasetName =
-      result.value.file_name ||
-      datasets[index]?.file_name ||
-      `Dataset ${datasets[index]?.id ?? index + 1}`
+    const metricKey = `${metric.dataset_id}:${metricColumn}`
 
-    result.value.metrics?.forEach((metric) => {
-      const metricColumn =
-        metric.column.trim()
-
-      if (!metricColumn) {
-        return
+    metricOptionsByKey.set(
+      metricKey.toLowerCase(),
+      {
+        value: metricKey,
+        column: metricColumn,
+        label: formatMetricName(metricColumn),
+        datasetName:
+          metric.dataset_name ||
+          `Dataset ${metric.dataset_id}`,
       }
-
-      const datasetId = datasets[index]?.id
-      if (!datasetId) {
-        return
-      }
-
-      const metricKey = `${datasetId}:${metricColumn}`
-
-      metricOptionsByKey.set(
-        metricKey.toLowerCase(),
-        {
-          value: metricKey,
-          column: metricColumn,
-          label: formatMetricName(metricColumn),
-          datasetName,
-        }
-      )
-    })
+    )
   })
 
   return Array.from(

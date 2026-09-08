@@ -30,6 +30,22 @@ class DatabaseConfigurationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "must point to PostgreSQL"):
                 get_runtime_configuration()
 
+    def test_staging_rejects_local_dataset_storage(self):
+        with patch.dict(
+            os.environ,
+            {
+                "APP_ENV": "staging",
+                "DATABASE_URL": "postgresql://db.example/decisionate",
+                "OBJECT_STORAGE_PROVIDER": "local",
+            },
+            clear=False,
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "OBJECT_STORAGE_PROVIDER must use remote object storage",
+            ):
+                get_runtime_configuration()
+
     def test_development_keeps_sqlite_default(self):
         with patch.dict(
             os.environ,

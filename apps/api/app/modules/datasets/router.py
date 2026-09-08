@@ -4223,18 +4223,26 @@ def persist_connector_dataframe(
         existing_dataframe = None
         existing_summary = pd.DataFrame()
         if existing_dataset:
-            if storage.is_directory_reference(existing_reference):
-                existing_dataframe = load_connector_raw_dataframe(
-                    existing_reference
-                )
-                existing_summary = load_connector_summary_dataframe(
-                    existing_reference
-                )
-            else:
-                _, existing_dataframe = load_dataset_file(
-                    existing_reference,
-                    existing_dataset.file_name,
-                )
+            try:
+                if storage.is_directory_reference(existing_reference):
+                    existing_dataframe = load_connector_raw_dataframe(
+                        existing_reference
+                    )
+                    existing_summary = load_connector_summary_dataframe(
+                        existing_reference
+                    )
+                else:
+                    _, existing_dataframe = load_dataset_file(
+                        existing_reference,
+                        existing_dataset.file_name,
+                    )
+            except HTTPException as error:
+                if error.status_code != 404:
+                    raise
+                # The catalog row can outlive local/remote storage after an
+                # interrupted deployment. Rebuild it from the next sync.
+                existing_dataframe = None
+                existing_summary = pd.DataFrame()
 
         fetched_row_count = len(dataframe)
         storage_migration_required = bool(
@@ -5908,7 +5916,9 @@ async def delete_dataset(
             workspace_id,
         )
 
-        remove_dataset_file(get_dataset_storage_reference(dataset))
+        dataset_reference = get_dataset_storage_reference(
+            dataset
+        )
         cleanup_deleted_dataset_preferences(
             db,
             dataset,
@@ -5924,6 +5934,7 @@ async def delete_dataset(
 
         db.delete(dataset)
         db.commit()
+        remove_dataset_file(dataset_reference)
 
         return {"message": "Dataset deleted"}
 

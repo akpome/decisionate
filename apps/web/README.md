@@ -28,7 +28,7 @@ configuration runbook in `docs/provider-migration.md`. The web container is
 
 `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` configures the Clerk browser client. Set it to the publishable key for the deployed Clerk instance. When using `apps/web/Dockerfile`, pass this value as a build argument because public Next.js environment variables are embedded during `next build`.
 
-`NEXT_PUBLIC_ENABLE_API_BEARER_AUTH` enables Clerk bearer tokens on API requests when set to `true`. Keep it `false` for the local header-based development flow unless the API has Clerk JWT verification configured.
+`NEXT_PUBLIC_ENABLE_API_BEARER_AUTH` enables the legacy global-Clerk fallback for bearer tokens when set to `true`. The normal browser flow registers Clerk's `getToken()` provider automatically, so authenticated requests include a bearer token without relying on this flag. Keep the flag `false` for local header-based development unless the API has Clerk JWT verification configured.
 
 The web image accepts these build arguments:
 

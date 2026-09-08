@@ -831,6 +831,7 @@ export type WeeklyReportDigest = {
   ai_analysis?: WeeklyReportAIAnalysis | null
   dataset_count: number
   metrics: WeeklyReportDigestMetric[]
+  available_metrics?: WeeklyReportDigestMetric[]
   relationships: WeeklyReportDigestRelationship[]
   recommendations: string[]
   unavailable_datasets: string[]
@@ -1564,15 +1565,17 @@ type ClerkBrowser = {
   session?: ClerkBrowserSession | null
 }
 
+type ClerkSessionTokenProvider = () => Promise<string | null>
+
 type AuthenticatedHeaders =
   Record<string, string>
 
 const clerkTokenTimeoutMs = 1500
-const apiRequestTimeoutMs = 10000
+const apiRequestTimeoutMs = 30000
 const connectorSyncRequestTimeoutMs = 120000
 const apiMutationTimeoutMs = 30000
 const connectionRequestTimeoutMs = 30000
-const datasetDetailsRequestTimeoutMs = 30000
+const datasetDetailsRequestTimeoutMs = 60000
 const preferenceRequestTimeoutMs = 30000
 const apiReadCacheTtlMs = 15000
 const clerkBearerAuthEnabled =
@@ -1599,22 +1602,32 @@ export function getApiAvailabilitySnapshot() {
 const apiReadCache =
   new Map<string, ApiReadCacheEntry<unknown>>()
 
+let clerkSessionTokenProvider:
+  ClerkSessionTokenProvider | null = null
+
 declare global {
   interface Window {
     Clerk?: ClerkBrowser
   }
 }
 
-async function getClerkSessionToken() {
-  if (!clerkBearerAuthEnabled) {
-    return null
-  }
+export function setClerkSessionTokenProvider(
+  provider: ClerkSessionTokenProvider | null
+) {
+  clerkSessionTokenProvider = provider
+}
 
+async function getClerkSessionToken() {
   if (typeof window === "undefined") {
     return null
   }
 
+  if (!clerkBearerAuthEnabled && !clerkSessionTokenProvider) {
+    return null
+  }
+
   const tokenPromise =
+    clerkSessionTokenProvider?.() ||
     window.Clerk?.session?.getToken()
 
   if (!tokenPromise) {
@@ -1652,6 +1665,7 @@ async function apiFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
   timeoutMs: number = apiRequestTimeoutMs,
+  notifyAvailability = true,
 ) {
   if (typeof window === "undefined") {
     const controller = new AbortController()
@@ -1757,16 +1771,18 @@ async function apiFetch(
       }
     )
 
-    if (response.status >= 500) {
-      notifyApiAvailability({
-        available: false,
-        message:
-          "The service is temporarily unavailable. Please try again shortly.",
-      })
-    } else {
-      notifyApiAvailability({
-        available: true,
-      })
+    if (notifyAvailability) {
+      if (response.status >= 500) {
+        notifyApiAvailability({
+          available: false,
+          message:
+            "The service is temporarily unavailable. Please try again shortly.",
+        })
+      } else {
+        notifyApiAvailability({
+          available: true,
+        })
+      }
     }
 
     return response
@@ -1778,20 +1794,24 @@ async function apiFetch(
 
       const message =
         "The service is taking longer than expected. Please try again shortly."
-      notifyApiAvailability({
-        available: false,
-        message,
-      })
+      if (notifyAvailability) {
+        notifyApiAvailability({
+          available: false,
+          message,
+        })
+      }
       throw new Error(message)
     }
 
     if (error instanceof TypeError) {
       const message =
         "The service is temporarily unavailable. Please try again shortly."
-      notifyApiAvailability({
-        available: false,
-        message,
-      })
+      if (notifyAvailability) {
+        notifyApiAvailability({
+          available: false,
+          message,
+        })
+      }
       throw new Error(message)
     }
 
@@ -3095,7 +3115,10 @@ export async function createDatasetRelationship(
 
 export async function getDatasetRelationships(
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  options?: {
+    notifyAvailability?: boolean
+  }
 ): Promise<DatasetRelationship[]> {
   const response = await apiFetch(
     `${API_URL}/datasets/relationships`,
@@ -3104,7 +3127,9 @@ export async function getDatasetRelationships(
         userId,
         workspaceId
       ),
-    }
+    },
+    apiRequestTimeoutMs,
+    options?.notifyAvailability !== false
   )
 
   if (!response.ok) {
@@ -3382,17 +3407,27 @@ export async function getWeeklyReportPreference(
 
 export async function getWeeklyReportDigest(
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  options?: {
+    notifyAvailability?: boolean
+    includeAIAnalysis?: boolean
+  }
 ): Promise<WeeklyReportDigest> {
+  const query =
+    options?.includeAIAnalysis === false
+      ? "?include_ai_analysis=false"
+      : ""
   const response =
     await apiFetch(
-      `${API_URL}/alerts/weekly-report/digest`,
+      `${API_URL}/alerts/weekly-report/digest${query}`,
       {
         headers: await workspaceHeaders(
           userId,
           workspaceId
         ),
-      }
+      },
+      apiRequestTimeoutMs,
+      options?.notifyAvailability !== false
     )
 
   if (!response.ok) {

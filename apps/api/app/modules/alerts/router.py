@@ -620,6 +620,7 @@ def build_weekly_report_digest(
     learning_context: dict | None = None,
     workspace_id: str | None = None,
     relationships: list[dict] | None = None,
+    include_ai_analysis: bool = True,
 ) -> WeeklyReportDigestResponse:
     clean_brand_name = clean_weekly_report_brand_name(
         brand_name,
@@ -636,6 +637,7 @@ def build_weekly_report_digest(
         if normalize_metric_key(metric)
     }
     digest_metrics = []
+    available_digest_metrics = []
     unavailable_datasets = []
 
     for dataset in datasets:
@@ -668,17 +670,7 @@ def build_weekly_report_digest(
             if not column:
                 continue
 
-            if focus_keys and not metric_focus_matches(
-                focus_keys,
-                dataset.id,
-                column,
-            ):
-                continue
-
-            if not focus_keys and preference.relationship_focus:
-                continue
-
-            digest_metrics.append({
+            metric_record = {
                 "dataset_id": dataset.id,
                 "dataset_name": dataset_name,
                 "column": column,
@@ -705,7 +697,20 @@ def build_weekly_report_digest(
                         f"{dataset.id}:{column}"
                     )
                 ),
-            })
+            }
+            available_digest_metrics.append(metric_record)
+
+            if focus_keys and not metric_focus_matches(
+                focus_keys,
+                dataset.id,
+                column,
+            ):
+                continue
+
+            if not focus_keys and preference.relationship_focus:
+                continue
+
+            digest_metrics.append(metric_record)
 
     generated_at = datetime.now(
         timezone.utc
@@ -747,34 +752,41 @@ def build_weekly_report_digest(
         digest_metrics,
         unavailable_datasets,
     )
-    ai_facts = {
-        "metrics": digest_metrics[:10],
-        "relationships": relationship_results[:10],
-        "unavailable_datasets": unavailable_datasets,
-        "metric_focus": preference.metric_focus,
-        "metric_targets": preference.metric_targets,
-        "relationship_focus": preference.relationship_focus,
-    }
+    ai_analysis = None
+    recommendations = fallback_recommendations
 
-    if learning_context:
-        ai_facts["historical_decision_learning"] = learning_context
+    if include_ai_analysis:
+        ai_facts = {
+            "metrics": digest_metrics[:10],
+            "relationships": relationship_results[:10],
+            "unavailable_datasets": unavailable_datasets,
+            "metric_focus": preference.metric_focus,
+            "metric_targets": preference.metric_targets,
+            "relationship_focus": preference.relationship_focus,
+        }
 
-    ai_analysis = generate_structured_analysis(
-        context="weekly KPI alert and report digest",
-        facts=ai_facts,
-        fallback_summary=preview_text,
-        fallback_recommendations=fallback_recommendations,
-        fallback_risks=(
-            [
-                f"Dataset unavailable: {dataset_name}."
-                for dataset_name in unavailable_datasets[:5]
-            ]
-        ),
-        workspace_id=workspace_id,
-    )
+        if learning_context:
+            ai_facts["historical_decision_learning"] = learning_context
+
+        ai_analysis = generate_structured_analysis(
+            context="weekly KPI alert and report digest",
+            facts=ai_facts,
+            fallback_summary=preview_text,
+            fallback_recommendations=fallback_recommendations,
+            fallback_risks=(
+                [
+                    f"Dataset unavailable: {dataset_name}."
+                    for dataset_name in unavailable_datasets[:5]
+                ]
+            ),
+            workspace_id=workspace_id,
+        )
+        recommendations = ai_analysis["recommendations"]
 
     if not preference.include_recommendations:
-        ai_analysis["recommendations"] = []
+        recommendations = []
+        if ai_analysis is not None:
+            ai_analysis["recommendations"] = []
 
     first_metric = digest_metrics[0] if digest_metrics else None
     decision_template_url = build_decision_template_url(
@@ -807,8 +819,9 @@ def build_weekly_report_digest(
         ai_analysis=ai_analysis,
         dataset_count=len(datasets),
         metrics=digest_metrics,
+        available_metrics=available_digest_metrics,
         relationships=relationship_results,
-        recommendations=ai_analysis["recommendations"],
+        recommendations=recommendations,
         unavailable_datasets=unavailable_datasets,
         decision_template_url=decision_template_url,
     )
@@ -1063,6 +1076,7 @@ async def build_weekly_report_digest_for_workspace_async(
     user_id: str,
     workspace_id: str,
     preference: WeeklyReportPreference | None,
+    include_ai_analysis: bool = True,
 ) -> WeeklyReportDigestResponse:
     preference_response = build_weekly_report_preference_response(
         preference
@@ -1078,18 +1092,20 @@ async def build_weekly_report_digest_for_workspace_async(
         db,
         workspace_id,
     )
-    learning_context = (
-        build_workspace_decision_learning_context(
-            db,
-            user_id,
-            workspace_id,
-            base_filter=build_weekly_report_learning_filter(
-                preference_response,
-                datasets,
-            ),
-            learning_scope="dataset",
+    learning_context = None
+    if include_ai_analysis:
+        learning_context = (
+            build_workspace_decision_learning_context(
+                db,
+                user_id,
+                workspace_id,
+                base_filter=build_weekly_report_learning_filter(
+                    preference_response,
+                    datasets,
+                ),
+                learning_scope="dataset",
+            )
         )
-    )
     relationship_results = build_weekly_report_relationships(
         db,
         preference_response,
@@ -1105,6 +1121,7 @@ async def build_weekly_report_digest_for_workspace_async(
         learning_context,
         workspace_id,
         relationship_results,
+        include_ai_analysis,
     )
 
 
@@ -1436,6 +1453,7 @@ async def get_weekly_report_preference(
 )
 async def get_weekly_report_digest(
     request: Request,
+    include_ai_analysis: bool = True,
 ):
     auth_context = get_auth_context(
         request,
@@ -1457,6 +1475,7 @@ async def get_weekly_report_digest(
             auth_context.user_id,
             auth_context.workspace_id,
             preference,
+            include_ai_analysis,
         )
 
     finally:
