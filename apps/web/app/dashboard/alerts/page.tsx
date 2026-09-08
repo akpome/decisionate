@@ -9,6 +9,7 @@ import {
   PlusCircle,
   Save,
   Send,
+  X,
 } from "lucide-react"
 
 import {
@@ -583,7 +584,7 @@ function AlertsPageContent({
     setErrorMessage("")
   }
 
-function toggleMetricFocus(
+  function toggleMetricFocus(
     metric: string
   ) {
     const currentFocus =
@@ -610,6 +611,22 @@ function toggleMetricFocus(
       metric_focus: nextFocus,
       metric_targets: nextTargets,
     })
+  }
+
+  function removeDigestMetric(metric: WeeklyReportDigestMetric) {
+    const metricKey = `${metric.dataset_id}:${metric.column}`
+    const matchingFocus = weeklyReportPreference.metric_focus.find(
+      (focusedMetric) =>
+        focusedMetric.toLowerCase() === metricKey.toLowerCase() ||
+        focusedMetric.toLowerCase() === metric.column.toLowerCase()
+    )
+
+    if (matchingFocus) {
+      toggleMetricFocus(matchingFocus)
+      setStatusMessage(
+        "Metric removed from the digest selection. Save KPI Setup to apply the change."
+      )
+    }
   }
 
   function updateMetricTarget(
@@ -1260,6 +1277,11 @@ function toggleMetricFocus(
                 }
                 : undefined
             }
+            onRemoveMetric={
+              canManageAlertAnalysis
+                ? removeDigestMetric
+                : undefined
+            }
             selectedMetricKey={
               effectiveSelectedDecisionMetricKey
             }
@@ -1287,6 +1309,7 @@ function WeeklyReportDigestPreview({
   unavailable,
   selectedMetricLabels,
   onCreateDecision,
+  onRemoveMetric,
   selectedMetricKey,
   selectedDecisionMetricLabel,
   onSelectMetric,
@@ -1298,6 +1321,7 @@ function WeeklyReportDigestPreview({
   unavailable: boolean
   selectedMetricLabels: string[]
   onCreateDecision?: () => void
+  onRemoveMetric?: (metric: WeeklyReportDigestMetric) => void
   selectedMetricKey: string
   selectedDecisionMetricLabel?: string
   onSelectMetric: (value: string) => void
@@ -1379,7 +1403,7 @@ function WeeklyReportDigestPreview({
             className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5"
           >
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-gray-900">
                   {formatMetricName(metric.column)}
                 </p>
@@ -1389,9 +1413,22 @@ function WeeklyReportDigestPreview({
                 </p>
               </div>
 
-              <p className="text-sm font-semibold text-gray-900 sm:text-right">
-                {formatMetricValue(metric.total)}
-              </p>
+              <div className="flex items-start gap-2 sm:shrink-0">
+                <p className="text-sm font-semibold text-gray-900 sm:text-right">
+                  {formatMetricValue(metric.total)}
+                </p>
+                {onRemoveMetric && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveMetric(metric)}
+                    aria-label={`Remove ${formatMetricName(metric.column)} from digest`}
+                    title="Remove metric from digest"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
             </div>
 
             <p className="mt-2 text-xs text-gray-500">
