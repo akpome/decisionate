@@ -168,6 +168,8 @@ function AlertsPageContent({
     useState<WeeklyReportDeliveryConfig | null>(null)
   const [weeklyReportDigest, setWeeklyReportDigest] =
     useState<WeeklyReportDigest | null>(null)
+  const [aiAnalysisLoading, setAiAnalysisLoading] =
+    useState(false)
   const [setupRequestPending, setSetupRequestPending] =
     useState(true)
   const [setupUnavailable, setSetupUnavailable] =
@@ -360,6 +362,7 @@ function AlertsPageContent({
         setRelationshipOptions([])
         setDeliveryConfig(null)
         setWeeklyReportDigest(null)
+        setAiAnalysisLoading(false)
         setStatusMessage("")
         setWarningMessage("")
         setSetupUnavailable(false)
@@ -488,17 +491,48 @@ function AlertsPageContent({
             ? deliveryConfigResult.value
             : null
         )
-        setWeeklyReportDigest(
+        const baseDigest =
           digestResult.status === "fulfilled"
             ? digestResult.value
             : null
-        )
+        setWeeklyReportDigest(baseDigest)
         setWeeklyReportPreference(
           reconcileMetricFocusWithOptions(
             normalizedPreference,
             nextMetricOptions
           )
         )
+
+        if (baseDigest) {
+          setAiAnalysisLoading(true)
+          void getWeeklyReportDigest(
+            userId,
+            activeWorkspaceId,
+            {
+              notifyAvailability: false,
+              includeAIAnalysis: true,
+            }
+          )
+            .then((analysisDigest) => {
+              if (!ignoreResult) {
+                setWeeklyReportDigest(analysisDigest)
+              }
+            })
+            .catch(() => {
+              if (!ignoreResult) {
+                setWarningMessage(
+                  "KPI setup is ready, but the recommendation is temporarily unavailable."
+                )
+              }
+            })
+            .finally(() => {
+              if (!ignoreResult) {
+                setAiAnalysisLoading(false)
+              }
+            })
+        } else {
+          setAiAnalysisLoading(false)
+        }
 
         const supportingDataRequestFailed =
           relationshipsResult.status === "rejected" ||
@@ -682,15 +716,21 @@ function AlertsPageContent({
       )
 
       try {
+        setAiAnalysisLoading(true)
         setWeeklyReportDigest(
           await getWeeklyReportDigest(
             user.id,
             activeWorkspaceId,
-            { notifyAvailability: false }
+            {
+              notifyAvailability: false,
+              includeAIAnalysis: true,
+            }
           )
         )
       } catch {
         setWarningMessage("The digest preview could not be refreshed yet.")
+      } finally {
+        setAiAnalysisLoading(false)
       }
 
       setStatusMessage("Metric removed from the saved digest.")
@@ -802,13 +842,28 @@ function AlertsPageContent({
       )
 
       try {
-        setWeeklyReportDigest(
-          await getWeeklyReportDigest(
-            user.id,
-            activeWorkspaceId,
-            { notifyAvailability: false }
-          )
+        const savedDigest = await getWeeklyReportDigest(
+          user.id,
+          activeWorkspaceId,
+          { notifyAvailability: false }
         )
+        setWeeklyReportDigest(savedDigest)
+        setAiAnalysisLoading(true)
+        void getWeeklyReportDigest(
+          user.id,
+          activeWorkspaceId,
+          {
+            notifyAvailability: false,
+            includeAIAnalysis: true,
+          }
+        )
+          .then(setWeeklyReportDigest)
+          .catch(() => {
+            setWarningMessage(
+              "KPI setup was saved, but the recommendation is temporarily unavailable."
+            )
+          })
+          .finally(() => setAiAnalysisLoading(false))
         setStatusMessage("Notification setup saved.")
       } catch {
         setStatusMessage("Notification setup saved.")
@@ -1349,7 +1404,8 @@ function AlertsPageContent({
               canManageWorkspaceData &&
               Boolean(
                 (selectedDecisionMetric || selectedDecisionRelationship) &&
-                weeklyReportDigest?.ai_analysis?.recommendations.length
+                (weeklyReportDigest?.metrics.length ||
+                  weeklyReportDigest?.relationships.length)
               )
                 ? () => {
                   void handleCreateDigestDecision()
@@ -1362,6 +1418,7 @@ function AlertsPageContent({
                 : undefined
             }
             saving={saving}
+            aiAnalysisLoading={aiAnalysisLoading}
             selectedMetricKey={
               effectiveSelectedDecisionMetricKey
             }
@@ -1391,6 +1448,7 @@ function WeeklyReportDigestPreview({
   onCreateDecision,
   onRemoveMetric,
   saving,
+  aiAnalysisLoading,
   selectedMetricKey,
   selectedDecisionMetricLabel,
   onSelectMetric,
@@ -1404,6 +1462,7 @@ function WeeklyReportDigestPreview({
   onCreateDecision?: () => void
   onRemoveMetric?: (metric: WeeklyReportDigestMetric) => void | Promise<void>
   saving: boolean
+  aiAnalysisLoading: boolean
   selectedMetricKey: string
   selectedDecisionMetricLabel?: string
   onSelectMetric: (value: string) => void
@@ -1597,7 +1656,7 @@ function WeeklyReportDigestPreview({
                 })}
               </select>
               <p className="mt-1.5 text-xs text-gray-500">
-                Choose the KPI that will receive this analysis as a decision.
+                Choose the KPI this decision will target. The recommendation uses all selected KPI metrics as context.
               </p>
             </>
           ) : (
@@ -1612,13 +1671,19 @@ function WeeklyReportDigestPreview({
         <button
           type="button"
           onClick={onCreateDecision}
-          disabled={creatingDecision}
+          disabled={
+            creatingDecision ||
+            aiAnalysisLoading ||
+            !digest.ai_analysis?.recommendations.length
+          }
           className="mt-4 inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--decisionate-brand-primary)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <PlusCircle size={16} />
           {creatingDecision
             ? "Creating decision..."
-            : "Create decision from analysis"}
+            : aiAnalysisLoading
+              ? "Preparing recommendation..."
+              : "Create decision from analysis"}
         </button>
       )}
 
