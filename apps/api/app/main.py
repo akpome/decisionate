@@ -75,6 +75,9 @@ from app.modules.platform_admin import (
     ensure_platform_admin_roles,
     router as platform_admin_router,
 )
+from app.modules.maintenance import (
+    router as maintenance_router,
+)
 from app.modules.support.router import (
     router as support_router,
 )
@@ -1588,6 +1591,12 @@ app.include_router(
     platform_admin_router,
     prefix="/admin",
     tags=["platform-admin"],
+)
+
+app.include_router(
+    maintenance_router,
+    prefix="/maintenance",
+    tags=["maintenance"],
 )
 
 app.include_router(

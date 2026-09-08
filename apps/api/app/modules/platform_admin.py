@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 from datetime import UTC, datetime, timedelta
@@ -29,6 +30,7 @@ from app.db.models import (
     OAuthCredential,
     PlatformBillingSettings,
     PlatformEmailSettings,
+    PlatformMaintenanceNotice,
     PlatformAdminRole,
     UserPreference,
     WeeklyReportDeliveryLog,
@@ -41,8 +43,10 @@ from app.modules.ai.service import build_ai_status
 from app.modules.alerts.email_delivery import (
     get_platform_email_settings,
     is_email_delivery_configured,
+    send_platform_system_email,
 )
 from app.modules.auth_context import get_auth_context
+from app.modules.billing.notifications import get_workspace_owner_email
 from app.modules.billing.service import (
     AGENCY_PLAN,
     PROFESSIONAL_PLAN,
@@ -64,9 +68,16 @@ from app.modules.datasets.services.analytics_engine import (
 from app.security.secrets import encrypt_secret
 from app.modules.decisions.activity_models import DecisionActivity
 from app.modules.decisions.models import Decision
+from app.modules.maintenance import (
+    PlatformAdminMaintenanceResponse,
+    MaintenanceNoticeResponse,
+    as_utc_datetime,
+    serialize_maintenance_notice,
+)
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 PLATFORM_ADMIN_PERMISSION_DEFINITIONS = (
     {"key": "overview", "label": "Overview and platform analysis"},
@@ -77,6 +88,7 @@ PLATFORM_ADMIN_PERMISSION_DEFINITIONS = (
     {"key": "analytics", "label": "Usage activity"},
     {"key": "email_settings", "label": "Decisionate email settings"},
     {"key": "credit_settings", "label": "AI credit allocations"},
+    {"key": "maintenance", "label": "Maintenance announcements"},
 )
 PLATFORM_ADMIN_PERMISSION_KEYS = frozenset(
     definition["key"]
@@ -365,6 +377,11 @@ class PlatformAdminEmailSettingsUpdate(BaseModel):
     smtp_use_ssl: bool = False
 
 
+class PlatformAdminMaintenanceUpdate(BaseModel):
+    message: str = Field(..., min_length=1, max_length=4000)
+    scheduled_at: datetime
+
+
 class PlatformAdminCreditSettingsResponse(BaseModel):
     source: str
     free_ai_credits: int
@@ -571,6 +588,8 @@ def platform_admin_permission_for_path(path: str) -> str | None:
         return "email_settings"
     if clean_path.startswith("/admin/credit-settings"):
         return "credit_settings"
+    if clean_path.startswith("/admin/maintenance"):
+        return "maintenance"
     if clean_path.startswith("/admin/administrators"):
         return "administrators"
     return None
@@ -728,6 +747,252 @@ def clean_platform_admin_email(value: str) -> str:
         )
 
     return clean_value
+
+
+def normalize_maintenance_datetime(value: datetime) -> datetime:
+    normalized = as_utc_datetime(value)
+    if normalized is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Maintenance date and time are required",
+        )
+    return normalized.replace(tzinfo=None)
+
+
+def maintenance_owner_emails(db) -> list[str]:
+    emails = set()
+    for organization in db.query(Organization).all():
+        owner_email = get_workspace_owner_email(db, organization)
+        if owner_email:
+            emails.add(owner_email.strip().lower())
+    return sorted(email for email in emails if email)
+
+
+def send_maintenance_emails(
+    recipients: list[str],
+    subject: str,
+    body: str,
+) -> tuple[int, int, str | None]:
+    sent_count = 0
+    failures = []
+    for recipient in recipients:
+        try:
+            send_platform_system_email(
+                recipient,
+                subject,
+                body,
+            )
+            sent_count += 1
+        except Exception as error:
+            failures.append(error)
+            logger.warning(
+                "Maintenance email could not be sent to %s: %s",
+                recipient,
+                getattr(error, "detail", str(error)),
+            )
+
+    if not failures:
+        return sent_count, 0, None
+
+    return (
+        sent_count,
+        len(failures),
+        "The notice was saved, but some owner emails could not be sent.",
+    )
+
+
+def maintenance_announcement_email_body(
+    message: str,
+    scheduled_at: datetime,
+) -> str:
+    scheduled_text = as_utc_datetime(scheduled_at).strftime(
+        "%Y-%m-%d %H:%M UTC"
+    )
+    return (
+        "Hello,\n\n"
+        "Decisionate has scheduled platform maintenance.\n\n"
+        f"Scheduled time: {scheduled_text}\n\n"
+        "Maintenance message:\n"
+        f"{message}\n\n"
+        "The scheduled time is shown in each workspace in the user's local "
+        "time. We will email you when maintenance is complete.\n\n"
+        "Decisionate"
+    )
+
+
+def maintenance_completion_email_body(message: str) -> str:
+    return (
+        "Hello,\n\n"
+        "Decisionate maintenance is complete and the service is available "
+        "again.\n\n"
+        "Original maintenance message:\n"
+        f"{message}\n\n"
+        "Decisionate"
+    )
+
+
+def build_platform_admin_maintenance_response(
+    notice: PlatformMaintenanceNotice,
+    *,
+    email_sent_count: int = 0,
+    email_failed_count: int = 0,
+    email_failure_message: str | None = None,
+) -> PlatformAdminMaintenanceResponse:
+    base_response = serialize_maintenance_notice(notice)
+    return PlatformAdminMaintenanceResponse(
+        **base_response.dict(),
+        email_sent_count=email_sent_count,
+        email_failed_count=email_failed_count,
+        email_failure_message=email_failure_message,
+    )
+
+
+@router.get(
+    "/maintenance",
+    response_model=MaintenanceNoticeResponse | None,
+)
+async def get_platform_admin_maintenance(request: Request):
+    require_platform_admin(request)
+    db = SessionLocal()
+    try:
+        notice = (
+            db.query(PlatformMaintenanceNotice)
+            .filter(PlatformMaintenanceNotice.status == "active")
+            .order_by(PlatformMaintenanceNotice.id.desc())
+            .first()
+        )
+        return serialize_maintenance_notice(notice) if notice else None
+    finally:
+        db.close()
+
+
+@router.put(
+    "/maintenance",
+    response_model=PlatformAdminMaintenanceResponse,
+)
+async def update_platform_admin_maintenance(
+    payload: PlatformAdminMaintenanceUpdate,
+    request: Request,
+):
+    auth_context = require_platform_admin(request)
+    clean_message = payload.message.strip()
+    if not clean_message:
+        raise HTTPException(
+            status_code=400,
+            detail="Maintenance message is required",
+        )
+
+    scheduled_at = normalize_maintenance_datetime(payload.scheduled_at)
+    db = SessionLocal()
+    try:
+        notice = (
+            db.query(PlatformMaintenanceNotice)
+            .filter(PlatformMaintenanceNotice.status == "active")
+            .order_by(PlatformMaintenanceNotice.id.desc())
+            .first()
+        )
+        if notice is None:
+            notice = PlatformMaintenanceNotice(
+                message=clean_message,
+                scheduled_at=scheduled_at,
+                status="active",
+                created_by_user_id=auth_context.user_id,
+            )
+            db.add(notice)
+        else:
+            notice.message = clean_message
+            notice.scheduled_at = scheduled_at
+            notice.status = "active"
+            notice.ended_at = None
+            notice.ended_by_user_id = None
+            notice.completion_email_sent_at = None
+
+        db.commit()
+        recipients = maintenance_owner_emails(db)
+        sent_count, failed_count, failure_message = send_maintenance_emails(
+            recipients,
+            "Scheduled maintenance for Decisionate",
+            maintenance_announcement_email_body(
+                clean_message,
+                scheduled_at,
+            ),
+        )
+        if sent_count:
+            notice.announcement_email_sent_at = utc_now()
+        record_platform_admin_audit(
+            db,
+            admin_user_id=auth_context.user_id,
+            action="platform_maintenance_notice_published",
+            details=(
+                f"owner_emails={len(recipients)}, sent={sent_count}, "
+                f"failed={failed_count}"
+            ),
+        )
+        db.commit()
+        response = build_platform_admin_maintenance_response(
+            notice,
+            email_sent_count=sent_count,
+            email_failed_count=failed_count,
+            email_failure_message=failure_message,
+        )
+    finally:
+        db.close()
+
+    return response
+
+
+@router.post(
+    "/maintenance/complete",
+    response_model=PlatformAdminMaintenanceResponse,
+)
+async def complete_platform_admin_maintenance(request: Request):
+    auth_context = require_platform_admin(request)
+    db = SessionLocal()
+    try:
+        notice = (
+            db.query(PlatformMaintenanceNotice)
+            .filter(PlatformMaintenanceNotice.status == "active")
+            .order_by(PlatformMaintenanceNotice.id.desc())
+            .first()
+        )
+        if notice is None:
+            raise HTTPException(
+                status_code=404,
+                detail="There is no active maintenance notice",
+            )
+
+        notice.status = "completed"
+        notice.ended_at = utc_now()
+        notice.ended_by_user_id = auth_context.user_id
+        db.commit()
+        recipients = maintenance_owner_emails(db)
+        sent_count, failed_count, failure_message = send_maintenance_emails(
+            recipients,
+            "Decisionate maintenance is complete",
+            maintenance_completion_email_body(notice.message),
+        )
+        if sent_count:
+            notice.completion_email_sent_at = utc_now()
+        record_platform_admin_audit(
+            db,
+            admin_user_id=auth_context.user_id,
+            action="platform_maintenance_notice_completed",
+            details=(
+                f"owner_emails={len(recipients)}, sent={sent_count}, "
+                f"failed={failed_count}"
+            ),
+        )
+        db.commit()
+        response = build_platform_admin_maintenance_response(
+            notice,
+            email_sent_count=sent_count,
+            email_failed_count=failed_count,
+            email_failure_message=failure_message,
+        )
+    finally:
+        db.close()
+
+    return response
 
 
 @router.get(

@@ -11,11 +11,14 @@ import {
   Download,
   FileCheck2,
   Gauge,
+  CheckCircle2,
   LogOut,
   Mail,
   RefreshCw,
+  Send,
   Trash2,
   Users,
+  Wrench,
 } from "lucide-react"
 import {
   UserButton,
@@ -36,6 +39,7 @@ import {
   getPlatformAdminAuditEvents,
   getPlatformAdminCreditSettings,
   getPlatformAdminEmailSettings,
+  getPlatformAdminMaintenance,
   getPlatformAdminOrganizationInvites,
   getPlatformAdminOrganizationMembers,
   getPlatformAdminOrganizations,
@@ -52,11 +56,14 @@ import {
   type PlatformAdminAccessDetails,
   type PlatformAdminCreditSettings,
   type PlatformAdminEmailSettings,
+  type MaintenanceNotice,
   type PlatformAdminOrganization,
   type PlatformAdminOverview,
   type PlatformAdminUsage,
   type PlatformAdminUser,
   updatePlatformAdminEmailSettings,
+  updatePlatformAdminMaintenance,
+  completePlatformAdminMaintenance,
   updatePlatformAdminOrganizationSubscription,
   updatePlatformAdminCreditSettings,
   updatePlatformAdminMemberRole,
@@ -85,6 +92,35 @@ function dateExpiryPayload(value: string) {
   return value
     ? new Date(`${value}T23:59:59`).toISOString()
     : null
+}
+
+function localMaintenanceDateTimeParts(value?: string | null) {
+  if (!value) {
+    return { date: "", time: "" }
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return { date: "", time: "" }
+  }
+
+  const pad = (part: number) => String(part).padStart(2, "0")
+  return {
+    date: `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`,
+    time: `${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`,
+  }
+}
+
+function formatMaintenanceLocalTime(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return "Scheduled time unavailable"
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(parsed)
 }
 
 function downloadCsv(
@@ -275,6 +311,21 @@ export default function PlatformAdminPage() {
     useState("")
   const [emailSettingsSaving, setEmailSettingsSaving] =
     useState(false)
+  const [maintenanceNotice, setMaintenanceNotice] =
+    useState<MaintenanceNotice | null>(null)
+  const [maintenanceLoading, setMaintenanceLoading] =
+    useState(true)
+  const [maintenanceError, setMaintenanceError] =
+    useState("")
+  const [maintenanceFeedback, setMaintenanceFeedback] =
+    useState("")
+  const [maintenanceSaving, setMaintenanceSaving] =
+    useState(false)
+  const [maintenanceForm, setMaintenanceForm] = useState({
+    message: "",
+    date: "",
+    time: "",
+  })
   const [creditSettings, setCreditSettings] =
     useState<PlatformAdminCreditSettings | null>(null)
   const [creditSettingsLoading, setCreditSettingsLoading] =
@@ -512,6 +563,43 @@ export default function PlatformAdminPage() {
           setEmailSettingsLoading(false)
         }
 
+        if (canView("maintenance")) {
+          setMaintenanceLoading(true)
+          tasks.push(
+            getPlatformAdminMaintenance(user.id)
+              .then((notice) => {
+                if (!ignoreResult) {
+                  setMaintenanceNotice(notice)
+                  const dateTime = localMaintenanceDateTimeParts(
+                    notice?.scheduled_at
+                  )
+                  setMaintenanceForm({
+                    message: notice?.message || "",
+                    date: dateTime.date,
+                    time: dateTime.time,
+                  })
+                  setMaintenanceError("")
+                }
+              })
+              .catch((loadError) => {
+                if (!ignoreResult) {
+                  setMaintenanceError(
+                    loadError instanceof Error
+                      ? loadError.message
+                      : "Maintenance settings are unavailable."
+                  )
+                }
+              })
+              .finally(() => {
+                if (!ignoreResult) {
+                  setMaintenanceLoading(false)
+                }
+              })
+          )
+        } else {
+          setMaintenanceLoading(false)
+        }
+
         if (canView("credit_settings")) {
           setCreditSettingsLoading(true)
           tasks.push(
@@ -681,6 +769,91 @@ export default function PlatformAdminPage() {
       )
     } finally {
       setEmailSettingsSaving(false)
+    }
+  }
+
+  async function handleSaveMaintenance(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault()
+    if (!user?.id) {
+      return
+    }
+
+    const message = maintenanceForm.message.trim()
+    if (!message || !maintenanceForm.date || !maintenanceForm.time) {
+      setMaintenanceError(
+        "Enter a maintenance message, date, and time before publishing."
+      )
+      setMaintenanceFeedback("")
+      return
+    }
+
+    const scheduledAt = new Date(
+      `${maintenanceForm.date}T${maintenanceForm.time}`
+    )
+    if (Number.isNaN(scheduledAt.getTime())) {
+      setMaintenanceError("Enter a valid maintenance date and time.")
+      setMaintenanceFeedback("")
+      return
+    }
+
+    setMaintenanceSaving(true)
+    setMaintenanceError("")
+    setMaintenanceFeedback("")
+    try {
+      const result = await updatePlatformAdminMaintenance(
+        user.id,
+        {
+          message,
+          scheduled_at: scheduledAt.toISOString(),
+        }
+      )
+      setMaintenanceNotice(result)
+      setMaintenanceFeedback(
+        result.email_failed_count > 0
+          ? `${result.email_sent_count} owner email(s) sent. ${result.email_failure_message || "Some owner emails could not be sent."}`
+          : `Maintenance notice published. ${result.email_sent_count} workspace owner email(s) sent.`
+      )
+    } catch (saveError) {
+      setMaintenanceError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Maintenance notice could not be saved."
+      )
+    } finally {
+      setMaintenanceSaving(false)
+    }
+  }
+
+  async function handleCompleteMaintenance() {
+    if (!user?.id || !maintenanceNotice) {
+      return
+    }
+    if (!window.confirm("End maintenance and notify all workspace owners?")) {
+      return
+    }
+
+    setMaintenanceSaving(true)
+    setMaintenanceError("")
+    setMaintenanceFeedback("")
+    try {
+      const result = await completePlatformAdminMaintenance(user.id)
+      setMaintenanceNotice(null)
+      setMaintenanceForm({ message: "", date: "", time: "" })
+      setMaintenanceFeedback(
+        result.email_failed_count > 0
+          ? `Maintenance ended. ${result.email_sent_count} completion email(s) sent. ${result.email_failure_message || "Some owner emails could not be sent."}`
+          : `Maintenance ended. ${result.email_sent_count} workspace owner completion email(s) sent.`
+      )
+    } catch (completeError) {
+      setMaintenanceError(
+        completeError instanceof Error
+          ? completeError.message
+          : "Maintenance notice could not be ended."
+      )
+    } finally {
+      setMaintenanceSaving(false)
     }
   }
 
@@ -2579,6 +2752,134 @@ export default function PlatformAdminPage() {
                     </p>
                   )}
                 </form>
+              )}
+            </section>
+
+            <section className={canView("maintenance") ? "mt-8 rounded-xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm" : "hidden"}>
+              <div className="flex items-start gap-3">
+                <Wrench className="mt-0.5 text-amber-700" size={20} />
+                <div>
+                  <h2 className="font-semibold">Maintenance announcement</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Publish a banner at the top of every workspace and email all recorded workspace owners. The scheduled time is shown in each user&apos;s local time.
+                  </p>
+                </div>
+              </div>
+
+              {maintenanceLoading && (
+                <p className="mt-5 text-sm text-gray-600">
+                  Loading maintenance settings...
+                </p>
+              )}
+
+              {!maintenanceLoading && maintenanceError && (
+                <p className="mt-5 text-sm text-red-700">
+                  {maintenanceError}
+                </p>
+              )}
+
+              {!maintenanceLoading && !maintenanceError && (
+                <>
+                  <form
+                    className="mt-5 space-y-4"
+                    onSubmit={(event) => {
+                      void handleSaveMaintenance(event)
+                    }}
+                  >
+                    <label className="block text-xs font-medium text-gray-600">
+                      Maintenance message
+                      <textarea
+                        required
+                        maxLength={4000}
+                        value={maintenanceForm.message}
+                        onChange={(event) => setMaintenanceForm(currentForm => ({
+                          ...currentForm,
+                          message: event.target.value,
+                        }))}
+                        placeholder="Decisionate will be unavailable while scheduled maintenance is performed."
+                        className="mt-1 min-h-24 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
+                      />
+                    </label>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="text-xs font-medium text-gray-600">
+                        Maintenance date
+                        <input
+                          required
+                          type="date"
+                          value={maintenanceForm.date}
+                          onChange={(event) => setMaintenanceForm(currentForm => ({
+                            ...currentForm,
+                            date: event.target.value,
+                          }))}
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
+                        />
+                      </label>
+                      <label className="text-xs font-medium text-gray-600">
+                        Maintenance time
+                        <input
+                          required
+                          type="time"
+                          value={maintenanceForm.time}
+                          onChange={(event) => setMaintenanceForm(currentForm => ({
+                            ...currentForm,
+                            time: event.target.value,
+                          }))}
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-amber-200 pt-4">
+                      <p className="text-xs text-gray-500">
+                        The date and time are entered in your browser&apos;s local timezone and converted for each workspace user.
+                      </p>
+                      <button
+                        type="submit"
+                        disabled={maintenanceSaving}
+                        className="inline-flex items-center gap-2 rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Send size={16} aria-hidden="true" />
+                        {maintenanceSaving
+                          ? "Saving..."
+                          : maintenanceNotice
+                            ? "Update and notify owners"
+                            : "Publish maintenance notice"}
+                      </button>
+                    </div>
+                  </form>
+
+                  {maintenanceNotice && (
+                    <div className="mt-5 rounded-lg border border-amber-200 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
+                        Active workspace banner
+                      </p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-800">
+                        {maintenanceNotice.message}
+                      </p>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Scheduled for {formatMaintenanceLocalTime(maintenanceNotice.scheduled_at)} (your local time)
+                      </p>
+                      <button
+                        type="button"
+                        disabled={maintenanceSaving}
+                        onClick={() => {
+                          void handleCompleteMaintenance()
+                        }}
+                        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-800 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <CheckCircle2 size={16} aria-hidden="true" />
+                        End maintenance and notify owners
+                      </button>
+                    </div>
+                  )}
+
+                  {maintenanceFeedback && (
+                    <p className="mt-3 text-sm text-green-700">
+                      {maintenanceFeedback}
+                    </p>
+                  )}
+                </>
               )}
             </section>
 

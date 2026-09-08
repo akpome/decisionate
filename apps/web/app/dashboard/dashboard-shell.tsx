@@ -25,6 +25,7 @@ import {
   Settings,
   Target,
   X,
+  Wrench,
 } from "lucide-react"
 import {
   useEffect,
@@ -39,8 +40,10 @@ import {
   getApiAvailabilitySnapshot,
   apiAvailabilityChangedEvent,
   getBillingAccessStatus,
+  getActiveMaintenanceNotice,
   type ApiAvailabilityEventDetail,
   type BillingAccessStatus,
+  type MaintenanceNotice,
   type OrganizationRecord,
   type OrganizationWorkspaceRecord,
 } from "@/lib/api"
@@ -235,6 +238,8 @@ export function DashboardShell({
     useState<BillingAccessStatus | null>(null)
   const [subscriptionAccessKey, setSubscriptionAccessKey] =
     useState("")
+  const [maintenanceNotice, setMaintenanceNotice] =
+    useState<MaintenanceNotice | null>(null)
   const { activeWorkspaceId } =
     useActiveWorkspace(user?.id)
   const clerkButtonMounted = useSyncExternalStore(
@@ -255,6 +260,36 @@ export function DashboardShell({
   useEffect(() => {
     setMobileNavOpen(false)
   }, [pathname])
+
+  useEffect(() => {
+    if (!user?.id) {
+      return
+    }
+
+    let ignoreResult = false
+    const loadMaintenanceNotice = async () => {
+      try {
+        const notice = await getActiveMaintenanceNotice(user.id)
+        if (!ignoreResult) {
+          setMaintenanceNotice(notice)
+        }
+      } catch {
+        // Maintenance is supplementary UI; a failed status check must not
+        // block workspace navigation or surface a false platform outage.
+      }
+    }
+
+    void loadMaintenanceNotice()
+    const refreshId = window.setInterval(
+      loadMaintenanceNotice,
+      60_000
+    )
+
+    return () => {
+      ignoreResult = true
+      window.clearInterval(refreshId)
+    }
+  }, [user?.id])
 
   useEffect(() => {
     if (
@@ -972,6 +1007,10 @@ export function DashboardShell({
           </button>
         </div>
 
+        {maintenanceNotice && (
+          <MaintenanceBanner notice={maintenanceNotice} />
+        )}
+
         {subscriptionAccessBlocked && subscriptionAccess ? (
           <SubscriptionRequiredPanel
             access={subscriptionAccess}
@@ -982,6 +1021,47 @@ export function DashboardShell({
         )}
       </main>
     </div>
+  )
+}
+
+function MaintenanceBanner({
+  notice,
+}: {
+  notice: MaintenanceNotice
+}) {
+  const scheduledDate = new Date(notice.scheduled_at)
+  const scheduledText = Number.isNaN(scheduledDate.getTime())
+    ? "Scheduled time unavailable"
+    : new Intl.DateTimeFormat(undefined, {
+        dateStyle: "full",
+        timeStyle: "short",
+      }).format(scheduledDate)
+
+  return (
+    <section
+      role="status"
+      aria-live="polite"
+      className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 shadow-sm sm:px-5"
+    >
+      <div className="flex items-start gap-3">
+        <Wrench
+          size={20}
+          className="mt-0.5 shrink-0 text-amber-700"
+          aria-hidden="true"
+        />
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
+            Upcoming maintenance
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-sm font-medium leading-6">
+            {notice.message}
+          </p>
+          <p className="mt-1 text-xs text-amber-800">
+            Scheduled for {scheduledText} (your local time)
+          </p>
+        </div>
+      </div>
+    </section>
   )
 }
 

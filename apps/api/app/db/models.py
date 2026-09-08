@@ -1151,6 +1151,70 @@ class PlatformEmailSettings(Base):
     )
 
 
+class PlatformMaintenanceNotice(Base):
+    __tablename__ = "platform_maintenance_notices"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+    message = Column(
+        Text,
+        nullable=False,
+    )
+
+    scheduled_at = Column(
+        DateTime,
+        nullable=False,
+        index=True,
+    )
+
+    status = Column(
+        String,
+        nullable=False,
+        default="active",
+        index=True,
+    )
+
+    created_by_user_id = Column(
+        String,
+        nullable=False,
+    )
+
+    ended_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
+    ended_by_user_id = Column(
+        String,
+        nullable=True,
+    )
+
+    announcement_email_sent_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
+    completion_email_sent_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
+    created_at = Column(
+        DateTime,
+        default=utc_now,
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
 class PlatformBillingSettings(Base):
     __tablename__ = "platform_billing_settings"
 

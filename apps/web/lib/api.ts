@@ -1110,6 +1110,24 @@ export type PlatformAdminEmailSettingsUpdate = {
   smtp_use_ssl: boolean
 }
 
+export type MaintenanceNotice = {
+  id: number
+  message: string
+  scheduled_at: string
+  status: "active" | "completed"
+}
+
+export type PlatformAdminMaintenanceResult = MaintenanceNotice & {
+  email_sent_count: number
+  email_failed_count: number
+  email_failure_message?: string | null
+}
+
+export type PlatformAdminMaintenanceUpdate = {
+  message: string
+  scheduled_at: string
+}
+
 export type PlatformAdminCreditSettings = {
   source: "database" | "environment/default"
   free_ai_credits: number
@@ -3605,6 +3623,83 @@ export async function updatePlatformAdminEmailSettings(
   return response.json()
 }
 
+export async function getPlatformAdminMaintenance(
+  userId: string
+): Promise<MaintenanceNotice | null> {
+  const response =
+    await apiFetch(
+      `${API_URL}/admin/maintenance`,
+      {
+        headers: await workspaceHeaders(
+          userId,
+          userId
+        ),
+        cache: "no-store",
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Maintenance settings are unavailable"
+    )
+  }
+
+  return response.json()
+}
+
+export async function updatePlatformAdminMaintenance(
+  userId: string,
+  payload: PlatformAdminMaintenanceUpdate
+): Promise<PlatformAdminMaintenanceResult> {
+  const response =
+    await apiFetch(
+      `${API_URL}/admin/maintenance`,
+      {
+        method: "PUT",
+        headers: await workspaceJsonHeaders(
+          userId,
+          userId
+        ),
+        body: JSON.stringify(payload),
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Maintenance notice could not be saved"
+    )
+  }
+
+  return response.json()
+}
+
+export async function completePlatformAdminMaintenance(
+  userId: string
+): Promise<PlatformAdminMaintenanceResult> {
+  const response =
+    await apiFetch(
+      `${API_URL}/admin/maintenance/complete`,
+      {
+        method: "POST",
+        headers: await workspaceJsonHeaders(
+          userId,
+          userId
+        ),
+      }
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Maintenance notice could not be ended"
+    )
+  }
+
+  return response.json()
+}
+
 export async function getPlatformAdminCreditSettings(
   userId: string
 ): Promise<PlatformAdminCreditSettings> {
@@ -5540,6 +5635,30 @@ export async function getMyOrganization(
       return response.json()
     }
   )
+}
+
+export async function getActiveMaintenanceNotice(
+  userId: string
+): Promise<MaintenanceNotice | null> {
+  const response =
+    await apiFetch(
+      `${API_URL}/maintenance/active`,
+      {
+        headers: await workspaceHeaders(userId),
+        cache: "no-store",
+      },
+      apiRequestTimeoutMs,
+      false
+    )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Maintenance notice is unavailable"
+    )
+  }
+
+  return response.json()
 }
 
 export async function updateAgencyOwnerWorkspaceAccess(
