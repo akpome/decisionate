@@ -1904,7 +1904,9 @@ async def get_dataset_join_metadata(
 
     try:
         metadata = []
+        failed_dataset_id = None
         for dataset_id in clean_dataset_ids:
+            failed_dataset_id = dataset_id
             dataset, dataframe = load_dataframe(
                 db,
                 dataset_id,
@@ -1929,6 +1931,9 @@ async def get_dataset_join_metadata(
             "Dataset join metadata failed",
             extra={
                 "dataset_ids": clean_dataset_ids,
+                "failed_dataset_id": failed_dataset_id,
+                "error_type": type(error).__name__,
+                "reason": str(error)[:500],
             },
         )
         raise HTTPException(
