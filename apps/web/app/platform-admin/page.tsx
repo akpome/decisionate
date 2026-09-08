@@ -66,6 +66,17 @@ function formatCount(value: number) {
   return value.toLocaleString()
 }
 
+function displayAdminValue(value?: string | null) {
+  return value?.trim() || "Not provided"
+}
+
+function formatAdminLabel(value?: string | null) {
+  const normalized = value?.trim().replaceAll("_", " ") || ""
+  return normalized
+    ? normalized.charAt(0).toUpperCase() + normalized.slice(1)
+    : "Not provided"
+}
+
 function dateInputValue(value?: string | null) {
   return value ? value.slice(0, 10) : ""
 }
@@ -300,6 +311,8 @@ export default function PlatformAdminPage() {
   })
   const [retryKey, setRetryKey] = useState(0)
   const [organizationSearch, setOrganizationSearch] =
+    useState("")
+  const [customerSearch, setCustomerSearch] =
     useState("")
   const [userSearch, setUserSearch] =
     useState("")
@@ -1341,6 +1354,28 @@ export default function PlatformAdminPage() {
       )
     }
   )
+  const visibleCustomers = organizations
+    .filter(organization => organization.plan !== "client")
+    .filter(organization => {
+      const search = customerSearch.trim().toLowerCase()
+      if (!search) {
+        return true
+      }
+
+      return [
+        organization.name,
+        organization.owner_email || "",
+        organization.business_type || "",
+        organization.country || "",
+        organization.industry || "",
+        organization.company_size || "",
+        organization.agency_client_count || "",
+        organization.role || "",
+        organization.primary_goal || "",
+        organization.plan,
+        organization.subscription_status,
+      ].some(value => value.toLowerCase().includes(search))
+    })
   const visibleAuditEvents = auditEvents.filter(event => {
     const search = auditSearch.trim().toLowerCase()
     if (!search) {
@@ -2544,6 +2579,119 @@ export default function PlatformAdminPage() {
                     </p>
                   )}
                 </form>
+              )}
+            </section>
+
+            <section className={canView("workspaces") ? "mt-8 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" : "hidden"}>
+              <div className="border-b border-gray-200 px-5 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h2 className="font-semibold">Customers</h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      One row per primary customer workspace, including signup details, plan status, and current activity. Managed agency client workspaces are listed below.
+                    </p>
+                  </div>
+                  <label className="text-xs font-medium text-gray-600">
+                    Search customers
+                    <input
+                      value={customerSearch}
+                      onChange={(event) => setCustomerSearch(event.target.value)}
+                      placeholder="Name, email, or company"
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 sm:w-60"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-[1040px] divide-y divide-gray-200 text-left text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                    <tr>
+                      <th className="px-5 py-3 font-medium">Customer</th>
+                      <th className="px-5 py-3 font-medium">Business</th>
+                      <th className="px-5 py-3 font-medium">Profile</th>
+                      <th className="px-5 py-3 font-medium">Role and goal</th>
+                      <th className="px-5 py-3 font-medium">Plan and status</th>
+                      <th className="px-5 py-3 font-medium">Workspaces</th>
+                      <th className="px-5 py-3 font-medium">Activity</th>
+                      <th className="px-5 py-3 font-medium">Joined</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {visibleCustomers.map((customer) => (
+                      <tr key={customer.id}>
+                        <td className="max-w-56 px-5 py-3 align-top">
+                          <p className="font-medium text-gray-900">{customer.name}</p>
+                          <p className="mt-1 text-xs text-gray-700">
+                            {customer.owner_name || "Owner name not provided"}
+                          </p>
+                          <p className="mt-1 break-all text-xs text-gray-500">
+                            {customer.owner_email || customer.owner_user_id}
+                          </p>
+                        </td>
+                        <td className="px-5 py-3 align-top text-gray-700">
+                          <p>{formatAdminLabel(customer.business_type)}</p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {displayAdminValue(customer.country)}
+                          </p>
+                        </td>
+                        <td className="max-w-40 px-5 py-3 align-top text-gray-700">
+                          <p>{displayAdminValue(customer.industry)}</p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {displayAdminValue(customer.company_size)}
+                          </p>
+                        </td>
+                        <td className="max-w-52 px-5 py-3 align-top text-gray-700">
+                          <p>{displayAdminValue(customer.role)}</p>
+                          <p className="mt-1 line-clamp-2 text-xs text-gray-500" title={customer.primary_goal || undefined}>
+                            {displayAdminValue(customer.primary_goal)}
+                          </p>
+                        </td>
+                        <td className="px-5 py-3 align-top text-gray-700">
+                          <p className="font-medium">{formatAdminLabel(customer.plan)}</p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {formatAdminLabel(customer.subscription_status)}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {customer.billing_expires_at
+                              ? `Expires ${new Date(customer.billing_expires_at).toLocaleDateString()}`
+                              : "No expiry"}
+                          </p>
+                        </td>
+                        <td className="px-5 py-3 align-top text-gray-700">
+                          <p>{formatCount(customer.client_workspace_count || 0)} managed client workspaces</p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {formatCount(customer.member_count)} members
+                          </p>
+                          {customer.agency_client_count && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              Signup range: {customer.agency_client_count}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 align-top text-gray-700">
+                          <p>{formatCount(customer.dataset_count)} datasets</p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {formatCount(customer.decision_count)} decisions
+                          </p>
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-3 align-top text-gray-500">
+                          {customer.created_at
+                            ? new Date(customer.created_at).toLocaleDateString()
+                            : "Not provided"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {visibleCustomers.length === 0 && (
+                <p className="px-5 py-4 text-sm text-gray-500">
+                  {customerSearch.trim()
+                    ? "No customers match this search."
+                    : "No customers are available."}
+                </p>
               )}
             </section>
 

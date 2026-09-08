@@ -130,6 +130,15 @@ class PlatformAdminOrganizationResponse(BaseModel):
     name: str
     owner_user_id: str
     owner_email: str | None = None
+    owner_name: str | None = None
+    business_type: str | None = None
+    country: str | None = None
+    industry: str | None = None
+    company_size: str | None = None
+    agency_client_count: str | None = None
+    role: str | None = None
+    primary_goal: str | None = None
+    client_workspace_count: int = 0
     created_at: str | None
     plan: str
     subscription_status: str
@@ -1232,7 +1241,7 @@ async def get_platform_admin_organizations(
         responses = []
 
         for organization in organizations:
-            workspace_id = organization.owner_user_id
+            workspace_id = organization.owner_user_id or ""
             is_client_workspace = ":client:" in workspace_id
             subscription = (
                 db.query(WorkspaceSubscription)
@@ -1273,6 +1282,23 @@ async def get_platform_admin_organizations(
                     owner_email=platform_admin_user_email(
                         db,
                         workspace_id,
+                    ),
+                    owner_name=platform_admin_user_name(
+                        db,
+                        workspace_id,
+                    ),
+                    business_type=organization.business_type,
+                    country=organization.country,
+                    industry=organization.industry,
+                    company_size=organization.company_size,
+                    agency_client_count=organization.agency_client_count,
+                    role=organization.role,
+                    primary_goal=organization.primary_goal,
+                    client_workspace_count=(
+                        count_platform_admin_client_workspaces(
+                            db,
+                            workspace_id,
+                        )
                     ),
                     created_at=(
                         organization.created_at.isoformat()
@@ -1354,6 +1380,42 @@ def platform_admin_user_email(db, user_id: str) -> str | None:
     return identity.email if identity else None
 
 
+def platform_admin_user_name(db, user_id: str) -> str | None:
+    user = (
+        db.query(AppUser)
+        .filter(AppUser.id == user_id)
+        .first()
+    )
+    if not user:
+        return None
+    if user.display_name:
+        return user.display_name
+    name = " ".join(
+        value.strip()
+        for value in (user.first_name, user.last_name)
+        if value and value.strip()
+    )
+    return name or None
+
+
+def count_platform_admin_client_workspaces(
+    db,
+    owner_user_id: str,
+) -> int:
+    if not owner_user_id or ":client:" in owner_user_id:
+        return 0
+    return (
+        db.query(func.count(Organization.id))
+        .filter(
+            Organization.owner_user_id.like(
+                f"{owner_user_id}:client:%",
+            ),
+        )
+        .scalar()
+        or 0
+    )
+
+
 def normalize_platform_admin_expiry(
     value: datetime | None,
 ) -> datetime | None:
@@ -1395,7 +1457,7 @@ def serialize_platform_admin_organization(
     db,
     organization: Organization,
 ):
-    workspace_id = organization.owner_user_id
+    workspace_id = organization.owner_user_id or ""
     is_client_workspace = ":client:" in workspace_id
     subscription = (
         db.query(WorkspaceSubscription)
@@ -1430,6 +1492,21 @@ def serialize_platform_admin_organization(
         owner_email=platform_admin_user_email(
             db,
             organization.owner_user_id,
+        ),
+        owner_name=platform_admin_user_name(
+            db,
+            organization.owner_user_id,
+        ),
+        business_type=organization.business_type,
+        country=organization.country,
+        industry=organization.industry,
+        company_size=organization.company_size,
+        agency_client_count=organization.agency_client_count,
+        role=organization.role,
+        primary_goal=organization.primary_goal,
+        client_workspace_count=count_platform_admin_client_workspaces(
+            db,
+            workspace_id,
         ),
         created_at=(
             organization.created_at.isoformat()

@@ -911,6 +911,15 @@ export type PlatformAdminOrganization = {
   name: string
   owner_user_id: string
   owner_email?: string | null
+  owner_name?: string | null
+  business_type?: string | null
+  country?: string | null
+  industry?: string | null
+  company_size?: string | null
+  agency_client_count?: string | null
+  role?: string | null
+  primary_goal?: string | null
+  client_workspace_count?: number
   created_at?: string | null
   plan: string
   subscription_status: string
