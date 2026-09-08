@@ -1928,7 +1928,13 @@ async def get_dataset_join_metadata(
         raise
     except Exception as error:
         logger.exception(
-            "Dataset join metadata failed",
+            (
+                "Dataset join metadata failed: "
+                f"dataset_ids={clean_dataset_ids}; "
+                f"failed_dataset_id={failed_dataset_id}; "
+                f"error_type={type(error).__name__}; "
+                f"reason={str(error)[:500]}"
+            ),
             extra={
                 "dataset_ids": clean_dataset_ids,
                 "failed_dataset_id": failed_dataset_id,
