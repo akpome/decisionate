@@ -99,6 +99,7 @@ export default function RelationshipsPage() {
   const [loading, setLoading] = useState(true)
   const [loadingMetadata, setLoadingMetadata] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [deletingRelationshipId, setDeletingRelationshipId] = useState<number | null>(null)
   const [error, setError] = useState("")
   const [statusMessage, setStatusMessage] = useState("")
 
@@ -282,10 +283,19 @@ export default function RelationshipsPage() {
     }
   }
 
-  async function handleDelete(relationshipId: number) {
+  async function handleDelete(relationship: DatasetRelationship) {
     if (!user?.id) return
-    setBusy(true)
+    if (!relationship.id || deletingRelationshipId !== null) return
+
+    const confirmed = window.confirm(
+      `Delete ${relationship.name}? This saved relationship will be removed from this workspace and any alert that monitors it.`
+    )
+    if (!confirmed) return
+
+    const relationshipId = relationship.id
+    setDeletingRelationshipId(relationshipId)
     setError("")
+    setStatusMessage("")
     try {
       await deleteDatasetRelationship(
         relationshipId,
@@ -298,7 +308,7 @@ export default function RelationshipsPage() {
     } catch (deleteError) {
       setError(getErrorMessage(deleteError, "Unable to remove relationship."))
     } finally {
-      setBusy(false)
+      setDeletingRelationshipId(null)
     }
   }
 
@@ -480,7 +490,13 @@ export default function RelationshipsPage() {
         )}
       </section>
 
-      {result && <RelationshipResult relationship={result} />}
+      {result && (
+        <RelationshipResult
+          relationship={result}
+          onDelete={relationship => void handleDelete(relationship)}
+          deleting={deletingRelationshipId === result.id}
+        />
+      )}
 
       <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
         <div>
@@ -511,9 +527,10 @@ export default function RelationshipsPage() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => relationship.id && void handleDelete(relationship.id)}
-                    disabled={busy || !relationship.id}
+                    onClick={() => void handleDelete(relationship)}
+                    disabled={busy || deletingRelationshipId !== null || !relationship.id}
                     className="rounded-lg p-2 text-gray-500 hover:bg-white hover:text-red-600 disabled:opacity-50"
+                    aria-label={`Delete ${relationship.name}`}
                     title="Delete relationship"
                   >
                     <Trash2 size={16} />
@@ -602,11 +619,19 @@ function SelectField({
   )
 }
 
-function RelationshipResult({ relationship }: { relationship: DatasetRelationship }) {
+function RelationshipResult({
+  relationship,
+  onDelete,
+  deleting,
+}: {
+  relationship: DatasetRelationship
+  onDelete?: (relationship: DatasetRelationship) => void
+  deleting?: boolean
+}) {
   return (
     <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Relationship evidence</p>
           <h2 className="mt-1 text-lg font-semibold">{relationship.name}</h2>
           <p className="mt-1 text-sm font-medium text-gray-800">
@@ -616,9 +641,23 @@ function RelationshipResult({ relationship }: { relationship: DatasetRelationshi
             {relationship.causation_disclaimer || "Association does not establish causation."}
           </p>
         </div>
-        <div className={`rounded-xl border px-4 py-3 text-center ${relationshipTone(relationship)}`}>
-          <p className="text-2xl font-semibold">{formatCorrelation(relationship.correlation)}</p>
-          <p className="text-xs font-medium capitalize">{relationship.relationship_strength} {relationship.direction}</p>
+        <div className="flex items-start gap-3">
+          {onDelete && relationship.id && (
+            <button
+              type="button"
+              onClick={() => onDelete(relationship)}
+              disabled={deleting}
+              className="rounded-lg p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              aria-label={`Delete ${relationship.name}`}
+              title="Delete saved relationship"
+            >
+              <Trash2 size={17} />
+            </button>
+          )}
+          <div className={`rounded-xl border px-4 py-3 text-center ${relationshipTone(relationship)}`}>
+            <p className="text-2xl font-semibold">{formatCorrelation(relationship.correlation)}</p>
+            <p className="text-xs font-medium capitalize">{relationship.relationship_strength} {relationship.direction}</p>
+          </div>
         </div>
       </div>
 
