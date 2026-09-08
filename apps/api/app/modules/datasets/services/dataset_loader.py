@@ -1,5 +1,8 @@
 from fastapi import HTTPException
 
+from app.infrastructure.object_storage import (
+    ObjectStorageUnavailable,
+)
 from app.modules.datasets.repositories.dataset_repository import (
     get_dataset,
 )
@@ -58,6 +61,21 @@ def load_dataframe_from_dataset(
         raise HTTPException(
             status_code=503,
             detail=str(error),
+        ) from error
+    except FileNotFoundError as error:
+        raise HTTPException(
+            status_code=404,
+            detail="Dataset file not found",
+        ) from error
+    except ObjectStorageUnavailable as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Dataset storage is temporarily unavailable. Try again shortly.",
+        ) from error
+    except OSError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Dataset storage is temporarily unavailable. Try again shortly.",
         ) from error
 
 

@@ -14,6 +14,9 @@ from app.modules.datasets.services.analytics_adapters import (
     get_analytics_adapter,
     load_dataset_dataframe,
 )
+from app.infrastructure.object_storage import (
+    ObjectStorageUnavailable,
+)
 from app.modules.datasets.services.analytics_engine import (
     AnalyticsEngineConfig,
     build_analytics_engine_status,
@@ -430,6 +433,56 @@ class AnalyticsEngineTests(unittest.TestCase):
         self.assertEqual(
             context.exception.detail,
             "BigQuery analytics adapter unavailable",
+        )
+
+    def test_dataset_loader_maps_missing_file_to_not_found(self):
+        dataset = SimpleNamespace(
+            id=1,
+        )
+
+        with patch(
+            "app.modules.datasets.services.dataset_loader.load_dataset_dataframe",
+            side_effect=FileNotFoundError("dataset.parquet"),
+        ):
+            with self.assertRaises(
+                HTTPException,
+            ) as context:
+                load_dataframe_from_dataset(
+                    dataset,
+                )
+
+        self.assertEqual(
+            context.exception.status_code,
+            404,
+        )
+        self.assertEqual(
+            context.exception.detail,
+            "Dataset file not found",
+        )
+
+    def test_dataset_loader_maps_storage_failure_to_service_error(self):
+        dataset = SimpleNamespace(
+            id=1,
+        )
+
+        with patch(
+            "app.modules.datasets.services.dataset_loader.load_dataset_dataframe",
+            side_effect=ObjectStorageUnavailable("storage unavailable"),
+        ):
+            with self.assertRaises(
+                HTTPException,
+            ) as context:
+                load_dataframe_from_dataset(
+                    dataset,
+                )
+
+        self.assertEqual(
+            context.exception.status_code,
+            503,
+        )
+        self.assertEqual(
+            context.exception.detail,
+            "Dataset storage is temporarily unavailable. Try again shortly.",
         )
 
     def test_analytics_identifier_is_bigquery_safe(self):

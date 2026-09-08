@@ -1922,6 +1922,19 @@ async def get_dataset_join_metadata(
             )
 
         return {"datasets": metadata}
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.exception(
+            "Dataset join metadata failed",
+            extra={
+                "dataset_ids": clean_dataset_ids,
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Dataset metadata is temporarily unavailable. Try again shortly.",
+        ) from error
     finally:
         db.close()
 
