@@ -2270,6 +2270,8 @@ export default function DashboardPage() {
       () =>
         metrics.map(
           (metric) => metric.column
+        ).filter(
+          column => !isDashboardIdentifierColumn(column)
         ),
       [metrics]
     )
@@ -8265,7 +8267,8 @@ function getSelectedDashboardMetrics(
   )
 
   return metrics.filter(metric =>
-    selectedColumns.has(metric.column)
+    selectedColumns.has(metric.column) &&
+    !isDashboardIdentifierColumn(metric.column)
   )
 }
 
@@ -8342,10 +8345,27 @@ function getDashboardNumericMappingColumns(
   const columns = getDashboardMappingColumns(dataset)
 
   return columns.filter(column =>
+    !isDashboardIdentifierColumn(column) &&
     filteredRows.some(row =>
       toFiniteDashboardNumber(row[column]) !== null
     )
   )
+}
+
+function isDashboardIdentifierColumn(
+  column: string
+) {
+  const words = column
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[^a-z0-9]+/i)
+
+  return words.some(word => {
+    const normalizedWord = word.toLowerCase()
+    return normalizedWord === "id" ||
+      normalizedWord === "key" ||
+      normalizedWord === "code"
+  })
 }
 
 async function copyTextToClipboard(text: string) {

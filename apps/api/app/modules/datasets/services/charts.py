@@ -2,6 +2,7 @@ import pandas as pd
 
 from app.modules.datasets.services.numeric import (
     get_numeric_columns,
+    is_identifier_column,
 )
 from app.modules.datasets.services.serialization import (
     dataframe_to_json_records,
@@ -22,6 +23,11 @@ def generate_chart_data(
     numeric_column_pairs = get_numeric_columns(
         dataframe
     )
+    numeric_column_pairs = [
+        (column, series)
+        for column, series in numeric_column_pairs
+        if not is_identifier_column(column)
+    ]
     numeric_columns = [
         column
         for column, _ in numeric_column_pairs

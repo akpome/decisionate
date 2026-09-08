@@ -12,6 +12,7 @@ import pandas as pd
 from app.modules.datasets.services.numeric import (
     coerce_numeric_series,
     get_numeric_columns,
+    is_identifier_column,
 )
 
 
@@ -250,6 +251,7 @@ def build_join_dataset_metadata(
     numeric_columns = [
         str(column)
         for column, _series in get_numeric_columns(dataframe)
+        if not is_identifier_column(column)
     ]
 
     date_range = {

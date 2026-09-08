@@ -10,6 +10,21 @@ interface MetricSelectorProps {
   ariaLabel?: string
 }
 
+function isIdentifierMetricColumn(
+  column: string
+) {
+  const words = column
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[^a-z0-9]+/i)
+
+  return words.some(word =>
+    word.toLowerCase() === "id" ||
+    word.toLowerCase() === "key" ||
+    word.toLowerCase() === "code"
+  )
+}
+
 export function MetricSelector({
   metrics,
   value,
@@ -19,6 +34,9 @@ export function MetricSelector({
   placeholder = "Select Metric",
   ariaLabel = "Select metric",
 }: MetricSelectorProps) {
+  const visibleMetrics = metrics.filter(
+    metric => !isIdentifierMetricColumn(metric)
+  )
   const effectivePlaceholder = loadError
     ? "Metrics unavailable"
     : placeholder
@@ -45,7 +63,7 @@ export function MetricSelector({
         {effectivePlaceholder}
       </option>
 
-      {metrics.map((metric) => (
+      {visibleMetrics.map((metric) => (
         <option
           key={metric}
           value={metric}

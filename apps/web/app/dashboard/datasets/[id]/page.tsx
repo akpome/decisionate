@@ -168,7 +168,9 @@ function isIdentifierColumn(
 
   return words.some(word => {
     const normalizedWord = word.toLowerCase()
-    return normalizedWord === "id" || normalizedWord === "key"
+    return normalizedWord === "id" ||
+      normalizedWord === "key" ||
+      normalizedWord === "code"
   })
 }
 

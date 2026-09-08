@@ -15,6 +15,7 @@ from app.modules.ai.service import (
 )
 from app.modules.datasets.services.numeric import (
     get_numeric_columns,
+    is_identifier_column,
 )
 from app.modules.datasets.services.charts import (
     find_date_column,
@@ -241,6 +242,7 @@ def identify_forecast_columns(
         for column, _ in get_numeric_columns(
             dataframe
         )
+        if not is_identifier_column(column)
     ]
 
     if numeric_columns:
@@ -392,6 +394,11 @@ def prepare_forecast_dataframe(
     numeric_columns = get_numeric_columns(
         scoped_dataframe
     )
+    numeric_columns = [
+        (column, series)
+        for column, series in numeric_columns
+        if not is_identifier_column(column)
+    ]
     if not numeric_columns:
         return scoped_dataframe
 
@@ -647,6 +654,11 @@ def generate_forecast(
     numeric_column_pairs = get_numeric_columns(
         dataframe
     )
+    numeric_column_pairs = [
+        (column, series)
+        for column, series in numeric_column_pairs
+        if not is_identifier_column(column)
+    ]
     numeric_columns = [
         column
         for column, _ in numeric_column_pairs

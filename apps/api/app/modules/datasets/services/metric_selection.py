@@ -8,6 +8,7 @@ import pandas as pd
 
 from app.modules.datasets.services.numeric import (
     get_numeric_columns,
+    is_identifier_column,
 )
 from app.modules.datasets.services.summary_query import (
     is_summary_dataframe,
@@ -97,6 +98,7 @@ def get_selectable_numeric_columns(
         for column, _ in get_numeric_columns(dataframe)
         if (
             not pd.api.types.is_bool_dtype(dataframe[column])
+            and not is_identifier_column(column)
             and not _is_generated_metric_column(
                 column,
                 dataframe,

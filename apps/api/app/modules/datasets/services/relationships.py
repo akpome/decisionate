@@ -16,6 +16,7 @@ from app.modules.datasets.services.joins import (
 from app.modules.datasets.services.numeric import (
     coerce_numeric_series,
     get_numeric_columns,
+    is_identifier_column,
 )
 
 
@@ -103,6 +104,7 @@ def _select_numeric_column(
     numeric_columns = {
         str(name)
         for name, _series in get_numeric_columns(dataframe)
+        if not is_identifier_column(name)
     }
     if str(column) not in numeric_columns:
         raise ValueError(

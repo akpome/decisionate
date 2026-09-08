@@ -2,6 +2,7 @@ import pandas as pd
 
 from app.modules.datasets.services.numeric import (
     get_numeric_columns,
+    is_identifier_column,
 )
 from app.modules.datasets.services.serialization import (
     to_json_number,
@@ -24,7 +25,8 @@ def generate_metrics(
     ):
         column_label = str(column)
         if (
-            column_label in {
+            is_identifier_column(column)
+            or column_label in {
                 "__decisionate_summary__",
                 "__decisionate_summary_month__",
             }

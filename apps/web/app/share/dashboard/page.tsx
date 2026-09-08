@@ -600,9 +600,7 @@ function SharedDashboardContent({
             : data.metrics?.map(
               (metric) => metric.column
             ) ?? []).filter(
-              metric =>
-                !effectDemo ||
-                !isDemoIdentifierColumn(metric)
+              metric => !isDemoIdentifierColumn(metric)
             )
         const savedDashboardMetrics =
           getValidSavedSelectedMetrics(
@@ -818,11 +816,9 @@ function SharedDashboardContent({
               column: column.label,
             }))
           : dataset?.metrics ?? []).filter(
-            metric =>
-              !sharedDemo ||
-              !isDemoIdentifierColumn(metric.column)
+            metric => !isDemoIdentifierColumn(metric.column)
           ),
-      [dataset, joinedDatasetResult, sharedDemo]
+      [dataset, joinedDatasetResult]
     )
   const demoMetricOptions = datasetMetrics.map(
     metric => metric.column
@@ -2364,7 +2360,9 @@ function isDemoIdentifierColumn(column: string) {
 
   return words.some(word => {
     const normalizedWord = word.toLowerCase()
-    return normalizedWord === "id" || normalizedWord === "key"
+    return normalizedWord === "id" ||
+      normalizedWord === "key" ||
+      normalizedWord === "code"
   })
 }
 
@@ -3397,8 +3395,9 @@ function getDashboardMappingColumns(
     (dataset?.metrics ?? []).map(metric => metric.column)
   )
   const numericColumns = columns.filter(column =>
-    numericColumnSet.has(column) ||
-    rows.some(row => typeof row[column] === "number")
+    !isDemoIdentifierColumn(column) &&
+    (numericColumnSet.has(column) ||
+      rows.some(row => typeof row[column] === "number"))
   )
 
   return {

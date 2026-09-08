@@ -10,6 +10,9 @@ from app.modules.datasets.services.metric_selection import (
     get_selectable_numeric_columns,
     normalize_selected_metric_columns,
 )
+from app.modules.datasets.services.metrics import (
+    generate_metrics,
+)
 
 
 class DatasetMetricSelectionTests(unittest.TestCase):
@@ -106,6 +109,28 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 ).columns
             ),
             ["date", "revenue"],
+        )
+
+    def test_identifier_named_numeric_columns_are_not_selectable_metrics(self):
+        dataframe = pd.DataFrame({
+            "date": ["2026-01-01", "2026-01-02"],
+            "customer_id": [101, 102],
+            "api_key": [201, 202],
+            "product_code": [301, 302],
+            "RevenueCode": [401, 402],
+            "revenue": [100, 125],
+        })
+
+        self.assertEqual(
+            get_selectable_numeric_columns(dataframe),
+            ["revenue"],
+        )
+        self.assertEqual(
+            [
+                metric["column"]
+                for metric in generate_metrics(dataframe)
+            ],
+            ["revenue"],
         )
 
     def test_normalization_accepts_metric_and_dimension_columns(self):

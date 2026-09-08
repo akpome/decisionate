@@ -82,6 +82,7 @@ from app.modules.datasets.services.metrics import (
 )
 from app.modules.datasets.services.numeric import (
     get_numeric_columns,
+    is_identifier_column,
 )
 from app.modules.datasets.services.metric_selection import (
     DATASET_SELECTED_METRICS_KEY,
@@ -5551,6 +5552,7 @@ async def dataset_ai_analysis(
         numeric_columns = {
             str(column)
             for column, _ in get_numeric_columns(dataframe)
+            if not is_identifier_column(column)
         }
 
         if clean_metric and clean_metric not in numeric_columns:

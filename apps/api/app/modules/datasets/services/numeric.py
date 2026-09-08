@@ -1,3 +1,5 @@
+import re
+
 import pandas as pd
 
 
@@ -17,6 +19,31 @@ NUMERIC_MISSING_VALUES = {
     "+infinity",
     "-infinity",
 }
+
+_IDENTIFIER_COLUMN_WORDS = {
+    "id",
+    "key",
+    "code",
+}
+
+
+def is_identifier_column(column) -> bool:
+    """Return whether a column name represents an identifier, key, or code."""
+    spaced_name = re.sub(
+        r"([a-z0-9])([A-Z])",
+        r"\1 \2",
+        str(column),
+    )
+    spaced_name = re.sub(
+        r"([A-Z]+)([A-Z][a-z])",
+        r"\1 \2",
+        spaced_name,
+    )
+    words = re.split(r"[^a-z0-9]+", spaced_name.lower())
+    return any(
+        word in _IDENTIFIER_COLUMN_WORDS
+        for word in words
+    )
 
 
 def coerce_numeric_series(

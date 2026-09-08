@@ -7,6 +7,7 @@ from app.modules.ai.service import (
 )
 from app.modules.datasets.services.numeric import (
     get_numeric_columns,
+    is_identifier_column,
 )
 from app.modules.datasets.services.serialization import (
     to_json_number,
@@ -21,6 +22,9 @@ def generate_insights(
     for column, series in get_numeric_columns(
         dataframe
     ):
+        if is_identifier_column(column):
+            continue
+
         column_key = str(column)
         column_label = format_insight_column_label(
             column_key
@@ -107,6 +111,9 @@ def generate_dataset_ai_analysis(
     all_metric_facts = []
 
     for column, series in get_numeric_columns(dataframe):
+        if is_identifier_column(column):
+            continue
+
         all_metric_facts.append({
             "column": str(column),
             "total": to_json_number(series.sum()),
