@@ -637,11 +637,11 @@ def build_weekly_report_email_html(
 ) -> str:
     primary_color = clean_email_brand_color(
         digest.brand_primary_color,
-        "#0F766E",
+        "#2563EB",
     )
     accent_color = clean_email_brand_color(
         digest.brand_accent_color,
-        "#1D4ED8",
+        "#14B8A6",
     )
     raw_brand_name = str(digest.brand_name or "Decisionate")
     raw_workspace_name = str(
@@ -655,7 +655,7 @@ def build_weekly_report_email_html(
         f'alt="{brand_name}" width="160" '
         'style="display:block;max-width:160px;height:auto;margin:0 auto 24px;">'
         if logo_url
-        else (
+    else (
             f'<div style="color:{primary_color};font-size:20px;'
             f'font-weight:700;margin:0 auto 24px;text-align:center;">'
             f"{brand_name}</div>"

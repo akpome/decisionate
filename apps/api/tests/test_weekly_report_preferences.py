@@ -108,6 +108,55 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             agency.primary_color,
         )
 
+    def test_business_branding_uses_decisionate_identity_and_assets(self):
+        business = SimpleNamespace(
+            name="Acme Retail",
+            owner_user_id="business-user",
+            logo_url="https://cdn.example.com/acme-logo.png",
+            primary_color="#123456",
+            accent_color="#654321",
+            report_display_name="Acme Retail",
+        )
+
+        class FakeOrganizationQuery:
+            def filter(self, *args, **kwargs):
+                return self
+
+            def first(self):
+                return business
+
+        class FakeDB:
+            def query(self, model):
+                return FakeOrganizationQuery()
+
+        branding = get_weekly_report_branding(
+            FakeDB(),
+            business.owner_user_id,
+        )
+
+        self.assertEqual(
+            branding["brand_name"],
+            "Decisionate",
+        )
+        self.assertEqual(
+            branding["workspace_name"],
+            "Acme Retail",
+        )
+        self.assertFalse(branding["is_managed_client"])
+        self.assertTrue(
+            branding["brand_logo_url"].endswith(
+                "/icons/decisionate-icon.svg"
+            )
+        )
+        self.assertEqual(
+            branding["brand_primary_color"],
+            "#2563EB",
+        )
+        self.assertEqual(
+            branding["brand_accent_color"],
+            "#14B8A6",
+        )
+
     def test_managed_client_digest_uses_client_alert_subject(self):
         preference = WeeklyReportPreferenceResponse(
             enabled=True,

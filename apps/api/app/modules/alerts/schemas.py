@@ -89,8 +89,8 @@ class WeeklyReportDigestResponse(BaseModel):
     brand_name: str = "Decisionate"
     workspace_name: str = ""
     brand_logo_url: str | None = None
-    brand_primary_color: str = "#0F766E"
-    brand_accent_color: str = "#1D4ED8"
+    brand_primary_color: str = "#2563EB"
+    brand_accent_color: str = "#14B8A6"
     is_managed_client: bool = False
     review_url: str | None = None
     subject: str

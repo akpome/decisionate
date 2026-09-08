@@ -73,8 +73,9 @@ allowed_delivery_days = {
 }
 
 default_weekly_report_brand_name = "Decisionate"
-default_weekly_report_primary_color = "#0F766E"
-default_weekly_report_accent_color = "#1D4ED8"
+default_weekly_report_primary_color = "#2563EB"
+default_weekly_report_accent_color = "#14B8A6"
+decisionate_logo_path = "/icons/decisionate-icon.svg"
 
 
 def clean_weekly_report_brand_name(
@@ -544,7 +545,7 @@ def get_weekly_report_branding(
         return {
             "brand_name": default_weekly_report_brand_name,
             "workspace_name": "",
-            "brand_logo_url": None,
+            "brand_logo_url": build_decisionate_logo_url(),
             "brand_primary_color": default_weekly_report_primary_color,
             "brand_accent_color": default_weekly_report_accent_color,
             "is_managed_client": False,
@@ -554,7 +555,7 @@ def get_weekly_report_branding(
     is_managed_client = ":client:" in str(
         organization.owner_user_id or "",
     )
-    brand_organization = organization
+    brand_organization = None
     if is_managed_client:
         agency_user_id = str(
             organization.owner_user_id,
@@ -565,37 +566,49 @@ def get_weekly_report_branding(
                 Organization.owner_user_id == agency_user_id,
             )
             .first()
-            or organization
         )
 
-    try:
-        review_url = (
-            get_runtime_configuration().web_url.rstrip("/")
-            + "/dashboard"
-        )
-    except Exception:
-        review_url = None
-
-    return {
-        "brand_name": clean_weekly_report_brand_name(
+    if is_managed_client and brand_organization:
+        brand_name = clean_weekly_report_brand_name(
             brand_organization.report_display_name
             or brand_organization.name,
-        ),
+        )
+        brand_logo_url = brand_organization.logo_url
+        primary_color = clean_weekly_report_brand_color(
+            brand_organization.primary_color,
+            default_weekly_report_primary_color,
+        )
+        accent_color = clean_weekly_report_brand_color(
+            brand_organization.accent_color,
+            default_weekly_report_accent_color,
+        )
+    else:
+        brand_name = default_weekly_report_brand_name
+        brand_logo_url = build_decisionate_logo_url()
+        primary_color = default_weekly_report_primary_color
+        accent_color = default_weekly_report_accent_color
+
+    return {
+        "brand_name": brand_name,
         "workspace_name": clean_weekly_report_brand_name(
             organization.name,
         ),
-        "brand_logo_url": brand_organization.logo_url,
-        "brand_primary_color": clean_weekly_report_brand_color(
-            brand_organization.primary_color,
-            default_weekly_report_primary_color,
-        ),
-        "brand_accent_color": clean_weekly_report_brand_color(
-            brand_organization.accent_color,
-            default_weekly_report_accent_color,
-        ),
+        "brand_logo_url": brand_logo_url,
+        "brand_primary_color": primary_color,
+        "brand_accent_color": accent_color,
         "is_managed_client": is_managed_client,
-        "review_url": review_url,
+        "review_url": build_weekly_report_review_url(),
     }
+
+
+def build_decisionate_logo_url() -> str | None:
+    try:
+        return (
+            get_runtime_configuration().web_url.rstrip("/")
+            + decisionate_logo_path
+        )
+    except Exception:
+        return None
 
 
 def build_weekly_report_review_url() -> str | None:
