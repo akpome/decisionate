@@ -2432,12 +2432,14 @@ export default function PlatformAdminPage() {
                   </div>
 
                   <div className="grid items-stretch gap-6 p-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-                    <div>
+                    <div className="flex h-full min-h-0 flex-col">
                       <h3 className="font-medium text-gray-900">Most-used product routes</h3>
                       {usageActivity.top_routes.length === 0 ? (
-                        <p className="mt-3 text-sm text-gray-500">No usage recorded for this period.</p>
+                        <div className="mt-3 min-h-80 max-h-80 flex-1 rounded-lg border border-gray-200 p-3">
+                          <p className="text-sm text-gray-500">No usage recorded for this period.</p>
+                        </div>
                       ) : (
-                        <div className="mt-3 overflow-x-auto">
+                        <div className="mt-3 min-h-80 max-h-80 flex-1 overflow-auto rounded-lg border border-gray-200">
                           <table className="min-w-full text-left text-sm">
                             <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
                               <tr>
@@ -2471,7 +2473,7 @@ export default function PlatformAdminPage() {
                           <p className="text-sm text-gray-500">No usage recorded for this period.</p>
                         </div>
                       ) : (
-                        <div className="mt-3 min-h-80 flex-1 overflow-auto rounded-lg border border-gray-200">
+                        <div className="mt-3 min-h-80 max-h-80 flex-1 overflow-auto rounded-lg border border-gray-200">
                           <table className="min-w-full text-left text-sm">
                             <thead className="sticky top-0 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                               <tr>
