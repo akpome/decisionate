@@ -142,6 +142,7 @@ export default function DatasetsPage() {
     }
   }, [
     user?.id,
+    user?.primaryEmailAddress?.emailAddress,
     activeWorkspaceId,
     initialDataRetryKey,
     workspaceVersion,

@@ -113,7 +113,7 @@ def clean_nonnegative_int(
         return default
 
 
-def get_ai_credit_allocations() -> dict[str, int]:
+def get_ai_credit_allocations(db=None) -> dict[str, int]:
     """Read persisted allocations, falling back to environment defaults."""
     allocations = {
         FREE_PLAN: clean_nonnegative_int(
@@ -138,7 +138,9 @@ def get_ai_credit_allocations() -> dict[str, int]:
         ),
     }
 
-    db = SessionLocal()
+    owns_db = db is None
+    if owns_db:
+        db = SessionLocal()
     try:
         settings = (
             db.query(PlatformBillingSettings)
@@ -153,18 +155,21 @@ def get_ai_credit_allocations() -> dict[str, int]:
     except Exception:
         pass
     finally:
-        db.close()
+        if owns_db:
+            db.close()
 
     return allocations
 
 
-def get_ai_credit_pack_size() -> int:
+def get_ai_credit_pack_size(db=None) -> int:
     pack_size = clean_nonnegative_int(
         "DECISIONATE_AI_CREDIT_PACK_SIZE",
         AI_CREDIT_PACK_SIZE,
     )
 
-    db = SessionLocal()
+    owns_db = db is None
+    if owns_db:
+        db = SessionLocal()
     try:
         settings = (
             db.query(PlatformBillingSettings)
@@ -176,7 +181,8 @@ def get_ai_credit_pack_size() -> int:
     except Exception:
         pass
     finally:
-        db.close()
+        if owns_db:
+            db.close()
 
     return pack_size
 

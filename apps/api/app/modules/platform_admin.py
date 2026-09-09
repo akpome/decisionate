@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
@@ -177,6 +178,21 @@ class PlatformAdminOrganizationResponse(BaseModel):
     dataset_count: int
     decision_count: int
     evaluated_decision_count: int
+
+
+@dataclass(frozen=True)
+class PlatformAdminOrganizationContext:
+    subscriptions: dict[str, WorkspaceSubscription]
+    client_workspace_counts: dict[str, int]
+    owner_emails: dict[str, str | None]
+    owner_names: dict[str, str | None]
+    member_counts: dict[int, int]
+    dataset_counts: dict[str, int]
+    decision_counts: dict[str, int]
+    evaluated_decision_counts: dict[str, int]
+    last_activity_at: dict[str, datetime | None]
+    ai_credit_allocations: dict[str, int]
+    ai_credit_pack_size: int
 
 
 class PlatformAdminOrganizationCreate(BaseModel):
@@ -621,9 +637,9 @@ def require_platform_admin(request: Request):
             detail="Platform admin access required",
         )
 
-    required_permission = platform_admin_permission_for_path(
-        request.url.path,
-    )
+    request_url = getattr(request, "url", None)
+    request_path = getattr(request_url, "path", "")
+    required_permission = platform_admin_permission_for_path(request_path)
     if required_permission:
         db = SessionLocal()
         try:
@@ -1214,6 +1230,232 @@ def count_platform_admin_members(db, organization_id: int | None = None) -> int:
     )
 
 
+def build_platform_admin_organization_context(
+    db,
+    organizations: list[Organization],
+) -> PlatformAdminOrganizationContext:
+    """Load organization list data in grouped queries instead of N+1 lookups."""
+    organization_ids = [
+        organization.id
+        for organization in organizations
+    ]
+    workspace_ids = [
+        organization.owner_user_id
+        for organization in organizations
+        if organization.owner_user_id
+    ]
+    owner_user_ids = list(dict.fromkeys(workspace_ids))
+
+    subscriptions = {
+        subscription.workspace_id: subscription
+        for subscription in (
+            db.query(WorkspaceSubscription)
+            .filter(
+                WorkspaceSubscription.workspace_id.in_(workspace_ids),
+            )
+            .all()
+        )
+    } if workspace_ids else {}
+
+    client_workspace_counts: dict[str, int] = {}
+    for organization in organizations:
+        owner_user_id = organization.owner_user_id or ""
+        if ":client:" not in owner_user_id:
+            continue
+        parent_owner_user_id = owner_user_id.split(":client:", 1)[0]
+        client_workspace_counts[parent_owner_user_id] = (
+            client_workspace_counts.get(parent_owner_user_id, 0) + 1
+        )
+
+    owner_emails: dict[str, str | None] = {}
+    owner_names: dict[str, str | None] = {}
+    if owner_user_ids:
+        app_users = (
+            db.query(AppUser)
+            .filter(AppUser.id.in_(owner_user_ids))
+            .all()
+        )
+        for user in app_users:
+            owner_emails[user.id] = user.email or None
+            if user.display_name:
+                owner_names[user.id] = user.display_name
+            else:
+                name = " ".join(
+                    value.strip()
+                    for value in (user.first_name, user.last_name)
+                    if value and value.strip()
+                )
+                owner_names[user.id] = name or None
+
+        missing_email_ids = [
+            user_id
+            for user_id in owner_user_ids
+            if not owner_emails.get(user_id)
+        ]
+        if missing_email_ids:
+            identity_rows = (
+                db.query(AuthIdentity)
+                .filter(
+                    AuthIdentity.user_id.in_(missing_email_ids),
+                    AuthIdentity.email.isnot(None),
+                )
+                .order_by(AuthIdentity.id.asc())
+                .all()
+            )
+            for identity in identity_rows:
+                owner_emails.setdefault(identity.user_id, identity.email)
+
+    member_counts: dict[int, int] = {
+        organization_id: 0
+        for organization_id in organization_ids
+    }
+    owner_member_keys: set[tuple[int, str]] = set()
+    if organization_ids:
+        member_rows = (
+            db.query(
+                OrganizationMember.organization_id,
+                OrganizationMember.clerk_user_id,
+            )
+            .filter(
+                OrganizationMember.organization_id.in_(organization_ids),
+            )
+            .all()
+        )
+        for organization_id, member_user_id in member_rows:
+            member_counts[organization_id] = (
+                member_counts.get(organization_id, 0) + 1
+            )
+            owner_member_keys.add((organization_id, member_user_id))
+
+        for organization in organizations:
+            if (
+                organization.id,
+                organization.owner_user_id,
+            ) not in owner_member_keys:
+                member_counts[organization.id] = (
+                    member_counts.get(organization.id, 0) + 1
+                )
+
+    dataset_counts: dict[str, int] = {}
+    decision_counts: dict[str, int] = {}
+    evaluated_decision_counts: dict[str, int] = {}
+    last_activity_at: dict[str, datetime | None] = {}
+
+    if workspace_ids:
+        dataset_workspace_key = case(
+            (
+                Dataset.workspace_id.isnot(None),
+                Dataset.workspace_id,
+            ),
+            else_=Dataset.user_id,
+        )
+        dataset_scope = or_(
+            Dataset.workspace_id.in_(workspace_ids),
+            and_(
+                Dataset.workspace_id.is_(None),
+                Dataset.user_id.in_(workspace_ids),
+            ),
+        )
+        dataset_rows = (
+            db.query(
+                dataset_workspace_key.label("workspace_key"),
+                func.count(Dataset.id).label("dataset_count"),
+                func.max(Dataset.created_at).label("last_activity"),
+            )
+            .filter(dataset_scope)
+            .group_by(dataset_workspace_key)
+            .all()
+        )
+        for row in dataset_rows:
+            workspace_key = str(row.workspace_key)
+            dataset_counts[workspace_key] = int(row.dataset_count or 0)
+            if row.last_activity:
+                last_activity_at[workspace_key] = row.last_activity
+
+        decision_workspace_key = case(
+            (
+                Decision.workspace_id.isnot(None),
+                Decision.workspace_id,
+            ),
+            else_=Decision.clerk_user_id,
+        )
+        decision_scope = or_(
+            Decision.workspace_id.in_(workspace_ids),
+            and_(
+                Decision.workspace_id.is_(None),
+                Decision.clerk_user_id.in_(workspace_ids),
+            ),
+        )
+        evaluated_decision_expression = case(
+            (
+                and_(
+                    has_meaningful_text(Decision.expected_outcome),
+                    has_meaningful_text(Decision.outcome_status),
+                ),
+                1,
+            ),
+            else_=0,
+        )
+        decision_rows = (
+            db.query(
+                decision_workspace_key.label("workspace_key"),
+                func.count(Decision.id).label("decision_count"),
+                func.coalesce(
+                    func.sum(evaluated_decision_expression),
+                    0,
+                ).label("evaluated_decision_count"),
+                func.max(Decision.created_at).label("last_activity"),
+            )
+            .filter(decision_scope)
+            .group_by(decision_workspace_key)
+            .all()
+        )
+        for row in decision_rows:
+            workspace_key = str(row.workspace_key)
+            decision_counts[workspace_key] = int(row.decision_count or 0)
+            evaluated_decision_counts[workspace_key] = int(
+                row.evaluated_decision_count or 0
+            )
+            if row.last_activity:
+                last_activity_at[workspace_key] = max(
+                    last_activity_at.get(workspace_key) or row.last_activity,
+                    row.last_activity,
+                )
+
+        for model in (UsageActivityEvent, AIUsageEvent):
+            activity_rows = (
+                db.query(
+                    model.workspace_id,
+                    func.max(model.created_at).label("last_activity"),
+                )
+                .filter(model.workspace_id.in_(workspace_ids))
+                .group_by(model.workspace_id)
+                .all()
+            )
+            for row in activity_rows:
+                workspace_key = str(row.workspace_id)
+                if row.last_activity:
+                    last_activity_at[workspace_key] = max(
+                        last_activity_at.get(workspace_key)
+                        or row.last_activity,
+                        row.last_activity,
+                    )
+
+    return PlatformAdminOrganizationContext(
+        subscriptions=subscriptions,
+        client_workspace_counts=client_workspace_counts,
+        owner_emails=owner_emails,
+        owner_names=owner_names,
+        member_counts=member_counts,
+        dataset_counts=dataset_counts,
+        decision_counts=decision_counts,
+        evaluated_decision_counts=evaluated_decision_counts,
+        last_activity_at=last_activity_at,
+        ai_credit_allocations=get_ai_credit_allocations(db),
+        ai_credit_pack_size=get_ai_credit_pack_size(db),
+    )
+
+
 @router.get(
     "/overview",
     response_model=PlatformAdminOverviewResponse,
@@ -1506,7 +1748,7 @@ async def add_platform_admin_administrators(
     "/organizations",
     response_model=list[PlatformAdminOrganizationResponse],
 )
-async def get_platform_admin_organizations(
+def get_platform_admin_organizations(
     request: Request,
 ):
     require_platform_admin(request)
@@ -1521,8 +1763,16 @@ async def get_platform_admin_organizations(
             )
             .all()
         )
+        organization_context = build_platform_admin_organization_context(
+            db,
+            organizations,
+        )
         return [
-            serialize_platform_admin_organization(db, organization)
+            serialize_platform_admin_organization(
+                db,
+                organization,
+                organization_context,
+            )
             for organization in organizations
         ]
     finally:
@@ -1654,15 +1904,21 @@ def platform_admin_account_status(
 def platform_admin_ai_credit_limit(
     subscription: WorkspaceSubscription | None,
     workspace_id: str,
+    allocations: dict[str, int] | None = None,
+    pack_size: int | None = None,
 ) -> int:
     plan = normalize_billing_plan(
         subscription.plan if subscription else "free",
     )
-    allocations = get_ai_credit_allocations()
+    resolved_allocations = (
+        allocations
+        if allocations is not None
+        else get_ai_credit_allocations()
+    )
     monthly_included_credits = int(
-        allocations.get(
+        resolved_allocations.get(
             "agency_client" if ":client:" in workspace_id else plan,
-            allocations.get("free", 0),
+            resolved_allocations.get("free", 0),
         )
     )
     interval = str(
@@ -1684,9 +1940,18 @@ def platform_admin_ai_credit_limit(
     return (
         monthly_included_credits * period_multiplier
         + additional_workspaces
-        * int(allocations.get("additional_client_workspace", 0))
+        * int(
+            resolved_allocations.get(
+                "additional_client_workspace",
+                0,
+            )
+        )
         * period_multiplier
-        + additional_packs * get_ai_credit_pack_size()
+        + additional_packs * (
+            pack_size
+            if pack_size is not None
+            else get_ai_credit_pack_size()
+        )
     )
 
 
@@ -1717,15 +1982,20 @@ def platform_admin_last_activity_at(
 def serialize_platform_admin_organization(
     db,
     organization: Organization,
+    context: PlatformAdminOrganizationContext | None = None,
 ):
     workspace_id = organization.owner_user_id or ""
     is_client_workspace = ":client:" in workspace_id
     subscription = (
-        db.query(WorkspaceSubscription)
-        .filter(
-            WorkspaceSubscription.workspace_id == workspace_id,
+        context.subscriptions.get(workspace_id)
+        if context is not None
+        else (
+            db.query(WorkspaceSubscription)
+            .filter(
+                WorkspaceSubscription.workspace_id == workspace_id,
+            )
+            .first()
         )
-        .first()
     )
     dataset_filter = or_(
         Dataset.workspace_id == workspace_id,
@@ -1759,24 +2029,38 @@ def serialize_platform_admin_organization(
     ai_credit_limit = platform_admin_ai_credit_limit(
         subscription,
         workspace_id,
+        context.ai_credit_allocations if context else None,
+        context.ai_credit_pack_size if context else None,
     )
-    last_activity_at = platform_admin_last_activity_at(
-        db,
-        workspace_id,
-        dataset_filter,
-        decision_filter,
+    last_activity_at = (
+        context.last_activity_at.get(workspace_id)
+        if context is not None
+        else platform_admin_last_activity_at(
+            db,
+            workspace_id,
+            dataset_filter,
+            decision_filter,
+        )
     )
     return PlatformAdminOrganizationResponse(
         id=organization.id,
         name=organization.name,
         owner_user_id=workspace_id,
-        owner_email=platform_admin_user_email(
-            db,
-            organization.owner_user_id,
+        owner_email=(
+            context.owner_emails.get(organization.owner_user_id)
+            if context is not None
+            else platform_admin_user_email(
+                db,
+                organization.owner_user_id,
+            )
         ),
-        owner_name=platform_admin_user_name(
-            db,
-            organization.owner_user_id,
+        owner_name=(
+            context.owner_names.get(organization.owner_user_id)
+            if context is not None
+            else platform_admin_user_name(
+                db,
+                organization.owner_user_id,
+            )
         ),
         business_type=organization.business_type,
         country=organization.country,
@@ -1785,9 +2069,13 @@ def serialize_platform_admin_organization(
         agency_client_count=organization.agency_client_count,
         role=organization.role,
         primary_goal=organization.primary_goal,
-        client_workspace_count=count_platform_admin_client_workspaces(
-            db,
-            workspace_id,
+        client_workspace_count=(
+            context.client_workspace_counts.get(workspace_id, 0)
+            if context is not None
+            else count_platform_admin_client_workspaces(
+                db,
+                workspace_id,
+            )
         ),
         created_at=(
             organization.created_at.isoformat()
@@ -1890,24 +2178,40 @@ def serialize_platform_admin_organization(
             if last_activity_at
             else None
         ),
-        member_count=count_platform_admin_members(db, organization.id),
+        member_count=(
+            context.member_counts.get(organization.id, 0)
+            if context is not None
+            else count_platform_admin_members(db, organization.id)
+        ),
         dataset_count=(
-            db.query(func.count(Dataset.id))
-            .filter(dataset_filter)
-            .scalar()
-            or 0
+            context.dataset_counts.get(workspace_id, 0)
+            if context is not None
+            else (
+                db.query(func.count(Dataset.id))
+                .filter(dataset_filter)
+                .scalar()
+                or 0
+            )
         ),
         decision_count=(
-            db.query(func.count(Decision.id))
-            .filter(decision_filter)
-            .scalar()
-            or 0
+            context.decision_counts.get(workspace_id, 0)
+            if context is not None
+            else (
+                db.query(func.count(Decision.id))
+                .filter(decision_filter)
+                .scalar()
+                or 0
+            )
         ),
         evaluated_decision_count=(
-            db.query(func.count(Decision.id))
-            .filter(evaluated_decision_filter)
-            .scalar()
-            or 0
+            context.evaluated_decision_counts.get(workspace_id, 0)
+            if context is not None
+            else (
+                db.query(func.count(Decision.id))
+                .filter(evaluated_decision_filter)
+                .scalar()
+                or 0
+            )
         ),
     )
 

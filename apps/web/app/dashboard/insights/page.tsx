@@ -405,6 +405,7 @@ export default function InsightsPage() {
     }
   }, [
     user?.id,
+    user?.primaryEmailAddress?.emailAddress,
     activeWorkspaceId,
     datasetLoadRetryKey,
     workspaceVersion,

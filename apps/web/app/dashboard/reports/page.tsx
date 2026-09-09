@@ -523,6 +523,7 @@ export default function ReportsPage() {
     datasetLoadRetryKey,
     isSignedIn,
     user?.id,
+    user?.primaryEmailAddress?.emailAddress,
     workspaceVersion,
   ])
 

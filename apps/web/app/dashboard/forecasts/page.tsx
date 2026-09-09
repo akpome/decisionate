@@ -473,6 +473,7 @@ export default function ForecastsPage() {
     activeWorkspaceId,
     datasetLoadRetryKey,
     user?.id,
+    user?.primaryEmailAddress?.emailAddress,
     workspaceVersion,
   ])
 

@@ -453,6 +453,7 @@ function NewDecisionContent() {
         initialTemplateSlug,
         applyDecisionTemplate,
         user?.id,
+        user?.primaryEmailAddress?.emailAddress,
         workspaceVersion,
     ])
 

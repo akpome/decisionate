@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react"
 import {
   useAuth,
@@ -633,7 +632,9 @@ export default function DashboardPage() {
     useState(defaultDashboardKey)
   const selectedDashboardRef =
     useRef(defaultDashboardKey)
-  selectedDashboardRef.current = selectedDashboard
+  useEffect(() => {
+    selectedDashboardRef.current = selectedDashboard
+  }, [selectedDashboard])
   const [dashboardPreferenceLoadedKey, setDashboardPreferenceLoadedKey] =
     useState("")
   const dashboardPreferenceContextKey =

@@ -258,10 +258,6 @@ export function DashboardShell({
     )?.label
 
   useEffect(() => {
-    setMobileNavOpen(false)
-  }, [pathname])
-
-  useEffect(() => {
     if (!user?.id) {
       return
     }
@@ -939,6 +935,7 @@ export function DashboardShell({
                         <Link
                           key={item.href}
                           href={item.href}
+                          onClick={() => setMobileNavOpen(false)}
                           className={getNavLinkClass(
                             isActiveDashboardPath(
                               pathname,

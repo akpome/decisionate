@@ -166,7 +166,12 @@ export default function RelationshipsPage() {
     return () => {
       current = false
     }
-  }, [activeWorkspaceId, user?.id, workspaceVersion])
+  }, [
+    activeWorkspaceId,
+    user?.id,
+    user?.primaryEmailAddress?.emailAddress,
+    workspaceVersion,
+  ])
 
   useEffect(() => {
     const ids = [leftDatasetId, rightDatasetId]
