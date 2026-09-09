@@ -312,6 +312,8 @@ export default function PlatformAdminPage() {
     useState<PlatformAdminMember[]>([])
   const [invites, setInvites] =
     useState<PlatformAdminInvite[]>([])
+  const [memberSearch, setMemberSearch] = useState("")
+  const [inviteSearch, setInviteSearch] = useState("")
   const [auditEvents, setAuditEvents] =
     useState<PlatformAdminAuditEvent[]>([])
   const [auditLoading, setAuditLoading] =
@@ -1098,6 +1100,8 @@ export default function PlatformAdminPage() {
     }
 
     setSelectedOrganizationId(organizationId)
+    setMemberSearch("")
+    setInviteSearch("")
     setMembersLoading(true)
     setMembersError("")
     setBillingError("")
@@ -1686,20 +1690,77 @@ export default function PlatformAdminPage() {
       ...delivery.recipients,
     ].some(value => value.toLowerCase().includes(search))
   })
-  const visibleUsageEvents = (usageActivity?.recent_events || []).filter(event => {
-    const search = usageSearch.trim().toLowerCase()
-    if (!search) {
-      return true
-    }
-    return [
-      event.organization_name || "",
-      event.workspace_id || "",
-      event.actor_user_id || "",
+  const usageSearchTerm = usageSearch.trim().toLowerCase()
+  const matchesUsageSearch = (values: unknown[]) =>
+    !usageSearchTerm || values.some(value =>
+      String(value ?? "").toLowerCase().includes(usageSearchTerm)
+    )
+  const visibleUsageSegments = (usageActivity?.ai_credit_segments || []).filter(
+    segment => matchesUsageSearch([
+      segment.segment,
+      segment.credits,
+      segment.requests,
+      segment.active_users,
+      segment.workspaces,
+    ])
+  )
+  const visibleUsageUsers = (usageActivity?.ai_credit_users || []).filter(
+    entry => matchesUsageSearch([
+      entry.user_id,
+      entry.segment,
+      entry.credits,
+      entry.requests,
+      entry.workspaces,
+    ])
+  )
+  const visibleUsageWorkspaces = (
+    usageActivity?.ai_credit_workspaces || []
+  ).filter(workspace => matchesUsageSearch([
+    workspace.organization_name,
+    workspace.workspace_id,
+    workspace.segment,
+    workspace.credits,
+    workspace.requests,
+    workspace.active_users,
+  ]))
+  const visibleTopRoutes = (usageActivity?.top_routes || []).filter(route =>
+    matchesUsageSearch([
+      route.route,
+      route.method,
+      route.event_count,
+      route.successful_count,
+      route.failed_count,
+    ])
+  )
+  const visibleUsageEvents = (usageActivity?.recent_events || []).filter(event =>
+    matchesUsageSearch([
+      event.organization_name,
+      event.workspace_id,
+      event.actor_user_id,
       event.route,
       event.method,
-      String(event.status_code),
-    ].some(value => value.toLowerCase().includes(search))
-  })
+      event.status_code,
+      event.duration_ms,
+    ])
+  )
+  const memberSearchTerm = memberSearch.trim().toLowerCase()
+  const visibleMembers = members.filter(member =>
+    !memberSearchTerm || [
+      member.email,
+      member.clerk_user_id,
+      member.role,
+      member.created_at,
+    ].some(value => String(value ?? "").toLowerCase().includes(memberSearchTerm))
+  )
+  const inviteSearchTerm = inviteSearch.trim().toLowerCase()
+  const visibleInvites = invites.filter(invite =>
+    !inviteSearchTerm || [
+      invite.email,
+      invite.role,
+      invite.status,
+      invite.created_at,
+    ].some(value => String(value ?? "").toLowerCase().includes(inviteSearchTerm))
+  )
   const selectedOrganization = organizations.find(
     organization => organization.id === selectedOrganizationId
   )
@@ -2165,12 +2226,12 @@ export default function PlatformAdminPage() {
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
                   <label className="text-xs font-medium text-gray-600">
-                    Search logs
+                    Search usage
                     <input
                       value={usageSearch}
                       onChange={(event) => setUsageSearch(event.target.value)}
                       placeholder="Route, workspace, user"
-                      className="mt-1 block w-44 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
+                      className="mt-1 block w-48 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
                     />
                   </label>
                   <label className="text-xs font-medium text-gray-600">
@@ -2317,7 +2378,7 @@ export default function PlatformAdminPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                              {usageActivity.ai_credit_segments.map((segment) => (
+                              {visibleUsageSegments.map((segment) => (
                                 <tr key={segment.segment}>
                                   <td className="py-2 pr-3 font-medium text-gray-800">
                                     {segment.segment}
@@ -2336,15 +2397,24 @@ export default function PlatformAdminPage() {
                             </tbody>
                           </table>
                         </div>
+                        {visibleUsageSegments.length === 0 && (
+                          <p className="mt-3 text-sm text-gray-500">
+                            {usageActivity.ai_credit_segments.length === 0
+                              ? "No customer-type AI consumption recorded for this period."
+                              : "No customer types match this search."}
+                          </p>
+                        )}
                       </div>
 
                       <div>
                         <h4 className="text-sm font-medium text-gray-900">
                           Highest-consuming users
                         </h4>
-                        {usageActivity.ai_credit_users.length === 0 ? (
+                        {visibleUsageUsers.length === 0 ? (
                           <p className="mt-3 text-sm text-gray-500">
-                            No completed AI charges recorded for this period.
+                            {usageActivity.ai_credit_users.length === 0
+                              ? "No completed AI charges recorded for this period."
+                              : "No users match this search."}
                           </p>
                         ) : (
                           <div className="mt-3 max-h-64 overflow-auto rounded-lg border border-gray-200">
@@ -2357,7 +2427,7 @@ export default function PlatformAdminPage() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-100">
-                                {usageActivity.ai_credit_users.map((entry) => (
+                                {visibleUsageUsers.map((entry) => (
                                   <tr key={`${entry.segment}-${entry.user_id}`}>
                                     <td
                                       className="max-w-40 truncate px-3 py-2 text-xs text-gray-700"
@@ -2389,9 +2459,11 @@ export default function PlatformAdminPage() {
                       <h4 className="text-sm font-medium text-gray-900">
                         Highest-consuming workspaces and clients
                       </h4>
-                      {usageActivity.ai_credit_workspaces.length === 0 ? (
+                      {visibleUsageWorkspaces.length === 0 ? (
                         <p className="mt-3 text-sm text-gray-500">
-                          No workspace AI consumption recorded for this period.
+                          {usageActivity.ai_credit_workspaces.length === 0
+                            ? "No workspace AI consumption recorded for this period."
+                            : "No workspaces match this search."}
                         </p>
                       ) : (
                         <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200">
@@ -2405,7 +2477,7 @@ export default function PlatformAdminPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                              {usageActivity.ai_credit_workspaces.map((workspace) => (
+                              {visibleUsageWorkspaces.map((workspace) => (
                                 <tr key={workspace.workspace_id}>
                                   <td
                                     className="max-w-64 truncate px-3 py-2 text-xs text-gray-700"
@@ -2434,9 +2506,13 @@ export default function PlatformAdminPage() {
                   <div className="grid items-stretch gap-6 p-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
                     <div className="flex h-full min-h-0 flex-col">
                       <h3 className="font-medium text-gray-900">Most-used product routes</h3>
-                      {usageActivity.top_routes.length === 0 ? (
+                      {visibleTopRoutes.length === 0 ? (
                         <div className="mt-3 min-h-80 max-h-80 flex-1 rounded-lg border border-gray-200 p-3">
-                          <p className="text-sm text-gray-500">No usage recorded for this period.</p>
+                          <p className="text-sm text-gray-500">
+                            {usageActivity.top_routes.length === 0
+                              ? "No usage recorded for this period."
+                              : "No routes match this search."}
+                          </p>
                         </div>
                       ) : (
                         <div className="mt-3 min-h-80 max-h-80 flex-1 overflow-auto rounded-lg border border-gray-200">
@@ -2449,7 +2525,7 @@ export default function PlatformAdminPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                              {usageActivity.top_routes.map((route) => (
+                              {visibleTopRoutes.map((route) => (
                                 <tr key={`${route.method}-${route.route}`}>
                                   <td className="py-2 pr-3 font-mono text-xs text-gray-700">
                                     {route.method} {route.route}
@@ -2470,7 +2546,11 @@ export default function PlatformAdminPage() {
                       <h3 className="font-medium text-gray-900">Recent activity</h3>
                       {visibleUsageEvents.length === 0 ? (
                         <div className="mt-3 min-h-80 flex-1 rounded-lg border border-gray-200 p-3">
-                          <p className="text-sm text-gray-500">No usage recorded for this period.</p>
+                          <p className="text-sm text-gray-500">
+                            {(usageActivity?.recent_events || []).length === 0
+                              ? "No usage recorded for this period."
+                              : "No activity matches this search."}
+                          </p>
                         </div>
                       ) : (
                         <div className="mt-3 min-h-80 max-h-80 flex-1 overflow-auto rounded-lg border border-gray-200">
@@ -3331,15 +3411,17 @@ export default function PlatformAdminPage() {
                             {!membersLoading && !membersError && (
                               <div className="space-y-2">
                                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                  Workspace members ({members.length})
+                                  Workspace members ({visibleMembers.length})
                                 </p>
-                                {members.length === 0 ? (
+                                {visibleMembers.length === 0 ? (
                                   <p className="text-sm text-gray-600">
-                                    No members are currently recorded for this workspace.
+                                    {members.length === 0
+                                      ? "No members are currently recorded for this workspace."
+                                      : "No members match this search."}
                                   </p>
                                 ) : (
                                   <div className="flex flex-wrap gap-2">
-                                    {members.map((member) => (
+                                    {visibleMembers.map((member) => (
                                       <span
                                         key={member.id}
                                         className="rounded-full border border-blue-100 bg-white px-3 py-1 text-xs text-gray-700"
@@ -4074,88 +4156,119 @@ export default function PlatformAdminPage() {
                 )}
 
                 {!membersLoading && !membersError && (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
-                      <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                        <tr>
-                          <th className="px-5 py-3 font-medium">User</th>
-                          <th className="px-5 py-3 font-medium">Role</th>
-                          <th className="px-5 py-3 font-medium">Added</th>
-                          <th className="px-5 py-3 font-medium">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {members.map((member) => (
-                          <tr key={member.id}>
-                            <td className="px-5 py-3 font-medium text-gray-900">
-                              {member.email || member.clerk_user_id}
-                              {member.email && (
-                                <span className="mt-1 block text-xs font-normal text-gray-400">
-                                  {member.clerk_user_id}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-5 py-3 capitalize text-gray-700">
-                              {member.role}
-                            </td>
-                            <td className="px-5 py-3 text-gray-500">
-                              {member.created_at
-                                ? new Date(member.created_at).toLocaleString()
-                                : "Unknown"}
-                            </td>
-                            <td className="px-5 py-3">
-                              {member.role === "owner" ? (
-                                <span className="text-xs font-medium text-gray-500">
-                                  Protected owner
-                                </span>
-                              ) : (
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <select
-                                    aria-label={`Role for ${member.clerk_user_id}`}
-                                    value={memberRoleDrafts[member.id] || member.role}
-                                    disabled={memberActionId === member.id}
-                                    onChange={(event) => {
-                                      setMemberRoleDrafts(currentDrafts => ({
-                                        ...currentDrafts,
-                                        [member.id]: event.target.value as "member" | "client",
-                                      }))
-                                    }}
-                                    className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-700"
-                                  >
-                                    <option value="member">Member</option>
-                                    <option value="client">Client</option>
-                                  </select>
-                                  <button
-                                    type="button"
-                                    disabled={
-                                      memberActionId === member.id ||
-                                      memberRoleDrafts[member.id] === member.role
-                                    }
-                                    onClick={() => {
-                                      void handleUpdateMemberRole(member)
-                                    }}
-                                    className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={memberActionId === member.id}
-                                    onClick={() => {
-                                      void handleRemoveMember(member)
-                                    }}
-                                    className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <>
+                    <div className="grid gap-3 border-b border-gray-200 bg-gray-50 px-5 py-4 sm:grid-cols-2">
+                      <label className="text-xs font-medium text-gray-600">
+                        Search members
+                        <input
+                          value={memberSearch}
+                          onChange={(event) => setMemberSearch(event.target.value)}
+                          placeholder="Name, email, role, or user ID"
+                          className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
+                        />
+                      </label>
+                      <label className="text-xs font-medium text-gray-600">
+                        Search pending invites
+                        <input
+                          value={inviteSearch}
+                          onChange={(event) => setInviteSearch(event.target.value)}
+                          placeholder="Email, role, or status"
+                          className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
+                        />
+                      </label>
+                    </div>
+
+                    {visibleMembers.length === 0 ? (
+                      <p className="px-5 py-4 text-sm text-gray-500">
+                        {members.length === 0
+                          ? "No members are currently recorded for this workspace."
+                          : "No members match this search."}
+                      </p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+                          <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                            <tr>
+                              <th className="px-5 py-3 font-medium">User</th>
+                              <th className="px-5 py-3 font-medium">Role</th>
+                              <th className="px-5 py-3 font-medium">Added</th>
+                              <th className="px-5 py-3 font-medium">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {visibleMembers.map((member) => (
+                              <tr key={member.id}>
+                                <td className="px-5 py-3 font-medium text-gray-900">
+                                  {member.email || member.clerk_user_id}
+                                  {member.email && (
+                                    <span className="mt-1 block text-xs font-normal text-gray-400">
+                                      {member.clerk_user_id}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-5 py-3 capitalize text-gray-700">
+                                  {member.role}
+                                </td>
+                                <td className="px-5 py-3 text-gray-500">
+                                  {member.created_at
+                                    ? new Date(member.created_at).toLocaleString()
+                                    : "Unknown"}
+                                </td>
+                                <td className="px-5 py-3">
+                                  {member.role === "owner" ? (
+                                    <span className="text-xs font-medium text-gray-500">
+                                      Protected owner
+                                    </span>
+                                  ) : (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <select
+                                        aria-label={`Role for ${member.clerk_user_id}`}
+                                        value={memberRoleDrafts[member.id] || member.role}
+                                        disabled={memberActionId === member.id}
+                                        onChange={(event) => {
+                                          setMemberRoleDrafts(currentDrafts => ({
+                                            ...currentDrafts,
+                                            [member.id]: event.target.value as "member" | "client",
+                                          }))
+                                        }}
+                                        className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-700"
+                                      >
+                                        <option value="member">Member</option>
+                                        <option value="client">Client</option>
+                                      </select>
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          memberActionId === member.id ||
+                                          memberRoleDrafts[member.id] === member.role
+                                        }
+                                        onClick={() => {
+                                          void handleUpdateMemberRole(member)
+                                        }}
+                                        className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={memberActionId === member.id}
+                                        onClick={() => {
+                                          void handleRemoveMember(member)
+                                        }}
+                                        className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {!membersLoading && !membersError && invites.length > 0 && (
@@ -4163,8 +4276,13 @@ export default function PlatformAdminPage() {
                     <h3 className="text-sm font-semibold text-gray-800">
                       Pending invites
                     </h3>
-                    <div className="mt-3 space-y-2">
-                      {invites.map((invite) => (
+                    {visibleInvites.length === 0 ? (
+                      <p className="mt-3 text-sm text-gray-500">
+                        No pending invites match this search.
+                      </p>
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        {visibleInvites.map((invite) => (
                         <div
                           key={invite.id}
                           className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -4186,8 +4304,9 @@ export default function PlatformAdminPage() {
                             {inviteActionId === invite.id ? "Removing..." : "Cancel"}
                           </button>
                         </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </section>
