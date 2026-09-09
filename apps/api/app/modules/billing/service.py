@@ -114,7 +114,15 @@ def clean_nonnegative_int(
 
 
 def get_ai_credit_allocations(db=None) -> dict[str, int]:
-    """Read persisted allocations, falling back to environment defaults."""
+    """Read persisted allocations, falling back to environment defaults.
+
+    Callers that already own a database session may pass it in. This avoids
+    opening another connection during compound admin or billing operations.
+    Standalone callers retain the original behavior: the helper creates and
+    closes its own session. A settings read failure intentionally leaves the
+    environment-backed values in place so billing limits remain available
+    during a temporary database/configuration problem.
+    """
     allocations = {
         FREE_PLAN: clean_nonnegative_int(
             "DECISIONATE_FREE_AI_CREDITS",
@@ -162,6 +170,13 @@ def get_ai_credit_allocations(db=None) -> dict[str, int]:
 
 
 def get_ai_credit_pack_size(db=None) -> int:
+    """Return the configured AI credit-pack size using optional session reuse.
+
+    The session ownership contract matches get_ai_credit_allocations: a passed
+    session belongs to the caller, while a session created here is closed in
+    this function. Environment defaults are preserved when persisted settings
+    cannot be read.
+    """
     pack_size = clean_nonnegative_int(
         "DECISIONATE_AI_CREDIT_PACK_SIZE",
         AI_CREDIT_PACK_SIZE,

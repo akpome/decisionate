@@ -632,6 +632,9 @@ export default function DashboardPage() {
     useState(defaultDashboardKey)
   const selectedDashboardRef =
     useRef(defaultDashboardKey)
+  // Dataset preferences are loaded independently of dashboard-tab changes.
+  // This ref lets that async loader use the latest tab without adding the tab
+  // to its dependency list and triggering an unnecessary dataset reload.
   useEffect(() => {
     selectedDashboardRef.current = selectedDashboard
   }, [selectedDashboard])
@@ -1577,6 +1580,9 @@ export default function DashboardPage() {
             ? sharedConfig.datasetId
             : undefined
         const savedSelectedDatasetId =
+          // Read the ref because this effect intentionally does not rerun when
+          // the user switches dashboard tabs; the latest tab still determines
+          // which saved dataset should be selected after the load completes.
           savedDashboardDatasetIds[
             selectedDashboardRef.current
           ]

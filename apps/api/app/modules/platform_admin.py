@@ -1,3 +1,19 @@
+"""Platform administration endpoints and operational reporting.
+
+This module serves the internal platform-admin console. It intentionally keeps
+administrative reads separate from workspace-facing routes because the console
+needs cross-workspace data such as subscription state, owner identity, usage,
+and lifecycle activity. Most handlers use the synchronous SQLAlchemy session
+factory; synchronous handlers are therefore preferred for database-heavy
+requests so FastAPI can run them in its worker pool.
+
+Several records predate explicit workspace ownership. Dataset rows can fall
+back to ``user_id`` and decision rows can fall back to ``clerk_user_id`` when
+``workspace_id`` is null. Any aggregate added to the admin response must
+preserve those legacy ownership rules or older customer data will disappear
+from the console.
+"""
+
 import json
 import logging
 import os
@@ -182,6 +198,18 @@ class PlatformAdminOrganizationResponse(BaseModel):
 
 @dataclass(frozen=True)
 class PlatformAdminOrganizationContext:
+    """Request-scoped aggregates used to render the customer table.
+
+    The organization endpoint returns one denormalized row per workspace. The
+    old serializer queried each related table once per organization, which
+    made response time grow linearly with customer count. These maps are loaded
+    once with grouped queries and then read while serializing each row.
+
+    Keys are workspace owner IDs except ``member_counts``, which is keyed by
+    organization database ID. ``last_activity_at`` combines dataset,
+    decision, usage, and AI activity so the UI retains the same meaning as the
+    legacy serializer.
+    """
     subscriptions: dict[str, WorkspaceSubscription]
     client_workspace_counts: dict[str, int]
     owner_emails: dict[str, str | None]
@@ -1234,7 +1262,14 @@ def build_platform_admin_organization_context(
     db,
     organizations: list[Organization],
 ) -> PlatformAdminOrganizationContext:
-    """Load organization list data in grouped queries instead of N+1 lookups."""
+    """Load organization list data in grouped queries instead of N+1 lookups.
+
+    Keep this function read-only and request-scoped. It is deliberately fed the
+    already loaded organization list, which avoids a second organization query
+    and keeps every aggregate aligned with the exact rows returned by the
+    endpoint. The empty-list guards also prevent invalid ``IN ()`` queries when
+    a new installation has no workspaces yet.
+    """
     organization_ids = [
         organization.id
         for organization in organizations
@@ -1246,6 +1281,9 @@ def build_platform_admin_organization_context(
     ]
     owner_user_ids = list(dict.fromkeys(workspace_ids))
 
+    # Subscriptions are keyed by the workspace owner ID used by the billing
+    # tables, not by Organization.id. Client workspaces normally have no
+    # subscription row of their own, so missing entries are expected.
     subscriptions = {
         subscription.workspace_id: subscription
         for subscription in (
@@ -1257,6 +1295,9 @@ def build_platform_admin_organization_context(
         )
     } if workspace_ids else {}
 
+    # Managed client workspace IDs are namespaced as ``owner:client:*``. The
+    # parent portion is the agency owner ID, allowing this count to be derived
+    # from the organization list without one COUNT query per agency.
     client_workspace_counts: dict[str, int] = {}
     for organization in organizations:
         owner_user_id = organization.owner_user_id or ""
@@ -1267,6 +1308,8 @@ def build_platform_admin_organization_context(
             client_workspace_counts.get(parent_owner_user_id, 0) + 1
         )
 
+    # AppUser is the preferred identity source. AuthIdentity remains a fallback
+    # for older accounts whose internal user row has no email address.
     owner_emails: dict[str, str | None] = {}
     owner_names: dict[str, str | None] = {}
     if owner_user_ids:
@@ -1305,6 +1348,9 @@ def build_platform_admin_organization_context(
             for identity in identity_rows:
                 owner_emails.setdefault(identity.user_id, identity.email)
 
+    # Owners were not always inserted into organization_members. Count explicit
+    # members first, then add the owner only when no matching owner membership
+    # exists; this mirrors count_platform_admin_members exactly.
     member_counts: dict[int, int] = {
         organization_id: 0
         for organization_id in organization_ids
@@ -1342,6 +1388,9 @@ def build_platform_admin_organization_context(
     last_activity_at: dict[str, datetime | None] = {}
 
     if workspace_ids:
+        # These CASE expressions reproduce the legacy ownership fallback:
+        # explicit workspace_id wins, while null workspace IDs use the creator
+        # field. Grouping by the effective key keeps old and new rows together.
         dataset_workspace_key = case(
             (
                 Dataset.workspace_id.isnot(None),
@@ -1422,6 +1471,8 @@ def build_platform_admin_organization_context(
                     row.last_activity,
                 )
 
+        # Usage and AI events are separate tables but contribute the same
+        # customer-facing value: the most recent activity for that workspace.
         for model in (UsageActivityEvent, AIUsageEvent):
             activity_rows = (
                 db.query(
@@ -1984,6 +2035,14 @@ def serialize_platform_admin_organization(
     organization: Organization,
     context: PlatformAdminOrganizationContext | None = None,
 ):
+    """Convert one organization to the admin table's denormalized row.
+
+    ``context`` is supplied by the collection endpoint and removes per-row
+    database work. It stays optional because create and update handlers return
+    a single freshly changed organization and still benefit from the simple
+    direct-query path; keeping that fallback also makes this serializer safe
+    for existing internal callers.
+    """
     workspace_id = organization.owner_user_id or ""
     is_client_workspace = ":client:" in workspace_id
     subscription = (

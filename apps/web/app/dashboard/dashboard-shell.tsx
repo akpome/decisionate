@@ -222,6 +222,9 @@ export function DashboardShell({
     useState("")
   const [expandedNavGroups, setExpandedNavGroups] =
     useState<Record<string, boolean>>({})
+  // The drawer is closed from navigation click handlers. Keeping the update in
+  // the user event avoids an effect-driven state update after every pathname
+  // change and still closes the drawer before the new page renders on mobile.
   const [mobileNavOpen, setMobileNavOpen] =
     useState(false)
   const [apiUnavailableMessage, setApiUnavailableMessage] =
