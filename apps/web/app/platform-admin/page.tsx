@@ -338,7 +338,9 @@ export default function PlatformAdminPage() {
     useState("")
   const [usagePeriodDays, setUsagePeriodDays] =
     useState("30")
-  const [usageSearch, setUsageSearch] = useState("")
+  const [usageCreditSearch, setUsageCreditSearch] = useState("")
+  const [routeSearch, setRouteSearch] = useState("")
+  const [recentActivitySearch, setRecentActivitySearch] = useState("")
   const [membersLoading, setMembersLoading] =
     useState(false)
   const [membersError, setMembersError] =
@@ -1690,50 +1692,52 @@ export default function PlatformAdminPage() {
       ...delivery.recipients,
     ].some(value => value.toLowerCase().includes(search))
   })
-  const usageSearchTerm = usageSearch.trim().toLowerCase()
-  const matchesUsageSearch = (values: unknown[]) =>
-    !usageSearchTerm || values.some(value =>
-      String(value ?? "").toLowerCase().includes(usageSearchTerm)
+  const matchesSearch = (values: unknown[], searchTerm: string) =>
+    !searchTerm || values.some(value =>
+      String(value ?? "").toLowerCase().includes(searchTerm)
     )
+  const usageCreditSearchTerm = usageCreditSearch.trim().toLowerCase()
   const visibleUsageSegments = (usageActivity?.ai_credit_segments || []).filter(
-    segment => matchesUsageSearch([
+    segment => matchesSearch([
       segment.segment,
       segment.credits,
       segment.requests,
       segment.active_users,
       segment.workspaces,
-    ])
+    ], usageCreditSearchTerm)
   )
   const visibleUsageUsers = (usageActivity?.ai_credit_users || []).filter(
-    entry => matchesUsageSearch([
+    entry => matchesSearch([
       entry.user_id,
       entry.segment,
       entry.credits,
       entry.requests,
       entry.workspaces,
-    ])
+    ], usageCreditSearchTerm)
   )
   const visibleUsageWorkspaces = (
     usageActivity?.ai_credit_workspaces || []
-  ).filter(workspace => matchesUsageSearch([
+  ).filter(workspace => matchesSearch([
     workspace.organization_name,
     workspace.workspace_id,
     workspace.segment,
     workspace.credits,
     workspace.requests,
     workspace.active_users,
-  ]))
+  ], usageCreditSearchTerm))
+  const routeSearchTerm = routeSearch.trim().toLowerCase()
   const visibleTopRoutes = (usageActivity?.top_routes || []).filter(route =>
-    matchesUsageSearch([
+    matchesSearch([
       route.route,
       route.method,
       route.event_count,
       route.successful_count,
       route.failed_count,
-    ])
+    ], routeSearchTerm)
   )
+  const recentActivitySearchTerm = recentActivitySearch.trim().toLowerCase()
   const visibleUsageEvents = (usageActivity?.recent_events || []).filter(event =>
-    matchesUsageSearch([
+    matchesSearch([
       event.organization_name,
       event.workspace_id,
       event.actor_user_id,
@@ -1741,7 +1745,7 @@ export default function PlatformAdminPage() {
       event.method,
       event.status_code,
       event.duration_ms,
-    ])
+    ], recentActivitySearchTerm)
   )
   const memberSearchTerm = memberSearch.trim().toLowerCase()
   const visibleMembers = members.filter(member =>
@@ -2226,15 +2230,6 @@ export default function PlatformAdminPage() {
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
                   <label className="text-xs font-medium text-gray-600">
-                    Search usage
-                    <input
-                      value={usageSearch}
-                      onChange={(event) => setUsageSearch(event.target.value)}
-                      placeholder="Route, workspace, user"
-                      className="mt-1 block w-48 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
-                    />
-                  </label>
-                  <label className="text-xs font-medium text-gray-600">
                     Period
                     <select
                       value={usagePeriodDays}
@@ -2350,16 +2345,27 @@ export default function PlatformAdminPage() {
                   </div>
 
                   <div className="border-b border-gray-200 p-5">
-                    <div className="flex items-start gap-3">
-                      <Coins className="mt-0.5 text-blue-600" size={20} />
-                      <div>
-                        <h3 className="font-medium text-gray-900">
-                          AI credit consumption
-                        </h3>
-                        <p className="mt-1 text-sm text-gray-500">
-                          Actual completed AI charges grouped by customer type, user, and workspace.
-                        </p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <Coins className="mt-0.5 text-blue-600" size={20} />
+                        <div>
+                          <h3 className="font-medium text-gray-900">
+                            AI credit consumption
+                          </h3>
+                          <p className="mt-1 text-sm text-gray-500">
+                            Actual completed AI charges grouped by customer type, user, and workspace.
+                          </p>
+                        </div>
                       </div>
+                      <label className="text-xs font-medium text-gray-600 sm:shrink-0">
+                        Search AI credits
+                        <input
+                          value={usageCreditSearch}
+                          onChange={(event) => setUsageCreditSearch(event.target.value)}
+                          placeholder="Type, user, or workspace"
+                          className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 sm:w-52"
+                        />
+                      </label>
                     </div>
 
                     <div className="mt-4 grid gap-6 lg:grid-cols-2">
@@ -2505,7 +2511,18 @@ export default function PlatformAdminPage() {
 
                   <div className="grid items-stretch gap-6 p-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
                     <div className="flex h-full min-h-0 flex-col">
-                      <h3 className="font-medium text-gray-900">Most-used product routes</h3>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <h3 className="font-medium text-gray-900">Most-used product routes</h3>
+                        <label className="text-xs font-medium text-gray-600 sm:shrink-0">
+                          Search routes
+                          <input
+                            value={routeSearch}
+                            onChange={(event) => setRouteSearch(event.target.value)}
+                            placeholder="Route or method"
+                            className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 sm:w-48"
+                          />
+                        </label>
+                      </div>
                       {visibleTopRoutes.length === 0 ? (
                         <div className="mt-3 min-h-80 max-h-80 flex-1 rounded-lg border border-gray-200 p-3">
                           <p className="text-sm text-gray-500">
@@ -2543,7 +2560,18 @@ export default function PlatformAdminPage() {
                     </div>
 
                     <div className="flex h-full min-h-0 flex-col">
-                      <h3 className="font-medium text-gray-900">Recent activity</h3>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <h3 className="font-medium text-gray-900">Recent activity</h3>
+                        <label className="text-xs font-medium text-gray-600 sm:shrink-0">
+                          Search activity
+                          <input
+                            value={recentActivitySearch}
+                            onChange={(event) => setRecentActivitySearch(event.target.value)}
+                            placeholder="Workspace, user, route"
+                            className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 sm:w-52"
+                          />
+                        </label>
+                      </div>
                       {visibleUsageEvents.length === 0 ? (
                         <div className="mt-3 min-h-80 flex-1 rounded-lg border border-gray-200 p-3">
                           <p className="text-sm text-gray-500">
