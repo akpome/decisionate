@@ -1643,8 +1643,8 @@ const CONNECTION_FIELD_GUIDES: Record<
   },
   stripe: {
     api_key: {
-      description: "A restricted, read-only API key from the customer's own Stripe account. Do not use a Stripe Connect account ID.",
-      example: "rk_test_...",
+      description: "A Restricted API Key with Charges set to Read from the customer's own Stripe account. Do not use a Stripe Connect account ID.",
+      example: "rk_live_...",
     },
   },
   shopify: {
@@ -2392,6 +2392,10 @@ function formatConnectionConfigLabel(
   key: string,
   sourceType?: string
 ) {
+  if (sourceType === "stripe" && key === "api_key") {
+    return "Restricted API Key"
+  }
+
   if (sourceType === "google_ads") {
     if (key === "customer_id") {
       return "Customer account ID"
