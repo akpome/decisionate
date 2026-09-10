@@ -472,12 +472,8 @@ function BillingPageContent() {
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-gray-500">
               {selectedPlan === "professional"
-                ? billingInterval === "year"
-                  ? "Includes a 30-day full-access annual trial."
-                  : "Includes a 30-day full-access trial."
-                : billingInterval === "year"
-                  ? "Includes a 30-day annual trial and agency client portal features."
-                  : "Includes a 30-day full-access trial and agency client portal features."}
+                ? "Includes a 30-day full-access trial."
+                : "Includes a 30-day full-access trial and agency client portal features."}
             </p>
             <button
               type="button"
