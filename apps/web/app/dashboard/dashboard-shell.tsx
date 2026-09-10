@@ -1089,6 +1089,8 @@ function SubscriptionRequiredPanel({
       ? "This client workspace is managed by an agency whose subscription has expired. Contact the agency to restore access."
       : access.status === "grace_period"
       ? "Your workspace remains available during the billing grace period, but billing details must be updated to keep access."
+      : access.status === "expired"
+      ? "Your subscription has expired. Choose a monthly or annual plan to restore access."
       : access.reason || "Renew your plan to continue using this workspace."
 
   return (
@@ -1112,13 +1114,34 @@ function SubscriptionRequiredPanel({
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         {canManageBilling && !isClientWorkspaceContext ? (
-          <Link
-            href="/dashboard/billing"
-            className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-          >
-            <CreditCard size={16} aria-hidden="true" />
-            Open billing
-          </Link>
+          access.status === "expired" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-sm font-medium text-gray-700">
+                Renew with:
+              </span>
+              <Link
+                href="/dashboard/billing?billing_interval=month"
+                className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                <CreditCard size={16} aria-hidden="true" />
+                Monthly
+              </Link>
+              <Link
+                href="/dashboard/billing?billing_interval=year"
+                className="inline-flex items-center gap-2 rounded-lg border border-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)]"
+              >
+                Annual
+              </Link>
+            </div>
+          ) : (
+            <Link
+              href="/dashboard/billing"
+              className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            >
+              <CreditCard size={16} aria-hidden="true" />
+              Open billing
+            </Link>
+          )
         ) : (
           <p className="text-sm font-medium text-gray-700">
             {isClientWorkspaceContext

@@ -49,7 +49,7 @@ function BillingPageContent() {
   const [error, setError] = useState("")
   const [selectedPlan, setSelectedPlan] = useState("professional")
   const [billingInterval, setBillingInterval] =
-    useState<"month" | "year">("month")
+    useState<"month" | "year">(getBillingIntervalFromUrl)
   const [additionalClientWorkspaces, setAdditionalClientWorkspaces] =
     useState(0)
   const [additionalAICreditPacks, setAdditionalAICreditPacks] =
@@ -519,6 +519,18 @@ function BillingPageContent() {
 
 function isSubscribed(billing: BillingStatus) {
   return billing.plan !== "free" && billing.customer_portal_available
+}
+
+function getBillingIntervalFromUrl(): "month" | "year" {
+  if (typeof window === "undefined") {
+    return "month"
+  }
+
+  return new URLSearchParams(window.location.search).get(
+    "billing_interval"
+  ) === "year"
+    ? "year"
+    : "month"
 }
 
 function shouldShowPlanSelection(billing: BillingStatus) {
