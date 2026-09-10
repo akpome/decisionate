@@ -57,6 +57,7 @@ from app.modules.datasets.schemas import DatasetMultiMetricAnalysisRequest
 
 from app.modules.datasets.services.dataset_loader import (
     load_dataset,
+    load_dataframe_from_dataset,
     load_dataframe,
 )
 from app.modules.datasets.services.file_loader import (
@@ -5453,16 +5454,24 @@ async def dataset_details(
     db = SessionLocal()
 
     try:
-        dataset, dataframe = load_dataframe(
+        dataset = load_dataset(
             db,
             dataset_id,
-            apply_metric_selection=False,
         )
 
         verify_dataset_owner(
             dataset,
             user_id,
             workspace_id,
+        )
+
+        # Materializing a Parquet object from remote storage is blocking I/O
+        # and dataframe work. Keep it off the Uvicorn event loop so the API
+        # can continue serving the dashboard's parallel preference requests.
+        dataframe = await asyncio.to_thread(
+            load_dataframe_from_dataset,
+            dataset,
+            apply_metric_selection=False,
         )
 
         learning_context = None

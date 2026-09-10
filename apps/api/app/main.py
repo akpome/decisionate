@@ -11,6 +11,7 @@ from app.db.database import get_table_columns
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from starlette.middleware.gzip import GZipMiddleware
 
 from app.modules.datasets.router import (
     router as datasets_router,
@@ -1692,7 +1693,10 @@ async def handle_unexpected_exception(
 # This lets the web client receive a useful API error instead of reporting it
 # as a browser-only CORS failure.
 app = CORSMiddleware(
-    app,
+    GZipMiddleware(
+        app,
+        minimum_size=1000,
+    ),
     allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
