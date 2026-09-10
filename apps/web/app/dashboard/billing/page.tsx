@@ -35,9 +35,14 @@ function BillingPageContent() {
   const { user } = useUser()
   const { activeWorkspaceId } = useActiveWorkspace(user?.id)
   const {
+    activeWorkspace,
     canConfigureWorkspace,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
+  const isClientWorkspaceContext = Boolean(
+    activeWorkspace?.owner_user_id.includes(":client:") ||
+      activeWorkspaceId.includes(":client:")
+  )
   const [billing, setBilling] = useState<BillingStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -175,7 +180,9 @@ function BillingPageContent() {
           description="Billing configuration is available to the business owner."
         />
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          Only the business owner can manage billing and subscriptions for this workspace.
+          {isClientWorkspaceContext
+            ? "This client workspace is managed by an agency. Contact the agency to renew the subscription or restore access."
+            : "Only the business owner can manage billing and subscriptions for this workspace."}
         </div>
       </div>
     )

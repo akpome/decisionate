@@ -1015,6 +1015,7 @@ export function DashboardShell({
           <SubscriptionRequiredPanel
             access={subscriptionAccess}
             canManageBilling={canConfigureWorkspace}
+            isClientWorkspaceContext={isClientWorkspaceContext}
           />
         ) : (
           children
@@ -1068,16 +1069,25 @@ function MaintenanceBanner({
 function SubscriptionRequiredPanel({
   access,
   canManageBilling,
+  isClientWorkspaceContext,
 }: {
   access: BillingAccessStatus
   canManageBilling: boolean
+  isClientWorkspaceContext: boolean
 }) {
+  const isClientSubscriptionExpired =
+    isClientWorkspaceContext &&
+    access.status === "expired"
   const title =
-    access.status === "grace_period"
+    isClientSubscriptionExpired
+      ? "Contact your agency"
+      : access.status === "grace_period"
       ? "Payment needs attention"
       : "Subscription required"
   const description =
-    access.status === "grace_period"
+    isClientSubscriptionExpired
+      ? "This client workspace is managed by an agency whose subscription has expired. Contact the agency to restore access."
+      : access.status === "grace_period"
       ? "Your workspace remains available during the billing grace period, but billing details must be updated to keep access."
       : access.reason || "Renew your plan to continue using this workspace."
 
@@ -1101,7 +1111,7 @@ function SubscriptionRequiredPanel({
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        {canManageBilling ? (
+        {canManageBilling && !isClientWorkspaceContext ? (
           <Link
             href="/dashboard/billing"
             className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
@@ -1111,7 +1121,9 @@ function SubscriptionRequiredPanel({
           </Link>
         ) : (
           <p className="text-sm font-medium text-gray-700">
-            Ask the workspace owner to update billing.
+            {isClientWorkspaceContext
+              ? "Contact the agency that manages this workspace to renew the subscription."
+              : "Ask the workspace owner to update billing."}
           </p>
         )}
         <Link
