@@ -527,6 +527,13 @@ function DataSourceConnectionRow({
       : false)
   const configuredGoogleAdsAccountId =
     connection.configured_customer_id ?? ""
+  // Keep recovery actions visible when provider setup degrades after OAuth.
+  // Planned sources remain unavailable, and authorization failures still use
+  // the reconnect flow because their connection status is no longer connected.
+  const sourceCanSync =
+    source?.status === "available" ||
+    (source?.status === "needs_setup" &&
+      connection.status === "connected")
   const canSyncConnector =
     [
       "google_analytics",
@@ -547,7 +554,7 @@ function DataSourceConnectionRow({
     ].includes(
       connection.source_type
     ) &&
-    source?.status === "available" &&
+    sourceCanSync &&
     stripeKeyConfigured &&
     hasRequiredConnectionConfig &&
     (source?.connection_type !== "oauth" ||
