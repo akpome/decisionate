@@ -3335,6 +3335,7 @@ export async function getDatasetSources(
       await apiFetch(
         `${API_URL}/datasets/sources`,
         {
+          cache: "no-store",
           headers: await workspaceHeaders(
             userId,
             workspaceId
@@ -3397,6 +3398,7 @@ export async function getDataSourceConnections(
       await apiFetch(
         `${API_URL}/datasets/source-connections`,
         {
+          cache: "no-store",
           headers: await workspaceHeaders(
             userId,
             workspaceId
