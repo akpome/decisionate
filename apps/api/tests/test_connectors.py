@@ -747,8 +747,8 @@ class ConnectorSmokeTests(unittest.TestCase):
                     "name": "Test campaign",
                     "status": "PAUSED",
                     "advertisingChannelType": "SEARCH",
-                    "startDate": "2026-01-02",
-                    "endDate": "2026-12-31",
+                    "startDateTime": "2026-01-02 00:00:00",
+                    "endDateTime": "2026-12-31 23:59:59",
                 },
             }],
         }]

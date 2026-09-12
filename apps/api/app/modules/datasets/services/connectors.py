@@ -1716,8 +1716,8 @@ GOOGLE_ADS_CAMPAIGN_METADATA_QUERY = " ".join([
     "campaign.name,",
     "campaign.status,",
     "campaign.advertising_channel_type,",
-    "campaign.start_date,",
-    "campaign.end_date",
+    "campaign.start_date_time,",
+    "campaign.end_date_time",
     "FROM campaign",
     "WHERE campaign.status != 'REMOVED'",
     "ORDER BY campaign.id",
@@ -2061,8 +2061,14 @@ def load_google_ads_dataframe(
                     "advertising_channel_type": campaign.get(
                         "advertisingChannelType"
                     ),
-                    "campaign_start_date": campaign.get("startDate"),
-                    "campaign_end_date": campaign.get("endDate"),
+                    "campaign_start_date": (
+                        campaign.get("startDateTime")
+                        or campaign.get("startDate")
+                    ),
+                    "campaign_end_date": (
+                        campaign.get("endDateTime")
+                        or campaign.get("endDate")
+                    ),
                     "impressions": 0,
                     "clicks": 0,
                     "cost_micros": 0,
