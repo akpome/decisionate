@@ -709,7 +709,7 @@ class ConnectorSmokeTests(unittest.TestCase):
                     "https://googleads.googleapis.com"
                 ),
                 "GOOGLE_ADS_API_VERSION": "v22",
-                "GOOGLE_ADS_DEVELOPER_TOKEN": "developer-token",
+                "GOOGLE_ADS_DEVELOPER_TOKEN": "",
             },
             clear=False,
         ):
@@ -729,7 +729,7 @@ class ConnectorSmokeTests(unittest.TestCase):
             "googleAds:searchStream",
         )
         self.assertEqual(headers["Authorization"], "Bearer google-ads-token")
-        self.assertEqual(headers["developer-token"], "developer-token")
+        self.assertNotIn("developer-token", headers)
         self.assertNotIn("login-customer-id", headers)
         self.assertIn("segments.date BETWEEN '2026-01-01'", body["query"])
         self.assertFalse(dataframe.empty)

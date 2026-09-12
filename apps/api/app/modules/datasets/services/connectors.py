@@ -1733,16 +1733,18 @@ def _google_ads_search_stream_results(
     query: str,
     login_customer_id: str,
 ) -> list[dict]:
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "login-customer-id": login_customer_id,
+    }
+    if developer_token:
+        headers["developer-token"] = developer_token
     payload = connector_json_post_request(
         (
             f"{base_url}/{api_version}/customers/{customer_id}/"
             "googleAds:searchStream"
         ),
-        {
-            "Authorization": f"Bearer {access_token}",
-            "developer-token": developer_token,
-            "login-customer-id": login_customer_id,
-        },
+        headers,
         {"query": query},
     )
     if not isinstance(payload, list):
@@ -1787,12 +1789,12 @@ def resolve_google_ads_login_customer_id(
     target_customer_id: str,
 ) -> str | None:
     """Find an authorized manager without exposing it as connection config."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    if developer_token:
+        headers["developer-token"] = developer_token
     accessible_payload = connector_json_request(
         f"{base_url}/{api_version}/customers:listAccessibleCustomers",
-        {
-            "Authorization": f"Bearer {access_token}",
-            "developer-token": developer_token,
-        },
+        headers,
     )
     resource_names = accessible_payload.get("resourceNames")
     if not isinstance(resource_names, list):
@@ -1877,10 +1879,6 @@ def load_google_ads_dataframe(
     developer_token = get_provider_setting(
         "GOOGLE_ADS_DEVELOPER_TOKEN"
     ).strip()
-    if not developer_token:
-        raise ConnectorUnavailable(
-            "GOOGLE_ADS_DEVELOPER_TOKEN is required for the Google Ads connector"
-        )
 
     api_version = get_google_ads_api_version()
     base_url = require_provider_url("GOOGLE_ADS_API_BASE_URL")
@@ -1914,10 +1912,9 @@ def load_google_ads_dataframe(
         f"{base_url}/{api_version}/customers/{customer_id}/"
         "googleAds:searchStream"
     )
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "developer-token": developer_token,
-    }
+    headers = {"Authorization": f"Bearer {access_token}"}
+    if developer_token:
+        headers["developer-token"] = developer_token
     request_headers = headers
     try:
         payload = connector_json_post_request(

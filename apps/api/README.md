@@ -262,13 +262,16 @@ server before authorization can begin. Stripe data ingestion uses a restricted,
 read-only API key supplied by each customer on their own connection; it does not
 use Stripe Connect or a global customer-data key. Keep `STRIPE_SECRET_KEY`
 separate for Decisionate billing.
-Google Ads requires the server-side OAuth app credentials, a Google Ads
-developer token, and the `https://www.googleapis.com/auth/adwords` scope.
-The customer enters the target 10-digit `customer_id` on the connection. If Google Ads requires manager routing, the adapter discovers an authorized manager automatically. The adapter uses the read-only
-campaign performance `SearchStream` report and stores one row per campaign and
-day. Configure `GOOGLE_ADS_API_BASE_URL`, `GOOGLE_ADS_API_VERSION`, and
-`GOOGLE_ADS_DEVELOPER_TOKEN` alongside the Google Ads OAuth settings in
-`.env.example`.
+Google Ads requires the server-side OAuth app credentials and the
+`https://www.googleapis.com/auth/adwords` scope. Google Ads API access is
+managed by the Google Cloud project that owns the OAuth credentials; an older
+developer token may still be supplied for compatibility. The customer enters
+the target 10-digit `customer_id` on the connection. If Google Ads requires
+manager routing, the adapter discovers an authorized manager automatically.
+The adapter uses the read-only campaign performance `SearchStream` report and
+stores one row per campaign and day. Configure
+`GOOGLE_ADS_API_BASE_URL` and `GOOGLE_ADS_API_VERSION` alongside the Google Ads
+OAuth settings in `.env.example`.
 Sage requires `SAGE_CLIENT_ID`, `SAGE_CLIENT_SECRET`,
 `SAGE_API_SUBSCRIPTION_KEY`, and an encrypted OAuth token key. Sage is imported
 with the provider's read-only OAuth consent and the selected business resource
