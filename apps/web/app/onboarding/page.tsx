@@ -47,7 +47,7 @@ const countryOptions = [
   "United States",
   "United Kingdom",
   "Australia",
-  "Nigeria",
+  "New Zealand",
   "Other",
 ]
 

@@ -71,7 +71,7 @@ ONBOARDING_BUSINESS_TYPES = {"business", "agency"}
 ONBOARDING_COUNTRIES = {
     "Australia",
     "Canada",
-    "Nigeria",
+    "New Zealand",
     "United Kingdom",
     "United States",
     "Other",
