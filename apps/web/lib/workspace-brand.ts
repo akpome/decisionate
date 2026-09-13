@@ -7,8 +7,10 @@ export const defaultBrandPrimaryColor = "#2563EB"
 export const defaultBrandAccentColor = "#14B8A6"
 export const decisionateBrandLogoUrl =
   "/icons/decisionate-icon.svg"
-export const maxBrandLogoUrlLength = 250_000
-export const maxBrandLogoUploadBytes = 150_000
+export const maxBrandLogoUploadBytes = 1_048_576
+export const maxBrandLogoUrlLength =
+  Math.ceil(maxBrandLogoUploadBytes / 3) * 4 +
+  "data:image/svg+xml;base64,".length
 export const supportedBrandLogoMimeTypes = [
   "image/png",
   "image/jpeg",

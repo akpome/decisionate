@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from fastapi import HTTPException
 
 from app.modules.organizations.router import (
+    MAX_BRAND_LOGO_URL_LENGTH,
     clean_optional_brand_color,
     clean_optional_logo_url,
     clean_optional_organization_text,
@@ -338,6 +339,23 @@ class OrganizationPreferenceTests(unittest.TestCase):
         self.assertEqual(
             context.exception.detail,
             "Logo URL must start with http:// or https://",
+        )
+
+    def test_clean_optional_logo_url_accepts_a_one_megabyte_uploaded_logo(self):
+        prefix = "data:image/svg+xml;base64,"
+        logo = prefix + "a" * (MAX_BRAND_LOGO_URL_LENGTH - len(prefix))
+
+        self.assertEqual(
+            clean_optional_logo_url(logo),
+            logo,
+        )
+
+        with self.assertRaises(HTTPException) as context:
+            clean_optional_logo_url(logo + "a")
+
+        self.assertEqual(
+            context.exception.detail,
+            "Logo URL is too long",
         )
 
     def test_clean_optional_brand_color_accepts_hex_color(self):

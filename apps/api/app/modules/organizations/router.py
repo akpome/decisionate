@@ -818,10 +818,16 @@ def clean_optional_organization_text(
     return clean_value
 
 
+MAX_BRAND_LOGO_UPLOAD_BYTES = 1_048_576
+MAX_BRAND_LOGO_URL_LENGTH = (
+    ((MAX_BRAND_LOGO_UPLOAD_BYTES + 2) // 3) * 4
+    + len("data:image/svg+xml;base64,")
+)
+
+
 def clean_optional_logo_url(
     value,
 ):
-    max_logo_value_length = 250_000
     supported_inline_logo_prefixes = (
         "data:image/png;base64,",
         "data:image/jpeg;base64,",
@@ -833,7 +839,7 @@ def clean_optional_logo_url(
     clean_value = clean_optional_organization_text(
         value,
         "Logo URL",
-        max_logo_value_length,
+        MAX_BRAND_LOGO_URL_LENGTH,
     )
 
     if clean_value is None:
