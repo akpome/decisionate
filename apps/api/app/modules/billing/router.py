@@ -16,6 +16,9 @@ from app.modules.billing.schemas import BillingPortalResponse
 from app.modules.billing.schemas import BillingStatusResponse
 from app.modules.billing.schemas import BillingAccessResponse
 from app.modules.billing.schemas import BillingLifecycleSchedulerResponse
+from app.modules.billing.schemas import AICreditTopupRequest
+from app.modules.billing.schemas import AICreditTopupResponse
+from app.modules.ai.credits import get_ai_credit_low_balance_threshold
 from app.modules.billing.lifecycle import (
     build_subscription_access_state,
     get_subscription_for_workspace,
@@ -28,6 +31,7 @@ from app.modules.billing.notifications import (
 from app.modules.billing.service import (
     BillingProviderUnavailable,
     BillingWebhookSignatureError,
+    create_ai_credit_topup_session,
     create_checkout_session,
     create_customer_portal_session,
     get_billing_config,
@@ -226,12 +230,25 @@ async def get_billing_status(
             if subscription
             else 0
         )
+        ai_credit_topup_credits = int(
+            subscription.ai_credit_topup_credits
+            if subscription
+            else 0
+        )
         total_ai_credit_limit = (
             included_ai_credits
             + additional_client_workspaces
             * effective_additional_client_workspace_ai_credits
             + additional_ai_credit_packs
             * get_ai_credit_pack_size()
+            + max(ai_credit_topup_credits, 0)
+        )
+        ai_credits_remaining = max(
+            total_ai_credit_limit - ai_credits_used,
+            0,
+        )
+        ai_credit_low_balance_threshold = (
+            get_ai_credit_low_balance_threshold(total_ai_credit_limit)
         )
         return BillingStatusResponse(
             configured=is_billing_configured(),
@@ -284,9 +301,18 @@ async def get_billing_status(
             included_ai_credits=included_ai_credits,
             annual_ai_credit_limit=annual_ai_credit_limit,
             ai_credits_used=ai_credits_used,
-            ai_credits_remaining=max(
-                total_ai_credit_limit - ai_credits_used,
-                0,
+            ai_credits_remaining=ai_credits_remaining,
+            ai_credit_pool_workspace_id=resolve_billing_workspace_id(
+                auth_context.workspace_id,
+            ),
+            ai_credit_topup_credits=max(ai_credit_topup_credits, 0),
+            ai_credit_low_balance=(
+                bool(ai_credit_low_balance_threshold)
+                and ai_credits_remaining <= ai_credit_low_balance_threshold
+            ),
+            ai_credit_low_balance_threshold=ai_credit_low_balance_threshold,
+            ai_credit_topup_configured=bool(
+                config.get("ai_credit_topup_price_id")
             ),
             access_status=access_state.status,
             access_allowed=access_state.access_allowed,
@@ -296,6 +322,73 @@ async def get_billing_status(
             access_reason=access_state.reason,
             plan_options=get_billing_plan_options(),
         )
+    finally:
+        db.close()
+
+
+@router.post(
+    "/ai-credits/topup",
+    response_model=AICreditTopupResponse,
+)
+async def create_ai_credit_topup(
+    payload: AICreditTopupRequest,
+    request: Request,
+):
+    auth_context = require_billing_owner(request)
+    if payload.credit_packs < 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Purchase at least one AI credit pack",
+        )
+
+    db = SessionLocal()
+    try:
+        subscription = get_subscription_for_workspace(
+            db,
+            auth_context.workspace_id,
+        )
+        if not subscription:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Choose a Professional or Agency plan before "
+                    "purchasing AI credits"
+                ),
+            )
+        access_state = build_subscription_access_state(subscription)
+        if not access_state.access_allowed:
+            raise HTTPException(
+                status_code=402,
+                detail=access_state.reason,
+            )
+
+        organization = (
+            db.query(Organization)
+            .filter(
+                Organization.owner_user_id
+                == resolve_billing_workspace_id(auth_context.workspace_id),
+            )
+            .first()
+        )
+        try:
+            result = create_ai_credit_topup_session(
+                workspace_id=resolve_billing_workspace_id(
+                    auth_context.workspace_id,
+                ),
+                owner_user_id=auth_context.user_id,
+                owner_email=auth_context.email,
+                organization_name=(
+                    organization.name if organization else None
+                ),
+                customer_id=subscription.provider_customer_id,
+                credit_packs=payload.credit_packs,
+            )
+        except BillingProviderUnavailable as error:
+            raise HTTPException(
+                status_code=503,
+                detail=str(error),
+            ) from error
+        return AICreditTopupResponse(**result)
     finally:
         db.close()
 
@@ -355,11 +448,6 @@ async def create_billing_checkout(
         raise HTTPException(
             status_code=400,
             detail="Additional AI credit packs cannot be negative",
-        )
-    if payload.additional_ai_credit_packs > 100:
-        raise HTTPException(
-            status_code=400,
-            detail="Additional AI credit packs cannot exceed 100",
         )
     if (
         billing_interval == "year"
@@ -567,8 +655,46 @@ def apply_stripe_billing_event(
     event_type: str,
     event_object: dict,
 ):
-    if event_type == "checkout.session.completed":
+    if event_type in {
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+    }:
         metadata = event_object.get("metadata") or {}
+        if metadata.get("purchase_type") == "ai_credit_topup":
+            payment_status = str(
+                event_object.get("payment_status") or ""
+            ).strip().lower()
+            if (
+                event_type == "checkout.session.completed"
+                and payment_status
+                and payment_status not in {"paid", "no_payment_required"}
+            ):
+                return
+
+            workspace_id = resolve_billing_workspace_id(
+                str(metadata.get("workspace_id") or "").strip(),
+            )
+            if not workspace_id:
+                return
+            subscription = (
+                db.query(WorkspaceSubscription)
+                .filter(
+                    WorkspaceSubscription.workspace_id == workspace_id,
+                )
+                .first()
+            )
+            if not subscription:
+                return
+            credits = parse_nonnegative_int(metadata.get("credits"))
+            if not credits:
+                return
+            subscription.ai_credit_topup_credits = max(
+                int(subscription.ai_credit_topup_credits or 0),
+                0,
+            ) + credits
+            subscription.ai_credit_low_notice_key = None
+            return
+
         workspace_id = str(
             metadata.get("workspace_id") or ""
         ).strip()

@@ -50,6 +50,9 @@ from app.modules.ai.learning import (
 from app.modules.datasets.services.dataset_loader import (
     load_dataframe_from_dataset,
 )
+from app.modules.datasets.services.deduplication import (
+    deduplicate_text_items,
+)
 from app.modules.datasets.services.metrics import (
     generate_metrics,
 )
@@ -515,7 +518,7 @@ def build_digest_recommendations(
 
         recommendations.append(recommendation)
 
-    return recommendations[:5]
+    return deduplicate_text_items(recommendations)[:5]
 
 
 def clean_weekly_report_brand_color(

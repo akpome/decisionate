@@ -117,7 +117,10 @@ def get_oauth_config_requirement_error(
 
     field_labels = {
         "property_id": "the GA4 property ID",
+        "site_url": "the Google Search Console property URL",
         "shop_domain": "the Shopify shop domain",
+        "location_id": "the Square location ID",
+        "account_id": "the Lightspeed account ID",
         "ad_account_id": "the Meta Ads account ID",
         "customer_id": "the Google Ads customer ID",
     }

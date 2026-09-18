@@ -84,6 +84,8 @@ export const categoryDecisionActivity =
   "category" satisfies DecisionActivityType
 export const confidenceDecisionActivity =
   "confidence" satisfies DecisionActivityType
+export const assigneeDecisionActivity =
+  "assignee" satisfies DecisionActivityType
 export const exportDecisionActivity =
   "export" satisfies DecisionActivityType
 export const highDecisionPriority = "high" satisfies DecisionPriority

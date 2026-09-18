@@ -185,6 +185,17 @@ OAUTH_PROVIDERS = {
             "https://www.googleapis.com/auth/analytics.readonly",
         ),
     ),
+    "google_search_console": OAuthProvider(
+        source_type="google_search_console",
+        authorization_url_env="GOOGLE_SEARCH_CONSOLE_OAUTH_AUTHORIZATION_URL",
+        token_url_env="GOOGLE_SEARCH_CONSOLE_OAUTH_TOKEN_URL",
+        client_id_env="GOOGLE_SEARCH_CONSOLE_CLIENT_ID",
+        client_secret_env="GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET",
+        scopes_env="GOOGLE_SEARCH_CONSOLE_OAUTH_SCOPES",
+        required_scopes=(
+            "https://www.googleapis.com/auth/webmasters.readonly",
+        ),
+    ),
     "google_ads": OAuthProvider(
         source_type="google_ads",
         authorization_url_env="GOOGLE_ADS_OAUTH_AUTHORIZATION_URL",
@@ -195,6 +206,23 @@ OAUTH_PROVIDERS = {
         required_scopes=(
             "https://www.googleapis.com/auth/adwords",
         ),
+    ),
+    "square": OAuthProvider(
+        source_type="square",
+        authorization_url_env="SQUARE_OAUTH_AUTHORIZATION_URL",
+        token_url_env="SQUARE_OAUTH_TOKEN_URL",
+        client_id_env="SQUARE_CLIENT_ID",
+        client_secret_env="SQUARE_CLIENT_SECRET",
+        scopes_env="SQUARE_OAUTH_SCOPES",
+        required_scopes=("ORDERS_READ",),
+    ),
+    "lightspeed": OAuthProvider(
+        source_type="lightspeed",
+        authorization_url_env="LIGHTSPEED_OAUTH_AUTHORIZATION_URL",
+        token_url_env="LIGHTSPEED_OAUTH_TOKEN_URL",
+        client_id_env="LIGHTSPEED_CLIENT_ID",
+        client_secret_env="LIGHTSPEED_CLIENT_SECRET",
+        scopes_env="LIGHTSPEED_OAUTH_SCOPES",
     ),
 }
 
@@ -483,7 +511,11 @@ def build_authorization_url(
                 "prompt": "consent",
             }
         )
-    elif provider.source_type in {"google_analytics", "google_ads"}:
+    elif provider.source_type in {
+        "google_analytics",
+        "google_search_console",
+        "google_ads",
+    }:
         params.update(
             {
                 "access_type": "offline",

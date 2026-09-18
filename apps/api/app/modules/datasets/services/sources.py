@@ -15,10 +15,14 @@ from app.modules.oauth.service import (
 
 IMPLEMENTED_CONNECTOR_TYPES = {
     "google_analytics",
+    "google_search_console",
     "google_ads",
     "hubspot",
     "stripe",
     "shopify",
+    "square",
+    "woocommerce",
+    "lightspeed",
     "meta_ads",
     "quickbooks",
     "freshbooks",
@@ -98,6 +102,20 @@ DATASET_SOURCES = [
         "description": (
             "Connect Google Ads campaign performance data. Enter the 10-digit "
             "customer account ID."
+        ),
+    },
+    {
+        "type": "google_search_console",
+        "label": "Google Search Console",
+        "category": "analytics",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["site_url"],
+        "required_config_keys": ["site_url"],
+        "description": (
+            "Connect Search Console performance data for a verified URL-prefix "
+            "or Domain property."
         ),
     },
     {
@@ -208,6 +226,49 @@ DATASET_SOURCES = [
         "required_config_keys": ["shop_domain"],
         "description": (
             "Connect store orders, products, and customer data."
+        ),
+    },
+    {
+        "type": "square",
+        "label": "Square",
+        "category": "payments",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["location_id"],
+        "required_config_keys": ["location_id"],
+        "description": (
+            "Connect Square order and sales data for a selected location."
+        ),
+    },
+    {
+        "type": "woocommerce",
+        "label": "WooCommerce",
+        "category": "commerce",
+        "status": "available",
+        "connection_type": "api_key",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["store_url", "consumer_key", "consumer_secret"],
+        "required_config_keys": [
+            "store_url",
+            "consumer_key",
+            "consumer_secret",
+        ],
+        "description": (
+            "Connect WooCommerce orders with a read-only REST API key."
+        ),
+    },
+    {
+        "type": "lightspeed",
+        "label": "Lightspeed Retail",
+        "category": "commerce",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["account_id"],
+        "required_config_keys": ["account_id"],
+        "description": (
+            "Connect Lightspeed Retail sales data for a Lightspeed account."
         ),
     },
     {
@@ -359,9 +420,21 @@ DATASET_SOURCE_ENV_KEYS = {
         "GOOGLE_ANALYTICS_CLIENT_ID",
         "GOOGLE_ANALYTICS_CLIENT_SECRET",
     ],
+    "google_search_console": [
+        "GOOGLE_SEARCH_CONSOLE_CLIENT_ID",
+        "GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET",
+    ],
     "google_ads": [
         "GOOGLE_ADS_CLIENT_ID",
         "GOOGLE_ADS_CLIENT_SECRET",
+    ],
+    "square": [
+        "SQUARE_CLIENT_ID",
+        "SQUARE_CLIENT_SECRET",
+    ],
+    "lightspeed": [
+        "LIGHTSPEED_CLIENT_ID",
+        "LIGHTSPEED_CLIENT_SECRET",
     ],
     "meta_ads": [
         "META_ADS_APP_ID",
@@ -417,12 +490,31 @@ DATASET_SOURCE_RUNTIME_ENV_KEYS = {
         "GOOGLE_ANALYTICS_OAUTH_TOKEN_URL",
         "GOOGLE_ANALYTICS_OAUTH_SCOPES",
     ],
+    "google_search_console": [
+        "GOOGLE_SEARCH_CONSOLE_API_BASE_URL",
+        "GOOGLE_SEARCH_CONSOLE_OAUTH_AUTHORIZATION_URL",
+        "GOOGLE_SEARCH_CONSOLE_OAUTH_TOKEN_URL",
+        "GOOGLE_SEARCH_CONSOLE_OAUTH_SCOPES",
+    ],
     "google_ads": [
         "GOOGLE_ADS_API_BASE_URL",
         "GOOGLE_ADS_API_VERSION",
         "GOOGLE_ADS_OAUTH_AUTHORIZATION_URL",
         "GOOGLE_ADS_OAUTH_TOKEN_URL",
         "GOOGLE_ADS_OAUTH_SCOPES",
+    ],
+    "square": [
+        "SQUARE_API_BASE_URL",
+        "SQUARE_API_VERSION",
+        "SQUARE_OAUTH_AUTHORIZATION_URL",
+        "SQUARE_OAUTH_TOKEN_URL",
+        "SQUARE_OAUTH_SCOPES",
+    ],
+    "lightspeed": [
+        "LIGHTSPEED_API_BASE_URL_TEMPLATE",
+        "LIGHTSPEED_OAUTH_AUTHORIZATION_URL",
+        "LIGHTSPEED_OAUTH_TOKEN_URL",
+        "LIGHTSPEED_OAUTH_SCOPES",
     ],
 }
 
@@ -573,6 +665,8 @@ def clone_dataset_source(source):
 
     if source["type"] in {
         "shopify",
+        "square",
+        "lightspeed",
         "meta_ads",
         "quickbooks",
         "freshbooks",
@@ -580,6 +674,7 @@ def clone_dataset_source(source):
         "zoho_books",
         "salesforce",
         "google_ads",
+        "google_search_console",
     }:
         if (
             is_oauth_provider_configured(source["type"])

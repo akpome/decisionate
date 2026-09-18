@@ -228,6 +228,9 @@ def get_billing_config() -> dict[str, str]:
         "ai_credit_pack_price_id": clean_env(
             "STRIPE_AI_CREDIT_PACK_PRICE_ID"
         ),
+        "ai_credit_topup_price_id": clean_env(
+            "STRIPE_AI_CREDIT_TOPUP_PRICE_ID"
+        ),
         "webhook_secret": clean_env("STRIPE_WEBHOOK_SECRET"),
         "web_app_url": clean_env(
             "DECISIONATE_WEB_APP_URL",
@@ -472,6 +475,82 @@ def create_checkout_session(
     return {
         "checkout_url": checkout_url,
         "session_id": session_id,
+    }
+
+
+def create_ai_credit_topup_session(
+    *,
+    workspace_id: str,
+    owner_user_id: str,
+    owner_email: str | None,
+    organization_name: str | None,
+    customer_id: str | None = None,
+    credit_packs: int,
+) -> dict:
+    """Create a one-time checkout for any positive number of credit packs."""
+    config = require_billing_config()
+    topup_price_id = config.get("ai_credit_topup_price_id")
+    if not topup_price_id:
+        raise BillingProviderUnavailable(
+            "The AI credit top-up price is not configured"
+        )
+
+    clean_credit_packs = int(credit_packs or 0)
+    if clean_credit_packs < 1:
+        raise BillingProviderUnavailable(
+            "At least one AI credit pack is required"
+        )
+
+    credit_pack_size = get_ai_credit_pack_size()
+    credits = clean_credit_packs * credit_pack_size
+    metadata = {
+        "purchase_type": "ai_credit_topup",
+        "workspace_id": workspace_id,
+        "owner_user_id": owner_user_id,
+        "credit_packs": str(clean_credit_packs),
+        "credits": str(credits),
+    }
+    params = {
+        "mode": "payment",
+        "line_items[0][price]": topup_price_id,
+        "line_items[0][quantity]": str(clean_credit_packs),
+        "success_url": (
+            f"{config['web_app_url']}/dashboard/billing?topup=success"
+        ),
+        "cancel_url": (
+            f"{config['web_app_url']}/dashboard/billing?topup=cancelled"
+        ),
+        "client_reference_id": workspace_id,
+    }
+    for key, value in metadata.items():
+        params[f"metadata[{key}]"] = value
+
+    if customer_id:
+        params["customer"] = customer_id
+    else:
+        email = validate_email(owner_email)
+        if email:
+            params["customer_email"] = email
+
+    if organization_name:
+        params["metadata[organization_name]"] = organization_name[:500]
+
+    response = stripe_request(
+        "/checkout/sessions",
+        params,
+        config["secret_key"],
+    )
+    checkout_url = str(response.get("url") or "").strip()
+    session_id = str(response.get("id") or "").strip()
+    if not checkout_url or not session_id:
+        raise BillingProviderUnavailable(
+            "Stripe returned an incomplete AI credit top-up checkout"
+        )
+    return {
+        "checkout_url": checkout_url,
+        "session_id": session_id,
+        "credit_packs": clean_credit_packs,
+        "credits": credits,
     }
 
 

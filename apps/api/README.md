@@ -225,6 +225,9 @@ server-side values before enabling paid plans:
 - `STRIPE_CLIENT_WORKSPACE_ADDON_PRICE_ID` for additional client workspaces ($20/month each)
 - `STRIPE_CLIENT_WORKSPACE_ADDON_ANNUAL_PRICE_ID` for additional client workspaces ($200/year each)
 - `STRIPE_AI_CREDIT_PACK_PRICE_ID` for optional 5,000-credit monthly packs
+- `STRIPE_AI_CREDIT_TOPUP_PRICE_ID` for one-time AI credit top-ups. This price
+  represents one credit pack; workspace owners can purchase any positive number
+  of packs.
 - `STRIPE_WEBHOOK_SECRET`
 - `DECISIONATE_WEB_APP_URL`
 
@@ -237,10 +240,17 @@ for `checkout.session.completed` and `customer.subscription.created`,
 `customer.subscription.updated`, and `customer.subscription.deleted`. The
 webhook endpoint consumes the raw request body and rejects duplicate event IDs.
 
+Agency client workspaces use the agency owner's subscription AI credit pool;
+their usage remains attributed to the client workspace for reporting. Low
+balances trigger one owner email per billing period. Professional owners receive
+the same low-balance notification for their direct workspace. One-time top-ups
+are granted only after the signed Stripe checkout webhook is received.
+
 ## OAuth Connectors And Automated Sync
 
-Owner-only OAuth authorization is available for Shopify, QuickBooks, FreshBooks,
-Sage Cloud Accounting, HubSpot, Google Ads, Meta Ads, and Xero. Configure each
+Owner-only OAuth authorization is available for Shopify, Google Search Console,
+Square, QuickBooks, FreshBooks, Sage Cloud Accounting, HubSpot, Google Ads, Meta
+Ads, Lightspeed Retail, and Xero. Configure each
 provider's client ID and secret, `OAUTH_CALLBACK_URL`, and a Fernet
 `OAUTH_TOKEN_ENCRYPTION_KEY`.
 OAuth callbacks store encrypted access and refresh tokens in the database; raw
@@ -262,6 +272,13 @@ server before authorization can begin. Stripe data ingestion uses a restricted,
 read-only API key supplied by each customer on their own connection; it does not
 use Stripe Connect or a global customer-data key. Keep `STRIPE_SECRET_KEY`
 separate for Decisionate billing.
+Google Search Console imports Search Analytics rows by date, query, and page.
+The connection accepts either a URL-prefix property such as
+`https://www.example.com/` or a Domain property such as `sc-domain:example.com`.
+Square imports order-level sales from the selected location and requires the
+`ORDERS_READ` OAuth permission. WooCommerce uses a customer-owned read-only REST
+API key; the consumer key and secret are encrypted before persistence.
+Lightspeed Retail imports account sales using the configured Retail account ID.
 Google Ads requires the server-side OAuth app credentials and the
 `https://www.googleapis.com/auth/adwords` scope. Google Ads API access is
 managed by the Google Cloud project that owns the OAuth credentials; an older

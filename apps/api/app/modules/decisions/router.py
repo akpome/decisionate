@@ -28,6 +28,7 @@ from app.modules.decisions.schemas import (
     ARCHIVE_DECISION_ACTIVITY,
     ARCHIVED_DECISION_STATUS,
     ARCHIVED_DECISION_LIST_LIFECYCLE,
+    ASSIGNEE_DECISION_ACTIVITY,
     CATEGORY_DECISION_ACTIVITY,
     CONFIDENCE_DECISION_ACTIVITY,
     CREATED_DECISION_ACTIVITY,
@@ -48,6 +49,7 @@ from app.modules.decisions.schemas import (
     DecisionActivityFeedResponse,
     DecisionActivityResponse,
     DecisionActivityType,
+    DecisionAssigneeUpdate,
     DecisionAttentionWorkflowState,
     DecisionCategory,
     DecisionCategoryUpdate,
@@ -120,6 +122,15 @@ from app.modules.identity.service import (
 from app.modules.decisions.templates import (
     list_decision_templates,
 )
+from app.modules.datasets.services.dataset_loader import (
+    load_dataframe,
+)
+from app.modules.datasets.services.ownership import (
+    verify_dataset_owner,
+)
+from app.modules.decisions.outcome_measurement import (
+    measure_decision_metric,
+)
 
 router = APIRouter(
     prefix="/decisions",
@@ -164,6 +175,8 @@ DECISION_ACTIVITY_MESSAGES: dict[DecisionActivityType, str] = {
         "Category updated",
     CONFIDENCE_DECISION_ACTIVITY:
         "Confidence updated",
+    ASSIGNEE_DECISION_ACTIVITY:
+        "Decision owner updated",
     DELETE_DECISION_ACTIVITY:
         "Decision deleted",
 }
@@ -452,7 +465,10 @@ def require_decision_owner_or_workspace_owner(
         str(auth_context.external_user_id or "").strip(),
         str(auth_context.user_id or "").strip(),
     }
-    if str(decision.clerk_user_id or "").strip() in current_user_ids:
+    if {
+        str(decision.clerk_user_id or "").strip(),
+        str(decision.assigned_user_id or "").strip(),
+    } & current_user_ids:
         return
 
     if is_workspace_owner(db, request):
@@ -916,6 +932,7 @@ def has_recorded_outcome():
             has_meaningful_text(
                 Decision.actual_outcome,
             ),
+            Decision.outcome_measured_at.isnot(None),
         ),
     )
 
@@ -1014,7 +1031,10 @@ def get_decision_count_map(
 
     if owner_user_ids:
         filters.append(
-            Decision.clerk_user_id.in_(owner_user_ids),
+            or_(
+                Decision.clerk_user_id.in_(owner_user_ids),
+                Decision.assigned_user_id.in_(owner_user_ids),
+            ),
         )
 
     if additional_filter is not None:
@@ -1072,7 +1092,10 @@ def get_decision_month_count_map(
 
     if owner_user_ids:
         filters.append(
-            Decision.clerk_user_id.in_(owner_user_ids),
+            or_(
+                Decision.clerk_user_id.in_(owner_user_ids),
+                Decision.assigned_user_id.in_(owner_user_ids),
+            ),
         )
 
     rows = (
@@ -1293,7 +1316,10 @@ async def get_decisions(
                 str(x_user_id).strip(),
             }
             query = query.filter(
-                Decision.clerk_user_id.in_(owner_user_ids),
+                or_(
+                    Decision.clerk_user_id.in_(owner_user_ids),
+                    Decision.assigned_user_id.in_(owner_user_ids),
+                ),
             )
 
         clean_status = (
@@ -1685,7 +1711,10 @@ async def get_decision_summary(
             }
             base_filter = and_(
                 base_filter,
-                Decision.clerk_user_id.in_(owner_user_ids),
+                or_(
+                    Decision.clerk_user_id.in_(owner_user_ids),
+                    Decision.assigned_user_id.in_(owner_user_ids),
+                ),
             )
 
         total = (
@@ -2319,6 +2348,7 @@ async def update_decision_details(
         )
 
         changed = False
+        metric_changed = False
 
         if payload.title is not None:
             clean_title = clean_required_decision_title(
@@ -2367,6 +2397,13 @@ async def update_decision_details(
             ):
                 decision.metric_column = clean_metric_column
                 changed = True
+                metric_changed = True
+
+        if metric_changed:
+            decision.outcome_baseline_value = None
+            decision.outcome_measured_value = None
+            decision.outcome_delta_percent = None
+            decision.outcome_measured_at = None
 
         if changed:
             record_decision_activity(
@@ -2654,8 +2691,10 @@ async def get_decision_lifecycle_access(
             str(auth_context.user_id or "").strip(),
         }
         is_decision_owner = (
-            str(decision.clerk_user_id or "").strip()
-            in current_user_ids
+            bool({
+                str(decision.clerk_user_id or "").strip(),
+                str(decision.assigned_user_id or "").strip(),
+            } & current_user_ids)
         )
         is_owner = is_workspace_owner(db, request)
         can_manage_lifecycle = (
@@ -2744,7 +2783,8 @@ async def get_decision_outcome_analysis(
 
         if not expected_outcome or (
             not actual_outcome and
-            not decision.outcome_status
+            not decision.outcome_status and
+            not decision.outcome_measured_at
         ):
             raise HTTPException(
                 status_code=400,
@@ -2817,6 +2857,9 @@ async def get_decision_outcome_analysis(
                 "expected_outcome": expected_outcome,
                 "actual_outcome": actual_outcome,
                 "outcome_status": outcome_status,
+                "outcome_baseline_value": decision.outcome_baseline_value,
+                "outcome_measured_value": decision.outcome_measured_value,
+                "outcome_delta_percent": decision.outcome_delta_percent,
                 "existing_lesson_learned": decision.lessons_learned,
                 "historical_decision_learning": historical_learning,
             },
@@ -2843,6 +2886,93 @@ async def get_decision_outcome_analysis(
             ai_analysis=outcome_analysis,
         )
 
+    finally:
+        db.close()
+
+
+# =========================
+# Decision Assignee Patch Route For Decision Ownership Workflow
+# =========================
+
+@router.patch(
+    "/{decision_id}/assignee",
+    dependencies=[Depends(require_decision_manager)],
+    response_model=DecisionResponse,
+)
+async def update_decision_assignee(
+    request: Request,
+    decision_id: int,
+    payload: DecisionAssigneeUpdate,
+):
+    auth_context = get_auth_context(request)
+    db = SessionLocal()
+
+    try:
+        decision = get_accessible_decision_or_404(
+            db,
+            decision_id,
+            auth_context.user_id,
+            auth_context.workspace_id,
+        )
+        require_decision_owner_or_workspace_owner(
+            db,
+            decision,
+            request,
+        )
+        ensure_decision_is_editable(decision)
+
+        assigned_user_id = None
+        if payload.assigned_user_id:
+            try:
+                assigned_user_id = resolve_user_reference(
+                    payload.assigned_user_id,
+                )
+            except ValueError as error:
+                raise HTTPException(
+                    status_code=400,
+                    detail=str(error),
+                ) from error
+
+            if assigned_user_id != auth_context.user_id:
+                organization = (
+                    db.query(Organization)
+                    .filter(
+                        Organization.owner_user_id == auth_context.workspace_id,
+                    )
+                    .first()
+                )
+                if organization is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Personal workspace decisions can only be assigned to you",
+                    )
+                member = (
+                    db.query(OrganizationMember)
+                    .filter(
+                        OrganizationMember.organization_id == organization.id,
+                        OrganizationMember.clerk_user_id == assigned_user_id,
+                    )
+                    .first()
+                )
+                if member is None and organization.owner_user_id != assigned_user_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="The assignee must be a member of this workspace",
+                    )
+
+        if decision.assigned_user_id != assigned_user_id:
+            decision.assigned_user_id = assigned_user_id
+            record_decision_activity(
+                db,
+                decision,
+                ASSIGNEE_DECISION_ACTIVITY,
+                DECISION_ACTIVITY_MESSAGES[ASSIGNEE_DECISION_ACTIVITY],
+                actor_user_id=auth_context.user_id,
+            )
+
+        db.commit()
+        db.refresh(decision)
+        return decision
     finally:
         db.close()
 
@@ -3011,6 +3141,84 @@ async def update_decision_outcome(
 
         return decision
 
+    finally:
+        db.close()
+
+
+# =========================
+# Decision Metric Outcome Measurement Route For Before And After Tracking
+# =========================
+
+@router.post(
+    "/{decision_id}/outcome/measure",
+    dependencies=[Depends(require_decision_manager)],
+    response_model=DecisionResponse,
+)
+async def measure_decision_outcome(
+    decision_id: int,
+    x_user_id: str = Header(alias="X-User-Id"),
+    x_workspace_id: str | None = Header(
+        default=None,
+        alias="X-Workspace-Id",
+    ),
+):
+    db = SessionLocal()
+
+    try:
+        decision = get_accessible_decision_or_404(
+            db,
+            decision_id,
+            x_user_id,
+            x_workspace_id,
+        )
+        ensure_decision_is_editable(decision)
+        if not (decision.expected_outcome or "").strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Expected outcome is required before measuring results",
+            )
+        dataset, dataframe = load_dataframe(
+            db,
+            decision.dataset_id,
+            apply_metric_selection=False,
+        )
+        verify_dataset_owner(
+            dataset,
+            get_active_user_id(x_user_id),
+            get_active_workspace_id(x_user_id, x_workspace_id),
+        )
+        try:
+            measurement = measure_decision_metric(
+                decision,
+                dataframe,
+            )
+        except ValueError as error:
+            raise HTTPException(
+                status_code=400,
+                detail=str(error),
+            ) from error
+
+        decision.outcome_baseline_value = measurement["baseline_value"]
+        decision.outcome_measured_value = measurement["measured_value"]
+        decision.outcome_delta_percent = measurement["delta_percent"]
+        decision.outcome_measured_at = measurement["measured_at"]
+        delta = measurement["delta_percent"]
+        message = (
+            f"Outcome measured for {measurement['metric_column']} "
+            f"({delta:+.1f}% vs baseline)"
+            if delta is not None
+            else f"Outcome measured for {measurement['metric_column']}"
+        )
+        record_decision_activity(
+            db,
+            decision,
+            OUTCOME_DECISION_ACTIVITY,
+            message,
+            actor_user_id=x_user_id,
+        )
+        db.commit()
+        db.refresh(decision)
+        return decision
     finally:
         db.close()
 

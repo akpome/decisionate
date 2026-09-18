@@ -60,6 +60,7 @@ DecisionActivityType = Literal[
     "priority",
     "category",
     "confidence",
+    "assignee",
     "delete",
     "export",
 ]
@@ -197,6 +198,7 @@ REVIEW_DECISION_ACTIVITY: DecisionActivityType = "review"
 PRIORITY_DECISION_ACTIVITY: DecisionActivityType = "priority"
 CATEGORY_DECISION_ACTIVITY: DecisionActivityType = "category"
 CONFIDENCE_DECISION_ACTIVITY: DecisionActivityType = "confidence"
+ASSIGNEE_DECISION_ACTIVITY: DecisionActivityType = "assignee"
 DELETE_DECISION_ACTIVITY: DecisionActivityType = "delete"
 EXPORT_DECISION_ACTIVITY: DecisionActivityType = "export"
 DECISION_LIST_LIFECYCLE_PATTERN = build_literal_pattern(
@@ -286,6 +288,7 @@ class DecisionResponse(BaseModel):
     id: int
     workspace_id: str | None = None
     owner_user_id: str | None = None
+    assigned_user_id: str | None = None
     dataset_id: int
     metric_column: str | None = None
     recommendation_text: str | None
@@ -297,6 +300,10 @@ class DecisionResponse(BaseModel):
     notes: str | None
     expected_outcome: str | None
     actual_outcome: str | None
+    outcome_baseline_value: float | None = None
+    outcome_measured_value: float | None = None
+    outcome_delta_percent: float | None = None
+    outcome_measured_at: datetime | None = None
     outcome_status: DecisionOutcomeStatus | None
     lessons_learned: str | None
     review_date: datetime | None
@@ -398,6 +405,10 @@ class DecisionOutcomeUpdate(BaseModel):
     actual_outcome: str | None = None
 
     outcome_status: DecisionOutcomeStatus | None = None
+
+
+class DecisionAssigneeUpdate(BaseModel):
+    assigned_user_id: str | None = None
 
 
 class DecisionLearningUpdate(BaseModel):

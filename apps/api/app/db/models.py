@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Column
 from sqlalchemy import Boolean
 from sqlalchemy import DateTime
+from sqlalchemy import Float
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import Text
@@ -387,6 +388,63 @@ class DatasetRelationship(Base):
         default=utc_now,
         onupdate=utc_now,
     )
+
+
+class CanonicalEntity(Base):
+    """A workspace-level customer or product identity."""
+
+    __tablename__ = "canonical_entities"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "entity_type",
+            "canonical_key",
+            name="uq_canonical_entities_workspace_type_key",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    workspace_id = Column(String, nullable=False, index=True)
+    user_id = Column(String, nullable=False, index=True)
+    entity_type = Column(String, nullable=False, index=True)
+    canonical_key = Column(String, nullable=False)
+    display_name = Column(String, nullable=True)
+    attributes = Column(Text, nullable=True)
+    source_count = Column(Integer, nullable=False, default=0)
+    match_count = Column(Integer, nullable=False, default=0)
+    confidence = Column(Float, nullable=False, default=1.0)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class EntityIdentity(Base):
+    """A source row mapped to a canonical workspace entity."""
+
+    __tablename__ = "entity_identities"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "entity_type",
+            "dataset_id",
+            "source_row_key",
+            name="uq_entity_identities_workspace_row",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    canonical_entity_id = Column(Integer, nullable=False, index=True)
+    workspace_id = Column(String, nullable=False, index=True)
+    user_id = Column(String, nullable=False, index=True)
+    entity_type = Column(String, nullable=False, index=True)
+    dataset_id = Column(Integer, nullable=False, index=True)
+    source_type = Column(String, nullable=False)
+    source_row_key = Column(String, nullable=False)
+    source_field = Column(String, nullable=False)
+    source_value = Column(String, nullable=False)
+    match_method = Column(String, nullable=False)
+    confidence = Column(Float, nullable=False, default=1.0)
+    reviewed = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class DashboardShare(Base):
@@ -917,6 +975,17 @@ class WorkspaceSubscription(Base):
         Integer,
         nullable=False,
         default=0,
+    )
+
+    ai_credit_topup_credits = Column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    ai_credit_low_notice_key = Column(
+        String,
+        nullable=True,
     )
 
     created_at = Column(

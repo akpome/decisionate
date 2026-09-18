@@ -12,6 +12,9 @@ from app.modules.datasets.services.numeric import (
 from app.modules.datasets.services.serialization import (
     to_json_number,
 )
+from app.modules.datasets.services.deduplication import (
+    deduplicate_insights,
+)
 
 
 def generate_insights(
@@ -78,7 +81,7 @@ def generate_insights(
                 f"{total:,.2f}."
         })
 
-    return insights
+    return deduplicate_insights(insights)
 
 
 def format_insight_column_label(

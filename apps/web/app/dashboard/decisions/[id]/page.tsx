@@ -36,12 +36,15 @@ import {
   getDecision,
   getDecisionLifecycleAccess,
   getDecisionOutcomeAnalysis,
+  getOrganizationMembers,
+  measureDecisionOutcome,
   restoreDecision,
   updateDecisionDetails,
   updateDecisionOverview,
   updateDecisionNotes,
   updateDecisionOutcome,
   updateDecisionLearning,
+  updateDecisionAssignee,
 } from "@/lib/api"
 import {
   getDecisionActivityDotClass,
@@ -80,6 +83,7 @@ import {
   decisionStatusOptions,
   formatDecisionLabel,
   learningDecisionActivity,
+  assigneeDecisionActivity,
   notesDecisionActivity,
   outcomeDecisionActivity,
   overviewDecisionActivity,
@@ -123,6 +127,7 @@ import type {
   DecisionPriority,
   DecisionRecord,
   DecisionStatus,
+  OrganizationMemberRecord,
 } from "@/lib/api"
 
 const inputClass =
@@ -194,6 +199,7 @@ type SaveSection =
   | typeof notesDecisionActivity
   | typeof outcomeDecisionActivity
   | typeof learningDecisionActivity
+  | typeof assigneeDecisionActivity
 
 type SaveError = {
   section: SaveSection
@@ -234,6 +240,8 @@ export default function DecisionPage() {
 
   const [dataset, setDataset] =
     useState<DatasetSummary | null>(null)
+  const [organizationMembers, setOrganizationMembers] =
+    useState<OrganizationMemberRecord[]>([])
 
   const [activities, setActivities] =
     useState<DecisionActivity[]>([])
@@ -317,6 +325,10 @@ export default function DecisionPage() {
   const [originalOutcomeStatus, setOriginalOutcomeStatus] =
     useState<DecisionOutcomeStatusFormValue>("")
 
+  const [assignee, setAssignee] = useState("")
+  const [originalAssignee, setOriginalAssignee] = useState("")
+  const [assigneeSaved, setAssigneeSaved] = useState(false)
+
   const [outcomeSaved, setOutcomeSaved] = useState(false)
   const [outcomeAnalysis, setOutcomeAnalysis] =
     useState<AIAnalysis | null>(null)
@@ -380,6 +392,7 @@ export default function DecisionPage() {
         setDecision(null)
         setLifecycleAccess(null)
         setDataset(null)
+        setOrganizationMembers([])
         setMetricColumns([])
         setMetricsLoading(false)
         setMetricLoadError("")
@@ -436,6 +449,11 @@ export default function DecisionPage() {
           data
         )
 
+        const assignedUser =
+          data.assigned_user_id || data.owner_user_id || userId
+        setAssignee(assignedUser)
+        setOriginalAssignee(assignedUser)
+
         syncLearningFormFromDecision(
           data
         )
@@ -453,6 +471,7 @@ export default function DecisionPage() {
           datasetResult,
           metricsResult,
           lifecycleAccessResult,
+          organizationMembersResult,
         ] = await Promise.allSettled([
           getDataset(
             data.dataset_id,
@@ -466,6 +485,10 @@ export default function DecisionPage() {
           ),
           getDecisionLifecycleAccess(
             data.id,
+            userId,
+            activeWorkspaceId
+          ),
+          getOrganizationMembers(
             userId,
             activeWorkspaceId
           ),
@@ -517,6 +540,10 @@ export default function DecisionPage() {
                 : "Could not load metrics for this decision."
           )
         }
+
+        if (organizationMembersResult.status === "fulfilled") {
+          setOrganizationMembers(organizationMembersResult.value)
+        }
         if (lifecycleAccessResult.status === "fulfilled") {
           setLifecycleAccess(lifecycleAccessResult.value)
         } else {
@@ -562,7 +589,7 @@ export default function DecisionPage() {
   ])
 
   const outcomeAnalysisStatusAndMetric =
-    `${decision?.outcome_status ?? ""}\u001f${metricColumn}`
+    `${decision?.outcome_status ?? ""}\u001f${metricColumn}\u001f${decision?.outcome_measured_at ?? ""}`
 
   useEffect(() => {
     const expectedOutcome =
@@ -577,7 +604,7 @@ export default function DecisionPage() {
       !user?.id ||
       !decision?.id ||
       !expectedOutcome ||
-      (!actualOutcome && !outcomeStatus)
+      (!actualOutcome && !outcomeStatus && !decision?.outcome_measured_at)
     ) {
       queueMicrotask(() => {
         setOutcomeAnalysis(null)
@@ -633,6 +660,7 @@ export default function DecisionPage() {
     decision?.actual_outcome,
     decision?.expected_outcome,
     decision?.id,
+    decision?.outcome_measured_at,
     outcomeAnalysisStatusAndMetric,
     outcomeAnalysisRetryKey,
     user?.id,
@@ -896,6 +924,8 @@ export default function DecisionPage() {
     actualOutcome !== originalActualOutcome ||
     outcomeStatus !== originalOutcomeStatus
 
+  const assigneeChanged = assignee !== originalAssignee
+
   const expectedOutcomeMissing =
     expectedOutcome.trim().length === 0
 
@@ -933,14 +963,7 @@ export default function DecisionPage() {
         activeWorkspaceId
       )
 
-      setDecision(currentDecision =>
-        currentDecision
-          ? {
-              ...currentDecision,
-              metric_column: data.metric_column,
-            }
-          : data
-      )
+      setDecision(data)
       setMetricColumn(data.metric_column ?? "")
       setOriginalMetricColumn(data.metric_column ?? "")
       await loadActivities(
@@ -1203,6 +1226,61 @@ export default function DecisionPage() {
           error,
           "Decision outcome could not be saved."
         ),
+      })
+    } finally {
+      setSavingSection(null)
+    }
+  }
+
+  async function handleMeasureOutcome() {
+    if (!user?.id || !decision) return
+
+    setSavingSection(outcomeDecisionActivity)
+    setSaveError(null)
+    try {
+      const data = await measureDecisionOutcome(
+        decision.id,
+        user.id,
+        activeWorkspaceId
+      )
+      setDecision(data)
+      await loadActivities(data.id, user.id, activeWorkspaceId)
+      showSectionSaved(outcomeDecisionActivity, setOutcomeSaved)
+    } catch (error) {
+      setSaveError({
+        section: outcomeDecisionActivity,
+        message: getSaveErrorMessage(
+          error,
+          "The outcome could not be measured from the linked dataset."
+        ),
+      })
+    } finally {
+      setSavingSection(null)
+    }
+  }
+
+  async function handleSaveAssignee() {
+    if (!user?.id || !decision) return
+
+    setSavingSection(assigneeDecisionActivity)
+    setSaveError(null)
+    try {
+      const data = await updateDecisionAssignee(
+        decision.id,
+        { assigned_user_id: assignee.trim() || null },
+        user.id,
+        activeWorkspaceId
+      )
+      setDecision(data)
+      const nextAssignee = data.assigned_user_id || data.owner_user_id || user.id
+      setAssignee(nextAssignee)
+      setOriginalAssignee(nextAssignee)
+      await loadActivities(data.id, user.id, activeWorkspaceId)
+      showSectionSaved(assigneeDecisionActivity, setAssigneeSaved)
+    } catch (error) {
+      setSaveError({
+        section: assigneeDecisionActivity,
+        message: getSaveErrorMessage(error, "The decision owner could not be updated."),
       })
     } finally {
       setSavingSection(null)
@@ -1957,7 +2035,8 @@ export default function DecisionPage() {
             </p>
 
             {!decision?.actual_outcome?.trim() &&
-              !decision?.outcome_status && (
+              !decision?.outcome_status &&
+              !decision?.outcome_measured_at && (
                 <p className="mt-1 text-xs text-amber-700">
                   Record an actual outcome or outcome status below to generate metric-specific learning.
                 </p>
@@ -2344,6 +2423,24 @@ export default function DecisionPage() {
             </div>
           </Field>
 
+          {(decision.outcome_baseline_value !== null &&
+            decision.outcome_baseline_value !== undefined) && (
+            <div className="mt-4 grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm sm:grid-cols-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-blue-700">Baseline</p>
+                <p className="mt-1 font-semibold text-blue-950">{decision.outcome_baseline_value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-blue-700">Measured</p>
+                <p className="mt-1 font-semibold text-blue-950">{decision.outcome_measured_value?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || "Not available"}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-blue-700">Change</p>
+                <p className="mt-1 font-semibold text-blue-950">{decision.outcome_delta_percent === null || decision.outcome_delta_percent === undefined ? "Not available" : `${decision.outcome_delta_percent >= 0 ? "+" : ""}${decision.outcome_delta_percent.toFixed(1)}%`}</p>
+              </div>
+            </div>
+          )}
+
           <SectionSaveActions
             section={outcomeDecisionActivity}
             savingSection={savingSection}
@@ -2357,6 +2454,16 @@ export default function DecisionPage() {
               <p className="mt-2 text-sm font-medium text-amber-700">
                 Expected outcome is required so this decision keeps a measurable review target.
               </p>
+            )}
+            {!isArchivedDecision && decision.metric_column && (
+              <button
+                type="button"
+                onClick={() => void handleMeasureOutcome()}
+                disabled={decisionIsReadOnly || savingSection !== null}
+                className="mt-3 inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {decision.outcome_measured_at ? "Refresh metric outcome" : "Measure metric outcome"}
+              </button>
             )}
           </SectionSaveActions>
         </DashboardCard>
@@ -2403,6 +2510,51 @@ export default function DecisionPage() {
                   )
                 )}
               </select>
+            </Field>
+
+            <Field label="Decision owner">
+              <select
+                aria-label="Decision owner"
+                value={assignee}
+                disabled={decisionIsReadOnly || isArchivedDecision}
+                onChange={event => {
+                  clearSaveErrorForSection(assigneeDecisionActivity)
+                  setAssigneeSaved(false)
+                  setAssignee(event.target.value)
+                }}
+                className={inputClass}
+              >
+                <option value={user?.id || assignee}>
+                  {user?.fullName || "You"} (current user)
+                </option>
+                {organizationMembers
+                  .filter(member => member.clerk_user_id !== user?.id)
+                  .map(member => (
+                    <option key={member.id} value={member.clerk_user_id}>
+                      {member.email || member.clerk_user_id} ({member.role})
+                    </option>
+                  ))}
+                {assignee &&
+                  assignee !== user?.id &&
+                  !organizationMembers.some(
+                    member => member.clerk_user_id === assignee
+                  ) && (
+                    <option value={assignee}>Assigned user</option>
+                  )}
+              </select>
+              <button
+                type="button"
+                onClick={() => void handleSaveAssignee()}
+                disabled={
+                  decisionIsReadOnly ||
+                  isArchivedDecision ||
+                  !assigneeChanged ||
+                  savingSection === assigneeDecisionActivity
+                }
+                className="mt-2 inline-flex items-center rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:border-blue-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {assigneeSaved ? "Owner saved" : "Save owner"}
+              </button>
             </Field>
 
             <Field label="Priority">
@@ -2551,7 +2703,8 @@ export default function DecisionPage() {
         !outcomeAnalysis &&
         decision.expected_outcome?.trim() &&
         !decision.actual_outcome?.trim() &&
-        !decision.outcome_status && (
+        !decision.outcome_status &&
+        !decision.outcome_measured_at && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
             <p className="font-semibold">
               Metric-specific outcome review is pending

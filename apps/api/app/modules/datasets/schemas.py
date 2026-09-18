@@ -164,6 +164,39 @@ class DatasetMultiMetricAnalysisRequest(BaseModel):
     ] = "monthly"
 
 
+EntityType = Literal["customer", "product"]
+
+
+class EntityMatchingRequest(BaseModel):
+    dataset_ids: List[int] = Field(
+        min_length=2,
+        max_length=10,
+    )
+    entity_type: EntityType
+    key_columns: Dict[str, List[str]] = Field(default_factory=dict)
+    replace_existing: bool = True
+
+
+class EntityMatchingPreviewResponse(BaseModel):
+    entity_type: EntityType
+    datasets: list[dict]
+    candidate_row_count: int
+    matched_group_count: int
+    matched_row_count: int
+    unmatched_row_count: int
+
+
+class EntityMatchingRunResponse(BaseModel):
+    entity_type: EntityType
+    dataset_count: int
+    source_row_count: int
+    matched_row_count: int
+    unmatched_row_count: int
+    canonical_entity_count: int
+    confidence_breakdown: dict[str, int]
+    entities: list[dict]
+
+
 class DataSourceConnectionCreate(BaseModel):
     source_type: str
     display_name: str | None = None

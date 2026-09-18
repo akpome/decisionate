@@ -46,6 +46,11 @@ class BillingStatusResponse(BaseModel):
     annual_ai_credit_limit: int = 0
     ai_credits_used: int = 0
     ai_credits_remaining: int = 0
+    ai_credit_pool_workspace_id: str = ""
+    ai_credit_topup_credits: int = 0
+    ai_credit_low_balance: bool = False
+    ai_credit_low_balance_threshold: int = 0
+    ai_credit_topup_configured: bool = False
     access_status: str = "untracked"
     access_allowed: bool = True
     requires_billing_action: bool = False
@@ -92,3 +97,14 @@ class BillingCheckoutResponse(BaseModel):
 
 class BillingPortalResponse(BaseModel):
     portal_url: str
+
+
+class AICreditTopupRequest(BaseModel):
+    credit_packs: int
+
+
+class AICreditTopupResponse(BaseModel):
+    checkout_url: str
+    session_id: str
+    credit_packs: int
+    credits: int

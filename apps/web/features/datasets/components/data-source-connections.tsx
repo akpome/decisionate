@@ -26,9 +26,13 @@ export const REQUIRED_CONNECTION_CONFIG_KEYS: Record<
   string[]
 > = {
   google_analytics: ["property_id"],
+  google_search_console: ["site_url"],
   google_ads: ["customer_id"],
   stripe: ["api_key"],
   shopify: ["shop_domain"],
+  square: ["location_id"],
+  woocommerce: ["store_url", "consumer_key", "consumer_secret"],
+  lightspeed: ["account_id"],
   meta_ads: ["ad_account_id"],
 }
 
@@ -530,10 +534,14 @@ function DataSourceConnectionRow({
   const canSyncConnector =
     [
       "google_analytics",
+      "google_search_console",
       "google_ads",
       "hubspot",
       "stripe",
       "shopify",
+      "square",
+      "woocommerce",
+      "lightspeed",
       "meta_ads",
       "quickbooks",
       "freshbooks",
@@ -1196,6 +1204,11 @@ function DataSourceConnectionRow({
                   setEditingConnectionConfig
                 }
                 secret={connection.source_type === "stripe"}
+                secretKeys={
+                  connection.source_type === "woocommerce"
+                    ? ["consumer_key", "consumer_secret"]
+                    : []
+                }
               />
 
               {connection.source_type === "meta_ads" && (
@@ -1299,9 +1312,11 @@ type ConnectionFieldGuide = {
 const VISIBILITY_TOGGLE_SOURCE_TYPES = new Set([
   "shopify",
   "google_analytics",
+  "google_search_console",
   "google_ads",
   "meta_ads",
   "stripe",
+  "woocommerce",
 ])
 
 const FRESHBOOKS_RESOURCE_OPTIONS = [
@@ -1549,6 +1564,12 @@ const CONNECTION_FIELD_GUIDES: Record<
       example: "123456789",
     },
   },
+  google_search_console: {
+    site_url: {
+      description: "The verified Search Console property URL, or an sc-domain property.",
+      example: "https://www.example.com/ or sc-domain:example.com",
+    },
+  },
   google_ads: {
     customer_id: {
       description: "The 10-digit Google Ads customer account ID to query. Hyphens are accepted and removed automatically.",
@@ -1651,6 +1672,32 @@ const CONNECTION_FIELD_GUIDES: Record<
     shop_domain: {
       description: "The Shopify store domain used for OAuth authorization.",
       example: "your-store.myshopify.com",
+    },
+  },
+  square: {
+    location_id: {
+      description: "The Square location ID whose orders should be imported.",
+      example: "L88917AVBK2S5",
+    },
+  },
+  woocommerce: {
+    store_url: {
+      description: "The HTTPS URL of the WooCommerce store. Do not include API credentials in the URL.",
+      example: "https://shop.example.com",
+    },
+    consumer_key: {
+      description: "A WooCommerce REST API consumer key with read access.",
+      example: "ck_...",
+    },
+    consumer_secret: {
+      description: "The matching WooCommerce REST API consumer secret. It is encrypted before storage.",
+      example: "cs_...",
+    },
+  },
+  lightspeed: {
+    account_id: {
+      description: "The Lightspeed Retail account identifier used by the API.",
+      example: "123456",
     },
   },
   freshbooks: {
@@ -1886,6 +1933,7 @@ function ConnectionConfigField({
     secret ||
     secretKeys?.includes(configKey) ||
     (hasSavedConfig &&
+    sourceType !== "woocommerce" &&
     VISIBILITY_TOGGLE_SOURCE_TYPES.has(
       sourceType ?? ""
     ))
@@ -2401,6 +2449,24 @@ function formatConnectionConfigLabel(
       return "Customer account ID"
     }
 
+  }
+
+  if (sourceType === "google_search_console" && key === "site_url") {
+    return "Search Console property"
+  }
+
+  if (sourceType === "square" && key === "location_id") {
+    return "Location ID"
+  }
+
+  if (sourceType === "woocommerce") {
+    if (key === "store_url") return "Store URL"
+    if (key === "consumer_key") return "Consumer key"
+    if (key === "consumer_secret") return "Consumer secret"
+  }
+
+  if (sourceType === "lightspeed" && key === "account_id") {
+    return "Account ID"
   }
 
   return formatConnectionConfigKey(key)

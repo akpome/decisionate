@@ -31,11 +31,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.database import SessionLocal
+from app.db.models import CanonicalEntity
 from app.db.models import DataSourceConnection
 from app.db.models import DashboardShare
 from app.db.models import Dataset
 from app.db.models import DatasetJoinCache
 from app.db.models import DatasetRelationship
+from app.db.models import EntityIdentity
 from app.db.models import UserPreference
 from app.db.models import WeeklyReportPreference
 from app.db.models import utc_now
@@ -54,6 +56,9 @@ from app.modules.datasets.schemas import DatasetSignedUrlImport
 from app.modules.datasets.schemas import DatasetJoinRequest
 from app.modules.datasets.schemas import DatasetRelationshipRequest
 from app.modules.datasets.schemas import DatasetMultiMetricAnalysisRequest
+from app.modules.datasets.schemas import EntityMatchingPreviewResponse
+from app.modules.datasets.schemas import EntityMatchingRequest
+from app.modules.datasets.schemas import EntityMatchingRunResponse
 
 from app.modules.datasets.services.dataset_loader import (
     load_dataset,
@@ -136,6 +141,10 @@ from app.modules.datasets.services.multi_metric_analysis import (
     build_multi_metric_analysis,
     generate_multi_metric_ai_analysis,
 )
+from app.modules.datasets.services.entity_resolution import (
+    build_entity_resolution,
+    confidence_bucket,
+)
 from app.modules.datasets.services.source_metadata import (
     build_connector_dataset_filename,
     build_dataset_source_metadata,
@@ -163,6 +172,8 @@ from app.modules.datasets.services.connectors import (
     DATABASE_ENCRYPTED_PASSWORD_CONFIGS,
     POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG,
     STRIPE_ENCRYPTED_API_KEY_CONFIG,
+    WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG,
+    WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG,
     load_connector_dataframe,
     normalize_hubspot_resource_types,
     normalize_salesforce_resource_type,
@@ -216,6 +227,10 @@ CONNECTOR_DEDUP_KEYS = {
     "hubspot": ["record_id"],
     "stripe": ["charge_id"],
     "shopify": ["order_id"],
+    "google_search_console": ["date", "query", "page"],
+    "square": ["order_id"],
+    "woocommerce": ["order_id"],
+    "lightspeed": ["sale_id"],
     "meta_ads": ["date_start", "campaign_id"],
     "google_ads": ["date", "campaign_id"],
     "quickbooks": ["record_id"],
@@ -841,6 +856,12 @@ def build_source_connection_response(
         has_config = bool(
             parsed_config.get(STRIPE_ENCRYPTED_API_KEY_CONFIG)
         )
+    if source_type == "woocommerce":
+        has_config = bool(
+            parsed_config.get("store_url")
+            and parsed_config.get(WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG)
+            and parsed_config.get(WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG)
+        )
     required_config_keys, configured_config_keys, missing_config_keys = (
         get_source_connection_config_status(
             source,
@@ -1062,6 +1083,22 @@ def get_source_connection_config_status(
             configured_value = normalize_shop_domain(
                 configured_value
             )
+        elif (
+            source
+            and source.get("type") == "woocommerce"
+            and config_key == "consumer_key"
+        ):
+            configured_value = parsed_config.get(
+                WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG
+            )
+        elif (
+            source
+            and source.get("type") == "woocommerce"
+            and config_key == "consumer_secret"
+        ):
+            configured_value = parsed_config.get(
+                WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG
+            )
         if has_config_value(configured_value):
             configured_config_keys.append(config_key)
 
@@ -1090,6 +1127,12 @@ def require_source_connection_sync_config(connection):
         "api_key": "the customer-provided API key",
         "property_id": "the GA4 property ID",
         "shop_domain": "the Shopify shop domain",
+        "site_url": "the Google Search Console property URL",
+        "location_id": "the Square location ID",
+        "store_url": "the WooCommerce HTTPS store URL",
+        "consumer_key": "the WooCommerce consumer key",
+        "consumer_secret": "the WooCommerce consumer secret",
+        "account_id": "the Lightspeed account ID",
         "ad_account_id": "the Meta Ads account ID",
         "customer_id": "the Google Ads customer ID",
         "host": "the database host",
@@ -1382,7 +1425,11 @@ def protect_source_connection_config(
 ):
     """Encrypt customer-provided connector secrets before persistence."""
     parsed_config = parse_source_connection_config(connection_config)
-    if source_type not in {"stripe", *DATABASE_CONNECTOR_TYPES}:
+    if source_type not in {
+        "stripe",
+        "woocommerce",
+        *DATABASE_CONNECTOR_TYPES,
+    }:
         return (
             json.dumps(parsed_config, sort_keys=True)
             if parsed_config
@@ -1392,6 +1439,27 @@ def protect_source_connection_config(
     if source_type == "stripe":
         secret = str(parsed_config.pop("api_key", "") or "").strip()
         encrypted_config_key = STRIPE_ENCRYPTED_API_KEY_CONFIG
+    elif source_type == "woocommerce":
+        consumer_key = str(parsed_config.pop("consumer_key", "") or "").strip()
+        consumer_secret = str(
+            parsed_config.pop("consumer_secret", "") or ""
+        ).strip()
+        try:
+            if consumer_key:
+                parsed_config[WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG] = (
+                    encrypt_token(consumer_key)
+                )
+            if consumer_secret:
+                parsed_config[WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG] = (
+                    encrypt_token(consumer_secret)
+                )
+        except OAuthProviderUnavailable as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
+        return (
+            json.dumps(parsed_config, sort_keys=True)
+            if parsed_config
+            else None
+        )
     else:
         secret = str(parsed_config.pop("password", "") or "").strip()
         encrypted_config_key = DATABASE_ENCRYPTED_PASSWORD_CONFIGS[source_type]
@@ -2007,6 +2075,214 @@ async def analyze_multiple_dataset_metrics(
             status_code=400,
             detail=str(error),
         ) from error
+    finally:
+        db.close()
+
+
+def _load_entity_matching_frames(
+    db,
+    dataset_ids: list[int],
+    user_id: str,
+    workspace_id: str,
+):
+    frames = []
+    for dataset_id in list(dict.fromkeys(dataset_ids)):
+        dataset, dataframe = load_dataframe(
+            db,
+            dataset_id,
+            apply_metric_selection=False,
+        )
+        verify_dataset_owner(dataset, user_id, workspace_id)
+        frames.append((dataset, dataframe))
+    return frames
+
+
+@router.post(
+    "/entity-matching/preview",
+    response_model=EntityMatchingPreviewResponse,
+)
+async def preview_entity_matching(
+    request: Request,
+    payload: EntityMatchingRequest,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(request, user_id)
+    if len(set(payload.dataset_ids)) != len(payload.dataset_ids):
+        raise HTTPException(
+            status_code=400,
+            detail="Each dataset can only be selected once",
+        )
+
+    db = SessionLocal()
+    try:
+        frames = _load_entity_matching_frames(
+            db,
+            payload.dataset_ids,
+            user_id,
+            workspace_id,
+        )
+        return await asyncio.to_thread(
+            build_entity_resolution,
+            frames,
+            payload.entity_type,
+            payload.key_columns,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    finally:
+        db.close()
+
+
+@router.post(
+    "/entity-matching/run",
+    response_model=EntityMatchingRunResponse,
+)
+async def run_entity_matching(
+    request: Request,
+    payload: EntityMatchingRequest,
+):
+    require_workspace_data_manager(request)
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(request, user_id)
+    if len(set(payload.dataset_ids)) != len(payload.dataset_ids):
+        raise HTTPException(
+            status_code=400,
+            detail="Each dataset can only be selected once",
+        )
+
+    db = SessionLocal()
+    try:
+        frames = _load_entity_matching_frames(
+            db,
+            payload.dataset_ids,
+            user_id,
+            workspace_id,
+        )
+        result = await asyncio.to_thread(
+            build_entity_resolution,
+            frames,
+            payload.entity_type,
+            payload.key_columns,
+        )
+
+        if payload.replace_existing:
+            db.query(EntityIdentity).filter(
+                EntityIdentity.workspace_id == workspace_id,
+                EntityIdentity.entity_type == payload.entity_type,
+            ).delete(synchronize_session=False)
+            db.query(CanonicalEntity).filter(
+                CanonicalEntity.workspace_id == workspace_id,
+                CanonicalEntity.entity_type == payload.entity_type,
+            ).delete(synchronize_session=False)
+
+        confidence_breakdown = {"high": 0, "medium": 0, "review": 0}
+        response_entities = []
+        for entity in result["entities"]:
+            canonical = CanonicalEntity(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                entity_type=payload.entity_type,
+                canonical_key=entity["canonical_key"],
+                display_name=entity["display_name"],
+                attributes=json.dumps({"keys": entity["keys"]}),
+                source_count=entity["source_count"],
+                match_count=entity["match_count"],
+                confidence=entity["confidence"],
+                created_at=utc_now(),
+                updated_at=utc_now(),
+            )
+            db.add(canonical)
+            db.flush()
+            confidence_breakdown[confidence_bucket(entity["confidence"])] += 1
+
+            source_rows = []
+            for record in entity["records"]:
+                primary = record["primary"]
+                db.add(EntityIdentity(
+                    canonical_entity_id=canonical.id,
+                    workspace_id=workspace_id,
+                    user_id=user_id,
+                    entity_type=payload.entity_type,
+                    dataset_id=record["dataset_id"],
+                    source_type=record["source_type"],
+                    source_row_key=record["source_row_key"],
+                    source_field=primary["column"],
+                    source_value=primary["value"],
+                    match_method=primary["kind"],
+                    confidence=entity["confidence"],
+                    reviewed=False,
+                    created_at=utc_now(),
+                ))
+                source_rows.append({
+                    "dataset_id": record["dataset_id"],
+                    "file_name": record["file_name"],
+                    "row": record["row_number"],
+                    "field": primary["column"],
+                    "value": primary["value"],
+                    "method": primary["kind"],
+                })
+
+            response_entities.append({
+                "id": canonical.id,
+                "canonical_key": canonical.canonical_key,
+                "display_name": canonical.display_name,
+                "confidence": entity["confidence"],
+                "source_count": entity["source_count"],
+                "match_count": entity["match_count"],
+                "sources": source_rows[:10],
+            })
+
+        db.commit()
+        return {
+            "entity_type": payload.entity_type,
+            "dataset_count": len(frames),
+            "source_row_count": sum(
+                int(dataset.row_count or 0) for dataset, _ in frames
+            ),
+            "matched_row_count": result["matched_row_count"],
+            "unmatched_row_count": result["unmatched_row_count"],
+            "canonical_entity_count": len(response_entities),
+            "confidence_breakdown": confidence_breakdown,
+            "entities": response_entities[:100],
+        }
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    finally:
+        db.close()
+
+
+@router.get("/entities")
+async def get_canonical_entities(
+    request: Request,
+    entity_type: Literal["customer", "product"] | None = Query(None),
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(request, user_id)
+    db = SessionLocal()
+    try:
+        query = db.query(CanonicalEntity).filter(
+            CanonicalEntity.workspace_id == workspace_id,
+        )
+        if entity_type:
+            query = query.filter(CanonicalEntity.entity_type == entity_type)
+        entities = query.order_by(
+            CanonicalEntity.updated_at.desc(),
+            CanonicalEntity.id.desc(),
+        ).limit(500).all()
+        return [
+            {
+                "id": entity.id,
+                "entity_type": entity.entity_type,
+                "canonical_key": entity.canonical_key,
+                "display_name": entity.display_name,
+                "source_count": entity.source_count,
+                "match_count": entity.match_count,
+                "confidence": entity.confidence,
+                "updated_at": entity.updated_at,
+            }
+            for entity in entities
+        ]
     finally:
         db.close()
 
@@ -2815,6 +3091,18 @@ async def update_source_connection(
                 and "api_key" not in next_config
             ):
                 next_config.pop(STRIPE_ENCRYPTED_API_KEY_CONFIG, None)
+            if (
+                connection.source_type == "woocommerce"
+                and payload.connection_config == {}
+            ):
+                next_config.pop(
+                    WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG,
+                    None,
+                )
+                next_config.pop(
+                    WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG,
+                    None,
+                )
             if (
                 connection.source_type in DATABASE_CONNECTOR_TYPES
                 and payload.connection_config == {}

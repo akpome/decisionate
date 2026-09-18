@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { useUser } from "@clerk/nextjs"
-import { CreditCard, ExternalLink } from "lucide-react"
+import { CreditCard, ExternalLink, Plus } from "lucide-react"
 
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import {
+  createAICreditTopup,
   createBillingCheckout,
   createBillingPortal,
   getBillingStatus,
@@ -54,6 +55,7 @@ function BillingPageContent() {
     useState(0)
   const [additionalAICreditPacks, setAdditionalAICreditPacks] =
     useState(0)
+  const [topupCreditPacks, setTopupCreditPacks] = useState(1)
 
   useEffect(() => {
     if (
@@ -155,6 +157,23 @@ function BillingPageContent() {
     }
   }
 
+  async function startAICreditTopup() {
+    if (!user?.id) return
+    setBusy(true)
+    setError("")
+    try {
+      const result = await createAICreditTopup(
+        user.id,
+        activeWorkspaceId,
+        topupCreditPacks
+      )
+      window.location.assign(result.checkout_url)
+    } catch (topupError) {
+      setError(getErrorMessage(topupError))
+      setBusy(false)
+    }
+  }
+
   if (loadingWorkspaceAccess) {
     return (
       <div className="space-y-6">
@@ -242,6 +261,59 @@ function BillingPageContent() {
             />
           </div>
         ) : null}
+
+        {!loading && billing && (
+          <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="font-semibold text-gray-900">AI credit pool</p>
+                <p className="mt-1 text-sm text-gray-600">
+                  {billing.billing_model === "agency"
+                    ? "Agency and client workspaces draw from this shared balance."
+                    : "Purchase additional credits whenever your workspace needs them."}
+                </p>
+                {billing.ai_credit_low_balance && (
+                  <p className="mt-2 text-sm font-medium text-amber-800">
+                    Your AI credit balance is running low. Add credits to keep analysis available.
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="text-xs font-medium text-gray-600">
+                  Packs to purchase
+                  <input
+                    type="number"
+                    min="1"
+                    value={topupCreditPacks}
+                    onChange={event => setTopupCreditPacks(
+                      Math.max(1, Number(event.target.value) || 1)
+                    )}
+                    className="mt-1 block w-36 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void startAICreditTopup()
+                  }}
+                  disabled={busy || !billing.ai_credit_topup_configured}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Plus size={16} />
+                  {busy ? "Opening..." : "Top up AI credits"}
+                </button>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-gray-500">
+              Each pack adds {billing.ai_credit_pack_size.toLocaleString()} credits. There is no workspace limit on the number of packs purchased.
+            </p>
+            {!billing.ai_credit_topup_configured && (
+              <p className="mt-2 text-xs text-amber-700">
+                AI credit top-ups are not configured on this server yet.
+              </p>
+            )}
+          </div>
+        )}
 
         {!loading && billing && billing.requires_billing_action && (
           <div
@@ -448,10 +520,9 @@ function BillingPageContent() {
               <input
                 type="number"
                 min="0"
-                max="100"
                 value={additionalAICreditPacks}
                 onChange={event => setAdditionalAICreditPacks(
-                  Math.max(0, Math.min(100, Number(event.target.value) || 0))
+                  Math.max(0, Number(event.target.value) || 0)
                 )}
                 disabled={!billing.ai_credit_pack_configured || billingInterval === "year"}
                 className="mt-1 block w-32 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 disabled:cursor-not-allowed disabled:bg-gray-100"

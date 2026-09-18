@@ -6,6 +6,7 @@ from sqlalchemy import (
     String,
     Text,
     DateTime,
+    Float,
 )
 
 from app.db.database import Base
@@ -34,6 +35,12 @@ class Decision(Base):
     clerk_user_id = Column(
         String,
         nullable=False,
+        index=True,
+    )
+
+    assigned_user_id = Column(
+        String,
+        nullable=True,
         index=True,
     )
 
@@ -94,6 +101,26 @@ class Decision(Base):
         Text,
     )
 
+    outcome_baseline_value = Column(
+        Float,
+        nullable=True,
+    )
+
+    outcome_measured_value = Column(
+        Float,
+        nullable=True,
+    )
+
+    outcome_delta_percent = Column(
+        Float,
+        nullable=True,
+    )
+
+    outcome_measured_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
     outcome_status = Column(
         String,
     )
@@ -128,5 +155,5 @@ class Decision(Base):
 
     @property
     def owner_user_id(self) -> str:
-        """Decision owner retained in the existing internal creator field."""
-        return self.clerk_user_id
+        """Return the assignee, falling back to the decision creator."""
+        return self.assigned_user_id or self.clerk_user_id

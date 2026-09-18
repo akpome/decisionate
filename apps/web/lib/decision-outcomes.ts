@@ -31,7 +31,8 @@ export function hasRecordedOutcome(
     hasMeaningfulText(decision.expected_outcome) &&
     (
       hasMeaningfulText(decision.outcome_status) ||
-      hasMeaningfulText(decision.actual_outcome)
+      hasMeaningfulText(decision.actual_outcome) ||
+      Boolean(decision.outcome_measured_at)
     )
   )
 }

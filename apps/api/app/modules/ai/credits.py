@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from math import ceil
 
@@ -19,12 +20,19 @@ from app.modules.billing.service import (
 )
 from app.modules.billing.lifecycle import (
     build_subscription_access_state,
+    resolve_billing_workspace_id,
     subscription_access_error,
+)
+from app.modules.billing.notifications import (
+    send_ai_credit_low_balance_notification,
 )
 
 
 AI_CREDITS_PER_1000_TOKENS = 1
 AI_TRIAL_PERIOD_DAYS = 30
+AI_CREDIT_LOW_BALANCE_RATIO = 0.20
+
+logger = logging.getLogger(__name__)
 
 
 class AICreditLimitExceeded(RuntimeError):
@@ -123,6 +131,7 @@ def _rollover_period_if_needed(
     subscription.current_period_start = period_start
     subscription.current_period_end = period_end
     subscription.ai_credits_used = 0
+    subscription.ai_credit_low_notice_key = None
 
 
 def _get_credit_limit(
@@ -148,6 +157,10 @@ def _get_credit_limit(
         int(subscription.additional_ai_credit_packs or 0),
         0,
     )
+    purchased_credits = max(
+        int(subscription.ai_credit_topup_credits or 0),
+        0,
+    )
     additional_workspaces = max(
         int(subscription.additional_client_workspaces or 0),
         0,
@@ -164,7 +177,56 @@ def _get_credit_limit(
         plan_limit
         + additional_workspaces * additional_workspace_credits
         + additional_packs * get_ai_credit_pack_size()
+        + purchased_credits
     )
+
+
+def get_ai_credit_low_balance_threshold(
+    credit_limit: int | None,
+) -> int:
+    clean_limit = max(int(credit_limit or 0), 0)
+    if clean_limit <= 0:
+        return 0
+    return max(1, ceil(clean_limit * AI_CREDIT_LOW_BALANCE_RATIO))
+
+
+def _maybe_notify_low_balance(
+    db,
+    subscription,
+    remaining_credits: int,
+    credit_limit: int | None,
+):
+    clean_limit = max(int(credit_limit or 0), 0)
+    threshold = get_ai_credit_low_balance_threshold(clean_limit)
+    if not threshold or remaining_credits > threshold:
+        return
+
+    period_key = (
+        subscription.current_period_start.isoformat()
+        if subscription.current_period_start
+        else "current"
+    )
+    notice_key = f"{period_key}:{clean_limit}"
+    if subscription.ai_credit_low_notice_key == notice_key:
+        return
+
+    try:
+        sent = send_ai_credit_low_balance_notification(
+            db,
+            subscription,
+            remaining_credits,
+            clean_limit,
+        )
+        if sent:
+            subscription.ai_credit_low_notice_key = notice_key
+            db.commit()
+    except Exception as error:
+        db.rollback()
+        logger.warning(
+            "AI credit low-balance notification failed for %s: %s",
+            subscription.workspace_id,
+            error,
+        )
 
 
 def _ensure_usable_subscription(
@@ -175,6 +237,8 @@ def _ensure_usable_subscription(
         db,
         workspace_id,
     )
+
+    _rollover_period_if_needed(subscription)
 
     access_state = build_subscription_access_state(subscription)
     if not access_state.access_allowed:
@@ -202,9 +266,12 @@ def reserve_ai_credits(
     db = SessionLocal()
 
     try:
+        billing_workspace_id = resolve_billing_workspace_id(
+            clean_workspace_id,
+        )
         subscription = _ensure_usable_subscription(
             db,
-            clean_workspace_id,
+            billing_workspace_id,
         )
         credit_limit = _get_credit_limit(subscription)
         current_usage = max(
@@ -216,8 +283,15 @@ def reserve_ai_credits(
             credit_limit is not None
             and current_usage + estimated_credits > credit_limit
         ):
+            limit_message = (
+                "The agency's shared AI credit pool has been exhausted. "
+                "Top up AI credits to continue."
+                if ":client:" in clean_workspace_id
+                else "This workspace has reached its AI credit limit. "
+                "Add AI credits or upgrade the plan to continue."
+            )
             raise AICreditLimitExceeded(
-                "This workspace has reached its AI credit limit. Add AI credit packs or upgrade the plan to continue."
+                limit_message
             )
 
         subscription.ai_credits_used = (
@@ -239,6 +313,13 @@ def reserve_ai_credits(
         db.add(usage_event)
         db.commit()
         db.refresh(usage_event)
+
+        _maybe_notify_low_balance(
+            db,
+            subscription,
+            max(credit_limit - int(subscription.ai_credits_used or 0), 0),
+            credit_limit,
+        )
 
         return {
             "id": usage_event.id,
@@ -295,7 +376,7 @@ def settle_ai_credits(
             db.query(WorkspaceSubscription)
             .filter(
                 WorkspaceSubscription.workspace_id
-                == usage_event.workspace_id,
+                == resolve_billing_workspace_id(usage_event.workspace_id),
             )
             .first()
         )
@@ -305,6 +386,16 @@ def settle_ai_credits(
                 - int(usage_event.estimated_credits or 0)
                 + actual_credits,
                 0,
+            )
+            _maybe_notify_low_balance(
+                db,
+                subscription,
+                max(
+                    _get_credit_limit(subscription)
+                    - int(subscription.ai_credits_used or 0),
+                    0,
+                ),
+                _get_credit_limit(subscription),
             )
 
         usage_event.status = "completed"
@@ -338,7 +429,7 @@ def release_ai_credits(
             db.query(WorkspaceSubscription)
             .filter(
                 WorkspaceSubscription.workspace_id
-                == usage_event.workspace_id,
+                == resolve_billing_workspace_id(usage_event.workspace_id),
             )
             .first()
         )

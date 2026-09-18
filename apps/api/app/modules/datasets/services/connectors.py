@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import importlib
 import json
 import os
@@ -7,7 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 import re
 from time import sleep
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlparse
+from urllib.parse import quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import pandas as pd
@@ -33,6 +34,8 @@ PAGE_SIZE = 100
 # early so several heartbeat attempts remain available before expiry.
 OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(hours=1)
 STRIPE_ENCRYPTED_API_KEY_CONFIG = "_stripe_api_key_encrypted"
+WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG = "_woocommerce_consumer_key_encrypted"
+WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG = "_woocommerce_consumer_secret_encrypted"
 POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG = "_postgresql_password_encrypted"
 MYSQL_ENCRYPTED_PASSWORD_CONFIG = "_mysql_password_encrypted"
 SQL_SERVER_ENCRYPTED_PASSWORD_CONFIG = "_sql_server_password_encrypted"
@@ -902,6 +905,13 @@ def load_connector_dataframe(
     hubspot_resource_type: str | None = None,
     salesforce_resource_type: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
+    if connection.source_type == "google_search_console":
+        return load_google_search_console_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+        )
     if connection.source_type == "google_ads":
         return load_google_ads_dataframe(
             db,
@@ -933,6 +943,26 @@ def load_connector_dataframe(
         )
     if connection.source_type == "shopify":
         return load_shopify_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+        )
+    if connection.source_type == "square":
+        return load_square_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+        )
+    if connection.source_type == "woocommerce":
+        return load_woocommerce_dataframe(
+            connection,
+            start_date,
+            end_date,
+        )
+    if connection.source_type == "lightspeed":
+        return load_lightspeed_dataframe(
             db,
             connection,
             start_date,
@@ -1550,6 +1580,419 @@ def load_shopify_dataframe(
     return dataframe, {
         "connector": "shopify",
         "resource": "orders",
+        "start_date": date_value(start_date),
+        "end_date": date_value(end_date),
+        "row_count": len(dataframe),
+    }
+
+
+def load_google_search_console_dataframe(
+    db,
+    connection: DataSourceConnection,
+    start_date=None,
+    end_date=None,
+) -> tuple[pd.DataFrame, dict]:
+    config = parse_connection_config(connection)
+    site_url = str(config.get("site_url") or "").strip()
+    if not site_url:
+        raise ConnectorUnavailable(
+            "Configure a Google Search Console property URL before syncing"
+        )
+    if not site_url.startswith("sc-domain:"):
+        parsed_site_url = urlparse(site_url)
+        if parsed_site_url.scheme not in {"http", "https"} or not parsed_site_url.netloc:
+            raise ConnectorUnavailable(
+                "Google Search Console site_url must be a URL-prefix property "
+                "or an sc-domain property"
+            )
+
+    access_token = get_oauth_access_token(
+        db,
+        connection,
+        "google_search_console",
+    )
+    api_base_url = require_provider_url("GOOGLE_SEARCH_CONSOLE_API_BASE_URL")
+    since = start_date or date.today() - timedelta(days=365)
+    until = end_date or date.today()
+    query_url = (
+        f"{api_base_url}/sites/{quote(site_url, safe='')}"
+        "/searchAnalytics/query"
+    )
+    payload = connector_json_post_request(
+        query_url,
+        headers={"Authorization": f"Bearer {access_token}"},
+        payload={
+            "startDate": since.isoformat(),
+            "endDate": until.isoformat(),
+            "dimensions": ["date", "query", "page"],
+            "rowLimit": 25_000,
+            "startRow": 0,
+        },
+    )
+    records = payload.get("rows") or []
+    if not isinstance(records, list):
+        raise ConnectorUnavailable(
+            "Google Search Console returned an invalid Search Analytics response"
+        )
+
+    rows = []
+    dimensions = ["date", "query", "page"]
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        keys = record.get("keys")
+        if not isinstance(keys, list):
+            keys = []
+        normalized_row = {
+            dimension: keys[index] if index < len(keys) else None
+            for index, dimension in enumerate(dimensions)
+        }
+        normalized_row.update(
+            {
+                "clicks": record.get("clicks"),
+                "impressions": record.get("impressions"),
+                "ctr": record.get("ctr"),
+                "position": record.get("position"),
+            }
+        )
+        rows.append(
+            build_dynamic_connector_row(
+                record,
+                normalized_row,
+            )
+        )
+
+    dataframe = pd.DataFrame(rows)
+    return dataframe, {
+        "connector": "google_search_console",
+        "resource": "search_analytics",
+        "site_url": site_url,
+        "dimensions": dimensions,
+        "start_date": since.isoformat(),
+        "end_date": until.isoformat(),
+        "row_count": len(dataframe),
+    }
+
+
+def square_money_amount(value):
+    if not isinstance(value, dict):
+        return None
+    amount = value.get("amount")
+    if amount is None:
+        return None
+    try:
+        return float(amount) / 100
+    except (TypeError, ValueError):
+        return amount
+
+
+def load_square_dataframe(
+    db,
+    connection: DataSourceConnection,
+    start_date=None,
+    end_date=None,
+) -> tuple[pd.DataFrame, dict]:
+    config = parse_connection_config(connection)
+    location_id = str(config.get("location_id") or "").strip()
+    if not location_id:
+        raise ConnectorUnavailable(
+            "Configure a Square location ID before syncing"
+        )
+
+    access_token = get_oauth_access_token(db, connection, "square")
+    api_base_url = require_provider_url("SQUARE_API_BASE_URL")
+    api_version = get_provider_setting("SQUARE_API_VERSION")
+    if not api_version:
+        raise ConnectorUnavailable(
+            "SQUARE_API_VERSION is required for the Square connector"
+        )
+    since = start_date or date.today() - timedelta(days=365)
+    until = end_date or date.today()
+    start_at = f"{since.isoformat()}T00:00:00Z"
+    end_at = f"{until.isoformat()}T23:59:59Z"
+    next_cursor = None
+    rows = []
+    seen_cursors = set()
+    while True:
+        request_payload = {
+            "limit": PAGE_SIZE,
+            "return_entries": False,
+            "location_ids": [location_id],
+            "query": {
+                "filter": {
+                    "date_time_filter": {
+                        "closed_at": {
+                            "start_at": start_at,
+                            "end_at": end_at,
+                        }
+                    }
+                },
+                "sort": {
+                    "sort_field": "CLOSED_AT",
+                    "sort_order": "ASC",
+                },
+            },
+        }
+        if next_cursor:
+            request_payload["cursor"] = next_cursor
+        payload = connector_json_post_request(
+            f"{api_base_url}/v2/orders/search",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Square-Version": api_version,
+            },
+            payload=request_payload,
+        )
+        orders = payload.get("orders")
+        if orders is None:
+            orders = []
+        if not isinstance(orders, list):
+            raise ConnectorUnavailable("Square returned an invalid orders response")
+        for order in orders:
+            if not isinstance(order, dict):
+                continue
+            line_items = order.get("line_items")
+            net_amounts = order.get("net_amounts")
+            normalized_row = {
+                "order_id": order.get("id"),
+                "location_id": order.get("location_id") or location_id,
+                "created_at": order.get("created_at"),
+                "updated_at": order.get("updated_at"),
+                "closed_at": order.get("closed_at"),
+                "state": order.get("state"),
+                "currency": (
+                    order.get("total_money", {}).get("currency")
+                    if isinstance(order.get("total_money"), dict)
+                    else None
+                ),
+                "total_amount": square_money_amount(order.get("total_money")),
+                "net_sales_amount": square_money_amount(
+                    net_amounts.get("total_money")
+                    if isinstance(net_amounts, dict)
+                    else None
+                ),
+                "line_item_count": (
+                    len(line_items) if isinstance(line_items, list) else None
+                ),
+                "customer_id": order.get("customer_id"),
+            }
+            rows.append(
+                build_dynamic_connector_row(
+                    order,
+                    normalized_row,
+                    flatten_lists=True,
+                )
+            )
+        next_cursor = str(payload.get("cursor") or "").strip() or None
+        if not next_cursor or next_cursor in seen_cursors or not orders:
+            break
+        seen_cursors.add(next_cursor)
+
+    dataframe = pd.DataFrame(rows)
+    return dataframe, {
+        "connector": "square",
+        "resource": "orders",
+        "location_id": location_id,
+        "start_date": since.isoformat(),
+        "end_date": until.isoformat(),
+        "row_count": len(dataframe),
+    }
+
+
+def get_woocommerce_secret(config: dict, config_key: str, encrypted_key: str) -> str:
+    value = str(config.get(config_key) or "").strip()
+    if value:
+        return value
+    encrypted_value = str(config.get(encrypted_key) or "").strip()
+    if not encrypted_value:
+        return ""
+    try:
+        return str(decrypt_token(encrypted_value) or "").strip()
+    except Exception as error:
+        raise ConnectorUnavailable(
+            f"The stored WooCommerce {config_key.replace('_', ' ')} could not be decrypted"
+        ) from error
+
+
+def get_woocommerce_api_base_url(store_url: str) -> str:
+    candidate = str(store_url or "").strip().rstrip("/")
+    parsed = urlparse(candidate)
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+    ):
+        raise ConnectorUnavailable(
+            "WooCommerce store_url must be an HTTPS store URL without credentials"
+        )
+    if parsed.path.rstrip("/").endswith("/wp-json/wc/v3"):
+        return candidate
+    return f"{candidate}/wp-json/wc/v3"
+
+
+def load_woocommerce_dataframe(
+    connection: DataSourceConnection,
+    start_date=None,
+    end_date=None,
+) -> tuple[pd.DataFrame, dict]:
+    config = parse_connection_config(connection)
+    api_base_url = get_woocommerce_api_base_url(config.get("store_url"))
+    consumer_key = get_woocommerce_secret(
+        config,
+        "consumer_key",
+        WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG,
+    )
+    consumer_secret = get_woocommerce_secret(
+        config,
+        "consumer_secret",
+        WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG,
+    )
+    if not consumer_key or not consumer_secret:
+        raise ConnectorUnavailable(
+            "Configure the WooCommerce consumer key and consumer secret before syncing"
+        )
+    basic_token = base64.b64encode(
+        f"{consumer_key}:{consumer_secret}".encode("utf-8")
+    ).decode("ascii")
+    headers = {"Authorization": f"Basic {basic_token}"}
+    rows = []
+    page = 1
+    since = start_date
+    until = end_date
+    while True:
+        params = {
+            "per_page": str(PAGE_SIZE),
+            "page": str(page),
+            "orderby": "date",
+            "order": "asc",
+        }
+        if since is not None:
+            params["after"] = f"{since.isoformat()}T00:00:00"
+        if until is not None:
+            params["before"] = f"{until.isoformat()}T23:59:59"
+        payload, _response_headers = connector_json_request_with_headers(
+            f"{api_base_url}/orders?{urlencode(params)}",
+            headers=headers,
+        )
+        if not isinstance(payload, list):
+            raise ConnectorUnavailable("WooCommerce returned an invalid orders response")
+        for order in payload:
+            if not isinstance(order, dict):
+                continue
+            billing = order.get("billing")
+            line_items = order.get("line_items")
+            normalized_row = {
+                "order_id": order.get("id"),
+                "order_number": order.get("number"),
+                "created_at": order.get("date_created"),
+                "updated_at": order.get("date_modified"),
+                "status": order.get("status"),
+                "currency": order.get("currency"),
+                "total": order.get("total"),
+                "subtotal": order.get("subtotal"),
+                "total_tax": order.get("total_tax"),
+                "discount_total": order.get("discount_total"),
+                "shipping_total": order.get("shipping_total"),
+                "customer_id": order.get("customer_id"),
+                "payment_method": order.get("payment_method"),
+                "billing_country": (
+                    billing.get("country") if isinstance(billing, dict) else None
+                ),
+                "line_item_count": (
+                    len(line_items) if isinstance(line_items, list) else None
+                ),
+            }
+            rows.append(
+                build_dynamic_connector_row(
+                    order,
+                    normalized_row,
+                    flatten_lists=True,
+                )
+            )
+        if len(payload) < PAGE_SIZE:
+            break
+        page += 1
+
+    dataframe = filter_date_range(pd.DataFrame(rows), start_date, end_date)
+    return dataframe, {
+        "connector": "woocommerce",
+        "resource": "orders",
+        "start_date": date_value(start_date),
+        "end_date": date_value(end_date),
+        "row_count": len(dataframe),
+    }
+
+
+def load_lightspeed_dataframe(
+    db,
+    connection: DataSourceConnection,
+    start_date=None,
+    end_date=None,
+) -> tuple[pd.DataFrame, dict]:
+    config = parse_connection_config(connection)
+    account_id = str(config.get("account_id") or "").strip()
+    if not account_id or not re.fullmatch(r"[A-Za-z0-9_-]+", account_id):
+        raise ConnectorUnavailable(
+            "Configure a valid Lightspeed Retail account ID before syncing"
+        )
+    access_token = get_oauth_access_token(db, connection, "lightspeed")
+    base_template = require_provider_url("LIGHTSPEED_API_BASE_URL_TEMPLATE")
+    try:
+        base_url = base_template.format(account_id=account_id).rstrip("/")
+    except KeyError as error:
+        raise ConnectorUnavailable(
+            "LIGHTSPEED_API_BASE_URL_TEMPLATE must include {account_id}"
+        ) from error
+    rows = []
+    offset = 0
+    while True:
+        params = {
+            "limit": str(PAGE_SIZE),
+            "offset": str(offset),
+            "load_relations": "[\"SaleLines\"]",
+        }
+        payload = connector_json_request(
+            f"{base_url}/Sale.json?{urlencode(params)}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        sales = payload.get("Sale") or payload.get("sale")
+        if isinstance(sales, dict):
+            sales = [sales]
+        if not isinstance(sales, list):
+            raise ConnectorUnavailable("Lightspeed returned an invalid sales response")
+        for sale in sales:
+            if not isinstance(sale, dict):
+                continue
+            normalized_row = {
+                "sale_id": sale.get("saleID") or sale.get("id"),
+                "created_at": sale.get("createTime") or sale.get("completedTime"),
+                "updated_at": sale.get("updateTime"),
+                "completed_at": sale.get("completedTime"),
+                "status": sale.get("completed"),
+                "total": sale.get("total"),
+                "tax": sale.get("tax"),
+                "discount": sale.get("discount"),
+                "customer_id": sale.get("customerID"),
+                "employee_id": sale.get("employeeID"),
+                "shop_id": sale.get("shopID"),
+            }
+            rows.append(
+                build_dynamic_connector_row(
+                    sale,
+                    normalized_row,
+                    flatten_lists=True,
+                )
+            )
+        if len(sales) < PAGE_SIZE:
+            break
+        offset += len(sales)
+
+    dataframe = filter_date_range(pd.DataFrame(rows), start_date, end_date)
+    return dataframe, {
+        "connector": "lightspeed",
+        "resource": "sales",
+        "account_id": account_id,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
@@ -3895,13 +4338,15 @@ def refresh_oauth_access_token_if_due(
 
 def connector_json_request(url: str, headers: dict[str, str]) -> dict:
     payload, _headers = connector_json_request_with_headers(url, headers)
+    if not isinstance(payload, dict):
+        raise ConnectorUnavailable("Connector returned an invalid response")
     return payload
 
 
 def connector_json_request_with_headers(
     url: str,
     headers: dict[str, str],
-) -> tuple[dict, dict[str, str]]:
+) -> tuple[dict | list, dict[str, str]]:
     request = Request(
         url,
         headers={"Accept": "application/json", **headers},
@@ -3927,7 +4372,7 @@ def connector_json_request_with_headers(
         payload = json.loads(body)
     except json.JSONDecodeError as error:
         raise ConnectorUnavailable("Connector returned an invalid response") from error
-    if not isinstance(payload, dict):
+    if not isinstance(payload, (dict, list)):
         raise ConnectorUnavailable("Connector returned an invalid response")
     return payload, response_headers
 
@@ -4123,6 +4568,7 @@ def connector_requires_reauthorization(
 def connector_display_name(source_type: str) -> str:
     return {
         "google_analytics": "Google Analytics",
+        "google_search_console": "Google Search Console",
         "google_ads": "Google Ads",
         "meta_ads": "Meta Ads",
         "hubspot": "HubSpot",
@@ -4133,6 +4579,9 @@ def connector_display_name(source_type: str) -> str:
         "zoho_books": "Zoho Books",
         "salesforce": "Salesforce",
         "shopify": "Shopify",
+        "square": "Square",
+        "woocommerce": "WooCommerce",
+        "lightspeed": "Lightspeed Retail",
         "stripe": "Stripe",
     }.get(
         source_type,

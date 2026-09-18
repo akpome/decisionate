@@ -331,6 +331,8 @@ def ensure_billing_subscription_columns():
             ("current_period_start", "TIMESTAMP", "NULL"),
             ("ai_credits_used", "INTEGER", "0"),
             ("additional_ai_credit_packs", "INTEGER", "0"),
+            ("ai_credit_topup_credits", "INTEGER", "0"),
+            ("ai_credit_low_notice_key", "VARCHAR", "NULL"),
             ("lifecycle_notice_key", "VARCHAR", "NULL"),
             ("lifecycle_notice_at", "TIMESTAMP", "NULL"),
             ("data_purged_at", "TIMESTAMP", "NULL"),
@@ -747,6 +749,14 @@ def ensure_decision_optional_columns():
                 )
             )
 
+        if "assigned_user_id" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE decisions "
+                    "ADD COLUMN assigned_user_id VARCHAR"
+                )
+            )
+
         if "updated_at" not in column_names:
             connection.execute(
                 text(
@@ -760,6 +770,10 @@ def ensure_decision_optional_columns():
             ("recommendation_text", "TEXT"),
             ("recommendation_source", "VARCHAR"),
             ("recommendation_context", "TEXT"),
+            ("outcome_baseline_value", "FLOAT"),
+            ("outcome_measured_value", "FLOAT"),
+            ("outcome_delta_percent", "FLOAT"),
+            ("outcome_measured_at", "TIMESTAMP"),
         ]:
             if column_name not in column_names:
                 connection.execute(
@@ -828,6 +842,28 @@ def ensure_dataset_source_columns():
 
 
 ensure_dataset_source_columns()
+
+
+# =========================
+# Canonical Entity Confidence Backfill For Existing Workspaces
+# =========================
+
+def ensure_canonical_entity_columns():
+    with engine.begin() as connection:
+        column_names = get_table_columns(
+            connection,
+            "canonical_entities",
+        )
+        if "confidence" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE canonical_entities "
+                    "ADD COLUMN confidence FLOAT DEFAULT 1.0"
+                )
+            )
+
+
+ensure_canonical_entity_columns()
 
 
 def ensure_dataset_storage_columns():

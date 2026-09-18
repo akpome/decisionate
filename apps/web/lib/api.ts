@@ -157,6 +157,56 @@ export type DatasetSummary = {
   created_at?: string
 }
 
+export type EntityType = "customer" | "product"
+
+export type EntityMatchingPayload = {
+  dataset_ids: number[]
+  entity_type: EntityType
+  key_columns?: Record<string, string[]>
+  replace_existing?: boolean
+}
+
+export type EntityMatchingPreview = {
+  entity_type: EntityType
+  datasets: Array<{
+    dataset_id: number
+    file_name: string
+    key_columns: string[]
+    candidate_row_count: number
+    unmatched_row_count: number
+  }>
+  candidate_row_count: number
+  matched_group_count: number
+  matched_row_count: number
+  unmatched_row_count: number
+}
+
+export type EntityMatchingRun = {
+  entity_type: EntityType
+  dataset_count: number
+  source_row_count: number
+  matched_row_count: number
+  unmatched_row_count: number
+  canonical_entity_count: number
+  confidence_breakdown: Record<string, number>
+  entities: Array<{
+    id: number
+    canonical_key: string
+    display_name?: string | null
+    confidence: number
+    source_count: number
+    match_count: number
+    sources: Array<{
+      dataset_id: number
+      file_name: string
+      row: number
+      field: string
+      value: string
+      method: string
+    }>
+  }>
+}
+
 export type DatasetMetricSelectionResponse = {
   dataset_id: number
   file_name: string
@@ -521,6 +571,11 @@ export type BillingStatus = {
   annual_ai_credit_limit: number
   ai_credits_used: number
   ai_credits_remaining: number
+  ai_credit_pool_workspace_id: string
+  ai_credit_topup_credits: number
+  ai_credit_low_balance: boolean
+  ai_credit_low_balance_threshold: number
+  ai_credit_topup_configured: boolean
   access_status: string
   access_allowed: boolean
   requires_billing_action: boolean
@@ -567,6 +622,13 @@ export type BillingCheckoutPayload = {
 export type BillingCheckoutResponse = {
   checkout_url: string
   session_id: string
+}
+
+export type AICreditTopupResponse = {
+  checkout_url: string
+  session_id: string
+  credit_packs: number
+  credits: number
 }
 
 export type BillingPortalResponse = {
@@ -776,6 +838,12 @@ export type AIAnalysis = {
     | null
   summary: string
   recommendations: string[]
+  recommendation_details?: Array<{
+    text: string
+    priority: "high" | "medium" | "low"
+    score: number
+    reason: string
+  }>
   risks: string[]
   confidence: "high" | "medium" | "low"
   learning_context?: {
@@ -1372,6 +1440,7 @@ export type DecisionActivityType =
   | "priority"
   | "category"
   | "confidence"
+  | "assignee"
   | "delete"
   | "export"
 
@@ -1379,6 +1448,7 @@ export type DecisionRecord = {
   id: number
   workspace_id?: string | null
   owner_user_id?: string | null
+  assigned_user_id?: string | null
   dataset_id: number
   metric_column?: string | null
   recommendation_text?: string | null
@@ -1395,6 +1465,10 @@ export type DecisionRecord = {
   review_date?: string | null
   expected_outcome?: string | null
   actual_outcome?: string | null
+  outcome_baseline_value?: number | null
+  outcome_measured_value?: number | null
+  outcome_delta_percent?: number | null
+  outcome_measured_at?: string | null
   outcome_status?: DecisionOutcomeStatus | null
   lessons_learned?: string | null
   created_at: string
@@ -1501,6 +1575,10 @@ export type DecisionOutcomePayload = {
   expected_outcome?: string | null
   actual_outcome?: string | null
   outcome_status?: DecisionOutcomeStatus | null
+}
+
+export type DecisionAssigneePayload = {
+  assigned_user_id?: string | null
 }
 
 export type OrganizationRecord = {
@@ -3023,6 +3101,89 @@ export async function getDatasets(
       return response.json()
     }
   )
+}
+
+export async function previewEntityMatching(
+  payload: EntityMatchingPayload,
+  userId: string,
+  workspaceId?: string
+): Promise<EntityMatchingPreview> {
+  const cleanDatasetIds = Array.from(
+    new Set(
+      payload.dataset_ids.map(datasetId =>
+        cleanPositiveIntegerId(datasetId, "Dataset id")
+      )
+    )
+  )
+  const response = await apiFetch(
+    `${API_URL}/datasets/entity-matching/preview`,
+    {
+      method: "POST",
+      headers: {
+        ...(await workspaceHeaders(userId, workspaceId)),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...payload,
+        dataset_ids: cleanDatasetIds,
+      }),
+    }
+  )
+
+  if (!response.ok) {
+    await throwApiError(response, "Failed to preview entity matching")
+  }
+  return response.json()
+}
+
+export async function runEntityMatching(
+  payload: EntityMatchingPayload,
+  userId: string,
+  workspaceId?: string
+): Promise<EntityMatchingRun> {
+  const cleanDatasetIds = Array.from(
+    new Set(
+      payload.dataset_ids.map(datasetId =>
+        cleanPositiveIntegerId(datasetId, "Dataset id")
+      )
+    )
+  )
+  const response = await apiFetch(
+    `${API_URL}/datasets/entity-matching/run`,
+    {
+      method: "POST",
+      headers: {
+        ...(await workspaceHeaders(userId, workspaceId)),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...payload,
+        dataset_ids: cleanDatasetIds,
+      }),
+    }
+  )
+
+  if (!response.ok) {
+    await throwApiError(response, "Failed to save entity matching")
+  }
+  return response.json()
+}
+
+export async function getCanonicalEntities(
+  entityType: EntityType,
+  userId: string,
+  workspaceId?: string
+): Promise<EntityMatchingRun["entities"]> {
+  const response = await apiFetch(
+    `${API_URL}/datasets/entities?entity_type=${encodeURIComponent(entityType)}`,
+    {
+      headers: await workspaceHeaders(userId, workspaceId),
+    }
+  )
+  if (!response.ok) {
+    await throwApiError(response, "Failed to load canonical entities")
+  }
+  return response.json()
 }
 
 export async function getDatasetJoinMetadata(
@@ -4738,6 +4899,35 @@ export async function createBillingCheckout(
     await throwApiError(
       response,
       "Failed to start billing checkout"
+    )
+  }
+
+  return response.json()
+}
+
+export async function createAICreditTopup(
+  userId: string,
+  workspaceId: string | undefined,
+  creditPacks: number
+): Promise<AICreditTopupResponse> {
+  const response = await apiFetch(
+    `${API_URL}/billing/ai-credits/topup`,
+    {
+      method: "POST",
+      headers: await workspaceJsonHeaders(
+        userId,
+        workspaceId
+      ),
+      body: JSON.stringify({
+        credit_packs: creditPacks,
+      }),
+    }
+  )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to start AI credit top-up"
     )
   }
 
@@ -7106,6 +7296,49 @@ export async function updateDecisionOutcome(
     )
   }
 
+  return response.json()
+}
+
+export async function updateDecisionAssignee(
+  decisionId: number,
+  payload: DecisionAssigneePayload,
+  userId: string,
+  workspaceId?: string
+): Promise<DecisionRecord> {
+  const cleanDecisionId = cleanPositiveIntegerId(decisionId, "Decision id")
+  const response = await apiFetch(
+    `${API_URL}/decisions/${cleanDecisionId}/assignee`,
+    {
+      method: "PATCH",
+      headers: {
+        ...(await decisionHeaders(userId, workspaceId)),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  )
+  if (!response.ok) {
+    await throwApiError(response, "Failed to update decision owner")
+  }
+  return response.json()
+}
+
+export async function measureDecisionOutcome(
+  decisionId: number,
+  userId: string,
+  workspaceId?: string
+): Promise<DecisionRecord> {
+  const cleanDecisionId = cleanPositiveIntegerId(decisionId, "Decision id")
+  const response = await apiFetch(
+    `${API_URL}/decisions/${cleanDecisionId}/outcome/measure`,
+    {
+      method: "POST",
+      headers: await decisionHeaders(userId, workspaceId),
+    }
+  )
+  if (!response.ok) {
+    await throwApiError(response, "Failed to measure decision outcome")
+  }
   return response.json()
 }
 

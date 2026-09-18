@@ -186,6 +186,7 @@ class PlatformAdminOrganizationResponse(BaseModel):
     canceled_at: str | None = None
     additional_client_workspaces: int = 0
     additional_ai_credit_packs: int = 0
+    ai_credit_topup_credits: int = 0
     ai_credits_used: int = 0
     ai_credit_limit: int = 0
     ai_credits_remaining: int = 0
@@ -2003,6 +2004,11 @@ def platform_admin_ai_credit_limit(
             if pack_size is not None
             else get_ai_credit_pack_size()
         )
+        + (
+            max(int(subscription.ai_credit_topup_credits or 0), 0)
+            if subscription and ":client:" not in workspace_id
+            else 0
+        )
     )
 
 
@@ -2226,6 +2232,11 @@ def serialize_platform_admin_organization(
         ),
         additional_ai_credit_packs=(
             max(int(subscription.additional_ai_credit_packs or 0), 0)
+            if subscription and not is_client_workspace
+            else 0
+        ),
+        ai_credit_topup_credits=(
+            max(int(subscription.ai_credit_topup_credits or 0), 0)
             if subscription and not is_client_workspace
             else 0
         ),

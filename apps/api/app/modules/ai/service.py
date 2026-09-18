@@ -20,6 +20,7 @@ from app.infrastructure.cache import (
     set_json,
 )
 from app.configuration import get_runtime_configuration
+from app.modules.ai.recommendation_ranking import prioritize_recommendations
 
 
 AI_CONFIDENCE_VALUES = {
@@ -394,17 +395,22 @@ def build_fallback_analysis(
         learning_context
     )
 
+    clean_recommendations = clean_analysis_items(
+        [*recommendations, *learning_recommendations]
+    )
+    ranked_recommendations = prioritize_recommendations(
+        clean_recommendations,
+        "low",
+    )
     return {
         "source": "rules",
         "model": None,
         "fallback_reason": fallback_reason,
         "summary": clean_analysis_text(summary),
-        "recommendations": clean_analysis_items(
-            [
-                *recommendations,
-                *learning_recommendations,
-            ]
-        ),
+        "recommendations": [
+            item["text"] for item in ranked_recommendations
+        ][:MAX_ANALYSIS_ITEMS],
+        "recommendation_details": ranked_recommendations[:MAX_ANALYSIS_ITEMS],
         "risks": clean_analysis_items(risks),
         "confidence": "low",
         "learning_context": learning_context,
@@ -557,12 +563,20 @@ def normalize_analysis(
         else "low"
     )
 
+    ranked_recommendations = prioritize_recommendations(
+        clean_recommendations,
+        clean_confidence,
+    )
+
     return {
         "source": source,
         "model": model,
         "fallback_reason": None,
         "summary": clean_analysis_text(summary),
-        "recommendations": clean_recommendations,
+        "recommendations": [
+            item["text"] for item in ranked_recommendations
+        ][:MAX_ANALYSIS_ITEMS],
+        "recommendation_details": ranked_recommendations[:MAX_ANALYSIS_ITEMS],
         "risks": clean_risks,
         "confidence": clean_confidence,
         "learning_context": fallback.get(
@@ -701,10 +715,28 @@ def clean_analysis_items(values: list[Any]):
 
         clean_value = clean_analysis_text(value)
 
-        if clean_value and clean_value not in clean_values:
+        if clean_value and not any(
+            _recommendations_overlap(clean_value, existing)
+            for existing in clean_values
+        ):
             clean_values.append(clean_value)
 
         if len(clean_values) >= MAX_ANALYSIS_ITEMS:
             break
 
     return clean_values
+
+
+def _recommendations_overlap(left: str, right: str) -> bool:
+    """Collapse repeated AI/fallback recommendations without hiding distinct actions."""
+    left_tokens = set(left.lower().split())
+    right_tokens = set(right.lower().split())
+    if left == right:
+        return True
+    if not left_tokens or not right_tokens:
+        return False
+    overlap = len(left_tokens & right_tokens) / min(
+        len(left_tokens),
+        len(right_tokens),
+    )
+    return overlap >= 0.9

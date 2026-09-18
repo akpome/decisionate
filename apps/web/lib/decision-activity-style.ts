@@ -3,6 +3,7 @@ import type {
 } from "@/lib/api"
 import {
   archiveDecisionActivity,
+  assigneeDecisionActivity,
   categoryDecisionActivity,
   confidenceDecisionActivity,
   createdDecisionActivity,
@@ -91,6 +92,7 @@ const decisionActivityStyles: Record<
   [priorityDecisionActivity]: priorityActivityStyle,
   [categoryDecisionActivity]: categoryActivityStyle,
   [confidenceDecisionActivity]: confidenceActivityStyle,
+  [assigneeDecisionActivity]: blueActivityStyle,
   [archiveDecisionActivity]: archiveActivityStyle,
   [deleteDecisionActivity]: deleteActivityStyle,
   [exportDecisionActivity]: blueActivityStyle,

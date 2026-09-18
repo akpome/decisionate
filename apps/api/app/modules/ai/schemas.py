@@ -1,6 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel
+from pydantic import Field
 
 
 class AILearningContext(BaseModel):
@@ -32,6 +33,7 @@ class AIAnalysis(BaseModel):
     ] | None = None
     summary: str
     recommendations: list[str]
+    recommendation_details: list[dict] = Field(default_factory=list)
     risks: list[str]
     confidence: Literal["high", "medium", "low"]
     learning_context: AILearningContext | None = None

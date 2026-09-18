@@ -15,6 +15,10 @@ from app.modules.alerts.email_delivery import send_platform_system_email
 from app.modules.billing.lifecycle import (
     build_subscription_access_state,
 )
+from app.modules.billing.service import (
+    get_billing_plan_definition,
+    normalize_billing_plan,
+)
 from app.modules.billing.data_retention import (
     purge_workspace_data_after_expiry,
 )
@@ -74,6 +78,55 @@ def get_workspace_owner_email(db, organization: Organization) -> str | None:
             return str(member_identity.email).strip() or None
 
     return None
+
+
+def send_ai_credit_low_balance_notification(
+    db,
+    subscription: WorkspaceSubscription,
+    remaining_credits: int,
+    credit_limit: int,
+) -> bool:
+    """Email the owner of the subscription's shared AI credit pool."""
+    organization = (
+        db.query(Organization)
+        .filter(
+            Organization.owner_user_id == subscription.workspace_id,
+        )
+        .first()
+    )
+    if not organization:
+        return False
+
+    recipient = get_workspace_owner_email(db, organization)
+    if not recipient:
+        return False
+
+    plan = normalize_billing_plan(subscription.plan)
+    plan_name = get_billing_plan_definition(plan)["name"]
+    billing_url = (
+        get_runtime_configuration().web_url.rstrip("/")
+        + "/dashboard/billing"
+    )
+    subject = "Your Decisionate AI credits are running low"
+    message = (
+        f"Your {plan_name} workspace has {max(int(remaining_credits), 0):,} "
+        f"AI credits remaining out of {max(int(credit_limit), 0):,}. "
+        "Top up your AI credit pool to keep analysis available."
+    )
+    if plan == "agency":
+        message += " This balance is shared by your agency and client workspaces."
+
+    body = (
+        f"Hello,\n\n{message}\n\n"
+        f"Open billing: {billing_url}\n\n"
+        "Decisionate"
+    )
+    send_platform_system_email(
+        recipient,
+        subject,
+        body,
+    )
+    return True
 
 
 def build_lifecycle_notice(

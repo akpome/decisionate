@@ -24,6 +24,7 @@ import {
   Plug,
   Settings,
   Target,
+  UsersRound,
   X,
   Wrench,
 } from "lucide-react"
@@ -160,6 +161,11 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/dashboard/datasets",
         label: "Datasets",
         icon: <Database size={18} />,
+      },
+      {
+        href: "/dashboard/entity-matching",
+        label: "Entity Matching",
+        icon: <UsersRound size={18} />,
       },
       {
         href: "/dashboard/connections",

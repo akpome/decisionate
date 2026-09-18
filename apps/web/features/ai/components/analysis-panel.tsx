@@ -108,9 +108,21 @@ export function AIAnalysisPanel({
                 Recommendation
               </p>
               <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-gray-700">
-                {analysis.recommendations.map(item => (
-                  <li key={item}>{item}</li>
-                ))}
+                {analysis.recommendations.map(item => {
+                  const detail = analysis.recommendation_details?.find(
+                    candidate => candidate.text === item
+                  )
+                  return (
+                    <li key={item}>
+                      {detail && (
+                        <span className="mr-1 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
+                          {detail.priority}
+                        </span>
+                      )}
+                      {item}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           )}
@@ -122,9 +134,21 @@ export function AIAnalysisPanel({
               Recommendations
             </p>
             <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-gray-700">
-              {analysis.recommendations.map(item => (
-                <li key={item}>{item}</li>
-              ))}
+              {analysis.recommendations.map(item => {
+                const detail = analysis.recommendation_details?.find(
+                  candidate => candidate.text === item
+                )
+                return (
+                  <li key={item}>
+                    {detail && (
+                      <span className={`mr-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${detail.priority === "high" ? "bg-red-100 text-red-700" : detail.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"}`}>
+                        {detail.priority} priority
+                      </span>
+                    )}
+                    {item}
+                  </li>
+                )
+              })}
             </ul>
           </div>
         )
