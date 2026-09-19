@@ -536,6 +536,7 @@ function DataSourceConnectionRow({
       "google_analytics",
       "google_search_console",
       "google_ads",
+      "google_business_profile",
       "hubspot",
       "stripe",
       "shopify",

@@ -279,6 +279,42 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         self.assertEqual(query["access_type"], ["offline"])
         self.assertEqual(query["prompt"], ["consent"])
 
+    def test_google_business_profile_uses_offline_business_scope(self):
+        key = Fernet.generate_key().decode()
+        with patch.dict(
+            os.environ,
+            {
+                "GOOGLE_BUSINESS_PROFILE_CLIENT_ID": "client-id",
+                "GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET": "client-secret",
+                "GOOGLE_BUSINESS_PROFILE_OAUTH_AUTHORIZATION_URL": (
+                    "https://accounts.google.com/o/oauth2/v2/auth"
+                ),
+                "GOOGLE_BUSINESS_PROFILE_OAUTH_TOKEN_URL": (
+                    "https://oauth2.googleapis.com/token"
+                ),
+                "GOOGLE_BUSINESS_PROFILE_OAUTH_SCOPES": (
+                    "https://www.googleapis.com/auth/business.manage"
+                ),
+                "OAUTH_CALLBACK_URL": (
+                    "https://api.example.com/oauth/callback"
+                ),
+                "OAUTH_TOKEN_ENCRYPTION_KEY": key,
+            },
+            clear=False,
+        ):
+            url = build_authorization_url(
+                "google_business_profile",
+                "state-1",
+            )
+
+        query = parse_qs(urlparse(url).query)
+        self.assertEqual(
+            query["scope"],
+            ["https://www.googleapis.com/auth/business.manage"],
+        )
+        self.assertEqual(query["access_type"], ["offline"])
+        self.assertEqual(query["prompt"], ["consent"])
+
     def test_quickbooks_token_revocation_uses_the_intuit_endpoint(self):
         class FakeResponse:
             def __enter__(self):

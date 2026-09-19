@@ -92,6 +92,12 @@ export const industryDashboards = [
     accent: "#334155",
     values: [62, 82, 56, 74, 86],
   },
+  {
+    name: "Auto Repair Shop",
+    description: "Track repair orders, service mix, bay utilization and return visits.",
+    accent: "#dc2626",
+    values: [58, 76, 64, 86, 72],
+  },
 ] as const
 
 export const featureCards = [
@@ -198,7 +204,7 @@ export const faqs = [
   },
   {
     question: "Which connectors are available?",
-    answer: "The current connector set includes Google Analytics, Google Ads, PostgreSQL, MySQL, SQL Server, Stripe, Shopify, QuickBooks, FreshBooks, Xero, HubSpot, Meta Ads and Salesforce Sales Cloud. Salesforce Sales Cloud currently supports Accounts, Leads and Opportunities. Sage Cloud Accounting and Zoho Books are upcoming. Connector credentials and provider setup are managed before a workspace runs its first sync.",
+    answer: "The current connector set includes Google Analytics, Google Ads, Google Business Profile, Google Search Console, PostgreSQL, MySQL, SQL Server, Stripe, Shopify, QuickBooks, FreshBooks, Xero, HubSpot, Meta Ads and Salesforce Sales Cloud. Salesforce Sales Cloud currently supports Accounts, Leads and Opportunities. Connector credentials and provider setup are managed before a workspace runs its first sync.",
   },
   {
     question: "What can I do with the dashboards?",

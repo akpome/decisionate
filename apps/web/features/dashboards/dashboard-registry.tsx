@@ -368,6 +368,116 @@ const industryDashboardConfigs: Record<
       { label: "Labor gap", value: "Fri PM", tone: "amber" },
     ],
   },
+  autoRepairPerformance: {
+    metrics: [
+      {
+        label: "Repair Revenue",
+        value: "$186.4K",
+        detail: "+12% versus last period",
+      },
+      {
+        label: "Average Repair Order",
+        value: "$428",
+        detail: "Parts and labor combined",
+      },
+      {
+        label: "Bay Utilization",
+        value: "78%",
+        detail: "Within target operating range",
+      },
+      {
+        label: "Repeat Customer Rate",
+        value: "42%",
+        detail: "Strong return visit signal",
+      },
+    ],
+    trendTitle: "Repair Orders and Revenue",
+    trendDescription:
+      "Completed repair orders compared with service revenue.",
+    trendData: [
+      { name: "Jan", value: 312, secondary: 128 },
+      { name: "Feb", value: 338, secondary: 141 },
+      { name: "Mar", value: 364, secondary: 153 },
+      { name: "Apr", value: 391, secondary: 169 },
+      { name: "May", value: 428, secondary: 186 },
+    ],
+    trendLabel: "Repair orders",
+    secondaryTrendLabel: "Revenue",
+    mixTitle: "Service Mix",
+    mixDescription:
+      "Revenue contribution by service category.",
+    mixData: [
+      { name: "Maintenance", value: 31, color: "#2563eb" },
+      { name: "Brakes", value: 24, color: "#dc2626" },
+      { name: "Diagnostics", value: 23, color: "#0f766e" },
+      { name: "Tires and wheels", value: 22, color: "#f97316" },
+    ],
+    operationsTitle: "Work Order Workflow",
+    operationsDescription:
+      "Repair orders by their current service stage.",
+    operationsData: [
+      { name: "Scheduled", value: 26 },
+      { name: "In service", value: 34 },
+      { name: "Awaiting parts", value: 12 },
+      { name: "Ready for pickup", value: 28 },
+    ],
+    operationsLabel: "Repair orders",
+    signalTitle: "Shop Highlights",
+    roleHints: {
+      primary: [
+        "revenue",
+        "sales",
+        "repair order",
+        "ro",
+        "invoice",
+        "amount",
+        "labor",
+        "total",
+      ],
+      secondary: [
+        "margin",
+        "gross profit",
+        "average repair order",
+        "aro",
+        "vehicle",
+        "car count",
+      ],
+      category: [
+        "service",
+        "repair",
+        "job",
+        "labor",
+        "part",
+        "vehicle",
+        "make",
+        "model",
+      ],
+      stage: [
+        "status",
+        "stage",
+        "workflow",
+        "bay",
+        "order",
+        "appointment",
+        "work order",
+      ],
+      date: [
+        "date",
+        "day",
+        "week",
+        "month",
+        "service",
+        "repair",
+        "appointment",
+        "closed",
+      ],
+    },
+    signals: [
+      { label: "Top service", value: "Maintenance", tone: "blue" },
+      { label: "Parts delay", value: "12 orders", tone: "amber" },
+      { label: "Return visits", value: "42%", tone: "green" },
+    ],
+  },
   hotelHospitality: {
     metrics: [
       {
@@ -4346,6 +4456,12 @@ export const dashboardRegistry: Record<
     <IndustryDashboard
       {...props}
       config={industryDashboardConfigs.lawFirmPerformance}
+    />
+  ),
+  autoRepairPerformance: props => (
+    <IndustryDashboard
+      {...props}
+      config={industryDashboardConfigs.autoRepairPerformance}
     />
   ),
 }

@@ -207,6 +207,19 @@ OAUTH_PROVIDERS = {
             "https://www.googleapis.com/auth/adwords",
         ),
     ),
+    "google_business_profile": OAuthProvider(
+        source_type="google_business_profile",
+        authorization_url_env=(
+            "GOOGLE_BUSINESS_PROFILE_OAUTH_AUTHORIZATION_URL"
+        ),
+        token_url_env="GOOGLE_BUSINESS_PROFILE_OAUTH_TOKEN_URL",
+        client_id_env="GOOGLE_BUSINESS_PROFILE_CLIENT_ID",
+        client_secret_env="GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET",
+        scopes_env="GOOGLE_BUSINESS_PROFILE_OAUTH_SCOPES",
+        required_scopes=(
+            "https://www.googleapis.com/auth/business.manage",
+        ),
+    ),
     "square": OAuthProvider(
         source_type="square",
         authorization_url_env="SQUARE_OAUTH_AUTHORIZATION_URL",
@@ -515,6 +528,7 @@ def build_authorization_url(
         "google_analytics",
         "google_search_console",
         "google_ads",
+        "google_business_profile",
     }:
         params.update(
             {

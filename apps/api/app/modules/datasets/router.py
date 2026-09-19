@@ -228,6 +228,11 @@ CONNECTOR_DEDUP_KEYS = {
     "stripe": ["charge_id"],
     "shopify": ["order_id"],
     "google_search_console": ["date", "query", "page"],
+    "google_business_profile": [
+        "location_id",
+        "date",
+        "daily_metric",
+    ],
     "square": ["order_id"],
     "woocommerce": ["order_id"],
     "lightspeed": ["sale_id"],

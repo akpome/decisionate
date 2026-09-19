@@ -912,6 +912,13 @@ def load_connector_dataframe(
             start_date,
             end_date,
         )
+    if connection.source_type == "google_business_profile":
+        return load_google_business_profile_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+        )
     if connection.source_type == "google_ads":
         return load_google_ads_dataframe(
             db,
@@ -1668,6 +1675,249 @@ def load_google_search_console_dataframe(
         "resource": "search_analytics",
         "site_url": site_url,
         "dimensions": dimensions,
+        "start_date": since.isoformat(),
+        "end_date": until.isoformat(),
+        "row_count": len(dataframe),
+    }
+
+
+GOOGLE_BUSINESS_PROFILE_DAILY_METRICS = (
+    "BUSINESS_IMPRESSIONS_DESKTOP_MAPS",
+    "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH",
+    "BUSINESS_IMPRESSIONS_MOBILE_MAPS",
+    "BUSINESS_IMPRESSIONS_MOBILE_SEARCH",
+    "BUSINESS_CONVERSATIONS",
+    "BUSINESS_DIRECTION_REQUESTS",
+    "CALL_CLICKS",
+    "WEBSITE_CLICKS",
+    "BUSINESS_BOOKINGS",
+    "BUSINESS_FOOD_ORDERS",
+    "BUSINESS_FOOD_MENU_CLICKS",
+)
+GOOGLE_BUSINESS_PROFILE_LOCATION_READ_MASK = ",".join(
+    (
+        "name",
+        "title",
+        "storeCode",
+        "websiteUri",
+        "metadata",
+        "phoneNumbers",
+        "openInfo",
+        "storefrontAddress",
+        "categories",
+    )
+)
+
+
+def google_business_profile_metric_value(value):
+    if value is None:
+        return 0
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return value
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return value
+
+
+def google_business_profile_date_value(value):
+    if not isinstance(value, dict):
+        return None
+    try:
+        year = int(value.get("year"))
+        month = int(value.get("month"))
+        day = int(value.get("day"))
+        return date(year, month, day).isoformat()
+    except (TypeError, ValueError):
+        return None
+
+
+def load_google_business_profile_dataframe(
+    db,
+    connection: DataSourceConnection,
+    start_date=None,
+    end_date=None,
+) -> tuple[pd.DataFrame, dict]:
+    access_token = get_oauth_access_token(
+        db,
+        connection,
+        "google_business_profile",
+    )
+    business_info_base_url = require_provider_url(
+        "GOOGLE_BUSINESS_PROFILE_API_BASE_URL"
+    )
+    performance_base_url = require_provider_url(
+        "GOOGLE_BUSINESS_PROFILE_PERFORMANCE_API_BASE_URL"
+    )
+    since = start_date or date.today() - timedelta(days=30)
+    until = end_date or date.today()
+    if since > until:
+        raise ConnectorUnavailable(
+            "Google Business Profile start_date must be on or before end_date"
+        )
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    locations = []
+    page_token = None
+    seen_page_tokens = set()
+    while True:
+        params = [
+            ("readMask", GOOGLE_BUSINESS_PROFILE_LOCATION_READ_MASK),
+            ("pageSize", str(PAGE_SIZE)),
+        ]
+        if page_token:
+            params.append(("pageToken", page_token))
+        payload = connector_json_request(
+            f"{business_info_base_url}/accounts/-/locations?"
+            f"{urlencode(params)}",
+            headers=headers,
+        )
+        page_locations = payload.get("locations")
+        if page_locations is None:
+            page_locations = []
+        if not isinstance(page_locations, list):
+            raise ConnectorUnavailable(
+                "Google Business Profile returned an invalid locations response"
+            )
+        locations.extend(
+            location
+            for location in page_locations
+            if isinstance(location, dict)
+        )
+        next_page_token = str(payload.get("nextPageToken") or "").strip()
+        if (
+            not next_page_token
+            or next_page_token in seen_page_tokens
+            or not page_locations
+        ):
+            break
+        seen_page_tokens.add(next_page_token)
+        page_token = next_page_token
+
+    rows = []
+    for location in locations:
+        location_name = str(location.get("name") or "").strip()
+        if not location_name:
+            continue
+        location_id = location_name.rsplit("/", 1)[-1]
+        metadata = location.get("metadata")
+        metadata = metadata if isinstance(metadata, dict) else {}
+        phone_numbers = location.get("phoneNumbers")
+        phone_numbers = (
+            phone_numbers if isinstance(phone_numbers, dict) else {}
+        )
+        open_info = location.get("openInfo")
+        open_info = open_info if isinstance(open_info, dict) else {}
+        location_fields = {
+            "location_id": location_id,
+            "location_name": location_name,
+            "location_title": location.get("title"),
+            "store_code": location.get("storeCode"),
+            "place_id": metadata.get("placeId"),
+            "website_uri": location.get("websiteUri"),
+            "primary_phone": phone_numbers.get("primaryPhone"),
+            "open_status": open_info.get("status"),
+        }
+        params = [
+            ("dailyMetrics", metric)
+            for metric in GOOGLE_BUSINESS_PROFILE_DAILY_METRICS
+        ]
+        params.extend(
+            [
+                ("dailyRange.start_date.year", str(since.year)),
+                ("dailyRange.start_date.month", str(since.month)),
+                ("dailyRange.start_date.day", str(since.day)),
+                ("dailyRange.end_date.year", str(until.year)),
+                ("dailyRange.end_date.month", str(until.month)),
+                ("dailyRange.end_date.day", str(until.day)),
+            ]
+        )
+        performance_url = (
+            f"{performance_base_url}/"
+            f"{quote(location_name, safe='/')}:"
+            "fetchMultiDailyMetricsTimeSeries?"
+            f"{urlencode(params)}"
+        )
+        performance_payload = connector_json_request(
+            performance_url,
+            headers=headers,
+        )
+        metric_groups = performance_payload.get(
+            "multiDailyMetricTimeSeries"
+        )
+        if metric_groups is None:
+            metric_groups = []
+        if not isinstance(metric_groups, list):
+            raise ConnectorUnavailable(
+                "Google Business Profile returned an invalid performance response"
+            )
+
+        location_row_count = 0
+        for metric_group in metric_groups:
+            if not isinstance(metric_group, dict):
+                continue
+            metric_series = metric_group.get("dailyMetricTimeSeries")
+            if not isinstance(metric_series, list):
+                continue
+            for series in metric_series:
+                if not isinstance(series, dict):
+                    continue
+                metric_name = str(series.get("dailyMetric") or "").strip()
+                time_series = series.get("timeSeries")
+                time_series = (
+                    time_series if isinstance(time_series, dict) else {}
+                )
+                dated_values = time_series.get("datedValues")
+                if not isinstance(dated_values, list):
+                    continue
+                for dated_value in dated_values:
+                    if not isinstance(dated_value, dict):
+                        continue
+                    metric_date = google_business_profile_date_value(
+                        dated_value.get("date")
+                    )
+                    if not metric_date:
+                        continue
+                    normalized_row = {
+                        **location_fields,
+                        "record_id": (
+                            f"{location_name}:{metric_date}:{metric_name}"
+                        ),
+                        "date": metric_date,
+                        "daily_metric": metric_name,
+                        "metric_value": google_business_profile_metric_value(
+                            dated_value.get("value")
+                        ),
+                        "data_type": "daily_metric",
+                    }
+                    rows.append(
+                        build_dynamic_connector_row(
+                            location,
+                            normalized_row,
+                        )
+                    )
+                    location_row_count += 1
+
+        if location_row_count == 0:
+            rows.append(
+                build_dynamic_connector_row(
+                    location,
+                    {
+                        **location_fields,
+                        "record_id": location_name,
+                        "data_type": "location",
+                    },
+                )
+            )
+
+    dataframe = pd.DataFrame(rows)
+    return dataframe, {
+        "connector": "google_business_profile",
+        "resource": "location_performance",
+        "daily_metrics": list(GOOGLE_BUSINESS_PROFILE_DAILY_METRICS),
+        "location_count": len(locations),
         "start_date": since.isoformat(),
         "end_date": until.isoformat(),
         "row_count": len(dataframe),
@@ -4570,6 +4820,7 @@ def connector_display_name(source_type: str) -> str:
         "google_analytics": "Google Analytics",
         "google_search_console": "Google Search Console",
         "google_ads": "Google Ads",
+        "google_business_profile": "Google Business Profile",
         "meta_ads": "Meta Ads",
         "hubspot": "HubSpot",
         "quickbooks": "QuickBooks",

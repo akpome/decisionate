@@ -17,6 +17,7 @@ IMPLEMENTED_CONNECTOR_TYPES = {
     "google_analytics",
     "google_search_console",
     "google_ads",
+    "google_business_profile",
     "hubspot",
     "stripe",
     "shopify",
@@ -116,6 +117,20 @@ DATASET_SOURCES = [
         "description": (
             "Connect Search Console performance data for a verified URL-prefix "
             "or Domain property."
+        ),
+    },
+    {
+        "type": "google_business_profile",
+        "label": "Google Business Profile",
+        "category": "business_apps",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": [],
+        "required_config_keys": [],
+        "description": (
+            "Connect accessible Google Business Profile locations and daily "
+            "profile performance metrics from Google Search and Maps."
         ),
     },
     {
@@ -428,6 +443,10 @@ DATASET_SOURCE_ENV_KEYS = {
         "GOOGLE_ADS_CLIENT_ID",
         "GOOGLE_ADS_CLIENT_SECRET",
     ],
+    "google_business_profile": [
+        "GOOGLE_BUSINESS_PROFILE_CLIENT_ID",
+        "GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET",
+    ],
     "square": [
         "SQUARE_CLIENT_ID",
         "SQUARE_CLIENT_SECRET",
@@ -502,6 +521,13 @@ DATASET_SOURCE_RUNTIME_ENV_KEYS = {
         "GOOGLE_ADS_OAUTH_AUTHORIZATION_URL",
         "GOOGLE_ADS_OAUTH_TOKEN_URL",
         "GOOGLE_ADS_OAUTH_SCOPES",
+    ],
+    "google_business_profile": [
+        "GOOGLE_BUSINESS_PROFILE_API_BASE_URL",
+        "GOOGLE_BUSINESS_PROFILE_PERFORMANCE_API_BASE_URL",
+        "GOOGLE_BUSINESS_PROFILE_OAUTH_AUTHORIZATION_URL",
+        "GOOGLE_BUSINESS_PROFILE_OAUTH_TOKEN_URL",
+        "GOOGLE_BUSINESS_PROFILE_OAUTH_SCOPES",
     ],
     "square": [
         "SQUARE_API_BASE_URL",
@@ -675,6 +701,7 @@ def clone_dataset_source(source):
         "salesforce",
         "google_ads",
         "google_search_console",
+        "google_business_profile",
     }:
         if (
             is_oauth_provider_configured(source["type"])

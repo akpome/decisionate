@@ -12,6 +12,7 @@ export type DashboardComponentKey =
   | "nonprofitPerformance"
   | "constructionPerformance"
   | "lawFirmPerformance"
+  | "autoRepairPerformance"
 
 export type DashboardPreviewTone =
   | "blue"
@@ -247,6 +248,22 @@ export const dashboardDefinitions: DashboardDefinition[] = [
     previewTone: "purple",
     previewLayout: "decision",
     componentKey: "lawFirmPerformance",
+  },
+  {
+    key: "auto-repair-shop-performance",
+    name: "Auto Repair Shop Performance",
+    category: "Industry",
+    description:
+      "Repair orders, service mix, bay utilization and workflow health.",
+    highlights: [
+      "Repair Orders",
+      "Service Mix",
+      "Bay Utilization",
+    ],
+    dataBasis: "dataset",
+    previewTone: "orange",
+    previewLayout: "overview",
+    componentKey: "autoRepairPerformance",
   },
 ]
 

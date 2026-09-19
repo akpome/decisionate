@@ -275,6 +275,10 @@ separate for Decisionate billing.
 Google Search Console imports Search Analytics rows by date, query, and page.
 The connection accepts either a URL-prefix property such as
 `https://www.example.com/` or a Domain property such as `sc-domain:example.com`.
+Google Business Profile imports accessible locations and daily profile
+performance metrics from Google Search and Maps. Configure the OAuth settings,
+enable the Business Profile Information and Performance APIs in Google Cloud,
+and request Google Business Profile API access if the project has zero quota.
 Square imports order-level sales from the selected location and requires the
 `ORDERS_READ` OAuth permission. WooCommerce uses a customer-owned read-only REST
 API key; the consumer key and secret are encrypted before persistence.

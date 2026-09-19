@@ -20,6 +20,7 @@ class NewConnectorTests(unittest.TestCase):
     def test_new_sources_are_registered_with_expected_connection_types(self):
         expected = {
             "google_search_console": "oauth",
+            "google_business_profile": "oauth",
             "square": "oauth",
             "woocommerce": "api_key",
             "lightspeed": "oauth",
@@ -64,6 +65,78 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(report["resource"], "search_analytics")
         self.assertEqual(dataframe.loc[0, "query"], "decisionate")
         self.assertEqual(dataframe.loc[0, "clicks"], 12)
+
+    def test_google_business_profile_locations_and_metrics_are_normalized(self):
+        def json_request(url, headers):
+            self.assertEqual(headers["Authorization"], "Bearer business-token")
+            if "mybusinessbusinessinformation.googleapis.com" in url:
+                self.assertIn("accounts/-/locations", url)
+                self.assertIn("readMask=", url)
+                return {
+                    "locations": [{
+                        "name": "locations/123",
+                        "title": "Decisionate Halifax",
+                        "storeCode": "HALIFAX",
+                        "websiteUri": "https://decisionate.example",
+                        "metadata": {"placeId": "ChIJ123"},
+                        "phoneNumbers": {"primaryPhone": "+19025550123"},
+                        "openInfo": {"status": "OPEN"},
+                    }],
+                }
+            self.assertIn(
+                "locations/123:fetchMultiDailyMetricsTimeSeries",
+                url,
+            )
+            self.assertIn("dailyMetrics=", url)
+            self.assertIn("dailyRange.start_date.year=2026", url)
+            return {
+                "multiDailyMetricTimeSeries": [{
+                    "dailyMetricTimeSeries": [{
+                        "dailyMetric": "WEBSITE_CLICKS",
+                        "timeSeries": {
+                            "datedValues": [{
+                                "date": {"year": 2026, "month": 9, "day": 1},
+                                "value": "7",
+                            }],
+                        },
+                    }],
+                }],
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="business-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ), patch.dict(
+            "os.environ",
+            {
+                "GOOGLE_BUSINESS_PROFILE_API_BASE_URL": (
+                    "https://mybusinessbusinessinformation.googleapis.com/v1"
+                ),
+                "GOOGLE_BUSINESS_PROFILE_PERFORMANCE_API_BASE_URL": (
+                    "https://businessprofileperformance.googleapis.com/v1"
+                ),
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_google_business_profile_dataframe(
+                None,
+                make_connection("google_business_profile", {}),
+                date(2026, 9, 1),
+                date(2026, 9, 2),
+            )
+
+        self.assertEqual(report["resource"], "location_performance")
+        self.assertEqual(report["location_count"], 1)
+        self.assertEqual(dataframe.loc[0, "location_id"], "123")
+        self.assertEqual(dataframe.loc[0, "location_title"], "Decisionate Halifax")
+        self.assertEqual(dataframe.loc[0, "daily_metric"], "WEBSITE_CLICKS")
+        self.assertEqual(dataframe.loc[0, "metric_value"], 7)
+        self.assertEqual(dataframe.loc[0, "date"], "2026-09-01")
 
     def test_square_orders_are_normalized(self):
         with patch.object(
