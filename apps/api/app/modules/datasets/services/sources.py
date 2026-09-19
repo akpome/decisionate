@@ -333,32 +333,6 @@ DATASET_SOURCES = [
         ),
     },
     {
-        "type": "lightspeed_l",
-        "label": "Lightspeed Restaurant (L-Series)",
-        "category": "restaurant",
-        "status": "planned",
-        "connection_type": "oauth",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": [],
-        "description": (
-            "Restaurant L-Series is listed for coverage; API access and "
-            "data sync are awaiting a stable public connector contract."
-        ),
-    },
-    {
-        "type": "lightspeed_u",
-        "label": "Lightspeed Restaurant (U-Series)",
-        "category": "restaurant",
-        "status": "planned",
-        "connection_type": "oauth",
-        "sync_modes": ["manual", "scheduled"],
-        "config_keys": [],
-        "description": (
-            "Restaurant U-Series is listed for coverage; API access and "
-            "data sync are awaiting a stable public connector contract."
-        ),
-    },
-    {
         "type": "quickbooks",
         "label": "QuickBooks",
         "category": "accounting",

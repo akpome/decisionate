@@ -307,8 +307,7 @@ flow; configure the K-Series client credentials, scopes, and the customer's
 business location ID. It imports sales with associated consumer fields and
 menu items. O-Series uses the Kounta API and OAuth; configure the O-Series
 client credentials, company ID, and optionally a site ID. It imports completed
-orders, customers, and products. L-Series and U-Series are listed in the
-connector catalog while their public customer-data API access is confirmed.
+orders, customers, and products.
 Google Ads requires the server-side OAuth app credentials and the
 `https://www.googleapis.com/auth/adwords` scope. Google Ads API access is
 managed by the Google Cloud project that owns the OAuth credentials; an older

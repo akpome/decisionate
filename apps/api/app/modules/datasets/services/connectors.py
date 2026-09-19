@@ -5446,8 +5446,6 @@ def connector_display_name(source_type: str) -> str:
         "lightspeed_x": "Lightspeed Retail X-Series",
         "lightspeed_k": "Lightspeed Restaurant K-Series",
         "lightspeed_o": "Lightspeed Restaurant O-Series",
-        "lightspeed_l": "Lightspeed Restaurant L-Series",
-        "lightspeed_u": "Lightspeed Restaurant U-Series",
         "stripe": "Stripe",
     }.get(
         source_type,
