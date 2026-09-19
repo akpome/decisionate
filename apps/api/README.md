@@ -250,9 +250,11 @@ are granted only after the signed Stripe checkout webhook is received.
 
 Owner-only OAuth authorization is available for Shopify, Google Search Console,
 Square, QuickBooks, FreshBooks, Sage Cloud Accounting, HubSpot, Google Ads, Meta
-Ads, Lightspeed Retail, and Xero. Configure each
-provider's client ID and secret, `OAUTH_CALLBACK_URL`, and a Fernet
-`OAUTH_TOKEN_ENCRYPTION_KEY`.
+Ads, Lightspeed Retail R-Series, Lightspeed Retail X-Series, Xero, and WooCommerce. Configure each OAuth provider's
+client ID and secret, `OAUTH_CALLBACK_URL`, and a Fernet
+`OAUTH_TOKEN_ENCRYPTION_KEY`. WooCommerce is the exception to provider client
+credentials: it uses the client store's WooCommerce Application Authentication
+Endpoint to generate a read-only API key for Decisionate.
 OAuth callbacks store encrypted access and refresh tokens in the database; raw
 tokens are never returned to the web app.
 
@@ -280,9 +282,25 @@ performance metrics from Google Search and Maps. Configure the OAuth settings,
 enable the Business Profile Information and Performance APIs in Google Cloud,
 and request Google Business Profile API access if the project has zero quota.
 Square imports order-level sales from the selected location and requires the
-`ORDERS_READ` OAuth permission. WooCommerce uses a customer-owned read-only REST
-API key; the consumer key and secret are encrypted before persistence.
-Lightspeed Retail imports account sales using the configured Retail account ID.
+`ORDERS_READ` OAuth permission. To connect WooCommerce, the workspace owner
+enters the client's HTTPS store URL, selects Connect with OAuth, and the client
+store owner approves read-only access. Decisionate receives the generated key
+through `POST /oauth/callback` and encrypts it before persistence; the current
+adapter imports orders with embedded customer and billing fields rather than a
+standalone list of customers who have never placed an order.
+Lightspeed Retail (R-Series) imports account sales using the configured Retail
+account ID. Register a Lightspeed R-Series API client, set its redirect URL to
+the deployed `OAUTH_CALLBACK_URL`, and configure `LIGHTSPEED_CLIENT_ID`,
+`LIGHTSPEED_CLIENT_SECRET`, and `OAUTH_TOKEN_ENCRYPTION_KEY` on the API server.
+Use the R-Series OAuth endpoints in `.env.example` and request the
+`employee:register_read` scope. The workspace owner then enters the client's
+numeric Retail account ID and selects Connect with OAuth; the client account
+owner completes the consent screen.
+Lightspeed Retail (X-Series) is a separate connector because it uses a
+tenant-specific domain and API version. It imports selected sales, customers,
+and products resources. Configure the X-Series OAuth credentials and API
+settings from `.env.example`; after authorization, Lightspeed supplies the
+retailer domain prefix to Decisionate automatically.
 Google Ads requires the server-side OAuth app credentials and the
 `https://www.googleapis.com/auth/adwords` scope. Google Ads API access is
 managed by the Google Cloud project that owns the OAuth credentials; an older

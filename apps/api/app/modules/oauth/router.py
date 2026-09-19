@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode, urlparse
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.db.database import SessionLocal
 from app.db.models import DataSourceConnection
@@ -23,12 +23,15 @@ from app.modules.datasets.services.authorization_notifications import (
     notify_workspace_owner_of_authorization_failure,
 )
 from app.modules.datasets.services.connectors import (
+    WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG,
+    WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG,
     connector_requires_reauthorization,
 )
 from app.modules.oauth.service import (
     OAuthProviderUnavailable,
     OAuthTokenExchangeError,
     build_authorization_url,
+    build_woocommerce_authorization_url,
     create_pkce_challenge,
     create_pkce_verifier,
     create_state_token,
@@ -37,6 +40,7 @@ from app.modules.oauth.service import (
     exchange_code,
     get_freshbooks_businesses,
     get_provider,
+    normalize_lightspeed_x_domain_prefix,
     get_zoho_books_organizations,
     get_xero_connections,
     get_web_app_url,
@@ -59,6 +63,36 @@ def clear_stale_oauth_authorization(
     """Remove a failed OAuth grant before starting a new authorization flow."""
     source_type = str(getattr(connection, "source_type", "") or "").strip().lower()
     if not getattr(connection, "authorization_error", None):
+        return
+
+    if source_type == "woocommerce":
+        credential = (
+            db.query(OAuthCredential)
+            .filter(
+                OAuthCredential.connection_id == connection.id,
+                OAuthCredential.source_type == source_type,
+            )
+            .first()
+        )
+        if credential:
+            db.delete(credential)
+
+        connection_config = parse_source_connection_config(
+            connection.connection_config
+        )
+        for key in (
+            "consumer_key",
+            "consumer_secret",
+            WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG,
+            WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG,
+        ):
+            connection_config.pop(key, None)
+        connection.connection_config = (
+            json.dumps(connection_config, sort_keys=True)
+            if connection_config
+            else None
+        )
+        db.commit()
         return
 
     try:
@@ -120,7 +154,9 @@ def get_oauth_config_requirement_error(
         "site_url": "the Google Search Console property URL",
         "shop_domain": "the Shopify shop domain",
         "location_id": "the Square location ID",
+        "store_url": "the client WooCommerce store URL",
         "account_id": "the Lightspeed account ID",
+        "resource_types": "at least one resource to ingest",
         "ad_account_id": "the Meta Ads account ID",
         "customer_id": "the Google Ads customer ID",
     }
@@ -207,20 +243,27 @@ async def start_oauth_connection(
             connection,
         )
         state_token = create_state_token()
-        provider = get_provider(connection.source_type)
-        code_verifier = (
-            create_pkce_verifier()
-            if provider.use_pkce
-            else None
-        )
-        authorization_url = build_authorization_url(
-            connection.source_type,
-            state_token,
-            config,
-            create_pkce_challenge(code_verifier)
-            if code_verifier
-            else None,
-        )
+        if connection.source_type == "woocommerce":
+            code_verifier = None
+            authorization_url = build_woocommerce_authorization_url(
+                config.get("store_url"),
+                state_token,
+            )
+        else:
+            provider = get_provider(connection.source_type)
+            code_verifier = (
+                create_pkce_verifier()
+                if provider.use_pkce
+                else None
+            )
+            authorization_url = build_authorization_url(
+                connection.source_type,
+                state_token,
+                config,
+                create_pkce_challenge(code_verifier)
+                if code_verifier
+                else None,
+            )
         db.add(
             OAuthConnectionState(
                 state_token=state_token,
@@ -272,6 +315,23 @@ async def cancel_oauth_authorization(
         )
         if credential:
             db.delete(credential)
+
+        if connection.source_type == "woocommerce":
+            connection_config = parse_source_connection_config(
+                connection.connection_config
+            )
+            for key in (
+                "consumer_key",
+                "consumer_secret",
+                WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG,
+                WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG,
+            ):
+                connection_config.pop(key, None)
+            connection.connection_config = (
+                json.dumps(connection_config, sort_keys=True)
+                if connection_config
+                else None
+            )
 
         db.query(OAuthConnectionState).filter(
             OAuthConnectionState.connection_id == connection.id
@@ -358,6 +418,12 @@ def process_oauth_callback(request: Request):
                     # Keep the configured token endpoint when Zoho's optional
                     # callback hint is not in a recognized URL form.
                     connection_config.pop("accounts_server", None)
+        if state_source_type == "lightspeed_x":
+            connection_config["domain_prefix"] = (
+                normalize_lightspeed_x_domain_prefix(
+                    query.get("domain_prefix")
+                )
+            )
         code_verifier = decrypt_token(state.code_verifier)
         payload = exchange_code(
             state_source_type,
@@ -471,6 +537,11 @@ def process_oauth_callback(request: Request):
             connection_config["instance_url"] = get_salesforce_instance_url(
                 payload
             )
+            connection.connection_config = json.dumps(
+                connection_config,
+                sort_keys=True,
+            )
+        if state_source_type == "lightspeed_x":
             connection.connection_config = json.dumps(
                 connection_config,
                 sort_keys=True,
@@ -632,11 +703,133 @@ def process_oauth_callback(request: Request):
         db.close()
 
 
+async def process_woocommerce_callback(request: Request):
+    """Persist the read-only API keys posted by a WooCommerce store."""
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse(
+            {"error": "WooCommerce authorization callback must be JSON"},
+            status_code=400,
+        )
+
+    if not isinstance(payload, dict):
+        return JSONResponse(
+            {"error": "WooCommerce authorization callback is invalid"},
+            status_code=400,
+        )
+
+    state_token = str(payload.get("user_id") or "").strip()
+    consumer_key = str(payload.get("consumer_key") or "").strip()
+    consumer_secret = str(payload.get("consumer_secret") or "").strip()
+    key_permissions = str(payload.get("key_permissions") or "").strip().lower()
+    if not state_token or not consumer_key or not consumer_secret:
+        return JSONResponse(
+            {"error": "WooCommerce did not return the required API keys"},
+            status_code=400,
+        )
+    if key_permissions and key_permissions != "read":
+        return JSONResponse(
+            {"error": "Decisionate only accepts read-only WooCommerce access"},
+            status_code=400,
+        )
+
+    db = SessionLocal()
+    state_connection_id = None
+    try:
+        state = (
+            db.query(OAuthConnectionState)
+            .filter(OAuthConnectionState.state_token == state_token)
+            .first()
+        )
+        now = datetime.now(UTC).replace(tzinfo=None)
+        if not state or state.expires_at < now:
+            if state:
+                db.delete(state)
+                db.commit()
+            return JSONResponse(
+                {"error": "WooCommerce authorization state expired"},
+                status_code=400,
+            )
+
+        state_connection_id = state.connection_id
+        if state.source_type != "woocommerce":
+            raise OAuthTokenExchangeError(
+                "WooCommerce authorization state does not match the connector"
+            )
+
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == state.connection_id)
+            .first()
+        )
+        if not connection:
+            raise OAuthTokenExchangeError(
+                "WooCommerce authorization connection was not found"
+            )
+
+        connection_config = parse_source_connection_config(
+            connection.connection_config
+        )
+        connection_config[
+            WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG
+        ] = encrypt_token(consumer_key)
+        connection_config[
+            WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG
+        ] = encrypt_token(consumer_secret)
+        connection.connection_config = json.dumps(
+            connection_config,
+            sort_keys=True,
+        )
+        connection.status = "connected"
+        connection.authorization_error = None
+        connection.authorization_error_at = None
+        connection.authorization_notification_error = None
+        connection.authorization_notification_sent_at = None
+        db.delete(state)
+        db.commit()
+        return JSONResponse(
+            {"connected": True, "source_type": "woocommerce"},
+            status_code=200,
+        )
+    except (OAuthProviderUnavailable, OAuthTokenExchangeError) as error:
+        db.rollback()
+        if state_connection_id:
+            failed_connection = (
+                db.query(DataSourceConnection)
+                .filter(DataSourceConnection.id == state_connection_id)
+                .first()
+            )
+            if failed_connection:
+                mark_connection_authorization_failed(
+                    failed_connection,
+                    error,
+                )
+                db.commit()
+                notify_workspace_owner_of_authorization_failure(
+                    db,
+                    failed_connection,
+                )
+        return JSONResponse(
+            {"error": str(error)[:240]},
+            status_code=400,
+        )
+    finally:
+        db.close()
+
+
 @router.get("/callback")
 async def oauth_callback(
     request: Request,
 ):
     return process_oauth_callback(request)
+
+
+@router.post("/callback")
+async def woocommerce_oauth_callback(
+    request: Request,
+):
+    return await process_woocommerce_callback(request)
 
 
 def oauth_redirect(status: str, source_type: str | None = None):

@@ -23,6 +23,7 @@ from app.modules.oauth.service import (
     decrypt_token,
     encrypt_token,
     get_freshbooks_businesses,
+    normalize_lightspeed_x_domain_prefix,
     normalize_zoho_books_api_domain,
     refresh_oauth_token,
     token_expiry,
@@ -159,6 +160,59 @@ HUBSPOT_RESOURCE_TYPES = {
     "deals",
     "tickets",
 }
+LIGHTSPEED_X_RESOURCE_TYPES = {
+    "sales": "sales",
+    "customers": "customers",
+    "products": "products",
+}
+LIGHTSPEED_X_RESOURCE_ALIASES = {
+    "sale": "sales",
+    "customer": "customers",
+    "product": "products",
+}
+
+
+def normalize_lightspeed_x_resource_type(value) -> str:
+    normalized = re.sub(
+        r"[\s-]+",
+        "_",
+        str(value or "").strip().lower(),
+    )
+    resource_type = LIGHTSPEED_X_RESOURCE_ALIASES.get(
+        normalized,
+        normalized,
+    )
+    if resource_type not in LIGHTSPEED_X_RESOURCE_TYPES:
+        raise ConnectorUnavailable(
+            "Lightspeed X-Series resource_types contains an unsupported "
+            f"resource: {value}"
+        )
+    return resource_type
+
+
+def normalize_lightspeed_x_resource_types(config: dict) -> list[str]:
+    """Return selected X-Series resources in stable user order."""
+    configured = config.get("resource_types")
+    if isinstance(configured, list):
+        values = configured
+    elif isinstance(configured, str):
+        values = configured.split(",")
+    else:
+        values = []
+
+    resources = []
+    for value in values:
+        if not str(value or "").strip():
+            continue
+        resource_type = normalize_lightspeed_x_resource_type(value)
+        if resource_type not in resources:
+            resources.append(resource_type)
+
+    if not resources:
+        raise ConnectorUnavailable(
+            "Select at least one Lightspeed X-Series resource before syncing"
+        )
+    return resources
 
 
 def normalize_salesforce_resource_type(value) -> str:
@@ -904,6 +958,7 @@ def load_connector_dataframe(
     zoho_books_resource_type: str | None = None,
     hubspot_resource_type: str | None = None,
     salesforce_resource_type: str | None = None,
+    lightspeed_x_resource_type: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     if connection.source_type == "google_search_console":
         return load_google_search_console_dataframe(
@@ -974,6 +1029,14 @@ def load_connector_dataframe(
             connection,
             start_date,
             end_date,
+        )
+    if connection.source_type == "lightspeed_x":
+        return load_lightspeed_x_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            lightspeed_x_resource_type,
         )
     if connection.source_type == "meta_ads":
         return load_meta_ads_dataframe(
@@ -2065,20 +2128,31 @@ def get_woocommerce_secret(config: dict, config_key: str, encrypted_key: str) ->
 
 
 def get_woocommerce_api_base_url(store_url: str) -> str:
-    candidate = str(store_url or "").strip().rstrip("/")
+    candidate = normalize_woocommerce_store_url(store_url)
+    if not candidate:
+        raise ConnectorUnavailable(
+            "WooCommerce store_url must be an HTTPS store URL without credentials"
+        )
+
+    parsed = urlparse(candidate)
+    if parsed.path.rstrip("/").endswith("/wp-json/wc/v3"):
+        return candidate
+    return f"{candidate}/wp-json/wc/v3"
+
+
+def normalize_woocommerce_store_url(value) -> str | None:
+    candidate = str(value or "").strip().rstrip("/")
     parsed = urlparse(candidate)
     if (
         parsed.scheme != "https"
         or not parsed.netloc
         or parsed.username
         or parsed.password
+        or parsed.query
+        or parsed.fragment
     ):
-        raise ConnectorUnavailable(
-            "WooCommerce store_url must be an HTTPS store URL without credentials"
-        )
-    if parsed.path.rstrip("/").endswith("/wp-json/wc/v3"):
-        return candidate
-    return f"{candidate}/wp-json/wc/v3"
+        return None
+    return candidate
 
 
 def load_woocommerce_dataframe(
@@ -2100,7 +2174,7 @@ def load_woocommerce_dataframe(
     )
     if not consumer_key or not consumer_secret:
         raise ConnectorUnavailable(
-            "Configure the WooCommerce consumer key and consumer secret before syncing"
+            "Complete WooCommerce store authorization before syncing"
         )
     basic_token = base64.b64encode(
         f"{consumer_key}:{consumer_secret}".encode("utf-8")
@@ -2243,6 +2317,127 @@ def load_lightspeed_dataframe(
         "connector": "lightspeed",
         "resource": "sales",
         "account_id": account_id,
+        "start_date": date_value(start_date),
+        "end_date": date_value(end_date),
+        "row_count": len(dataframe),
+    }
+
+
+def load_lightspeed_x_dataframe(
+    db,
+    connection: DataSourceConnection,
+    start_date=None,
+    end_date=None,
+    resource_type_override: str | None = None,
+) -> tuple[pd.DataFrame, dict]:
+    config = parse_connection_config(connection)
+    resource_type = normalize_lightspeed_x_resource_type(
+        resource_type_override
+        or normalize_lightspeed_x_resource_types(config)[0]
+    )
+    domain_prefix = normalize_lightspeed_x_domain_prefix(
+        config.get("domain_prefix")
+    )
+    access_token = get_oauth_access_token(db, connection, "lightspeed_x")
+    base_template = require_provider_url(
+        "LIGHTSPEED_X_API_BASE_URL_TEMPLATE"
+    )
+    api_version = get_provider_setting("LIGHTSPEED_X_API_VERSION")
+    if not api_version:
+        raise ConnectorUnavailable(
+            "LIGHTSPEED_X_API_VERSION is required for the X-Series connector"
+        )
+    try:
+        base_url = base_template.format(
+            domain_prefix=domain_prefix,
+            version=api_version.strip(),
+        ).rstrip("/")
+    except KeyError as error:
+        raise ConnectorUnavailable(
+            "LIGHTSPEED_X_API_BASE_URL_TEMPLATE must include "
+            "{domain_prefix} and {version}"
+        ) from error
+
+    rows = []
+    after = None
+    seen_versions = set()
+    resource_path = LIGHTSPEED_X_RESOURCE_TYPES[resource_type]
+    while True:
+        params = {"page_size": str(PAGE_SIZE)}
+        if after is not None:
+            params["after"] = str(after)
+        payload = connector_json_request(
+            f"{base_url}/{resource_path}?{urlencode(params)}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        records = payload.get("data")
+        if not isinstance(records, list):
+            raise ConnectorUnavailable(
+                f"Lightspeed X-Series returned an invalid {resource_type} response"
+            )
+
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            record_id = record.get("id")
+            if resource_type == "sales":
+                normalized_fields = {
+                    "record_id": record_id,
+                    "sale_id": record_id,
+                    "created_at": record.get("created_at"),
+                    "updated_at": record.get("updated_at"),
+                    "customer_id": record.get("customer_id"),
+                    "state": record.get("state"),
+                    "total": (
+                        record.get("total_price")
+                        or record.get("total")
+                    ),
+                }
+            elif resource_type == "customers":
+                normalized_fields = {
+                    "record_id": record_id,
+                    "customer_id": record_id,
+                    "created_at": record.get("created_at"),
+                    "updated_at": record.get("updated_at"),
+                    "email": record.get("email"),
+                    "first_name": record.get("first_name"),
+                    "last_name": record.get("last_name"),
+                }
+            else:
+                normalized_fields = {
+                    "record_id": record_id,
+                    "product_id": record_id,
+                    "created_at": record.get("created_at"),
+                    "updated_at": record.get("updated_at"),
+                    "sku": record.get("sku"),
+                    "name": record.get("name"),
+                }
+            rows.append(
+                build_dynamic_connector_row(
+                    record,
+                    normalized_fields,
+                    flatten_lists=True,
+                )
+            )
+
+        version = payload.get("version")
+        next_after = version.get("max") if isinstance(version, dict) else None
+        if next_after is None or not records:
+            break
+        next_after = str(next_after)
+        if next_after in seen_versions or next_after == str(after):
+            break
+        seen_versions.add(next_after)
+        after = next_after
+
+    dataframe = pd.DataFrame(rows)
+    if resource_type == "sales":
+        dataframe = filter_date_range(dataframe, start_date, end_date)
+    return dataframe, {
+        "connector": "lightspeed_x",
+        "resource": resource_type,
+        "domain_prefix": domain_prefix,
+        "api_version": api_version.strip(),
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
@@ -4768,7 +4963,7 @@ def connector_requires_reauthorization(
     """Identify OAuth failures that need a fresh provider authorization."""
     normalized_source_type = str(source_type or "").strip().lower()
     normalized_message = str(error or "").lower()
-    if normalized_source_type in OAUTH_PROVIDERS and any(
+    if normalized_source_type in {*OAUTH_PROVIDERS, "woocommerce"} and any(
         marker in normalized_message
         for marker in (
             "authorization is no longer valid",
@@ -4833,6 +5028,7 @@ def connector_display_name(source_type: str) -> str:
         "square": "Square",
         "woocommerce": "WooCommerce",
         "lightspeed": "Lightspeed Retail",
+        "lightspeed_x": "Lightspeed Retail X-Series",
         "stripe": "Stripe",
     }.get(
         source_type,

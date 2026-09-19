@@ -31,8 +31,9 @@ export const REQUIRED_CONNECTION_CONFIG_KEYS: Record<
   stripe: ["api_key"],
   shopify: ["shop_domain"],
   square: ["location_id"],
-  woocommerce: ["store_url", "consumer_key", "consumer_secret"],
+  woocommerce: ["store_url"],
   lightspeed: ["account_id"],
+  lightspeed_x: ["resource_types"],
   meta_ads: ["ad_account_id"],
 }
 
@@ -543,6 +544,7 @@ function DataSourceConnectionRow({
       "square",
       "woocommerce",
       "lightspeed",
+      "lightspeed_x",
       "meta_ads",
       "quickbooks",
       "freshbooks",
@@ -1395,6 +1397,12 @@ const SALESFORCE_RESOURCE_OPTIONS = [
   { value: "opportunities", label: "Opportunities" },
 ]
 
+const LIGHTSPEED_X_RESOURCE_OPTIONS = [
+  { value: "sales", label: "Sales" },
+  { value: "customers", label: "Customers" },
+  { value: "products", label: "Products" },
+]
+
 type ResourceSelectionOption = {
   value: string
   label: string
@@ -1418,6 +1426,8 @@ function getResourceSelectionOptions(
       return HUBSPOT_RESOURCE_OPTIONS
     case "salesforce":
       return SALESFORCE_RESOURCE_OPTIONS
+    case "lightspeed_x":
+      return LIGHTSPEED_X_RESOURCE_OPTIONS
     default:
       return []
   }
@@ -1431,6 +1441,8 @@ function getDefaultResourceTypes(
       return ["deals"]
     case "salesforce":
       return ["opportunities"]
+    case "lightspeed_x":
+      return ["sales", "customers", "products"]
     case "freshbooks":
     case "quickbooks":
     case "xero":
@@ -1461,6 +1473,8 @@ function getResourceSelectionTitle(
       return "HubSpot objects to ingest"
     case "salesforce":
       return "Salesforce objects to ingest"
+    case "lightspeed_x":
+      return "Lightspeed X-Series resources to ingest"
     default:
       return "Objects to ingest"
   }
@@ -1683,22 +1697,20 @@ const CONNECTION_FIELD_GUIDES: Record<
   },
   woocommerce: {
     store_url: {
-      description: "The HTTPS URL of the WooCommerce store. Do not include API credentials in the URL.",
+      description: "The HTTPS URL of the client WooCommerce store. Decisionate will open that store so its owner can approve read-only order access with customer and billing fields.",
       example: "https://shop.example.com",
-    },
-    consumer_key: {
-      description: "A WooCommerce REST API consumer key with read access.",
-      example: "ck_...",
-    },
-    consumer_secret: {
-      description: "The matching WooCommerce REST API consumer secret. It is encrypted before storage.",
-      example: "cs_...",
     },
   },
   lightspeed: {
     account_id: {
-      description: "The Lightspeed Retail account identifier used by the API.",
+      description: "The Lightspeed Retail (R-Series) account identifier used by the API.",
       example: "123456",
+    },
+  },
+  lightspeed_x: {
+    resource_types: {
+      description: "Choose the Lightspeed X-Series resources Decisionate should import.",
+      example: "Sales, Customers, Products",
     },
   },
   freshbooks: {
@@ -1831,7 +1843,9 @@ export function ConnectionSetupGuide({
           <p className="rounded-md bg-blue-50 px-2 py-2 leading-4 text-blue-800">
             {hasResourceTypeSelection(source)
               ? `Use Connect with OAuth to authorize the provider account, then select the ${source.label} objects to ingest.`
-              : "Save the connection fields first, then use Connect with OAuth to authorize the provider account."}
+              : source.type === "woocommerce"
+                ? "Save the client store URL first, then use Connect with OAuth to authorize that WooCommerce store."
+                : "Save the connection fields first, then use Connect with OAuth to authorize the provider account."}
           </p>
         )}
 
@@ -1984,6 +1998,54 @@ function ConnectionConfigField({
         </div>
         <p className="mt-2 normal-case tracking-normal text-gray-500">
           Each checked object creates or updates a separate dataset.
+        </p>
+      </fieldset>
+    )
+  }
+
+  if (sourceType === "lightspeed_x" && configKey === "resource_types") {
+    const selectedResources = new Set(
+      value
+        .split(",")
+        .map((resource) => resource.trim())
+        .filter(Boolean)
+    )
+
+    return (
+      <fieldset className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
+        <legend>{getResourceSelectionTitle(sourceType)}</legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {LIGHTSPEED_X_RESOURCE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 normal-case tracking-normal text-gray-700"
+            >
+              <input
+                type="checkbox"
+                checked={selectedResources.has(option.value)}
+                onChange={(event) => {
+                  const nextResources = new Set(selectedResources)
+                  if (event.target.checked) {
+                    nextResources.add(option.value)
+                  } else {
+                    nextResources.delete(option.value)
+                  }
+                  if (!nextResources.size) return
+                  onChange(
+                    LIGHTSPEED_X_RESOURCE_OPTIONS
+                      .map((item) => item.value)
+                      .filter((item) => nextResources.has(item))
+                      .join(",")
+                  )
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-2 normal-case tracking-normal text-gray-500">
+          Each checked resource creates or updates a separate dataset.
         </p>
       </fieldset>
     )
@@ -2405,6 +2467,10 @@ function hasResourceTypeSelection(
 function getExternalCredentialLabel(
   source?: DatasetSourceOption
 ) {
+  if (source?.type === "woocommerce") {
+    return "WooCommerce authorization"
+  }
+
   if (source?.connection_type === "database") {
     return "Database credentials"
   }

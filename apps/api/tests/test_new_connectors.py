@@ -22,8 +22,9 @@ class NewConnectorTests(unittest.TestCase):
             "google_search_console": "oauth",
             "google_business_profile": "oauth",
             "square": "oauth",
-            "woocommerce": "api_key",
+            "woocommerce": "oauth",
             "lightspeed": "oauth",
+            "lightspeed_x": "oauth",
         }
         for source_type, connection_type in expected.items():
             source = get_dataset_source(source_type)
@@ -219,11 +220,11 @@ class NewConnectorTests(unittest.TestCase):
                     "total": "125.00",
                 }],
             },
-        ), patch.dict(
+        ) as request, patch.dict(
             "os.environ",
             {
                 "LIGHTSPEED_API_BASE_URL_TEMPLATE": (
-                    "https://api.lightspeedapp.com/API/Account/{account_id}"
+                    "https://api.lightspeedapp.com/API/V3/Account/{account_id}"
                 ),
             },
             clear=False,
@@ -237,6 +238,61 @@ class NewConnectorTests(unittest.TestCase):
 
         self.assertEqual(report["resource"], "sales")
         self.assertEqual(dataframe.loc[0, "sale_id"], "sale-1")
+        request_url = request.call_args.args[0]
+        self.assertIn(
+            "/API/V3/Account/account-1/Sale.json",
+            request_url,
+        )
+
+    def test_lightspeed_x_resources_are_normalized(self):
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="lightspeed-x-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            return_value={
+                "data": [{
+                    "id": "sale-1",
+                    "created_at": "2026-09-01T12:00:00Z",
+                    "customer_id": "customer-1",
+                    "total_price": "125.00",
+                    "line_items": [{"product_id": "product-1"}],
+                }],
+            },
+        ) as request, patch.dict(
+            "os.environ",
+            {
+                "LIGHTSPEED_X_API_BASE_URL_TEMPLATE": (
+                    "https://{domain_prefix}.retail.lightspeed.app/api/{version}"
+                ),
+                "LIGHTSPEED_X_API_VERSION": "2026-07",
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_lightspeed_x_dataframe(
+                None,
+                make_connection(
+                    "lightspeed_x",
+                    {
+                        "domain_prefix": "client-store",
+                        "resource_types": "sales,customers,products",
+                    },
+                ),
+                date(2026, 9, 1),
+                date(2026, 9, 2),
+                "sales",
+            )
+
+        self.assertEqual(report["resource"], "sales")
+        self.assertEqual(dataframe.loc[0, "sale_id"], "sale-1")
+        self.assertEqual(dataframe.loc[0, "customer_id"], "customer-1")
+        self.assertEqual(dataframe.loc[0, "total"], "125.00")
+        self.assertIn(
+            "https://client-store.retail.lightspeed.app/api/2026-07/sales",
+            request.call_args.args[0],
+        )
 
 
 if __name__ == "__main__":

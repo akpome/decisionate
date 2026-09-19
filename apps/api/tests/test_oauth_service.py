@@ -10,6 +10,7 @@ from cryptography.fernet import Fernet
 
 from app.modules.oauth.service import (
     build_authorization_url,
+    build_woocommerce_authorization_url,
     create_pkce_challenge,
     decrypt_token,
     encrypt_token,
@@ -21,6 +22,8 @@ from app.modules.oauth.router import (
     clear_stale_oauth_authorization,
     get_oauth_config_requirement_error,
 )
+from app.modules.datasets.router import get_source_connection_config_status
+from app.modules.datasets.services.sources import get_dataset_source
 from app.modules.datasets.services.scheduling import (
     connection_sync_is_due,
     read_connection_schedule,
@@ -68,12 +71,14 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             "zoho_books",
             "salesforce",
             "shopify",
+            "woocommerce",
         ):
             with self.subTest(source_type=source_type):
                 db = FakeDb()
                 connection = types.SimpleNamespace(
                     id=42,
                     source_type=source_type,
+                    connection_config=None,
                     authorization_error="authorization is no longer valid",
                 )
 
@@ -131,6 +136,167 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         query = parse_qs(urlparse(url).query)
         self.assertEqual(query["code_challenge"], ["challenge-1"])
         self.assertEqual(query["code_challenge_method"], ["S256"])
+
+    def test_lightspeed_r_series_authorization_url_uses_read_only_pkce(self):
+        with patch.dict(
+            os.environ,
+            {
+                "LIGHTSPEED_CLIENT_ID": "client-id",
+                "LIGHTSPEED_CLIENT_SECRET": "client-secret",
+                "LIGHTSPEED_OAUTH_AUTHORIZATION_URL": (
+                    "https://cloud.lightspeedapp.com/auth/oauth/authorize"
+                ),
+                "LIGHTSPEED_OAUTH_TOKEN_URL": (
+                    "https://cloud.lightspeedapp.com/auth/oauth/token"
+                ),
+                "LIGHTSPEED_OAUTH_SCOPES": "employee:register_read",
+                "OAUTH_TOKEN_ENCRYPTION_KEY": Fernet.generate_key().decode(),
+                "OAUTH_CALLBACK_URL": (
+                    "https://api.example.com/oauth/callback"
+                ),
+            },
+            clear=False,
+        ):
+            url = build_authorization_url(
+                "lightspeed",
+                "state-1",
+                {"account_id": "123456"},
+                code_challenge="challenge-1",
+            )
+
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query)
+        self.assertEqual(
+            parsed.path,
+            "/auth/oauth/authorize",
+        )
+        self.assertEqual(query["scope"], ["employee:register_read"])
+        self.assertNotIn("redirect_uri", query)
+        self.assertEqual(query["code_challenge"], ["challenge-1"])
+        self.assertEqual(query["code_challenge_method"], ["S256"])
+
+    def test_lightspeed_token_exchange_omits_unregistered_redirect_uri(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"access_token":"access-token"}'
+
+        with patch.dict(
+            os.environ,
+            {
+                "LIGHTSPEED_CLIENT_ID": "client-id",
+                "LIGHTSPEED_CLIENT_SECRET": "client-secret",
+                "LIGHTSPEED_OAUTH_AUTHORIZATION_URL": (
+                    "https://cloud.lightspeedapp.com/auth/oauth/authorize"
+                ),
+                "LIGHTSPEED_OAUTH_TOKEN_URL": (
+                    "https://cloud.lightspeedapp.com/auth/oauth/token"
+                ),
+                "LIGHTSPEED_OAUTH_SCOPES": "employee:register_read",
+                "OAUTH_CALLBACK_URL": (
+                    "https://api.example.com/oauth/callback"
+                ),
+            },
+            clear=False,
+        ), patch(
+            "app.modules.oauth.service.urlopen",
+            return_value=FakeResponse(),
+        ) as mocked_urlopen:
+            exchange_code(
+                "lightspeed",
+                "auth-code",
+                {"account_id": "123456"},
+                code_verifier="verifier-1",
+            )
+
+        request = mocked_urlopen.call_args.args[0]
+        body = parse_qs(request.data.decode("utf-8"))
+        self.assertNotIn("redirect_uri", body)
+        self.assertEqual(body["code_verifier"], ["verifier-1"])
+
+    def test_lightspeed_x_token_exchange_uses_callback_domain_prefix(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"access_token":"access-token"}'
+
+        with patch.dict(
+            os.environ,
+            {
+                "LIGHTSPEED_X_CLIENT_ID": "client-id",
+                "LIGHTSPEED_X_CLIENT_SECRET": "client-secret",
+                "LIGHTSPEED_X_OAUTH_AUTHORIZATION_URL": (
+                    "https://secure.retail.lightspeed.app/connect"
+                ),
+                "LIGHTSPEED_X_OAUTH_TOKEN_URL_TEMPLATE": (
+                    "https://{domain_prefix}.retail.lightspeed.app/api/1.0/token"
+                ),
+                "LIGHTSPEED_X_OAUTH_SCOPES": (
+                    "sales:read customers:read products:read"
+                ),
+                "OAUTH_CALLBACK_URL": (
+                    "https://api.example.com/oauth/callback"
+                ),
+            },
+            clear=False,
+        ), patch(
+            "app.modules.oauth.service.urlopen",
+            return_value=FakeResponse(),
+        ) as mocked_urlopen:
+            exchange_code(
+                "lightspeed_x",
+                "auth-code",
+                {"domain_prefix": "client-store"},
+            )
+
+        request = mocked_urlopen.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "https://client-store.retail.lightspeed.app/api/1.0/token",
+        )
+        body = parse_qs(request.data.decode("utf-8"))
+        self.assertNotIn("code_verifier", body)
+
+    def test_woocommerce_authorization_url_uses_store_owner_callback(self):
+        with patch.dict(
+            os.environ,
+            {
+                "OAUTH_CALLBACK_URL": (
+                    "https://api.example.com/oauth/callback"
+                ),
+                "DECISIONATE_WEB_APP_URL": "https://app.example.com",
+            },
+            clear=False,
+        ):
+            url = build_woocommerce_authorization_url(
+                "https://shop.example.com",
+                "state-1",
+            )
+
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query)
+        self.assertEqual(parsed.path, "/wc-auth/v1/authorize")
+        self.assertEqual(query["app_name"], ["Decisionate"])
+        self.assertEqual(query["scope"], ["read"])
+        self.assertEqual(query["user_id"], ["state-1"])
+        self.assertEqual(
+            query["callback_url"],
+            ["https://api.example.com/oauth/callback"],
+        )
+        self.assertEqual(
+            query["return_url"],
+            ["https://app.example.com/dashboard/connections"],
+        )
 
     def test_salesforce_token_exchange_includes_pkce_verifier(self):
         class FakeResponse:
@@ -384,6 +550,23 @@ class OAuthAndSchedulingTests(unittest.TestCase):
                 {},
             ),
             "Enter and save the Google Ads customer ID before connecting with OAuth",
+        )
+
+    def test_woocommerce_store_url_must_be_https_before_oauth(self):
+        source = get_dataset_source("woocommerce")
+        self.assertEqual(
+            get_source_connection_config_status(
+                source,
+                {"store_url": "http://shop.example.com"},
+            ),
+            (["store_url"], [], ["store_url"]),
+        )
+        self.assertEqual(
+            get_source_connection_config_status(
+                source,
+                {"store_url": "https://shop.example.com"},
+            ),
+            (["store_url"], ["store_url"], []),
         )
 
     def test_schedule_is_explicit_and_due(self):

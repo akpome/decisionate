@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -40,6 +41,7 @@ class OAuthProvider:
     scopes_env: str
     use_basic_token_auth: bool = False
     use_pkce: bool = False
+    include_redirect_uri: bool = True
     required_scopes: tuple[str, ...] = ()
     required_scope_groups: tuple[tuple[str, ...], ...] = ()
 
@@ -236,6 +238,22 @@ OAUTH_PROVIDERS = {
         client_id_env="LIGHTSPEED_CLIENT_ID",
         client_secret_env="LIGHTSPEED_CLIENT_SECRET",
         scopes_env="LIGHTSPEED_OAUTH_SCOPES",
+        use_pkce=True,
+        include_redirect_uri=False,
+        required_scopes=("employee:register_read",),
+    ),
+    "lightspeed_x": OAuthProvider(
+        source_type="lightspeed_x",
+        authorization_url_env="LIGHTSPEED_X_OAUTH_AUTHORIZATION_URL",
+        token_url_env="LIGHTSPEED_X_OAUTH_TOKEN_URL_TEMPLATE",
+        client_id_env="LIGHTSPEED_X_CLIENT_ID",
+        client_secret_env="LIGHTSPEED_X_CLIENT_SECRET",
+        scopes_env="LIGHTSPEED_X_OAUTH_SCOPES",
+        required_scopes=(
+            "sales:read",
+            "customers:read",
+            "products:read",
+        ),
     ),
 }
 
@@ -251,6 +269,16 @@ def get_provider(source_type: str) -> OAuthProvider:
             "OAuth is not supported for this connector"
         )
     return provider
+
+
+def normalize_lightspeed_x_domain_prefix(value: str | None) -> str:
+    """Validate the tenant prefix returned by Lightspeed X-Series OAuth."""
+    domain_prefix = str(value or "").strip().lower()
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", domain_prefix):
+        raise OAuthProviderUnavailable(
+            "Lightspeed X-Series did not return a valid domain prefix"
+        )
+    return domain_prefix
 
 
 ZOHO_BOOKS_DATA_CENTER_SUFFIXES = (
@@ -497,14 +525,14 @@ def build_authorization_url(
             raise OAuthProviderUnavailable(
                 "SHOPIFY_OAUTH_AUTHORIZATION_URL_TEMPLATE must include {shop_domain}"
             ) from error
-
     params = {
         "client_id": client_id,
-        "redirect_uri": get_callback_url(),
         "response_type": "code",
         "state": state_token,
         "scope": " ".join(scopes),
     }
+    if provider.include_redirect_uri:
+        params["redirect_uri"] = get_callback_url()
     if provider.use_pkce:
         if not code_challenge:
             raise OAuthProviderUnavailable(
@@ -537,6 +565,53 @@ def build_authorization_url(
                 "prompt": "consent",
             }
         )
+    return f"{authorization_url}?{urlencode(params)}"
+
+
+def build_woocommerce_authorization_url(
+    store_url: str,
+    state_token: str,
+) -> str:
+    """Build WooCommerce's store-owner API-key authorization URL."""
+    candidate = str(store_url or "").strip().rstrip("/")
+    parsed = urlparse(candidate)
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise OAuthProviderUnavailable(
+            "WooCommerce store_url must be an HTTPS store URL without credentials"
+        )
+
+    callback_url = get_callback_url()
+    callback = urlparse(callback_url)
+    callback_hostname = (callback.hostname or "").lower()
+    if callback.scheme != "https" and callback_hostname not in {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+    }:
+        raise OAuthProviderUnavailable(
+            "WooCommerce authorization requires an HTTPS OAuth callback URL"
+        )
+
+    store_base_url = candidate
+    if parsed.path.rstrip("/").endswith("/wc-auth/v1/authorize"):
+        authorization_url = store_base_url
+    else:
+        authorization_url = f"{store_base_url}/wc-auth/v1/authorize"
+
+    params = {
+        "app_name": "Decisionate",
+        "scope": "read",
+        "user_id": state_token,
+        "return_url": f"{get_web_app_url()}/dashboard/connections",
+        "callback_url": callback_url,
+    }
     return f"{authorization_url}?{urlencode(params)}"
 
 
@@ -589,6 +664,17 @@ def exchange_code(
             raise OAuthProviderUnavailable(
                 "SHOPIFY_OAUTH_TOKEN_URL_TEMPLATE must include {shop_domain}"
             ) from error
+    elif provider.source_type == "lightspeed_x":
+        domain_prefix = normalize_lightspeed_x_domain_prefix(
+            config.get("domain_prefix")
+        )
+        try:
+            token_url = token_url.format(domain_prefix=domain_prefix)
+        except KeyError as error:
+            raise OAuthProviderUnavailable(
+                "LIGHTSPEED_X_OAUTH_TOKEN_URL_TEMPLATE must include "
+                "{domain_prefix}"
+            ) from error
     elif provider.source_type == "sage":
         token_url = get_sage_token_url(config.get("country"))
     elif provider.source_type == "zoho_books":
@@ -610,8 +696,9 @@ def exchange_code(
     params = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": get_callback_url(),
     }
+    if provider.include_redirect_uri:
+        params["redirect_uri"] = get_callback_url()
     if provider.use_pkce:
         if not code_verifier:
             raise OAuthTokenExchangeError(
@@ -784,6 +871,17 @@ def refresh_oauth_token(
                 token_url = (
                     f"{normalized_accounts_server}/oauth/v2/token"
                 )
+    elif provider.source_type == "lightspeed_x":
+        domain_prefix = normalize_lightspeed_x_domain_prefix(
+            config.get("domain_prefix")
+        )
+        try:
+            token_url = token_url.format(domain_prefix=domain_prefix)
+        except KeyError as error:
+            raise OAuthProviderUnavailable(
+                "LIGHTSPEED_X_OAUTH_TOKEN_URL_TEMPLATE must include "
+                "{domain_prefix}"
+            ) from error
 
     params = {
         "grant_type": "refresh_token",

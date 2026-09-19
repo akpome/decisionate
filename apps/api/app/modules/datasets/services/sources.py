@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlparse
 
 from app.modules.datasets.services.file_loader import (
     get_dataset_file_source_dependencies,
@@ -9,6 +10,9 @@ from app.modules.datasets.services.google_analytics import (
     is_google_analytics_connector_available,
 )
 from app.modules.oauth.service import (
+    OAuthProviderUnavailable,
+    get_callback_url,
+    get_fernet,
     is_oauth_provider_configured,
 )
 
@@ -24,6 +28,7 @@ IMPLEMENTED_CONNECTOR_TYPES = {
     "square",
     "woocommerce",
     "lightspeed",
+    "lightspeed_x",
     "meta_ads",
     "quickbooks",
     "freshbooks",
@@ -261,21 +266,18 @@ DATASET_SOURCES = [
         "label": "WooCommerce",
         "category": "commerce",
         "status": "available",
-        "connection_type": "api_key",
+        "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["store_url", "consumer_key", "consumer_secret"],
-        "required_config_keys": [
-            "store_url",
-            "consumer_key",
-            "consumer_secret",
-        ],
+        "config_keys": ["store_url"],
+        "required_config_keys": ["store_url"],
         "description": (
-            "Connect WooCommerce orders with a read-only REST API key."
+            "Authorize a WooCommerce store and import orders with customer "
+            "and billing fields using read-only REST API access."
         ),
     },
     {
         "type": "lightspeed",
-        "label": "Lightspeed Retail",
+        "label": "Lightspeed Retail (R-Series)",
         "category": "commerce",
         "status": "planned",
         "connection_type": "oauth",
@@ -283,7 +285,21 @@ DATASET_SOURCES = [
         "config_keys": ["account_id"],
         "required_config_keys": ["account_id"],
         "description": (
-            "Connect Lightspeed Retail sales data for a Lightspeed account."
+            "Connect Lightspeed Retail (R-Series) sales data with read-only OAuth."
+        ),
+    },
+    {
+        "type": "lightspeed_x",
+        "label": "Lightspeed Retail (X-Series)",
+        "category": "commerce",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["resource_types"],
+        "required_config_keys": ["resource_types"],
+        "description": (
+            "Connect Lightspeed Retail (X-Series) sales, customer, and "
+            "product data with read-only OAuth."
         ),
     },
     {
@@ -455,6 +471,10 @@ DATASET_SOURCE_ENV_KEYS = {
         "LIGHTSPEED_CLIENT_ID",
         "LIGHTSPEED_CLIENT_SECRET",
     ],
+    "lightspeed_x": [
+        "LIGHTSPEED_X_CLIENT_ID",
+        "LIGHTSPEED_X_CLIENT_SECRET",
+    ],
     "meta_ads": [
         "META_ADS_APP_ID",
         "META_ADS_APP_SECRET",
@@ -542,6 +562,13 @@ DATASET_SOURCE_RUNTIME_ENV_KEYS = {
         "LIGHTSPEED_OAUTH_TOKEN_URL",
         "LIGHTSPEED_OAUTH_SCOPES",
     ],
+    "lightspeed_x": [
+        "LIGHTSPEED_X_API_BASE_URL_TEMPLATE",
+        "LIGHTSPEED_X_API_VERSION",
+        "LIGHTSPEED_X_OAUTH_AUTHORIZATION_URL",
+        "LIGHTSPEED_X_OAUTH_TOKEN_URL_TEMPLATE",
+        "LIGHTSPEED_X_OAUTH_SCOPES",
+    ],
 }
 
 
@@ -551,6 +578,24 @@ def get_missing_provider_settings(source_type):
         for key in DATASET_SOURCE_RUNTIME_ENV_KEYS.get(source_type, [])
         if not str(os.getenv(key, "") or "").strip()
     ]
+
+
+def is_woocommerce_authorization_configured():
+    """Check the app-side requirements for WooCommerce store authorization."""
+    try:
+        get_fernet()
+        callback = urlparse(get_callback_url())
+    except (OAuthProviderUnavailable, ValueError):
+        return False
+
+    hostname = (callback.hostname or "").lower()
+    return bool(
+        callback.netloc
+        and (
+            callback.scheme == "https"
+            or hostname in {"localhost", "127.0.0.1", "::1"}
+        )
+    )
 
 
 def provider_setup_note(source_type, default_note):
@@ -660,6 +705,18 @@ def clone_dataset_source(source):
                 "credentials and token encryption to enable sync."
             )
 
+    if source["type"] == "woocommerce":
+        if is_woocommerce_authorization_configured():
+            cloned_source["status"] = "available"
+            cloned_source["environment_configured"] = True
+        else:
+            cloned_source["status"] = "needs_setup"
+            cloned_source["availability_note"] = (
+                "Configure OAUTH_TOKEN_ENCRYPTION_KEY and a public HTTPS "
+                "OAUTH_CALLBACK_URL on the Decisionate server to enable "
+                "WooCommerce store authorization."
+            )
+
     if source["type"] == "hubspot":
         if (
             is_oauth_provider_configured("hubspot")
@@ -693,6 +750,7 @@ def clone_dataset_source(source):
         "shopify",
         "square",
         "lightspeed",
+        "lightspeed_x",
         "meta_ads",
         "quickbooks",
         "freshbooks",

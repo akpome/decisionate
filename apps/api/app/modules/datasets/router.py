@@ -176,6 +176,7 @@ from app.modules.datasets.services.connectors import (
     WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG,
     load_connector_dataframe,
     normalize_hubspot_resource_types,
+    normalize_lightspeed_x_resource_types,
     normalize_salesforce_resource_type,
     normalize_salesforce_resource_types,
     normalize_quickbooks_resource_type,
@@ -188,6 +189,7 @@ from app.modules.datasets.services.connectors import (
     normalize_zoho_books_resource_type,
     normalize_zoho_books_resource_types,
     normalize_shop_domain,
+    normalize_woocommerce_store_url,
     connector_requires_reauthorization,
     refresh_oauth_access_token_if_due,
 )
@@ -236,6 +238,7 @@ CONNECTOR_DEDUP_KEYS = {
     "square": ["order_id"],
     "woocommerce": ["order_id"],
     "lightspeed": ["sale_id"],
+    "lightspeed_x": ["record_id"],
     "meta_ads": ["date_start", "campaign_id"],
     "google_ads": ["date", "campaign_id"],
     "quickbooks": ["record_id"],
@@ -854,6 +857,12 @@ def build_source_connection_response(
         configured_resource_types = normalize_salesforce_resource_types(
             parsed_config
         )
+    elif source_type == "lightspeed_x" and has_source_connection_config(
+        connection.connection_config
+    ):
+        configured_resource_types = normalize_lightspeed_x_resource_types(
+            parsed_config
+        )
     has_config = has_source_connection_config(
         connection.connection_config
     )
@@ -1091,6 +1100,14 @@ def get_source_connection_config_status(
         elif (
             source
             and source.get("type") == "woocommerce"
+            and config_key == "store_url"
+        ):
+            configured_value = normalize_woocommerce_store_url(
+                configured_value
+            )
+        elif (
+            source
+            and source.get("type") == "woocommerce"
             and config_key == "consumer_key"
         ):
             configured_value = parsed_config.get(
@@ -1138,6 +1155,7 @@ def require_source_connection_sync_config(connection):
         "consumer_key": "the WooCommerce consumer key",
         "consumer_secret": "the WooCommerce consumer secret",
         "account_id": "the Lightspeed account ID",
+        "resource_types": "at least one resource to ingest",
         "ad_account_id": "the Meta Ads account ID",
         "customer_id": "the Google Ads customer ID",
         "host": "the database host",
@@ -4511,6 +4529,61 @@ def run_salesforce_sync(
     return results
 
 
+def run_lightspeed_x_sync(
+    db,
+    connection: DataSourceConnection,
+    payload: DataSourceConnectionSync,
+):
+    connection_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    resource_types = normalize_lightspeed_x_resource_types(
+        connection_config
+    )
+    start_date, end_date = get_incremental_sync_window(
+        connection,
+        payload,
+    )
+    results = []
+    empty_resources = []
+    for resource_type in resource_types:
+        dataframe, report_config = load_connector_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            lightspeed_x_resource_type=resource_type,
+        )
+        try:
+            results.append(
+                persist_connector_dataframe(
+                    db,
+                    connection,
+                    dataframe,
+                    report_config,
+                )
+            )
+        except ConnectorNoData:
+            empty_resources.append(resource_type)
+
+    if not results:
+        labels = ", ".join(
+            resource.replace("_", " ").title()
+            for resource in empty_resources
+        ) or "selected resources"
+        period = (
+            f" from {start_date} through {end_date}"
+            if start_date and end_date
+            else " for the selected sync period"
+        )
+        raise ConnectorNoData(
+            "Lightspeed X-Series returned no records for "
+            f"{labels}{period}. Verify that the connected account contains "
+            "data."
+        )
+    return results
+
+
 def persist_connector_dataframe(
     db,
     connection,
@@ -4930,6 +5003,9 @@ def run_data_source_sync(
 
     if connection.source_type == "salesforce":
         return run_salesforce_sync(db, connection, payload)
+
+    if connection.source_type == "lightspeed_x":
+        return run_lightspeed_x_sync(db, connection, payload)
 
     if connection.source_type not in IMPLEMENTED_CONNECTOR_TYPES:
         raise ConnectorUnavailable(
