@@ -148,7 +148,7 @@ export function useWorkspaceBrowserBrand(
           )
         : ""
     const defaultLogoUrl =
-      "/icons/decisionate-icon.svg"
+      "/icons/decisionate-logo.png"
     const unresolvedLogoUrl =
       pendingWorkspaceIconUrl
     let activeFaviconUrl =

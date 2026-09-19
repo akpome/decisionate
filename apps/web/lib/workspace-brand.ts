@@ -6,7 +6,7 @@ import type {
 export const defaultBrandPrimaryColor = "#2563EB"
 export const defaultBrandAccentColor = "#14B8A6"
 export const decisionateBrandLogoUrl =
-  "/icons/decisionate-icon.svg"
+  "/icons/decisionate-logo.png"
 export const maxBrandLogoUploadBytes = 1_048_576
 export const maxBrandLogoUrlLength =
   Math.ceil(maxBrandLogoUploadBytes / 3) * 4 +

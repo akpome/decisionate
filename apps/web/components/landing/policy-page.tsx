@@ -25,7 +25,7 @@ export function PolicyPage({
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
           <Link href="/" className="flex items-center gap-2.5">
             <Image
-              src="/icons/decisionate-icon.svg"
+              src="/icons/decisionate-logo.png"
               alt="Decisionate"
               width={34}
               height={34}

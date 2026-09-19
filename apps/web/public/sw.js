@@ -1,11 +1,11 @@
 const CACHE_PREFIX = "decisionate-pwa"
-const CACHE_VERSION = "v4"
+const CACHE_VERSION = "v5"
 const SHELL_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-shell`
 const OFFLINE_URL = "/offline.html"
 
 const SHELL_ASSETS = [
   OFFLINE_URL,
-  "/icons/decisionate-icon.svg",
+  "/icons/decisionate-logo.png",
   "/icons/decisionate-maskable.svg",
 ]
 

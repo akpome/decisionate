@@ -52,8 +52,8 @@ export default function RootLayout({
       <head>
         <link
           rel="icon"
-          href="/icons/decisionate-icon.svg"
-          type="image/svg+xml"
+          href="/icons/decisionate-logo.png"
+          type="image/png"
         />
         <WorkspaceFaviconBootstrap />
       </head>

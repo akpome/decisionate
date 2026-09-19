@@ -4,7 +4,7 @@ const defaultManifestDescription =
 const defaultManifestThemeColor = "#4f46e5"
 const defaultManifestBackgroundColor = "#f8fafc"
 const decisionateIconUrl =
-  "/icons/decisionate-icon.svg"
+  "/icons/decisionate-logo.png"
 const decisionateMaskableIconUrl =
   "/icons/decisionate-maskable.svg"
 

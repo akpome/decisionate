@@ -37,7 +37,7 @@ export function LandingNavbar() {
           aria-label="Decisionate home"
         >
           <Image
-            src="/icons/decisionate-icon.svg"
+            src="/icons/decisionate-logo.png"
             alt=""
             width={32}
             height={32}

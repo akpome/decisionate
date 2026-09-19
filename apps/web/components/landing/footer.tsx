@@ -11,7 +11,7 @@ export function LandingFooter() {
       <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-8 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
           <Link href="/" className="flex items-center gap-2.5 text-white">
-            <Image src="/icons/decisionate-icon.svg" alt="" width={32} height={32} className="h-8 w-8" />
+            <Image src="/icons/decisionate-logo.png" alt="" width={32} height={32} className="h-8 w-8" />
             <span className="flex flex-col leading-none">
               <span className="text-[17px] font-bold tracking-tight">Decisionate</span>
               <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">

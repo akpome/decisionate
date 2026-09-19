@@ -8,7 +8,7 @@ const workspaceFaviconSelector =
   'link[rel~="icon"]'
 const pendingWorkspaceIconUrl =
   "/icons/workspace-pending.svg"
-const defaultIconUrl = "/icons/decisionate-icon.svg"
+const defaultIconUrl = "/icons/decisionate-logo.png"
 
 export function WorkspaceFaviconBootstrap() {
   useLayoutEffect(() => {
@@ -33,7 +33,9 @@ export function WorkspaceFaviconBootstrap() {
         document.head.appendChild(link)
       }
       link.rel = "icon"
-      link.type = "image/svg+xml"
+      link.type = isWorkspaceRoute
+        ? "image/svg+xml"
+        : "image/png"
       link.href = iconUrl
       if (isWorkspaceRoute) {
         link.setAttribute(

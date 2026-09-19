@@ -248,7 +248,7 @@ export default function SecurityPage() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
           <Link href="/" className="flex items-center gap-2.5" aria-label="Decisionate home">
             <Image
-              src="/icons/decisionate-icon.svg"
+              src="/icons/decisionate-logo.png"
               alt=""
               width={32}
               height={32}
