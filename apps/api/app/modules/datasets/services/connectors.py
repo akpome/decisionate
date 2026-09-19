@@ -1781,18 +1781,12 @@ def load_google_search_console_dataframe(
     end_date=None,
 ) -> tuple[pd.DataFrame, dict]:
     config = parse_connection_config(connection)
-    site_url = str(config.get("site_url") or "").strip()
-    if not site_url:
+    configured_site_url = str(config.get("site_url") or "").strip()
+    if not configured_site_url:
         raise ConnectorUnavailable(
             "Configure a Google Search Console property URL before syncing"
         )
-    if not site_url.startswith("sc-domain:"):
-        parsed_site_url = urlparse(site_url)
-        if parsed_site_url.scheme not in {"http", "https"} or not parsed_site_url.netloc:
-            raise ConnectorUnavailable(
-                "Google Search Console site_url must be a URL-prefix property "
-                "or an sc-domain property"
-            )
+    site_url = normalize_google_search_console_site_url(configured_site_url)
 
     access_token = get_oauth_access_token(
         db,
@@ -1806,49 +1800,56 @@ def load_google_search_console_dataframe(
         f"{api_base_url}/sites/{quote(site_url, safe='')}"
         "/searchAnalytics/query"
     )
-    payload = connector_json_post_request(
-        query_url,
-        headers={"Authorization": f"Bearer {access_token}"},
-        payload={
-            "startDate": since.isoformat(),
-            "endDate": until.isoformat(),
-            "dimensions": ["date", "query", "page"],
-            "rowLimit": 25_000,
-            "startRow": 0,
-        },
-    )
-    records = payload.get("rows") or []
-    if not isinstance(records, list):
-        raise ConnectorUnavailable(
-            "Google Search Console returned an invalid Search Analytics response"
-        )
-
     rows = []
     dimensions = ["date", "query", "page"]
-    for record in records:
-        if not isinstance(record, dict):
-            continue
-        keys = record.get("keys")
-        if not isinstance(keys, list):
-            keys = []
-        normalized_row = {
-            dimension: keys[index] if index < len(keys) else None
-            for index, dimension in enumerate(dimensions)
-        }
-        normalized_row.update(
-            {
-                "clicks": record.get("clicks"),
-                "impressions": record.get("impressions"),
-                "ctr": record.get("ctr"),
-                "position": record.get("position"),
-            }
+    row_limit = 25_000
+    start_row = 0
+    while True:
+        payload = connector_json_post_request(
+            query_url,
+            headers={"Authorization": f"Bearer {access_token}"},
+            payload={
+                "startDate": since.isoformat(),
+                "endDate": until.isoformat(),
+                "dimensions": dimensions,
+                "rowLimit": row_limit,
+                "startRow": start_row,
+            },
         )
-        rows.append(
-            build_dynamic_connector_row(
-                record,
-                normalized_row,
+        records = payload.get("rows") or []
+        if not isinstance(records, list):
+            raise ConnectorUnavailable(
+                "Google Search Console returned an invalid Search Analytics response"
             )
-        )
+
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            keys = record.get("keys")
+            if not isinstance(keys, list):
+                keys = []
+            normalized_row = {
+                dimension: keys[index] if index < len(keys) else None
+                for index, dimension in enumerate(dimensions)
+            }
+            normalized_row.update(
+                {
+                    "clicks": record.get("clicks"),
+                    "impressions": record.get("impressions"),
+                    "ctr": record.get("ctr"),
+                    "position": record.get("position"),
+                }
+            )
+            rows.append(
+                build_dynamic_connector_row(
+                    record,
+                    normalized_row,
+                )
+            )
+
+        if len(records) < row_limit:
+            break
+        start_row += len(records)
 
     dataframe = pd.DataFrame(rows)
     return dataframe, {
@@ -1860,6 +1861,40 @@ def load_google_search_console_dataframe(
         "end_date": until.isoformat(),
         "row_count": len(dataframe),
     }
+
+
+def normalize_google_search_console_site_url(site_url: str) -> str:
+    """Convert a user-facing Domain property into Google's API identifier."""
+    if site_url.startswith("sc-domain:"):
+        domain = site_url.removeprefix("sc-domain:").strip()
+        if not domain or "/" in domain:
+            raise ConnectorUnavailable(
+                "Google Search Console Domain properties must be entered as "
+                "the domain name shown in Search Console"
+            )
+        return f"sc-domain:{domain}"
+
+    if "://" not in site_url:
+        parsed_domain = urlparse(f"//{site_url}")
+        if (
+            parsed_domain.netloc
+            and parsed_domain.path in {"", "/"}
+            and not parsed_domain.query
+            and not parsed_domain.fragment
+        ):
+            return f"sc-domain:{parsed_domain.netloc}"
+        raise ConnectorUnavailable(
+            "Google Search Console properties must match exactly: enter the "
+            "Domain property name or the complete URL-prefix property URL"
+        )
+
+    parsed_site_url = urlparse(site_url)
+    if parsed_site_url.scheme not in {"http", "https"} or not parsed_site_url.netloc:
+        raise ConnectorUnavailable(
+            "Google Search Console properties must match exactly: enter the "
+            "Domain property name or the complete URL-prefix property URL"
+        )
+    return site_url
 
 
 GOOGLE_BUSINESS_PROFILE_DAILY_METRICS = (

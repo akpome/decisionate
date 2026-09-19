@@ -275,8 +275,11 @@ read-only API key supplied by each customer on their own connection; it does not
 use Stripe Connect or a global customer-data key. Keep `STRIPE_SECRET_KEY`
 separate for Decisionate billing.
 Google Search Console imports Search Analytics rows by date, query, and page.
-The connection accepts either a URL-prefix property such as
-`https://www.example.com/` or a Domain property such as `sc-domain:example.com`.
+The connection value must match the property added in Search Console exactly.
+For a URL-prefix property, enter the complete URL such as
+`https://www.example.com/`. For a Domain property, enter the domain name such as
+`example.com` (the connector converts it to Google's `sc-domain:example.com`
+API identifier).
 Google Business Profile imports accessible locations and daily profile
 performance metrics from Google Search and Maps. Configure the OAuth settings,
 enable the Business Profile Information and Performance APIs in Google Cloud,
@@ -308,6 +311,14 @@ business location ID. It imports sales with associated consumer fields and
 menu items. O-Series uses the Kounta API and OAuth; configure the O-Series
 client credentials, company ID, and optionally a site ID. It imports completed
 orders, customers, and products.
+Google Search Console uses read-only OAuth and imports Search Analytics rows
+for a URL-prefix or Domain property. In Google Cloud, enable the Search
+Console API, create a Web application OAuth client, and add the deployed
+`OAUTH_CALLBACK_URL` as an authorized redirect URI. Configure
+`GOOGLE_SEARCH_CONSOLE_CLIENT_ID`, `GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET`, and
+`OAUTH_TOKEN_ENCRYPTION_KEY` on the API server. The workspace owner must enter
+the property exactly as added in Search Console: the complete URL-prefix URL,
+or the Domain property name such as `example.com`, and then connect with OAuth.
 Google Ads requires the server-side OAuth app credentials and the
 `https://www.googleapis.com/auth/adwords` scope. Google Ads API access is
 managed by the Google Cloud project that owns the OAuth credentials; an older

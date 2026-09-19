@@ -122,8 +122,9 @@ DATASET_SOURCES = [
         "config_keys": ["site_url"],
         "required_config_keys": ["site_url"],
         "description": (
-            "Connect Search Console performance data for a verified URL-prefix "
-            "or Domain property."
+            "Connect Search Console performance data. Enter the property exactly "
+            "as it appears in Google Search Console: the domain name for a Domain "
+            "property, or the complete URL for a URL-prefix property."
         ),
     },
     {

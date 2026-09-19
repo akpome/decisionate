@@ -1608,8 +1608,10 @@ const CONNECTION_FIELD_GUIDES: Record<
   },
   google_search_console: {
     site_url: {
-      description: "The verified Search Console property URL, or an sc-domain property.",
-      example: "https://www.example.com/ or sc-domain:example.com",
+      description:
+        "Enter the property exactly as it appears in Google Search Console. Use the domain name for a Domain property, or the complete URL for a URL-prefix property. Do not mix the two formats.",
+      example:
+        "Domain: decisionate.ca | URL-prefix: https://decisionate.ca/",
     },
   },
   google_ads: {

@@ -17,6 +17,26 @@ def make_connection(source_type, config):
 
 
 class NewConnectorTests(unittest.TestCase):
+    def test_search_console_property_formats_are_normalized(self):
+        self.assertEqual(
+            connectors.normalize_google_search_console_site_url(
+                "decisionate.ca"
+            ),
+            "sc-domain:decisionate.ca",
+        )
+        self.assertEqual(
+            connectors.normalize_google_search_console_site_url(
+                "sc-domain:decisionate.ca"
+            ),
+            "sc-domain:decisionate.ca",
+        )
+        self.assertEqual(
+            connectors.normalize_google_search_console_site_url(
+                "https://decisionate.ca/"
+            ),
+            "https://decisionate.ca/",
+        )
+
     def test_new_sources_are_registered_with_expected_connection_types(self):
         expected = {
             "google_search_console": "oauth",
