@@ -177,6 +177,8 @@ from app.modules.datasets.services.connectors import (
     load_connector_dataframe,
     normalize_hubspot_resource_types,
     normalize_lightspeed_x_resource_types,
+    normalize_lightspeed_k_resource_types,
+    normalize_lightspeed_o_resource_types,
     normalize_salesforce_resource_type,
     normalize_salesforce_resource_types,
     normalize_quickbooks_resource_type,
@@ -239,6 +241,8 @@ CONNECTOR_DEDUP_KEYS = {
     "woocommerce": ["order_id"],
     "lightspeed": ["sale_id"],
     "lightspeed_x": ["record_id"],
+    "lightspeed_k": ["record_id"],
+    "lightspeed_o": ["record_id"],
     "meta_ads": ["date_start", "campaign_id"],
     "google_ads": ["date", "campaign_id"],
     "quickbooks": ["record_id"],
@@ -4584,6 +4588,65 @@ def run_lightspeed_x_sync(
     return results
 
 
+def run_lightspeed_resource_sync(
+    db,
+    connection: DataSourceConnection,
+    payload: DataSourceConnectionSync,
+    source_type: str,
+):
+    connection_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    if source_type == "lightspeed_k":
+        resource_types = normalize_lightspeed_k_resource_types(connection_config)
+        resource_argument = "lightspeed_k_resource_type"
+    else:
+        resource_types = normalize_lightspeed_o_resource_types(connection_config)
+        resource_argument = "lightspeed_o_resource_type"
+    start_date, end_date = get_incremental_sync_window(
+        connection,
+        payload,
+    )
+    results = []
+    empty_resources = []
+    for resource_type in resource_types:
+        load_kwargs = {resource_argument: resource_type}
+        dataframe, report_config = load_connector_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            **load_kwargs,
+        )
+        try:
+            results.append(
+                persist_connector_dataframe(
+                    db,
+                    connection,
+                    dataframe,
+                    report_config,
+                )
+            )
+        except ConnectorNoData:
+            empty_resources.append(resource_type)
+
+    if not results:
+        labels = ", ".join(
+            resource.replace("_", " ").title()
+            for resource in empty_resources
+        ) or "selected resources"
+        period = (
+            f" from {start_date} through {end_date}"
+            if start_date and end_date
+            else " for the selected sync period"
+        )
+        raise ConnectorNoData(
+            f"Lightspeed {source_type.removeprefix('lightspeed_').upper()}-Series "
+            f"returned no records for {labels}{period}."
+        )
+    return results
+
+
 def persist_connector_dataframe(
     db,
     connection,
@@ -5006,6 +5069,14 @@ def run_data_source_sync(
 
     if connection.source_type == "lightspeed_x":
         return run_lightspeed_x_sync(db, connection, payload)
+
+    if connection.source_type in {"lightspeed_k", "lightspeed_o"}:
+        return run_lightspeed_resource_sync(
+            db,
+            connection,
+            payload,
+            connection.source_type,
+        )
 
     if connection.source_type not in IMPLEMENTED_CONNECTOR_TYPES:
         raise ConnectorUnavailable(

@@ -42,6 +42,7 @@ class OAuthProvider:
     use_basic_token_auth: bool = False
     use_pkce: bool = False
     include_redirect_uri: bool = True
+    allow_empty_scopes: bool = False
     required_scopes: tuple[str, ...] = ()
     required_scope_groups: tuple[tuple[str, ...], ...] = ()
 
@@ -255,6 +256,24 @@ OAUTH_PROVIDERS = {
             "products:read",
         ),
     ),
+    "lightspeed_k": OAuthProvider(
+        source_type="lightspeed_k",
+        authorization_url_env="LIGHTSPEED_K_OAUTH_AUTHORIZATION_URL",
+        token_url_env="LIGHTSPEED_K_OAUTH_TOKEN_URL",
+        client_id_env="LIGHTSPEED_K_CLIENT_ID",
+        client_secret_env="LIGHTSPEED_K_CLIENT_SECRET",
+        scopes_env="LIGHTSPEED_K_OAUTH_SCOPES",
+        required_scopes=("orders-api", "items"),
+    ),
+    "lightspeed_o": OAuthProvider(
+        source_type="lightspeed_o",
+        authorization_url_env="LIGHTSPEED_O_OAUTH_AUTHORIZATION_URL",
+        token_url_env="LIGHTSPEED_O_OAUTH_TOKEN_URL",
+        client_id_env="LIGHTSPEED_O_CLIENT_ID",
+        client_secret_env="LIGHTSPEED_O_CLIENT_SECRET",
+        scopes_env="LIGHTSPEED_O_OAUTH_SCOPES",
+        allow_empty_scopes=True,
+    ),
 }
 
 
@@ -446,7 +465,7 @@ def get_provider_scopes(
         for scope in configured_scopes.replace(",", " ").split()
         if scope.strip()
     )
-    if not scopes:
+    if not scopes and not provider.allow_empty_scopes:
         raise OAuthProviderUnavailable(
             f"{provider.scopes_env} is required for {provider.source_type} OAuth"
         )
@@ -529,8 +548,9 @@ def build_authorization_url(
         "client_id": client_id,
         "response_type": "code",
         "state": state_token,
-        "scope": " ".join(scopes),
     }
+    if scopes:
+        params["scope"] = " ".join(scopes)
     if provider.include_redirect_uri:
         params["redirect_uri"] = get_callback_url()
     if provider.use_pkce:

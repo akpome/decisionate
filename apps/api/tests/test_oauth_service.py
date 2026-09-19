@@ -267,6 +267,30 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         body = parse_qs(request.data.decode("utf-8"))
         self.assertNotIn("code_verifier", body)
 
+    def test_lightspeed_o_authorization_allows_provider_without_scopes(self):
+        with patch.dict(
+            os.environ,
+            {
+                "LIGHTSPEED_O_CLIENT_ID": "client-id",
+                "LIGHTSPEED_O_CLIENT_SECRET": "client-secret",
+                "LIGHTSPEED_O_OAUTH_AUTHORIZATION_URL": (
+                    "https://my.kounta.com/authorize"
+                ),
+                "LIGHTSPEED_O_OAUTH_TOKEN_URL": (
+                    "https://api.kounta.com/v1/token"
+                ),
+                "LIGHTSPEED_O_OAUTH_SCOPES": "",
+                "OAUTH_TOKEN_ENCRYPTION_KEY": Fernet.generate_key().decode(),
+                "OAUTH_CALLBACK_URL": "https://api.example.com/oauth/callback",
+            },
+            clear=False,
+        ):
+            url = build_authorization_url("lightspeed_o", "state-1")
+
+        query = parse_qs(urlparse(url).query)
+        self.assertEqual(query["response_type"], ["code"])
+        self.assertNotIn("scope", query)
+
     def test_woocommerce_authorization_url_uses_store_owner_callback(self):
         with patch.dict(
             os.environ,

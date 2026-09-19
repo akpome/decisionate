@@ -19,6 +19,7 @@ const SOURCE_CATEGORY_ORDER = [
   "files",
   "analytics",
   "commerce",
+  "restaurant",
   "payments",
   "accounting",
   "databases",

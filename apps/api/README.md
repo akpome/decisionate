@@ -301,6 +301,14 @@ tenant-specific domain and API version. It imports selected sales, customers,
 and products resources. Configure the X-Series OAuth credentials and API
 settings from `.env.example`; after authorization, Lightspeed supplies the
 retailer domain prefix to Decisionate automatically.
+Lightspeed Restaurant (K-Series) and O-Series are separate restaurant
+connectors. K-Series uses its production API host and OAuth authorization code
+flow; configure the K-Series client credentials, scopes, and the customer's
+business location ID. It imports sales with associated consumer fields and
+menu items. O-Series uses the Kounta API and OAuth; configure the O-Series
+client credentials, company ID, and optionally a site ID. It imports completed
+orders, customers, and products. L-Series and U-Series are listed in the
+connector catalog while their public customer-data API access is confirmed.
 Google Ads requires the server-side OAuth app credentials and the
 `https://www.googleapis.com/auth/adwords` scope. Google Ads API access is
 managed by the Google Cloud project that owns the OAuth credentials; an older

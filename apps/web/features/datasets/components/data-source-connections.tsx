@@ -34,6 +34,8 @@ export const REQUIRED_CONNECTION_CONFIG_KEYS: Record<
   woocommerce: ["store_url"],
   lightspeed: ["account_id"],
   lightspeed_x: ["resource_types"],
+  lightspeed_k: ["business_location_id", "resource_types"],
+  lightspeed_o: ["company_id", "resource_types"],
   meta_ads: ["ad_account_id"],
 }
 
@@ -545,6 +547,8 @@ function DataSourceConnectionRow({
       "woocommerce",
       "lightspeed",
       "lightspeed_x",
+      "lightspeed_k",
+      "lightspeed_o",
       "meta_ads",
       "quickbooks",
       "freshbooks",
@@ -1403,6 +1407,17 @@ const LIGHTSPEED_X_RESOURCE_OPTIONS = [
   { value: "products", label: "Products" },
 ]
 
+const LIGHTSPEED_K_RESOURCE_OPTIONS = [
+  { value: "sales", label: "Sales" },
+  { value: "products", label: "Menu items / products" },
+]
+
+const LIGHTSPEED_O_RESOURCE_OPTIONS = [
+  { value: "sales", label: "Completed orders / sales" },
+  { value: "customers", label: "Customers" },
+  { value: "products", label: "Products" },
+]
+
 type ResourceSelectionOption = {
   value: string
   label: string
@@ -1428,6 +1443,10 @@ function getResourceSelectionOptions(
       return SALESFORCE_RESOURCE_OPTIONS
     case "lightspeed_x":
       return LIGHTSPEED_X_RESOURCE_OPTIONS
+    case "lightspeed_k":
+      return LIGHTSPEED_K_RESOURCE_OPTIONS
+    case "lightspeed_o":
+      return LIGHTSPEED_O_RESOURCE_OPTIONS
     default:
       return []
   }
@@ -1442,6 +1461,10 @@ function getDefaultResourceTypes(
     case "salesforce":
       return ["opportunities"]
     case "lightspeed_x":
+      return ["sales", "customers", "products"]
+    case "lightspeed_k":
+      return ["sales", "products"]
+    case "lightspeed_o":
       return ["sales", "customers", "products"]
     case "freshbooks":
     case "quickbooks":
@@ -1475,6 +1498,10 @@ function getResourceSelectionTitle(
       return "Salesforce objects to ingest"
     case "lightspeed_x":
       return "Lightspeed X-Series resources to ingest"
+    case "lightspeed_k":
+      return "Lightspeed K-Series resources to ingest"
+    case "lightspeed_o":
+      return "Lightspeed O-Series resources to ingest"
     default:
       return "Objects to ingest"
   }
@@ -1711,6 +1738,30 @@ const CONNECTION_FIELD_GUIDES: Record<
     resource_types: {
       description: "Choose the Lightspeed X-Series resources Decisionate should import.",
       example: "Sales, Customers, Products",
+    },
+  },
+  lightspeed_k: {
+    business_location_id: {
+      description: "The numeric business location ID selected in the client's Lightspeed Restaurant K-Series account.",
+      example: "45454565682155",
+    },
+    resource_types: {
+      description: "Choose the K-Series sales and menu resources Decisionate should import.",
+      example: "Sales, Menu items / products",
+    },
+  },
+  lightspeed_o: {
+    company_id: {
+      description: "The numeric O-Series company ID authorized for this connection.",
+      example: "5678",
+    },
+    site_id: {
+      description: "Optional numeric site ID to limit orders and products to one restaurant location.",
+      example: "827",
+    },
+    resource_types: {
+      description: "Choose the O-Series completed orders, customers, and product resources Decisionate should import.",
+      example: "Completed orders / sales, Products",
     },
   },
   freshbooks: {
@@ -2003,19 +2054,24 @@ function ConnectionConfigField({
     )
   }
 
-  if (sourceType === "lightspeed_x" && configKey === "resource_types") {
+  if (
+    sourceType &&
+    ["lightspeed_x", "lightspeed_k", "lightspeed_o"].includes(sourceType) &&
+    configKey === "resource_types"
+  ) {
     const selectedResources = new Set(
       value
         .split(",")
         .map((resource) => resource.trim())
         .filter(Boolean)
     )
+    const resourceOptions = getResourceSelectionOptions(sourceType)
 
     return (
       <fieldset className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-gray-500">
         <legend>{getResourceSelectionTitle(sourceType)}</legend>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {LIGHTSPEED_X_RESOURCE_OPTIONS.map((option) => (
+          {resourceOptions.map((option) => (
             <label
               key={option.value}
               className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 normal-case tracking-normal text-gray-700"
@@ -2032,7 +2088,7 @@ function ConnectionConfigField({
                   }
                   if (!nextResources.size) return
                   onChange(
-                    LIGHTSPEED_X_RESOURCE_OPTIONS
+                    resourceOptions
                       .map((item) => item.value)
                       .filter((item) => nextResources.has(item))
                       .join(",")
@@ -2534,6 +2590,18 @@ function formatConnectionConfigLabel(
 
   if (sourceType === "lightspeed" && key === "account_id") {
     return "Account ID"
+  }
+
+  if (sourceType === "lightspeed_k" && key === "business_location_id") {
+    return "Business location ID"
+  }
+
+  if (sourceType === "lightspeed_o" && key === "company_id") {
+    return "Company ID"
+  }
+
+  if (sourceType === "lightspeed_o" && key === "site_id") {
+    return "Site ID (optional)"
   }
 
   return formatConnectionConfigKey(key)

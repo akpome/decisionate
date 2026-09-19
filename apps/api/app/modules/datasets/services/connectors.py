@@ -170,6 +170,28 @@ LIGHTSPEED_X_RESOURCE_ALIASES = {
     "customer": "customers",
     "product": "products",
 }
+LIGHTSPEED_K_RESOURCE_TYPES = {
+    "sales": "sales",
+    "products": "products",
+}
+LIGHTSPEED_K_RESOURCE_ALIASES = {
+    "sale": "sales",
+    "items": "products",
+    "item": "products",
+    "product": "products",
+}
+LIGHTSPEED_O_RESOURCE_TYPES = {
+    "sales": "sales",
+    "customers": "customers",
+    "products": "products",
+}
+LIGHTSPEED_O_RESOURCE_ALIASES = {
+    "sale": "sales",
+    "order": "sales",
+    "orders": "sales",
+    "customer": "customers",
+    "product": "products",
+}
 
 
 def normalize_lightspeed_x_resource_type(value) -> str:
@@ -213,6 +235,84 @@ def normalize_lightspeed_x_resource_types(config: dict) -> list[str]:
             "Select at least one Lightspeed X-Series resource before syncing"
         )
     return resources
+
+
+def _normalize_lightspeed_resource_types(
+    config: dict,
+    resource_types: dict[str, str],
+    aliases: dict[str, str],
+    label: str,
+    default_resources: list[str],
+) -> list[str]:
+    configured = config.get("resource_types")
+    if isinstance(configured, list):
+        values = configured
+    elif isinstance(configured, str):
+        values = configured.split(",")
+    else:
+        values = default_resources
+
+    resources = []
+    for value in values:
+        normalized = re.sub(
+            r"[\s-]+",
+            "_",
+            str(value or "").strip().lower(),
+        )
+        resource_type = aliases.get(normalized, normalized)
+        if resource_type not in resource_types:
+            raise ConnectorUnavailable(
+                f"Lightspeed {label} resource_types contains an unsupported "
+                f"resource: {value}"
+            )
+        if resource_type not in resources:
+            resources.append(resource_type)
+
+    if not resources:
+        raise ConnectorUnavailable(
+            f"Select at least one Lightspeed {label} resource before syncing"
+        )
+    return resources
+
+
+def normalize_lightspeed_k_resource_type(value) -> str:
+    return _normalize_lightspeed_resource_types(
+        {"resource_types": [value]},
+        LIGHTSPEED_K_RESOURCE_TYPES,
+        LIGHTSPEED_K_RESOURCE_ALIASES,
+        "K-Series",
+        ["sales"],
+    )[0]
+
+
+def normalize_lightspeed_k_resource_types(config: dict) -> list[str]:
+    return _normalize_lightspeed_resource_types(
+        config,
+        LIGHTSPEED_K_RESOURCE_TYPES,
+        LIGHTSPEED_K_RESOURCE_ALIASES,
+        "K-Series",
+        ["sales", "products"],
+    )
+
+
+def normalize_lightspeed_o_resource_type(value) -> str:
+    return _normalize_lightspeed_resource_types(
+        {"resource_types": [value]},
+        LIGHTSPEED_O_RESOURCE_TYPES,
+        LIGHTSPEED_O_RESOURCE_ALIASES,
+        "O-Series",
+        ["sales"],
+    )[0]
+
+
+def normalize_lightspeed_o_resource_types(config: dict) -> list[str]:
+    return _normalize_lightspeed_resource_types(
+        config,
+        LIGHTSPEED_O_RESOURCE_TYPES,
+        LIGHTSPEED_O_RESOURCE_ALIASES,
+        "O-Series",
+        ["sales", "customers", "products"],
+    )
 
 
 def normalize_salesforce_resource_type(value) -> str:
@@ -959,6 +1059,8 @@ def load_connector_dataframe(
     hubspot_resource_type: str | None = None,
     salesforce_resource_type: str | None = None,
     lightspeed_x_resource_type: str | None = None,
+    lightspeed_k_resource_type: str | None = None,
+    lightspeed_o_resource_type: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     if connection.source_type == "google_search_console":
         return load_google_search_console_dataframe(
@@ -1037,6 +1139,22 @@ def load_connector_dataframe(
             start_date,
             end_date,
             lightspeed_x_resource_type,
+        )
+    if connection.source_type == "lightspeed_k":
+        return load_lightspeed_k_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            lightspeed_k_resource_type,
+        )
+    if connection.source_type == "lightspeed_o":
+        return load_lightspeed_o_dataframe(
+            db,
+            connection,
+            start_date,
+            end_date,
+            lightspeed_o_resource_type,
         )
     if connection.source_type == "meta_ads":
         return load_meta_ads_dataframe(
@@ -2438,6 +2556,303 @@ def load_lightspeed_x_dataframe(
         "resource": resource_type,
         "domain_prefix": domain_prefix,
         "api_version": api_version.strip(),
+        "start_date": date_value(start_date),
+        "end_date": date_value(end_date),
+        "row_count": len(dataframe),
+    }
+
+
+def load_lightspeed_k_dataframe(
+    db,
+    connection: DataSourceConnection,
+    start_date=None,
+    end_date=None,
+    resource_type_override: str | None = None,
+) -> tuple[pd.DataFrame, dict]:
+    config = parse_connection_config(connection)
+    resource_type = normalize_lightspeed_k_resource_type(
+        resource_type_override
+        or normalize_lightspeed_k_resource_types(config)[0]
+    )
+    business_location_id = str(
+        config.get("business_location_id") or ""
+    ).strip()
+    if not re.fullmatch(r"\d+", business_location_id):
+        raise ConnectorUnavailable(
+            "Configure a valid Lightspeed K-Series business location ID "
+            "before syncing"
+        )
+    access_token = get_oauth_access_token(db, connection, "lightspeed_k")
+    base_url = require_provider_url("LIGHTSPEED_K_API_BASE_URL")
+    headers = {"Authorization": f"Bearer {access_token}"}
+    rows = []
+
+    if resource_type == "sales":
+        from_value = date_value(start_date) or "1970-01-01"
+        to_value = date_value(end_date) or date.today().isoformat()
+        next_page_token = None
+        while True:
+            params = {
+                "from": f"{from_value}T00:00:00Z",
+                "to": f"{to_value}T23:59:59Z",
+                "pageSize": str(PAGE_SIZE),
+                "include": "consumer,payments",
+            }
+            if next_page_token:
+                params["nextPageToken"] = next_page_token
+            payload = connector_json_request(
+                f"{base_url}/f/v2/business-location/"
+                f"{business_location_id}/sales?{urlencode(params)}",
+                headers=headers,
+            )
+            sales = payload.get("sales") if isinstance(payload, dict) else None
+            if not isinstance(sales, list):
+                raise ConnectorUnavailable(
+                    "Lightspeed K-Series returned an invalid sales response"
+                )
+            for sale in sales:
+                if not isinstance(sale, dict):
+                    continue
+                consumer = None
+                payments = sale.get("payments")
+                if isinstance(payments, list):
+                    consumer = next(
+                        (
+                            payment.get("consumer")
+                            for payment in payments
+                            if isinstance(payment, dict)
+                            and isinstance(payment.get("consumer"), dict)
+                        ),
+                        None,
+                    )
+                normalized_fields = {
+                    "record_id": sale.get("accountFiscId")
+                    or sale.get("accountReference")
+                    or sale.get("receiptId"),
+                    "sale_id": sale.get("accountFiscId")
+                    or sale.get("accountReference")
+                    or sale.get("receiptId"),
+                    "created_at": sale.get("timeOfOpening"),
+                    "updated_at": sale.get("timeClosed"),
+                    "completed_at": sale.get("timeClosed"),
+                    "status": sale.get("type"),
+                    "total": sale.get("total")
+                    or sum(
+                        float(payment.get("netAmountWithTax") or 0)
+                        for payment in payments
+                        if isinstance(payment, dict)
+                        and str(payment.get("netAmountWithTax") or "")
+                        .replace(".", "", 1)
+                        .replace("-", "", 1)
+                        .isdigit()
+                    )
+                    if isinstance(payments, list)
+                    else None,
+                    "customer_id": (
+                        consumer.get("customerId")
+                        if isinstance(consumer, dict)
+                        else None
+                    ),
+                }
+                rows.append(
+                    build_dynamic_connector_row(
+                        sale,
+                        normalized_fields,
+                        flatten_lists=True,
+                    )
+                )
+            next_page_token = str(
+                payload.get("nextPageToken") or ""
+            ).strip()
+            if not next_page_token or not sales:
+                break
+    else:
+        offset = 0
+        while True:
+            params = {
+                "businessLocationId": business_location_id,
+                "offset": str(offset),
+                "amount": str(PAGE_SIZE),
+            }
+            payload, _response_headers = connector_json_request_with_headers(
+                f"{base_url}/items/v1/items?{urlencode(params)}",
+                headers=headers,
+            )
+            if isinstance(payload, list):
+                products = payload
+            elif isinstance(payload, dict):
+                products = payload.get("items") or payload.get("data")
+            else:
+                products = None
+            if not isinstance(products, list):
+                raise ConnectorUnavailable(
+                    "Lightspeed K-Series returned an invalid items response"
+                )
+            for product in products:
+                if not isinstance(product, dict):
+                    continue
+                product_id = product.get("id")
+                rows.append(
+                    build_dynamic_connector_row(
+                        product,
+                        {
+                            "record_id": product_id,
+                            "product_id": product_id,
+                            "sku": product.get("sku"),
+                            "name": product.get("name"),
+                            "price": product.get("price"),
+                        },
+                        flatten_lists=True,
+                    )
+                )
+            if len(products) < PAGE_SIZE:
+                break
+            offset += len(products)
+
+    dataframe = pd.DataFrame(rows)
+    if resource_type == "sales":
+        dataframe = filter_date_range(dataframe, start_date, end_date)
+    return dataframe, {
+        "connector": "lightspeed_k",
+        "resource": resource_type,
+        "business_location_id": business_location_id,
+        "start_date": date_value(start_date),
+        "end_date": date_value(end_date),
+        "row_count": len(dataframe),
+    }
+
+
+def _lightspeed_o_records(payload, resource_type: str) -> list[dict]:
+    if isinstance(payload, list):
+        records = payload
+    elif isinstance(payload, dict):
+        records = (
+            payload.get(resource_type)
+            or payload.get("orders" if resource_type == "sales" else "")
+            or payload.get("data")
+        )
+        if records is None and any(
+            key in payload for key in ("id", "id_str", "name")
+        ):
+            records = [payload]
+    else:
+        records = None
+    return [record for record in records or [] if isinstance(record, dict)]
+
+
+def load_lightspeed_o_dataframe(
+    db,
+    connection: DataSourceConnection,
+    start_date=None,
+    end_date=None,
+    resource_type_override: str | None = None,
+) -> tuple[pd.DataFrame, dict]:
+    config = parse_connection_config(connection)
+    resource_type = normalize_lightspeed_o_resource_type(
+        resource_type_override
+        or normalize_lightspeed_o_resource_types(config)[0]
+    )
+    company_id = str(config.get("company_id") or "").strip()
+    site_id = str(config.get("site_id") or "").strip()
+    if not re.fullmatch(r"\d+", company_id):
+        raise ConnectorUnavailable(
+            "Configure a valid Lightspeed O-Series company ID before syncing"
+        )
+    if site_id and not re.fullmatch(r"\d+", site_id):
+        raise ConnectorUnavailable(
+            "Lightspeed O-Series site ID must contain only digits"
+        )
+    access_token = get_oauth_access_token(db, connection, "lightspeed_o")
+    base_url = require_provider_url("LIGHTSPEED_O_API_BASE_URL")
+    headers = {"Authorization": f"Bearer {access_token}"}
+    if resource_type == "sales":
+        resource_path = "orders/complete"
+    elif resource_type == "customers":
+        resource_path = "customers"
+    else:
+        resource_path = "products"
+    path_scope = f"sites/{site_id}" if site_id and resource_type != "customers" else ""
+    scope_prefix = f"{path_scope}/" if path_scope else ""
+    url = (
+        f"{base_url}/v1/companies/{company_id}/{scope_prefix}"
+        f"{resource_path}.json"
+    )
+    params = {}
+    if resource_type == "sales":
+        if start_date:
+            params["created_gte"] = date_value(start_date)
+        if end_date:
+            params["created_lte"] = date_value(end_date)
+    if resource_type == "products":
+        params["fields"] = "categories,variants,availability"
+
+    rows = []
+    next_url = f"{url}?{urlencode(params)}" if params else url
+    while next_url:
+        payload, response_headers = connector_json_request_with_headers(
+            next_url,
+            headers=headers,
+        )
+        records = _lightspeed_o_records(payload, resource_type)
+        for record in records:
+            record_id = record.get("id") or record.get("id_str")
+            if resource_type == "sales":
+                normalized_fields = {
+                    "record_id": record_id,
+                    "sale_id": record_id,
+                    "created_at": record.get("created_at"),
+                    "updated_at": record.get("updated_at"),
+                    "completed_at": record.get("completed_at"),
+                    "status": record.get("status"),
+                    "total": record.get("value")
+                    or record.get("total")
+                    or record.get("total_price"),
+                    "customer_id": record.get("customer_id"),
+                    "site_id": record.get("site_id"),
+                }
+            elif resource_type == "customers":
+                normalized_fields = {
+                    "record_id": record_id,
+                    "customer_id": record_id,
+                    "created_at": record.get("created_at"),
+                    "updated_at": record.get("updated_at"),
+                    "email": record.get("email"),
+                    "first_name": record.get("first_name"),
+                    "last_name": record.get("last_name"),
+                    "phone": record.get("phone"),
+                }
+            else:
+                normalized_fields = {
+                    "record_id": record_id,
+                    "product_id": record_id,
+                    "created_at": record.get("created_at"),
+                    "updated_at": record.get("updated_at"),
+                    "sku": record.get("sku"),
+                    "name": record.get("name"),
+                    "price": record.get("price")
+                    or record.get("unit_price"),
+                }
+            rows.append(
+                build_dynamic_connector_row(
+                    record,
+                    normalized_fields,
+                    flatten_lists=True,
+                )
+            )
+        next_url = (
+            response_headers.get("X-Next-Page")
+            or response_headers.get("x-next-page")
+            or ""
+        ).strip()
+
+    dataframe = pd.DataFrame(rows)
+    if resource_type == "sales":
+        dataframe = filter_date_range(dataframe, start_date, end_date)
+    return dataframe, {
+        "connector": "lightspeed_o",
+        "resource": resource_type,
+        "company_id": company_id,
+        "site_id": site_id or None,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
@@ -5029,6 +5444,10 @@ def connector_display_name(source_type: str) -> str:
         "woocommerce": "WooCommerce",
         "lightspeed": "Lightspeed Retail",
         "lightspeed_x": "Lightspeed Retail X-Series",
+        "lightspeed_k": "Lightspeed Restaurant K-Series",
+        "lightspeed_o": "Lightspeed Restaurant O-Series",
+        "lightspeed_l": "Lightspeed Restaurant L-Series",
+        "lightspeed_u": "Lightspeed Restaurant U-Series",
         "stripe": "Stripe",
     }.get(
         source_type,

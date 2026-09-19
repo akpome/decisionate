@@ -29,6 +29,8 @@ IMPLEMENTED_CONNECTOR_TYPES = {
     "woocommerce",
     "lightspeed",
     "lightspeed_x",
+    "lightspeed_k",
+    "lightspeed_o",
     "meta_ads",
     "quickbooks",
     "freshbooks",
@@ -303,6 +305,60 @@ DATASET_SOURCES = [
         ),
     },
     {
+        "type": "lightspeed_k",
+        "label": "Lightspeed Restaurant (K-Series)",
+        "category": "restaurant",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["business_location_id", "resource_types"],
+        "required_config_keys": ["business_location_id", "resource_types"],
+        "description": (
+            "Connect Lightspeed Restaurant K-Series sales and menu items "
+            "with read-only data retrieval through OAuth."
+        ),
+    },
+    {
+        "type": "lightspeed_o",
+        "label": "Lightspeed Restaurant (O-Series)",
+        "category": "restaurant",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": ["company_id", "site_id", "resource_types"],
+        "required_config_keys": ["company_id", "resource_types"],
+        "description": (
+            "Connect Lightspeed Restaurant O-Series completed orders, "
+            "customers, and products with read-only OAuth."
+        ),
+    },
+    {
+        "type": "lightspeed_l",
+        "label": "Lightspeed Restaurant (L-Series)",
+        "category": "restaurant",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": [],
+        "description": (
+            "Restaurant L-Series is listed for coverage; API access and "
+            "data sync are awaiting a stable public connector contract."
+        ),
+    },
+    {
+        "type": "lightspeed_u",
+        "label": "Lightspeed Restaurant (U-Series)",
+        "category": "restaurant",
+        "status": "planned",
+        "connection_type": "oauth",
+        "sync_modes": ["manual", "scheduled"],
+        "config_keys": [],
+        "description": (
+            "Restaurant U-Series is listed for coverage; API access and "
+            "data sync are awaiting a stable public connector contract."
+        ),
+    },
+    {
         "type": "quickbooks",
         "label": "QuickBooks",
         "category": "accounting",
@@ -475,6 +531,14 @@ DATASET_SOURCE_ENV_KEYS = {
         "LIGHTSPEED_X_CLIENT_ID",
         "LIGHTSPEED_X_CLIENT_SECRET",
     ],
+    "lightspeed_k": [
+        "LIGHTSPEED_K_CLIENT_ID",
+        "LIGHTSPEED_K_CLIENT_SECRET",
+    ],
+    "lightspeed_o": [
+        "LIGHTSPEED_O_CLIENT_ID",
+        "LIGHTSPEED_O_CLIENT_SECRET",
+    ],
     "meta_ads": [
         "META_ADS_APP_ID",
         "META_ADS_APP_SECRET",
@@ -568,6 +632,17 @@ DATASET_SOURCE_RUNTIME_ENV_KEYS = {
         "LIGHTSPEED_X_OAUTH_AUTHORIZATION_URL",
         "LIGHTSPEED_X_OAUTH_TOKEN_URL_TEMPLATE",
         "LIGHTSPEED_X_OAUTH_SCOPES",
+    ],
+    "lightspeed_k": [
+        "LIGHTSPEED_K_API_BASE_URL",
+        "LIGHTSPEED_K_OAUTH_AUTHORIZATION_URL",
+        "LIGHTSPEED_K_OAUTH_TOKEN_URL",
+        "LIGHTSPEED_K_OAUTH_SCOPES",
+    ],
+    "lightspeed_o": [
+        "LIGHTSPEED_O_API_BASE_URL",
+        "LIGHTSPEED_O_OAUTH_AUTHORIZATION_URL",
+        "LIGHTSPEED_O_OAUTH_TOKEN_URL",
     ],
 }
 
@@ -751,6 +826,8 @@ def clone_dataset_source(source):
         "square",
         "lightspeed",
         "lightspeed_x",
+        "lightspeed_k",
+        "lightspeed_o",
         "meta_ads",
         "quickbooks",
         "freshbooks",

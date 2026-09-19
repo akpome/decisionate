@@ -25,6 +25,8 @@ class NewConnectorTests(unittest.TestCase):
             "woocommerce": "oauth",
             "lightspeed": "oauth",
             "lightspeed_x": "oauth",
+            "lightspeed_k": "oauth",
+            "lightspeed_o": "oauth",
         }
         for source_type, connection_type in expected.items():
             source = get_dataset_source(source_type)
@@ -291,6 +293,103 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.loc[0, "total"], "125.00")
         self.assertIn(
             "https://client-store.retail.lightspeed.app/api/2026-07/sales",
+            request.call_args.args[0],
+        )
+
+    def test_lightspeed_k_sales_are_normalized(self):
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="lightspeed-k-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            return_value={
+                "sales": [{
+                    "accountFiscId": "A65315.17",
+                    "timeOpening": "2026-09-01T12:00:00Z",
+                    "timeClosed": "2026-09-01T12:30:00Z",
+                    "type": "SALE",
+                    "payments": [{
+                        "netAmountWithTax": "125.00",
+                        "consumer": {
+                            "customerId": 42,
+                            "email": "buyer@example.com",
+                        },
+                    }],
+                }],
+            },
+        ) as request, patch.dict(
+            "os.environ",
+            {"LIGHTSPEED_K_API_BASE_URL": "https://api.lsk.lightspeed.app"},
+            clear=False,
+        ):
+            dataframe, report = connectors.load_lightspeed_k_dataframe(
+                None,
+                make_connection(
+                    "lightspeed_k",
+                    {
+                        "business_location_id": "45454565682155",
+                        "resource_types": "sales,products",
+                    },
+                ),
+                date(2026, 9, 1),
+                date(2026, 9, 2),
+                "sales",
+            )
+
+        self.assertEqual(report["resource"], "sales")
+        self.assertEqual(dataframe.loc[0, "sale_id"], "A65315.17")
+        self.assertEqual(dataframe.loc[0, "customer_id"], 42)
+        self.assertEqual(dataframe.loc[0, "total"], 125.0)
+        self.assertIn(
+            "/f/v2/business-location/45454565682155/sales",
+            request.call_args.args[0],
+        )
+
+    def test_lightspeed_o_orders_are_normalized(self):
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="lightspeed-o-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request_with_headers",
+            return_value=([
+                {
+                    "id": 77,
+                    "created_at": "2026-09-01T12:00:00Z",
+                    "status": "COMPLETE",
+                    "value": "125.00",
+                    "customer_id": 42,
+                },
+            ], {}),
+        ) as request, patch.dict(
+            "os.environ",
+            {"LIGHTSPEED_O_API_BASE_URL": "https://api.kounta.com"},
+            clear=False,
+        ):
+            dataframe, report = connectors.load_lightspeed_o_dataframe(
+                None,
+                make_connection(
+                    "lightspeed_o",
+                    {
+                        "company_id": "5678",
+                        "site_id": "827",
+                        "resource_types": "sales,customers,products",
+                    },
+                ),
+                date(2026, 9, 1),
+                date(2026, 9, 2),
+                "sales",
+            )
+
+        self.assertEqual(report["resource"], "sales")
+        self.assertEqual(dataframe.loc[0, "sale_id"], 77)
+        self.assertEqual(dataframe.loc[0, "customer_id"], 42)
+        self.assertEqual(dataframe.loc[0, "total"], "125.00")
+        self.assertIn(
+            "/v1/companies/5678/sites/827/orders/complete.json",
             request.call_args.args[0],
         )
 
