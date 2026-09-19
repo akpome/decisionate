@@ -9,6 +9,7 @@ from app.modules.organizations.router import (
     clean_optional_logo_url,
     clean_optional_organization_text,
     clean_dashboard_preferences,
+    clean_selected_dashboard,
     clean_member_role,
     clean_member_user_id,
     clean_metric_targets,
@@ -63,6 +64,14 @@ class FakePreferenceDb:
 
 
 class OrganizationPreferenceTests(unittest.TestCase):
+    def test_clean_selected_dashboard_accepts_auto_repair_shop(self):
+        self.assertEqual(
+            clean_selected_dashboard(
+                " auto-repair-shop-performance ",
+            ),
+            "auto-repair-shop-performance",
+        )
+
     def test_find_user_preference_prefers_workspace_match(self):
         workspace_preference = SimpleNamespace(
             workspace_id="workspace-1",

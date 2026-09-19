@@ -126,6 +126,7 @@ VALID_SELECTED_DASHBOARDS = {
     "nonprofit-performance",
     "construction-performance",
     "law-firm-performance",
+    "auto-repair-shop-performance",
 }
 DATASET_METRIC_MAPPING_DASHBOARDS = VALID_SELECTED_DASHBOARDS - {
     DEFAULT_SELECTED_DASHBOARD,
