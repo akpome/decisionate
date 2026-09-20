@@ -6818,7 +6818,7 @@ export async function createDecision(
 
   const response =
     await apiFetch(
-      `${API_URL}/decisions`,
+      `${API_URL}/decisions/`,
       {
         method: "POST",
 
