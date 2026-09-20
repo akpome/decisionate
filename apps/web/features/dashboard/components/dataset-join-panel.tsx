@@ -606,7 +606,7 @@ export function DatasetJoinPanel({
                 type="button"
                 onClick={() => void handleCreateDecision()}
                 disabled={creatingDecision}
-                className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-[var(--decisionate-brand-primary)] bg-white px-3 text-xs font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-[var(--decisionate-brand-primary)] px-3 text-xs font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Check size={14} />
                 {creatingDecision
