@@ -403,6 +403,19 @@ export function DatasetJoinPanel({
           )}`
         )
         .join("; ")
+      const joinedSourceNames = Array.from(
+        new Set(
+          activeResult.datasets
+            .map(item => item.file_name.trim())
+            .filter(Boolean)
+        )
+      )
+      const generatedDecisionTitle =
+        `Review joined evidence: ${joinedSourceNames.join(" + ")}`
+      const decisionTitle =
+        generatedDecisionTitle.length > 120
+          ? `${generatedDecisionTitle.slice(0, 117)}...`
+          : generatedDecisionTitle
       const decision = await createDecision(
         {
           dataset_id: decisionDatasetId,
@@ -418,7 +431,7 @@ export function DatasetJoinPanel({
             "Review the joined metrics and agree on the next action.",
           recommendation_source: "rules",
           recommendation_context: activeResult.decision_context,
-          title: "Review joined dataset evidence",
+          title: decisionTitle,
           description: [
             activeResult.decision_context,
             `Latest shared period: ${latestRow?.period ?? "-"}.`,
