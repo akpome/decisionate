@@ -1870,6 +1870,8 @@ function IndustryDashboard({
   onDownloadPdf,
   onShare,
   onStopSharing,
+  onCreateDecision,
+  onCreateRecommendation,
   creatingRecommendation,
   pdfDisabled,
   shareDisabled,
@@ -1933,8 +1935,8 @@ function IndustryDashboard({
           analysisLoading={analysisLoading}
           analysisError={analysisError}
           onRetryAnalysis={onRetryAnalysis}
-          onCreateRecommendation={undefined}
-          onCreateDecision={undefined}
+          onCreateRecommendation={onCreateRecommendation}
+          onCreateDecision={onCreateDecision}
           creatingRecommendation={creatingRecommendation}
         />
       ) : (
@@ -1959,7 +1961,9 @@ function IndustryDashboard({
               title="Decisionate Analysis"
               metric={analysisMetric}
               className="h-full print:hidden !p-3"
-              onCreateDecision={undefined}
+              onCreateDecision={
+                onCreateRecommendation ?? onCreateDecision
+              }
               creatingDecision={creatingRecommendation}
             />
           )}
