@@ -242,8 +242,6 @@ export default function DecisionPage() {
 
   const [dataset, setDataset] =
     useState<DatasetSummary | null>(null)
-  const [evidenceDatasets, setEvidenceDatasets] =
-    useState<DatasetSummary[]>([])
   const [organizationMembers, setOrganizationMembers] =
     useState<OrganizationMemberRecord[]>([])
 
@@ -397,7 +395,6 @@ export default function DecisionPage() {
         setDecision(null)
         setLifecycleAccess(null)
         setDataset(null)
-        setEvidenceDatasets([])
         setOrganizationMembers([])
         setMetricColumns([])
         setMetricsLoading(false)
@@ -518,43 +515,6 @@ export default function DecisionPage() {
           }
           setDataset(null)
         }
-
-        const evidenceDatasetIds = Array.from(
-          new Set([
-            data.dataset_id,
-            ...(data.evidence_dataset_ids ?? []),
-          ])
-        )
-        const additionalDatasetResults =
-          await Promise.allSettled(
-            evidenceDatasetIds
-              .filter(datasetId => datasetId !== data.dataset_id)
-              .map(datasetId =>
-                getDataset(
-                  datasetId,
-                  userId,
-                  activeWorkspaceId
-                )
-              )
-          )
-
-        if (ignoreResult) {
-          return
-        }
-
-        setEvidenceDatasets(
-          [
-            ...(datasetResult.status === "fulfilled"
-              ? [datasetResult.value]
-              : []),
-            ...additionalDatasetResults
-              .filter(
-                (result): result is PromiseFulfilledResult<DatasetSummary> =>
-                  result.status === "fulfilled"
-              )
-              .map(result => result.value),
-          ]
-        )
 
         if (metricsResult.status === "fulfilled") {
           setMetricColumns(
@@ -1748,12 +1708,26 @@ export default function DecisionPage() {
           decision.dataset_id
         )
       : `Unavailable (#${decision.dataset_id})`
-  const linkedEvidenceDatasets =
-    evidenceDatasets.length > 0
-      ? evidenceDatasets
-      : dataset
-        ? [dataset]
-        : []
+  const evidenceDatasetNameById = new Map(
+    (decision.evidence_metrics ?? []).map(metric => [
+      metric.dataset_id,
+      metric.file_name,
+    ])
+  )
+  const evidenceDatasetIds = Array.from(
+    new Set([
+      decision.dataset_id,
+      ...(decision.evidence_dataset_ids ?? []),
+    ])
+  )
+  const linkedEvidenceDatasets = evidenceDatasetIds.map(datasetId => ({
+    id: datasetId,
+    label:
+      datasetId === decision.dataset_id && dataset
+        ? decisionDatasetLabel
+        : evidenceDatasetNameById.get(datasetId) ??
+          `Dataset #${datasetId}`,
+  }))
   const hasMultipleEvidenceDatasets =
     linkedEvidenceDatasets.length > 1
   const joinedEvidenceMetricOptions =
@@ -1860,16 +1834,10 @@ export default function DecisionPage() {
                   {index > 0 && <span aria-hidden="true">+</span>}
                   <Link
                     href={`/dashboard/datasets/${evidenceDataset.id}`}
-                    title={formatDecisionDatasetLabel(
-                      evidenceDataset,
-                      evidenceDataset.id
-                    )}
+                    title={evidenceDataset.label}
                     className="max-w-full truncate text-gray-700 underline decoration-gray-300 underline-offset-2 transition hover:text-[var(--decisionate-brand-primary-text)]"
                   >
-                    {formatDecisionDatasetLabel(
-                      evidenceDataset,
-                      evidenceDataset.id
-                    )}
+                    {evidenceDataset.label}
                   </Link>
                 </span>
               ))}
