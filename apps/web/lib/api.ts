@@ -19,17 +19,24 @@ function resolveApiUrl(value: string | undefined) {
     return "http://127.0.0.1:8000"
   }
 
-  // A production page must never issue an HTTP request. This also protects
-  // already-built web bundles while Railway is being updated to HTTPS.
-  if (
-    typeof window !== "undefined" &&
-    window.location.protocol === "https:" &&
-    value.startsWith("http://")
-  ) {
-    return `https://${value.slice("http://".length)}`
-  }
+  // Keep local development on HTTP, but never ship a non-local HTTP API URL
+  // to a browser or server-rendered request.
+  try {
+    const parsed = new URL(value)
+    const localHost = [
+      "localhost",
+      "127.0.0.1",
+      "::1",
+    ].includes(parsed.hostname)
 
-  return value
+    if (parsed.protocol === "http:" && !localHost) {
+      parsed.protocol = "https:"
+    }
+
+    return parsed.toString().replace(/\/$/, "")
+  } catch {
+    return value
+  }
 }
 
 export const API_URL =
