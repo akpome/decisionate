@@ -14,8 +14,26 @@ const configuredApiUrl =
     ?.trim()
     .replace(/\/$/, "")
 
+function resolveApiUrl(value: string | undefined) {
+  if (!value) {
+    return "http://127.0.0.1:8000"
+  }
+
+  // A production page must never issue an HTTP request. This also protects
+  // already-built web bundles while Railway is being updated to HTTPS.
+  if (
+    typeof window !== "undefined" &&
+    window.location.protocol === "https:" &&
+    value.startsWith("http://")
+  ) {
+    return `https://${value.slice("http://".length)}`
+  }
+
+  return value
+}
+
 export const API_URL =
-  configuredApiUrl || "http://127.0.0.1:8000"
+  resolveApiUrl(configuredApiUrl)
 export const apiAvailabilityChangedEvent =
   "decisionate:api-availability-changed"
 const maxDashboardTitleLength = 120
