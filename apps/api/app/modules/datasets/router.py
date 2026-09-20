@@ -125,6 +125,7 @@ from app.modules.datasets.services.analytics_storage import (
     build_dataset_analytics_manifest,
 )
 from app.modules.datasets.services.joins import (
+    JOIN_RESULT_VERSION,
     build_join_dataset_metadata,
     build_joined_dataset,
 )
@@ -544,6 +545,180 @@ def persist_entity_matching_dataframe(
             remove_dataset_file(parquet_path)
 
 
+def build_joined_dataset_file_name(result: dict):
+    source_names = []
+    for detail in result.get("datasets", []):
+        file_name = str(detail.get("file_name") or "").strip()
+        if file_name and file_name not in source_names:
+            source_names.append(file_name)
+
+    source_slug = "-".join(
+        normalize_analytics_identifier(
+            os.path.splitext(file_name)[0],
+            "dataset",
+        )
+        for file_name in source_names
+    ) or "datasets"
+
+    return sanitize_upload_filename(
+        f"joined-{source_slug[:180]}.parquet"
+    )
+
+
+def persist_joined_dataset_dataframe(
+    dataframe: pd.DataFrame,
+    workspace_id: str,
+    file_name: str,
+):
+    """Persist a dashboard join as a temporary, selector-visible dataset."""
+    if dataframe.empty:
+        raise ValueError(
+            "The joined dataset did not contain any rows"
+        )
+
+    upload_dir = get_dataset_upload_dir()
+    os.makedirs(upload_dir, exist_ok=True)
+    staging_path = build_dataset_upload_path(
+        os.path.splitext(file_name)[0] + ".csv"
+    )
+    parquet_path = None
+    stored_reference = None
+
+    try:
+        parquet_path = convert_dataframe_to_parquet(
+            dataframe,
+            staging_path,
+        )
+        remove_dataset_file(staging_path)
+
+        storage = get_object_storage()
+        storage_key = (
+            "derived/"
+            f"workspace={normalize_analytics_identifier(workspace_id, 'workspace')}/"
+            f"joined-{uuid.uuid4().hex}.parquet"
+        )
+        stored_reference = storage.put_file(
+            parquet_path,
+            key=storage_key,
+        )
+        if storage.is_remote:
+            stored_file_path = storage.reference_key(stored_reference)
+            storage_provider = storage.config.provider
+        else:
+            stored_file_path = stored_reference
+            storage_provider = None
+
+        return stored_file_path, storage_provider, stored_reference
+    except Exception:
+        if stored_reference:
+            remove_dataset_file(stored_reference)
+        raise
+    finally:
+        remove_dataset_file(staging_path)
+        if parquet_path:
+            remove_dataset_file(parquet_path)
+
+
+def get_joined_dataset_id_from_result(result):
+    if not isinstance(result, dict):
+        return None
+
+    try:
+        dataset_id = int(result.get("derived_dataset_id"))
+    except (TypeError, ValueError):
+        return None
+
+    return dataset_id if dataset_id > 0 else None
+
+
+def materialize_joined_dataset_record(
+    db,
+    result: dict,
+    user_id: str,
+    workspace_id: str,
+    dashboard_key: str,
+    definition: dict,
+    previous_result: dict | None = None,
+):
+    """Create the selector-visible dataset and replace its prior version."""
+    derived_dataframe = pd.DataFrame(result["rows"])
+    derived_file_name = build_joined_dataset_file_name(result)
+    (
+        stored_file_path,
+        storage_provider,
+        new_stored_reference,
+    ) = persist_joined_dataset_dataframe(
+        derived_dataframe,
+        workspace_id,
+        derived_file_name,
+    )
+
+    derived_source_config = json.dumps(
+        {
+            "ingestion_mode": "joined_dataset",
+            "file_format": "parquet",
+            "stored_file_format": "parquet",
+            "dashboard_key": dashboard_key,
+            "derived_from_dataset_ids": result["dataset_ids"],
+            "join_definition": definition,
+            "join_result_version": result.get("join_version"),
+            "generated_at": utc_now().isoformat(),
+        },
+        sort_keys=True,
+    )
+    derived_dataset = Dataset(
+        user_id=user_id,
+        workspace_id=workspace_id,
+        source_type="joined",
+        source_config=derived_source_config,
+        file_name=derived_file_name,
+        file_path=stored_file_path,
+        storage_provider=storage_provider,
+        row_count=len(derived_dataframe),
+        column_count=len(derived_dataframe.columns),
+    )
+    db.add(derived_dataset)
+    db.flush()
+
+    materialized_result = {
+        **result,
+        "derived_dataset_id": derived_dataset.id,
+        "derived_dataset": build_dataset_summary_response(
+            derived_dataset
+        ),
+    }
+
+    replaced_reference = None
+    previous_derived_id = get_joined_dataset_id_from_result(
+        previous_result
+    )
+    if previous_derived_id:
+        replaced_dataset = (
+            db.query(Dataset)
+            .filter(
+                Dataset.id == previous_derived_id,
+                Dataset.workspace_id == workspace_id,
+                Dataset.source_type == "joined",
+            )
+            .first()
+        )
+        if replaced_dataset:
+            replaced_reference = get_dataset_storage_reference(
+                replaced_dataset
+            )
+            cleanup_deleted_dataset_preferences(
+                db,
+                replaced_dataset,
+            )
+            cleanup_deleted_dataset_relationships(
+                db,
+                replaced_dataset,
+            )
+            db.delete(replaced_dataset)
+
+    return materialized_result, new_stored_reference, replaced_reference
+
+
 def remove_dataset_file(
     file_path: str | None,
 ):
@@ -694,6 +869,7 @@ def cleanup_deleted_dataset_join_caches(
     db,
     dataset,
 ):
+    derived_references = []
     caches = (
         db.query(DatasetJoinCache)
         .filter(
@@ -711,8 +887,46 @@ def cleanup_deleted_dataset_join_caches(
         except (TypeError, ValueError, json.JSONDecodeError):
             dataset_ids = set()
 
-        if dataset.id in dataset_ids:
-            db.delete(cache)
+        try:
+            cached_result = json.loads(cache.result or "{}")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            cached_result = {}
+
+        derived_dataset_id = get_joined_dataset_id_from_result(
+            cached_result
+        )
+        if dataset.id not in dataset_ids and dataset.id != derived_dataset_id:
+            continue
+
+        if derived_dataset_id and derived_dataset_id != dataset.id:
+            derived_dataset = (
+                db.query(Dataset)
+                .filter(
+                    Dataset.id == derived_dataset_id,
+                    Dataset.workspace_id == dataset.workspace_id,
+                    Dataset.source_type == "joined",
+                )
+                .first()
+            )
+            if derived_dataset:
+                derived_references.append(
+                    get_dataset_storage_reference(
+                        derived_dataset
+                    )
+                )
+                cleanup_deleted_dataset_preferences(
+                    db,
+                    derived_dataset,
+                )
+                cleanup_deleted_dataset_relationships(
+                    db,
+                    derived_dataset,
+                )
+                db.delete(derived_dataset)
+
+        db.delete(cache)
+
+    return derived_references
 
 
 def cleanup_deleted_dataset_relationships(
@@ -2493,6 +2707,8 @@ async def get_dataset_join_cache(
     )
     dashboard_key = clean_dashboard_share_key(dashboard)
     db = SessionLocal()
+    new_derived_reference = None
+    new_derived_committed = False
 
     try:
         cache = (
@@ -2541,7 +2757,33 @@ async def get_dataset_join_cache(
         source_fingerprint = build_dataset_source_fingerprint(
             [frame[0] for frame in dataset_frames]
         )
-        if source_fingerprint != cache.source_fingerprint:
+        try:
+            cached_result = json.loads(cache.result or "{}")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            cached_result = {}
+        if not isinstance(cached_result, dict):
+            cached_result = {}
+
+        existing_derived_dataset = None
+        cached_derived_id = get_joined_dataset_id_from_result(
+            cached_result
+        )
+        if cached_derived_id:
+            existing_derived_dataset = (
+                db.query(Dataset)
+                .filter(
+                    Dataset.id == cached_derived_id,
+                    Dataset.workspace_id == workspace_id,
+                    Dataset.source_type == "joined",
+                )
+                .first()
+            )
+
+        source_changed = (
+            source_fingerprint != cache.source_fingerprint
+            or cached_result.get("join_version") != JOIN_RESULT_VERSION
+        )
+        if source_changed:
             result = await asyncio.to_thread(
                 build_joined_dataset,
                 dataset_frames,
@@ -2550,6 +2792,23 @@ async def get_dataset_join_cache(
                 definition.get("period_filter", "all"),
                 definition.get("aggregation", "monthly"),
                 definition.get("aggregation_type", "sum"),
+            )
+        else:
+            result = cached_result
+
+        if source_changed or not existing_derived_dataset:
+            (
+                result,
+                new_derived_reference,
+                replaced_derived_reference,
+            ) = materialize_joined_dataset_record(
+                db,
+                result,
+                user_id,
+                workspace_id,
+                dashboard_key,
+                definition,
+                cached_result,
             )
             cache.result = json.dumps(
                 result,
@@ -2560,13 +2819,26 @@ async def get_dataset_join_cache(
                 result["dataset_ids"]
             )
             db.commit()
+            new_derived_committed = True
+            if replaced_derived_reference:
+                try:
+                    remove_dataset_file(
+                        replaced_derived_reference
+                    )
+                except Exception:
+                    logger.warning(
+                        "Unable to remove replaced joined dataset file",
+                        exc_info=True,
+                    )
             return result
 
-        return json.loads(cache.result)
+        return cached_result
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         db.rollback()
         return None
     finally:
+        if new_derived_reference and not new_derived_committed:
+            remove_dataset_file(new_derived_reference)
         db.close()
 
 
@@ -2583,6 +2855,7 @@ async def delete_dataset_join_cache(
     )
     dashboard_key = clean_dashboard_share_key(dashboard)
     db = SessionLocal()
+    deleted = False
 
     try:
         cache = (
@@ -2595,15 +2868,66 @@ async def delete_dataset_join_cache(
             .first()
         )
         if cache:
-            cached_dataset_ids = {
-                int(cached_id)
-                for cached_id in json.loads(cache.dataset_ids)
-            }
-            if dataset_id in cached_dataset_ids:
+            try:
+                cached_dataset_ids = {
+                    int(cached_id)
+                    for cached_id in json.loads(cache.dataset_ids)
+                }
+            except (TypeError, ValueError, json.JSONDecodeError):
+                cached_dataset_ids = set()
+
+            try:
+                cached_result = json.loads(cache.result or "{}")
+            except (TypeError, ValueError, json.JSONDecodeError):
+                cached_result = {}
+
+            derived_dataset_id = get_joined_dataset_id_from_result(
+                cached_result
+            )
+            if (
+                dataset_id in cached_dataset_ids
+                or dataset_id == derived_dataset_id
+            ):
+                derived_reference = None
+                if derived_dataset_id:
+                    derived_dataset = (
+                        db.query(Dataset)
+                        .filter(
+                            Dataset.id == derived_dataset_id,
+                            Dataset.workspace_id == workspace_id,
+                            Dataset.source_type == "joined",
+                        )
+                        .first()
+                    )
+                    if derived_dataset:
+                        derived_reference = (
+                            get_dataset_storage_reference(
+                                derived_dataset
+                            )
+                        )
+                        cleanup_deleted_dataset_preferences(
+                            db,
+                            derived_dataset,
+                        )
+                        cleanup_deleted_dataset_relationships(
+                            db,
+                            derived_dataset,
+                        )
+                        db.delete(derived_dataset)
+
                 db.delete(cache)
                 db.commit()
+                deleted = True
+                if derived_reference:
+                    try:
+                        remove_dataset_file(derived_reference)
+                    except Exception:
+                        logger.warning(
+                            "Unable to remove joined dataset file after reset",
+                            exc_info=True,
+                        )
 
-        return {"deleted": bool(cache)}
+        return {"deleted": deleted}
     finally:
         db.close()
 
@@ -2629,6 +2953,8 @@ async def join_datasets(
         user_id,
     )
     db = SessionLocal()
+    new_derived_reference = None
+    new_derived_committed = False
 
     try:
         dataset_frames = []
@@ -2684,9 +3010,7 @@ async def join_datasets(
                 payload.aggregation,
                 payload.aggregation_type,
             )
-            source_fingerprint = build_dataset_source_fingerprint(
-                [frame[0] for frame in dataset_frames]
-            )
+
             cache = (
                 db.query(DatasetJoinCache)
                 .filter(
@@ -2695,6 +3019,32 @@ async def join_datasets(
                     DatasetJoinCache.dashboard_key == dashboard_key,
                 )
                 .first()
+            )
+            previous_result = {}
+            if cache:
+                try:
+                    previous_result = json.loads(
+                        cache.result or "{}"
+                    )
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    previous_result = {}
+
+            (
+                result,
+                new_derived_reference,
+                replaced_derived_reference,
+            ) = materialize_joined_dataset_record(
+                db,
+                result,
+                user_id,
+                workspace_id,
+                dashboard_key,
+                definition,
+                previous_result,
+            )
+
+            source_fingerprint = build_dataset_source_fingerprint(
+                [frame[0] for frame in dataset_frames]
             )
             if not cache:
                 cache = DatasetJoinCache(
@@ -2717,7 +3067,20 @@ async def join_datasets(
             )
             cache.source_fingerprint = source_fingerprint
             cache.updated_at = utc_now()
+
             db.commit()
+            new_derived_committed = True
+
+            if replaced_derived_reference:
+                try:
+                    remove_dataset_file(
+                        replaced_derived_reference
+                    )
+                except Exception:
+                    logger.warning(
+                        "Unable to remove replaced joined dataset file",
+                        exc_info=True,
+                    )
 
         return result
     except ValueError as error:
@@ -2726,6 +3089,8 @@ async def join_datasets(
             detail=str(error),
         ) from error
     finally:
+        if new_derived_reference and not new_derived_committed:
+            remove_dataset_file(new_derived_reference)
         db.close()
 
 
@@ -6564,7 +6929,7 @@ async def delete_dataset(
             db,
             dataset,
         )
-        cleanup_deleted_dataset_join_caches(
+        derived_dataset_references = cleanup_deleted_dataset_join_caches(
             db,
             dataset,
         )
@@ -6576,6 +6941,8 @@ async def delete_dataset(
         db.delete(dataset)
         db.commit()
         remove_dataset_file(dataset_reference)
+        for derived_reference in derived_dataset_references:
+            remove_dataset_file(derived_reference)
 
         return {"message": "Dataset deleted"}
 

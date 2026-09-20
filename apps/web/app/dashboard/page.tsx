@@ -289,12 +289,18 @@ const joinedDatasetStoragePrefix =
   "decisionate:joined-dataset:"
 const selectedMetricsStoragePrefix =
   "decisionate:selected-metrics:"
-const joinedDatasetResultVersion = 6
+const joinedDatasetResultVersion = 7
 
 function isCurrentJoinedDatasetResult(
   result: DatasetJoinResult | null | undefined
 ): result is DatasetJoinResult {
   return result?.join_version === joinedDatasetResultVersion
+}
+
+function isJoinedDataset(
+  dataset: DatasetSummary | undefined
+) {
+  return dataset?.source_type === "joined"
 }
 
 function findPersistedJoinedDatasetResult(
@@ -884,6 +890,23 @@ export default function DashboardPage() {
       setJoinedDatasetResult(result)
       if (result) {
         setShowJoinPanel(true)
+        if (result.derived_dataset) {
+          setDatasets(current => [
+            result.derived_dataset as DatasetSummary,
+            ...current.filter(
+              datasetSummary =>
+                datasetSummary.id !== result.derived_dataset?.id
+            ),
+          ])
+        }
+      } else if (joinedDatasetResult?.derived_dataset_id) {
+        setDatasets(current =>
+          current.filter(
+            datasetSummary =>
+              datasetSummary.id !==
+              joinedDatasetResult.derived_dataset_id
+          )
+        )
       }
       if (result?.start_date) {
         setStartDate(result.start_date)
@@ -946,6 +969,33 @@ export default function DashboardPage() {
       userId,
     ]
   )
+
+  useEffect(() => {
+    const derivedDataset =
+      joinedDatasetResult?.derived_dataset
+    if (!derivedDataset) {
+      return
+    }
+
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) {
+        return
+      }
+
+      setDatasets(current => [
+        derivedDataset,
+        ...current.filter(
+          datasetSummary =>
+            datasetSummary.id !== derivedDataset.id
+        ),
+      ])
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [joinedDatasetResult])
 
   useEffect(() => {
     let cancelled = false
@@ -1063,6 +1113,13 @@ export default function DashboardPage() {
 
     clearSelectedDashboard()
     setJoinedDatasetResult(null)
+    if (isJoinedDataset(
+      datasets.find(
+        datasetSummary => datasetSummary.id === datasetId
+      )
+    )) {
+      setShowJoinPanel(false)
+    }
     setSelectedDatasetId(datasetId)
     setDashboardDatasetIds(nextDashboardDatasetIds)
 
@@ -3153,10 +3210,20 @@ export default function DashboardPage() {
     )
   }
 
+  const selectedDatasetRecord = datasets.find(
+    datasetSummary => datasetSummary.id === selectedDatasetId
+  )
+  const isSelectedDerivedDataset = isJoinedDataset(
+    selectedDatasetRecord
+  )
+  const sourceDatasets = datasets.filter(
+    datasetSummary => !isJoinedDataset(datasetSummary)
+  )
   const canCompareDashboardData =
     selectedDashboardNeedsDataset &&
     Boolean(selectedDatasetId) &&
-    datasets.length > 1
+    !isSelectedDerivedDataset &&
+    sourceDatasets.length > 1
 
   function handleOpenDashboardDecision() {
     if (!selectedDatasetId || !canCreateDecisions) {
@@ -3440,10 +3507,10 @@ export default function DashboardPage() {
         </DashboardCard>
       )}
 
-      {showJoinPanel && (
+      {showJoinPanel && !isSelectedDerivedDataset && (
         <DatasetJoinPanel
           key={`dataset-join-${selectedDatasetId ?? "none"}`}
-          datasets={datasets}
+          datasets={sourceDatasets}
           selectedDatasetId={selectedDatasetId}
           dashboardKey={selectedDashboard}
           userId={userId}
@@ -3572,6 +3639,29 @@ export default function DashboardPage() {
     const dashboardControls = usesDatasetSelection ? (
       <div className="grid w-full min-w-0 grid-cols-1 gap-3">
         <div className="min-w-0 space-y-1">
+            <DatasetSelector
+              ariaLabel="Select dashboard dataset"
+              datasets={datasets}
+              emptyMessage={
+                canConfigureWorkspace
+                  ? undefined
+                  : "Ask the workspace team to share a dataset to populate this dashboard."
+              }
+              loading={
+                !authLoaded ||
+                !userId ||
+                datasetsLoading
+              }
+              loadError={
+                Boolean(dashboardError) &&
+                datasets.length === 0
+              }
+              value={selectedDatasetId}
+              onChange={(id) => {
+                void handleDatasetSelectionChange(id)
+              }}
+            />
+
             {joinedDatasetResult && (
               <div
                 className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-xs text-[var(--decisionate-brand-primary-text)]"
@@ -3579,46 +3669,20 @@ export default function DashboardPage() {
                 aria-label="Joined dataset is active"
               >
                 <GitMerge size={14} className="shrink-0" />
-                <span className="font-semibold">Joined dataset</span>
+                <span className="font-semibold">Joined evidence ready</span>
                 <span className="truncate text-[var(--decisionate-brand-primary-text)]/80">
-                  {joinedDatasetResult.dataset_ids.length} datasets · {joinedDatasetResult.matched_period_count} shared periods
+                  {joinedDatasetResult.derived_dataset?.file_name ?? "Select the joined dataset above"}
                 </span>
               </div>
             )}
-            {!joinedDatasetResult && (
-              <>
-                <DatasetSelector
-                  ariaLabel="Select dashboard dataset"
-                  datasets={datasets}
-                  emptyMessage={
-                    canConfigureWorkspace
-                      ? undefined
-                      : "Ask the workspace team to share a dataset to populate this dashboard."
-                  }
-                  loading={
-                    !authLoaded ||
-                    !userId ||
-                    datasetsLoading
-                  }
-                  loadError={
-                    Boolean(dashboardError) &&
-                    datasets.length === 0
-                  }
-                  value={selectedDatasetId}
-                  onChange={(id) => {
-                    void handleDatasetSelectionChange(id)
-                  }}
-                />
 
-                {selectedDatasetId && (
-                  <Link
-                    href={`/dashboard/datasets/${selectedDatasetId}`}
-                    className="block truncate text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
-                  >
-                    Open dataset details
-                  </Link>
-                )}
-              </>
+            {selectedDatasetId && (
+              <Link
+                href={`/dashboard/datasets/${selectedDatasetId}`}
+                className="block truncate text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
+              >
+                Open dataset details
+              </Link>
             )}
           </div>
         <div className="col-span-full grid min-w-0 gap-2 rounded-lg border border-gray-200 bg-gray-50 px-0 py-2 sm:grid-cols-[repeat(4,minmax(0,1fr))_auto] sm:items-end">
@@ -3786,10 +3850,10 @@ export default function DashboardPage() {
           />
         )}
 
-        {showJoinPanel && selectedDashboardNeedsDataset && (
+        {showJoinPanel && selectedDashboardNeedsDataset && !isSelectedDerivedDataset && (
           <DatasetJoinPanel
             key={`dataset-join-${selectedDatasetId ?? "none"}`}
-            datasets={datasets}
+            datasets={sourceDatasets}
             selectedDatasetId={selectedDatasetId}
             dashboardKey={selectedDashboard}
             userId={userId}
@@ -4133,54 +4197,45 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid w-full min-w-0 max-w-full gap-2 sm:w-96 sm:flex-none sm:grid-cols-2 lg:w-[26rem] xl:w-[28rem]">
-            {joinedDatasetResult && (
-              <div
-                className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-xs text-[var(--decisionate-brand-primary-text)]"
-                role="status"
-                aria-label="Joined dataset is active"
-              >
-                <GitMerge size={14} className="shrink-0" />
-                <span className="font-semibold">Joined dataset</span>
-                <span className="truncate text-[var(--decisionate-brand-primary-text)]/80">
-                  {joinedDatasetResult.dataset_ids.length} datasets · {joinedDatasetResult.matched_period_count} shared periods
-                </span>
-              </div>
-            )}
-            {!joinedDatasetResult && (
-              <div className="min-w-0">
-                <DatasetSelector
-                  ariaLabel="Select dashboard dataset"
-                  datasets={datasets}
-                  emptyMessage={
-                    canConfigureWorkspace
-                      ? undefined
-                      : "Ask the workspace team to share a dataset to populate this dashboard."
-                  }
-                  loading={
-                    !authLoaded ||
-                    !userId ||
-                    datasetsLoading
-                  }
-                  loadError={
-                    Boolean(dashboardError) &&
-                    datasets.length === 0
-                  }
-                  value={selectedDatasetId}
-                  onChange={(id) => {
-                    void handleDatasetSelectionChange(id)
-                  }}
-                />
+            <div className="min-w-0">
+              <DatasetSelector
+                ariaLabel="Select dashboard dataset"
+                datasets={datasets}
+                emptyMessage={
+                  canConfigureWorkspace
+                    ? undefined
+                    : "Ask the workspace team to share a dataset to populate this dashboard."
+                }
+                loading={
+                  !authLoaded ||
+                  !userId ||
+                  datasetsLoading
+                }
+                loadError={
+                  Boolean(dashboardError) &&
+                  datasets.length === 0
+                }
+                value={selectedDatasetId}
+                onChange={(id) => {
+                  void handleDatasetSelectionChange(id)
+                }}
+              />
 
-                {selectedDatasetId && (
-                  <Link
-                    href={`/dashboard/datasets/${selectedDatasetId}`}
-                    className="mt-1 block truncate text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
-                  >
-                    Open dataset details
-                  </Link>
-                )}
-              </div>
-            )}
+              {joinedDatasetResult && (
+                <p className="mt-1 truncate text-xs text-[var(--decisionate-brand-primary-text)]">
+                  Joined dataset ready: {joinedDatasetResult.derived_dataset?.file_name ?? "select it above"}
+                </p>
+              )}
+
+              {selectedDatasetId && (
+                <Link
+                  href={`/dashboard/datasets/${selectedDatasetId}`}
+                  className="mt-1 block truncate text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
+                >
+                  Open dataset details
+                </Link>
+              )}
+            </div>
 
             {dataset && availableMetricColumns.length > 0 && (
               <div className="min-w-0 space-y-1">

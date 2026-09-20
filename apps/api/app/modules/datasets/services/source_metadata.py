@@ -103,6 +103,8 @@ def build_dataset_source_metadata(
             if entity_type == "product"
             else "Unified entities"
         )
+    elif source_type == "joined":
+        source_label = "Joined dataset"
 
     return {
         "source_type": source_type,

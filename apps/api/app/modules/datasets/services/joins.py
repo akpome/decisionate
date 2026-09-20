@@ -34,7 +34,7 @@ JOIN_PERIODS = {
 }
 JOIN_NORMALIZATION_PERIOD = "monthly"
 # Bump when join semantics change so persisted dashboard results are rebuilt.
-JOIN_RESULT_VERSION = 6
+JOIN_RESULT_VERSION = 7
 
 JOIN_AGGREGATIONS = {
     "sum": "sum",

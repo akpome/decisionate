@@ -262,6 +262,26 @@ export function DatasetJoinPanel({
   }
 
   async function resetJoinedDataset() {
+    setError("")
+
+    if (userId && selectedDatasetId) {
+      try {
+        await deleteDatasetJoinCache(
+          selectedDatasetId,
+          dashboardKey,
+          userId,
+          workspaceId
+        )
+      } catch (resetError) {
+        setError(
+          resetError instanceof Error
+            ? resetError.message
+            : "Unable to reset the joined dataset cache."
+        )
+        return
+      }
+    }
+
     updateJoinResult(null)
     setSelectedDatasetIds(
       selectedDatasetId ? [selectedDatasetId] : []
@@ -279,24 +299,6 @@ export function DatasetJoinPanel({
       }
     })
     setMetadata([])
-    setError("")
-
-    if (userId && selectedDatasetId) {
-      try {
-        await deleteDatasetJoinCache(
-          selectedDatasetId,
-          dashboardKey,
-          userId,
-          workspaceId
-        )
-      } catch (resetError) {
-        setError(
-          resetError instanceof Error
-            ? resetError.message
-            : "Unable to reset the joined dataset cache."
-        )
-      }
-    }
   }
 
   async function handleJoin() {
@@ -374,7 +376,10 @@ export function DatasetJoinPanel({
       datasets.map(dataset => dataset.id)
     )
     const decisionDatasetId =
-      (availableDatasetIds.has(activeResult.primary_dataset_id)
+      (activeResult.derived_dataset_id &&
+        activeResult.derived_dataset
+        ? activeResult.derived_dataset_id
+        : availableDatasetIds.has(activeResult.primary_dataset_id)
         ? activeResult.primary_dataset_id
         : availableDatasetIds.has(selectedDatasetId)
         ? selectedDatasetId

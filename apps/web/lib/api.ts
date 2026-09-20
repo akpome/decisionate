@@ -265,6 +265,8 @@ export type DatasetJoinSelection = {
 export type DatasetJoinResult = {
   join_version?: number
   primary_dataset_id: number
+  derived_dataset_id?: number | null
+  derived_dataset?: DatasetSummary | null
   dataset_ids: number[]
   join_key: string
   join_type: "inner"
