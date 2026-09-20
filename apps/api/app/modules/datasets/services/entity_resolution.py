@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import unicodedata
 from collections import defaultdict
 
 import pandas as pd
+
+from app.modules.datasets.services.numeric import (
+    coerce_numeric_series,
+    get_numeric_columns,
+    is_identifier_column,
+)
 
 
 ENTITY_FIELD_DEFINITIONS = {
@@ -273,3 +280,137 @@ def confidence_bucket(value: float) -> str:
     if value >= 0.9:
         return "medium"
     return "review"
+
+
+def build_unified_entity_dataframe(
+    dataset_frames: list[tuple[object, pd.DataFrame]],
+    resolution: dict,
+    canonical_entity_ids: dict[str, int] | None = None,
+) -> pd.DataFrame:
+    """Build one persistent analytical row for each resolved entity.
+
+    Source rows are grouped by canonical identity. Numeric non-identifier
+    fields are summed across sources, while descriptive fields retain the
+    first available value. Source lineage remains available in the output and
+    the full row-level mapping remains in ``EntityIdentity``.
+    """
+    frames_by_dataset_id = {
+        int(dataset.id): (dataset, dataframe)
+        for dataset, dataframe in dataset_frames
+    }
+    source_columns: list[str] = []
+    numeric_series_by_dataset: dict[int, dict[str, pd.Series]] = {}
+
+    for dataset, dataframe in dataset_frames:
+        for column in dataframe.columns:
+            column_name = str(column)
+            if column_name not in source_columns:
+                source_columns.append(column_name)
+
+        numeric_series: dict[str, pd.Series] = {}
+        for column, series in get_numeric_columns(dataframe):
+            column_name = str(column)
+            if is_identifier_column(column_name):
+                continue
+            numeric_series[column_name] = coerce_numeric_series(series)
+        numeric_series_by_dataset[int(dataset.id)] = numeric_series
+
+    metadata_columns = {
+        "canonical_entity_id",
+        "canonical_entity_key",
+        "entity_type",
+        "canonical_name",
+        "match_confidence",
+        "source_count",
+        "source_record_count",
+        "source_dataset_ids",
+        "source_datasets",
+        "source_types",
+        "source_records",
+    }
+    source_column_aliases = {
+        column: (
+            f"source_{column}"
+            if column in metadata_columns
+            else column
+        )
+        for column in source_columns
+    }
+
+    rows: list[dict] = []
+    id_lookup = canonical_entity_ids or {}
+    for entity in resolution.get("entities", []):
+        members = entity.get("records") or []
+        source_dataset_ids = sorted({
+            int(member["dataset_id"])
+            for member in members
+            if member.get("dataset_id") is not None
+        })
+        source_datasets = []
+        source_types = []
+        source_records = []
+        first_values: dict[str, object] = {}
+        numeric_totals: dict[str, float] = {}
+
+        for member in members:
+            dataset_id = int(member["dataset_id"])
+            dataset_entry = frames_by_dataset_id.get(dataset_id)
+            if not dataset_entry:
+                continue
+            dataset, dataframe = dataset_entry
+            row_number = int(member["row_number"])
+            if row_number < 0 or row_number >= len(dataframe):
+                continue
+
+            source_type = str(dataset.source_type or "csv")
+            source_datasets.append(str(dataset.file_name))
+            source_types.append(source_type)
+            if len(source_records) < 100:
+                source_records.append({
+                    "dataset_id": dataset_id,
+                    "file_name": str(dataset.file_name),
+                    "source_type": source_type,
+                    "row": row_number + 1,
+                    "source_row_key": str(member.get("source_row_key") or row_number),
+                })
+
+            row = dataframe.iloc[row_number]
+            numeric_series = numeric_series_by_dataset.get(dataset_id, {})
+            for column in dataframe.columns:
+                column_name = str(column)
+                output_column = source_column_aliases[column_name]
+                if column_name in numeric_series:
+                    value = numeric_series[column_name].iloc[row_number]
+                    if pd.notna(value):
+                        numeric_totals[output_column] = (
+                            numeric_totals.get(output_column, 0.0)
+                            + float(value)
+                        )
+                    continue
+                if output_column in first_values:
+                    continue
+                value = row.get(column)
+                if value is None or pd.isna(value):
+                    continue
+                if not str(value).strip():
+                    continue
+                first_values[output_column] = value
+
+        row = {
+            "canonical_entity_id": id_lookup.get(entity["canonical_key"]),
+            "canonical_entity_key": entity["canonical_key"],
+            "entity_type": resolution.get("entity_type"),
+            "canonical_name": entity.get("display_name"),
+            "match_confidence": entity.get("confidence"),
+            "source_count": len(source_dataset_ids),
+            "source_record_count": len(members),
+            "source_dataset_ids": json.dumps(source_dataset_ids),
+            "source_datasets": ", ".join(sorted(set(source_datasets))),
+            "source_types": ", ".join(sorted(set(source_types))),
+            "source_records": json.dumps(source_records, sort_keys=True),
+        }
+        row.update(first_values)
+        row.update(numeric_totals)
+        rows.append(row)
+
+    return pd.DataFrame(rows)

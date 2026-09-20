@@ -189,6 +189,9 @@ export type EntityMatchingRun = {
   unmatched_row_count: number
   canonical_entity_count: number
   confidence_breakdown: Record<string, number>
+  unified_dataset_id?: number
+  unified_dataset_name?: string
+  unified_dataset_row_count?: number
   entities: Array<{
     id: number
     canonical_key: string

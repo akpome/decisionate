@@ -83,14 +83,30 @@ def build_dataset_source_metadata(
     source = get_dataset_source(
         source_type
     )
+    source_label = (
+        source["label"]
+        if source
+        else source_type
+    )
+    if source_type == "entity_matching":
+        try:
+            source_config = json.loads(dataset.source_config or "{}")
+        except (TypeError, json.JSONDecodeError):
+            source_config = {}
+        entity_type = str(
+            source_config.get("entity_type") or "entity"
+        ).strip().lower()
+        source_label = (
+            "Unified customers"
+            if entity_type == "customer"
+            else "Unified products"
+            if entity_type == "product"
+            else "Unified entities"
+        )
 
     return {
         "source_type": source_type,
-        "source_label": (
-            source["label"]
-            if source
-            else source_type
-        ),
+        "source_label": source_label,
         "source_config": getattr(
             dataset,
             "source_config",

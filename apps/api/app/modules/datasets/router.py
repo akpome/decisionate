@@ -143,6 +143,7 @@ from app.modules.datasets.services.multi_metric_analysis import (
 )
 from app.modules.datasets.services.entity_resolution import (
     build_entity_resolution,
+    build_unified_entity_dataframe,
     confidence_bucket,
 )
 from app.modules.datasets.services.source_metadata import (
@@ -490,6 +491,57 @@ def persist_dataset_file(
         if parquet_path and parquet_path != file_path:
             remove_dataset_file(parquet_path)
         raise
+
+
+def persist_entity_matching_dataframe(
+    dataframe: pd.DataFrame,
+    workspace_id: str,
+    entity_type: str,
+):
+    """Persist a derived canonical entity dataframe in dataset storage."""
+    if dataframe.empty:
+        raise ValueError(
+            "Entity matching did not produce any canonical records"
+        )
+
+    upload_dir = get_dataset_upload_dir()
+    os.makedirs(upload_dir, exist_ok=True)
+    staging_path = build_dataset_upload_path(
+        f"unified-{entity_type}.csv"
+    )
+    parquet_path = None
+    stored_reference = None
+    try:
+        parquet_path = convert_dataframe_to_parquet(
+            dataframe,
+            staging_path,
+        )
+        remove_dataset_file(staging_path)
+        storage = get_object_storage()
+        storage_key = (
+            "derived/"
+            f"workspace={normalize_analytics_identifier(workspace_id, 'workspace')}/"
+            f"entity-matching-{entity_type}-{uuid.uuid4().hex}.parquet"
+        )
+        stored_reference = storage.put_file(
+            parquet_path,
+            key=storage_key,
+        )
+        if storage.is_remote:
+            stored_file_path = storage.reference_key(stored_reference)
+            storage_provider = storage.config.provider
+        else:
+            stored_file_path = stored_reference
+            storage_provider = None
+        return stored_file_path, storage_provider, stored_reference
+    except Exception:
+        if stored_reference:
+            remove_dataset_file(stored_reference)
+        raise
+    finally:
+        remove_dataset_file(staging_path)
+        if parquet_path:
+            remove_dataset_file(parquet_path)
 
 
 def remove_dataset_file(
@@ -2120,8 +2172,36 @@ def _load_entity_matching_frames(
             apply_metric_selection=False,
         )
         verify_dataset_owner(dataset, user_id, workspace_id)
+        if dataset.source_type == "entity_matching":
+            raise ValueError(
+                "Unified entity datasets cannot be used as matching inputs"
+            )
         frames.append((dataset, dataframe))
     return frames
+
+
+def _find_entity_matching_dataset(
+    db,
+    workspace_id: str,
+    entity_type: str,
+):
+    candidates = (
+        db.query(Dataset)
+        .filter(
+            Dataset.workspace_id == workspace_id,
+            Dataset.source_type == "entity_matching",
+        )
+        .order_by(Dataset.created_at.desc(), Dataset.id.desc())
+        .all()
+    )
+    for dataset in candidates:
+        try:
+            source_config = json.loads(dataset.source_config or "{}")
+        except (TypeError, json.JSONDecodeError):
+            source_config = {}
+        if source_config.get("entity_type") == entity_type:
+            return dataset
+    return None
 
 
 @router.post(
@@ -2178,6 +2258,7 @@ async def run_entity_matching(
         )
 
     db = SessionLocal()
+    new_stored_reference = None
     try:
         frames = _load_entity_matching_frames(
             db,
@@ -2190,6 +2271,20 @@ async def run_entity_matching(
             frames,
             payload.entity_type,
             payload.key_columns,
+        )
+        existing_unified_dataset = (
+            _find_entity_matching_dataset(
+                db,
+                workspace_id,
+                payload.entity_type,
+            )
+            if payload.replace_existing
+            else None
+        )
+        previous_unified_reference = (
+            get_dataset_storage_reference(existing_unified_dataset)
+            if existing_unified_dataset
+            else None
         )
 
         if payload.replace_existing:
@@ -2204,6 +2299,7 @@ async def run_entity_matching(
 
         confidence_breakdown = {"high": 0, "medium": 0, "review": 0}
         response_entities = []
+        canonical_entity_ids = {}
         for entity in result["entities"]:
             canonical = CanonicalEntity(
                 workspace_id=workspace_id,
@@ -2220,6 +2316,7 @@ async def run_entity_matching(
             )
             db.add(canonical)
             db.flush()
+            canonical_entity_ids[entity["canonical_key"]] = canonical.id
             confidence_breakdown[confidence_bucket(entity["confidence"])] += 1
 
             source_rows = []
@@ -2259,7 +2356,66 @@ async def run_entity_matching(
                 "sources": source_rows[:10],
             })
 
+        unified_dataframe = await asyncio.to_thread(
+            build_unified_entity_dataframe,
+            frames,
+            result,
+            canonical_entity_ids,
+        )
+        (
+            stored_file_path,
+            storage_provider,
+            new_stored_reference,
+        ) = persist_entity_matching_dataframe(
+            unified_dataframe,
+            workspace_id,
+            payload.entity_type,
+        )
+        unified_source_config = json.dumps(
+            {
+                "entity_type": payload.entity_type,
+                "ingestion_mode": "entity_matching",
+                "derived_from_dataset_ids": payload.dataset_ids,
+                "canonical_entity_count": len(response_entities),
+                "matched_row_count": result["matched_row_count"],
+                "unmatched_row_count": result["unmatched_row_count"],
+                "match_confidence": confidence_breakdown,
+                "generated_at": utc_now().isoformat(),
+            },
+            sort_keys=True,
+        )
+        if existing_unified_dataset:
+            unified_dataset = existing_unified_dataset
+            unified_dataset.file_name = f"unified-{payload.entity_type}s.parquet"
+            unified_dataset.file_path = stored_file_path
+            unified_dataset.storage_provider = storage_provider
+            unified_dataset.source_config = unified_source_config
+            unified_dataset.row_count = len(unified_dataframe)
+            unified_dataset.column_count = len(unified_dataframe.columns)
+        else:
+            unified_dataset = Dataset(
+                user_id=user_id,
+                workspace_id=workspace_id,
+                source_type="entity_matching",
+                source_config=unified_source_config,
+                file_name=f"unified-{payload.entity_type}s.parquet",
+                file_path=stored_file_path,
+                storage_provider=storage_provider,
+                row_count=len(unified_dataframe),
+                column_count=len(unified_dataframe.columns),
+            )
+            db.add(unified_dataset)
+        db.flush()
         db.commit()
+        if previous_unified_reference:
+            try:
+                remove_dataset_file(previous_unified_reference)
+            except Exception:
+                logger.warning(
+                    "Unable to remove replaced unified entity dataset",
+                    extra={"dataset_id": existing_unified_dataset.id},
+                    exc_info=True,
+                )
         return {
             "entity_type": payload.entity_type,
             "dataset_count": len(frames),
@@ -2271,10 +2427,20 @@ async def run_entity_matching(
             "canonical_entity_count": len(response_entities),
             "confidence_breakdown": confidence_breakdown,
             "entities": response_entities[:100],
+            "unified_dataset_id": unified_dataset.id,
+            "unified_dataset_name": unified_dataset.file_name,
+            "unified_dataset_row_count": unified_dataset.row_count,
         }
     except ValueError as error:
         db.rollback()
+        if new_stored_reference:
+            remove_dataset_file(new_stored_reference)
         raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception:
+        db.rollback()
+        if new_stored_reference:
+            remove_dataset_file(new_stored_reference)
+        raise
     finally:
         db.close()
 

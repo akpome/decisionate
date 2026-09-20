@@ -194,6 +194,9 @@ class EntityMatchingRunResponse(BaseModel):
     unmatched_row_count: int
     canonical_entity_count: int
     confidence_breakdown: dict[str, int]
+    unified_dataset_id: int | None = None
+    unified_dataset_name: str | None = None
+    unified_dataset_row_count: int | None = None
     entities: list[dict]
 
 

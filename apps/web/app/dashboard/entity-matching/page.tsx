@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useUser } from "@clerk/nextjs"
+import Link from "next/link"
 import { RefreshCw, Save, UsersRound } from "lucide-react"
 
 import {
@@ -39,8 +40,6 @@ export default function EntityMatchingPage() {
   useEffect(() => {
     if (!user?.id) return
     let current = true
-    setLoading(true)
-    setError("")
     void getDatasets(
       user.id,
       activeWorkspaceId,
@@ -48,8 +47,12 @@ export default function EntityMatchingPage() {
     )
       .then(data => {
         if (!current) return
-        setDatasets(data)
-        setSelectedIds(data.slice(0, 2).map(dataset => dataset.id))
+        setError("")
+        const sourceDatasets = data.filter(
+          dataset => dataset.source_type !== "entity_matching"
+        )
+        setDatasets(sourceDatasets)
+        setSelectedIds(sourceDatasets.slice(0, 2).map(dataset => dataset.id))
       })
       .catch(loadError => {
         if (current) setError(getErrorMessage(loadError, "Unable to load datasets."))
@@ -114,7 +117,9 @@ export default function EntityMatchingPage() {
         replace_existing: true,
       }, user.id, activeWorkspaceId)
       setResult(saved)
-      setStatusMessage(`Saved ${saved.canonical_entity_count} canonical ${entityType} records for this workspace.`)
+      setStatusMessage(
+        `Saved ${saved.canonical_entity_count} canonical ${entityType} records and created ${saved.unified_dataset_name ?? "a unified dataset"}.`
+      )
     } catch (saveError) {
       setError(getErrorMessage(saveError, "Unable to save entity matches."))
     } finally {
@@ -221,6 +226,14 @@ export default function EntityMatchingPage() {
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold text-gray-950">Saved canonical records</h2><span className="text-sm text-gray-500">{result.confidence_breakdown.high} high confidence, {result.confidence_breakdown.medium} medium, {result.confidence_breakdown.review} review</span></div>
           <div className="mt-4 grid gap-3 sm:grid-cols-3"><Summary label="Canonical records" value={result.canonical_entity_count.toLocaleString()} /><Summary label="Rows matched across sources" value={result.matched_row_count.toLocaleString()} /><Summary label="Rows needing review" value={result.unmatched_row_count.toLocaleString()} /></div>
+          {result.unified_dataset_id && (
+            <Link
+              href={`/dashboard/datasets/${result.unified_dataset_id}`}
+              className="mt-4 inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+            >
+              Open {result.unified_dataset_name ?? "unified dataset"}
+            </Link>
+          )}
           <div className="mt-5 overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="border-b text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-2 py-2">Canonical name</th><th className="px-2 py-2">Sources</th><th className="px-2 py-2">Rows</th><th className="px-2 py-2">Confidence</th></tr></thead><tbody>{result.entities.map(entity => <tr key={entity.id} className="border-b last:border-0"><td className="px-2 py-3 font-medium text-gray-800">{entity.display_name || entity.canonical_key}</td><td className="px-2 py-3 text-gray-600">{entity.source_count}</td><td className="px-2 py-3 text-gray-600">{entity.match_count}</td><td className="px-2 py-3 text-gray-600">{Math.round(entity.confidence * 100)}%</td></tr>)}</tbody></table></div>
         </section>
       )}

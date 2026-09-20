@@ -9,7 +9,10 @@ from app.modules.datasets.services.deduplication import (
     deduplicate_insights,
     deduplicate_text_items,
 )
-from app.modules.datasets.services.entity_resolution import build_entity_resolution
+from app.modules.datasets.services.entity_resolution import (
+    build_entity_resolution,
+    build_unified_entity_dataframe,
+)
 from app.modules.decisions.outcome_measurement import measure_decision_metric
 
 
@@ -67,6 +70,52 @@ class DecisionateValueFeatureTests(unittest.TestCase):
 
         self.assertEqual(result["matched_group_count"], 1)
         self.assertEqual(result["entities"][0]["source_count"], 2)
+
+    def test_entity_matches_create_unified_rows_with_aggregated_metrics(self):
+        first = SimpleNamespace(
+            id=1,
+            source_type="square",
+            file_name="square-orders.parquet",
+        )
+        second = SimpleNamespace(
+            id=2,
+            source_type="shopify",
+            file_name="shopify-orders.parquet",
+        )
+        frames = [
+            (
+                first,
+                pd.DataFrame({
+                    "customer_email": ["ada@example.com"],
+                    "total_amount": [12.5],
+                }),
+            ),
+            (
+                second,
+                pd.DataFrame({
+                    "email": [" ADA@EXAMPLE.COM "],
+                    "total_amount": [7.5],
+                }),
+            ),
+        ]
+        result = build_entity_resolution(frames, "customer")
+        entity_id = 42
+
+        unified = build_unified_entity_dataframe(
+            frames,
+            result,
+            {result["entities"][0]["canonical_key"]: entity_id},
+        )
+
+        self.assertEqual(len(unified), 1)
+        self.assertEqual(unified.loc[0, "canonical_entity_id"], entity_id)
+        self.assertEqual(unified.loc[0, "source_count"], 2)
+        self.assertEqual(unified.loc[0, "source_record_count"], 2)
+        self.assertEqual(unified.loc[0, "total_amount"], 20.0)
+        self.assertEqual(
+            unified.loc[0, "source_datasets"],
+            "shopify-orders.parquet, square-orders.parquet",
+        )
 
     def test_recommendations_are_prioritized_and_explained(self):
         ranked = prioritize_recommendations(
