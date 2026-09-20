@@ -796,6 +796,14 @@ def clone_dataset_source(source):
                 )
             )
 
+    if source["type"] == "google_business_profile":
+        cloned_source["status"] = "planned"
+        cloned_source["availability_note"] = (
+            "Planned pending Google Business Profile API approval. "
+            "The connector will become available after Google approves "
+            "the Cloud project."
+        )
+
     if source["type"] in {
         "shopify",
         "square",
@@ -811,7 +819,6 @@ def clone_dataset_source(source):
         "salesforce",
         "google_ads",
         "google_search_console",
-        "google_business_profile",
     }:
         if (
             is_oauth_provider_configured(source["type"])

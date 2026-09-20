@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.modules.datasets.services import connectors
+from app.modules.datasets.services import sources
 from app.modules.datasets.services.sources import get_dataset_source
 
 
@@ -17,6 +18,26 @@ def make_connection(source_type, config):
 
 
 class NewConnectorTests(unittest.TestCase):
+    def test_google_business_profile_stays_planned_pending_google_approval(self):
+        with patch.object(
+            sources,
+            "is_oauth_provider_configured",
+            return_value=True,
+        ), patch.object(
+            sources,
+            "get_missing_provider_settings",
+            return_value=[],
+        ):
+            source = sources.get_dataset_source(
+                "google_business_profile"
+            )
+
+        self.assertEqual(source["status"], "planned")
+        self.assertIn(
+            "pending Google Business Profile API approval",
+            source["availability_note"],
+        )
+
     def test_search_console_property_formats_are_normalized(self):
         self.assertEqual(
             connectors.normalize_google_search_console_site_url(
