@@ -412,6 +412,7 @@ export function DatasetJoinPanel({
             file_name: item.file_name,
             metric_column: item.metric_column,
             label: item.label,
+            column_type: item.column_type,
           })),
           recommendation_text:
             "Review the joined metrics and agree on the next action.",

@@ -1479,6 +1479,7 @@ export type DecisionRecord = {
   assigned_user_id?: string | null
   dataset_id: number
   metric_column?: string | null
+  outcome_dataset_id?: number | null
   evidence_dataset_ids?: number[]
   evidence_metrics?: DecisionEvidenceMetric[]
   recommendation_text?: string | null
@@ -1510,6 +1511,7 @@ export type DecisionEvidenceMetric = {
   file_name: string
   metric_column: string
   label: string
+  column_type?: "numeric" | "categorical"
 }
 
 export type DecisionLifecycleAccess = {
@@ -1567,6 +1569,7 @@ export type DecisionActivityFeedItem =
 export type DecisionCreatePayload = {
   dataset_id: number
   metric_column?: string
+  outcome_dataset_id?: number | null
   evidence_dataset_ids?: number[]
   evidence_metrics?: DecisionEvidenceMetric[]
   recommendation_text?: string | null
@@ -1608,6 +1611,7 @@ export type DecisionDetailsPayload = {
   action?: string | null
   description?: string | null
   metric_column?: string | null
+  outcome_dataset_id?: number | null
 }
 
 export type DecisionOutcomePayload = {

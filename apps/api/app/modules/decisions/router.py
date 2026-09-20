@@ -1177,6 +1177,24 @@ async def create_decision(
                     detail="Evidence dataset not found",
                 )
 
+        outcome_dataset_id = payload.outcome_dataset_id
+        if outcome_dataset_id is not None:
+            if outcome_dataset_id not in evidence_dataset_ids:
+                raise HTTPException(
+                    status_code=400,
+                    detail="The outcome metric must belong to an evidence dataset",
+                )
+            if not get_accessible_dataset(
+                db,
+                outcome_dataset_id,
+                x_user_id,
+                x_workspace_id,
+            ):
+                raise HTTPException(
+                    status_code=404,
+                    detail="Outcome dataset not found",
+                )
+
         evidence_metrics = [
             metric.model_dump()
             for metric in (payload.evidence_metrics or [])
@@ -1196,6 +1214,7 @@ async def create_decision(
             metric_column=clean_optional_single_line_text(
                 payload.metric_column,
             ),
+            outcome_dataset_id=outcome_dataset_id,
             recommendation_text=clean_optional_multiline_text(
                 payload.recommendation_text,
             ),
@@ -1569,6 +1588,7 @@ async def export_decisions(
                 "owner_user_id": decision.owner_user_id,
                 "dataset_id": decision.dataset_id,
                 "metric_column": decision.metric_column,
+                "outcome_dataset_id": decision.outcome_dataset_id,
                 "evidence_dataset_ids": decision.evidence_dataset_ids,
                 "evidence_metrics": decision.evidence_metrics,
                 "recommendation_text": decision.recommendation_text,
@@ -2377,6 +2397,33 @@ async def update_decision_details(
         changed = False
         metric_changed = False
 
+        if "outcome_dataset_id" in payload.model_fields_set:
+            outcome_dataset_id = payload.outcome_dataset_id
+            evidence_dataset_ids = (
+                decision.evidence_dataset_ids or [decision.dataset_id]
+            )
+            if outcome_dataset_id is not None:
+                if outcome_dataset_id not in evidence_dataset_ids:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="The outcome metric must belong to an evidence dataset",
+                    )
+                if not get_accessible_dataset(
+                    db,
+                    outcome_dataset_id,
+                    x_user_id,
+                    x_workspace_id,
+                ):
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Outcome dataset not found",
+                    )
+
+            if decision.outcome_dataset_id != outcome_dataset_id:
+                decision.outcome_dataset_id = outcome_dataset_id
+                changed = True
+                metric_changed = True
+
         if payload.title is not None:
             clean_title = clean_required_decision_title(
                 payload.title,
@@ -2846,7 +2893,7 @@ async def get_decision_outcome_analysis(
             user_id,
             workspace_id,
             base_filter=build_dataset_decision_learning_filter(
-                decision.dataset_id,
+                decision.outcome_dataset_id or decision.dataset_id,
                 selected_metric,
             ),
             exclude_decision_id=decision.id,
@@ -3206,7 +3253,7 @@ async def measure_decision_outcome(
             )
         dataset, dataframe = load_dataframe(
             db,
-            decision.dataset_id,
+            decision.outcome_dataset_id or decision.dataset_id,
             apply_metric_selection=False,
         )
         verify_dataset_owner(

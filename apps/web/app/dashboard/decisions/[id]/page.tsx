@@ -263,6 +263,8 @@ export default function DecisionPage() {
 
   const [metricColumn, setMetricColumn] = useState("")
   const [originalMetricColumn, setOriginalMetricColumn] = useState("")
+  const [outcomeDatasetId, setOutcomeDatasetId] = useState<number | null>(null)
+  const [originalOutcomeDatasetId, setOriginalOutcomeDatasetId] = useState<number | null>(null)
   const [metricColumns, setMetricColumns] = useState<string[]>([])
   const [metricsLoading, setMetricsLoading] = useState(false)
   const [metricLoadError, setMetricLoadError] = useState("")
@@ -849,6 +851,8 @@ export default function DecisionPage() {
     setOriginalDescription(nextDecision.description ?? "")
     setMetricColumn(nextDecision.metric_column ?? "")
     setOriginalMetricColumn(nextDecision.metric_column ?? "")
+    setOutcomeDatasetId(nextDecision.outcome_dataset_id ?? null)
+    setOriginalOutcomeDatasetId(nextDecision.outcome_dataset_id ?? null)
   }
 
   /* =========================
@@ -907,7 +911,8 @@ export default function DecisionPage() {
     title !== originalTitle ||
     action !== originalAction ||
     description !== originalDescription ||
-    metricColumn !== originalMetricColumn
+    metricColumn !== originalMetricColumn ||
+    outcomeDatasetId !== originalOutcomeDatasetId
 
   const overviewChanged =
     statusChanged ||
@@ -935,17 +940,32 @@ export default function DecisionPage() {
   async function handleMetricChange(
     nextMetric?: string
   ) {
-    const nextMetricColumn = nextMetric ?? ""
+    const joinedEvidenceMetric =
+      decision?.evidence_metrics?.find(
+        metric =>
+          `${metric.dataset_id}:${metric.metric_column}` === nextMetric
+      )
+    const nextMetricColumn =
+      joinedEvidenceMetric?.metric_column ?? nextMetric ?? ""
+    const nextOutcomeDatasetId =
+      joinedEvidenceMetric?.dataset_id ??
+      (decision?.evidence_metrics?.length
+        ? null
+        : decision?.outcome_dataset_id ?? null)
+    const metricSelectionChanged =
+      nextMetricColumn !== originalMetricColumn ||
+      nextOutcomeDatasetId !== originalOutcomeDatasetId
     clearSaveErrorForSection(detailsDecisionActivity)
     setDetailsSaved(false)
     setMetricColumn(nextMetricColumn)
+    setOutcomeDatasetId(nextOutcomeDatasetId)
 
     if (
       !user?.id ||
       !decision ||
       decisionIsReadOnly ||
       isArchivedDecision ||
-      nextMetricColumn === originalMetricColumn
+      !metricSelectionChanged
     ) {
       return
     }
@@ -958,6 +978,9 @@ export default function DecisionPage() {
         decision.id,
         {
           metric_column: nextMetricColumn || null,
+          ...(decision.evidence_metrics?.length
+            ? { outcome_dataset_id: nextOutcomeDatasetId }
+            : {}),
         },
         user.id,
         activeWorkspaceId
@@ -966,6 +989,8 @@ export default function DecisionPage() {
       setDecision(data)
       setMetricColumn(data.metric_column ?? "")
       setOriginalMetricColumn(data.metric_column ?? "")
+      setOutcomeDatasetId(data.outcome_dataset_id ?? null)
+      setOriginalOutcomeDatasetId(data.outcome_dataset_id ?? null)
       await loadActivities(
         data.id,
         user.id,
@@ -1012,6 +1037,10 @@ export default function DecisionPage() {
 
       if (metricColumn !== originalMetricColumn) {
         detailsPayload.metric_column = metricColumn || null
+      }
+
+      if (outcomeDatasetId !== originalOutcomeDatasetId) {
+        detailsPayload.outcome_dataset_id = outcomeDatasetId
       }
 
       const data = await updateDecisionDetails(
@@ -1713,6 +1742,30 @@ export default function DecisionPage() {
           decision.dataset_id
         )
       : `Unavailable (#${decision.dataset_id})`
+  const joinedEvidenceMetricOptions =
+    (decision.evidence_metrics ?? [])
+      .filter(metric => metric.column_type !== "categorical")
+      .map(metric => ({
+        value: `${metric.dataset_id}:${metric.metric_column}`,
+        label: `${metric.file_name}: ${formatMetricLabel(metric.metric_column)}`,
+      }))
+  const selectedJoinedEvidenceMetric =
+    decision.evidence_metrics?.find(
+      metric =>
+        metric.dataset_id ===
+          (outcomeDatasetId ?? decision.dataset_id) &&
+        metric.metric_column === metricColumn
+    )
+  const metricSelectorValue =
+    joinedEvidenceMetricOptions.length > 0
+      ? selectedJoinedEvidenceMetric
+        ? `${selectedJoinedEvidenceMetric.dataset_id}:${selectedJoinedEvidenceMetric.metric_column}`
+        : undefined
+      : metricColumn || undefined
+  const metricOptionCount =
+    joinedEvidenceMetricOptions.length > 0
+      ? joinedEvidenceMetricOptions.length
+      : metricColumns.length
   const aiRecommendationSource =
     getAIRecommendationSource(
       decision.description
@@ -1997,31 +2050,32 @@ export default function DecisionPage() {
             />
           </Field>
 
-          <Field
-            label={
-              decision?.evidence_metrics?.length
-                ? "Outcome metric"
-                : "Metric"
-            }
-          >
+          <Field label="Outcome metric">
             <MetricSelector
               ariaLabel="Decision metric"
-              metrics={metricColumn && !metricColumns.includes(metricColumn)
+              metrics={joinedEvidenceMetricOptions.length > 0
+                ? []
+                : metricColumn && !metricColumns.includes(metricColumn)
                 ? [metricColumn, ...metricColumns]
                 : metricColumns}
-              value={metricColumn || undefined}
+              options={
+                joinedEvidenceMetricOptions.length > 0
+                  ? joinedEvidenceMetricOptions
+                  : undefined
+              }
+              value={metricSelectorValue}
               loadError={Boolean(metricLoadError)}
               disabled={
                 decisionIsReadOnly ||
                 isArchivedDecision ||
                 metricSaving ||
                 metricsLoading ||
-                metricColumns.length === 0
+                metricOptionCount === 0
               }
               placeholder={
                 metricsLoading
                   ? "Loading metrics..."
-                  : metricColumns.length === 0
+                  : metricOptionCount === 0
                     ? "No numeric metrics"
                     : "No metric selected"
               }
@@ -2036,31 +2090,9 @@ export default function DecisionPage() {
               </p>
             )}
 
-            {decision?.evidence_metrics &&
-              decision.evidence_metrics.length > 0 && (
-                <div className="mt-3 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
-                  <p className="text-xs font-semibold text-[var(--decisionate-brand-primary-text)]">
-                    Joined evidence metrics
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {decision.evidence_metrics.map(metric => (
-                      <span
-                        key={`${metric.dataset_id}-${metric.metric_column}`}
-                        className="rounded-md border border-[var(--decisionate-brand-primary-ring)] bg-white px-2 py-1 text-xs text-gray-700"
-                      >
-                        {metric.file_name}: {formatMetricLabel(metric.metric_column)}
-                      </span>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-xs text-gray-600">
-                    These metrics were retained from every dataset used to create this decision. The outcome metric above is the metric used for outcome measurement.
-                  </p>
-                </div>
-              )}
-
             <p className="mt-2 text-xs text-gray-500">
               {decision?.evidence_metrics?.length
-                ? "The joined metrics above are the evidence for this decision. Select one outcome metric only if you want numeric outcome measurement and metric-specific learning."
+                ? "Joined evidence metrics are listed in this selector with their source dataset. Select one only if you want numeric outcome measurement and metric-specific learning."
                 : "Used to focus the outcome review and compare this decision with learning from past decisions on the same metric."}
             </p>
 

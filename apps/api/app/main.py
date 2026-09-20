@@ -770,6 +770,7 @@ def ensure_decision_optional_columns():
             ("recommendation_text", "TEXT"),
             ("recommendation_source", "VARCHAR"),
             ("recommendation_context", "TEXT"),
+            ("outcome_dataset_id", "INTEGER"),
             ("evidence_dataset_ids", "TEXT"),
             ("evidence_metrics", "TEXT"),
             ("outcome_baseline_value", "FLOAT"),

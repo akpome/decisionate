@@ -1,5 +1,9 @@
 interface MetricSelectorProps {
   metrics: string[]
+  options?: {
+    value: string
+    label: string
+  }[]
   value?: string
   onChange: (
     metric: string | undefined
@@ -27,6 +31,7 @@ function isIdentifierMetricColumn(
 
 export function MetricSelector({
   metrics,
+  options,
   value,
   onChange,
   disabled = false,
@@ -34,9 +39,14 @@ export function MetricSelector({
   placeholder = "Select Metric",
   ariaLabel = "Select metric",
 }: MetricSelectorProps) {
-  const visibleMetrics = metrics.filter(
-    metric => !isIdentifierMetricColumn(metric)
-  )
+  const visibleOptions = options
+    ? options
+    : metrics
+        .filter(metric => !isIdentifierMetricColumn(metric))
+        .map(metric => ({
+          value: metric,
+          label: formatMetricLabel(metric),
+        }))
   const effectivePlaceholder = loadError
     ? "Metrics unavailable"
     : placeholder
@@ -54,7 +64,8 @@ export function MetricSelector({
       disabled={disabled}
       title={
         value
-          ? formatMetricLabel(value)
+          ? options?.find(option => option.value === value)?.label ??
+            formatMetricLabel(value)
           : effectivePlaceholder
       }
       className="h-11 w-full min-w-0 truncate rounded-xl border px-3 py-2 pr-9 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
@@ -63,12 +74,12 @@ export function MetricSelector({
         {effectivePlaceholder}
       </option>
 
-      {visibleMetrics.map((metric) => (
+      {visibleOptions.map((option) => (
         <option
-          key={metric}
-          value={metric}
+          key={option.value}
+          value={option.value}
         >
-          {formatMetricLabel(metric)}
+          {option.label}
         </option>
       ))}
     </select>

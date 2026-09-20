@@ -233,11 +233,13 @@ class DecisionEvidenceMetric(BaseModel):
     file_name: str
     metric_column: str
     label: str
+    column_type: Literal["numeric", "categorical"] = "numeric"
 
 
 class DecisionCreate(BaseModel):
     dataset_id: int
     metric_column: str | None = None
+    outcome_dataset_id: int | None = None
     evidence_dataset_ids: list[int] | None = None
     evidence_metrics: list[DecisionEvidenceMetric] | None = None
     recommendation_text: str | None = None
@@ -287,6 +289,7 @@ class DecisionDetailsUpdate(BaseModel):
     action: str | None = None
     description: str | None = None
     metric_column: str | None = None
+    outcome_dataset_id: int | None = None
 
 
 # =========================
@@ -300,6 +303,7 @@ class DecisionResponse(BaseModel):
     assigned_user_id: str | None = None
     dataset_id: int
     metric_column: str | None = None
+    outcome_dataset_id: int | None = None
     evidence_dataset_ids: list[int] = Field(default_factory=list)
     evidence_metrics: list[DecisionEvidenceMetric] = Field(
         default_factory=list,

@@ -61,6 +61,11 @@ class Decision(Base):
         nullable=True,
     )
 
+    outcome_dataset_id = Column(
+        Integer,
+        nullable=True,
+    )
+
     evidence_dataset_ids_json = Column(
         "evidence_dataset_ids",
         Text,
