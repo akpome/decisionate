@@ -25,6 +25,7 @@ import {
   Lightbulb,
   Pencil,
   Target,
+  X,
 } from "lucide-react"
 
 import {
@@ -271,7 +272,6 @@ export default function DecisionPage() {
   const [metricColumns, setMetricColumns] = useState<string[]>([])
   const [metricsLoading, setMetricsLoading] = useState(false)
   const [metricLoadError, setMetricLoadError] = useState("")
-  const [metricSaving, setMetricSaving] = useState(false)
 
   const [detailsSaved, setDetailsSaved] = useState(false)
 
@@ -978,7 +978,7 @@ export default function DecisionPage() {
   const learningChanged =
     lessonsLearned !== originalLessonsLearned
 
-  async function handleMetricChange(
+  function handleMetricChange(
     nextMetric?: string
   ) {
     const joinedEvidenceMetric =
@@ -1001,58 +1001,23 @@ export default function DecisionPage() {
     setMetricColumn(nextMetricColumn)
     setOutcomeDatasetId(nextOutcomeDatasetId)
 
-    if (
-      !user?.id ||
-      !decision ||
-      decisionIsReadOnly ||
-      isArchivedDecision ||
-      !metricSelectionChanged
-    ) {
+    if (!decision || decisionIsReadOnly || isArchivedDecision) {
       return
     }
 
-    setMetricSaving(true)
-    setSaveError(null)
-
-    try {
-      const data = await updateDecisionDetails(
-        decision.id,
-        {
-          metric_column: nextMetricColumn || null,
-          ...(decision.evidence_metrics?.length
-            ? { outcome_dataset_id: nextOutcomeDatasetId }
-            : {}),
-        },
-        user.id,
-        activeWorkspaceId
-      )
-
-      setDecision(data)
-      setMetricColumn(data.metric_column ?? "")
-      setOriginalMetricColumn(data.metric_column ?? "")
-      setOutcomeDatasetId(data.outcome_dataset_id ?? null)
-      setOriginalOutcomeDatasetId(data.outcome_dataset_id ?? null)
-      await loadActivities(
-        data.id,
-        user.id,
-        activeWorkspaceId
-      )
-      showSectionSaved(
-        detailsDecisionActivity,
-        setDetailsSaved
-      )
-    } catch (error) {
-      console.error(error)
-      setSaveError({
-        section: detailsDecisionActivity,
-        message: getSaveErrorMessage(
-          error,
-          "Decision metric could not be saved."
-        ),
-      })
-    } finally {
-      setMetricSaving(false)
+    if (!metricSelectionChanged) {
+      return
     }
+  }
+
+  function handleCancelDetails() {
+    setTitle(originalTitle)
+    setAction(originalAction)
+    setDescription(originalDescription)
+    setMetricColumn(originalMetricColumn)
+    setOutcomeDatasetId(originalOutcomeDatasetId)
+    setDetailsSaved(false)
+    clearSaveErrorForSection(detailsDecisionActivity)
   }
 
   async function handleSaveDetails() {
@@ -2153,7 +2118,6 @@ export default function DecisionPage() {
               disabled={
                 decisionIsReadOnly ||
                 isArchivedDecision ||
-                metricSaving ||
                 metricsLoading ||
                 metricOptionCount === 0
               }
@@ -2165,15 +2129,9 @@ export default function DecisionPage() {
                     : "No metric selected"
               }
               onChange={(metric) => {
-                void handleMetricChange(metric)
+                handleMetricChange(metric)
               }}
             />
-
-            {metricSaving && (
-              <p className="mt-1 text-xs text-gray-500">
-                Saving metric focus...
-              </p>
-            )}
 
             <p className="mt-2 text-xs text-gray-500">
               {decision?.evidence_metrics?.length
@@ -2253,10 +2211,24 @@ export default function DecisionPage() {
           savingSection={savingSection}
           saveError={saveError}
           isArchived={isArchivedDecision}
-          disabled={decisionIsReadOnly || detailsSaveDisabled}
-          label="Save Details"
-          onClick={handleSaveDetails}
-        >
+        disabled={decisionIsReadOnly || detailsSaveDisabled}
+        label="Save Details"
+        onClick={handleSaveDetails}
+      >
+          <button
+            type="button"
+            onClick={handleCancelDetails}
+            disabled={
+              decisionIsReadOnly ||
+              isArchivedDecision ||
+              !detailsChanged ||
+              savingSection === detailsDecisionActivity
+            }
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <X size={15} />
+            Cancel
+          </button>
 
           {!isArchivedDecision && title.trim().length === 0 && (
             <p className="mt-2 text-sm font-medium text-amber-700">
