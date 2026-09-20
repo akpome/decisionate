@@ -2059,7 +2059,9 @@ export default function DecisionPage() {
               )}
 
             <p className="mt-2 text-xs text-gray-500">
-              Used to focus the outcome review and compare this decision with learning from past decisions on the same metric.
+              {decision?.evidence_metrics?.length
+                ? "The joined metrics above are the evidence for this decision. Select one outcome metric only if you want numeric outcome measurement and metric-specific learning."
+                : "Used to focus the outcome review and compare this decision with learning from past decisions on the same metric."}
             </p>
 
             {!decision?.actual_outcome?.trim() &&

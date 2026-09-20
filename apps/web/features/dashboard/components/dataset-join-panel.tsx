@@ -373,22 +373,14 @@ export function DatasetJoinPanel({
     const availableDatasetIds = new Set(
       datasets.map(dataset => dataset.id)
     )
-    const firstDataset =
-      activeResult.datasets.find(
-        item =>
-          item.column_type === "numeric" &&
-          availableDatasetIds.has(item.dataset_id)
-      ) ??
-      activeResult.datasets.find(item =>
-        availableDatasetIds.has(item.dataset_id)
-      )
     const decisionDatasetId =
-      firstDataset?.dataset_id ??
-      (availableDatasetIds.has(selectedDatasetId)
+      (availableDatasetIds.has(activeResult.primary_dataset_id)
+        ? activeResult.primary_dataset_id
+        : availableDatasetIds.has(selectedDatasetId)
         ? selectedDatasetId
         : undefined)
 
-    if (!firstDataset || !decisionDatasetId) {
+    if (!decisionDatasetId) {
       setError(
         "The joined evidence uses a dataset that is no longer available. Reset and recreate the join."
       )
@@ -414,7 +406,6 @@ export function DatasetJoinPanel({
       const decision = await createDecision(
         {
           dataset_id: decisionDatasetId,
-          metric_column: firstDataset.metric_column,
           evidence_dataset_ids: activeResult.dataset_ids,
           evidence_metrics: activeResult.datasets.map(item => ({
             dataset_id: item.dataset_id,
@@ -431,6 +422,7 @@ export function DatasetJoinPanel({
             activeResult.decision_context,
             `Latest shared period: ${latestRow?.period ?? "-"}.`,
             `Latest evidence: ${latestEvidence}.`,
+            "Select an outcome metric in Decision Details only if this decision needs numeric outcome measurement.",
           ].join("\n\n"),
           expected_outcome:
             "Agree on an action based on the joined evidence and measure the result by the review date.",
