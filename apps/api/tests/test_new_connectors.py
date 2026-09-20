@@ -199,7 +199,7 @@ class NewConnectorTests(unittest.TestCase):
                     "line_items": [{"uid": "line-1"}],
                 }],
             },
-        ), patch.dict(
+        ) as square_request, patch.dict(
             "os.environ",
             {
                 "SQUARE_API_BASE_URL": "https://connect.squareup.com",
@@ -217,6 +217,11 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(report["resource"], "orders")
         self.assertEqual(dataframe.loc[0, "order_id"], "order-1")
         self.assertEqual(dataframe.loc[0, "total_amount"], 12.5)
+        request_payload = square_request.call_args.kwargs["payload"]
+        self.assertEqual(
+            request_payload["query"]["filter"]["state_filter"]["states"],
+            ["COMPLETED", "CANCELED"],
+        )
 
     def test_woocommerce_orders_use_basic_auth_and_normalized_aliases(self):
         with patch.object(

@@ -2186,6 +2186,9 @@ def load_square_dataframe(
             "location_ids": [location_id],
             "query": {
                 "filter": {
+                    "state_filter": {
+                        "states": ["COMPLETED", "CANCELED"],
+                    },
                     "date_time_filter": {
                         "closed_at": {
                             "start_at": start_at,
