@@ -415,6 +415,13 @@ export function DatasetJoinPanel({
         {
           dataset_id: decisionDatasetId,
           metric_column: firstDataset.metric_column,
+          evidence_dataset_ids: activeResult.dataset_ids,
+          evidence_metrics: activeResult.datasets.map(item => ({
+            dataset_id: item.dataset_id,
+            file_name: item.file_name,
+            metric_column: item.metric_column,
+            label: item.label,
+          })),
           recommendation_text:
             "Review the joined metrics and agree on the next action.",
           recommendation_source: "rules",

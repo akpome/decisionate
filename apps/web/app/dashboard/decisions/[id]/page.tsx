@@ -1997,7 +1997,13 @@ export default function DecisionPage() {
             />
           </Field>
 
-          <Field label="Metric">
+          <Field
+            label={
+              decision?.evidence_metrics?.length
+                ? "Outcome metric"
+                : "Metric"
+            }
+          >
             <MetricSelector
               ariaLabel="Decision metric"
               metrics={metricColumn && !metricColumns.includes(metricColumn)
@@ -2029,6 +2035,28 @@ export default function DecisionPage() {
                 Saving metric focus...
               </p>
             )}
+
+            {decision?.evidence_metrics &&
+              decision.evidence_metrics.length > 0 && (
+                <div className="mt-3 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
+                  <p className="text-xs font-semibold text-[var(--decisionate-brand-primary-text)]">
+                    Joined evidence metrics
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {decision.evidence_metrics.map(metric => (
+                      <span
+                        key={`${metric.dataset_id}-${metric.metric_column}`}
+                        className="rounded-md border border-[var(--decisionate-brand-primary-ring)] bg-white px-2 py-1 text-xs text-gray-700"
+                      >
+                        {metric.file_name}: {formatMetricLabel(metric.metric_column)}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-gray-600">
+                    These metrics were retained from every dataset used to create this decision. The outcome metric above is the metric used for outcome measurement.
+                  </p>
+                </div>
+              )}
 
             <p className="mt-2 text-xs text-gray-500">
               Used to focus the outcome review and compare this decision with learning from past decisions on the same metric.

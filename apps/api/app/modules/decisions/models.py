@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+import json
 
 from sqlalchemy import (
     Column,
@@ -57,6 +58,18 @@ class Decision(Base):
 
     metric_column = Column(
         String,
+        nullable=True,
+    )
+
+    evidence_dataset_ids_json = Column(
+        "evidence_dataset_ids",
+        Text,
+        nullable=True,
+    )
+
+    evidence_metrics_json = Column(
+        "evidence_metrics",
+        Text,
         nullable=True,
     )
 
@@ -157,3 +170,44 @@ class Decision(Base):
     def owner_user_id(self) -> str:
         """Return the assignee, falling back to the decision creator."""
         return self.assigned_user_id or self.clerk_user_id
+
+    @property
+    def evidence_dataset_ids(self) -> list[int]:
+        try:
+            values = json.loads(self.evidence_dataset_ids_json or "[]")
+        except (TypeError, ValueError):
+            return []
+
+        if not isinstance(values, list):
+            return []
+
+        return [
+            int(value)
+            for value in values
+            if isinstance(value, int) or (
+                isinstance(value, str) and value.isdigit()
+            )
+        ]
+
+    @evidence_dataset_ids.setter
+    def evidence_dataset_ids(self, values: list[int] | None):
+        self.evidence_dataset_ids_json = json.dumps(
+            values or [],
+            separators=(",", ":"),
+        )
+
+    @property
+    def evidence_metrics(self) -> list[dict]:
+        try:
+            values = json.loads(self.evidence_metrics_json or "[]")
+        except (TypeError, ValueError):
+            return []
+
+        return values if isinstance(values, list) else []
+
+    @evidence_metrics.setter
+    def evidence_metrics(self, values: list[dict] | None):
+        self.evidence_metrics_json = json.dumps(
+            values or [],
+            separators=(",", ":"),
+        )

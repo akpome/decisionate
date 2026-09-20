@@ -3,7 +3,7 @@ from re import escape
 from typing import Literal
 from typing import get_args
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.modules.ai.schemas import AIAnalysis
 
@@ -228,9 +228,18 @@ DECISION_LIST_SORT_PATTERN = build_literal_pattern(
 # Decision Create And Basic Status Update Request Schemas
 # =========================
 
+class DecisionEvidenceMetric(BaseModel):
+    dataset_id: int
+    file_name: str
+    metric_column: str
+    label: str
+
+
 class DecisionCreate(BaseModel):
     dataset_id: int
     metric_column: str | None = None
+    evidence_dataset_ids: list[int] | None = None
+    evidence_metrics: list[DecisionEvidenceMetric] | None = None
     recommendation_text: str | None = None
     recommendation_source: AIAnalysisSource | None = None
     recommendation_context: str | None = None
@@ -291,6 +300,10 @@ class DecisionResponse(BaseModel):
     assigned_user_id: str | None = None
     dataset_id: int
     metric_column: str | None = None
+    evidence_dataset_ids: list[int] = Field(default_factory=list)
+    evidence_metrics: list[DecisionEvidenceMetric] = Field(
+        default_factory=list,
+    )
     recommendation_text: str | None
     recommendation_source: AIAnalysisSource | None
     recommendation_context: str | None

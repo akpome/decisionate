@@ -1159,6 +1159,29 @@ async def create_decision(
                 detail="Dataset not found",
             )
 
+        evidence_dataset_ids = list(dict.fromkeys(
+            [
+                payload.dataset_id,
+                *(payload.evidence_dataset_ids or []),
+            ]
+        ))
+        for evidence_dataset_id in evidence_dataset_ids:
+            if not get_accessible_dataset(
+                db,
+                evidence_dataset_id,
+                x_user_id,
+                x_workspace_id,
+            ):
+                raise HTTPException(
+                    status_code=404,
+                    detail="Evidence dataset not found",
+                )
+
+        evidence_metrics = [
+            metric.model_dump()
+            for metric in (payload.evidence_metrics or [])
+        ]
+
         clean_title = clean_required_decision_title(
             payload.title,
         )
@@ -1213,6 +1236,8 @@ async def create_decision(
                 payload.review_date,
             ),
         )
+        decision.evidence_dataset_ids = evidence_dataset_ids
+        decision.evidence_metrics = evidence_metrics
 
         db.add(decision)
 
@@ -1544,6 +1569,8 @@ async def export_decisions(
                 "owner_user_id": decision.owner_user_id,
                 "dataset_id": decision.dataset_id,
                 "metric_column": decision.metric_column,
+                "evidence_dataset_ids": decision.evidence_dataset_ids,
+                "evidence_metrics": decision.evidence_metrics,
                 "recommendation_text": decision.recommendation_text,
                 "recommendation_source": decision.recommendation_source,
                 "recommendation_context": decision.recommendation_context,
