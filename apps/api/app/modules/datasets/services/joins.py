@@ -440,6 +440,7 @@ def build_joined_dataset(
     )
     grouped_frames: list[pd.DataFrame] = []
     details: list[dict] = []
+    used_labels: set[str] = set()
     available_periods: set[str] = set()
     reference_year = None
     if str(start_date or "").strip():
@@ -622,7 +623,20 @@ def build_joined_dataset(
             metric_working["value"] = values.loc[
                 metric_working.index
             ]
-            label = f"{dataset.file_name} · {column_name}"
+            base_label = f"{dataset.file_name} · {column_name}"
+            label = base_label
+            label_suffix = 2
+            while label in used_labels:
+                label = (
+                    f"{base_label} · dataset {dataset.id}"
+                    if label_suffix == 2
+                    else (
+                        f"{base_label} · dataset {dataset.id} "
+                        f"({label_suffix})"
+                    )
+                )
+                label_suffix += 1
+            used_labels.add(label)
             grouped_metric = (
                 metric_working.groupby("period", sort=True)[
                     "value"
@@ -671,6 +685,11 @@ def build_joined_dataset(
             for value in dataset_grouped["period"]
         }
         available_periods.update(period_labels)
+
+    if not grouped_frames:
+        raise ValueError(
+            "The selected datasets do not contain usable rows for the chosen date columns"
+        )
 
     joined = grouped_frames[0]
     for grouped in grouped_frames[1:]:

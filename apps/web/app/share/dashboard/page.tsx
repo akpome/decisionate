@@ -1708,6 +1708,8 @@ function MainChartCard({
       width="100%"
       height="100%"
       minWidth={0}
+      minHeight={1}
+      initialDimension={{ width: 1, height: 1 }}
     >
       <MainChart
         chartType={chartType}

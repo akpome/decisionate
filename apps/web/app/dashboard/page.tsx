@@ -4650,6 +4650,8 @@ function DashboardPrintPage({
                 width="100%"
                 height="100%"
                 minWidth={0}
+                minHeight={1}
+                initialDimension={{ width: 1, height: 1 }}
               >
                 <MainChart
                   chartType={props.chartType}
@@ -4890,6 +4892,8 @@ function PerformanceTemplate(
                 width="100%"
                 height="100%"
                 minWidth={0}
+                minHeight={1}
+                initialDimension={{ width: 1, height: 1 }}
               >
                 <MainChart
                   chartType={props.chartType}
@@ -5032,6 +5036,8 @@ function ComparisonTemplate({
               width="100%"
               height="100%"
               minWidth={0}
+              minHeight={1}
+              initialDimension={{ width: 1, height: 1 }}
             >
               <MainChart
                 chartType={chartType}
@@ -5265,6 +5271,8 @@ function ReportSection({
                 width="100%"
                 height="100%"
                 minWidth={0}
+                minHeight={1}
+                initialDimension={{ width: 1, height: 1 }}
               >
                 <MainChart
                   chartType={chartType}

@@ -42,6 +42,7 @@ from app.db.models import UserPreference
 from app.db.models import WeeklyReportPreference
 from app.db.models import utc_now
 from app.infrastructure.object_storage import (
+    ObjectStorageUnavailable,
     get_dataset_storage_reference,
     get_object_storage,
 )
@@ -731,6 +732,14 @@ def remove_dataset_file(
         get_object_storage().delete(file_path)
     except FileNotFoundError:
         return
+    except Exception:
+        # Cleanup must never replace the exception that caused the request to
+        # fail. The object can be retried or removed by retention cleanup.
+        logger.warning(
+            "Unable to remove dataset file during cleanup",
+            extra={"file_path": str(file_path)},
+            exc_info=True,
+        )
 
 
 def remove_dataset_preference_entry(
@@ -3189,9 +3198,47 @@ async def join_datasets(
 
         return result
     except ValueError as error:
+        db.rollback()
         raise HTTPException(
             status_code=400,
             detail=str(error),
+        ) from error
+    except HTTPException:
+        db.rollback()
+        raise
+    except (ObjectStorageUnavailable, OSError) as error:
+        db.rollback()
+        logger.exception(
+            "Dataset join storage failed",
+            extra={
+                "dataset_ids": clean_dataset_ids,
+                "dashboard_key": payload.dashboard_key,
+                "error_type": type(error).__name__,
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The joined dataset could not be saved because dataset storage "
+                "is temporarily unavailable. Try again shortly."
+            ),
+        ) from error
+    except Exception as error:
+        db.rollback()
+        logger.exception(
+            "Dataset join failed",
+            extra={
+                "dataset_ids": clean_dataset_ids,
+                "dashboard_key": payload.dashboard_key,
+                "error_type": type(error).__name__,
+                "reason": str(error)[:500],
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The joined dataset could not be saved. Try again shortly."
+            ),
         ) from error
     finally:
         if new_derived_reference and not new_derived_committed:

@@ -2036,7 +2036,13 @@ function IndustryDashboard({
           exportMode={exportMode}
         >
           {dashboardConfig.trendData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={0}
+              minHeight={1}
+              initialDimension={{ width: 1, height: 1 }}
+            >
               <LineChart
                 data={dashboardConfig.trendData}
                 margin={{
@@ -2151,7 +2157,13 @@ function IndustryDashboard({
           exportMode={exportMode}
         >
           {dashboardConfig.operationsData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={0}
+              minHeight={1}
+              initialDimension={{ width: 1, height: 1 }}
+            >
               <BarChart
                 data={dashboardConfig.operationsData}
                 margin={{
@@ -2752,7 +2764,13 @@ function DecisionPerformanceDashboard({
           exportMode={exportMode}
         >
           {monthlyData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={0}
+              minHeight={1}
+              initialDimension={{ width: 1, height: 1 }}
+            >
               <LineChart
                 data={monthlyData}
                 margin={{
@@ -2833,7 +2851,13 @@ function DecisionPerformanceDashboard({
           exportMode={exportMode}
         >
           {completionData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={0}
+              minHeight={1}
+              initialDimension={{ width: 1, height: 1 }}
+            >
               <BarChart
                 data={completionData}
                 margin={{
@@ -3173,7 +3197,7 @@ function DashboardChartCard({
   return (
     <>
       <div
-        className={`dashboard-export-chart-card ${className} flex flex-col break-inside-avoid rounded-2xl border border-gray-200 bg-white shadow-sm ${
+        className={`dashboard-export-chart-card ${className} flex min-w-0 flex-col break-inside-avoid rounded-2xl border border-gray-200 bg-white shadow-sm ${
           exportMode
             ? "h-[1.88in] overflow-hidden p-[0.12in]"
             : "h-[20rem] overflow-hidden p-4 print:h-44 print:min-h-0 print:rounded-xl print:p-1.5"
@@ -3244,7 +3268,7 @@ function DashboardChartCard({
         </p>
 
         <div
-          className={`dashboard-export-chart-body min-h-0 overflow-hidden ${
+          className={`dashboard-export-chart-body min-h-0 min-w-0 overflow-hidden ${
             exportMode
               ? "mt-[0.04in] h-[1.5in] flex-none"
               : "mt-1 flex-1 print:mt-1 print:h-32 print:flex-none"
@@ -3383,7 +3407,13 @@ function DashboardCategoricalChart({
             : "h-full w-full"
         }
       >
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer
+          width="100%"
+          height="100%"
+          minWidth={0}
+          minHeight={1}
+          initialDimension={{ width: 1, height: 1 }}
+        >
           {useHorizontalBars ? (
         <BarChart
           data={barItems}
