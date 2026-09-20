@@ -6,10 +6,12 @@ import Link from "next/link"
 import { RefreshCw, Save, UsersRound } from "lucide-react"
 
 import {
+  getEntityMatchingMetadata,
   getDatasets,
   previewEntityMatching,
   runEntityMatching,
   type DatasetSummary,
+  type EntityMatchingDatasetMetadata,
   type EntityMatchingPreview,
   type EntityMatchingRun,
   type EntityType,
@@ -29,6 +31,8 @@ export default function EntityMatchingPage() {
   const { canManageWorkspaceData, loadingWorkspaceAccess } = useWorkspaceAccess(user?.id)
   const [datasets, setDatasets] = useState<DatasetSummary[]>([])
   const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [columnMetadata, setColumnMetadata] = useState<EntityMatchingDatasetMetadata[]>([])
+  const [selectedKeyColumns, setSelectedKeyColumns] = useState<Record<string, string[]>>({})
   const [entityType, setEntityType] = useState<EntityType>("customer")
   const [preview, setPreview] = useState<EntityMatchingPreview | null>(null)
   const [result, setResult] = useState<EntityMatchingRun | null>(null)
@@ -65,10 +69,54 @@ export default function EntityMatchingPage() {
     }
   }, [activeWorkspaceId, user?.id, user?.primaryEmailAddress?.emailAddress, workspaceVersion])
 
+  useEffect(() => {
+    if (!user?.id || selectedIds.length === 0) {
+      return
+    }
+
+    let current = true
+    void getEntityMatchingMetadata(
+      selectedIds,
+      entityType,
+      user.id,
+      activeWorkspaceId
+    )
+      .then(metadata => {
+        if (!current) return
+        setColumnMetadata(metadata.datasets)
+        setSelectedKeyColumns(existing => {
+          const next: Record<string, string[]> = {}
+          metadata.datasets.forEach(dataset => {
+            const datasetKey = String(dataset.dataset_id)
+            const existingColumns = existing[datasetKey]?.filter(
+              column => dataset.columns.includes(column)
+            )
+            next[datasetKey] = existingColumns?.length
+              ? existingColumns
+              : dataset.default_key_columns
+          })
+          return next
+        })
+      })
+      .catch(metadataError => {
+        if (current) {
+          setColumnMetadata([])
+          setError(getErrorMessage(metadataError, "Unable to load dataset columns."))
+        }
+      })
+
+    return () => {
+      current = false
+    }
+  }, [activeWorkspaceId, entityType, selectedIds, user?.id])
+
   const selectedDatasets = useMemo(
     () => datasets.filter(dataset => selectedIds.includes(dataset.id)),
     [datasets, selectedIds]
   )
+  const columnMetadataLoading = selectedIds.length > 0 &&
+    columnMetadata.length === 0 &&
+    !error
 
   function toggleDataset(datasetId: number) {
     setPreview(null)
@@ -82,9 +130,44 @@ export default function EntityMatchingPage() {
     )
   }
 
+  function toggleKeyColumn(datasetId: number, column: string) {
+    setPreview(null)
+    setResult(null)
+    const datasetKey = String(datasetId)
+    setSelectedKeyColumns(existing => {
+      const current = existing[datasetKey] ?? []
+      const next = current.includes(column)
+        ? current.filter(selected => selected !== column)
+        : [...current, column]
+      return {
+        ...existing,
+        [datasetKey]: next,
+      }
+    })
+  }
+
+  function getMatchingKeyColumns() {
+    return Object.fromEntries(
+      selectedIds.map(datasetId => [
+        String(datasetId),
+        selectedKeyColumns[String(datasetId)] ?? [],
+      ])
+    )
+  }
+
+  function hasMissingKeyColumns() {
+    return selectedIds.some(
+      datasetId => !(selectedKeyColumns[String(datasetId)] ?? []).length
+    )
+  }
+
   async function handlePreview() {
     if (!user?.id || selectedIds.length < 2) {
       setError("Select at least two datasets to compare.")
+      return
+    }
+    if (hasMissingKeyColumns()) {
+      setError("Choose at least one identity column for each selected dataset.")
       return
     }
     setBusy(true)
@@ -94,6 +177,7 @@ export default function EntityMatchingPage() {
       setPreview(await previewEntityMatching({
         dataset_ids: selectedIds,
         entity_type: entityType,
+        key_columns: getMatchingKeyColumns(),
       }, user.id, activeWorkspaceId))
     } catch (previewError) {
       setError(getErrorMessage(previewError, "Unable to preview entity matches."))
@@ -107,6 +191,10 @@ export default function EntityMatchingPage() {
       setError("Select at least two datasets to match.")
       return
     }
+    if (hasMissingKeyColumns()) {
+      setError("Choose at least one identity column for each selected dataset.")
+      return
+    }
     setBusy(true)
     setError("")
     setStatusMessage("")
@@ -114,6 +202,7 @@ export default function EntityMatchingPage() {
       const saved = await runEntityMatching({
         dataset_ids: selectedIds,
         entity_type: entityType,
+        key_columns: getMatchingKeyColumns(),
         replace_existing: true,
       }, user.id, activeWorkspaceId)
       setResult(saved)
@@ -159,7 +248,7 @@ export default function EntityMatchingPage() {
           <div className="rounded-xl bg-blue-50 p-2 text-blue-700"><UsersRound size={19} /></div>
           <div>
             <h2 className="text-lg font-semibold text-gray-950">Choose source datasets</h2>
-            <p className="mt-1 text-sm text-gray-500">Select 2 to 10 datasets. Decisionate will auto-detect the strongest identity field available in each source and show the match coverage before saving.</p>
+            <p className="mt-1 text-sm text-gray-500">Select 2 to 10 datasets, then confirm the identity columns used for matching. Recommended columns are selected automatically and can be changed.</p>
           </div>
         </div>
 
@@ -172,6 +261,7 @@ export default function EntityMatchingPage() {
                 setEntityType(event.target.value as EntityType)
                 setPreview(null)
                 setResult(null)
+                setSelectedKeyColumns({})
               }}
               className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
@@ -198,6 +288,60 @@ export default function EntityMatchingPage() {
           </div>
         </div>
 
+        {selectedDatasets.length > 0 && (
+          <div className="mt-5 border-t border-gray-100 pt-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Identity columns by dataset</h3>
+                <p className="mt-1 text-xs text-gray-500">Select one or more columns that identify the same customer or product across sources.</p>
+              </div>
+              {columnMetadataLoading && <span className="text-xs text-gray-500">Loading columns...</span>}
+            </div>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {selectedDatasets.map(dataset => {
+                const metadata = columnMetadata.find(
+                  item => item.dataset_id === dataset.id
+                )
+                const selectedColumns = selectedKeyColumns[String(dataset.id)] ?? []
+                return (
+                  <fieldset key={dataset.id} className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    <legend className="max-w-full px-1 text-sm font-medium text-gray-800">
+                      <span className="block max-w-[28rem] truncate">{dataset.file_name}</span>
+                    </legend>
+                    {!metadata ? (
+                      <p className="text-xs text-gray-500">{columnMetadataLoading ? "Loading available columns..." : "No columns available."}</p>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+                        <div className="grid gap-1 sm:grid-cols-2">
+                          {metadata.columns.map(column => {
+                            const isDefault = metadata.default_key_columns.includes(column)
+                            return (
+                              <label key={column} className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedColumns.includes(column)}
+                                  onChange={() => toggleKeyColumn(dataset.id, column)}
+                                  disabled={!canManageWorkspaceData}
+                                  className="h-4 w-4 shrink-0 accent-blue-600"
+                                />
+                                <span className="min-w-0 truncate" title={column}>{column}</span>
+                                {isDefault && <span className="shrink-0 text-[10px] uppercase tracking-wide text-blue-600">Suggested</span>}
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {!selectedColumns.length && metadata && (
+                      <p className="mt-2 text-xs text-amber-700">Select at least one column before previewing or saving.</p>
+                    )}
+                  </fieldset>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <button type="button" onClick={() => void handlePreview()} disabled={busy || !canManageWorkspaceData || selectedIds.length < 2} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">Preview matches</button>
           <button type="button" onClick={() => void handleSave()} disabled={busy || !canManageWorkspaceData || selectedIds.length < 2} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"><Save size={16} /> Save matches</button>
@@ -215,7 +359,7 @@ export default function EntityMatchingPage() {
           </div>
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead className="border-b text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-2 py-2">Dataset</th><th className="px-2 py-2">Detected keys</th><th className="px-2 py-2">Rows</th><th className="px-2 py-2">Unmatched</th></tr></thead>
+              <thead className="border-b text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-2 py-2">Dataset</th><th className="px-2 py-2">Selected identity columns</th><th className="px-2 py-2">Rows</th><th className="px-2 py-2">Unmatched</th></tr></thead>
               <tbody>{preview.datasets.map(dataset => <tr key={dataset.dataset_id} className="border-b last:border-0"><td className="px-2 py-3 font-medium text-gray-800">{dataset.file_name}</td><td className="px-2 py-3 text-gray-600">{dataset.key_columns.join(", ") || "No supported key"}</td><td className="px-2 py-3 text-gray-600">{dataset.candidate_row_count.toLocaleString()}</td><td className="px-2 py-3 text-gray-600">{dataset.unmatched_row_count.toLocaleString()}</td></tr>)}</tbody>
             </table>
           </div>

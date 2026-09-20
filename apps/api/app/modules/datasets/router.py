@@ -57,6 +57,7 @@ from app.modules.datasets.schemas import DatasetJoinRequest
 from app.modules.datasets.schemas import DatasetRelationshipRequest
 from app.modules.datasets.schemas import DatasetMultiMetricAnalysisRequest
 from app.modules.datasets.schemas import EntityMatchingPreviewResponse
+from app.modules.datasets.schemas import EntityMatchingMetadataResponse
 from app.modules.datasets.schemas import EntityMatchingRequest
 from app.modules.datasets.schemas import EntityMatchingRunResponse
 
@@ -146,6 +147,7 @@ from app.modules.datasets.services.entity_resolution import (
     build_entity_resolution,
     build_unified_entity_dataframe,
     confidence_bucket,
+    infer_entity_columns,
 )
 from app.modules.datasets.services.source_metadata import (
     build_connector_dataset_filename,
@@ -2418,6 +2420,98 @@ def _find_entity_matching_dataset(
     return None
 
 
+def _resolve_entity_matching_key_columns(
+    dataset_frames,
+    entity_type: str,
+    key_columns: dict[str, list[str]] | None,
+):
+    resolved_columns = {}
+    for dataset, dataframe in dataset_frames:
+        dataset_key = str(dataset.id)
+        requested_columns = (
+            key_columns[dataset_key]
+            if key_columns is not None and dataset_key in key_columns
+            else None
+        )
+        selected_columns = infer_entity_columns(
+            dataframe,
+            entity_type,
+            requested_columns,
+        )
+        if not selected_columns:
+            raise ValueError(
+                f"Choose at least one valid identity column for {dataset.file_name}"
+            )
+        resolved_columns[dataset_key] = [
+            field["column"]
+            for field in selected_columns
+        ]
+
+    return resolved_columns
+
+
+@router.get(
+    "/entity-matching/metadata",
+    response_model=EntityMatchingMetadataResponse,
+)
+async def get_entity_matching_metadata(
+    request: Request,
+    dataset_ids: list[int] = Query(...),
+    entity_type: str = Query(...),
+):
+    if entity_type not in {"customer", "product"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Entity type must be customer or product",
+        )
+
+    clean_dataset_ids = list(dict.fromkeys(dataset_ids))
+    if len(clean_dataset_ids) < 1 or len(clean_dataset_ids) > 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Select between one and ten datasets to inspect",
+        )
+
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(request, user_id)
+    db = SessionLocal()
+
+    try:
+        metadata = []
+        for dataset_id in clean_dataset_ids:
+            dataset, dataframe = load_dataframe(
+                db,
+                dataset_id,
+                apply_metric_selection=False,
+            )
+            verify_dataset_owner(dataset, user_id, workspace_id)
+            if dataset.source_type == "entity_matching":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Unified entity datasets cannot be used as matching inputs",
+                )
+            default_fields = infer_entity_columns(
+                dataframe,
+                entity_type,
+            )
+            metadata.append({
+                "dataset_id": dataset.id,
+                "file_name": str(dataset.file_name),
+                "columns": [str(column) for column in dataframe.columns],
+                "default_key_columns": [
+                    field["column"]
+                    for field in default_fields
+                ],
+            })
+
+        return {
+            "entity_type": entity_type,
+            "datasets": metadata,
+        }
+    finally:
+        db.close()
+
+
 @router.post(
     "/entity-matching/preview",
     response_model=EntityMatchingPreviewResponse,
@@ -2442,11 +2536,16 @@ async def preview_entity_matching(
             user_id,
             workspace_id,
         )
+        resolved_key_columns = _resolve_entity_matching_key_columns(
+            frames,
+            payload.entity_type,
+            payload.key_columns,
+        )
         return await asyncio.to_thread(
             build_entity_resolution,
             frames,
             payload.entity_type,
-            payload.key_columns,
+            resolved_key_columns,
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -2480,11 +2579,16 @@ async def run_entity_matching(
             user_id,
             workspace_id,
         )
+        resolved_key_columns = _resolve_entity_matching_key_columns(
+            frames,
+            payload.entity_type,
+            payload.key_columns,
+        )
         result = await asyncio.to_thread(
             build_entity_resolution,
             frames,
             payload.entity_type,
-            payload.key_columns,
+            resolved_key_columns,
         )
         existing_unified_dataset = (
             _find_entity_matching_dataset(
@@ -2590,6 +2694,7 @@ async def run_entity_matching(
                 "entity_type": payload.entity_type,
                 "ingestion_mode": "entity_matching",
                 "derived_from_dataset_ids": payload.dataset_ids,
+                "key_columns": resolved_key_columns,
                 "canonical_entity_count": len(response_entities),
                 "matched_row_count": result["matched_row_count"],
                 "unmatched_row_count": result["unmatched_row_count"],

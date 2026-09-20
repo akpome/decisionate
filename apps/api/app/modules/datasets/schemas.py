@@ -177,6 +177,18 @@ class EntityMatchingRequest(BaseModel):
     replace_existing: bool = True
 
 
+class EntityMatchingDatasetMetadata(BaseModel):
+    dataset_id: int
+    file_name: str
+    columns: List[str]
+    default_key_columns: List[str]
+
+
+class EntityMatchingMetadataResponse(BaseModel):
+    entity_type: EntityType
+    datasets: List[EntityMatchingDatasetMetadata]
+
+
 class EntityMatchingPreviewResponse(BaseModel):
     entity_type: EntityType
     datasets: list[dict]

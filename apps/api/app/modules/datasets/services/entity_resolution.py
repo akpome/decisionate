@@ -58,6 +58,7 @@ FIELD_WEIGHTS = {
     "sku": ("exact_sku", 1.0),
     "phone": ("exact_phone", 0.95),
     "name": ("exact_name", 0.75),
+    "custom": ("explicit_column", 0.8),
 }
 
 
@@ -85,17 +86,17 @@ def infer_entity_columns(
     }
     selected: list[dict[str, str]] = []
 
-    candidates = requested_columns or []
-    if candidates:
+    candidates = requested_columns
+    if candidates is not None:
         for requested in candidates:
             actual = str(requested)
             normalized = normalize_column_name(actual)
             actual = normalized_columns.get(normalized)
-            kind = definitions.get(normalized)
-            if actual and kind:
+            kind = definitions.get(normalized, "custom")
+            if actual:
                 selected.append({"column": actual, "kind": kind})
 
-    if not selected:
+    if requested_columns is None:
         for normalized, kind in definitions.items():
             actual = normalized_columns.get(normalized)
             if actual:
@@ -162,7 +163,9 @@ def build_entity_resolution(
     unmatched_count = 0
 
     for dataset, dataframe in dataset_frames:
-        requested = (key_columns or {}).get(str(dataset.id))
+        requested = None
+        if key_columns is not None and str(dataset.id) in key_columns:
+            requested = key_columns[str(dataset.id)]
         candidates, unmatched = _row_candidates(
             dataframe,
             entity_type,

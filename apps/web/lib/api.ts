@@ -191,6 +191,18 @@ export type EntityMatchingPayload = {
   replace_existing?: boolean
 }
 
+export type EntityMatchingDatasetMetadata = {
+  dataset_id: number
+  file_name: string
+  columns: string[]
+  default_key_columns: string[]
+}
+
+export type EntityMatchingMetadata = {
+  entity_type: EntityType
+  datasets: EntityMatchingDatasetMetadata[]
+}
+
 export type EntityMatchingPreview = {
   entity_type: EntityType
   datasets: Array<{
@@ -3177,6 +3189,39 @@ export async function previewEntityMatching(
 
   if (!response.ok) {
     await throwApiError(response, "Failed to preview entity matching")
+  }
+  return response.json()
+}
+
+export async function getEntityMatchingMetadata(
+  datasetIds: number[],
+  entityType: EntityType,
+  userId: string,
+  workspaceId?: string
+): Promise<EntityMatchingMetadata> {
+  const cleanDatasetIds = Array.from(
+    new Set(
+      datasetIds.map(datasetId =>
+        cleanPositiveIntegerId(datasetId, "Dataset id")
+      )
+    )
+  )
+  const params = new URLSearchParams({
+    entity_type: entityType,
+  })
+  cleanDatasetIds.forEach(datasetId =>
+    params.append("dataset_ids", String(datasetId))
+  )
+
+  const response = await apiFetch(
+    `${API_URL}/datasets/entity-matching/metadata?${params.toString()}`,
+    {
+      headers: await workspaceHeaders(userId, workspaceId),
+    }
+  )
+
+  if (!response.ok) {
+    await throwApiError(response, "Failed to load entity matching columns")
   }
   return response.json()
 }
