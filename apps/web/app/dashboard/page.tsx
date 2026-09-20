@@ -1076,19 +1076,21 @@ export default function DashboardPage() {
   }, [joinedDatasetResult])
 
   const clearSelectedDashboard =
-    useCallback(() => {
-      setDataset(null)
-      setSelectedMetrics([])
+    useCallback((preserveCurrentView = false) => {
+      if (!preserveCurrentView) {
+        setDataset(null)
+        setSelectedMetrics([])
+        setTargets({})
+        setDashboardTitle(defaultDashboardTitle)
+        setDashboardSubtitle(
+          defaultDashboardSubtitle
+        )
+        setLoading(false)
+      }
       dashboardDatasetHydrationRef.current = ""
-      setTargets({})
-      setDashboardTitle(defaultDashboardTitle)
-      setDashboardSubtitle(
-        defaultDashboardSubtitle
-      )
       setDashboardError("")
       setDashboardErrorRetryMode(null)
       setShareEnabled(false)
-      setLoading(false)
       clearShareStatus()
     }, [
       clearShareStatus,
@@ -1111,7 +1113,8 @@ export default function DashboardPage() {
       delete nextDashboardDatasetIds[selectedDashboard]
     }
 
-    clearSelectedDashboard()
+    clearSelectedDashboard(Boolean(datasetId))
+    setLoading(Boolean(datasetId))
     setJoinedDatasetResult(null)
     if (isJoinedDataset(
       datasets.find(
@@ -1266,9 +1269,6 @@ export default function DashboardPage() {
 
         const savedTargets =
           preference?.metric_targets ?? {}
-
-        const savedDashboardDatasetIds =
-          preference?.dashboard_dataset_ids ?? {}
 
         const savedDashboardPreferences =
           preference?.dashboard_preferences ?? {}
@@ -1428,9 +1428,6 @@ export default function DashboardPage() {
           shareState.share_enabled
         )
         setMetricTargetsByDataset(savedTargets)
-        setDashboardDatasetIds(
-          savedDashboardDatasetIds
-        )
         setDashboardPreferencesByDataset(
           savedDashboardPreferences
         )
@@ -1523,6 +1520,7 @@ export default function DashboardPage() {
         setDashboardErrorRetryMode(null)
       } catch (error) {
         if (isCurrent) {
+          setDataset(null)
           setDashboardError(
             getErrorMessage(
               error,
@@ -3916,8 +3914,8 @@ export default function DashboardPage() {
           className="rounded-lg print:hidden"
         />
 
-        <SelectedDashboard
-          key={`screen-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
+          <SelectedDashboard
+          key={`screen-${selectedDashboard}`}
           name={selectedDashboardDefinition.name}
           description={selectedDashboardDefinition.description}
           highlights={selectedDashboardDefinition.highlights}
