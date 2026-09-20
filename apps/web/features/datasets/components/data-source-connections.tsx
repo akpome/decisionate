@@ -1323,6 +1323,7 @@ const VISIBILITY_TOGGLE_SOURCE_TYPES = new Set([
   "google_ads",
   "meta_ads",
   "stripe",
+  "square",
   "woocommerce",
 ])
 
