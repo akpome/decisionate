@@ -23,6 +23,7 @@ import {
   FileText,
   HeartPulse,
   Lightbulb,
+  Pencil,
   Target,
 } from "lucide-react"
 
@@ -240,6 +241,8 @@ export default function DecisionPage() {
 
   const [dataset, setDataset] =
     useState<DatasetSummary | null>(null)
+  const [evidenceDatasets, setEvidenceDatasets] =
+    useState<DatasetSummary[]>([])
   const [organizationMembers, setOrganizationMembers] =
     useState<OrganizationMemberRecord[]>([])
 
@@ -394,6 +397,7 @@ export default function DecisionPage() {
         setDecision(null)
         setLifecycleAccess(null)
         setDataset(null)
+        setEvidenceDatasets([])
         setOrganizationMembers([])
         setMetricColumns([])
         setMetricsLoading(false)
@@ -514,6 +518,43 @@ export default function DecisionPage() {
           }
           setDataset(null)
         }
+
+        const evidenceDatasetIds = Array.from(
+          new Set([
+            data.dataset_id,
+            ...(data.evidence_dataset_ids ?? []),
+          ])
+        )
+        const additionalDatasetResults =
+          await Promise.allSettled(
+            evidenceDatasetIds
+              .filter(datasetId => datasetId !== data.dataset_id)
+              .map(datasetId =>
+                getDataset(
+                  datasetId,
+                  userId,
+                  activeWorkspaceId
+                )
+              )
+          )
+
+        if (ignoreResult) {
+          return
+        }
+
+        setEvidenceDatasets(
+          [
+            ...(datasetResult.status === "fulfilled"
+              ? [datasetResult.value]
+              : []),
+            ...additionalDatasetResults
+              .filter(
+                (result): result is PromiseFulfilledResult<DatasetSummary> =>
+                  result.status === "fulfilled"
+              )
+              .map(result => result.value),
+          ]
+        )
 
         if (metricsResult.status === "fulfilled") {
           setMetricColumns(
@@ -1742,6 +1783,14 @@ export default function DecisionPage() {
           decision.dataset_id
         )
       : `Unavailable (#${decision.dataset_id})`
+  const linkedEvidenceDatasets =
+    evidenceDatasets.length > 0
+      ? evidenceDatasets
+      : dataset
+        ? [dataset]
+        : []
+  const hasMultipleEvidenceDatasets =
+    linkedEvidenceDatasets.length > 1
   const joinedEvidenceMetricOptions =
     (decision.evidence_metrics ?? [])
       .filter(metric => metric.column_type !== "categorical")
@@ -1804,15 +1853,25 @@ export default function DecisionPage() {
           title={decision.title}
           description={decision.description || "No description provided."}
           actions={
-            <IconBadge
-              className={
-                isArchivedDecision
-                  ? "bg-gray-100 text-gray-600"
-                  : "bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
-              }
-              icon={<Target size={26} />}
-              large
-            />
+            <div className="flex items-center gap-2">
+              <Link
+                href="#decision-title"
+                aria-label="Edit decision title and details"
+                title="Edit decision title and details"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:bg-[var(--decisionate-brand-primary-soft)] hover:text-[var(--decisionate-brand-primary-text)]"
+              >
+                <Pencil size={16} />
+              </Link>
+              <IconBadge
+                className={
+                  isArchivedDecision
+                    ? "bg-gray-100 text-gray-600"
+                    : "bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
+                }
+                icon={<Target size={26} />}
+                large
+              />
+            </div>
           }
         />
 
@@ -1825,7 +1884,32 @@ export default function DecisionPage() {
             {reviewUrgency}
           </Badge>
 
-          {dataset ? (
+          {hasMultipleEvidenceDatasets ? (
+            <div className="flex max-w-full flex-wrap items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700">
+              <span>Datasets:</span>
+              {linkedEvidenceDatasets.map((evidenceDataset, index) => (
+                <span
+                  key={evidenceDataset.id}
+                  className="inline-flex max-w-full items-center gap-2"
+                >
+                  {index > 0 && <span aria-hidden="true">+</span>}
+                  <Link
+                    href={`/dashboard/datasets/${evidenceDataset.id}`}
+                    title={formatDecisionDatasetLabel(
+                      evidenceDataset,
+                      evidenceDataset.id
+                    )}
+                    className="max-w-full truncate text-gray-700 underline decoration-gray-300 underline-offset-2 transition hover:text-[var(--decisionate-brand-primary-text)]"
+                  >
+                    {formatDecisionDatasetLabel(
+                      evidenceDataset,
+                      evidenceDataset.id
+                    )}
+                  </Link>
+                </span>
+              ))}
+            </div>
+          ) : dataset ? (
             <Link
               href={`/dashboard/datasets/${decision.dataset_id}`}
               title={decisionDatasetLabel}
@@ -2038,6 +2122,7 @@ export default function DecisionPage() {
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)]">
           <Field label="Title">
             <input
+              id="decision-title"
               aria-label="Decision title"
               value={title}
               disabled={decisionIsReadOnly || isArchivedDecision}
