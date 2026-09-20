@@ -2211,24 +2211,26 @@ export default function DecisionPage() {
           savingSection={savingSection}
           saveError={saveError}
           isArchived={isArchivedDecision}
-        disabled={decisionIsReadOnly || detailsSaveDisabled}
-        label="Save Details"
-        onClick={handleSaveDetails}
-      >
-          <button
-            type="button"
-            onClick={handleCancelDetails}
-            disabled={
-              decisionIsReadOnly ||
-              isArchivedDecision ||
-              !detailsChanged ||
-              savingSection === detailsDecisionActivity
-            }
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <X size={15} />
-            Cancel
-          </button>
+          disabled={decisionIsReadOnly || detailsSaveDisabled}
+          label="Save Details"
+          onClick={handleSaveDetails}
+          secondaryAction={
+            <button
+              type="button"
+              onClick={handleCancelDetails}
+              disabled={
+                decisionIsReadOnly ||
+                isArchivedDecision ||
+                !detailsChanged ||
+                savingSection === detailsDecisionActivity
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <X size={15} />
+              Cancel
+            </button>
+          }
+        >
 
           {!isArchivedDecision && title.trim().length === 0 && (
             <p className="mt-2 text-sm font-medium text-amber-700">
@@ -3235,6 +3237,7 @@ function SectionSaveActions({
   disabled,
   label,
   onClick,
+  secondaryAction,
   children,
 }: {
   section: SaveSection
@@ -3244,17 +3247,22 @@ function SectionSaveActions({
   disabled: boolean
   label: string
   onClick: () => void
+  secondaryAction?: ReactNode
   children?: ReactNode
 }) {
   return (
     <SaveButtonRow>
-      <SaveActionButton
-        onClick={onClick}
-        isArchived={isArchived}
-        isSaving={savingSection === section}
-        disabled={disabled}
-        label={label}
-      />
+      <div className="flex items-center justify-between gap-3">
+        <SaveActionButton
+          onClick={onClick}
+          isArchived={isArchived}
+          isSaving={savingSection === section}
+          disabled={disabled}
+          label={label}
+        />
+
+        {secondaryAction}
+      </div>
 
       {children}
 
