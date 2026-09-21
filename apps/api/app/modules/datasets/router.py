@@ -2927,6 +2927,7 @@ async def get_dataset_join_cache(
             )
             cache.result = json.dumps(
                 result,
+                default=str,
                 sort_keys=True,
             )
             cache.source_fingerprint = source_fingerprint
@@ -3179,6 +3180,7 @@ async def join_datasets(
             )
             cache.result = json.dumps(
                 result,
+                default=str,
                 sort_keys=True,
             )
             cache.source_fingerprint = source_fingerprint
