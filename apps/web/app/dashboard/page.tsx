@@ -290,7 +290,7 @@ const joinedDatasetStoragePrefix =
   "decisionate:joined-dataset:"
 const selectedMetricsStoragePrefix =
   "decisionate:selected-metrics:"
-const joinedDatasetResultVersion = 7
+const joinedDatasetResultVersion = 8
 
 function isCurrentJoinedDatasetResult(
   result: DatasetJoinResult | null | undefined

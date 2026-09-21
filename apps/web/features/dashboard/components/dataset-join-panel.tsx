@@ -11,6 +11,7 @@ import {
   GitMerge,
   Play,
   RotateCcw,
+  X,
 } from "lucide-react"
 
 import {
@@ -45,6 +46,17 @@ type DatasetJoinPanelProps = {
 }
 
 type JoinConfiguration = DatasetJoinSelection
+
+function getDefaultJoinMetricColumns(
+  item: DatasetJoinMetadata,
+  dateColumn: string
+) {
+  return (
+    item.numeric_columns.length > 0
+      ? item.numeric_columns
+      : item.columns
+  ).filter(column => column !== dateColumn)
+}
 
 function formatNumber(value: number | null | undefined) {
   if (value === null || value === undefined) {
@@ -194,11 +206,10 @@ export function DatasetJoinPanel({
               )
               ? existing.date_column
               : item.default_date_column ?? ""
-            const defaultMetricColumns = (
-              item.numeric_columns.length > 0
-                ? item.numeric_columns
-                : item.columns
-            ).filter(column => column !== dateColumn)
+            const defaultMetricColumns = getDefaultJoinMetricColumns(
+              item,
+              dateColumn
+            )
             const metricColumns = existing?.metric_columns?.length
               ? existing.metric_columns.filter(
                   column =>
@@ -316,6 +327,46 @@ export function DatasetJoinPanel({
         },
       }
     })
+    updateJoinResult(null)
+  }
+
+  function clearMetricColumns(datasetId: number) {
+    setConfigurations(current => ({
+      ...current,
+      [datasetId]: {
+        ...(current[datasetId] ?? {
+          dataset_id: datasetId,
+          date_column: "",
+        }),
+        metric_columns: [],
+      },
+    }))
+    updateJoinResult(null)
+  }
+
+  function resetMetricColumns(datasetId: number) {
+    const item = metadata.find(
+      metadataItem => metadataItem.dataset_id === datasetId
+    )
+    if (!item) return
+
+    const dateColumn =
+      configurations[datasetId]?.date_column ??
+      item.default_date_column ??
+      ""
+    setConfigurations(current => ({
+      ...current,
+      [datasetId]: {
+        ...(current[datasetId] ?? {
+          dataset_id: datasetId,
+          date_column: dateColumn,
+        }),
+        metric_columns: getDefaultJoinMetricColumns(
+          item,
+          dateColumn
+        ),
+      },
+    }))
     updateJoinResult(null)
   }
 
@@ -632,7 +683,30 @@ export function DatasetJoinPanel({
                 </label>
 
                 <div className="min-w-0 text-xs font-medium text-gray-500">
-                  <span className="mb-1 block">Metrics or columns to include</span>
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                    <span>Metrics or columns to include</span>
+                    <span className="flex items-center gap-2 font-normal">
+                      <button
+                        type="button"
+                        onClick={() => clearMetricColumns(item.dataset_id)}
+                        disabled={!configuration?.metric_columns?.length}
+                        className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+                        title="Unselect all metrics or columns"
+                      >
+                        <X size={12} aria-hidden="true" />
+                        Unselect all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => resetMetricColumns(item.dataset_id)}
+                        className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800"
+                        title="Reset metrics or columns to the default selection"
+                      >
+                        <RotateCcw size={12} aria-hidden="true" />
+                        Reset to default
+                      </button>
+                    </span>
+                  </div>
                   <div className="max-h-28 overflow-y-auto rounded-md border border-gray-200 bg-white p-2">
                     <div className="grid gap-1 sm:grid-cols-2">
                       {item.columns

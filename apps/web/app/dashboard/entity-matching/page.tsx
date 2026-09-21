@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react"
 import { useUser } from "@clerk/nextjs"
 import Link from "next/link"
-import { RefreshCw, Save, UsersRound } from "lucide-react"
+import {
+  RefreshCw,
+  RotateCcw,
+  Save,
+  UsersRound,
+  X,
+} from "lucide-react"
 
 import {
   getEntityMatchingMetadata,
@@ -180,6 +186,34 @@ export default function EntityMatchingPage() {
         [datasetKey]: next,
       }
     })
+  }
+
+  function clearMetricColumns(datasetId: number) {
+    setPreview(null)
+    setResult(null)
+    const datasetKey = String(datasetId)
+    setSelectedMetricColumns(existing => ({
+      ...existing,
+      [datasetKey]: [],
+    }))
+  }
+
+  function resetMetricColumns(datasetId: number) {
+    const metadata = columnMetadata.find(
+      item => item.dataset_id === datasetId
+    )
+    if (!metadata) return
+
+    setPreview(null)
+    setResult(null)
+    const datasetKey = String(datasetId)
+    const selectedKeys = selectedKeyColumns[datasetKey] ?? []
+    setSelectedMetricColumns(existing => ({
+      ...existing,
+      [datasetKey]: metadata.default_metric_columns.filter(
+        column => !selectedKeys.includes(column)
+      ),
+    }))
   }
 
   function getMatchingKeyColumns() {
@@ -397,7 +431,31 @@ export default function EntityMatchingPage() {
                     )}
                     {metadata && (
                       <div className="mt-3 border-t border-gray-200 pt-3">
-                        <p className="text-xs font-semibold text-gray-700">Metrics or columns to include</p>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-gray-700">Metrics or columns to include</p>
+                          <span className="flex items-center gap-2 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => clearMetricColumns(dataset.id)}
+                              disabled={!selectedMetrics.length || !canManageWorkspaceData}
+                              className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+                              title="Unselect all metrics or columns"
+                            >
+                              <X size={12} aria-hidden="true" />
+                              Unselect all
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => resetMetricColumns(dataset.id)}
+                              disabled={!canManageWorkspaceData}
+                              className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-40"
+                              title="Reset metrics or columns to the default selection"
+                            >
+                              <RotateCcw size={12} aria-hidden="true" />
+                              Reset to default
+                            </button>
+                          </span>
+                        </div>
                         <p className="mt-1 text-[11px] text-gray-500">These fields will be carried into the unified dataset. Numeric fields are selected by default.</p>
                         {metadata.metric_columns.length > 0 ? (
                           <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
