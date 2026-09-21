@@ -1465,7 +1465,7 @@ function getDefaultResourceTypes(
     case "salesforce":
       return ["opportunities"]
     case "lightspeed_x":
-      return ["sales", "customers", "products"]
+      return ["sales"]
     case "lightspeed_k":
       return ["sales", "products"]
     case "lightspeed_o":
