@@ -62,6 +62,7 @@ import {
   getWorkspaceBrand,
 } from "@/lib/workspace-brand"
 import { LanguageToggle } from "@/app/language-toggle"
+import { ThemeToggle } from "@/app/theme-toggle"
 import {
   decisionateLanguageChangedEvent,
   getCurrentDecisionateLanguage,
@@ -1055,7 +1056,8 @@ export function DashboardShell({
         ========================= */}
 
         <div className="shrink-0 border-t p-4">
-          <div className="mb-3 flex justify-end">
+          <div className="mb-3 flex justify-end gap-2">
+            <ThemeToggle />
             <LanguageToggle />
           </div>
 
