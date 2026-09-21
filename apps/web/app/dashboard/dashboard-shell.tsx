@@ -1057,8 +1057,8 @@ export function DashboardShell({
 
         <div className="shrink-0 border-t p-4">
           <div className="mb-3 flex justify-end gap-2">
-            <ThemeToggle />
             <LanguageToggle />
+            <ThemeToggle />
           </div>
 
           <div className="flex min-w-0 items-center justify-between gap-3">
