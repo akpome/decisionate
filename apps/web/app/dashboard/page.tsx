@@ -179,6 +179,7 @@ type DashboardMetric = {
 }
 
 type DashboardDataset = {
+  id?: number
   file_name: string
   row_count?: number
   source_type?: string | null
@@ -2149,6 +2150,18 @@ export default function DashboardPage() {
           selectedDashboardAutoMetric ||
           primaryMetric
         : primaryMetric
+  const dashboardMetricColumnSignature = useMemo(
+    () =>
+      metrics
+        .map(metric => metric.column)
+        .join("\u001f"),
+    [metrics]
+  )
+  const dashboardAnalysisMetricAvailable =
+    Boolean(dashboardAnalysisMetric) &&
+    dashboardMetricColumnSignature
+      .split("\u001f")
+      .includes(dashboardAnalysisMetric ?? "")
   const selectedDashboardSharedMetric =
     selectedDashboard === defaultDashboardKey
       ? primaryMetric
@@ -2167,6 +2180,9 @@ export default function DashboardPage() {
       !userId ||
       !selectedDatasetId ||
       !dashboardAnalysisMetric ||
+      loading ||
+      dataset?.id !== selectedDatasetId ||
+      !dashboardAnalysisMetricAvailable ||
       selectedComponentKey === "decisionPerformance"
     ) {
       queueMicrotask(() => {
@@ -2226,6 +2242,10 @@ export default function DashboardPage() {
   }, [
     activeWorkspaceId,
     dashboardAnalysisMetric,
+    dashboardAnalysisMetricAvailable,
+    dashboardMetricColumnSignature,
+    dataset?.id,
+    loading,
     metricAnalysisRetryKey,
     selectedDashboard,
     selectedDatasetId,

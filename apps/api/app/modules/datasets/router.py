@@ -2283,6 +2283,7 @@ async def get_dataset_join_metadata(
             dataset, dataframe = load_dataframe(
                 db,
                 dataset_id,
+                apply_metric_selection=False,
             )
             verify_dataset_owner(
                 dataset,
@@ -3076,6 +3077,7 @@ async def join_datasets(
             dataset, dataframe = load_dataframe(
                 db,
                 selection.dataset_id,
+                apply_metric_selection=False,
             )
             verify_dataset_owner(
                 dataset,
@@ -3199,6 +3201,19 @@ async def join_datasets(
         return result
     except ValueError as error:
         db.rollback()
+        logger.info(
+            (
+                "Dataset join rejected: "
+                f"dataset_ids={clean_dataset_ids}; "
+                f"dashboard_key={payload.dashboard_key or 'none'}; "
+                f"reason={str(error)[:500]}"
+            ),
+            extra={
+                "dataset_ids": clean_dataset_ids,
+                "dashboard_key": payload.dashboard_key,
+                "reason": str(error)[:500],
+            },
+        )
         raise HTTPException(
             status_code=400,
             detail=str(error),
@@ -6671,6 +6686,7 @@ async def dataset_ai_analysis(
         dataset, dataframe = load_dataframe(
             db,
             dataset_id,
+            apply_metric_selection=False,
         )
 
         verify_dataset_owner(
@@ -6714,7 +6730,10 @@ async def dataset_ai_analysis(
         if clean_metric and clean_metric not in numeric_columns:
             raise HTTPException(
                 status_code=400,
-                detail=f"Metric '{clean_metric}' is not numeric or was not found",
+                detail=(
+                    f"Metric '{clean_metric}' is not numeric or was not found. "
+                    "Choose one of the dataset's available numeric metrics."
+                ),
             )
 
         learning_context = (

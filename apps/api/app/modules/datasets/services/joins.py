@@ -725,7 +725,9 @@ def build_joined_dataset(
     )
     if not rows:
         raise ValueError(
-            "The selected datasets have no shared periods after date normalization"
+            "The selected datasets have no shared month-year periods after "
+            "date normalization. Choose datasets with overlapping dates or "
+            "use a wider date range."
         )
 
     latest = rows[-1]
