@@ -340,7 +340,7 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["resource_types"],
+        "config_keys": ["company_id", "resource_types"],
         "description": (
             "Choose one or more QuickBooks resources to ingest through OAuth. "
             "The connected company is selected automatically."
@@ -353,7 +353,7 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["resource_types"],
+        "config_keys": ["account_id", "resource_types"],
         "description": (
             "Choose one or more FreshBooks resources to ingest: profile, invoices, "
             "expenses, payments, clients, chart of accounts, credit notes, "
@@ -367,7 +367,7 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["resource_types"],
+        "config_keys": ["business_id", "resource_types"],
         "description": (
             "Choose one or more Sage Cloud Accounting objects to ingest through "
             "OAuth: sales invoices, purchase invoices, sales credit notes, "
@@ -383,7 +383,7 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["resource_types"],
+        "config_keys": ["tenant_id", "resource_types"],
         "description": (
             "Choose one or more Xero resources to ingest through OAuth. "
             "The connected organisation is selected automatically."
@@ -396,7 +396,7 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["resource_types"],
+        "config_keys": ["organization_id", "resource_types"],
         "description": (
             "Choose one or more Zoho Books resources to ingest through OAuth. "
             "The connected organization is selected automatically."
@@ -409,7 +409,7 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["resource_types"],
+        "config_keys": ["portal_id", "resource_types"],
         "description": (
             "Choose one or more HubSpot CRM objects to ingest through OAuth. "
             "Each selected object is stored as its own dataset."
@@ -422,7 +422,7 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["resource_types"],
+        "config_keys": ["instance_url", "resource_types"],
         "description": (
             "Choose one or more Sales Cloud objects to ingest: accounts, leads, "
             "or opportunities. Each selected object is stored as its own dataset."

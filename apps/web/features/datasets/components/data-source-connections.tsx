@@ -40,6 +40,19 @@ export const REQUIRED_CONNECTION_CONFIG_KEYS: Record<
   meta_ads: ["ad_account_id"],
 }
 
+const OAUTH_MANAGED_CONNECTION_KEYS: Record<
+  string,
+  string[]
+> = {
+  salesforce: ["instance_url"],
+  hubspot: ["portal_id"],
+  zoho_books: ["organization_id"],
+  xero: ["tenant_id"],
+  freshbooks: ["account_id"],
+  quickbooks: ["company_id"],
+  sage: ["business_id"],
+}
+
 interface DataSourceConnectionsProps {
   connections: DataSourceConnection[]
   loadError?: boolean
@@ -434,7 +447,9 @@ function DataSourceConnectionRow({
       sources
     )
   const configKeys =
-    getEditableConnectionConfigKeys(source)
+    getEditableConnectionConfigKeys(source).filter(
+      (configKey) => configKey !== "resource_types"
+    )
   const credentialKeys =
     getSourceCredentialKeys(source)
   const editableConfigKeys =
@@ -550,6 +565,13 @@ function DataSourceConnectionRow({
     )
   const connectionSettingsConfigKeys =
     inlineConnectionConfigKeys
+  const hasOAuthManagedConnectionSetting =
+    isOAuthConnector &&
+    inlineConnectionConfigKeys.some((configKey) =>
+      OAUTH_MANAGED_CONNECTION_KEYS[
+        connection.source_type
+      ]?.includes(configKey)
+    )
   const showInlineConnectionSettings =
     inlineConnectionConfigKeys.length > 0 &&
     (!hasResourceSelection ||
@@ -1269,7 +1291,9 @@ function DataSourceConnectionRow({
                   )}
 
                   <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
-                    Save the required setting before data can be ingested. Without it, this connection will ingest no data.
+                    {hasOAuthManagedConnectionSetting
+                      ? t("The provider identifier is optional. Leave it blank for OAuth to identify the account automatically, or enter it to select a specific account.")
+                      : t("Save the required setting before data can be ingested. Without it, this connection will ingest no data.")}
                   </p>
 
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -1310,9 +1334,11 @@ function DataSourceConnectionRow({
                     {t("Connection settings")}
                   </p>
                   <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
-                    {isOAuthConnector
-                      ? `${t("Use Connect with OAuth to authorize the provider account, then select the")} ${source?.label ?? "provider"} ${t("objects to ingest.")}`
-                      : t("Connection settings are managed by this provider.")}
+                    {hasOAuthManagedConnectionSetting
+                      ? t("The provider identifier is optional. Leave it blank for OAuth to identify the account automatically, or enter it to select a specific account.")
+                      : isOAuthConnector
+                        ? `${t("Use Connect with OAuth to authorize the provider account, then select the")} ${source?.label ?? "provider"} ${t("objects to ingest.")}`
+                        : t("Connection settings are managed by this provider.")}
                   </p>
                 </>
               )}
@@ -1831,42 +1857,70 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   freshbooks: {
+    account_id: {
+      description: "Optional FreshBooks account identifier. Leave blank to use the active business returned by OAuth.",
+      example: "123456",
+    },
     resource_types: {
       description: "Select one or more FreshBooks objects. Each selected object is stored as its own dataset.",
       example: "Invoices, Expenses",
     },
   },
   quickbooks: {
+    company_id: {
+      description: "Optional QuickBooks company identifier (realm ID). OAuth supplies it when left blank.",
+      example: "123145678901234",
+    },
     resource_types: {
       description: "Select one or more QuickBooks resources. Each selected resource is stored as its own dataset.",
       example: "Invoices, Customers",
     },
   },
   zoho_books: {
+    organization_id: {
+      description: "Optional Zoho Books organization ID. Use it when the authorized account contains more than one organization.",
+      example: "123456789",
+    },
     resource_types: {
       description: "Select one or more Zoho Books objects. Each selected object is stored as its own dataset; the organization is selected automatically after OAuth authorization.",
       example: "Invoices, Contacts",
     },
   },
   xero: {
+    tenant_id: {
+      description: "Optional Xero tenant ID. Leave blank to use the first organization returned by OAuth.",
+      example: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    },
     resource_types: {
       description: "Select one or more Xero resources. Each selected resource is stored as its own dataset after OAuth authorization.",
       example: "Invoices, Contacts",
     },
   },
   sage: {
+    business_id: {
+      description: "Optional Sage business identifier. OAuth supplies it when left blank.",
+      example: "123456789",
+    },
     resource_types: {
       description: "Select one or more Sage Cloud Accounting objects. Each selected object is stored as its own dataset after OAuth authorization.",
       example: "Sales invoices, Contacts, Ledger accounts",
     },
   },
   hubspot: {
+    portal_id: {
+      description: "Optional HubSpot portal ID. OAuth supplies it when available.",
+      example: "12345678",
+    },
     resource_types: {
       description: "Select one or more HubSpot CRM objects. Each selected object is stored as its own dataset after OAuth authorization.",
       example: "Contacts, Deals",
     },
   },
   salesforce: {
+    instance_url: {
+      description: "Optional Salesforce instance URL. OAuth supplies the authorized instance when left blank.",
+      example: "https://your-org.my.salesforce.com",
+    },
     resource_types: {
       description: "Select one or more Salesforce Sales Cloud objects. Each selected object is stored as its own dataset.",
       example: "Accounts, Opportunities",
@@ -2690,6 +2744,34 @@ function formatConnectionConfigLabel(
 
   if (sourceType === "lightspeed_o" && key === "site_id") {
     return "Site ID (optional)"
+  }
+
+  if (sourceType === "salesforce" && key === "instance_url") {
+    return "Salesforce instance URL (optional)"
+  }
+
+  if (sourceType === "hubspot" && key === "portal_id") {
+    return "Portal ID (optional)"
+  }
+
+  if (sourceType === "zoho_books" && key === "organization_id") {
+    return "Organization ID (optional)"
+  }
+
+  if (sourceType === "xero" && key === "tenant_id") {
+    return "Tenant ID (optional)"
+  }
+
+  if (sourceType === "freshbooks" && key === "account_id") {
+    return "Account ID (optional)"
+  }
+
+  if (sourceType === "quickbooks" && key === "company_id") {
+    return "Company ID / Realm ID (optional)"
+  }
+
+  if (sourceType === "sage" && key === "business_id") {
+    return "Business ID (optional)"
   }
 
   return formatConnectionConfigKey(key)

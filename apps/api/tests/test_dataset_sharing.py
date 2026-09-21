@@ -704,19 +704,49 @@ class DatasetSharingTests(unittest.TestCase):
         source = get_dataset_source("quickbooks")
 
         self.assertEqual(source["connection_type"], "oauth")
-        self.assertEqual(source["config_keys"], ["resource_types"])
+        self.assertEqual(
+            source["config_keys"],
+            ["company_id", "resource_types"],
+        )
 
     def test_sage_exposes_resource_selector(self):
         source = get_dataset_source("sage")
 
         self.assertEqual(source["connection_type"], "oauth")
-        self.assertEqual(source["config_keys"], ["resource_types"])
+        self.assertEqual(
+            source["config_keys"],
+            ["business_id", "resource_types"],
+        )
 
     def test_freshbooks_exposes_resource_selector(self):
         source = get_dataset_source("freshbooks")
 
         self.assertEqual(source["connection_type"], "oauth")
-        self.assertEqual(source["config_keys"], ["resource_types"])
+        self.assertEqual(
+            source["config_keys"],
+            ["account_id", "resource_types"],
+        )
+
+    def test_oauth_provider_identifiers_are_separate_from_resources(self):
+        expected_identifiers = {
+            "salesforce": "instance_url",
+            "hubspot": "portal_id",
+            "zoho_books": "organization_id",
+            "xero": "tenant_id",
+            "freshbooks": "account_id",
+            "quickbooks": "company_id",
+            "sage": "business_id",
+        }
+
+        for source_type, identifier in expected_identifiers.items():
+            with self.subTest(source_type=source_type):
+                source = get_dataset_source(source_type)
+                self.assertIn(identifier, source["config_keys"])
+                self.assertIn("resource_types", source["config_keys"])
+                self.assertNotIn(
+                    identifier,
+                    source.get("required_config_keys", []),
+                )
 
     def test_dataset_source_registry_excludes_deferred_connectors(self):
         sources = {

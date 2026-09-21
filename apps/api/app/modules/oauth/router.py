@@ -530,14 +530,28 @@ def process_oauth_callback(request: Request):
         if state_source_type == "xero":
             access_token = str(payload.get("access_token") or "").strip()
             xero_connections = get_xero_connections(access_token)
-            selected_connection = next(
-                (
-                    item
-                    for item in xero_connections
-                    if str(item.get("tenantId") or "").strip()
-                ),
-                None,
-            )
+            configured_tenant_id = str(
+                connection_config.get("tenant_id") or ""
+            ).strip()
+            if configured_tenant_id:
+                selected_connection = next(
+                    (
+                        item
+                        for item in xero_connections
+                        if str(item.get("tenantId") or "").strip()
+                        == configured_tenant_id
+                    ),
+                    None,
+                )
+            else:
+                selected_connection = next(
+                    (
+                        item
+                        for item in xero_connections
+                        if str(item.get("tenantId") or "").strip()
+                    ),
+                    None,
+                )
             tenant_id = str(
                 selected_connection.get("tenantId")
                 if selected_connection
@@ -545,7 +559,9 @@ def process_oauth_callback(request: Request):
             ).strip()
             if not tenant_id:
                 raise OAuthTokenExchangeError(
-                    "No Xero organisation was available for this account"
+                    "The configured Xero tenant was not available"
+                    if configured_tenant_id
+                    else "No Xero organisation was available for this account"
                 )
             connection_config = parse_source_connection_config(
                 connection.connection_config
@@ -580,6 +596,14 @@ def process_oauth_callback(request: Request):
                 connection_config,
                 sort_keys=True,
             )
+        if state_source_type == "hubspot":
+            portal_id = str(payload.get("hub_id") or "").strip()
+            if portal_id:
+                connection_config["portal_id"] = portal_id
+                connection.connection_config = json.dumps(
+                    connection_config,
+                    sort_keys=True,
+                )
         if state_source_type == "lightspeed_x":
             connection.connection_config = json.dumps(
                 connection_config,

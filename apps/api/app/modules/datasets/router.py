@@ -4362,6 +4362,12 @@ async def update_source_connection(
                 ):
                     next_config[config_key] = config_value
                 if (
+                    connection.source_type == "hubspot"
+                    and config_key == "portal_id"
+                    and config_key not in next_config
+                ):
+                    next_config[config_key] = config_value
+                if (
                     connection.source_type == "lightspeed_x"
                     and config_key == "domain_prefix"
                     and is_partial_config_update

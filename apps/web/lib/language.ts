@@ -940,6 +940,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "Save the resource types before connecting with OAuth.": "Enregistrez les types de ressources avant de vous connecter avec OAuth.",
   "Save the resource types before selecting objects to ingest.": "Enregistrez les types de ressources avant de sélectionner les objets à ingérer.",
   "Connection settings are managed by this provider.": "Les paramètres de connexion sont gérés par ce fournisseur.",
+  "The provider identifier is optional. Leave it blank for OAuth to identify the account automatically, or enter it to select a specific account.": "L'identifiant du fournisseur est facultatif. Laissez-le vide pour que OAuth identifie automatiquement le compte, ou saisissez-le pour sélectionner un compte précis.",
   "Insights setup": "Configuration des analyses",
   "Choose the dataset to analyze for generated patterns, anomalies, and recommendations.": "Choisissez le jeu de données à analyser pour les tendances, anomalies et recommandations générées.",
   "Refreshing insights...": "Actualisation des analyses...",
