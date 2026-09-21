@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import logging
 import math
@@ -548,7 +549,11 @@ def persist_entity_matching_dataframe(
             remove_dataset_file(parquet_path)
 
 
-def build_joined_dataset_file_name(result: dict):
+def build_joined_dataset_file_name(
+    result: dict,
+    definition: dict | None = None,
+    dashboard_key: str | None = None,
+):
     source_names = []
     for detail in result.get("datasets", []):
         file_name = str(detail.get("file_name") or "").strip()
@@ -563,8 +568,31 @@ def build_joined_dataset_file_name(result: dict):
         for file_name in source_names
     ) or "datasets"
 
+    identity = {
+        "dashboard_key": dashboard_key or "",
+        "definition": definition,
+    }
+    if definition is None:
+        identity["result"] = {
+            "dataset_ids": result.get("dataset_ids", []),
+            "datasets": result.get("datasets", []),
+        }
+    identity_digest = hashlib.sha256(
+        json.dumps(
+            identity,
+            default=str,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()[:10]
+    dashboard_slug = normalize_analytics_identifier(
+        dashboard_key or "dashboard",
+        "dashboard",
+    )
+
     return sanitize_upload_filename(
-        f"joined-{source_slug[:180]}.parquet"
+        f"joined-{source_slug[:120]}-{dashboard_slug[:32]}-"
+        f"{identity_digest}.parquet"
     )
 
 
@@ -643,9 +671,53 @@ def materialize_joined_dataset_record(
     definition: dict,
     previous_result: dict | None = None,
 ):
-    """Create the selector-visible dataset and replace its prior version."""
+    """Persist the selector-visible dataset for one dashboard join."""
     derived_dataframe = pd.DataFrame(result["rows"])
-    derived_file_name = build_joined_dataset_file_name(result)
+    derived_file_name = build_joined_dataset_file_name(
+        result,
+        definition,
+        dashboard_key,
+    )
+
+    previous_derived_id = get_joined_dataset_id_from_result(
+        previous_result
+    )
+    existing_derived_dataset = None
+    if previous_derived_id:
+        existing_derived_dataset = (
+            db.query(Dataset)
+            .filter(
+                Dataset.id == previous_derived_id,
+                Dataset.workspace_id == workspace_id,
+                Dataset.source_type == "joined",
+            )
+            .first()
+        )
+
+    if existing_derived_dataset is None:
+        joined_datasets = (
+            db.query(Dataset)
+            .filter(
+                Dataset.workspace_id == workspace_id,
+                Dataset.source_type == "joined",
+            )
+            .order_by(Dataset.created_at.desc(), Dataset.id.desc())
+            .all()
+        )
+        for candidate in joined_datasets:
+            try:
+                candidate_config = json.loads(
+                    candidate.source_config or "{}"
+                )
+            except (TypeError, ValueError, json.JSONDecodeError):
+                candidate_config = {}
+            if (
+                candidate_config.get("dashboard_key") == dashboard_key
+                and candidate_config.get("join_definition") == definition
+            ):
+                existing_derived_dataset = candidate
+                break
+
     (
         stored_file_path,
         storage_provider,
@@ -669,18 +741,32 @@ def materialize_joined_dataset_record(
         },
         sort_keys=True,
     )
-    derived_dataset = Dataset(
-        user_id=user_id,
-        workspace_id=workspace_id,
-        source_type="joined",
-        source_config=derived_source_config,
-        file_name=derived_file_name,
-        file_path=stored_file_path,
-        storage_provider=storage_provider,
-        row_count=len(derived_dataframe),
-        column_count=len(derived_dataframe.columns),
-    )
-    db.add(derived_dataset)
+    replaced_reference = None
+    if existing_derived_dataset:
+        replaced_reference = get_dataset_storage_reference(
+            existing_derived_dataset
+        )
+        derived_dataset = existing_derived_dataset
+        derived_dataset.user_id = user_id
+        derived_dataset.source_config = derived_source_config
+        derived_dataset.file_name = derived_file_name
+        derived_dataset.file_path = stored_file_path
+        derived_dataset.storage_provider = storage_provider
+        derived_dataset.row_count = len(derived_dataframe)
+        derived_dataset.column_count = len(derived_dataframe.columns)
+    else:
+        derived_dataset = Dataset(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            source_type="joined",
+            source_config=derived_source_config,
+            file_name=derived_file_name,
+            file_path=stored_file_path,
+            storage_provider=storage_provider,
+            row_count=len(derived_dataframe),
+            column_count=len(derived_dataframe.columns),
+        )
+        db.add(derived_dataset)
     db.flush()
 
     materialized_result = {
@@ -690,34 +776,6 @@ def materialize_joined_dataset_record(
             derived_dataset
         ),
     }
-
-    replaced_reference = None
-    previous_derived_id = get_joined_dataset_id_from_result(
-        previous_result
-    )
-    if previous_derived_id:
-        replaced_dataset = (
-            db.query(Dataset)
-            .filter(
-                Dataset.id == previous_derived_id,
-                Dataset.workspace_id == workspace_id,
-                Dataset.source_type == "joined",
-            )
-            .first()
-        )
-        if replaced_dataset:
-            replaced_reference = get_dataset_storage_reference(
-                replaced_dataset
-            )
-            cleanup_deleted_dataset_preferences(
-                db,
-                replaced_dataset,
-            )
-            cleanup_deleted_dataset_relationships(
-                db,
-                replaced_dataset,
-            )
-            db.delete(replaced_dataset)
 
     return materialized_result, new_stored_reference, replaced_reference
 
@@ -980,6 +1038,35 @@ def build_dataset_summary_response(
         ),
         "created_at": dataset.created_at,
     }
+
+
+def build_dataset_list_response(datasets):
+    responses = [
+        build_dataset_summary_response(dataset)
+        for dataset in datasets
+    ]
+    joined_name_counts = {}
+    for response in responses:
+        if response.get("source_type") != "joined":
+            continue
+        file_name = response.get("file_name")
+        joined_name_counts[file_name] = (
+            joined_name_counts.get(file_name, 0) + 1
+        )
+
+    for response in responses:
+        file_name = response.get("file_name")
+        if (
+            response.get("source_type") != "joined"
+            or joined_name_counts.get(file_name, 0) < 2
+        ):
+            continue
+        stem, extension = os.path.splitext(str(file_name))
+        response["file_name"] = (
+            f"{stem}-{response['id']}{extension or '.parquet'}"
+        )
+
+    return responses
 
 
 def build_dataset_details_response(
@@ -2219,12 +2306,7 @@ async def get_datasets(
             workspace_id,
         )
 
-        return [
-            build_dataset_summary_response(
-                dataset
-            )
-            for dataset in datasets
-        ]
+        return build_dataset_list_response(datasets)
 
     finally:
         db.close()

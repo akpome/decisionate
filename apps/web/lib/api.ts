@@ -1738,14 +1738,22 @@ export type OrganizationInviteCreatePayload = {
 ========================= */
 
 type ClerkBrowserSession = {
-  getToken: () => Promise<string | null>
+  getToken: (
+    options?: ClerkTokenOptions
+  ) => Promise<string | null>
 }
 
 type ClerkBrowser = {
   session?: ClerkBrowserSession | null
 }
 
-type ClerkSessionTokenProvider = () => Promise<string | null>
+type ClerkTokenOptions = {
+  skipCache?: boolean
+}
+
+type ClerkSessionTokenProvider = (
+  options?: ClerkTokenOptions
+) => Promise<string | null>
 
 type AuthenticatedHeaders =
   Record<string, string>
@@ -1797,7 +1805,9 @@ export function setClerkSessionTokenProvider(
   clerkSessionTokenProvider = provider
 }
 
-async function getClerkSessionToken() {
+async function getClerkSessionToken(
+  skipCache = false
+) {
   if (typeof window === "undefined") {
     return null
   }
@@ -1807,8 +1817,12 @@ async function getClerkSessionToken() {
   }
 
   const tokenPromise =
-    clerkSessionTokenProvider?.() ||
-    window.Clerk?.session?.getToken()
+    clerkSessionTokenProvider?.(
+      skipCache ? { skipCache: true } : undefined
+    ) ||
+    window.Clerk?.session?.getToken(
+      skipCache ? { skipCache: true } : undefined
+    )
 
   if (!tokenPromise) {
     return null
@@ -1838,6 +1852,26 @@ async function withAuthorizationHeader(
   return {
     ...headers,
     Authorization: `Bearer ${token}`,
+  }
+}
+
+async function withFreshAuthorizationHeader(
+  init?: RequestInit
+) {
+  try {
+    const token = await getClerkSessionToken(true)
+    if (!token) {
+      return null
+    }
+
+    const headers = new Headers(init?.headers)
+    headers.set("Authorization", `Bearer ${token}`)
+    return {
+      ...init,
+      headers,
+    }
+  } catch {
+    return null
   }
 }
 
@@ -1943,13 +1977,27 @@ async function apiFetch(
     )
 
   try {
-    const response = await fetch(
+    let response = await fetch(
       input,
       {
         ...init,
         signal: controller.signal,
       }
     )
+
+    if (response.status === 401) {
+      const refreshedInit =
+        await withFreshAuthorizationHeader(init)
+      if (refreshedInit) {
+        response = await fetch(
+          input,
+          {
+            ...refreshedInit,
+            signal: controller.signal,
+          }
+        )
+      }
+    }
 
     if (notifyAvailability) {
       if (response.status >= 500) {
