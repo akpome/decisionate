@@ -434,7 +434,7 @@ function DataSourceConnectionRow({
       sources
     )
   const configKeys =
-    source?.config_keys ?? []
+    getEditableConnectionConfigKeys(source)
   const credentialKeys =
     getSourceCredentialKeys(source)
   const editableConfigKeys =
@@ -1328,6 +1328,7 @@ const VISIBILITY_TOGGLE_SOURCE_TYPES = new Set([
   "stripe",
   "square",
   "woocommerce",
+  "lightspeed_x",
 ])
 
 const FRESHBOOKS_RESOURCE_OPTIONS = [
@@ -1849,7 +1850,8 @@ export function ConnectionSetupGuide({
     return null
   }
 
-  const configKeys = source.config_keys ?? []
+  const configKeys =
+    getEditableConnectionConfigKeys(source)
   const fieldGuides = configKeys.map((configKey) => ({
     configKey,
     ...getConnectionFieldGuide(source.type, configKey),
@@ -2016,7 +2018,9 @@ function ConnectionConfigField({
     sourceType !== "woocommerce" &&
     VISIBILITY_TOGGLE_SOURCE_TYPES.has(
       sourceType ?? ""
-    ))
+    ) &&
+    !(sourceType === "lightspeed_x" &&
+      configKey === "domain_prefix"))
   const valueVisibilityLabel = showValue
     ? `Hide ${label.toLowerCase()}`
     : `Show ${label.toLowerCase()}`
@@ -2525,7 +2529,18 @@ function getSourceCredentialKeys(
 function getEditableConnectionConfigKeys(
   source?: DatasetSourceOption
 ) {
-  return [...(source?.config_keys ?? [])]
+  const configKeys = [
+    ...(source?.config_keys ?? []),
+  ]
+
+  if (
+    source?.type === "lightspeed_x" &&
+    !configKeys.includes("domain_prefix")
+  ) {
+    configKeys.unshift("domain_prefix")
+  }
+
+  return configKeys
 }
 
 function hasResourceTypeSelection(
