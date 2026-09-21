@@ -28,6 +28,7 @@ def build_join_definition(
                 "dataset_id": int(selection["dataset_id"]),
                 "date_column": selection.get("date_column"),
                 "metric_column": selection.get("metric_column"),
+                "metric_columns": selection.get("metric_columns"),
             }
             for selection in sorted(
                 selections,

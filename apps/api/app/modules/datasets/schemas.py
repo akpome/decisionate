@@ -26,6 +26,10 @@ class DatasetJoinSelection(BaseModel):
     dataset_id: int = Field(ge=1)
     date_column: str | None = None
     metric_column: str | None = None
+    metric_columns: List[str] | None = Field(
+        default=None,
+        max_length=500,
+    )
 
 
 class DatasetJoinRequest(BaseModel):
@@ -174,6 +178,7 @@ class EntityMatchingRequest(BaseModel):
     )
     entity_type: EntityType
     key_columns: Dict[str, List[str]] = Field(default_factory=dict)
+    metric_columns: Dict[str, List[str]] = Field(default_factory=dict)
     replace_existing: bool = True
 
 
@@ -182,6 +187,8 @@ class EntityMatchingDatasetMetadata(BaseModel):
     file_name: str
     columns: List[str]
     default_key_columns: List[str]
+    metric_columns: List[str]
+    default_metric_columns: List[str]
 
 
 class EntityMatchingMetadataResponse(BaseModel):

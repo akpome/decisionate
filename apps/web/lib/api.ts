@@ -188,6 +188,7 @@ export type EntityMatchingPayload = {
   dataset_ids: number[]
   entity_type: EntityType
   key_columns?: Record<string, string[]>
+  metric_columns?: Record<string, string[]>
   replace_existing?: boolean
 }
 
@@ -196,6 +197,8 @@ export type EntityMatchingDatasetMetadata = {
   file_name: string
   columns: string[]
   default_key_columns: string[]
+  metric_columns: string[]
+  default_metric_columns: string[]
 }
 
 export type EntityMatchingMetadata = {
@@ -272,6 +275,7 @@ export type DatasetJoinSelection = {
   dataset_id: number
   date_column?: string
   metric_column?: string | null
+  metric_columns?: string[] | null
 }
 
 export type DatasetJoinResult = {

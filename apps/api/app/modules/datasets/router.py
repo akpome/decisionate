@@ -2460,6 +2460,56 @@ def _resolve_entity_matching_key_columns(
     return resolved_columns
 
 
+def _resolve_entity_matching_metric_columns(
+    dataset_frames,
+    metric_columns: dict[str, list[str]] | None,
+    key_columns: dict[str, list[str]] | None = None,
+):
+    resolved_columns = {}
+    for dataset, dataframe in dataset_frames:
+        dataset_key = str(dataset.id)
+        excluded_columns = {
+            str(column)
+            for column in (key_columns or {}).get(dataset_key, [])
+        }
+        requested_columns = (
+            metric_columns[dataset_key]
+            if metric_columns is not None and dataset_key in metric_columns
+            else None
+        )
+        if requested_columns is None:
+            selected_columns = [
+                str(column)
+                for column, _series in get_numeric_columns(dataframe)
+                if (
+                    not is_identifier_column(column)
+                    and str(column) not in excluded_columns
+                )
+            ]
+        else:
+            column_lookup = {
+                str(column): column
+                for column in dataframe.columns
+            }
+            selected_columns = []
+            for requested in requested_columns:
+                actual = column_lookup.get(str(requested))
+                if actual is None:
+                    raise ValueError(
+                        f"Metric or column '{requested}' was not found in {dataset.file_name}"
+                    )
+                actual_name = str(actual)
+                if actual_name in excluded_columns:
+                    raise ValueError(
+                        f"Identity column '{requested}' cannot also be selected as a metric for {dataset.file_name}"
+                    )
+                if actual_name not in selected_columns:
+                    selected_columns.append(actual_name)
+        resolved_columns[dataset_key] = selected_columns
+
+    return resolved_columns
+
+
 @router.get(
     "/entity-matching/metadata",
     response_model=EntityMatchingMetadataResponse,
@@ -2504,14 +2554,30 @@ async def get_entity_matching_metadata(
                 dataframe,
                 entity_type,
             )
+            default_key_columns = [
+                field["column"]
+                for field in default_fields
+            ]
+            available_metric_columns = [
+                str(column)
+                for column in dataframe.columns
+                if str(column) not in default_key_columns
+            ]
+            default_metric_columns = [
+                str(column)
+                for column, _series in get_numeric_columns(dataframe)
+                if (
+                    not is_identifier_column(column)
+                    and str(column) not in default_key_columns
+                )
+            ] or available_metric_columns
             metadata.append({
                 "dataset_id": dataset.id,
                 "file_name": str(dataset.file_name),
                 "columns": [str(column) for column in dataframe.columns],
-                "default_key_columns": [
-                    field["column"]
-                    for field in default_fields
-                ],
+                "default_key_columns": default_key_columns,
+                "metric_columns": available_metric_columns,
+                "default_metric_columns": default_metric_columns,
             })
 
         return {
@@ -2550,6 +2616,11 @@ async def preview_entity_matching(
             frames,
             payload.entity_type,
             payload.key_columns,
+        )
+        _resolve_entity_matching_metric_columns(
+            frames,
+            payload.metric_columns,
+            resolved_key_columns,
         )
         return await asyncio.to_thread(
             build_entity_resolution,
@@ -2593,6 +2664,11 @@ async def run_entity_matching(
             frames,
             payload.entity_type,
             payload.key_columns,
+        )
+        resolved_metric_columns = _resolve_entity_matching_metric_columns(
+            frames,
+            payload.metric_columns,
+            resolved_key_columns,
         )
         result = await asyncio.to_thread(
             build_entity_resolution,
@@ -2689,6 +2765,7 @@ async def run_entity_matching(
             frames,
             result,
             canonical_entity_ids,
+            resolved_metric_columns,
         )
         (
             stored_file_path,
@@ -2705,6 +2782,7 @@ async def run_entity_matching(
                 "ingestion_mode": "entity_matching",
                 "derived_from_dataset_ids": payload.dataset_ids,
                 "key_columns": resolved_key_columns,
+                "metric_columns": resolved_metric_columns,
                 "canonical_entity_count": len(response_entities),
                 "matched_row_count": result["matched_row_count"],
                 "unmatched_row_count": result["unmatched_row_count"],

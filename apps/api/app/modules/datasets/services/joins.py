@@ -34,7 +34,7 @@ JOIN_PERIODS = {
 }
 JOIN_NORMALIZATION_PERIOD = "monthly"
 # Bump when join semantics change so persisted dashboard results are rebuilt.
-JOIN_RESULT_VERSION = 7
+JOIN_RESULT_VERSION = 8
 
 JOIN_AGGREGATIONS = {
     "sum": "sum",
@@ -579,11 +579,39 @@ def build_joined_dataset(
             date_column,
             f"Date column for {dataset.file_name}",
         )
-        columns_to_join = [
-            column
-            for column in dataframe.columns
-            if str(column) != str(date_column)
-        ]
+        requested_metric_columns = selection.get("metric_columns")
+        if requested_metric_columns is None:
+            legacy_metric_column = selection.get("metric_column")
+            requested_metric_columns = (
+                [legacy_metric_column]
+                if legacy_metric_column
+                else None
+            )
+
+        if requested_metric_columns is None:
+            columns_to_join = [
+                column
+                for column in dataframe.columns
+                if str(column) != str(date_column)
+            ]
+        else:
+            if not requested_metric_columns:
+                raise ValueError(
+                    f"Choose at least one metric or column for {dataset.file_name}"
+                )
+            columns_to_join = []
+            for requested_column in requested_metric_columns:
+                resolved_column = resolve_column(
+                    dataframe,
+                    requested_column,
+                    f"Metric or column for {dataset.file_name}",
+                )
+                if str(resolved_column) == str(date_column):
+                    raise ValueError(
+                        f"The join date column cannot also be selected as a metric for {dataset.file_name}"
+                    )
+                if resolved_column not in columns_to_join:
+                    columns_to_join.append(resolved_column)
         if not columns_to_join:
             raise ValueError(
                 f"{dataset.file_name} does not have any columns besides its join date"

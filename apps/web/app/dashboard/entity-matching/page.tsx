@@ -33,6 +33,7 @@ export default function EntityMatchingPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [columnMetadata, setColumnMetadata] = useState<EntityMatchingDatasetMetadata[]>([])
   const [selectedKeyColumns, setSelectedKeyColumns] = useState<Record<string, string[]>>({})
+  const [selectedMetricColumns, setSelectedMetricColumns] = useState<Record<string, string[]>>({})
   const [entityType, setEntityType] = useState<EntityType>("customer")
   const [preview, setPreview] = useState<EntityMatchingPreview | null>(null)
   const [result, setResult] = useState<EntityMatchingRun | null>(null)
@@ -97,6 +98,19 @@ export default function EntityMatchingPage() {
           })
           return next
         })
+        setSelectedMetricColumns(existing => {
+          const next: Record<string, string[]> = {}
+          metadata.datasets.forEach(dataset => {
+            const datasetKey = String(dataset.dataset_id)
+            const existingColumns = existing[datasetKey]?.filter(
+              column => dataset.metric_columns.includes(column)
+            )
+            next[datasetKey] = existingColumns?.length
+              ? existingColumns
+              : dataset.default_metric_columns
+          })
+          return next
+        })
       })
       .catch(metadataError => {
         if (current) {
@@ -144,6 +158,28 @@ export default function EntityMatchingPage() {
         [datasetKey]: next,
       }
     })
+    setSelectedMetricColumns(existing => ({
+      ...existing,
+      [datasetKey]: (existing[datasetKey] ?? []).filter(
+        selected => selected !== column
+      ),
+    }))
+  }
+
+  function toggleMetricColumn(datasetId: number, column: string) {
+    setPreview(null)
+    setResult(null)
+    const datasetKey = String(datasetId)
+    setSelectedMetricColumns(existing => {
+      const current = existing[datasetKey] ?? []
+      const next = current.includes(column)
+        ? current.filter(selected => selected !== column)
+        : [...current, column]
+      return {
+        ...existing,
+        [datasetKey]: next,
+      }
+    })
   }
 
   function getMatchingKeyColumns() {
@@ -161,6 +197,18 @@ export default function EntityMatchingPage() {
     )
   }
 
+  function hasMissingMetricColumns() {
+    return selectedIds.some(datasetId => {
+      const metadata = columnMetadata.find(
+        item => item.dataset_id === datasetId
+      )
+      return Boolean(
+        metadata?.metric_columns.length &&
+        !(selectedMetricColumns[String(datasetId)] ?? []).length
+      )
+    })
+  }
+
   async function handlePreview() {
     if (!user?.id || selectedIds.length < 2) {
       setError("Select at least two datasets to compare.")
@@ -168,6 +216,10 @@ export default function EntityMatchingPage() {
     }
     if (hasMissingKeyColumns()) {
       setError("Choose at least one identity column for each selected dataset.")
+      return
+    }
+    if (hasMissingMetricColumns()) {
+      setError("Choose at least one metric or column for each selected dataset.")
       return
     }
     setBusy(true)
@@ -178,6 +230,7 @@ export default function EntityMatchingPage() {
         dataset_ids: selectedIds,
         entity_type: entityType,
         key_columns: getMatchingKeyColumns(),
+        metric_columns: selectedMetricColumns,
       }, user.id, activeWorkspaceId))
     } catch (previewError) {
       setError(getErrorMessage(previewError, "Unable to preview entity matches."))
@@ -195,6 +248,10 @@ export default function EntityMatchingPage() {
       setError("Choose at least one identity column for each selected dataset.")
       return
     }
+    if (hasMissingMetricColumns()) {
+      setError("Choose at least one metric or column for each selected dataset.")
+      return
+    }
     setBusy(true)
     setError("")
     setStatusMessage("")
@@ -203,6 +260,7 @@ export default function EntityMatchingPage() {
         dataset_ids: selectedIds,
         entity_type: entityType,
         key_columns: getMatchingKeyColumns(),
+        metric_columns: selectedMetricColumns,
         replace_existing: true,
       }, user.id, activeWorkspaceId)
       setResult(saved)
@@ -248,7 +306,7 @@ export default function EntityMatchingPage() {
           <div className="rounded-xl bg-blue-50 p-2 text-blue-700"><UsersRound size={19} /></div>
           <div>
             <h2 className="text-lg font-semibold text-gray-950">Choose source datasets</h2>
-            <p className="mt-1 text-sm text-gray-500">Select 2 to 10 datasets, then confirm the identity columns used for matching. Recommended columns are selected automatically and can be changed.</p>
+            <p className="mt-1 text-sm text-gray-500">Select 2 to 10 datasets, confirm the identity columns used for matching, and choose the metrics or columns to carry into the unified dataset. Recommended columns are selected automatically and can be changed.</p>
           </div>
         </div>
 
@@ -262,6 +320,7 @@ export default function EntityMatchingPage() {
                 setPreview(null)
                 setResult(null)
                 setSelectedKeyColumns({})
+                setSelectedMetricColumns({})
               }}
               className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
@@ -303,6 +362,7 @@ export default function EntityMatchingPage() {
                   item => item.dataset_id === dataset.id
                 )
                 const selectedColumns = selectedKeyColumns[String(dataset.id)] ?? []
+                const selectedMetrics = selectedMetricColumns[String(dataset.id)] ?? []
                 return (
                   <fieldset key={dataset.id} className="rounded-xl border border-gray-200 bg-gray-50 p-3">
                     <legend className="max-w-full px-1 text-sm font-medium text-gray-800">
@@ -334,6 +394,37 @@ export default function EntityMatchingPage() {
                     )}
                     {!selectedColumns.length && metadata && (
                       <p className="mt-2 text-xs text-amber-700">Select at least one column before previewing or saving.</p>
+                    )}
+                    {metadata && (
+                      <div className="mt-3 border-t border-gray-200 pt-3">
+                        <p className="text-xs font-semibold text-gray-700">Metrics or columns to include</p>
+                        <p className="mt-1 text-[11px] text-gray-500">These fields will be carried into the unified dataset. Numeric fields are selected by default.</p>
+                        {metadata.metric_columns.length > 0 ? (
+                          <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+                            <div className="grid gap-1 sm:grid-cols-2">
+                              {metadata.metric_columns
+                                .filter(column => !selectedColumns.includes(column))
+                                .map(column => (
+                                <label key={column} className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedMetrics.includes(column)}
+                                    onChange={() => toggleMetricColumn(dataset.id, column)}
+                                    disabled={!canManageWorkspaceData}
+                                    className="h-3.5 w-3.5 shrink-0 accent-blue-600"
+                                  />
+                                  <span className="min-w-0 truncate" title={column}>{column}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-gray-500">No non-identity columns are available.</p>
+                        )}
+                        {!selectedMetrics.length && metadata.metric_columns.length > 0 && (
+                          <p className="mt-2 text-xs text-amber-700">Select at least one field to include.</p>
+                        )}
+                      </div>
                     )}
                   </fieldset>
                 )

@@ -123,6 +123,19 @@ export function DatasetJoinPanel({
       setSelectedDatasetIds(persistedResult.dataset_ids)
       setConfigurations(current => {
         const next: Record<number, JoinConfiguration> = {}
+        const metricColumnsByDataset = new Map<number, string[]>()
+
+        persistedResult.datasets.forEach(item => {
+          if (!item.metric_column) {
+            return
+          }
+
+          const columns = metricColumnsByDataset.get(item.dataset_id) ?? []
+          if (!columns.includes(item.metric_column)) {
+            columns.push(item.metric_column)
+          }
+          metricColumnsByDataset.set(item.dataset_id, columns)
+        })
 
         persistedResult.datasets.forEach(item => {
           if (next[item.dataset_id]) {
@@ -132,6 +145,7 @@ export function DatasetJoinPanel({
           next[item.dataset_id] = {
             dataset_id: item.dataset_id,
             date_column: item.date_column,
+            metric_columns: metricColumnsByDataset.get(item.dataset_id) ?? [],
           }
         })
 
@@ -180,10 +194,23 @@ export function DatasetJoinPanel({
               )
               ? existing.date_column
               : item.default_date_column ?? ""
+            const defaultMetricColumns = (
+              item.numeric_columns.length > 0
+                ? item.numeric_columns
+                : item.columns
+            ).filter(column => column !== dateColumn)
+            const metricColumns = existing?.metric_columns?.length
+              ? existing.metric_columns.filter(
+                  column =>
+                    item.columns.includes(column) &&
+                    column !== dateColumn
+                )
+              : defaultMetricColumns
 
             next[item.dataset_id] = {
               dataset_id: item.dataset_id,
               date_column: dateColumn,
+              metric_columns: metricColumns,
             }
           })
 
@@ -254,10 +281,41 @@ export function DatasetJoinPanel({
         ...(current[datasetId] ?? {
           dataset_id: datasetId,
           date_column: "",
+          metric_columns: [],
         }),
         [field]: value,
+        ...(field === "date_column"
+          ? {
+              metric_columns: (
+                current[datasetId]?.metric_columns ?? []
+              ).filter(column => column !== value),
+            }
+          : {}),
       },
     }))
+    updateJoinResult(null)
+  }
+
+  function toggleMetricColumn(datasetId: number, column: string) {
+    setConfigurations(current => {
+      const configuration = current[datasetId] ?? {
+        dataset_id: datasetId,
+        date_column: "",
+        metric_columns: [],
+      }
+      const selectedColumns = configuration.metric_columns ?? []
+      const metricColumns = selectedColumns.includes(column)
+        ? selectedColumns.filter(item => item !== column)
+        : [...selectedColumns, column]
+
+      return {
+        ...current,
+        [datasetId]: {
+          ...configuration,
+          metric_columns: metricColumns,
+        },
+      }
+    })
     updateJoinResult(null)
   }
 
@@ -295,6 +353,7 @@ export function DatasetJoinPanel({
         [selectedDatasetId]: current[selectedDatasetId] ?? {
           dataset_id: selectedDatasetId,
           date_column: "",
+          metric_columns: [],
         },
       }
     })
@@ -317,15 +376,17 @@ export function DatasetJoinPanel({
       return
     }
 
-    const hasNonDateColumns = selectedMetadata.every(item => {
-      const dateColumn = configurations[item.dataset_id]?.date_column
-      return item.columns.some(
-        column => column !== dateColumn
-      )
-    })
-    if (!hasNonDateColumns) {
+    if (selectedMetadata.length !== selectedDatasetIds.length) {
+      setError("Wait for the selected dataset columns to finish loading.")
+      return
+    }
+
+    const hasMetricColumns = selectedMetadata.every(item =>
+      Boolean(configurations[item.dataset_id]?.metric_columns?.length)
+    )
+    if (!hasMetricColumns) {
       setError(
-        "Each selected dataset must have at least one column besides its join date."
+        "Select at least one metric or column for each dataset."
       )
       return
     }
@@ -484,7 +545,7 @@ export function DatasetJoinPanel({
             </h2>
           </div>
           <p className="mt-1 text-xs text-gray-500">
-            Normalize every selected date to a month-year period before joining. All non-date columns are included; numeric columns use the selected {aggregationType} aggregation.
+            Normalize every selected date to a month-year period before joining. Choose the metrics or columns to carry forward; numeric columns use the selected {aggregationType} aggregation.
           </p>
         </div>
 
@@ -569,6 +630,32 @@ export function DatasetJoinPanel({
                     ))}
                   </select>
                 </label>
+
+                <div className="min-w-0 text-xs font-medium text-gray-500">
+                  <span className="mb-1 block">Metrics or columns to include</span>
+                  <div className="max-h-28 overflow-y-auto rounded-md border border-gray-200 bg-white p-2">
+                    <div className="grid gap-1 sm:grid-cols-2">
+                      {item.columns
+                        .filter(column => column !== configuration?.date_column)
+                        .map(column => (
+                          <label
+                            key={column}
+                            className="flex min-w-0 items-center gap-2 rounded px-1 py-1 text-[11px] font-normal text-gray-700 hover:bg-gray-50"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={configuration?.metric_columns?.includes(column) ?? false}
+                              onChange={() => toggleMetricColumn(item.dataset_id, column)}
+                              className="h-3.5 w-3.5 shrink-0 accent-blue-600"
+                            />
+                            <span className="min-w-0 truncate" title={column}>
+                              {column}
+                            </span>
+                          </label>
+                        ))}
+                    </div>
+                  </div>
+                </div>
 
               </div>
             )

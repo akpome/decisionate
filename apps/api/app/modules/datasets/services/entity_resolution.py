@@ -289,6 +289,7 @@ def build_unified_entity_dataframe(
     dataset_frames: list[tuple[object, pd.DataFrame]],
     resolution: dict,
     canonical_entity_ids: dict[str, int] | None = None,
+    metric_columns_by_dataset: dict[str, list[str]] | None = None,
 ) -> pd.DataFrame:
     """Build one persistent analytical row for each resolved entity.
 
@@ -303,16 +304,52 @@ def build_unified_entity_dataframe(
     }
     source_columns: list[str] = []
     numeric_series_by_dataset: dict[int, dict[str, pd.Series]] = {}
+    selected_columns_by_dataset: dict[int, list[tuple[object, str]]] = {}
 
     for dataset, dataframe in dataset_frames:
-        for column in dataframe.columns:
-            column_name = str(column)
+        dataset_key = str(dataset.id)
+        requested_columns = (
+            metric_columns_by_dataset[dataset_key]
+            if metric_columns_by_dataset is not None
+            and dataset_key in metric_columns_by_dataset
+            else None
+        )
+        column_lookup = {
+            str(column): column
+            for column in dataframe.columns
+        }
+        if requested_columns is None:
+            selected_columns = [
+                (column, str(column))
+                for column, _series in get_numeric_columns(dataframe)
+                if not is_identifier_column(column)
+            ]
+        else:
+            selected_columns = []
+            for requested in requested_columns:
+                actual = column_lookup.get(str(requested))
+                if actual is None:
+                    continue
+                if all(
+                    str(actual) != selected_name
+                    for _selected, selected_name in selected_columns
+                ):
+                    selected_columns.append((actual, str(actual)))
+
+        selected_columns_by_dataset[int(dataset.id)] = selected_columns
+        for _column, column_name in selected_columns:
             if column_name not in source_columns:
                 source_columns.append(column_name)
 
         numeric_series: dict[str, pd.Series] = {}
-        for column, series in get_numeric_columns(dataframe):
-            column_name = str(column)
+        numeric_columns = {
+            str(column): series
+            for column, series in get_numeric_columns(dataframe)
+        }
+        for _column, column_name in selected_columns:
+            series = numeric_columns.get(column_name)
+            if series is None:
+                continue
             if is_identifier_column(column_name):
                 continue
             numeric_series[column_name] = coerce_numeric_series(series)
@@ -379,8 +416,10 @@ def build_unified_entity_dataframe(
 
             row = dataframe.iloc[row_number]
             numeric_series = numeric_series_by_dataset.get(dataset_id, {})
-            for column in dataframe.columns:
-                column_name = str(column)
+            for column, column_name in selected_columns_by_dataset.get(
+                dataset_id,
+                [],
+            ):
                 output_column = source_column_aliases[column_name]
                 if column_name in numeric_series:
                     value = numeric_series[column_name].iloc[row_number]
