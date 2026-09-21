@@ -933,6 +933,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "objects to ingest.": "objets à ingérer.",
   "Save the client store URL first, then use Connect with OAuth to authorize that WooCommerce store.": "Enregistrez d'abord l'URL de la boutique cliente, puis utilisez Connecter avec OAuth pour autoriser cette boutique WooCommerce.",
   "Save the connection fields first, then use Connect with OAuth to authorize the provider account.": "Enregistrez d'abord les champs de connexion, puis utilisez Connecter avec OAuth pour autoriser le compte du fournisseur.",
+  "Save the connection settings before selecting objects to ingest.": "Enregistrez les paramètres de connexion avant de sélectionner les objets à ingérer.",
   "Insights setup": "Configuration des analyses",
   "Choose the dataset to analyze for generated patterns, anomalies, and recommendations.": "Choisissez le jeu de données à analyser pour les tendances, anomalies et recommandations générées.",
   "Refreshing insights...": "Actualisation des analyses...",

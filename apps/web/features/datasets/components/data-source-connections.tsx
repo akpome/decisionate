@@ -502,29 +502,6 @@ function DataSourceConnectionRow({
         source?.connection_type !== "oauth" &&
         source?.connection_type !== "api_key"
     )
-  const usesVisibilityToggle =
-    VISIBILITY_TOGGLE_SOURCE_TYPES.has(
-      connection.source_type
-    )
-  const inlineConnectionConfigKeys =
-    usesVisibilityToggle
-      ? editableConfigKeys.filter(
-          (configKey) => configKey !== "resource_types"
-        )
-      : []
-  const showInlineConnectionSettings =
-    inlineConnectionConfigKeys.length > 0 &&
-    (!hasResourceSelection || !isOAuthAuthorized)
-  const showResourceSelection =
-    hasResourceSelection &&
-    resourceOptions.length > 0 &&
-    isOAuthAuthorized
-  const hasEditedInlineConnectionConfig =
-    inlineConnectionConfigKeys.some((configKey) =>
-      Boolean(
-        editingConnectionConfig[configKey]?.trim()
-      )
-    )
   const requiredConnectionConfigKeys =
     Array.from(
       new Set([
@@ -563,6 +540,32 @@ function DataSourceConnectionRow({
             )
         )
       : false)
+  const connectionReadyForResourceSelection =
+    isOAuthConnector
+      ? isOAuthAuthorized
+      : hasRequiredConnectionSettings
+  const inlineConnectionConfigKeys =
+    editableConfigKeys.filter(
+      (configKey) => configKey !== "resource_types"
+    )
+  const showInlineConnectionSettings =
+    inlineConnectionConfigKeys.length > 0 &&
+    (!hasResourceSelection ||
+      !connectionReadyForResourceSelection)
+  const showConnectionSettingsCard =
+    showInlineConnectionSettings ||
+    (hasResourceSelection &&
+      !connectionReadyForResourceSelection)
+  const showResourceSelection =
+    hasResourceSelection &&
+    resourceOptions.length > 0 &&
+    connectionReadyForResourceSelection
+  const hasEditedInlineConnectionConfig =
+    inlineConnectionConfigKeys.some((configKey) =>
+      Boolean(
+        editingConnectionConfig[configKey]?.trim()
+      )
+    )
   const configuredGoogleAdsAccountId =
     connection.configured_customer_id ?? ""
   const canSyncConnector =
@@ -1222,80 +1225,95 @@ function DataSourceConnectionRow({
         </div>
       )}
 
-      {showInlineConnectionSettings && (
+      {showConnectionSettingsCard && (
           <div
             id={`connection-settings-${connection.id}`}
             className="h-full min-w-0 lg:col-start-2 lg:row-start-2"
           >
             <div className="h-full rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
-              <ConnectionConfigFieldGroup
-                title="Connection settings"
-                configKeys={inlineConnectionConfigKeys}
-                sourceType={connection.source_type}
-                editingConnectionConfig={
-                  editingConnectionConfig
-                }
-                hasSavedConfig={
-                  connection.has_config
-                }
-                setEditingConnectionConfig={
-                  setEditingConnectionConfig
-                }
-                secret={connection.source_type === "stripe"}
-                secretKeys={
-                  connection.source_type === "woocommerce"
-                    ? ["consumer_key", "consumer_secret"]
-                    : []
-                }
-              />
-
-              {connection.source_type === "meta_ads" && (
-                <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
-                  A Meta Ads account ID is required to create a usable connection and sync data.
-                </p>
-              )}
-
-              {connection.source_type === "google_ads" && (
-                <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
-                  Enter and save the Google Ads customer ID before connecting with OAuth or ingesting data.
-                </p>
-              )}
-
-              <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
-                Save the required setting before data can be ingested. Without it, this connection will ingest no data.
-              </p>
-
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => saveConfiguration(connection)}
-                  disabled={
-                    updatingConnectionId ===
-                      connection.id ||
-                      !hasEditedInlineConnectionConfig
-                  }
-                  className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                >
-                  {updatingConnectionId ===
-                  connection.id
-                    ? "Saving..."
-                    : "Save settings"}
-                </button>
-
-                {connection.has_config && (
-                  <button
-                    type="button"
-                    onClick={() => clearConfiguration(connection)}
-                    disabled={
-                      updatingConnectionId ===
-                      connection.id
+              {inlineConnectionConfigKeys.length > 0 ? (
+                <>
+                  <ConnectionConfigFieldGroup
+                    title="Connection settings"
+                    configKeys={inlineConnectionConfigKeys}
+                    sourceType={connection.source_type}
+                    editingConnectionConfig={
+                      editingConnectionConfig
                     }
-                    className="w-full rounded-lg border border-red-100 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                  >
-                    Clear saved settings
-                  </button>
-                )}
-              </div>
+                    hasSavedConfig={
+                      connection.has_config
+                    }
+                    setEditingConnectionConfig={
+                      setEditingConnectionConfig
+                    }
+                    secret={connection.source_type === "stripe"}
+                    secretKeys={
+                      connection.source_type === "woocommerce"
+                        ? ["consumer_key", "consumer_secret"]
+                        : []
+                    }
+                  />
+
+                  {connection.source_type === "meta_ads" && (
+                    <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
+                      A Meta Ads account ID is required to create a usable connection and sync data.
+                    </p>
+                  )}
+
+                  {connection.source_type === "google_ads" && (
+                    <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
+                      Enter and save the Google Ads customer ID before connecting with OAuth or ingesting data.
+                    </p>
+                  )}
+
+                  <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
+                    Save the required setting before data can be ingested. Without it, this connection will ingest no data.
+                  </p>
+
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => saveConfiguration(connection)}
+                      disabled={
+                        updatingConnectionId ===
+                          connection.id ||
+                          !hasEditedInlineConnectionConfig
+                      }
+                      className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                    >
+                      {updatingConnectionId ===
+                      connection.id
+                        ? "Saving..."
+                        : "Save settings"}
+                    </button>
+
+                    {connection.has_config && (
+                      <button
+                        type="button"
+                        onClick={() => clearConfiguration(connection)}
+                        disabled={
+                          updatingConnectionId ===
+                          connection.id
+                        }
+                        className="w-full rounded-lg border border-red-100 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                      >
+                        Clear saved settings
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
+                    {t("Connection settings")}
+                  </p>
+                  <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
+                    {isOAuthConnector
+                      ? `${t("Use Connect with OAuth to authorize the provider account, then select the")} ${source?.label ?? "provider"} ${t("objects to ingest.")}`
+                      : t("Save the connection settings before selecting objects to ingest.")}
+                  </p>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1303,7 +1321,7 @@ function DataSourceConnectionRow({
       {showResourceSelection && (
           <div
             className={`h-full min-w-0 lg:col-start-2 ${
-              showInlineConnectionSettings
+              showConnectionSettingsCard
                 ? "lg:row-start-3"
                 : "lg:row-start-2"
             }`}
