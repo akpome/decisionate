@@ -582,6 +582,18 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             ),
             "Enter and save the Lightspeed X-Series domain prefix before connecting with OAuth",
         )
+        self.assertIsNone(
+            get_oauth_config_requirement_error(
+                "lightspeed_x",
+                {"domain_prefix": "demo-store"},
+            )
+        )
+        self.assertIsNone(
+            get_oauth_config_requirement_error(
+                "hubspot",
+                {},
+            )
+        )
 
     def test_woocommerce_store_url_must_be_https_before_oauth(self):
         source = get_dataset_source("woocommerce")

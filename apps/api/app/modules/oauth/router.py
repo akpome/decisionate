@@ -146,7 +146,12 @@ def get_oauth_config_requirement_error(
         source,
         connection_config,
     )
-    if not missing_config_keys:
+    missing_connection_settings = [
+        key
+        for key in missing_config_keys
+        if key != "resource_types"
+    ]
+    if not missing_connection_settings:
         return None
 
     field_labels = {
@@ -163,13 +168,27 @@ def get_oauth_config_requirement_error(
     }
     missing_labels = [
         field_labels.get(key, key)
-        for key in missing_config_keys
+        for key in missing_connection_settings
     ]
     return (
         "Enter and save "
         + ", ".join(missing_labels)
         + " before connecting with OAuth"
     )
+
+
+DEFAULT_OAUTH_RESOURCE_TYPES = {
+    "hubspot": "deals",
+    "salesforce": "opportunities",
+    "lightspeed_x": "sales",
+    "lightspeed_k": "sales,products",
+    "lightspeed_o": "sales,customers,products",
+    "freshbooks": "invoices",
+    "quickbooks": "invoices",
+    "xero": "invoices",
+    "zoho_books": "invoices",
+    "sage": "sales_invoices",
+}
 
 
 def get_salesforce_instance_url(payload: dict) -> str:
@@ -429,6 +448,20 @@ def process_oauth_callback(request: Request):
                 normalize_lightspeed_x_domain_prefix(
                     callback_domain_prefix
                 )
+            )
+        default_resource_types = DEFAULT_OAUTH_RESOURCE_TYPES.get(
+            state_source_type
+        )
+        if (
+            default_resource_types
+            and not connection_config.get("resource_types")
+        ):
+            connection_config["resource_types"] = (
+                default_resource_types
+            )
+            connection.connection_config = json.dumps(
+                connection_config,
+                sort_keys=True,
             )
         code_verifier = decrypt_token(state.code_verifier)
         payload = exchange_code(

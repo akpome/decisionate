@@ -457,6 +457,11 @@ function DataSourceConnectionRow({
     source?.status === "planned"
   const hasResourceSelection =
     hasResourceTypeSelection(source)
+  const isOAuthConnector =
+    source?.connection_type === "oauth"
+  const isOAuthAuthorized =
+    !isOAuthConnector ||
+    connection.status === "connected"
   const resourceOptions =
     getResourceSelectionOptions(
       connection.source_type
@@ -507,6 +512,13 @@ function DataSourceConnectionRow({
           (configKey) => configKey !== "resource_types"
         )
       : []
+  const showInlineConnectionSettings =
+    inlineConnectionConfigKeys.length > 0 &&
+    (!hasResourceSelection || !isOAuthAuthorized)
+  const showResourceSelection =
+    hasResourceSelection &&
+    resourceOptions.length > 0 &&
+    isOAuthAuthorized
   const hasEditedInlineConnectionConfig =
     inlineConnectionConfigKeys.some((configKey) =>
       Boolean(
@@ -523,12 +535,28 @@ function DataSourceConnectionRow({
         ...(connection.required_config_keys ?? []),
       ])
     )
+  const requiredConnectionSettingKeys =
+    requiredConnectionConfigKeys.filter(
+      (configKey) => configKey !== "resource_types"
+    )
   const hasRequiredConnectionConfig =
     requiredConnectionConfigKeys.length === 0 ||
     (Array.isArray(
       connection.configured_config_keys
     )
       ? requiredConnectionConfigKeys.every(
+          (configKey) =>
+            connection.configured_config_keys?.includes(
+              configKey
+            )
+        )
+      : false)
+  const hasRequiredConnectionSettings =
+    requiredConnectionSettingKeys.length === 0 ||
+    (Array.isArray(
+      connection.configured_config_keys
+    )
+      ? requiredConnectionSettingKeys.every(
           (configKey) =>
             connection.configured_config_keys?.includes(
               configKey
@@ -577,7 +605,7 @@ function DataSourceConnectionRow({
     source?.connection_type === "oauth" &&
     source.status === "available" &&
     connection.status !== "connected" &&
-    hasRequiredConnectionConfig &&
+    hasRequiredConnectionSettings &&
     Boolean(onStartOAuthConnection)
   const canCancelOAuth =
     source?.connection_type === "oauth" &&
@@ -794,7 +822,7 @@ function DataSourceConnectionRow({
           )}
 
         {requiredConnectionConfigKeys.length > 0 &&
-          !hasRequiredConnectionConfig &&
+          !hasRequiredConnectionSettings &&
           connection.source_type !== "stripe" && (
             <p className="mt-1 break-words text-xs text-amber-700">
               {connection.source_type === "google_ads"
@@ -1194,7 +1222,7 @@ function DataSourceConnectionRow({
         </div>
       )}
 
-      {inlineConnectionConfigKeys.length > 0 && (
+      {showInlineConnectionSettings && (
           <div
             id={`connection-settings-${connection.id}`}
             className="h-full min-w-0 lg:col-start-2 lg:row-start-2"
@@ -1272,11 +1300,10 @@ function DataSourceConnectionRow({
           </div>
         )}
 
-      {hasResourceSelection &&
-        resourceOptions.length > 0 && (
+      {showResourceSelection && (
           <div
             className={`h-full min-w-0 lg:col-start-2 ${
-              inlineConnectionConfigKeys.length > 0
+              showInlineConnectionSettings
                 ? "lg:row-start-3"
                 : "lg:row-start-2"
             }`}
@@ -1335,6 +1362,8 @@ const VISIBILITY_TOGGLE_SOURCE_TYPES = new Set([
   "square",
   "woocommerce",
   "lightspeed_x",
+  "lightspeed_k",
+  "lightspeed_o",
 ])
 
 const FRESHBOOKS_RESOURCE_OPTIONS = [
