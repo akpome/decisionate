@@ -24,11 +24,14 @@ _IDENTIFIER_COLUMN_WORDS = {
     "id",
     "key",
     "code",
+    "number",
+    "no",
+    "version",
 }
 
 
 def is_identifier_column(column) -> bool:
-    """Return whether a column name represents an identifier, key, or code."""
+    """Return whether a column name represents an identifier-like field."""
     spaced_name = re.sub(
         r"([a-z0-9])([A-Z])",
         r"\1 \2",

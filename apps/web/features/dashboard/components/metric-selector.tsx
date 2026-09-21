@@ -30,7 +30,10 @@ function isIdentifierMetricColumn(
   return words.some(word =>
     word.toLowerCase() === "id" ||
     word.toLowerCase() === "key" ||
-    word.toLowerCase() === "code"
+    word.toLowerCase() === "code" ||
+    word.toLowerCase() === "number" ||
+    word.toLowerCase() === "no" ||
+    word.toLowerCase() === "version"
   )
 }
 

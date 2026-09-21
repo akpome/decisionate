@@ -118,6 +118,10 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             "api_key": [201, 202],
             "product_code": [301, 302],
             "RevenueCode": [401, 402],
+            "order_number": [501, 502],
+            "invoice_no": [601, 602],
+            "customerNumber": [701, 702],
+            "api_version": [801, 802],
             "revenue": [100, 125],
         })
 
