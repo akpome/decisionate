@@ -1274,7 +1274,13 @@ function DataSourceConnectionRow({
 
       {hasResourceSelection &&
         resourceOptions.length > 0 && (
-          <div className="h-full min-w-0 lg:col-start-2 lg:row-start-2">
+          <div
+            className={`h-full min-w-0 lg:col-start-2 ${
+              inlineConnectionConfigKeys.length > 0
+                ? "lg:row-start-3"
+                : "lg:row-start-2"
+            }`}
+          >
             <ConnectionResourceSelector
               key={`${connection.id}-${configuredResourceKey}`}
               sourceType={connection.source_type}
