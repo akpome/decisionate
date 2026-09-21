@@ -1570,12 +1570,18 @@ def build_source_connection_response(
         configured_resource_types = normalize_salesforce_resource_types(
             parsed_config
         )
-    elif source_type == "lightspeed_x" and has_source_connection_config(
-        connection.connection_config
+    elif (
+        source_type == "lightspeed_x"
+        and parsed_config.get("resource_types")
     ):
-        configured_resource_types = normalize_lightspeed_x_resource_types(
-            parsed_config
-        )
+        try:
+            configured_resource_types = normalize_lightspeed_x_resource_types(
+                parsed_config
+            )
+        except ConnectorUnavailable:
+            # An incomplete or stale saved config should be reported through
+            # missing configuration fields, not fail the connection response.
+            configured_resource_types = []
     has_config = has_source_connection_config(
         connection.connection_config
     )
@@ -4308,6 +4314,7 @@ async def update_source_connection(
                 payload.connection_config,
             )
             next_config = parse_schedule_config(sanitized_config)
+            is_partial_config_update = payload.connection_config != {}
             for config_key, config_value in existing_config.items():
                 if (
                     str(config_key).startswith("_")
@@ -4357,6 +4364,14 @@ async def update_source_connection(
                 if (
                     connection.source_type == "lightspeed_x"
                     and config_key == "domain_prefix"
+                    and is_partial_config_update
+                    and config_key not in next_config
+                ):
+                    next_config[config_key] = config_value
+                if (
+                    connection.source_type == "lightspeed_x"
+                    and config_key == "resource_types"
+                    and is_partial_config_update
                     and config_key not in next_config
                 ):
                     next_config[config_key] = config_value
@@ -4370,6 +4385,12 @@ async def update_source_connection(
                     and config_key not in next_config
                 ):
                     next_config[config_key] = config_value
+            if (
+                connection.source_type == "lightspeed_x"
+                and is_partial_config_update
+                and "resource_types" not in next_config
+            ):
+                next_config["resource_types"] = "sales"
             if (
                 connection.source_type == "stripe"
                 and "api_key" not in next_config

@@ -1910,6 +1910,31 @@ class DatasetSharingTests(unittest.TestCase):
                 },
             )
 
+    def test_lightspeed_x_incomplete_config_does_not_break_response(self):
+        connection = SimpleNamespace(
+            id=3,
+            user_id="user-1",
+            workspace_id="workspace-1",
+            source_type="lightspeed_x",
+            display_name="Demo store",
+            status="draft",
+            connection_config='{"domain_prefix": "demo-store"}',
+            last_synced_at=None,
+            created_at="today",
+            updated_at="today",
+        )
+
+        response = build_source_connection_response(connection)
+
+        self.assertEqual(
+            response["configured_resource_types"],
+            [],
+        )
+        self.assertEqual(
+            response["missing_config_keys"],
+            ["resource_types"],
+        )
+
     def test_sanitize_source_connection_config_keeps_provider_credential_fields(self):
         source = get_dataset_source(
             "shopify",
