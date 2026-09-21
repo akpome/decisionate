@@ -31,6 +31,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import { useLandingText } from "@/app/use-decisionate-language"
 
 const demoSteps = [
   {
@@ -151,6 +152,7 @@ const monitoringData = [
 export function LandingProductDemo() {
   const [step, setStep] = useState(0)
   const [playing, setPlaying] = useState(true)
+  const { t } = useLandingText()
   const currentStep = demoSteps[step]
   const StepIcon = currentStep.icon
 
@@ -182,14 +184,14 @@ export function LandingProductDemo() {
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
           </div>
           <span className="ml-2 text-xs font-semibold text-slate-400">
-            Decisionate / Product demo
+            {t("Decisionate")} / {t("Product demo")}
           </span>
         </div>
         <button
           type="button"
           onClick={() => setPlaying(current => !current)}
-          title={playing ? "Pause demo" : "Play demo"}
-          aria-label={playing ? "Pause demo" : "Play demo"}
+          title={playing ? t("Pause demo") : t("Play demo")}
+          aria-label={playing ? t("Pause demo") : t("Play demo")}
           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
         >
           {playing ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
@@ -199,7 +201,7 @@ export function LandingProductDemo() {
       <div className="grid min-h-[31rem] lg:grid-cols-[13rem_minmax(0,1fr)]">
         <aside className="border-b border-slate-800 bg-slate-900/70 p-4 lg:border-b-0 lg:border-r">
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
-            Decisionate workflow
+            {t("Decisionate workflow")}
           </p>
           <div className="mt-5 space-y-2">
             {demoSteps.map((item, index) => {
@@ -212,7 +214,7 @@ export function LandingProductDemo() {
                   key={item.label}
                   type="button"
                   onClick={() => goToStep(index)}
-                  title={`Show ${item.label.toLowerCase()} step`}
+                  title={`${t("Show")} ${t(item.label).toLowerCase()} ${t("step")}`}
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
                     active
                       ? "bg-cyan-400 text-slate-950"
@@ -224,7 +226,7 @@ export function LandingProductDemo() {
                   ) : (
                     <Icon size={15} aria-hidden="true" />
                   )}
-                  {item.label}
+                    {t(item.label)}
                 </button>
               )
             })}
@@ -235,13 +237,13 @@ export function LandingProductDemo() {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
-                Step {step + 1} of {demoSteps.length} · {currentStep.label}
+                {t("Step")} {step + 1} {t("of")} {demoSteps.length} · {t(currentStep.label)}
               </p>
               <h3 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
                 {currentStep.title}
               </h3>
               <p className="mt-1 max-w-xl text-xs leading-5 text-slate-500 sm:text-sm">
-                {currentStep.description}
+                {t(currentStep.description)}
               </p>
             </div>
             <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white sm:flex">
@@ -252,18 +254,18 @@ export function LandingProductDemo() {
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5">
               <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-600">
-                Do this
+                {t("Do this")}
               </p>
               <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-800">
-                {currentStep.action}
+                {t(currentStep.action)}
               </p>
             </div>
             <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2.5">
               <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-600">
-                Get this
+                {t("Get this")}
               </p>
               <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-800">
-                {currentStep.result}
+                {t(currentStep.result)}
               </p>
             </div>
           </div>
@@ -274,37 +276,37 @@ export function LandingProductDemo() {
                 <div>
                   <p className="text-xs font-semibold text-slate-900">
                     {currentStep.view === "connect"
-                      ? "Connected sources"
+                      ? t("Connected sources")
                       : currentStep.view === "mapping"
-                        ? "Metric mapping"
+                        ? t("Metric mapping")
                         : currentStep.view === "relationship"
-                          ? "Relationship analysis"
+                          ? t("Relationship analysis")
                           : currentStep.view === "monitoring"
-                            ? "Alert monitor"
+                            ? t("Alert monitor")
                             : currentStep.view === "decision"
-                          ? "New decision"
+                          ? t("New decision")
                           : currentStep.view === "learning"
-                            ? "Outcome review"
+                            ? t("Outcome review")
                             : currentStep.view === "forecast"
-                              ? "Forecast evidence"
-                              : "Business performance"}
+                              ? t("Forecast evidence")
+                              : t("Business performance")}
                   </p>
                   <p className="mt-0.5 text-[10px] text-slate-400">
                     {currentStep.view === "connect"
-                      ? "Ready for analysis"
+                      ? t("Ready for analysis")
                       : currentStep.view === "mapping"
-                        ? "Use the columns that answer the question"
+                        ? t("Use the columns that answer the question")
                         : currentStep.view === "relationship"
-                          ? "Observed association, not proven causation"
+                          ? t("Observed association, not proven causation")
                           : currentStep.view === "monitoring"
-                            ? "Signals checked against recent patterns"
+                            ? t("Signals checked against recent patterns")
                             : currentStep.view === "decision"
-                          ? "Recommendation converted to action"
+                          ? t("Recommendation converted to action")
                           : currentStep.view === "learning"
-                            ? "Evidence returned to the decision loop"
+                            ? t("Evidence returned to the decision loop")
                             : currentStep.view === "forecast"
-                              ? "Historical actuals compared with the forecast"
-                              : "Last 7 periods"}
+                              ? t("Historical actuals compared with the forecast")
+                              : t("Last 7 periods")}
                   </p>
                 </div>
                 <Gauge size={15} className="text-blue-600" aria-hidden="true" />
@@ -314,11 +316,11 @@ export function LandingProductDemo() {
                 <div className="mt-2 flex items-center gap-3 text-[9px] font-semibold text-slate-500">
                   <span className="inline-flex items-center gap-1">
                     <span className="h-2 w-2 rounded-sm bg-blue-600" aria-hidden="true" />
-                    Actual
+                    {t("Actual")}
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <span className="h-2 w-2 rounded-sm bg-cyan-500" aria-hidden="true" />
-                    Forecast
+                    {t("Forecast")}
                   </span>
                 </div>
               )}
@@ -330,8 +332,8 @@ export function LandingProductDemo() {
                       <div key={source} className="flex flex-col justify-between rounded-md border border-slate-200 bg-slate-50 p-2">
                         <Database size={15} className="text-blue-600" aria-hidden="true" />
                         <div>
-                          <p className="text-[10px] font-bold text-slate-900">{source}</p>
-                          <p className="mt-1 text-[9px] text-emerald-600">{index === 2 ? "Mapped" : "Connected"}</p>
+                          <p className="text-[10px] font-bold text-slate-900">{t(source)}</p>
+                          <p className="mt-1 text-[9px] text-emerald-600">{t(index === 2 ? "Mapped" : "Connected")}</p>
                         </div>
                       </div>
                     ))}
@@ -344,31 +346,31 @@ export function LandingProductDemo() {
                       ["Date", "event_date", "Detected"],
                     ].map(([label, column, status]) => (
                       <div key={label} className="grid grid-cols-[5.2rem_minmax(0,1fr)_3.5rem] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
-                        <span className="text-[10px] font-bold text-slate-700">{label}</span>
+                        <span className="text-[10px] font-bold text-slate-700">{t(label)}</span>
                         <span className="truncate rounded border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-500">{column}</span>
-                        <span className="text-right text-[9px] font-bold text-emerald-600">{status}</span>
+                        <span className="text-right text-[9px] font-bold text-emerald-600">{t(status)}</span>
                       </div>
                     ))}
                     <div className="flex items-center justify-between rounded-md bg-blue-50 px-2 py-2 text-[10px] font-semibold text-blue-700">
-                      <span>Aggregation</span>
-                      <span>Monthly sum</span>
+                      <span>{t("Aggregation")}</span>
+                      <span>{t("Monthly sum")}</span>
                     </div>
                   </div>
                 ) : currentStep.view === "relationship" ? (
                   <div className="space-y-2 pt-1">
                     <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
-                      <span className="text-[10px] font-bold text-slate-700">Meta Ads · Ad spend</span>
-                      <span className="rounded bg-blue-100 px-2 py-1 text-[9px] font-bold text-blue-700">Input</span>
+                      <span className="text-[10px] font-bold text-slate-700">{t("Meta Ads · Ad spend")}</span>
+                      <span className="rounded bg-blue-100 px-2 py-1 text-[9px] font-bold text-blue-700">{t("Input")}</span>
                     </div>
                     <div className="flex justify-center text-slate-400" aria-hidden="true">
                       <ArrowRight size={14} />
                     </div>
                     <div className="flex items-center justify-between rounded-md border border-emerald-200 bg-emerald-50 px-2 py-2">
-                      <span className="text-[10px] font-bold text-slate-700">Revenue · Monthly sum</span>
-                      <span className="rounded bg-emerald-100 px-2 py-1 text-[9px] font-bold text-emerald-700">Outcome</span>
+                      <span className="text-[10px] font-bold text-slate-700">{t("Revenue · Monthly sum")}</span>
+                      <span className="rounded bg-emerald-100 px-2 py-1 text-[9px] font-bold text-emerald-700">{t("Outcome")}</span>
                     </div>
                     <div className="rounded-md bg-slate-950 px-2 py-2 text-[10px] font-semibold text-white">
-                      Best observed delay: <span className="text-cyan-300">about 1 month</span>
+                      {t("Best observed delay")}: <span className="text-cyan-300">{t("about 1 month")}</span>
                     </div>
                   </div>
                 ) : currentStep.view === "monitoring" ? (
@@ -386,8 +388,8 @@ export function LandingProductDemo() {
                       </ResponsiveContainer>
                     </div>
                     <div className="flex items-center justify-between rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-[10px]">
-                      <span className="font-bold text-amber-800">Unusual increase detected</span>
-                      <span className="font-semibold text-amber-700">24% above range</span>
+                      <span className="font-bold text-amber-800">{t("Unusual increase detected")}</span>
+                      <span className="font-semibold text-amber-700">{t("24% above range")}</span>
                     </div>
                   </div>
                 ) : currentStep.view === "decision" ? (
@@ -398,8 +400,8 @@ export function LandingProductDemo() {
                       ["Review date", "Jul 31, 2026"],
                     ].map(([label, value]) => (
                       <div key={label}>
-                        <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
-                        <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-[10px] font-semibold text-slate-700">{value}</div>
+                        <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">{t(label)}</p>
+                        <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-[10px] font-semibold text-slate-700">{t(value)}</div>
                       </div>
                     ))}
                   </div>
@@ -407,17 +409,17 @@ export function LandingProductDemo() {
                   <div className="space-y-2 pt-1">
                     <div className="grid grid-cols-2 gap-2">
                       <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                        <p className="text-[9px] uppercase tracking-wide text-slate-400">Expected</p>
+                        <p className="text-[9px] uppercase tracking-wide text-slate-400">{t("Expected")}</p>
                         <p className="mt-1 text-sm font-bold text-slate-800">+12%</p>
                       </div>
                       <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2">
-                        <p className="text-[9px] uppercase tracking-wide text-emerald-600">Actual</p>
+                        <p className="text-[9px] uppercase tracking-wide text-emerald-600">{t("Actual")}</p>
                         <p className="mt-1 text-sm font-bold text-emerald-700">+16%</p>
                       </div>
                     </div>
                     <div className="rounded-md border border-slate-200 bg-white px-2 py-2">
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Lesson learned</p>
-                      <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-700">Repeat the tested offer with the strongest channel mix.</p>
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{t("Lesson learned")}</p>
+                      <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-700">{t("Repeat the tested offer with the strongest channel mix.")}</p>
                     </div>
                   </div>
                 ) : currentStep.view === "forecast" ? (
@@ -458,36 +460,36 @@ export function LandingProductDemo() {
             <div className="rounded-lg bg-slate-950 p-3 text-white">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-300">
                 {currentStep.view === "monitoring"
-                  ? "Alert signal"
+                  ? t("Alert signal")
                   : currentStep.view === "forecast"
-                    ? "AI recommendation"
+                    ? t("AI recommendation")
                     : currentStep.view === "decision"
-                      ? "Decision record"
+                      ? t("Decision record")
                       : currentStep.view === "learning"
-                        ? "Learning evidence"
+                        ? t("Learning evidence")
                         : currentStep.view === "relationship"
-                          ? "Relationship context"
-                          : "Dashboard signal"}
+                          ? t("Relationship context")
+                          : t("Dashboard signal")}
               </p>
               <p className="mt-4 text-sm font-semibold leading-5">
                 {currentStep.view === "monitoring"
-                  ? "Revenue is outside its recent expected range."
+                  ? t("Revenue is outside its recent expected range.")
                   : currentStep.view === "forecast"
-                    ? "Protect the improving trend with a focused next action."
+                    ? t("Protect the improving trend with a focused next action.")
                     : currentStep.view === "decision"
-                      ? "Increase campaign focus for the next review period."
+                      ? t("Increase campaign focus for the next review period.")
                       : currentStep.view === "learning"
-                        ? "Outcome recorded. Lesson added to future context."
+                        ? t("Outcome recorded. Lesson added to future context.")
                         : currentStep.view === "relationship"
-                          ? "Ad spend and revenue move together with a one-month observed delay."
-                          : "Revenue is moving above its recent baseline."}
+                          ? t("Ad spend and revenue move together with a one-month observed delay.")
+                          : t("Revenue is moving above its recent baseline.")}
               </p>
               <div className="mt-4 border-t border-slate-800 pt-3">
                 <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                  Example
+                  {t("Example")}
                 </p>
                 <p className="mt-1 text-[10px] leading-4 text-slate-300">
-                  {currentStep.example}
+                  {t(currentStep.example)}
                 </p>
               </div>
               <button
@@ -495,21 +497,21 @@ export function LandingProductDemo() {
                 onClick={() => goToStep(step + 1)}
                 className="mt-4 inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-300 hover:text-cyan-200"
               >
-                {step === demoSteps.length - 1 ? "Start again" : "Next step"}
+                {step === demoSteps.length - 1 ? t("Start again") : t("Next step")}
                 <ArrowRight size={13} aria-hidden="true" />
               </button>
             </div>
           </div>
 
           <div className="mt-4 flex items-center justify-between gap-3">
-            <div className="flex gap-1.5" aria-label="Demo progress">
+            <div className="flex gap-1.5" aria-label={t("Demo progress")}>
               {demoSteps.map((item, index) => (
                 <button
                   key={item.label}
                   type="button"
                   onClick={() => goToStep(index)}
-                  title={`Jump to ${item.label.toLowerCase()}`}
-                  aria-label={`Jump to ${item.label.toLowerCase()}`}
+                  title={`${t("Jump to")} ${t(item.label).toLowerCase()}`}
+                  aria-label={`${t("Jump to")} ${t(item.label).toLowerCase()}`}
                   className={`h-1.5 rounded-full transition-all ${index === step ? "w-8 bg-blue-600" : "w-2 bg-slate-300"}`}
                 />
               ))}
@@ -518,8 +520,8 @@ export function LandingProductDemo() {
               <button
                 type="button"
                 onClick={() => setStep(0)}
-                title="Restart demo"
-                aria-label="Restart demo"
+                title={t("Restart demo")}
+                aria-label={t("Restart demo")}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
               >
                 <RotateCcw size={14} aria-hidden="true" />
@@ -527,8 +529,8 @@ export function LandingProductDemo() {
               <button
                 type="button"
                 onClick={() => setPlaying(current => !current)}
-                title={playing ? "Pause demo" : "Play demo"}
-                aria-label={playing ? "Pause demo" : "Play demo"}
+                title={playing ? t("Pause demo") : t("Play demo")}
+                aria-label={playing ? t("Pause demo") : t("Play demo")}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-slate-950 text-white hover:bg-slate-800"
               >
                 {playing ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}

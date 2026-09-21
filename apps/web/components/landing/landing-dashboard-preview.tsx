@@ -20,6 +20,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import { useLandingText } from "@/app/use-decisionate-language"
 
 type PreviewView = "business" | "marketing"
 type PreviewPoint = {
@@ -50,6 +51,7 @@ const previewData: Record<PreviewView, PreviewPoint[]> = {
 
 export function LandingDashboardPreview() {
   const [view, setView] = useState<PreviewView>("business")
+  const { t } = useLandingText()
   const data = previewData[view]
 
   return (
@@ -64,12 +66,12 @@ export function LandingDashboardPreview() {
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
             </div>
             <span className="ml-2 text-xs font-semibold text-slate-500">
-              Decisionate / Dashboard
+              {t("Decisionate")} / {t("Dashboard")}
             </span>
           </div>
           <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Live decision signal
+            {t("Live decision signal")}
           </div>
         </div>
 
@@ -77,13 +79,13 @@ export function LandingDashboardPreview() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
-                Decision intelligence
+                {t("Decision intelligence")}
               </p>
               <h2 className="mt-1 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
-                General Business Overview
+                {t("General Business Overview")}
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                Evidence for your next operating decision.
+                {t("Evidence for your next operating decision.")}
               </p>
             </div>
             <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white p-1 text-[11px] font-semibold">
@@ -92,14 +94,14 @@ export function LandingDashboardPreview() {
                   key={option}
                   type="button"
                   onClick={() => setView(option)}
-                  title={`Show ${option} preview`}
+                  title={`${t("Show")} ${t(option)} ${t("preview")}`}
                   className={`rounded px-2 py-1.5 capitalize transition ${
                     view === option
                       ? "bg-slate-950 text-white"
                       : "text-slate-500 hover:text-slate-950"
                   }`}
                 >
-                  {option}
+                  {t(option)}
                 </button>
               ))}
             </div>
@@ -112,9 +114,9 @@ export function LandingDashboardPreview() {
               ["Learning", "82%", "outcomes captured"],
             ].map(([label, value, change]) => (
               <div key={label} className="rounded-lg border border-slate-200 bg-white p-3">
-                <p className="text-[10px] font-medium text-slate-500">{label}</p>
+                <p className="text-[10px] font-medium text-slate-500">{t(label)}</p>
                 <p className="mt-1 text-sm font-bold text-slate-950 sm:text-base">{value}</p>
-                <p className="mt-1 text-[10px] font-semibold text-emerald-600">{change}</p>
+                <p className="mt-1 text-[10px] font-semibold text-emerald-600">{t(change)}</p>
               </div>
             ))}
           </div>
@@ -123,8 +125,8 @@ export function LandingDashboardPreview() {
             <div className="rounded-lg border border-slate-200 bg-white p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-slate-900">Revenue trend</p>
-                  <p className="mt-0.5 text-[10px] text-slate-400">Monthly performance</p>
+                  <p className="text-xs font-semibold text-slate-900">{t("Revenue trend")}</p>
+                  <p className="mt-0.5 text-[10px] text-slate-400">{t("Monthly performance")}</p>
                 </div>
                 <BarChart3 size={15} className="text-blue-600" aria-hidden="true" />
               </div>
@@ -144,16 +146,16 @@ export function LandingDashboardPreview() {
             <div className="rounded-lg border border-slate-200 bg-slate-950 p-3 text-white">
               <div className="flex items-center gap-2 text-cyan-300">
                 <Sparkles size={15} aria-hidden="true" />
-                <p className="text-xs font-semibold">AI recommendation</p>
+                <p className="text-xs font-semibold">{t("AI recommendation")}</p>
               </div>
               <p className="mt-4 text-sm font-semibold leading-5">
-                Protect the improving trend with a focused next action.
+                {t("Protect the improving trend with a focused next action.")}
               </p>
               <p className="mt-2 text-[10px] leading-4 text-slate-400">
-                Based on trend, target progress and prior outcomes.
+                {t("Based on trend, target progress and prior outcomes.")}
               </p>
               <div className="mt-4 flex items-center gap-1 text-[10px] font-semibold text-cyan-300">
-                Review recommendation
+                {t("Review recommendation")}
                 <ArrowUpRight size={13} aria-hidden="true" />
               </div>
             </div>
@@ -162,10 +164,10 @@ export function LandingDashboardPreview() {
           <div className="mt-3 flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <Activity size={15} className="text-amber-600" aria-hidden="true" />
-              <p className="text-xs font-semibold text-amber-900">3 decisions need an outcome review</p>
+              <p className="text-xs font-semibold text-amber-900">{t("3 decisions need an outcome review")}</p>
             </div>
             <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-              Decision queue
+              {t("Decision queue")}
               <ChevronDown size={13} aria-hidden="true" />
             </div>
           </div>
@@ -173,7 +175,7 @@ export function LandingDashboardPreview() {
       </div>
       <div className="absolute -bottom-4 -left-4 hidden items-center gap-2 rounded-lg border border-white/20 bg-slate-900 px-3 py-2 text-[10px] font-semibold text-white shadow-xl sm:flex">
         <CheckCircle2 size={14} className="text-emerald-400" aria-hidden="true" />
-        Outcome tracking included
+        {t("Outcome tracking included")}
       </div>
     </div>
   )

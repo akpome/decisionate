@@ -1,3 +1,5 @@
+"use client"
+
 import Link from "next/link"
 import {
   Activity,
@@ -24,6 +26,7 @@ import {
   integrations,
   workflowSteps,
 } from "@/components/landing/landing-content"
+import { useLandingText } from "@/app/use-decisionate-language"
 
 function SectionIntro({
   eyebrow,
@@ -36,27 +39,31 @@ function SectionIntro({
   description: string
   align?: "center" | "left"
 }) {
+  const { t } = useLandingText()
+
   return (
     <div className={`${align === "center" ? "mx-auto text-center" : ""} max-w-2xl`}>
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
-        {eyebrow}
+        {t(eyebrow)}
       </p>
       <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-        {title}
+        {t(title)}
       </h2>
       <p className="mt-4 text-base leading-7 text-slate-600">
-        {description}
+        {t(description)}
       </p>
     </div>
   )
 }
 
 export function TrustedBySection() {
+  const { t } = useLandingText()
+
   return (
     <section className="border-b border-slate-200 bg-white py-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 sm:px-8 md:flex-row md:items-center md:justify-between">
         <p className="text-sm font-semibold text-slate-500">
-          Built for growing businesses, agencies and agency client teams
+          {t("Built for growing businesses, agencies and agency client teams")}
         </p>
         <div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-wide text-slate-400">
           {[
@@ -66,7 +73,7 @@ export function TrustedBySection() {
             "Evidence-led decisions",
           ].map(item => (
             <span key={item} className="border-l border-slate-300 pl-3 first:border-l-0 first:pl-0">
-              {item}
+              {t(item)}
             </span>
           ))}
         </div>
@@ -76,6 +83,8 @@ export function TrustedBySection() {
 }
 
 export function ProductWorkflowSection() {
+  const { t } = useLandingText()
+
   return (
     <section id="product" className="bg-white py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
@@ -92,8 +101,8 @@ export function ProductWorkflowSection() {
               <div className="relative mx-auto flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-slate-950 text-xs font-bold text-white shadow-sm">
                 {step.number}
               </div>
-              <h3 className="mt-4 text-sm font-bold text-slate-950">{step.label}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-500">{step.description}</p>
+              <h3 className="mt-4 text-sm font-bold text-slate-950">{t(step.label)}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-500">{t(step.description)}</p>
             </div>
           ))}
         </div>
@@ -110,8 +119,8 @@ export function ProductWorkflowSection() {
                 {index === 0 ? <Database size={17} /> : index === 1 ? <BarChart3 size={17} /> : index === 2 ? <Sparkles size={17} /> : <Target size={17} />}
               </span>
               <div>
-                <p className="text-sm font-bold text-slate-900">{title}</p>
-                <p className="text-xs text-slate-500">{label}</p>
+                <p className="text-sm font-bold text-slate-900">{t(title)}</p>
+                <p className="text-xs text-slate-500">{t(label)}</p>
               </div>
               {index < 3 && <span className="ml-auto hidden text-slate-300 lg:block">-&gt;</span>}
             </div>
@@ -123,6 +132,8 @@ export function ProductWorkflowSection() {
 }
 
 export function IndustryDashboardsSection() {
+  const { t } = useLandingText()
+
   return (
     <section id="industries" className="border-y border-slate-200 bg-slate-50 py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
@@ -137,7 +148,7 @@ export function IndustryDashboardsSection() {
             <Link
               key={dashboard.name}
               href="/demo"
-              title={`Open the live demo for the ${dashboard.name} dashboard`}
+              title={`${t("Open live demo")}: ${t(dashboard.name)}`}
               className="group overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg"
             >
               <div className="h-28 border-b border-slate-100 bg-slate-50 p-4">
@@ -153,11 +164,11 @@ export function IndustryDashboardsSection() {
               </div>
               <div className="p-5">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-bold text-slate-950">{dashboard.name}</h3>
+                  <h3 className="font-bold text-slate-950">{t(dashboard.name)}</h3>
                   <span className="text-slate-300 transition group-hover:text-blue-600">-&gt;</span>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">{dashboard.description}</p>
-                <span className="mt-4 inline-block text-xs font-bold uppercase tracking-wide text-blue-600">Open live demo</span>
+                <p className="mt-2 text-sm leading-6 text-slate-500">{t(dashboard.description)}</p>
+                <span className="mt-4 inline-block text-xs font-bold uppercase tracking-wide text-blue-600">{t("Open live demo")}</span>
               </div>
             </Link>
           ))}
@@ -177,6 +188,8 @@ const featureIcons = {
 } as const
 
 export function FeaturesSection() {
+  const { t } = useLandingText()
+
   return (
     <section id="solutions" className="bg-white py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
@@ -192,11 +205,11 @@ export function FeaturesSection() {
 
             return (
               <article key={feature.title} className="rounded-lg border border-slate-200 bg-white p-5 transition hover:border-blue-200 hover:shadow-md">
-                <span title={feature.title} className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <span title={t(feature.title)} className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                   <Icon size={19} aria-hidden="true" />
                 </span>
-                <h3 className="mt-5 text-base font-bold text-slate-950">{feature.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-500">{feature.description}</p>
+                <h3 className="mt-5 text-base font-bold text-slate-950">{t(feature.title)}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">{t(feature.description)}</p>
               </article>
             )
           })}
@@ -207,18 +220,20 @@ export function FeaturesSection() {
 }
 
 export function AIDecisionEngineSection() {
+  const { t } = useLandingText()
+
   return (
     <section className="bg-slate-950 py-20 text-white sm:py-24">
       <div className="mx-auto grid max-w-7xl gap-12 px-5 sm:px-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">The AI decision engine</p>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Charts are the beginning, not the destination.</h2>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">{t("The AI decision engine")}</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">{t("Charts are the beginning, not the destination.")}</h2>
           <p className="mt-5 text-base leading-7 text-slate-300">
-            Decisionate helps teams move from a business signal to a recommendation, then keeps the outcome and lesson attached to the original decision.
+            {t("Decisionate helps teams move from a business signal to a recommendation, then keeps the outcome and lesson attached to the original decision.")}
           </p>
           <div className="mt-7 flex items-center gap-3 text-sm font-semibold text-cyan-300">
             <BrainCircuit size={18} aria-hidden="true" />
-            Human judgment, strengthened by evidence
+            {t("Human judgment, strengthened by evidence")}
           </div>
         </div>
 
@@ -237,7 +252,7 @@ export function AIDecisionEngineSection() {
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-cyan-300 sm:mx-auto">
                   <FeatureIcon size={20} aria-hidden="true" />
                 </div>
-                <p className="text-sm font-bold text-white sm:mt-3">{label as string}</p>
+                <p className="text-sm font-bold text-white sm:mt-3">{t(label as string)}</p>
                 {index < 4 && <span className="ml-auto text-slate-600 sm:hidden">-&gt;</span>}
                 <span
                   className={`mx-auto mt-4 hidden text-slate-600 sm:block ${index === 4 ? "invisible" : ""}`}
@@ -255,6 +270,8 @@ export function AIDecisionEngineSection() {
 }
 
 export function DecisionLifecycleSection() {
+  const { t } = useLandingText()
+
   return (
     <section className="border-b border-slate-200 bg-white py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
@@ -281,8 +298,8 @@ export function DecisionLifecycleSection() {
                 <div key={title as string} className="flex items-start gap-3 rounded-lg border border-slate-200 p-4">
                   <LifecycleIcon size={18} className="mt-0.5 text-blue-600" aria-hidden="true" />
                   <div>
-                    <p className="text-sm font-bold text-slate-950">{title as string}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{description as string}</p>
+                    <p className="text-sm font-bold text-slate-950">{t(title as string)}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{t(description as string)}</p>
                   </div>
                 </div>
               )
@@ -299,6 +316,8 @@ function LightbulbIcon(props: { size?: number; className?: string; "aria-hidden"
 }
 
 export function IntegrationsSection() {
+  const { t } = useLandingText()
+
   return (
     <section id="resources" className="border-b border-slate-200 bg-slate-50 py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
@@ -319,7 +338,7 @@ export function IntegrationsSection() {
                   <p className="text-sm font-bold text-slate-900">{integration.name}</p>
                 </div>
                 <p className={`mt-4 text-[10px] font-bold uppercase tracking-wide ${available ? "text-emerald-600" : "text-slate-400"}`}>
-                  {integration.status}
+                  {t(integration.status)}
                 </p>
               </div>
             )
@@ -331,6 +350,8 @@ export function IntegrationsSection() {
 }
 
 export function BenefitsSection() {
+  const { t } = useLandingText()
+
   return (
     <section className="bg-white py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
@@ -345,8 +366,8 @@ export function BenefitsSection() {
             <div key={benefit.title} className="flex gap-4 border-t border-slate-200 pt-4">
               <span className="text-sm font-bold text-blue-600">0{index + 1}</span>
               <div>
-                <h3 className="text-base font-bold text-slate-950">{benefit.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-500">{benefit.description}</p>
+                <h3 className="text-base font-bold text-slate-950">{t(benefit.title)}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">{t(benefit.description)}</p>
               </div>
             </div>
           ))}
@@ -357,6 +378,8 @@ export function BenefitsSection() {
 }
 
 export function PricingSection() {
+  const { t } = useLandingText()
+
   const plans = [
     {
       name: "Free",
@@ -423,27 +446,27 @@ export function PricingSection() {
         <div className="mx-auto mt-12 grid max-w-7xl gap-4 md:grid-cols-2 xl:grid-cols-3">
           {plans.map(plan => (
             <article key={plan.name} className={`relative flex h-full flex-col rounded-lg border p-6 ${plan.featured ? "border-blue-600 bg-slate-950 text-white shadow-xl" : "border-slate-200 bg-white"}`}>
-              {plan.featured && <span className="absolute right-5 top-5 rounded-full bg-cyan-300 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-950">Most popular</span>}
-              <h3 className="text-lg font-bold">{plan.name}</h3>
+              {plan.featured && <span className="absolute right-5 top-5 rounded-full bg-cyan-300 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-950">{t("Most popular")}</span>}
+              <h3 className="text-lg font-bold">{t(plan.name)}</h3>
               <div className="mt-5 flex items-end gap-2">
                 <span className="text-4xl font-bold tracking-tight">{plan.price}</span>
-                <span className={`pb-1 text-sm ${plan.featured ? "text-slate-300" : "text-slate-500"}`}>{plan.priceDetail}</span>
+                <span className={`pb-1 text-sm ${plan.featured ? "text-slate-300" : "text-slate-500"}`}>{t(plan.priceDetail)}</span>
               </div>
               <p className={`mt-2 text-xs ${plan.featured ? "text-slate-300" : "text-slate-500"}`}>
-                Annual billing: {plan.annualPrice ?? "$0/year"}
+                {t("Annual billing")}: {t(plan.annualPrice ?? "$0/year")}
               </p>
-              <p className={`mt-2 min-h-12 text-sm leading-6 ${plan.featured ? "text-slate-300" : "text-slate-500"}`}>{plan.description}</p>
+              <p className={`mt-2 min-h-12 text-sm leading-6 ${plan.featured ? "text-slate-300" : "text-slate-500"}`}>{t(plan.description)}</p>
               <ul className="mt-6 space-y-3">
                 {plan.items.map(item => (
                   <li key={item} className={`flex gap-2 text-sm ${plan.featured ? "text-slate-200" : "text-slate-600"}`}>
                     <Check size={16} className={plan.featured ? "text-cyan-300" : "text-blue-600"} aria-hidden="true" />
-                    {item}
+                    {t(item)}
                   </li>
                 ))}
               </ul>
               <div className="mt-auto flex justify-center pt-4">
                 <a href={plan.href} className={`h-8 w-full max-w-[13rem] inline-flex items-center justify-center rounded-lg px-3 py-1 text-xs font-bold ${plan.featured ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200" : "border border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
-                  {plan.action}
+                  {t(plan.action)}
                 </a>
               </div>
             </article>
@@ -452,14 +475,14 @@ export function PricingSection() {
 
         <div className="mt-10 overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="min-w-[40rem] w-full text-left text-sm">
-            <caption className="sr-only">Decisionate pricing and AI credit allocation</caption>
+            <caption className="sr-only">{t("Decisionate pricing and AI credit allocation")}</caption>
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-3 font-bold">Plan</th>
-                <th className="px-4 py-3 text-right font-bold">Price (CAD)</th>
-                <th className="px-4 py-3 text-right font-bold">Annual (CAD)</th>
-                <th className="px-4 py-3 text-right font-bold">Client workspaces</th>
-                <th className="px-4 py-3 text-right font-bold">AI credits (monthly / annual)</th>
+                <th className="px-4 py-3 font-bold">{t("Plan")}</th>
+                <th className="px-4 py-3 text-right font-bold">{t("Price (CAD)")}</th>
+                <th className="px-4 py-3 text-right font-bold">{t("Annual (CAD)")}</th>
+                <th className="px-4 py-3 text-right font-bold">{t("Client workspaces")}</th>
+                <th className="px-4 py-3 text-right font-bold">{t("AI credits (monthly / annual)")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -470,7 +493,7 @@ export function PricingSection() {
                 ["Additional client workspace", "+$20 CAD", "+$200 CAD", "+1", "2,500 / 30,000"],
               ].map(([name, price, annual, workspaces, credits]) => (
                 <tr key={name}>
-                  <th className="px-4 py-3 font-semibold text-slate-900">{name}</th>
+                  <th className="px-4 py-3 font-semibold text-slate-900">{t(name)}</th>
                   <td className="px-4 py-3 text-right text-slate-700">{price}</td>
                   <td className="px-4 py-3 text-right text-slate-700">{annual}</td>
                   <td className="px-4 py-3 text-right text-slate-700">{workspaces}</td>
@@ -483,10 +506,10 @@ export function PricingSection() {
 
         <div className="mx-auto mt-6 grid max-w-4xl gap-3 text-center text-sm text-slate-600 sm:grid-cols-2">
           <p className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            Need more capacity? Add client workspaces for $20 CAD/month each or $200 CAD/year each. Each additional client workspace includes 2,500 AI credits/month or 30,000/year.
+            {t("Need more capacity? Add client workspaces for $20 CAD/month each or $200 CAD/year each. Each additional client workspace includes 2,500 AI credits/month or 30,000/year.")}
           </p>
           <p className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            Additional AI credit packs are available when your usage grows.
+            {t("Additional AI credit packs are available when your usage grows.")}
           </p>
         </div>
       </div>
@@ -495,6 +518,8 @@ export function PricingSection() {
 }
 
 export function FAQSection() {
+  const { t } = useLandingText()
+
   return (
     <section className="bg-white py-20 sm:py-24">
       <div className="mx-auto max-w-3xl px-5 sm:px-8">
@@ -508,11 +533,11 @@ export function FAQSection() {
           {faqs.map(faq => (
             <details key={faq.question} className="group py-5">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-base font-bold text-slate-950 marker:hidden">
-                {faq.question}
+                {t(faq.question)}
                 <span className="text-xl font-normal text-slate-400 transition group-open:rotate-45">+</span>
               </summary>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-                {faq.answer}
+                {t(faq.answer)}
                 {"link" in faq && (
                   <>
                     {" "}
@@ -520,7 +545,7 @@ export function FAQSection() {
                       href={faq.link.href}
                       className="font-semibold text-blue-600 underline decoration-blue-200 underline-offset-4 hover:text-blue-700"
                     >
-                      {faq.link.label}
+                      {t(faq.link.label)}
                     </Link>
                     .
                   </>
@@ -535,14 +560,16 @@ export function FAQSection() {
 }
 
 export function FinalCTASection() {
+  const { t } = useLandingText()
+
   return (
     <section id="company" className="bg-blue-600 py-16 text-white sm:py-20">
       <div className="mx-auto flex max-w-4xl flex-col items-center px-5 text-center sm:px-8">
         <Scale size={26} className="text-cyan-200" aria-hidden="true" />
-        <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-5xl">Ready to make better decisions?</h2>
-        <p className="mt-4 max-w-xl text-base leading-7 text-blue-100">Start with your data, create your first decision and build the habit of learning from what happens next.</p>
+        <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-5xl">{t("Ready to make better decisions?")}</h2>
+        <p className="mt-4 max-w-xl text-base leading-7 text-blue-100">{t("Start with your data, create your first decision and build the habit of learning from what happens next.")}</p>
         <Link href="/demo" className="mt-8 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-50">
-          Open Live Demo
+          {t("Open Live Demo")}
           <TrendingUp size={16} aria-hidden="true" />
         </Link>
       </div>
