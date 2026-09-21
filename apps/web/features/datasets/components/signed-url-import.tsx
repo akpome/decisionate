@@ -9,6 +9,7 @@ import {
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 type SignedUrlImportProps = {
   onImportSuccess: () => void
@@ -17,6 +18,7 @@ type SignedUrlImportProps = {
 export function SignedUrlImport({
   onImportSuccess,
 }: SignedUrlImportProps) {
+  const { t } = useDecisionateText()
   const { user } = useUser()
   const { activeWorkspaceId } =
     useActiveWorkspace(user?.id)
@@ -32,12 +34,12 @@ export function SignedUrlImport({
     event.preventDefault()
 
     if (!user?.id) {
-      setErrorMessage("Sign in before importing a cloud file.")
+      setErrorMessage(t("Sign in before importing a cloud file."))
       return
     }
 
     if (!url.trim()) {
-      setErrorMessage("Paste a signed file URL first.")
+      setErrorMessage(t("Paste a signed file URL first."))
       return
     }
 
@@ -59,13 +61,13 @@ export function SignedUrlImport({
         )
       setUrl("")
       setFileName("")
-      setNotice(`Imported ${result.file_name}.`)
+      setNotice(`${t("Imported")} ${result.file_name}.`)
       await onImportSuccess()
     } catch (error) {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Cloud file import failed."
+          : t("Cloud file import failed.")
       )
     } finally {
       setLoading(false)
@@ -76,10 +78,10 @@ export function SignedUrlImport({
     <div className="mt-6 border-t border-gray-200 pt-6">
       <div>
         <h3 className="text-base font-semibold">
-          Import from Google Drive or OneDrive
+          {t("Import from Google Drive or OneDrive")}
         </h3>
         <p className="mt-1 text-sm text-gray-500">
-          Paste a signed download URL for a CSV, JSON, Excel, or Parquet file.
+          {t("Paste a signed download URL for a CSV, JSON, Excel, or Parquet file.")}
         </p>
       </div>
 
@@ -88,7 +90,7 @@ export function SignedUrlImport({
         className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px_auto] sm:items-end"
       >
         <label className="min-w-0 text-sm font-medium text-gray-700">
-          Signed file URL
+          {t("Signed file URL")}
           <input
             type="url"
             value={url}
@@ -99,7 +101,7 @@ export function SignedUrlImport({
         </label>
 
         <label className="min-w-0 text-sm font-medium text-gray-700">
-          File name (optional)
+          {t("File name (optional)")}
           <input
             type="text"
             value={fileName}
@@ -114,7 +116,7 @@ export function SignedUrlImport({
           disabled={loading}
           className="h-10 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Importing..." : "Import file"}
+          {loading ? t("Importing...") : t("Import file")}
         </button>
       </form>
 

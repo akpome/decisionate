@@ -25,6 +25,7 @@ import {
 import {
   WorkspaceAccessNotice,
 } from "@/features/dashboard/components/workspace-access-notice"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 function getErrorMessage(
   error: unknown,
@@ -37,6 +38,7 @@ function getErrorMessage(
 }
 
 export default function DatasetsPage() {
+  const { t } = useDecisionateText()
   const [datasets, setDatasets] =
     useState<DatasetSummary[]>([])
   const [sources, setSources] =
@@ -231,10 +233,10 @@ export default function DatasetsPage() {
         title="Datasets"
         description={
           loadingWorkspaceAccess
-            ? "Loading workspace data access..."
+            ? t("Loading workspace data access...")
             : canConfigureWorkspace
-              ? "Upload and manage datasets used for dashboards, insights, forecasts, and decisions."
-              : "Review datasets shared by the workspace team for dashboards, insights, forecasts, and decisions."
+              ? t("Upload and manage datasets used for dashboards, insights, forecasts, and decisions.")
+              : t("Review datasets shared by the workspace team for dashboards, insights, forecasts, and decisions.")
         }
       />
 
@@ -282,7 +284,7 @@ export default function DatasetsPage() {
           }
           className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
         >
-          Retry data services
+          {t("Retry data services")}
         </button>
       )}
 
@@ -290,7 +292,7 @@ export default function DatasetsPage() {
         <>
           <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
             <p className="mb-6 text-sm text-gray-500">
-              Upload CSV, Excel, JSON or Parquet files directly into the workspace.
+              {t("Upload CSV, Excel, JSON or Parquet files directly into the workspace.")}
             </p>
 
             <CsvUpload
@@ -315,7 +317,7 @@ export default function DatasetsPage() {
 
       <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
         <h2 className="mb-4 text-xl font-semibold">
-          Saved Datasets
+          {t("Saved Datasets")}
         </h2>
 
         {loadingDatasets ? (
@@ -323,7 +325,7 @@ export default function DatasetsPage() {
             role="status"
             className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500"
           >
-            Loading datasets...
+            {t("Loading datasets...")}
           </div>
         ) : (
           <DatasetList

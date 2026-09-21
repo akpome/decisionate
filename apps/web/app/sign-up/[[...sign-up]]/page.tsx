@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { AuthCard } from "@/app/auth-card"
 import { ThemeToggle } from "@/app/theme-toggle"
 import { LanguageToggle } from "@/app/language-toggle"
+import { AuthPageCopy } from "@/app/auth-page-copy"
 
 export default function SignUpPage() {
   return (
@@ -41,13 +42,10 @@ function AuthShell({
             Decisionate
           </Link>
 
-          <h1 className="mt-5 text-3xl font-bold tracking-tight text-gray-950 sm:text-5xl">
-            {title}
-          </h1>
-
-          <p className="mt-4 text-lg leading-8 text-gray-600">
-            {description}
-          </p>
+          <AuthPageCopy
+            title={title}
+            description={description}
+          />
         </section>
 
         <section

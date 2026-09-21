@@ -2,6 +2,7 @@
 
 import { AlertTriangle, RefreshCw } from "lucide-react"
 import Link from "next/link"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 type RuntimeErrorStateProps = {
   title: string
@@ -22,6 +23,8 @@ export function RuntimeErrorState({
   reset,
   mainClassName = "flex min-h-[60vh] items-center justify-center px-4 py-12",
 }: RuntimeErrorStateProps) {
+  const { t } = useDecisionateText()
+
   return (
     <main className={mainClassName}>
       <section
@@ -32,12 +35,12 @@ export function RuntimeErrorState({
           <AlertTriangle size={24} />
         </div>
 
-        <h1 className="mt-4 text-xl font-semibold text-gray-950">{title}</h1>
+        <h1 className="mt-4 text-xl font-semibold text-gray-950">{t(title)}</h1>
 
-        <p className="mt-2 text-sm leading-6 text-gray-500">{description}</p>
+        <p className="mt-2 text-sm leading-6 text-gray-500">{t(description)}</p>
 
         {errorDigest && (
-          <p className="mt-3 text-xs text-gray-400">Reference: {errorDigest}</p>
+          <p className="mt-3 text-xs text-gray-400">{t("Reference")}: {errorDigest}</p>
         )}
 
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
@@ -47,14 +50,14 @@ export function RuntimeErrorState({
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
           >
             <RefreshCw size={16} />
-            Try again
+            {t("Try again")}
           </button>
 
           <Link
             href={homeHref}
             className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
           >
-            {homeLabel}
+            {t(homeLabel)}
           </Link>
         </div>
       </section>

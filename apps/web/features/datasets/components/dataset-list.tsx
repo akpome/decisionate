@@ -22,6 +22,7 @@ import {
     formatSourceValue,
     getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 interface DatasetListProps {
   datasets: Dataset[]
@@ -50,6 +51,8 @@ export function DatasetList({
     loadError = false,
 }: DatasetListProps) {
 
+    const { t } = useDecisionateText()
+
     const { user } = useUser()
     const { activeWorkspaceId } =
         useActiveWorkspace(user?.id)
@@ -67,14 +70,14 @@ export function DatasetList({
     ) {
         if (!user?.id) {
             setErrorMessage(
-                "Sign in before deleting a dataset."
+                t("Sign in before deleting a dataset.")
             )
             return
         }
 
         const confirmed =
             window.confirm(
-                "Delete this dataset?"
+                t("Delete this dataset?")
             )
 
         if (!confirmed) return
@@ -96,7 +99,7 @@ export function DatasetList({
                 error instanceof Error &&
                     error.message
                     ? error.message
-                    : "Failed to delete dataset"
+                    : t("Failed to delete dataset")
             )
             console.error(
                 "Failed to delete dataset",
@@ -111,10 +114,10 @@ export function DatasetList({
         return (
             <div className={`rounded-lg border border-dashed p-6 text-sm ${loadError ? "border-red-200 bg-red-50 text-red-700" : "bg-gray-50 text-gray-500"}`}>
                 {loadError
-                    ? "The saved dataset list is unavailable. Retry the data services above."
+                    ? t("The saved dataset list is unavailable. Retry the data services above.")
                     : canManage
-                        ? "No saved datasets yet. Upload a file above or pull from a configured connection so dashboards, forecasts, reports, alerts, and decisions can use real metrics."
-                        : "No datasets have been shared with this workspace yet. Ask the workspace team to share one so dashboards, forecasts, reports, alerts, and decisions can use real metrics."}
+                        ? t("No saved datasets yet. Upload a file above or pull from a configured connection so dashboards, forecasts, reports, alerts, and decisions can use real metrics.")
+                        : t("No datasets have been shared with this workspace yet. Ask the workspace team to share one so dashboards, forecasts, reports, alerts, and decisions can use real metrics.")}
             </div>
         )
     }
@@ -157,19 +160,19 @@ export function DatasetList({
             <div className="grid gap-3 md:grid-cols-3">
                 <DatasetStat
                     icon={Database}
-                    label="Datasets"
+                    label={t("Datasets")}
                     value={datasets.length}
                 />
                 <DatasetStat
                     icon={Table2}
-                    label="Rows"
+                    label={t("Rows")}
                     value={totalRows}
                 />
                 <DatasetStat
                     icon={FileText}
-                    label="Columns"
+                    label={t("Columns")}
                     value={totalColumns}
-                    detail={`${sourceCount} source ${sourceCount === 1 ? "type" : "types"}`}
+                    detail={`${sourceCount} ${t(sourceCount === 1 ? "source type" : "source types")}`}
                 />
             </div>
 
@@ -239,6 +242,7 @@ function DatasetListItem({
     canDelete: boolean
     onDelete: (datasetId: number) => void
 }) {
+    const { t } = useDecisionateText()
     const sourceDetails =
         getDatasetSourceDetails(
             dataset.source_type,
@@ -268,14 +272,14 @@ function DatasetListItem({
 
                         <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
                             <span>
-                                {dataset.row_count.toLocaleString()} rows
+                                {dataset.row_count.toLocaleString()} {t("rows")}
                             </span>
                             <span>
-                                {dataset.column_count.toLocaleString()} columns
+                                {dataset.column_count.toLocaleString()} {t("columns")}
                             </span>
                             {createdAt && (
                                 <span>
-                                    Added {createdAt}
+                                    {t("Added")} {createdAt}
                                 </span>
                             )}
                         </div>
@@ -288,7 +292,7 @@ function DatasetListItem({
                     </span>
                     {sourceDetails.storedFileFormat && (
                         <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-                            Stored as {formatSourceValue(sourceDetails.storedFileFormat)}
+                            {t("Stored as")} {formatSourceValue(sourceDetails.storedFileFormat)}
                         </span>
                     )}
 
@@ -296,7 +300,7 @@ function DatasetListItem({
 
                 {sourceDetails.originalFileName && (
                     <div className="mt-2 break-all text-xs text-gray-400">
-                        Original file:{" "}
+                        {t("Original file:")} {" "}
                         {sourceDetails.originalFileName}
                     </div>
                 )}
@@ -309,7 +313,7 @@ function DatasetListItem({
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
                 >
                     <ExternalLink size={15} />
-                    View
+                    {t("View")}
                 </Link>
 
                 {canDelete && (
@@ -325,13 +329,13 @@ function DatasetListItem({
                             dataset.id
                         }
                         className="inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                        title="Delete dataset"
+                        title={t("Delete dataset")}
                     >
                         <Trash2 size={15} />
                         {deletingDatasetId ===
                         dataset.id
-                            ? "Deleting"
-                            : "Delete"}
+                            ? t("Deleting")
+                            : t("Delete")}
                     </button>
                 )}
             </div>

@@ -10,6 +10,8 @@ import {
 import Link from "next/link"
 import { useState } from "react"
 
+import { useDecisionateText } from "@/app/use-decisionate-language"
+
 type ClerkAuthCardProps = {
   mode: "sign-in" | "sign-up"
   redirectUrl?: string
@@ -26,6 +28,8 @@ export function ClerkAuthCard({
   mode,
   redirectUrl,
 }: ClerkAuthCardProps) {
+  const { t } = useDecisionateText()
+
   if (mode === "sign-up") {
     return <SignUpWithConsent />
   }
@@ -38,7 +42,7 @@ export function ClerkAuthCard({
           aria-live="polite"
           className="min-h-24 rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600 shadow-sm"
         >
-          Loading sign in...
+          {t("Loading sign in...")}
         </div>
       </ClerkLoading>
       <ClerkLoaded>
@@ -63,6 +67,7 @@ export function ClerkAuthCard({
 }
 
 function SignUpWithConsent() {
+  const { t } = useDecisionateText()
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
   const canContinue = termsAccepted && privacyAccepted
@@ -77,10 +82,10 @@ function SignUpWithConsent() {
           id="sign-up-consent-title"
           className="text-lg font-semibold text-gray-950"
         >
-          Before you create your account
+          {t("Before you create your account")}
         </h2>
         <p className="mt-2 text-sm leading-6 text-gray-600">
-          Please review and accept both documents to continue to sign up.
+          {t("Please review and accept both documents to continue to sign up.")}
         </p>
 
         <div className="mt-5 space-y-4">
@@ -92,14 +97,14 @@ function SignUpWithConsent() {
               className="mt-1 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
             />
             <span>
-              I have read and agree to the{" "}
+              {t("I have read and agree to the")} {" "}
               <Link
                 href="/terms"
                 target="_blank"
                 rel="noreferrer"
                 className="font-semibold text-[var(--decisionate-brand-primary-text)] underline underline-offset-2"
               >
-                Terms of Service
+                {t("Terms of Service")}
               </Link>
               .
             </span>
@@ -113,14 +118,14 @@ function SignUpWithConsent() {
               className="mt-1 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
             />
             <span>
-              I have read and acknowledge the{" "}
+              {t("I have read and acknowledge the")} {" "}
               <Link
                 href="/privacy"
                 target="_blank"
                 rel="noreferrer"
                 className="font-semibold text-[var(--decisionate-brand-primary-text)] underline underline-offset-2"
               >
-                Privacy Policy
+                {t("Privacy Policy")}
               </Link>
               .
             </span>
@@ -128,7 +133,7 @@ function SignUpWithConsent() {
         </div>
 
         <p className="mt-5 text-xs leading-5 text-gray-500">
-          You can continue after both acknowledgements are selected.
+          {t("You can continue after both acknowledgements are selected.")}
         </p>
       </section>
     )
@@ -137,7 +142,7 @@ function SignUpWithConsent() {
   return (
     <div className="decisionate-auth-card w-full min-w-0 max-w-md overflow-hidden">
       <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-        Terms of Service and Privacy Policy acknowledged.
+        {t("Terms of Service and Privacy Policy acknowledged.")}
       </div>
       <ClerkLoading>
         <div
@@ -145,7 +150,7 @@ function SignUpWithConsent() {
           aria-live="polite"
           className="min-h-24 rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600 shadow-sm"
         >
-          Loading sign up...
+          {t("Loading sign up...")}
         </div>
       </ClerkLoading>
       <ClerkLoaded>
@@ -164,23 +169,25 @@ function SignUpWithConsent() {
 }
 
 function ClerkFailureState() {
+  const { t } = useDecisionateText()
+
   return (
     <div
       role="alert"
       className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-900 shadow-sm"
     >
       <p className="font-semibold">
-        Sign-in service could not be loaded.
+        {t("Sign-in service could not be loaded.")}
       </p>
       <p className="mt-2 leading-6">
-        Check the connection and try again.
+        {t("Check the connection and try again.")}
       </p>
       <button
         type="button"
         onClick={() => window.location.reload()}
         className="mt-4 rounded-lg bg-rose-700 px-4 py-2 font-semibold text-white hover:bg-rose-800"
       >
-        Try again
+        {t("Try again")}
       </button>
     </div>
   )

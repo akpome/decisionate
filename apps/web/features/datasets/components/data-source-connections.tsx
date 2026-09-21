@@ -14,6 +14,7 @@ import {
   type DataSourceConnectionSyncPayload,
   type DatasetSourceOption,
 } from "@/lib/api"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 export type DataSourceConnectionFeedback = {
   tone: "success" | "no_data" | "error"
@@ -108,6 +109,7 @@ export function DataSourceConnections({
   onCancelOAuthAuthorization,
   onUpdateSchedule,
 }: DataSourceConnectionsProps) {
+  const { t } = useDecisionateText()
   const [
     editingConnectionId,
     setEditingConnectionId,
@@ -255,8 +257,8 @@ export function DataSourceConnections({
     return (
       <div className="rounded-xl border bg-white p-4 text-sm text-gray-500">
         {loadError
-          ? "Saved data source connections are unavailable. Retry the data services above."
-          : "No external data source connections have been added yet. Add one from the available connections above."}
+          ? t("Saved data source connections are unavailable. Retry the data services above.")
+          : t("No external data source connections have been added yet. Add one from the available connections above.")}
       </div>
     )
   }
@@ -421,6 +423,7 @@ function DataSourceConnectionRow({
     connection: DataSourceConnection
   ) => void
 }) {
+  const { t } = useDecisionateText()
   const isEditing =
     editingConnectionId === connection.id
   const isConfiguring =
@@ -698,7 +701,7 @@ function DataSourceConnectionRow({
               }
               className="w-full rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
-              Save
+              {t("Save")}
             </button>
 
             <button
@@ -706,7 +709,7 @@ function DataSourceConnectionRow({
               onClick={stopEditing}
               className="w-full rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
             >
-              Cancel
+              {t("Cancel")}
             </button>
           </div>
         ) : (
@@ -728,23 +731,23 @@ function DataSourceConnectionRow({
         <p className="mt-2 text-xs font-medium uppercase text-gray-400">
           {hasResourceSelection
             ? selectedResourceTypes.length
-              ? "Objects selected"
-              : "No objects selected"
+              ? t("Objects selected")
+              : t("No objects selected")
             : connection.source_type === "quickbooks"
             ? connection.status === "connected"
-              ? "OAuth configured"
-              : "OAuth not configured"
+              ? t("OAuth configured")
+              : t("OAuth not configured")
             : connection.source_type === "google_ads"
               ? configuredGoogleAdsAccountId
-                ? "Customer ID saved"
-                : "Customer ID not saved"
+                ? t("Customer ID saved")
+                : t("Customer ID not saved")
             : connection.has_config
-              ? "Config saved"
-              : "No config saved"}
+              ? t("Config saved")
+              : t("No config saved")}
         </p>
 
         <p className="mt-1 text-xs text-gray-500">
-          Last sync: {formatLastSyncedAt(
+          {t("Last sync:")} {formatLastSyncedAt(
             connection.last_synced_at
           )}
         </p>
@@ -755,14 +758,14 @@ function DataSourceConnectionRow({
             className="mt-3 min-w-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800"
           >
             <p className="font-semibold">
-              Authorization requires attention
+              {t("Authorization requires attention")}
             </p>
             <p className="mt-1 break-words">
               {connection.authorization_error}
             </p>
             {canStartOAuth && (
               <p className="mt-1">
-                Select Reconnect with OAuth to resume scheduled ingestion.
+                {t("Select Reconnect with OAuth to resume scheduled ingestion.")}
               </p>
             )}
           </div>
@@ -778,8 +781,8 @@ function DataSourceConnectionRow({
           >
             {externalCredentialLabel}:{" "}
             {environmentConfigured
-              ? "ready"
-              : "needs setup"}
+              ? t("ready")
+              : t("needs setup")}
           </p>
         )}
 
@@ -837,8 +840,8 @@ function DataSourceConnectionRow({
                 >
                   {syncingConnectionId ===
                   connection.id
-                    ? "Syncing..."
-                    : "Sync now"}
+                    ? t("Syncing...")
+                    : t("Sync now")}
                 </button>
               )}
 
@@ -847,7 +850,7 @@ function DataSourceConnectionRow({
                   {datasetIds.length === 1 ? (
                     <>
                       <span className="whitespace-nowrap text-xs text-gray-500">
-                        1 dataset
+                        1 {t("dataset")}
                       </span>
                       <Link
                         href={`/dashboard/datasets/${datasetIds[0]}`}
@@ -856,8 +859,8 @@ function DataSourceConnectionRow({
                         <Database size={14} />
                         <span className="max-w-48 truncate">
                           {datasetNames[0]
-                            ? `Go to ${datasetNames[0]}`
-                            : "Go to dataset"}
+                            ? `${t("Go to")} ${datasetNames[0]}`
+                            : t("Go to dataset")}
                         </span>
                       </Link>
                     </>
@@ -867,7 +870,7 @@ function DataSourceConnectionRow({
                         className="sr-only"
                         htmlFor={`connection-dataset-${connection.id}`}
                       >
-                        Go to dataset
+                        {t("Go to dataset")}
                       </label>
                       <select
                         id={`connection-dataset-${connection.id}`}
@@ -906,8 +909,8 @@ function DataSourceConnectionRow({
                   className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {connection.authorization_error
-                    ? "Reconnect with OAuth"
-                    : "Connect with OAuth"}
+                    ? t("Reconnect with OAuth")
+                    : t("Connect with OAuth")}
                 </button>
               )}
 
@@ -923,8 +926,8 @@ function DataSourceConnectionRow({
                   className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {updatingConnectionId === connection.id
-                    ? "Cancelling..."
-                    : "Cancel authorization"}
+                    ? t("Cancelling...")
+                    : t("Cancel authorization")}
                 </button>
               )}
 
@@ -945,10 +948,10 @@ function DataSourceConnectionRow({
                   className="w-full rounded-lg border px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {isConfiguring
-                    ? "Hide settings"
+                    ? t("Hide settings")
                     : hasRequiredConnectionConfig
-                      ? "Show settings"
-                      : "Configure"}
+                      ? t("Show settings")
+                      : t("Configure")}
                 </button>
               )}
 
@@ -968,8 +971,8 @@ function DataSourceConnectionRow({
                 >
                   {updatingConnectionId ===
                   connection.id
-                    ? "Saving..."
-                    : "Rename"}
+                    ? t("Saving...")
+                    : t("Rename")}
                 </button>
               )}
 
@@ -989,8 +992,8 @@ function DataSourceConnectionRow({
                 >
                   {deletingConnectionId ===
                   connection.id
-                    ? "Removing..."
-                    : "Remove"}
+                    ? t("Removing...")
+                    : t("Remove")}
                 </button>
               )}
             </div>
@@ -1836,6 +1839,8 @@ export function ConnectionSetupGuide({
   source?: DatasetSourceOption
   compact?: boolean
 }) {
+  const { t } = useDecisionateText()
+
   if (!source) {
     return null
   }
@@ -1860,14 +1865,14 @@ export function ConnectionSetupGuide({
       }
     >
       <summary className="cursor-pointer text-xs font-semibold text-gray-700">
-        What to enter and example values
+        {t("What to enter and example values")}
       </summary>
 
       <div className="mt-3 space-y-3 text-xs text-gray-600">
         {fieldGuides.length > 0 && (
           <div>
             <p className="font-semibold text-gray-800">
-              Enter in this connection
+              {t("Enter in this connection")}
             </p>
             <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
               {fieldGuides.map((field) => (
@@ -1885,7 +1890,7 @@ export function ConnectionSetupGuide({
                     {field.description}
                   </p>
                   <p className="mt-1 break-words font-mono text-[10px] text-blue-700">
-                    Example: {field.example}
+                    {t("Example:")} {field.example}
                   </p>
                 </div>
               ))}
@@ -1896,16 +1901,16 @@ export function ConnectionSetupGuide({
         {source.connection_type === "oauth" && (
           <p className="rounded-md bg-blue-50 px-2 py-2 leading-4 text-blue-800">
             {hasResourceTypeSelection(source)
-              ? `Use Connect with OAuth to authorize the provider account, then select the ${source.label} objects to ingest.`
+              ? `${t("Use Connect with OAuth to authorize the provider account, then select the")} ${source.label} ${t("objects to ingest.")}`
               : source.type === "woocommerce"
-                ? "Save the client store URL first, then use Connect with OAuth to authorize that WooCommerce store."
-                : "Save the connection fields first, then use Connect with OAuth to authorize the provider account."}
+                ? t("Save the client store URL first, then use Connect with OAuth to authorize that WooCommerce store.")
+                : t("Save the connection fields first, then use Connect with OAuth to authorize the provider account.")}
           </p>
         )}
 
         {source.connection_type === "database" && (
           <p className="rounded-md bg-amber-50 px-2 py-2 leading-4 text-amber-800">
-            Use a dedicated read-only database user. The database server must be reachable from the Decisionate API, and the query must be a single read-only SELECT or WITH statement using your database&apos;s tables and columns.
+              {t("Use a dedicated read-only database user. The database server must be reachable from the Decisionate API, and the query must be a single read-only SELECT or WITH statement using your database&apos;s tables and columns.")}
           </p>
         )}
       </div>
@@ -1934,10 +1939,12 @@ function ConnectionConfigFieldGroup({
   secret?: boolean
   secretKeys?: string[]
 }) {
+  const { t } = useDecisionateText()
+
   return (
     <div className="mt-3">
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
-        {title}
+        {t(title)}
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">

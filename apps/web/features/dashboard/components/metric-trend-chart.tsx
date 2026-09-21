@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { formatMetricLabel } from "./metric-selector"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 interface MetricTrendChartProps {
   data: Record<
@@ -25,11 +26,13 @@ export function MetricTrendChart({
   xKey,
   yKey,
 }: MetricTrendChartProps) {
+  const { t } = useDecisionateText()
+
   if (!data.length) {
     return (
       <div className="flex h-[350px] items-center justify-center rounded-2xl border border-dashed bg-white p-6 text-center">
         <p className="max-w-sm text-sm text-gray-500">
-          No chartable trend is available for this dataset yet. Use data with a date or period column and at least one numeric metric.
+          {t("No chartable trend is available for this dataset yet. Use data with a date or period column and at least one numeric metric.")}
         </p>
       </div>
     )
@@ -46,11 +49,11 @@ export function MetricTrendChart({
     <div className="rounded-2xl border bg-white p-6 shadow-sm">
       <div className="mb-6">
         <h2 className="text-xl font-semibold">
-          {formatMetricLabel(yKey)} Trend
+          {formatMetricLabel(yKey)} {t("Trend")}
         </h2>
 
         <p className="mt-1 text-sm text-gray-500">
-          Automatically generated from uploaded dataset.
+          {t("Automatically generated from uploaded dataset.")}
         </p>
       </div>
 

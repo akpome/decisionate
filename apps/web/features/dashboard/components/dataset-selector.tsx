@@ -20,6 +20,7 @@ import {
 import {
   getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 interface DatasetSelectorProps {
   value?: number
   onChange: (id: number | undefined) => void
@@ -54,6 +55,7 @@ export function DatasetSelector({
   ariaLabel = "Select dataset",
   emptyMessage,
 }: DatasetSelectorProps) {
+  const { t } = useDecisionateText()
   const {
     isLoaded: authLoaded,
     isSignedIn,
@@ -106,14 +108,14 @@ export function DatasetSelector({
   const emptyStateMessage =
     emptyMessage ?? (
       <>
-        Upload a supported CSV, Excel, JSON, or Parquet file on{" "}
+        {t("Upload a supported CSV, Excel, JSON, or Parquet file on")}{" "}
         <Link
           href="/dashboard/datasets"
           className="font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-80"
         >
-          Datasets
+          {t("Datasets")}
         </Link>{" "}
-        to start building dashboards, forecasts, reports, and decisions.
+        {t("to start building dashboards, forecasts, reports, and decisions.")}
       </>
     )
 
@@ -191,7 +193,7 @@ export function DatasetSelector({
   return (
     <div className="w-full max-w-full space-y-2">
       <select
-        aria-label={ariaLabel}
+        aria-label={t(ariaLabel)}
         value={value ?? ""}
         title={selectedDatasetLabel}
         disabled={
@@ -209,16 +211,16 @@ export function DatasetSelector({
       >
         <option value="">
           {!authLoaded
-            ? "Checking session..."
+            ? t("Checking session...")
             : !hasAuthenticatedUser
-              ? "Sign in to load datasets"
+              ? t("Sign in to load datasets")
               : isLoading
-            ? "Loading datasets..."
+            ? t("Loading datasets...")
             : errorMessage || loadError
-              ? "Datasets unavailable"
+              ? t("Datasets unavailable")
             : hasDatasets
-              ? "Select Dataset"
-              : "No datasets available"}
+              ? t("Select Dataset")
+              : t("No datasets available")}
         </option>
 
         {datasets.map((dataset) => (

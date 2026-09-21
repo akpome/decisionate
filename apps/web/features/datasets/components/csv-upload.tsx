@@ -12,6 +12,7 @@ import { useUser } from "@clerk/nextjs"
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 interface CsvUploadProps {
   sources?: DatasetSourceOption[]
@@ -46,6 +47,7 @@ export function CsvUpload({
   sources = [],
   onUploadSuccess,
 }: CsvUploadProps) {
+  const { t } = useDecisionateText()
   const { user } = useUser()
   const { activeWorkspaceId } =
     useActiveWorkspace(user?.id)
@@ -105,7 +107,7 @@ export function CsvUpload({
     if (!user?.id) {
       setFileName("")
       setErrorMessage(
-        "Sign in before uploading a dataset."
+        t("Sign in before uploading a dataset.")
       )
       event.target.value = ""
       return
@@ -127,7 +129,7 @@ export function CsvUpload({
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Upload failed"
+          : t("Upload failed")
       )
     } finally {
       setLoading(false)
@@ -147,7 +149,7 @@ export function CsvUpload({
       >
         <div className="space-y-2">
           <p className="text-lg font-medium">
-            Upload Data File
+            {t("Upload Data File")}
           </p>
 
           <p
@@ -174,7 +176,7 @@ export function CsvUpload({
       {setupFormatLabel && (
         <div className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <p>
-            {setupFormatLabel} need workspace setup before upload.
+            {setupFormatLabel} {t("need workspace setup before upload.")}
           </p>
 
           {setupUploadSources.map(
@@ -201,7 +203,7 @@ export function CsvUpload({
           aria-live="polite"
           className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-600"
         >
-          Uploading data file...
+          {t("Uploading data file...")}
         </div>
       )}
 
@@ -218,7 +220,7 @@ export function CsvUpload({
       {fileName && !loading && (
         <div className="rounded-xl border bg-white p-4">
           <p className="font-medium">
-            Uploaded File
+            {t("Uploaded File")}
           </p>
 
           <p className="mt-1 break-all text-sm text-gray-500">

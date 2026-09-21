@@ -1,3 +1,7 @@
+"use client"
+
+import { useDecisionateText } from "@/app/use-decisionate-language"
+
 interface MetricCardProps {
   title: string
   value: string | number
@@ -9,11 +13,13 @@ export function MetricCard({
   value,
   description,
 }: MetricCardProps) {
+  const { t } = useDecisionateText()
+
   return (
     <div className="rounded-2xl border bg-white p-6 shadow-sm">
       <div className="space-y-2">
         <p className="text-sm font-medium text-gray-500">
-          {title}
+          {t(title)}
         </p>
 
         <h2 className="text-3xl font-bold tracking-tight">
@@ -22,7 +28,7 @@ export function MetricCard({
 
         {description && (
           <p className="text-sm text-gray-500">
-            {description}
+            {t(description)}
           </p>
         )}
       </div>

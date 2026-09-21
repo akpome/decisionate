@@ -1,3 +1,7 @@
+"use client"
+
+import { useDecisionateText } from "@/app/use-decisionate-language"
+
 type WorkspaceAccessNoticeProps = {
   loading: boolean
   canManageWorkspaceData: boolean
@@ -11,6 +15,8 @@ export function WorkspaceAccessNotice({
   message,
   className = "",
 }: WorkspaceAccessNoticeProps) {
+  const { t } = useDecisionateText()
+
   if (loading || canManageWorkspaceData) {
     return null
   }
@@ -20,7 +26,7 @@ export function WorkspaceAccessNotice({
       role="status"
       className={`rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 ${className}`.trim()}
     >
-      {message}
+      {t(message)}
     </div>
   )
 }

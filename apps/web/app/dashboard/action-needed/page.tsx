@@ -37,6 +37,7 @@ import { getAIRecommendationSource } from "@/features/decisions/lib/ai-recommend
 import {
   formatMetricLabel,
 } from "@/features/dashboard/components/metric-selector"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 type ActionNeededFilter =
   | "all"
@@ -55,6 +56,7 @@ function getErrorMessage(
 }
 
 export default function ActionNeededPage() {
+  const { t } = useDecisionateText()
   const { user } = useUser()
   const {
     activeWorkspaceId,
@@ -152,7 +154,7 @@ export default function ActionNeededPage() {
           setErrorMessage(
             getErrorMessage(
               error,
-              "Action needed decisions could not be loaded."
+              t("Action needed decisions could not be loaded.")
             )
           )
         }
@@ -173,6 +175,7 @@ export default function ActionNeededPage() {
       activeWorkspaceId,
       workspaceVersion,
       loadRetryKey,
+      t,
   ])
 
   return (
@@ -199,7 +202,7 @@ export default function ActionNeededPage() {
                 size={16}
                 className={loading ? "animate-spin" : undefined}
               />
-              {loading ? "Refreshing..." : "Refresh"}
+              {loading ? t("Refreshing...") : t("Refresh")}
             </button>
 
             <div className="hidden rounded-xl bg-amber-50 p-2.5 text-amber-600 sm:block">
@@ -225,7 +228,7 @@ export default function ActionNeededPage() {
             }
             className="shrink-0 rounded-md border border-red-200 bg-white px-3 py-1.5 font-medium text-red-700 transition hover:border-red-300"
           >
-            Try again
+            {t("Try again")}
           </button>
         </div>
       )}
@@ -243,7 +246,7 @@ export default function ActionNeededPage() {
           aria-live="polite"
           className="min-w-0 rounded-2xl border bg-white p-5 text-sm text-gray-500 shadow-sm sm:p-8"
         >
-          Loading action needed decisions...
+          {t("Loading action needed decisions...")}
         </div>
       ) : errorMessage ? (
         <div
@@ -251,21 +254,21 @@ export default function ActionNeededPage() {
           className="min-w-0 rounded-2xl border border-red-200 bg-red-50 p-5 text-center sm:p-8"
         >
           <h2 className="text-xl font-semibold text-red-900">
-            Action needed is unavailable
+            {t("Action needed is unavailable")}
           </h2>
 
           <p className="mt-2 text-sm text-red-700">
-            We could not load the follow-up queue. Use Try again above to reload it.
+            {t("We could not load the follow-up queue. Use Try again above to reload it.")}
           </p>
         </div>
       ) : decisions.length === 0 ? (
         <div className="min-w-0 rounded-2xl border bg-white p-5 text-center shadow-sm sm:p-8">
           <h2 className="text-xl font-semibold">
-            No action needed
+            {t("No action needed")}
           </h2>
 
           <p className="mt-2 text-sm text-gray-500">
-            Pending outcomes, learning follow-ups and overdue reviews are clear.
+            {t("Pending outcomes, learning follow-ups and overdue reviews are clear.")}
           </p>
 
           <div className="mt-4 flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap">
@@ -273,7 +276,7 @@ export default function ActionNeededPage() {
               href="/dashboard/decisions"
               className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] sm:w-auto"
             >
-              View decisions
+              {t("View decisions")}
             </Link>
 
             {canManageWorkspaceData && (
@@ -282,7 +285,7 @@ export default function ActionNeededPage() {
                 className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 sm:w-auto"
               >
                 <Plus size={16} />
-                New Decision
+                {t("New Decision")}
               </Link>
             )}
           </div>
@@ -290,7 +293,7 @@ export default function ActionNeededPage() {
       ) : (
         <div className="space-y-4">
           <div
-            aria-label="Action needed filters"
+            aria-label={t("Action needed filters")}
             className="grid gap-2 sm:flex sm:flex-wrap"
           >
             {actionFilterOptions.map((option) => {
@@ -311,7 +314,7 @@ export default function ActionNeededPage() {
                       : "border-gray-200 bg-white text-gray-600 hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)]"
                   }`}
                 >
-                  {option.label} ({option.count})
+                  {t(option.label)} ({option.count})
                 </button>
               )
             })}
@@ -320,11 +323,11 @@ export default function ActionNeededPage() {
           {visibleDecisions.length === 0 ? (
             <div className="rounded-2xl border bg-white p-5 text-center shadow-sm sm:p-8">
               <h2 className="text-lg font-semibold">
-                No decisions in this slice
+                {t("No decisions in this slice")}
               </h2>
 
               <p className="mt-2 text-sm text-gray-500">
-                Pick another queue filter to continue reviewing follow-up work.
+                {t("Pick another queue filter to continue reviewing follow-up work.")}
               </p>
 
               <button
@@ -332,7 +335,7 @@ export default function ActionNeededPage() {
                 onClick={() => setActionNeededFilter("all")}
                 className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] sm:w-auto"
               >
-                Show all action-needed decisions
+                {t("Show all action-needed decisions")}
               </button>
             </div>
           ) : (
@@ -356,6 +359,7 @@ function ActionNeededDecisionCard({
 }: {
   decision: DecisionRecord
 }) {
+  const { t } = useDecisionateText()
   const aiRecommendationSource =
     getAIRecommendationSource(
       decision.description
@@ -374,13 +378,13 @@ function ActionNeededDecisionCard({
 
           <p className="mt-1 break-words text-sm text-gray-500 line-clamp-2">
             {decision.description ||
-              "No description provided."}
+              t("No description provided.")}
           </p>
 
           {decision.action && (
             <p className="mt-3 break-words border-l-2 border-[var(--decisionate-brand-primary)] pl-3 text-sm text-gray-700 line-clamp-2">
               <span className="font-medium text-[var(--decisionate-brand-primary-text)]">
-                Action:
+                {t("Action:")}
               </span>{" "}
               {decision.action}
             </p>
@@ -419,7 +423,7 @@ function ActionNeededDecisionCard({
           <span className="inline-flex max-w-full items-start gap-1 rounded-full bg-[var(--decisionate-brand-primary-soft)] px-2.5 py-1 text-[var(--decisionate-brand-primary-text)]">
             <LineChart size={13} className="shrink-0" />
             <span className="break-words">
-              Metric: {formatMetricLabel(decision.metric_column)}
+            {t("Metric:")} {formatMetricLabel(decision.metric_column)}
             </span>
           </span>
         )}
@@ -429,14 +433,14 @@ function ActionNeededDecisionCard({
             title={aiRecommendationSource}
             className="inline-flex max-w-full items-start gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-blue-700"
           >
-            Analysis: {aiRecommendationSource}
+            {t("Analysis:")} {aiRecommendationSource}
           </span>
         )}
       </div>
 
       <span className="mt-4 inline-flex max-w-full items-center gap-2 break-words text-sm font-medium text-[var(--decisionate-brand-primary-text)]">
         <Target size={15} className="shrink-0" />
-        Resolve next action →
+        {t("Resolve next action")} →
       </span>
     </Link>
   )

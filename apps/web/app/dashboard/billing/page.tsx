@@ -14,6 +14,7 @@ import {
 } from "@/lib/api"
 import { useActiveWorkspace } from "@/lib/use-active-workspace"
 import { useWorkspaceAccess } from "@/lib/use-workspace-access"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error && error.message
@@ -33,6 +34,7 @@ export default function BillingPage() {
 }
 
 function BillingPageContent() {
+  const { t } = useDecisionateText()
   const { user } = useUser()
   const { activeWorkspaceId } = useActiveWorkspace(user?.id)
   const {
@@ -185,7 +187,7 @@ function BillingPageContent() {
           role="status"
           className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500"
         >
-          Checking workspace access...
+          {t("Checking workspace access...")}
         </div>
       </div>
     )
@@ -200,8 +202,8 @@ function BillingPageContent() {
         />
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           {isClientWorkspaceContext
-            ? "This client workspace is managed by an agency. Contact the agency to renew the subscription or restore access."
-            : "Only the business owner can manage billing and subscriptions for this workspace."}
+            ? t("This client workspace is managed by an agency. Contact the agency to renew the subscription or restore access.")
+            : t("Only the business owner can manage billing and subscriptions for this workspace.")}
         </div>
       </div>
     )
@@ -226,37 +228,37 @@ function BillingPageContent() {
             <CreditCard size={20} />
           </div>
           <div>
-            <h2 className="font-semibold text-gray-900">Workspace plan</h2>
+            <h2 className="font-semibold text-gray-900">{t("Workspace plan")}</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Start with a 30-day full-access trial without a credit card. Add payment details only when you choose to continue. Additional client capacity is added to the existing subscription and billed on the next renewal invoice.
+              {t("Start with a 30-day full-access trial without a credit card. Add payment details only when you choose to continue. Additional client capacity is added to the existing subscription and billed on the next renewal invoice.")}
             </p>
           </div>
         </div>
 
         {loading ? (
-          <p className="mt-6 text-sm text-gray-500">Loading billing status...</p>
+          <p className="mt-6 text-sm text-gray-500">{t("Loading billing status...")}</p>
         ) : billing ? (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <BillingValue label="Plan" value={billing.plan_name || formatBillingPlan(billing.plan)} />
-            <BillingValue label="Status" value={billing.status} />
+            <BillingValue label={t("Plan")} value={billing.plan_name || formatBillingPlan(billing.plan)} />
+            <BillingValue label={t("Status")} value={billing.status} />
             <BillingValue
-              label="Renewal"
+              label={t("Renewal")}
               value={
                 billing.current_period_end
                   ? new Date(billing.current_period_end).toLocaleDateString()
-                  : "Not scheduled"
+                  : t("Not scheduled")
               }
             />
             <BillingValue
-              label="Client workspaces"
+              label={t("Client workspaces")}
               value={
                 billing.client_workspace_limit === null
-                  ? `${billing.client_workspaces_used} / Unlimited`
+                  ? `${billing.client_workspaces_used} / ${t("Unlimited")}`
                   : `${billing.client_workspaces_used} / ${billing.client_workspace_limit ?? 0}`
               }
             />
             <BillingValue
-              label="AI credits"
+              label={t("AI credits")}
               value={`${billing.ai_credits_used.toLocaleString()} used · ${billing.ai_credits_remaining.toLocaleString()} remaining`}
             />
           </div>
@@ -266,21 +268,21 @@ function BillingPageContent() {
           <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="font-semibold text-gray-900">AI credit pool</p>
+                <p className="font-semibold text-gray-900">{t("AI credit pool")}</p>
                 <p className="mt-1 text-sm text-gray-600">
                   {billing.billing_model === "agency"
-                    ? "Agency and client workspaces draw from this shared balance."
-                    : "Purchase additional credits whenever your workspace needs them."}
+                    ? t("Agency and client workspaces draw from this shared balance.")
+                    : t("Purchase additional credits whenever your workspace needs them.")}
                 </p>
                 {billing.ai_credit_low_balance && (
                   <p className="mt-2 text-sm font-medium text-amber-800">
-                    Your AI credit balance is running low. Add credits to keep analysis available.
+                    {t("Your AI credit balance is running low. Add credits to keep analysis available.")}
                   </p>
                 )}
               </div>
               <div className="flex flex-wrap items-end gap-3">
                 <label className="text-xs font-medium text-gray-600">
-                  Packs to purchase
+                  {t("Packs to purchase")}
                   <input
                     type="number"
                     min="1"
@@ -300,16 +302,16 @@ function BillingPageContent() {
                   className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Plus size={16} />
-                  {busy ? "Opening..." : "Top up AI credits"}
+                  {busy ? t("Opening...") : t("Top up AI credits")}
                 </button>
               </div>
             </div>
             <p className="mt-3 text-xs text-gray-500">
-              Each pack adds {billing.ai_credit_pack_size.toLocaleString()} credits. There is no workspace limit on the number of packs purchased.
+              {t("Each pack adds")} {billing.ai_credit_pack_size.toLocaleString()} {t("credits. There is no workspace limit on the number of packs purchased.")}
             </p>
             {!billing.ai_credit_topup_configured && (
               <p className="mt-2 text-xs text-amber-700">
-                AI credit top-ups are not configured on this server yet.
+                {t("AI credit top-ups are not configured on this server yet.")}
               </p>
             )}
           </div>
@@ -322,13 +324,13 @@ function BillingPageContent() {
           >
             <p className="font-semibold">
               {billing.access_status === "grace_period"
-                ? "Payment needs attention"
+                ? t("Payment needs attention")
                 : billing.access_status === "expired"
-                  ? "Subscription access is paused"
-                  : "Subscription action required"}
+                  ? t("Subscription access is paused")
+                  : t("Subscription action required")}
             </p>
             <p className="mt-1">
-              {billing.access_reason || "Review billing to keep this workspace active."}
+              {billing.access_reason || t("Review billing to keep this workspace active.")}
             </p>
           </div>
         )}
@@ -343,7 +345,7 @@ function BillingPageContent() {
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <ExternalLink size={16} />
-                {busy ? "Opening..." : "Manage subscription"}
+                {busy ? t("Opening...") : t("Manage subscription")}
               </button>
             ) : (
               <button
@@ -357,7 +359,7 @@ function BillingPageContent() {
                 className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <CreditCard size={16} />
-                {busy ? "Opening..." : getCheckoutButtonLabel(billing, billingInterval)}
+                {busy ? t("Opening...") : t(getCheckoutButtonLabel(billing, billingInterval))}
               </button>
             )}
           </div>
@@ -365,7 +367,7 @@ function BillingPageContent() {
 
         {!loading && billing && !billing.configured && (
           <p className="mt-4 text-sm text-amber-700">
-            Billing is not configured on this server yet. Set the Stripe environment values before enabling checkout.
+            {t("Billing is not configured on this server yet. Set the Stripe environment values before enabling checkout.")}
           </p>
         )}
       </section>
@@ -373,16 +375,16 @@ function BillingPageContent() {
       {!loading && billing && shouldShowPlanSelection(billing) && (
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
           <div>
-            <h2 className="font-semibold text-gray-900">Choose your Decisionate plan</h2>
+            <h2 className="font-semibold text-gray-900">{t("Choose your Decisionate plan")}</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Agency pricing scales with client workspaces, not employee seats.
+              {t("Agency pricing scales with client workspaces, not employee seats.")}
             </p>
           </div>
 
-          <div className="mt-5 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1" role="group" aria-label="Billing interval">
+          <div className="mt-5 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1" role="group" aria-label={t("Billing interval")}>
             {([
-              ["month", "Monthly"],
-              ["year", "Annual · 2 months free"],
+              ["month", t("Monthly")],
+              ["year", t("Annual · 2 months free")],
             ] as const).map(([interval, label]) => (
               <button
                 key={interval}
@@ -424,12 +426,12 @@ function BillingPageContent() {
                       <div>
                         <p className="font-semibold text-gray-900">{option.name}</p>
                         <p className="mt-1 text-xs uppercase tracking-wide text-gray-500">
-                          {isAgency ? "Agency" : "Direct business"}
+                          {isAgency ? t("Agency") : t("Direct business")}
                         </p>
                       </div>
                       {selected && (
                         <span className="text-xs font-semibold text-[var(--decisionate-brand-primary-text)]">
-                          Selected
+                          {t("Selected")}
                         </span>
                       )}
                     </div>
@@ -444,13 +446,13 @@ function BillingPageContent() {
                         CAD
                       </span>
                       <span className="text-sm font-normal text-gray-500">
-                        /{billingInterval === "year" ? "year" : "month"}
+                        /{billingInterval === "year" ? t("year") : t("month")}
                       </span>
                     </p>
                     <p className="mt-3 text-sm text-gray-600">
                       {isAgency
-                        ? `Up to ${option.included_client_workspaces} client workspaces`
-                        : "1 workspace with full access"}
+                        ? `${t("Up to")} ${option.included_client_workspaces} ${t("client workspaces")}`
+                        : t("1 workspace with full access")}
                     </p>
                     <p className="mt-2 text-sm text-gray-600">
                       {(billingInterval === "year"
@@ -460,14 +462,14 @@ function BillingPageContent() {
                     </p>
                     <p className="mt-3 text-xs leading-5 text-gray-500">
                       {isAgency
-                        ? "Client portal, agency branding, industry dashboards, decision tracking, and priority support."
-                        : "Unlimited datasets, all dashboards, AI recommendations, decision management, and outcome tracking."}
+                        ? t("Client portal, agency branding, industry dashboards, decision tracking, and priority support.")
+                        : t("Unlimited datasets, all dashboards, AI recommendations, decision management, and outcome tracking.")}
                     </p>
                     {!(billingInterval === "year"
                       ? option.annual_configured
                       : option.monthly_configured) && (
                       <p className="mt-4 text-xs text-amber-700">
-                        Stripe price not configured yet
+                        {t("Stripe price not configured yet")}
                       </p>
                     )}
                   </button>
@@ -478,7 +480,7 @@ function BillingPageContent() {
           {selectedPlan === "agency" && (
             <div className="mt-5 flex flex-wrap items-end justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
               <div>
-                <p className="text-sm font-medium text-gray-900">Additional client workspaces</p>
+                <p className="text-sm font-medium text-gray-900">{t("Additional client workspaces")}</p>
                 <p className="mt-1 text-sm text-gray-500">
                   Add capacity at ${(
                     (billingInterval === "year"
@@ -492,7 +494,7 @@ function BillingPageContent() {
                 </p>
               </div>
               <label className="text-xs font-medium text-gray-600">
-                Extra workspaces
+                {t("Extra workspaces")}
                 <input
                   type="number"
                   min="0"
@@ -510,13 +512,13 @@ function BillingPageContent() {
 
           <div className="mt-4 flex flex-wrap items-end justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
             <div>
-              <p className="text-sm font-medium text-gray-900">Additional AI credit packs</p>
+              <p className="text-sm font-medium text-gray-900">{t("Additional AI credit packs")}</p>
               <p className="mt-1 text-sm text-gray-500">
-                Each monthly pack adds {billing.ai_credit_pack_size.toLocaleString()} credits.
+                {t("Each monthly pack adds")} {billing.ai_credit_pack_size.toLocaleString()} {t("credits.")}
               </p>
             </div>
             <label className="text-xs font-medium text-gray-600">
-              Packs
+              {t("Packs")}
               <input
                 type="number"
                 min="0"
@@ -529,12 +531,12 @@ function BillingPageContent() {
               />
               {!billing.ai_credit_pack_configured && (
                 <span className="mt-1 block font-normal text-amber-700">
-                  Add-on price not configured
+                  {t("Add-on price not configured")}
                 </span>
               )}
               {billingInterval === "year" && (
                 <span className="mt-1 block font-normal text-gray-500">
-                  Available with monthly billing.
+                  {t("Available with monthly billing.")}
                 </span>
               )}
             </label>
@@ -543,8 +545,8 @@ function BillingPageContent() {
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-gray-500">
               {selectedPlan === "professional"
-                ? "Includes a 30-day full-access trial."
-                : "Includes a 30-day full-access trial and agency client portal features."}
+                ? t("Includes a 30-day full-access trial.")
+                : t("Includes a 30-day full-access trial and agency client portal features.")}
             </p>
             <button
               type="button"
@@ -562,14 +564,14 @@ function BillingPageContent() {
             >
               <CreditCard size={16} />
               {busy
-                ? "Opening..."
+                ? t("Opening...")
                 : hasStartedTrial(billing)
                   ? billingInterval === "year"
-                    ? "Continue to annual plan"
-                    : "Continue to paid plan"
+                    ? t("Continue to annual plan")
+                    : t("Continue to paid plan")
                 : billingInterval === "year"
-                  ? "Start 30-day free trial"
-                  : "Start 30-day free trial"}
+                  ? t("Start 30-day free trial")
+                  : t("Start 30-day free trial")}
             </button>
           </div>
 
@@ -578,7 +580,7 @@ function BillingPageContent() {
 
       {!loading && billing && billing.billing_model === "agency" && (
         <section className="rounded-2xl border border-blue-100 bg-blue-50 p-5 text-sm text-blue-900 shadow-sm sm:p-6">
-          <p className="font-semibold">Agency billing is portfolio-based</p>
+          <p className="font-semibold">{t("Agency billing is portfolio-based")}</p>
           <p className="mt-1">
             Your plan includes {billing.included_client_workspaces ?? "unlimited"} client workspaces. Employee seats remain outside the billing metric; manage them from workspace settings.
           </p>

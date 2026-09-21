@@ -32,6 +32,7 @@ import {
   WorkspaceAccessNotice,
 } from "@/features/dashboard/components/workspace-access-notice"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 import {
   dashboardGroups,
   defaultDashboardKey,
@@ -57,6 +58,7 @@ async function loadWorkspaceSharingEnabled(
 }
 
 export default function DashboardsPage() {
+  const { t } = useDecisionateText()
   const { user } = useUser()
   const userId = user?.id
   const router = useRouter()
@@ -399,7 +401,7 @@ export default function DashboardsPage() {
       setError(
         stopError instanceof Error
           ? stopError.message
-          : "Unable to stop all dashboard sharing."
+          : t("Unable to stop all dashboard sharing.")
       )
     } finally {
       setStoppingAllSharing(false)
@@ -408,14 +410,14 @@ export default function DashboardsPage() {
 
   const stopAllSharingLabel =
     stoppingAllSharing
-      ? "Stopping..."
+      ? t("Stopping...")
       : activeSharingCount > 0
-        ? `Stop all sharing (${activeSharingCount})`
-        : "Stop all sharing"
+        ? `${t("Stop all sharing")} (${activeSharingCount})`
+        : t("Stop all sharing")
   const stopAllSharingDescription =
     activeSharingCount > 0
-      ? `Stop all sharing for ${activeSharingCount} active dashboard share link${activeSharingCount === 1 ? "" : "s"}.`
-      : "Stop all dashboard sharing."
+      ? `${t("Stop all sharing for")} ${activeSharingCount} ${t("active dashboard share links.")}`
+      : t("Stop all dashboard sharing.")
 
   return (
     <div className="space-y-6">
@@ -467,7 +469,7 @@ export default function DashboardsPage() {
             }
             className="w-fit rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
           >
-            Retry dashboard preference
+            {t("Retry dashboard preference")}
           </button>
         </div>
       )}
@@ -488,7 +490,7 @@ export default function DashboardsPage() {
             }
             className="w-fit rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
           >
-            Retry sharing status
+            {t("Retry sharing status")}
           </button>
         </div>
       )}
@@ -519,7 +521,7 @@ export default function DashboardsPage() {
             >
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
-                  {group.category}
+                  {t(group.category)}
                 </h2>
                 <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
                   {group.dashboards.length}
@@ -574,6 +576,8 @@ function DashboardSelectionCard({
   preferenceLoading: boolean
   onSelect: (dashboardKey: string) => void
 }) {
+  const { t } = useDecisionateText()
+
   return (
     <div
       className={`rounded-2xl border bg-white p-3 shadow-sm ${
@@ -583,7 +587,7 @@ function DashboardSelectionCard({
       }`}
     >
       <DashboardPreview
-        name={dashboard.name}
+        name={t(dashboard.name)}
         tone={dashboard.previewTone}
         layout={dashboard.previewLayout}
         highlights={dashboard.highlights}
@@ -592,17 +596,17 @@ function DashboardSelectionCard({
       <div className="mt-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="truncate text-base font-semibold">
-            {dashboard.name}
+            {t(dashboard.name)}
           </h3>
 
           <p className="mt-1 min-h-10 text-xs leading-5 text-gray-500">
-            {dashboard.description}
+            {t(dashboard.description)}
           </p>
         </div>
 
         {selected && (
           <span
-            aria-label="Currently selected"
+            aria-label={t("Currently selected")}
             className="rounded-full bg-[var(--decisionate-brand-primary-soft)] p-1.5 text-[var(--decisionate-brand-primary-text)]"
           >
             <Check size={14} aria-hidden="true" />
@@ -618,8 +622,8 @@ function DashboardSelectionCard({
         )}
         <span>
           {dashboard.dataBasis === "decision-records"
-            ? "Uses decision records"
-            : "Uses dataset metrics"}
+            ? t("Uses decision records")
+            : t("Uses dataset metrics")}
         </span>
       </div>
 
@@ -629,7 +633,7 @@ function DashboardSelectionCard({
             key={highlight}
         className="rounded-xl bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-600"
           >
-            {highlight}
+            {t(highlight)}
           </div>
         ))}
       </div>
@@ -638,7 +642,7 @@ function DashboardSelectionCard({
         type="button"
         disabled={disabled}
         aria-pressed={selected}
-        aria-label={`${selected ? "Open" : saving ? "Save and use" : "Use"} ${dashboard.name}`}
+        aria-label={`${selected ? t("Open") : saving ? t("Save and use") : t("Use")} ${t(dashboard.name)}`}
         onClick={() => onSelect(dashboard.key)}
         className={`mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
           selected
@@ -648,13 +652,13 @@ function DashboardSelectionCard({
       >
         {selected
           ? preferenceLoading
-            ? "Loading..."
-            : "Open Dashboard"
+            ? t("Loading...")
+            : t("Open Dashboard")
           : saving
-            ? "Saving..."
+            ? t("Saving...")
             : preferenceLoading
-              ? "Loading..."
-              : "Use Dashboard"}
+              ? t("Loading...")
+              : t("Use Dashboard")}
       </button>
     </div>
   )

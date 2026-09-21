@@ -27,6 +27,7 @@ import {
   type DashboardValueAggregation,
   type ForecastPeriodFilter,
 } from "@/lib/api"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 type DatasetJoinPanelProps = {
   datasets: DatasetSummary[]
@@ -91,6 +92,7 @@ export function DatasetJoinPanel({
   onJoinResult,
   persistedResult,
 }: DatasetJoinPanelProps) {
+  const { t } = useDecisionateText()
   const router = useRouter()
   const [selectedDatasetIds, setSelectedDatasetIds] =
     useState<number[]>(() =>
@@ -413,7 +415,7 @@ export function DatasetJoinPanel({
 
   async function handleJoin() {
     if (!userId || selectedDatasetIds.length < 2) {
-      setError("Select at least two datasets to compare.")
+        setError(t("Select at least two datasets to compare."))
       return
     }
 
@@ -422,13 +424,13 @@ export function DatasetJoinPanel({
     )
     if (selections.some(item => !item?.date_column)) {
       setError(
-        "Choose a date column for each dataset."
+        t("Choose a date column for each dataset.")
       )
       return
     }
 
     if (selectedMetadata.length !== selectedDatasetIds.length) {
-      setError("Wait for the selected dataset columns to finish loading.")
+      setError(t("Wait for the selected dataset columns to finish loading."))
       return
     }
 
@@ -437,7 +439,7 @@ export function DatasetJoinPanel({
     )
     if (!hasMetricColumns) {
       setError(
-        "Select at least one metric or column for each dataset."
+        t("Select at least one metric or column for each dataset.")
       )
       return
     }
@@ -467,7 +469,7 @@ export function DatasetJoinPanel({
       setError(
         joinError instanceof Error
           ? joinError.message
-          : "Unable to join the selected datasets."
+            : t("Unable to join the selected datasets.")
       )
     } finally {
       setJoining(false)
@@ -499,7 +501,7 @@ export function DatasetJoinPanel({
 
     if (!decisionDatasetId) {
       setError(
-        "The joined evidence uses a dataset that is no longer available. Reset and recreate the join."
+        t("The joined evidence uses a dataset that is no longer available. Reset and recreate the join.")
       )
       return
     }
@@ -545,18 +547,18 @@ export function DatasetJoinPanel({
             column_type: item.column_type,
           })),
           recommendation_text:
-            "Review the joined metrics and agree on the next action.",
+            t("Review the joined metrics and agree on the next action."),
           recommendation_source: "rules",
           recommendation_context: activeResult.decision_context,
           title: decisionTitle,
           description: [
             activeResult.decision_context,
-            `Latest shared period: ${latestRow?.period ?? "-"}.`,
-            `Latest evidence: ${latestEvidence}.`,
-            "Select an outcome metric in Decision Details only if this decision needs numeric outcome measurement.",
+            `${t("Latest shared period:")} ${latestRow?.period ?? "-"}.`,
+            `${t("Latest evidence:")} ${latestEvidence}.`,
+            t("Select an outcome metric in Decision Details only if this decision needs numeric outcome measurement."),
           ].join("\n\n"),
           expected_outcome:
-            "Agree on an action based on the joined evidence and measure the result by the review date.",
+            t("Agree on an action based on the joined evidence and measure the result by the review date."),
           priority: "medium",
           category: "general",
         },
@@ -568,7 +570,7 @@ export function DatasetJoinPanel({
       setError(
         decisionError instanceof Error
           ? decisionError.message
-          : "Unable to create a decision from the joined evidence."
+          : t("Unable to create a decision from the joined evidence.")
       )
     } finally {
       setCreatingDecision(false)
@@ -592,16 +594,16 @@ export function DatasetJoinPanel({
               className="text-[var(--decisionate-brand-primary)]"
             />
             <h2 className="text-sm font-semibold text-gray-950">
-              Join data for a decision
+              {t("Join data for a decision")}
             </h2>
           </div>
           <p className="mt-1 text-xs text-gray-500">
-            Normalize every selected date to a month-year period before joining. Choose the metrics or columns to carry forward; numeric columns use the selected {aggregationType} aggregation.
+            {t("Normalize every selected date to a month-year period before joining. Choose the metrics or columns to carry forward; numeric columns use the selected")} {aggregationType} {t("aggregation.")}
           </p>
         </div>
 
         <span className="shrink-0 text-xs text-gray-500">
-          {selectedDatasetIds.length}/5 selected
+          {selectedDatasetIds.length}/5 {t("selected")}
         </span>
       </div>
 
@@ -632,7 +634,7 @@ export function DatasetJoinPanel({
                 {dataset.file_name}
                 {primary && (
                   <span className="ml-1 font-normal text-gray-500">
-                    (primary)
+                    ({t("primary")})
                   </span>
                 )}
               </span>
@@ -656,12 +658,12 @@ export function DatasetJoinPanel({
                     {item.file_name}
                   </p>
                   <p className="mt-1 text-[11px] text-gray-500">
-                    {item.date_range.start ?? "Unknown start"} to {item.date_range.end ?? "unknown end"}
+                    {item.date_range.start ?? t("Unknown start")} {t("to")} {item.date_range.end ?? t("unknown end")}
                   </p>
                 </div>
 
                 <label className="min-w-0 text-xs font-medium text-gray-500">
-                  <span className="mb-1 block">Date column</span>
+                  <span className="mb-1 block">{t("Date column")}</span>
                   <select
                     value={configuration?.date_column ?? ""}
                     onChange={event =>
@@ -673,7 +675,7 @@ export function DatasetJoinPanel({
                     }
                     className="h-9 w-full min-w-0 truncate rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700"
                   >
-                    <option value="">Choose date</option>
+                    <option value="">{t("Choose date")}</option>
                     {item.date_columns.map(column => (
                       <option key={column} value={column}>
                         {column}
@@ -684,26 +686,26 @@ export function DatasetJoinPanel({
 
                 <div className="min-w-0 text-xs font-medium text-gray-500">
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                    <span>Metrics or columns to include</span>
+                    <span>{t("Metrics or columns to include")}</span>
                     <span className="flex items-center gap-2 font-normal">
                       <button
                         type="button"
                         onClick={() => clearMetricColumns(item.dataset_id)}
                         disabled={!configuration?.metric_columns?.length}
                         className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
-                        title="Unselect all metrics or columns"
+                        title={t("Unselect all metrics or columns")}
                       >
                         <X size={12} aria-hidden="true" />
-                        Unselect all
+                        {t("Unselect all")}
                       </button>
                       <button
                         type="button"
                         onClick={() => resetMetricColumns(item.dataset_id)}
                         className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800"
-                        title="Reset metrics or columns to the default selection"
+                        title={t("Reset metrics or columns to the default selection")}
                       >
                         <RotateCcw size={12} aria-hidden="true" />
-                        Reset to default
+                        {t("Reset to default")}
                       </button>
                     </span>
                   </div>
@@ -740,10 +742,10 @@ export function DatasetJoinPanel({
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-gray-500">
           {loadingMetadata
-            ? "Inspecting dataset columns..."
+            ? t("Inspecting dataset columns...")
             : selectedDatasetIds.length < 2
-              ? "Select one or more additional datasets to continue."
-              : `Inner join on shared month-year periods using ${aggregationType}. Dashboard grouping is ${aggregation}.`}
+              ? t("Select one or more additional datasets to continue.")
+              : `${t("Inner join on shared month-year periods using")} ${aggregationType}. ${t("Dashboard grouping is")} ${aggregation}.`}
         </p>
         <button
           type="button"
@@ -756,7 +758,7 @@ export function DatasetJoinPanel({
           className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--decisionate-brand-primary)] px-3 text-xs font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Play size={14} />
-          {joining ? "Joining data..." : "Join selected data"}
+          {joining ? t("Joining data...") : t("Join selected data")}
         </button>
       </div>
 
@@ -774,10 +776,10 @@ export function DatasetJoinPanel({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-xs font-semibold text-gray-800">
-                Joined evidence ready
+                {t("Joined evidence ready")}
               </p>
               <p className="mt-1 text-xs text-gray-600">
-                {activeResult.matched_period_count} shared periods from {activeResult.dataset_ids.length} datasets and {activeResult.datasets.length} joined columns, with {activeResult.coverage_percent}% period coverage.
+                {activeResult.matched_period_count} {t("shared periods from")} {activeResult.dataset_ids.length} {t("datasets and")} {activeResult.datasets.length} {t("joined columns, with")} {activeResult.coverage_percent}% {t("period coverage.")}
               </p>
             </div>
             {canManageWorkspaceData && (
@@ -789,18 +791,18 @@ export function DatasetJoinPanel({
               >
                 <Check size={14} />
                 {creatingDecision
-                  ? "Creating decision..."
-                  : "Create decision from evidence"}
+                  ? t("Creating decision...")
+                  : t("Create decision from evidence")}
               </button>
             )}
             <button
               type="button"
               onClick={() => void resetJoinedDataset()}
               className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
-              title="Remove the joined view and return to the original dataset"
+              title={t("Remove the joined view and return to the original dataset")}
             >
               <RotateCcw size={14} />
-              Reset joined data
+              {t("Reset joined data")}
             </button>
           </div>
 
@@ -809,7 +811,7 @@ export function DatasetJoinPanel({
               <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
                 <tr>
                   <th className="whitespace-nowrap px-3 py-2 font-medium">
-                    Period
+                    {t("Period")}
                   </th>
                   {activeResult.datasets.map(item => (
                     <th

@@ -5,6 +5,7 @@ import {
 } from "@/lib/api"
 
 import { ConnectionSetupGuide } from "@/features/datasets/components/data-source-connections"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 interface DataSourcePanelProps {
   sources: DatasetSourceOption[]
@@ -33,6 +34,7 @@ export function DataSourcePanel({
   creatingSourceType,
   onCreateConnection,
 }: DataSourcePanelProps) {
+  const { t } = useDecisionateText()
   const savedSourceTypeSet =
     new Set(
       savedSourceTypes.map(
@@ -71,9 +73,7 @@ export function DataSourcePanel({
         ([category, categorySources]) => (
           <section key={category}>
             <h3 className="text-sm font-semibold uppercase text-gray-500">
-              {formatSourceCategory(
-                category
-              )}
+              {t(formatSourceCategory(category))}
             </h3>
 
             <div className="mt-3 divide-y rounded-xl border">
@@ -129,7 +129,7 @@ export function DataSourcePanel({
 
                         {source.status === "planned" && (
                           <p className="mt-2 break-words text-xs font-medium text-gray-400">
-                            This connector is not enabled on the server yet.
+                            {t("This connector is not enabled on the server yet.")}
                           </p>
                         )}
 
@@ -181,10 +181,10 @@ export function DataSourcePanel({
                           }
                         >
                           {isAvailable
-                            ? "Available"
+                            ? t("Available")
                             : needsSetup
-                              ? "Setup needed"
-                              : "Planned"}
+                              ? t("Setup needed")
+                              : t("Planned")}
                         </span>
 
                         {canCreateDraft &&
@@ -202,10 +202,10 @@ export function DataSourcePanel({
                               }
                               className="w-full rounded-lg border px-3 py-1.5 text-center text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                             >
-                              {getSourceActionLabel(
+                              {t(getSourceActionLabel(
                                 isCreating,
                                 isSaved
-                              )}
+                              ))}
                             </button>
                           )}
                       </div>

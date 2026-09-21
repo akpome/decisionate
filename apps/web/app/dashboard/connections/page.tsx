@@ -30,6 +30,7 @@ import {
 import {
   useWorkspaceAccess,
 } from "@/lib/use-workspace-access"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 function getErrorMessage(
   error: unknown,
@@ -168,6 +169,7 @@ function getCustomerFacingConnectionError(
 }
 
 export default function ConnectionsPage() {
+  const { t } = useDecisionateText()
   const { user } = useUser()
   const {
     canConfigureWorkspace,
@@ -186,7 +188,7 @@ export default function ConnectionsPage() {
           role="status"
           className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500"
         >
-          Checking workspace access...
+          {t("Checking workspace access...")}
         </div>
       </div>
     )
@@ -200,7 +202,7 @@ export default function ConnectionsPage() {
           description="Review external data source connections for this workspace. Configuration and synchronization are managed by the workspace owner."
         />
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          Connection access is not available to workspace members.
+          {t("Connection access is not available to workspace members.")}
         </div>
       </div>
     )
@@ -224,6 +226,7 @@ function ConnectionsPageContent({
   canViewConnections: boolean
   loadingWorkspaceAccess: boolean
 }) {
+  const { t } = useDecisionateText()
   const [sources, setSources] =
     useState<DatasetSourceOption[]>([])
   const [
@@ -811,7 +814,7 @@ function ConnectionsPageContent({
               }
               className="h-10 shrink-0 rounded-xl border border-red-200 bg-white px-3 font-medium text-red-700 transition hover:border-red-300"
             >
-              Try again
+            {t("Try again")}
             </button>
           )}
         </div>
@@ -830,11 +833,11 @@ function ConnectionsPageContent({
         canConfigureWorkspace && (
         <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
           <h2 className="mb-4 text-xl font-semibold">
-            Data Sources
+            {t("Data Sources")}
           </h2>
 
           <p className="mb-6 text-sm text-gray-500">
-            Add an external connector, then configure its account details and authorize it before syncing data into a dataset. File uploads are available from Datasets.
+            {t("Add an external connector, then configure its account details and authorize it before syncing data into a dataset. File uploads are available from Datasets.")}
           </p>
 
           <DataSourcePanel

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useState } from "react"
 
 import type { DataSourceConnection } from "@/lib/api"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 type ConnectionPullWidgetProps = {
   connections: DataSourceConnection[]
@@ -42,6 +43,7 @@ export function ConnectionPullWidget({
   connections,
   loadError = false,
 }: ConnectionPullWidgetProps) {
+  const { t } = useDecisionateText()
   const [
     selectedConnectionId,
     setSelectedConnectionId,
@@ -79,11 +81,11 @@ export function ConnectionPullWidget({
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold">
-            Saved Connection Status
+            {t("Saved Connection Status")}
           </h2>
 
           <p className="mt-2 text-sm text-gray-500">
-            Review saved external connections and their dataset sync status.
+            {t("Review saved external connections and their dataset sync status.")}
           </p>
         </div>
 
@@ -91,15 +93,15 @@ export function ConnectionPullWidget({
           href="/dashboard/connections"
           className="inline-flex w-full items-center justify-center rounded-lg border border-[var(--decisionate-brand-primary-ring)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] sm:w-auto sm:border-0 sm:px-0 sm:py-0 sm:hover:bg-transparent sm:hover:opacity-80"
         >
-          Manage connections
+          {t("Manage connections")}
         </Link>
       </div>
 
       {connections.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-gray-50 p-5 text-sm text-gray-600">
           {loadError
-            ? "Saved connections are unavailable. Retry the data services above."
-            : "No external connections have been added yet. Open Connections to add a provider, or upload a file from Datasets."}
+            ? t("Saved connections are unavailable. Retry the data services above.")
+            : t("No external connections have been added yet. Open Connections to add a provider, or upload a file from Datasets.")}
         </div>
       ) : (
         <div className="space-y-5">
@@ -108,7 +110,7 @@ export function ConnectionPullWidget({
               htmlFor="dataset-connection-source"
               className="mb-2 block text-sm font-medium text-gray-700"
             >
-              Connection
+              {t("Connection")}
             </label>
 
             <select
@@ -138,7 +140,7 @@ export function ConnectionPullWidget({
               <div className="grid min-w-0 gap-3 rounded-xl border bg-gray-50 p-4 text-sm sm:grid-cols-4">
                 <div className="min-w-0">
                   <p className="text-xs uppercase tracking-wide text-gray-400">
-                    Source
+                    {t("Source")}
                   </p>
                   <p className="mt-1 break-words font-medium text-gray-900">
                     {selectedConnection.source_label}
@@ -147,7 +149,7 @@ export function ConnectionPullWidget({
 
                 <div className="min-w-0">
                   <p className="text-xs uppercase tracking-wide text-gray-400">
-                    Status
+                    {t("Status")}
                   </p>
                   <span
                     className={`mt-1 inline-flex max-w-full rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusClasses(
@@ -162,19 +164,19 @@ export function ConnectionPullWidget({
 
                 <div className="min-w-0">
                   <p className="text-xs uppercase tracking-wide text-gray-400">
-                    Setup
+                      {t("Setup")}
                   </p>
                   <p className="mt-1 break-words font-medium text-gray-900">
                     {selectedConnection.has_config
-                      ? "Configuration saved"
-                      : "Needs configuration"}
+                      ? t("Configuration saved")
+                      : t("Needs configuration")}
                   </p>
                 </div>
 
                 {hasEnvironmentRequirement && (
                   <div className="min-w-0">
                     <p className="text-xs uppercase tracking-wide text-gray-400">
-                      Credentials
+                      {t("Credentials")}
                     </p>
                     <p
                       className={
@@ -184,8 +186,8 @@ export function ConnectionPullWidget({
                       }
                     >
                       {selectedConnection.environment_configured
-                        ? "Ready"
-                        : "Needs setup"}
+                        ? t("Ready")
+                        : t("Needs setup")}
                     </p>
                   </div>
                 )}
@@ -193,8 +195,8 @@ export function ConnectionPullWidget({
 
               <div className="break-words rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-4 py-3 text-sm text-[var(--decisionate-brand-primary-text)]">
                 {isGoogleAnalyticsConnection
-                  ? "Configure the GA4 property and use Sync now from Manage connections to create a dataset."
-                  : "Use Manage connections to finish setup or authorization, then sync the source to create a dataset."}
+                  ? t("Configure the GA4 property and use Sync now from Manage connections to create a dataset.")
+                  : t("Use Manage connections to finish setup or authorization, then sync the source to create a dataset.")}
               </div>
             </>
           )}

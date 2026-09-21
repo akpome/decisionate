@@ -1,3 +1,5 @@
+"use client"
+
 import {
   AlertTriangle,
   ArrowDown,
@@ -5,6 +7,8 @@ import {
   CheckCircle2,
   RefreshCw,
 } from "lucide-react"
+
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 import {
   formatMetricLabel,
@@ -102,6 +106,7 @@ export function AnomalyDetectionPanel({
   onCreateDecision,
   creatingDecisionKey,
 }: AnomalyDetectionPanelProps) {
+  const { t } = useDecisionateText()
   const metrics = result?.metrics ?? []
   const totalAnomalies =
     result?.total_anomaly_count ?? 0
@@ -116,18 +121,18 @@ export function AnomalyDetectionPanel({
               className="text-amber-600"
             />
             <h2 className="text-lg font-semibold text-gray-900">
-              Anomaly detection
+              {t("Anomaly detection")}
             </h2>
           </div>
           <p className="mt-1 max-w-3xl text-sm text-gray-500">
-            Statistical outliers in the selected dataset window. This identifies unusual values and does not infer their cause.
+            {t("Statistical outliers in the selected dataset window. This identifies unusual values and does not infer their cause.")}
           </p>
         </div>
 
         <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-gray-500">
-          <span>Sensitivity</span>
+          <span>{t("Sensitivity")}</span>
           <select
-            aria-label="Anomaly detection sensitivity"
+            aria-label={t("Anomaly detection sensitivity")}
             value={sensitivity}
             disabled={loading}
             onChange={event =>
@@ -137,9 +142,9 @@ export function AnomalyDetectionPanel({
             }
             className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-100"
           >
-            <option value="high">High</option>
-            <option value="medium">Balanced</option>
-            <option value="low">Low</option>
+            <option value="high">{t("High")}</option>
+            <option value="medium">{t("Balanced")}</option>
+            <option value="low">{t("Low")}</option>
           </select>
         </label>
       </div>
@@ -156,7 +161,7 @@ export function AnomalyDetectionPanel({
             size={16}
             className="animate-spin"
           />
-          Evaluating the selected time series...
+          {t("Evaluating the selected time series...")}
         </div>
       )}
 
@@ -170,7 +175,7 @@ export function AnomalyDetectionPanel({
               className="inline-flex w-fit items-center gap-2 rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-100"
             >
               <RefreshCw size={14} />
-              Retry
+              {t("Retry")}
             </button>
           )}
         </div>
@@ -180,15 +185,15 @@ export function AnomalyDetectionPanel({
         <>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <Stat
-              label="Detected anomalies"
+              label={t("Detected anomalies")}
               value={String(totalAnomalies)}
             />
             <Stat
-              label="Metrics evaluated"
+              label={t("Metrics evaluated")}
               value={String(metrics.length)}
             />
             <Stat
-              label="Minimum periods"
+              label={t("Minimum periods")}
               value={String(result.minimum_observations)}
             />
           </div>
@@ -204,13 +209,13 @@ export function AnomalyDetectionPanel({
 
           {result.status !== "ready" && (
             <div className="mt-5 rounded-lg border border-dashed border-gray-300 px-4 py-4 text-sm text-gray-600">
-              {result.message || "Anomaly detection could not be evaluated for this selection."}
+              {result.message || t("Anomaly detection could not be evaluated for this selection.")}
             </div>
           )}
 
           {result.status === "ready" && metrics.length === 0 && (
             <div className="mt-5 rounded-lg border border-dashed border-gray-300 px-4 py-4 text-sm text-gray-600">
-              No numeric metrics are available for this dataset.
+              {t("No numeric metrics are available for this dataset.")}
             </div>
           )}
 
@@ -263,6 +268,8 @@ function MetricAnomalyGroup({
   ) => void
   creatingDecisionKey?: string
 }) {
+  const { t } = useDecisionateText()
+
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200">
       <div className="flex flex-col gap-2 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -278,7 +285,7 @@ function MetricAnomalyGroup({
           </p>
         </div>
         <span className="text-xs font-medium text-gray-600">
-          {metric.anomaly_count} detected
+          {metric.anomaly_count} {t("detected")}
         </span>
       </div>
 
@@ -288,7 +295,7 @@ function MetricAnomalyGroup({
             size={16}
             className="text-green-600"
           />
-          {metric.message || "No anomalies detected."}
+          {metric.message || t("No anomalies detected.")}
         </div>
       ) : (
         <div className="divide-y divide-gray-100">
@@ -319,10 +326,10 @@ function MetricAnomalyGroup({
                   )}
                   <div className="min-w-0">
                     <p className="font-medium text-gray-900">
-                      {formatAnomalyPeriod(anomaly.period)} · {anomaly.direction === "high" ? "High" : "Low"} value
+                      {formatAnomalyPeriod(anomaly.period)} · {anomaly.direction === "high" ? t("High") : t("Low")} {t("value")}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-gray-500">
-                      Observed {formatAnomalyNumber(anomaly.value)} vs baseline {formatAnomalyNumber(anomaly.baseline)} · score {formatAnomalyNumber(Math.abs(anomaly.score))}
+                      {t("Observed")} {formatAnomalyNumber(anomaly.value)} {t("vs baseline")} {formatAnomalyNumber(anomaly.baseline)} · {t("score")} {formatAnomalyNumber(Math.abs(anomaly.score))}
                     </p>
                   </div>
                 </div>
@@ -337,8 +344,8 @@ function MetricAnomalyGroup({
                     className="inline-flex w-fit items-center justify-center rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-2 text-xs font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isCreating
-                      ? "Creating decision..."
-                      : "Create decision"}
+                      ? t("Creating decision...")
+                      : t("Create decision")}
                   </button>
                 )}
               </div>

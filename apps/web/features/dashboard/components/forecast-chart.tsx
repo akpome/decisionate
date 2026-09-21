@@ -10,6 +10,8 @@ import {
   ResponsiveContainer,
 } from "recharts"
 
+import { useDecisionateText } from "@/app/use-decisionate-language"
+
 type ForecastChartRow = Record<
   string,
   string | number | boolean | null | undefined
@@ -130,6 +132,8 @@ function ForecastTooltip({
 export function ForecastChart({
   data,
 }: ForecastChartProps) {
+  const { t } = useDecisionateText()
+
   if (!data.length) {
     return (
       <div
@@ -138,7 +142,7 @@ export function ForecastChart({
         className="flex h-[350px] items-center justify-center rounded-lg border bg-white"
       >
         <p className="text-sm text-gray-500">
-          No forecast data available
+          {t("No forecast data available")}
         </p>
       </div>
     )
@@ -152,12 +156,12 @@ export function ForecastChart({
       <div className="mb-4 flex flex-wrap items-center gap-4 text-sm text-gray-600">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--decisionate-brand-primary)]" />
-          Historical
+          {t("Historical")}
         </div>
 
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--decisionate-brand-accent)]" />
-          Forecast
+          {t("Forecast")}
         </div>
       </div>
 
@@ -228,7 +232,7 @@ export function ForecastChart({
             <Line
               type="monotone"
               dataKey="historicalValue"
-              name="Historical"
+              name={t("Historical")}
               stroke="var(--decisionate-brand-primary)"
               strokeWidth={3}
               dot={false}
@@ -241,7 +245,7 @@ export function ForecastChart({
             <Line
               type="monotone"
               dataKey="forecastValue"
-              name="Forecast"
+              name={t("Forecast")}
               stroke="var(--decisionate-brand-accent)"
               strokeWidth={3}
               strokeDasharray="6 4"

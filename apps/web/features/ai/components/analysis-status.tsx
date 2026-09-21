@@ -1,3 +1,7 @@
+"use client"
+
+import { useDecisionateText } from "@/app/use-decisionate-language"
+
 type AnalysisStatusProps = {
   kind: "loading" | "unavailable"
   className?: string
@@ -10,6 +14,7 @@ export function AnalysisStatus({
   onRetry,
 }: AnalysisStatusProps) {
   const isLoading = kind === "loading"
+  const { t } = useDecisionateText()
 
   return (
     <div
@@ -24,8 +29,8 @@ export function AnalysisStatus({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span>
           {isLoading
-            ? "Updating AI analysis for the selected metric..."
-            : "AI analysis is unavailable for the selected metric. The other dashboard data is still available."}
+            ? t("Updating AI analysis for the selected metric...")
+            : t("AI analysis is unavailable for the selected metric. The other dashboard data is still available.")}
         </span>
 
         {!isLoading && onRetry && (
@@ -34,7 +39,7 @@ export function AnalysisStatus({
             onClick={onRetry}
             className="rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-medium text-amber-800 transition hover:bg-amber-100"
           >
-            Retry AI analysis
+            {t("Retry AI analysis")}
           </button>
         )}
       </div>

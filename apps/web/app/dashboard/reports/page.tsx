@@ -70,6 +70,7 @@ import {
   buildAIRecommendationDecisionPayload,
 } from "@/features/decisions/lib/ai-decision-handoff"
 import { useRouter } from "next/navigation"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 import {
   buildInsightDecisionPayload,
 } from "@/features/decisions/lib/decision-handoff"
@@ -201,6 +202,7 @@ function formatReportValueAggregationLabel(
 }
 
 export default function ReportsPage() {
+  const { t } = useDecisionateText()
   const {
     user,
     isLoaded: authLoaded,
@@ -944,7 +946,7 @@ export default function ReportsPage() {
 
           <div className="mt-4 grid min-w-0 gap-3 rounded-lg border border-gray-200 bg-gray-50 px-0 py-2 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
             <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
-              <span className="block">Start date</span>
+              <span className="block">{t("Start date")}</span>
               <input
                 type="date"
                 value={startDate}
@@ -957,7 +959,7 @@ export default function ReportsPage() {
             </label>
 
             <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
-              <span className="block">Period</span>
+              <span className="block">{t("Period")}</span>
               <select
                 value={periodFilter}
                 disabled={!selectedDatasetId || loadingReport}
@@ -975,12 +977,12 @@ export default function ReportsPage() {
                 <option value="2y">2 years</option>
                 <option value="3y">3 years</option>
                 <option value="5y">5 years</option>
-                <option value="all">All data</option>
+                <option value="all">{t("All data")}</option>
               </select>
             </label>
 
             <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
-              <span className="block">Group by</span>
+              <span className="block">{t("Group by")}</span>
               <select
                 value={aggregation}
                 disabled={!selectedDatasetId || loadingReport}
@@ -991,15 +993,15 @@ export default function ReportsPage() {
                 }
                 className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-100"
               >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
+                <option value="daily">{t("Daily")}</option>
+                <option value="weekly">{t("Weekly")}</option>
+                <option value="monthly">{t("Monthly")}</option>
+                <option value="quarterly">{t("Quarterly")}</option>
               </select>
             </label>
 
             <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
-              <span className="block">Aggregate</span>
+              <span className="block">{t("Aggregate")}</span>
               <select
                 value={aggregationType}
                 disabled={!selectedDatasetId || loadingReport}
@@ -1010,11 +1012,11 @@ export default function ReportsPage() {
                 }
                 className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:bg-gray-100"
               >
-                <option value="sum">Sum</option>
-                <option value="count">Count</option>
-                <option value="avg">Average</option>
-                <option value="min">Minimum</option>
-                <option value="max">Maximum</option>
+                <option value="sum">{t("Sum")}</option>
+                <option value="count">{t("Count")}</option>
+                <option value="avg">{t("Average")}</option>
+                <option value="min">{t("Minimum")}</option>
+                <option value="max">{t("Maximum")}</option>
               </select>
             </label>
 

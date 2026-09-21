@@ -1,6 +1,9 @@
+"use client"
+
 import {
     PlusCircle,
 } from "lucide-react"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 interface RecommendationCardProps {
     title: string
@@ -34,17 +37,19 @@ export function RecommendationCard({
     reason,
     creatingDecision
 }: RecommendationCardProps) {
+    const { t } = useDecisionateText()
+
     return (
         <div className="rounded-2xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-5">
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                 <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
-                            Recommended Action
+                            {t("Recommended Action")}
                         </p>
 
                         <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-[var(--decisionate-brand-primary-text)]">
-                            {capitalize(confidence)} confidence
+                            {capitalize(t(confidence))} {t("confidence")}
                         </span>
                     </div>
 
@@ -58,7 +63,7 @@ export function RecommendationCard({
 
                     <p className="mt-3 break-words text-sm leading-6 text-gray-600">
                         <span className="font-semibold text-gray-800">
-                            Why:
+                            {t("Why:")}
                         </span>
                         {" "}
                         {reason}
@@ -66,7 +71,7 @@ export function RecommendationCard({
 
                     {source && (
                         <p className="mt-2 break-words text-xs text-gray-500">
-                            Analysis basis: {source}
+                            {t("Analysis basis:")} {source}
                         </p>
                     )}
 
@@ -88,8 +93,8 @@ export function RecommendationCard({
                             <PlusCircle size={16} />
                             {
                                 creatingDecision
-                                    ? "Creating..."
-                                    : "Create Decision"
+                                    ? t("Creating...")
+                                    : t("Create Decision")
                             }
                         </button>
                     </div>

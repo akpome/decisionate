@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  useCallback,
   useSyncExternalStore,
 } from "react"
 
@@ -39,12 +40,17 @@ export function useDecisionateLanguage() {
   )
 }
 
-export function useLandingText() {
+export function useDecisionateText() {
   const language = useDecisionateLanguage()
+  const t = useCallback(
+    (source: string) => getLandingText(language, source),
+    [language]
+  )
 
   return {
     language,
-    t: (source: string) =>
-      getLandingText(language, source),
+    t,
   }
 }
+
+export const useLandingText = useDecisionateText

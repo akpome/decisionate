@@ -6,6 +6,8 @@ import {
   TrendingUp,
 } from "lucide-react"
 
+import { useDecisionateText } from "@/app/use-decisionate-language"
+
 interface ForecastSummaryCardProps {
   currentValue: number
   forecastValue: number
@@ -23,6 +25,7 @@ export function ForecastSummaryCard({
   absoluteChange,
   percentChange,
 }: ForecastSummaryCardProps) {
+  const { t } = useDecisionateText()
   const change =
     absoluteChange ??
     forecastValue - currentValue
@@ -45,10 +48,10 @@ export function ForecastSummaryCard({
     growth < -5
   const trendLabel =
     isGrowing
-      ? "Growing"
+      ? t("Growing")
       : isDeclining
-        ? "Declining"
-        : "Stable"
+        ? t("Declining")
+        : t("Stable")
   const TrendIcon =
     isDeclining
       ? TrendingDown
@@ -59,16 +62,16 @@ export function ForecastSummaryCard({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold">
-            Forecast Summary
+            {t("Forecast Summary")}
           </h2>
 
           <p className="text-sm text-gray-500">
-            Key forecast indicators.
+            {t("Key forecast indicators.")}
           </p>
         </div>
 
         <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-          Dataset-derived forecast
+          {t("Dataset-derived forecast")}
         </p>
       </div>
 
@@ -83,7 +86,7 @@ export function ForecastSummaryCard({
           </p>
 
           <p className="mt-2 text-sm font-medium text-gray-500">
-            Current Value
+            {t("Current Value")}
           </p>
 
           <p className="mt-1 break-words text-xs text-gray-400">
@@ -101,13 +104,13 @@ export function ForecastSummaryCard({
           </p>
 
           <p className="mt-2 text-sm font-medium text-gray-500">
-            Forecast Value
+            {t("Forecast Value")}
           </p>
 
           <p className="mt-1 break-words text-xs text-gray-400">
             {forecastPeriod
-              ? `Projected for ${forecastPeriod}`
-              : "Projected horizon"}
+              ? `${t("Projected for")} ${forecastPeriod}`
+              : t("Projected horizon")}
           </p>
         </div>
 
@@ -122,7 +125,7 @@ export function ForecastSummaryCard({
           </p>
 
           <p className="mt-2 text-sm font-medium text-gray-500">
-            Change
+            {t("Change")}
           </p>
 
           <p className="mt-2 flex items-start gap-1.5 text-sm">

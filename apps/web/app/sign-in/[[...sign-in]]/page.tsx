@@ -3,6 +3,10 @@ import Link from "next/link"
 import { AuthCard } from "@/app/auth-card"
 import { ThemeToggle } from "@/app/theme-toggle"
 import { LanguageToggle } from "@/app/language-toggle"
+import {
+  AuthPageCopy,
+  AuthSignupPrompt,
+} from "@/app/auth-page-copy"
 
 type SignInPageProps = {
   searchParams: Promise<{
@@ -54,13 +58,10 @@ export default async function SignInPage({
             Decisionate
           </Link>
 
-          <h1 className="mt-5 text-3xl font-bold tracking-tight text-gray-950 sm:text-5xl">
-            Welcome back
-          </h1>
-
-          <p className="mt-4 text-lg leading-8 text-gray-600">
-            Sign in to continue with your dashboards, datasets, alerts, and decision follow-up.
-          </p>
+          <AuthPageCopy
+            title="Welcome back"
+            description="Sign in to continue with your dashboards, datasets, alerts, and decision follow-up."
+          />
         </section>
 
         <section
@@ -69,13 +70,7 @@ export default async function SignInPage({
         >
           <div className="w-full min-w-0 max-w-[24rem]">
             <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-center text-sm text-blue-900">
-              New user?{" "}
-              <Link
-                href="/sign-up"
-                className="font-semibold underline underline-offset-2"
-              >
-                Create your account
-              </Link>
+              <AuthSignupPrompt />
             </div>
 
             <AuthCard

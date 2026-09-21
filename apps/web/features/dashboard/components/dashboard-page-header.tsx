@@ -1,4 +1,7 @@
+"use client"
+
 import type { ReactNode } from "react"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 type DashboardPageHeaderProps = {
   title: ReactNode
@@ -17,6 +20,10 @@ export function DashboardPageHeader({
   leading,
   className = "",
 }: DashboardPageHeaderProps) {
+  const { t } = useDecisionateText()
+  const translateNode = (node: ReactNode) =>
+    typeof node === "string" ? t(node) : node
+
   return (
     <header
       className={`flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between ${className}`.trim()}
@@ -30,16 +37,16 @@ export function DashboardPageHeader({
 
         {eyebrow && (
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--decisionate-brand-primary-text)]">
-            {eyebrow}
+            {translateNode(eyebrow)}
           </p>
         )}
 
         <h1 className="break-words text-3xl font-bold tracking-tight text-gray-950">
-          {title}
+          {translateNode(title)}
         </h1>
 
         <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-500">
-          {description}
+          {translateNode(description)}
         </p>
       </div>
 

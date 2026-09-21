@@ -1,3 +1,8 @@
+
+"use client"
+
+import { useDecisionateText } from "@/app/use-decisionate-language"
+
 interface MetricSelectorProps {
   metrics: string[]
   options?: {
@@ -39,6 +44,7 @@ export function MetricSelector({
   placeholder = "Select Metric",
   ariaLabel = "Select metric",
 }: MetricSelectorProps) {
+  const { t } = useDecisionateText()
   const visibleOptions = options
     ? options
     : metrics
@@ -48,12 +54,12 @@ export function MetricSelector({
           label: formatMetricLabel(metric),
         }))
   const effectivePlaceholder = loadError
-    ? "Metrics unavailable"
-    : placeholder
+    ? t("Metrics unavailable")
+    : t(placeholder)
 
   return (
     <select
-      aria-label={ariaLabel}
+      aria-label={t(ariaLabel)}
       value={value ?? ""}
       onChange={(e) =>
         onChange(

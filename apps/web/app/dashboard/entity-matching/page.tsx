@@ -26,12 +26,14 @@ import { useActiveWorkspace } from "@/lib/use-active-workspace"
 import { useWorkspaceAccess } from "@/lib/use-workspace-access"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { WorkspaceAccessNotice } from "@/features/dashboard/components/workspace-access-notice"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback
 }
 
 export default function EntityMatchingPage() {
+  const { t } = useDecisionateText()
   const { user } = useUser()
   const { activeWorkspaceId, workspaceVersion } = useActiveWorkspace(user?.id)
   const { canManageWorkspaceData, loadingWorkspaceAccess } = useWorkspaceAccess(user?.id)
@@ -299,7 +301,7 @@ export default function EntityMatchingPage() {
       }, user.id, activeWorkspaceId)
       setResult(saved)
       setStatusMessage(
-        `Saved ${saved.canonical_entity_count} canonical ${entityType} records and created ${saved.unified_dataset_name ?? "a unified dataset"}.`
+        `${t("Saved")} ${saved.canonical_entity_count} ${t("canonical")} ${t(entityType)} ${t("records and created")} ${saved.unified_dataset_name ?? t("a unified dataset")}.`
       )
     } catch (saveError) {
       setError(getErrorMessage(saveError, "Unable to save entity matches."))
@@ -321,7 +323,7 @@ export default function EntityMatchingPage() {
             title="Refresh datasets"
           >
             <RefreshCw size={16} />
-            Refresh
+            {t("Refresh")}
           </button>
         }
       />
@@ -339,14 +341,14 @@ export default function EntityMatchingPage() {
         <div className="flex items-start gap-3">
           <div className="rounded-xl bg-blue-50 p-2 text-blue-700"><UsersRound size={19} /></div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-950">Choose source datasets</h2>
-            <p className="mt-1 text-sm text-gray-500">Select 2 to 10 datasets, confirm the identity columns used for matching, and choose the metrics or columns to carry into the unified dataset. Recommended columns are selected automatically and can be changed.</p>
+        <h2 className="text-lg font-semibold text-gray-950">{t("Choose source datasets")}</h2>
+            <p className="mt-1 text-sm text-gray-500">{t("Select 2 to 10 datasets, confirm the identity columns used for matching, and choose the metrics or columns to carry into the unified dataset. Recommended columns are selected automatically and can be changed.")}</p>
           </div>
         </div>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-[220px_1fr]">
           <label className="space-y-2">
-            <span className="text-sm font-medium text-gray-700">Entity type</span>
+            <span className="text-sm font-medium text-gray-700">{t("Entity type")}</span>
             <select
               value={entityType}
               onChange={event => {
@@ -358,12 +360,12 @@ export default function EntityMatchingPage() {
               }}
               className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
-              <option value="customer">Customers</option>
-              <option value="product">Products</option>
+              <option value="customer">{t("Customers")}</option>
+              <option value="product">{t("Products")}</option>
             </select>
           </label>
           <div className="grid gap-2 sm:grid-cols-2">
-            {loading ? <p role="status" className="text-sm text-gray-500">Loading datasets...</p> : datasets.map(dataset => (
+            {loading ? <p role="status" className="text-sm text-gray-500">{t("Loading datasets...")}</p> : datasets.map(dataset => (
               <label key={dataset.id} className={`flex min-w-0 items-center gap-3 rounded-xl border px-3 py-3 ${selectedIds.includes(dataset.id) ? "border-blue-300 bg-blue-50" : "border-gray-200 bg-white"}`}>
                 <input
                   type="checkbox"
@@ -374,7 +376,7 @@ export default function EntityMatchingPage() {
                 />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-gray-800">{dataset.file_name}</span>
-                  <span className="block text-xs text-gray-500">{dataset.row_count.toLocaleString()} rows</span>
+                  <span className="block text-xs text-gray-500">{dataset.row_count.toLocaleString()} {t("rows")}</span>
                 </span>
               </label>
             ))}
@@ -385,10 +387,10 @@ export default function EntityMatchingPage() {
           <div className="mt-5 border-t border-gray-100 pt-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <div>
-                <h3 className="text-sm font-semibold text-gray-900">Identity columns by dataset</h3>
-                <p className="mt-1 text-xs text-gray-500">Select one or more columns that identify the same customer or product across sources.</p>
+                <h3 className="text-sm font-semibold text-gray-900">{t("Identity columns by dataset")}</h3>
+                <p className="mt-1 text-xs text-gray-500">{t("Select one or more columns that identify the same customer or product across sources.")}</p>
               </div>
-              {columnMetadataLoading && <span className="text-xs text-gray-500">Loading columns...</span>}
+              {columnMetadataLoading && <span className="text-xs text-gray-500">{t("Loading columns...")}</span>}
             </div>
             <div className="mt-3 grid gap-3 lg:grid-cols-2">
               {selectedDatasets.map(dataset => {
@@ -403,7 +405,7 @@ export default function EntityMatchingPage() {
                       <span className="block max-w-[28rem] truncate">{dataset.file_name}</span>
                     </legend>
                     {!metadata ? (
-                      <p className="text-xs text-gray-500">{columnMetadataLoading ? "Loading available columns..." : "No columns available."}</p>
+                      <p className="text-xs text-gray-500">{columnMetadataLoading ? t("Loading available columns...") : t("No columns available.")}</p>
                     ) : (
                       <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
                         <div className="grid gap-1 sm:grid-cols-2">
@@ -419,7 +421,7 @@ export default function EntityMatchingPage() {
                                   className="h-4 w-4 shrink-0 accent-blue-600"
                                 />
                                 <span className="min-w-0 truncate" title={column}>{column}</span>
-                                {isDefault && <span className="shrink-0 text-[10px] uppercase tracking-wide text-blue-600">Suggested</span>}
+                                {isDefault && <span className="shrink-0 text-[10px] uppercase tracking-wide text-blue-600">{t("Suggested")}</span>}
                               </label>
                             )
                           })}
@@ -427,36 +429,36 @@ export default function EntityMatchingPage() {
                       </div>
                     )}
                     {!selectedColumns.length && metadata && (
-                      <p className="mt-2 text-xs text-amber-700">Select at least one column before previewing or saving.</p>
+                      <p className="mt-2 text-xs text-amber-700">{t("Select at least one column before previewing or saving.")}</p>
                     )}
                     {metadata && (
                       <div className="mt-3 border-t border-gray-200 pt-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs font-semibold text-gray-700">Metrics or columns to include</p>
+                          <p className="text-xs font-semibold text-gray-700">{t("Metrics or columns to include")}</p>
                           <span className="flex items-center gap-2 text-[11px]">
                             <button
                               type="button"
                               onClick={() => clearMetricColumns(dataset.id)}
                               disabled={!selectedMetrics.length || !canManageWorkspaceData}
                               className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
-                              title="Unselect all metrics or columns"
+                              title={t("Unselect all metrics or columns")}
                             >
                               <X size={12} aria-hidden="true" />
-                              Unselect all
+                              {t("Unselect all")}
                             </button>
                             <button
                               type="button"
                               onClick={() => resetMetricColumns(dataset.id)}
                               disabled={!canManageWorkspaceData}
                               className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-40"
-                              title="Reset metrics or columns to the default selection"
+                              title={t("Reset metrics or columns to the default selection")}
                             >
                               <RotateCcw size={12} aria-hidden="true" />
-                              Reset to default
+                              {t("Reset to default")}
                             </button>
                           </span>
                         </div>
-                        <p className="mt-1 text-[11px] text-gray-500">These fields will be carried into the unified dataset. Numeric fields are selected by default.</p>
+                        <p className="mt-1 text-[11px] text-gray-500">{t("These fields will be carried into the unified dataset. Numeric fields are selected by default.")}</p>
                         {metadata.metric_columns.length > 0 ? (
                           <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
                             <div className="grid gap-1 sm:grid-cols-2">
@@ -477,10 +479,10 @@ export default function EntityMatchingPage() {
                             </div>
                           </div>
                         ) : (
-                          <p className="mt-2 text-xs text-gray-500">No non-identity columns are available.</p>
+                          <p className="mt-2 text-xs text-gray-500">{t("No non-identity columns are available.")}</p>
                         )}
                         {!selectedMetrics.length && metadata.metric_columns.length > 0 && (
-                          <p className="mt-2 text-xs text-amber-700">Select at least one field to include.</p>
+                          <p className="mt-2 text-xs text-amber-700">{t("Select at least one field to include.")}</p>
                         )}
                       </div>
                     )}
@@ -492,19 +494,19 @@ export default function EntityMatchingPage() {
         )}
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void handlePreview()} disabled={busy || !canManageWorkspaceData || selectedIds.length < 2} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">Preview matches</button>
-          <button type="button" onClick={() => void handleSave()} disabled={busy || !canManageWorkspaceData || selectedIds.length < 2} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"><Save size={16} /> Save matches</button>
-          <span className="text-xs text-gray-500">{selectedDatasets.length} selected</span>
+          <button type="button" onClick={() => void handlePreview()} disabled={busy || !canManageWorkspaceData || selectedIds.length < 2} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{t("Preview matches")}</button>
+          <button type="button" onClick={() => void handleSave()} disabled={busy || !canManageWorkspaceData || selectedIds.length < 2} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"><Save size={16} /> {t("Save matches")}</button>
+          <span className="text-xs text-gray-500">{selectedDatasets.length} {t("selected")}</span>
         </div>
       </section>
 
       {preview && (
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-950">Match preview</h2>
+          <h2 className="text-lg font-semibold text-gray-950">{t("Match preview")}</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <Summary label="Source rows" value={preview.candidate_row_count.toLocaleString()} />
-            <Summary label="Canonical groups" value={preview.matched_group_count.toLocaleString()} />
-            <Summary label="Rows matched across sources" value={preview.matched_row_count.toLocaleString()} />
+            <Summary label={t("Source rows")} value={preview.candidate_row_count.toLocaleString()} />
+            <Summary label={t("Canonical groups")} value={preview.matched_group_count.toLocaleString()} />
+            <Summary label={t("Rows matched across sources")} value={preview.matched_row_count.toLocaleString()} />
           </div>
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -517,14 +519,14 @@ export default function EntityMatchingPage() {
 
       {result && (
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold text-gray-950">Saved canonical records</h2><span className="text-sm text-gray-500">{result.confidence_breakdown.high} high confidence, {result.confidence_breakdown.medium} medium, {result.confidence_breakdown.review} review</span></div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3"><Summary label="Canonical records" value={result.canonical_entity_count.toLocaleString()} /><Summary label="Rows matched across sources" value={result.matched_row_count.toLocaleString()} /><Summary label="Rows needing review" value={result.unmatched_row_count.toLocaleString()} /></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold text-gray-950">{t("Saved canonical records")}</h2><span className="text-sm text-gray-500">{result.confidence_breakdown.high} {t("high confidence")}, {result.confidence_breakdown.medium} {t("medium")}, {result.confidence_breakdown.review} {t("review")}</span></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3"><Summary label={t("Canonical records")} value={result.canonical_entity_count.toLocaleString()} /><Summary label={t("Rows matched across sources")} value={result.matched_row_count.toLocaleString()} /><Summary label={t("Rows needing review")} value={result.unmatched_row_count.toLocaleString()} /></div>
           {result.unified_dataset_id && (
             <Link
               href={`/dashboard/datasets/${result.unified_dataset_id}`}
               className="mt-4 inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
             >
-              Open {result.unified_dataset_name ?? "unified dataset"}
+              {t("Open")} {result.unified_dataset_name ?? t("unified dataset")}
             </Link>
           )}
           <div className="mt-5 overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="border-b text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-2 py-2">Canonical name</th><th className="px-2 py-2">Sources</th><th className="px-2 py-2">Rows</th><th className="px-2 py-2">Confidence</th></tr></thead><tbody>{result.entities.map(entity => <tr key={entity.id} className="border-b last:border-0"><td className="px-2 py-3 font-medium text-gray-800">{entity.display_name || entity.canonical_key}</td><td className="px-2 py-3 text-gray-600">{entity.source_count}</td><td className="px-2 py-3 text-gray-600">{entity.match_count}</td><td className="px-2 py-3 text-gray-600">{Math.round(entity.confidence * 100)}%</td></tr>)}</tbody></table></div>
