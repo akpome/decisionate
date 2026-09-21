@@ -1,6 +1,6 @@
 "use client"
 
-import { useId, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import {
   Database,
@@ -540,13 +540,6 @@ function DataSourceConnectionRow({
             )
         )
       : false)
-  const hasConfiguredResourceTypes =
-    configuredResourceTypes.length > 0
-  const hasRequiredOAuthSettings =
-    hasRequiredConnectionSettings &&
-    (!isOAuthConnector ||
-      !hasResourceSelection ||
-      hasConfiguredResourceTypes)
   const connectionReadyForResourceSelection =
     isOAuthConnector
       ? isOAuthAuthorized
@@ -555,15 +548,8 @@ function DataSourceConnectionRow({
     editableConfigKeys.filter(
       (configKey) => configKey !== "resource_types"
     )
-  const connectionSettingsConfigKeys = Array.from(
-    new Set([
-      ...inlineConnectionConfigKeys,
-      ...(hasResourceSelection &&
-      !connectionReadyForResourceSelection
-        ? ["resource_types"]
-        : []),
-    ])
-  )
+  const connectionSettingsConfigKeys =
+    inlineConnectionConfigKeys
   const showInlineConnectionSettings =
     inlineConnectionConfigKeys.length > 0 &&
     (!hasResourceSelection ||
@@ -577,7 +563,7 @@ function DataSourceConnectionRow({
     resourceOptions.length > 0 &&
     connectionReadyForResourceSelection
   const hasEditedConnectionSettings =
-    connectionSettingsConfigKeys.some((configKey) =>
+    inlineConnectionConfigKeys.some((configKey) =>
       Boolean(
         editingConnectionConfig[configKey]?.trim()
       )
@@ -624,7 +610,7 @@ function DataSourceConnectionRow({
     source?.connection_type === "oauth" &&
     source.status === "available" &&
     connection.status !== "connected" &&
-    hasRequiredOAuthSettings &&
+    hasRequiredConnectionSettings &&
     Boolean(onStartOAuthConnection)
   const canCancelOAuth =
     source?.connection_type === "oauth" &&
@@ -1268,10 +1254,6 @@ function DataSourceConnectionRow({
                         ? ["consumer_key", "consumer_secret"]
                         : []
                     }
-                    resourceTypesAsText={
-                      hasResourceSelection &&
-                      !connectionReadyForResourceSelection
-                    }
                   />
 
                   {connection.source_type === "meta_ads" && (
@@ -1324,59 +1306,14 @@ function DataSourceConnectionRow({
                 </>
               ) : (
                 <>
-                  <ConnectionConfigFieldGroup
-                    title="Connection settings"
-                    configKeys={["resource_types"]}
-                    sourceType={connection.source_type}
-                    editingConnectionConfig={
-                      editingConnectionConfig
-                    }
-                    hasSavedConfig={
-                      connection.has_config
-                    }
-                    setEditingConnectionConfig={
-                      setEditingConnectionConfig
-                    }
-                    resourceTypesAsText
-                  />
-
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
+                    {t("Connection settings")}
+                  </p>
                   <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
                     {isOAuthConnector
-                      ? t("Save the resource types before connecting with OAuth.")
-                      : t("Save the resource types before selecting objects to ingest.")}
+                      ? `${t("Use Connect with OAuth to authorize the provider account, then select the")} ${source?.label ?? "provider"} ${t("objects to ingest.")}`
+                      : t("Connection settings are managed by this provider.")}
                   </p>
-
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => saveConfiguration(connection)}
-                      disabled={
-                        updatingConnectionId ===
-                          connection.id ||
-                          !hasEditedConnectionSettings
-                      }
-                      className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                    >
-                      {updatingConnectionId ===
-                      connection.id
-                        ? "Saving..."
-                        : "Save settings"}
-                    </button>
-
-                    {connection.has_config && (
-                      <button
-                        type="button"
-                        onClick={() => clearConfiguration(connection)}
-                        disabled={
-                          updatingConnectionId ===
-                          connection.id
-                        }
-                        className="w-full rounded-lg border border-red-100 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                      >
-                        Clear saved settings
-                      </button>
-                    )}
-                  </div>
                 </>
               )}
             </div>
@@ -2051,7 +1988,6 @@ function ConnectionConfigFieldGroup({
   setEditingConnectionConfig,
   secret = false,
   secretKeys = [],
-  resourceTypesAsText = false,
 }: {
   title: string
   configKeys: string[]
@@ -2063,7 +1999,6 @@ function ConnectionConfigFieldGroup({
   ) => void
   secret?: boolean
   secretKeys?: string[]
-  resourceTypesAsText?: boolean
 }) {
   const { t } = useDecisionateText()
 
@@ -2087,7 +2022,6 @@ function ConnectionConfigFieldGroup({
             hasSavedConfig={hasSavedConfig}
             secret={secret}
             secretKeys={secretKeys}
-            resourceTypesAsText={resourceTypesAsText}
             onChange={(value) =>
               setEditingConnectionConfig({
                 ...editingConnectionConfig,
@@ -2108,7 +2042,6 @@ function ConnectionConfigField({
   hasSavedConfig,
   secret,
   secretKeys = [],
-  resourceTypesAsText = false,
   onChange,
 }: {
   configKey: string
@@ -2117,11 +2050,9 @@ function ConnectionConfigField({
   hasSavedConfig: boolean
   secret?: boolean
   secretKeys?: string[]
-  resourceTypesAsText?: boolean
   onChange: (value: string) => void
 }) {
   const [showValue, setShowValue] = useState(false)
-  const inputId = useId()
   const label = formatConnectionConfigLabel(
     configKey,
     sourceType
@@ -2148,27 +2079,6 @@ function ConnectionConfigField({
   const valueVisibilityLabel = showValue
     ? `Hide ${label.toLowerCase()}`
     : `Show ${label.toLowerCase()}`
-
-  if (resourceTypesAsText && configKey === "resource_types") {
-    return (
-      <div className="min-w-0">
-        <label
-          className="text-xs font-medium text-gray-700"
-          htmlFor={inputId}
-        >
-          {label}
-        </label>
-        <input
-          id={inputId}
-          type="text"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-          className={`${sharedClassName} py-2`}
-        />
-      </div>
-    )
-  }
 
   if (sourceType === "salesforce" && configKey === "resource_types") {
     const selectedResources = new Set(
