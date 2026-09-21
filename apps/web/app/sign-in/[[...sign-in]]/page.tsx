@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { AuthCard } from "@/app/auth-card"
 import { ThemeToggle } from "@/app/theme-toggle"
+import { LanguageToggle } from "@/app/language-toggle"
 
 type SignInPageProps = {
   searchParams: Promise<{
@@ -39,7 +40,8 @@ export default async function SignInPage({
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-6xl justify-end">
+      <div className="mx-auto flex max-w-6xl justify-end gap-2">
+        <LanguageToggle />
         <ThemeToggle />
       </div>
 

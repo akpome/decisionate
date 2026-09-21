@@ -18,6 +18,7 @@ import {
 import {
   ThemeToggle,
 } from "@/app/theme-toggle"
+import { LanguageToggle } from "@/app/language-toggle"
 
 const onboardingUseCases = [
   "Direct company workspace",
@@ -279,6 +280,7 @@ export default function OnboardingPage() {
   return (
     <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="mx-auto flex max-w-5xl justify-end gap-2">
+        <LanguageToggle />
         <ThemeToggle />
         <button
           type="button"

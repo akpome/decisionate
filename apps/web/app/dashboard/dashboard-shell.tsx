@@ -61,6 +61,15 @@ import {
 import {
   getWorkspaceBrand,
 } from "@/lib/workspace-brand"
+import { LanguageToggle } from "@/app/language-toggle"
+import {
+  decisionateLanguageChangedEvent,
+  getCurrentDecisionateLanguage,
+  getDecisionateText,
+  getServerDecisionateLanguage,
+  type DecisionateLanguage,
+  type DecisionateTranslationKey,
+} from "@/lib/language"
 
 type DashboardShellProps = {
   children: ReactNode
@@ -87,6 +96,26 @@ type OrganizationUpdatedEvent =
 const subscribeToClientMount = () => () => {}
 const getClientMountSnapshot = () => true
 const getServerMountSnapshot = () => false
+
+function subscribeToDecisionateLanguage(
+  onLanguageChange: () => void
+) {
+  if (typeof window === "undefined") {
+    return () => {}
+  }
+
+  window.addEventListener(
+    decisionateLanguageChangedEvent,
+    onLanguageChange
+  )
+
+  return () => {
+    window.removeEventListener(
+      decisionateLanguageChangedEvent,
+      onLanguageChange
+    )
+  }
+}
 
 const dashboardNavGroups: DashboardNavGroup[] = [
   {
@@ -208,6 +237,45 @@ const dashboardNavGroups: DashboardNavGroup[] = [
   },
 ]
 
+const dashboardNavigationTranslationKeys: Record<
+  string,
+  DecisionateTranslationKey
+> = {
+  Workspace: "workspace",
+  Dashboard: "dashboard",
+  Dashboards: "dashboards",
+  Decisions: "decisions",
+  "Action Needed": "actionNeeded",
+  "Workspace Access": "workspaceAccess",
+  Analysis: "analysis",
+  Insights: "insights",
+  Forecasts: "forecasts",
+  Reports: "reports",
+  Alerts: "alerts",
+  Relationships: "relationships",
+  Data: "data",
+  Datasets: "datasets",
+  "Entity Matching": "entityMatching",
+  Connections: "connections",
+  Manage: "manage",
+  Settings: "settings",
+  Billing: "billing",
+  Support: "support",
+  "Help & Support": "helpSupport",
+}
+
+function getDashboardNavigationLabel(
+  language: DecisionateLanguage,
+  label: string
+) {
+  const translationKey =
+    dashboardNavigationTranslationKeys[label]
+
+  return translationKey
+    ? getDecisionateText(language, translationKey)
+    : label
+}
+
 /* =========================
    Dashboard Shell With Workspace Context And Active Navigation
 ========================= */
@@ -256,6 +324,13 @@ export function DashboardShell({
     getClientMountSnapshot,
     getServerMountSnapshot
   )
+  const language = useSyncExternalStore(
+    subscribeToDecisionateLanguage,
+    getCurrentDecisionateLanguage,
+    getServerDecisionateLanguage
+  )
+  const text = (key: DecisionateTranslationKey) =>
+    getDecisionateText(language, key)
 
   const activeCollapsibleGroupLabel =
     dashboardNavGroups.find(
@@ -720,14 +795,14 @@ export function DashboardShell({
               onClick={() => window.location.reload()}
               className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100"
             >
-              Reload
+              {text("reload")}
             </button>
             <button
               type="button"
               onClick={() => setApiUnavailableMessage("")}
               className="rounded-lg px-2 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100"
             >
-              Dismiss
+              {text("dismiss")}
             </button>
           </div>
         </div>
@@ -739,7 +814,7 @@ export function DashboardShell({
       {mobileNavOpen && (
         <button
           type="button"
-          aria-label="Close dashboard navigation"
+          aria-label={text("closeNavigation")}
           className="dashboard-print-hidden fixed inset-0 z-30 bg-gray-950/30 xl:hidden"
           onClick={() => setMobileNavOpen(false)}
         />
@@ -747,7 +822,7 @@ export function DashboardShell({
 
       <aside
         id="dashboard-sidebar"
-        aria-label="Dashboard navigation"
+        aria-label={text("dashboardNavigation")}
         className={`dashboard-print-hidden fixed inset-y-0 left-0 z-40 flex h-screen w-72 shrink-0 flex-col border-r bg-white shadow-xl transition-transform duration-200 xl:static xl:z-auto xl:w-64 xl:translate-x-0 xl:shadow-none ${
           mobileNavOpen
             ? "translate-x-0"
@@ -792,18 +867,18 @@ export function DashboardShell({
                 {activeSharedWorkspace
                   ? `${formatWorkspaceRole(
                     activeSharedWorkspace.role
-                  )} portal`
+                  )} ${text("portal")}`
                   : visibleOrganization
-                    ? "Business workspace"
-                    : "Workspace"}
+                    ? text("businessWorkspace")
+                    : text("workspace")}
                 </p>
             </div>
             </div>
 
             <button
               type="button"
-              aria-label="Close dashboard navigation"
-              title="Close navigation"
+              aria-label={text("closeNavigation")}
+              title={text("closeNavigationShort")}
               className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 xl:hidden"
               onClick={() => setMobileNavOpen(false)}
             >
@@ -922,7 +997,12 @@ export function DashboardShell({
                       }
                       className="flex w-full items-center justify-between rounded-lg px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
                     >
-                      <span>{group.label}</span>
+                      <span>
+                        {getDashboardNavigationLabel(
+                          language,
+                          group.label
+                        )}
+                      </span>
                       {isExpanded ? (
                         <ChevronDown size={15} aria-hidden="true" />
                       ) : (
@@ -931,7 +1011,10 @@ export function DashboardShell({
                     </button>
                   ) : (
                     <p className="mb-2 px-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                      {group.label}
+                      {getDashboardNavigationLabel(
+                        language,
+                        group.label
+                      )}
                     </p>
                   )}
 
@@ -953,7 +1036,10 @@ export function DashboardShell({
                           )}
                         >
                           {item.icon}
-                          {item.label}
+                          {getDashboardNavigationLabel(
+                            language,
+                            item.label
+                          )}
                         </Link>
                       ))}
                     </div>
@@ -969,10 +1055,14 @@ export function DashboardShell({
         ========================= */}
 
         <div className="shrink-0 border-t p-4">
+          <div className="mb-3 flex justify-end">
+            <LanguageToggle />
+          </div>
+
           <div className="flex min-w-0 items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-gray-800">
-                {user?.fullName ?? "Account"}
+                {user?.fullName ?? text("account")}
               </p>
 
               <p className="truncate text-xs text-gray-500">
@@ -1004,8 +1094,8 @@ export function DashboardShell({
             type="button"
             aria-expanded={mobileNavOpen}
             aria-controls="dashboard-sidebar"
-            aria-label="Open dashboard navigation"
-            title="Open navigation"
+            aria-label={text("openNavigation")}
+            title={text("openNavigationShort")}
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm transition hover:bg-gray-50 hover:text-gray-950"
             onClick={() => setMobileNavOpen(true)}
           >

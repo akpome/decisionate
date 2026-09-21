@@ -7,6 +7,7 @@ import type { ReactNode } from "react"
 import { AppClerkProvider } from "./clerk-provider"
 import { PwaRegistration } from "./pwa-registration"
 import { ThemeBootstrap } from "./theme-bootstrap"
+import { LanguageBootstrap } from "./language-bootstrap"
 import { WorkspaceFaviconBootstrap } from "./workspace-favicon-bootstrap"
 
 export const metadata: Metadata = {
@@ -46,7 +47,7 @@ export default function RootLayout({
 }) {
   return (
     <html
-      lang="en"
+      lang="en-CA"
       suppressHydrationWarning
     >
       <head>
@@ -60,6 +61,7 @@ export default function RootLayout({
       <body className="bg-gray-50 text-gray-950 antialiased">
         <AppClerkProvider>
           <ThemeBootstrap />
+          <LanguageBootstrap />
           <div className="min-h-screen">
             {children}
           </div>

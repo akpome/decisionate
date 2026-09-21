@@ -11,6 +11,7 @@ import {
 } from "react"
 
 import { ThemeToggle } from "@/app/theme-toggle"
+import { LanguageToggle } from "@/app/language-toggle"
 
 const navLinks = [
   { label: "Product", href: "#product" },
@@ -66,6 +67,7 @@ export function LandingNavbar() {
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
+          <LanguageToggle />
           <ThemeToggle />
           <Link
             href="/demo"
@@ -76,6 +78,7 @@ export function LandingNavbar() {
         </div>
 
         <div className="flex items-center gap-2 lg:hidden">
+          <LanguageToggle />
           <ThemeToggle />
           <button
             type="button"
