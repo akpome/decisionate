@@ -1307,6 +1307,28 @@ function DataSourceConnectionRow({
                   <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
                     {t("Connection settings")}
                   </p>
+                  <div className="mt-3">
+                    <label
+                      className="text-xs font-medium text-gray-700"
+                      htmlFor={`connection-authorization-${connection.id}`}
+                    >
+                      {isOAuthConnector
+                        ? t("Authorization")
+                        : t("Connection settings")}
+                    </label>
+                    <input
+                      id={`connection-authorization-${connection.id}`}
+                      type="text"
+                      value={
+                        isOAuthConnector
+                          ? t("OAuth authorization required")
+                          : t("Connection settings required")
+                      }
+                      readOnly
+                      aria-readonly="true"
+                      className="mt-1 min-w-0 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-2 text-sm text-gray-700"
+                    />
+                  </div>
                   <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
                     {isOAuthConnector
                       ? `${t("Use Connect with OAuth to authorize the provider account, then select the")} ${source?.label ?? "provider"} ${t("objects to ingest.")}`
