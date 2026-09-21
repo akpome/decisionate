@@ -978,25 +978,52 @@ export default function DashboardPage() {
       return
     }
 
-    let cancelled = false
-    queueMicrotask(() => {
-      if (cancelled) {
-        return
-      }
+    const derivedDatasetIsAvailable = datasets.some(
+      datasetSummary =>
+        datasetSummary.id === derivedDataset.id
+    )
+    if (!derivedDatasetIsAvailable) {
+      const persistedDatasetIds = Array.from(
+        new Set([
+          ...(joinedDatasetResult.dataset_ids ?? []),
+          joinedDatasetResult.derived_dataset_id,
+        ].filter(
+          (datasetId): datasetId is number =>
+            typeof datasetId === "number" &&
+            Number.isInteger(datasetId) &&
+            datasetId > 0
+        ))
+      )
 
-      setDatasets(current => [
-        derivedDataset,
-        ...current.filter(
-          datasetSummary =>
-            datasetSummary.id !== derivedDataset.id
-        ),
-      ])
-    })
+      persistedDatasetIds.forEach(datasetId => {
+        persistJoinedDataset(
+          getJoinedDatasetStorageKey(
+            activeWorkspaceId,
+            userId,
+            datasetId,
+            selectedDashboard
+          ),
+          null
+        )
+      })
 
-    return () => {
-      cancelled = true
+      queueMicrotask(() => {
+        setJoinedDatasetResult(current =>
+          current?.derived_dataset_id ===
+            joinedDatasetResult.derived_dataset_id
+            ? null
+            : current
+        )
+      })
+      return
     }
-  }, [joinedDatasetResult])
+  }, [
+    activeWorkspaceId,
+    datasets,
+    joinedDatasetResult,
+    selectedDashboard,
+    userId,
+  ])
 
   useEffect(() => {
     let cancelled = false

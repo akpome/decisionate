@@ -813,14 +813,16 @@ def remove_dataset_preference_entry(
 
     dataset_key = str(dataset_id)
 
-    if dataset_key not in preferences:
-        return preference_json
-
-    next_preferences = {
-        key: value
-        for key, value in preferences.items()
-        if key != dataset_key
-    }
+    next_preferences = {}
+    for key, value in preferences.items():
+        if key == dataset_key:
+            continue
+        if joined_dataset_preference_references_dataset(
+            value,
+            dataset_id,
+        ):
+            continue
+        next_preferences[key] = value
 
     return (
         json.dumps(next_preferences)
@@ -874,13 +876,307 @@ def remove_dashboard_view_dataset_entry(
     if not isinstance(dashboard_views, dict):
         return None
 
-    dashboard_views.pop(str(dataset_id), None)
+    next_dashboard_views = {}
+    for dataset_key, dashboard_preferences in dashboard_views.items():
+        if dataset_key == str(dataset_id):
+            continue
+        if not isinstance(dashboard_preferences, dict):
+            continue
+
+        next_dashboard_preferences = {}
+        for dashboard_key, preference in dashboard_preferences.items():
+            if joined_dataset_preference_references_dataset(
+                preference,
+                dataset_id,
+            ):
+                continue
+            next_dashboard_preferences[dashboard_key] = preference
+
+        if next_dashboard_preferences:
+            next_dashboard_views[dataset_key] = next_dashboard_preferences
 
     return (
-        json.dumps(dashboard_views)
-        if dashboard_views
+        json.dumps(next_dashboard_views)
+        if next_dashboard_views
         else None
     )
+
+
+def joined_dataset_result_references_dataset(
+    result,
+    dataset_id: int,
+):
+    if not isinstance(result, dict):
+        return False
+
+    referenced_ids = set()
+    for key in (
+        "derived_dataset_id",
+        "primary_dataset_id",
+    ):
+        try:
+            referenced_id = int(result.get(key))
+        except (TypeError, ValueError):
+            continue
+        if referenced_id > 0:
+            referenced_ids.add(referenced_id)
+
+    dataset_ids = result.get("dataset_ids")
+    if isinstance(dataset_ids, list):
+        for referenced_id in dataset_ids:
+            try:
+                clean_id = int(referenced_id)
+            except (TypeError, ValueError):
+                continue
+            if clean_id > 0:
+                referenced_ids.add(clean_id)
+
+    return dataset_id in referenced_ids
+
+
+def joined_dataset_preference_references_dataset(
+    preference,
+    dataset_id: int,
+):
+    if not isinstance(preference, dict):
+        return False
+
+    for key in (
+        "joinedDatasetResult",
+        "joined_dataset_result",
+    ):
+        if joined_dataset_result_references_dataset(
+            preference.get(key),
+            dataset_id,
+        ):
+            return True
+
+    return False
+
+
+def derived_dataset_references_source_dataset(
+    dataset,
+    source_dataset_id: int,
+):
+    if not dataset or dataset.source_type not in {
+        "joined",
+        "entity_matching",
+    }:
+        return False
+
+    try:
+        source_config = json.loads(
+            dataset.source_config or "{}"
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return False
+
+    referenced_ids = source_config.get(
+        "derived_from_dataset_ids"
+    )
+    if isinstance(referenced_ids, list):
+        for referenced_id in referenced_ids:
+            try:
+                if int(referenced_id) == source_dataset_id:
+                    return True
+            except (TypeError, ValueError):
+                continue
+
+    join_definition = source_config.get(
+        "join_definition"
+    )
+    selections = (
+        join_definition.get("selections", [])
+        if isinstance(join_definition, dict)
+        else []
+    )
+    if not isinstance(selections, list):
+        return False
+
+    for selection in selections:
+        if not isinstance(selection, dict):
+            continue
+        try:
+            if int(selection.get("dataset_id")) == source_dataset_id:
+                return True
+        except (TypeError, ValueError):
+            continue
+
+    return False
+
+
+def get_derived_dataset_source_ids(dataset):
+    if not dataset or dataset.source_type not in {
+        "joined",
+        "entity_matching",
+    }:
+        return set()
+
+    try:
+        source_config = json.loads(
+            dataset.source_config or "{}"
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return set()
+
+    source_ids = set()
+    referenced_ids = source_config.get(
+        "derived_from_dataset_ids"
+    )
+    if isinstance(referenced_ids, list):
+        for referenced_id in referenced_ids:
+            try:
+                clean_id = int(referenced_id)
+            except (TypeError, ValueError):
+                continue
+            if clean_id > 0:
+                source_ids.add(clean_id)
+
+    join_definition = source_config.get(
+        "join_definition"
+    )
+    selections = (
+        join_definition.get("selections", [])
+        if isinstance(join_definition, dict)
+        else []
+    )
+    if isinstance(selections, list):
+        for selection in selections:
+            if not isinstance(selection, dict):
+                continue
+            try:
+                clean_id = int(selection.get("dataset_id"))
+            except (TypeError, ValueError):
+                continue
+            if clean_id > 0:
+                source_ids.add(clean_id)
+
+    return source_ids
+
+
+def cleanup_deleted_entity_matching_records(
+    db,
+    dataset,
+):
+    if not dataset:
+        return
+
+    if dataset.source_type != "entity_matching":
+        identity_rows = (
+            db.query(EntityIdentity)
+            .filter(
+                EntityIdentity.workspace_id == dataset.workspace_id,
+                EntityIdentity.dataset_id == dataset.id,
+            )
+            .all()
+        )
+        entity_types = {
+            identity.entity_type
+            for identity in identity_rows
+        }
+        if not entity_types:
+            return
+
+        for identity in identity_rows:
+            db.delete(identity)
+
+        for entity_type in entity_types:
+            remaining_entities = (
+                db.query(CanonicalEntity)
+                .filter(
+                    CanonicalEntity.workspace_id == dataset.workspace_id,
+                    CanonicalEntity.entity_type == entity_type,
+                )
+                .all()
+            )
+            for entity in remaining_entities:
+                if not db.query(EntityIdentity.id).filter(
+                    EntityIdentity.workspace_id == dataset.workspace_id,
+                    EntityIdentity.entity_type == entity_type,
+                    EntityIdentity.canonical_entity_id == entity.id,
+                ).first():
+                    db.delete(entity)
+        return
+
+    try:
+        source_config = json.loads(
+            dataset.source_config or "{}"
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        source_config = {}
+
+    entity_type = source_config.get("entity_type")
+    if entity_type not in {"customer", "product"}:
+        return
+
+    db.query(EntityIdentity).filter(
+        EntityIdentity.workspace_id == dataset.workspace_id,
+        EntityIdentity.entity_type == entity_type,
+    ).delete(synchronize_session=False)
+    db.query(CanonicalEntity).filter(
+        CanonicalEntity.workspace_id == dataset.workspace_id,
+        CanonicalEntity.entity_type == entity_type,
+    ).delete(synchronize_session=False)
+
+
+def cleanup_orphaned_derived_datasets(
+    db,
+    datasets,
+):
+    derived_datasets = [
+        dataset
+        for dataset in datasets
+        if dataset.source_type in {
+            "joined",
+            "entity_matching",
+        }
+    ]
+    if not derived_datasets:
+        return datasets, []
+
+    workspace_id = derived_datasets[0].workspace_id
+    source_dataset_ids = {
+        row[0]
+        for row in db.query(Dataset.id)
+        .filter(
+            Dataset.workspace_id == workspace_id,
+        )
+        .all()
+    }
+    retained_datasets = []
+    removed_references = []
+
+    for dataset in datasets:
+        source_ids = get_derived_dataset_source_ids(dataset)
+        if not source_ids or source_ids.issubset(source_dataset_ids):
+            retained_datasets.append(dataset)
+            continue
+
+        removed_references.append(
+            get_dataset_storage_reference(dataset)
+        )
+        cleanup_deleted_entity_matching_records(
+            db,
+            dataset,
+        )
+        cleanup_deleted_dataset_preferences(
+            db,
+            dataset,
+        )
+        cleanup_deleted_dataset_join_caches(
+            db,
+            dataset,
+        )
+        cleanup_deleted_dataset_relationships(
+            db,
+            dataset,
+        )
+        db.delete(dataset)
+
+    if len(retained_datasets) != len(datasets):
+        db.commit()
+
+    return retained_datasets, removed_references
 
 
 def cleanup_deleted_dataset_preferences(
@@ -970,6 +1266,30 @@ def cleanup_deleted_dataset_join_caches(
         if derived_dataset_id and derived_dataset_id != dataset.id
     }
 
+    if dataset.source_type not in {
+        "joined",
+        "entity_matching",
+    }:
+        joined_datasets = (
+            db.query(Dataset)
+            .filter(
+                Dataset.workspace_id == dataset.workspace_id,
+                Dataset.source_type.in_(
+                    {"joined", "entity_matching"}
+                ),
+            )
+            .all()
+        )
+        derived_ids_to_delete.update(
+            candidate.id
+            for candidate in joined_datasets
+            if candidate.id != dataset.id
+            and derived_dataset_references_source_dataset(
+                candidate,
+                dataset.id,
+            )
+        )
+
     for derived_dataset_id in derived_ids_to_delete:
         referenced_elsewhere = False
         for cache in caches:
@@ -990,7 +1310,9 @@ def cleanup_deleted_dataset_join_caches(
             .filter(
                 Dataset.id == derived_dataset_id,
                 Dataset.workspace_id == dataset.workspace_id,
-                Dataset.source_type == "joined",
+                Dataset.source_type.in_(
+                    {"joined", "entity_matching"}
+                ),
             )
             .first()
         )
@@ -999,6 +1321,10 @@ def cleanup_deleted_dataset_join_caches(
                 get_dataset_storage_reference(
                     derived_dataset
                 )
+            )
+            cleanup_deleted_entity_matching_records(
+                db,
+                derived_dataset,
             )
             cleanup_deleted_dataset_preferences(
                 db,
@@ -2317,6 +2643,14 @@ async def get_datasets(
             )
             .all()
         )
+        datasets, removed_derived_references = (
+            cleanup_orphaned_derived_datasets(
+                db,
+                datasets,
+            )
+        )
+        for storage_reference in removed_derived_references:
+            remove_dataset_file(storage_reference)
         datasets = filter_canonical_connector_datasets(
             db,
             datasets,
@@ -3071,6 +3405,14 @@ async def get_dataset_join_cache(
                 )
                 .first()
             )
+
+        # A deleted derived dataset must not be recreated from a stale join
+        # cache. Deleting the dataset is an explicit request to release the
+        # persisted joined view; remove this dashboard's stale reference.
+        if cached_derived_id and existing_derived_dataset is None:
+            db.delete(cache)
+            db.commit()
+            return None
 
         source_changed = (
             source_fingerprint != cache.source_fingerprint
@@ -7291,6 +7633,10 @@ async def delete_dataset(
             dataset
         )
         cleanup_deleted_dataset_preferences(
+            db,
+            dataset,
+        )
+        cleanup_deleted_entity_matching_records(
             db,
             dataset,
         )
