@@ -575,6 +575,13 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             ),
             "Enter and save the Google Ads customer ID before connecting with OAuth",
         )
+        self.assertEqual(
+            get_oauth_config_requirement_error(
+                "lightspeed_x",
+                {"resource_types": "sales"},
+            ),
+            "Enter and save the Lightspeed X-Series domain prefix before connecting with OAuth",
+        )
 
     def test_woocommerce_store_url_must_be_https_before_oauth(self):
         source = get_dataset_source("woocommerce")

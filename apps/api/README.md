@@ -302,8 +302,10 @@ owner completes the consent screen.
 Lightspeed Retail (X-Series) is a separate connector because it uses a
 tenant-specific domain and API version. It imports selected sales, customers,
 and products resources. Configure the X-Series OAuth credentials and API
-settings from `.env.example`; after authorization, Lightspeed supplies the
-retailer domain prefix to Decisionate automatically.
+settings from `.env.example`; enter the retailer's domain prefix in the
+Decisionate connection settings (for example, `developerdemodv182z` for a
+test store). Lightspeed also returns the domain prefix during OAuth, and
+Decisionate preserves that callback value when it is available.
 Lightspeed Restaurant (K-Series) and O-Series are separate restaurant
 connectors. K-Series uses its production API host and OAuth authorization code
 flow; configure the K-Series client credentials, scopes, and the customer's

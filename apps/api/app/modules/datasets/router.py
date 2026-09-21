@@ -226,6 +226,7 @@ from app.modules.datasets.services.auth import (
 from app.modules.oauth.service import (
     OAuthProviderUnavailable,
     encrypt_token,
+    normalize_lightspeed_x_domain_prefix,
 )
 
 router = APIRouter()
@@ -1867,6 +1868,7 @@ def require_source_connection_sync_config(connection):
         "consumer_key": "the WooCommerce consumer key",
         "consumer_secret": "the WooCommerce consumer secret",
         "account_id": "the Lightspeed account ID",
+        "domain_prefix": "the Lightspeed X-Series domain prefix",
         "resource_types": "at least one resource to ingest",
         "ad_account_id": "the Meta Ads account ID",
         "customer_id": "the Google Ads customer ID",
@@ -2114,6 +2116,21 @@ def sanitize_source_connection_config(
 
         if isinstance(value, str):
             value = value.strip()
+
+        if (
+            source.get("type") == "lightspeed_x"
+            and key == "domain_prefix"
+        ):
+            try:
+                value = normalize_lightspeed_x_domain_prefix(value)
+            except OAuthProviderUnavailable as error:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Lightspeed X-Series domain prefix must contain "
+                        "only letters, numbers, and hyphens."
+                    ),
+                ) from error
 
         if value in ("", None):
             continue
@@ -4334,6 +4351,12 @@ async def update_source_connection(
                 if (
                     connection.source_type == "xero"
                     and config_key == "tenant_id"
+                    and config_key not in next_config
+                ):
+                    next_config[config_key] = config_value
+                if (
+                    connection.source_type == "lightspeed_x"
+                    and config_key == "domain_prefix"
                     and config_key not in next_config
                 ):
                     next_config[config_key] = config_value

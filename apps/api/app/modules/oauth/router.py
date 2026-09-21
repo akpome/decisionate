@@ -156,6 +156,7 @@ def get_oauth_config_requirement_error(
         "location_id": "the Square location ID",
         "store_url": "the client WooCommerce store URL",
         "account_id": "the Lightspeed account ID",
+        "domain_prefix": "the Lightspeed X-Series domain prefix",
         "resource_types": "at least one resource to ingest",
         "ad_account_id": "the Meta Ads account ID",
         "customer_id": "the Google Ads customer ID",
@@ -419,9 +420,14 @@ def process_oauth_callback(request: Request):
                     # callback hint is not in a recognized URL form.
                     connection_config.pop("accounts_server", None)
         if state_source_type == "lightspeed_x":
+            callback_domain_prefix = str(
+                query.get("domain_prefix")
+                or connection_config.get("domain_prefix")
+                or ""
+            ).strip()
             connection_config["domain_prefix"] = (
                 normalize_lightspeed_x_domain_prefix(
-                    query.get("domain_prefix")
+                    callback_domain_prefix
                 )
             )
         code_verifier = decrypt_token(state.code_verifier)

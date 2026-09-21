@@ -34,7 +34,7 @@ export const REQUIRED_CONNECTION_CONFIG_KEYS: Record<
   square: ["location_id"],
   woocommerce: ["store_url"],
   lightspeed: ["account_id"],
-  lightspeed_x: ["resource_types"],
+  lightspeed_x: ["domain_prefix", "resource_types"],
   lightspeed_k: ["business_location_id", "resource_types"],
   lightspeed_o: ["company_id", "resource_types"],
   meta_ads: ["ad_account_id"],
@@ -1741,6 +1741,10 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   lightspeed_x: {
+    domain_prefix: {
+      description: "The domain prefix of the Lightspeed X-Series test or client store. Enter only the prefix before .retail.lightspeed.app.",
+      example: "developerdemodv182z",
+    },
     resource_types: {
       description: "Choose the Lightspeed X-Series resources Decisionate should import.",
       example: "Sales, Customers, Products",
@@ -2600,6 +2604,10 @@ function formatConnectionConfigLabel(
 
   if (sourceType === "lightspeed" && key === "account_id") {
     return "Account ID"
+  }
+
+  if (sourceType === "lightspeed_x" && key === "domain_prefix") {
+    return "Domain prefix"
   }
 
   if (sourceType === "lightspeed_k" && key === "business_location_id") {

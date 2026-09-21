@@ -1876,6 +1876,40 @@ class DatasetSharingTests(unittest.TestCase):
             '{"shop_domain": "demo.myshopify.com"}',
         )
 
+    def test_lightspeed_x_requires_and_normalizes_domain_prefix(self):
+        source = get_dataset_source("lightspeed_x")
+
+        self.assertEqual(
+            get_source_connection_config_status(
+                source,
+                {"resource_types": "sales"},
+            ),
+            (
+                ["domain_prefix", "resource_types"],
+                ["resource_types"],
+                ["domain_prefix"],
+            ),
+        )
+        self.assertEqual(
+            sanitize_source_connection_config(
+                source,
+                {
+                    "domain_prefix": "  Demo-Store  ",
+                    "resource_types": "sales",
+                },
+            ),
+            '{"domain_prefix": "demo-store", "resource_types": "sales"}',
+        )
+
+        with self.assertRaises(HTTPException):
+            sanitize_source_connection_config(
+                source,
+                {
+                    "domain_prefix": "https://demo-store",
+                    "resource_types": "sales",
+                },
+            )
+
     def test_sanitize_source_connection_config_keeps_provider_credential_fields(self):
         source = get_dataset_source(
             "shopify",

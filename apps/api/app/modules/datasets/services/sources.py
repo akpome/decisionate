@@ -298,8 +298,8 @@ DATASET_SOURCES = [
         "status": "planned",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["resource_types"],
-        "required_config_keys": ["resource_types"],
+        "config_keys": ["domain_prefix", "resource_types"],
+        "required_config_keys": ["domain_prefix", "resource_types"],
         "description": (
             "Connect Lightspeed Retail (X-Series) sales, customer, and "
             "product data with read-only OAuth."
