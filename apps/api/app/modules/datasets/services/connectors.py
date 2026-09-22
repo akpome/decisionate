@@ -1795,6 +1795,11 @@ def load_google_search_console_dataframe(
         "google_search_console",
     )
     api_base_url = require_provider_url("GOOGLE_SEARCH_CONSOLE_API_BASE_URL")
+    site_url = resolve_google_search_console_site_url(
+        api_base_url,
+        site_url,
+        access_token,
+    )
     since = start_date or date.today() - timedelta(days=365)
     until = end_date or date.today()
     query_url = (
@@ -1931,6 +1936,13 @@ def load_google_search_console_dataframe(
     rows = daily_rows
     dimensions = daily_dimensions
 
+    if rows and not has_daily_metrics(rows):
+        raise ConnectorNoData(
+            "Google Search Console returned only zero-valued rows for "
+            f"{site_url} from {since.isoformat()} through {until.isoformat()}. "
+            "Verify that the authorized account has access to this property."
+        )
+
     normalized_rows = []
     for record in rows:
         keys = record.get("keys")
@@ -1999,6 +2011,54 @@ def normalize_google_search_console_site_url(site_url: str) -> str:
             "Domain property name or the complete URL-prefix property URL"
         )
     return site_url
+
+
+def resolve_google_search_console_site_url(
+    api_base_url: str,
+    site_url: str,
+    access_token: str,
+) -> str:
+    """Use the exact accessible Domain property when one is available."""
+    if not site_url.startswith("sc-domain:"):
+        return site_url
+
+    sites_url = f"{api_base_url}/sites"
+    try:
+        payload = connector_json_request(
+            sites_url,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    except ConnectorUnavailable:
+        # The Search Analytics endpoint remains the source of truth if a
+        # provider account cannot list properties for a transient reason.
+        return site_url
+
+    entries = payload.get("siteEntry") or []
+    if not isinstance(entries, list):
+        return site_url
+
+    accessible_properties = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        candidate = str(entry.get("siteUrl") or "").strip()
+        if not candidate:
+            continue
+        try:
+            accessible_properties.add(
+                normalize_google_search_console_site_url(candidate)
+            )
+        except ConnectorUnavailable:
+            continue
+
+    if not accessible_properties or site_url in accessible_properties:
+        return site_url
+
+    raise ConnectorUnavailable(
+        "The authorized Google account does not have access to the Google "
+        f"Search Console property {site_url}. Select a property available "
+        "to the account that completed OAuth authorization."
+    )
 
 
 GOOGLE_BUSINESS_PROFILE_DAILY_METRICS = (
