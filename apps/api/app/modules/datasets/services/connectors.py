@@ -4652,11 +4652,18 @@ def load_sage_dataframe(
             "items_per_page": str(PAGE_SIZE),
             "page": str(page),
         }
-        if resource_type in SAGE_DATE_FILTER_RESOURCES:
-            if start_date:
-                params["from_date"] = start_date.isoformat()
-            if end_date:
-                params["to_date"] = end_date.isoformat()
+        if start_date:
+            updated_since = start_date
+            if not isinstance(updated_since, datetime):
+                updated_since = datetime(
+                    updated_since.year,
+                    updated_since.month,
+                    updated_since.day,
+                    tzinfo=UTC,
+                )
+            elif updated_since.tzinfo is None:
+                updated_since = updated_since.replace(tzinfo=UTC)
+            params["updated_or_created_since"] = updated_since.isoformat()
         payload = connector_json_request(
             f"{base_url}/{resource_path}?{urlencode(params)}",
             headers={
@@ -4698,7 +4705,12 @@ def load_sage_dataframe(
 
     dataframe = pd.DataFrame(rows)
     if resource_type in SAGE_TRANSACTION_RESOURCES:
-        dataframe = filter_date_range(dataframe, start_date, end_date)
+        dataframe = filter_date_range(
+            dataframe,
+            start_date,
+            end_date,
+            date_columns=("updated_at", "created_at"),
+        )
     return dataframe, {
         "connector": "sage",
         "resource": resource_type,

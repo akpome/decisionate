@@ -91,6 +91,57 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.iloc[0]["total_amount"], 1200)
         self.assertEqual(report["connector"], "sage")
 
+    def test_sage_invoices_sync_by_updated_or_created_date(self):
+        connection = SimpleNamespace(
+            id=9,
+            source_type="sage",
+            connection_config=json.dumps({"business_id": "business-1"}),
+        )
+
+        def fake_request(url, headers):
+            self.assertIn(
+                "updated_or_created_since=2026-01-01T00%3A00%3A00%2B00%3A00",
+                url,
+            )
+            self.assertNotIn("from_date=", url)
+            self.assertNotIn("to_date=", url)
+            return {
+                "$items": [{
+                    "id": "invoice-updated",
+                    "date": "2020-01-02",
+                    "updated_at": "2026-01-15T12:00:00Z",
+                    "total_amount": 1400,
+                }],
+                "$next": None,
+            }
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_API_SUBSCRIPTION_KEY": "subscription-key",
+                "SAGE_API_BASE_URL": "https://api.example/sage",
+                "SAGE_BUSINESS_HEADER": "X-Site",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="sage-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=fake_request,
+        ):
+            dataframe, _ = connectors.load_sage_dataframe(
+                None,
+                connection,
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            )
+
+        self.assertEqual(len(dataframe), 1)
+        self.assertEqual(dataframe.iloc[0]["record_id"], "invoice-updated")
+
     def test_sage_resource_selection_uses_documented_endpoint(self):
         connection = SimpleNamespace(
             id=8,
