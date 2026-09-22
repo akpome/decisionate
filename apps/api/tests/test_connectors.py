@@ -1268,6 +1268,49 @@ class ConnectorSmokeTests(unittest.TestCase):
                     self.assertEqual(len(dataframe), 1, source_type)
                     self.assertEqual(report["connector"], source_type)
 
+    def test_database_connector_sync_uses_updated_at_with_created_at_fallback(self):
+        with tempfile.NamedTemporaryFile(suffix=".sqlite") as database_file:
+            engine = create_engine(f"sqlite:///{database_file.name}")
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "CREATE TABLE source_rows "
+                        "(created_at TEXT, updated_at TEXT, revenue INTEGER)"
+                    )
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO source_rows VALUES "
+                        "('2020-01-02', '2026-01-03', 500)"
+                    )
+                )
+
+            with patch.dict(
+                os.environ,
+                {"POSTGRESQL_SOURCE_URL": f"sqlite:///{database_file.name}"},
+                clear=False,
+            ), patch.object(
+                connectors,
+                "bound_database_query",
+                return_value=(
+                    "SELECT created_at, updated_at, revenue FROM source_rows"
+                ),
+            ):
+                dataframe, _report = connectors.load_connector_dataframe(
+                    None,
+                    make_connection("postgresql", {
+                        "query": (
+                            "SELECT created_at, updated_at, revenue "
+                            "FROM source_rows"
+                        ),
+                    }),
+                    date(2026, 1, 1),
+                    date(2026, 1, 31),
+                )
+
+        self.assertEqual(len(dataframe), 1)
+        self.assertEqual(dataframe.iloc[0]["revenue"], 500)
+
     def test_postgresql_customer_config_builds_a_driver_url(self):
         with patch.object(
             connectors,

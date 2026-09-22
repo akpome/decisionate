@@ -5358,8 +5358,16 @@ def load_database_dataframe(
     finally:
         engine.dispose()
 
-    if "created_at" in dataframe.columns:
-        dataframe = filter_date_range(dataframe, start_date, end_date)
+    if any(
+        column in dataframe.columns
+        for column in ("updated_at", "created_at")
+    ):
+        dataframe = filter_date_range(
+            dataframe,
+            start_date,
+            end_date,
+            date_columns=("updated_at", "created_at"),
+        )
     return dataframe, {
         "connector": connection.source_type,
         "query": query[:240],
