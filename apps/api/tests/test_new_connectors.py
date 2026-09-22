@@ -144,7 +144,7 @@ class NewConnectorTests(unittest.TestCase):
             request_payloads.append(payload)
             return {
                 "rows": [{
-                    "keys": ["2026-09-01", "decisionate", "https://example.com"],
+                    "keys": ["2026-09-01"],
                     "clicks": 12,
                     "impressions": 100,
                     "ctr": 0.12,
@@ -176,18 +176,17 @@ class NewConnectorTests(unittest.TestCase):
             )
 
         self.assertEqual(report["resource"], "search_analytics")
-        self.assertEqual(dataframe.loc[0, "query"], "decisionate")
+        self.assertEqual(dataframe.loc[0, "date"], "2026-09-01")
         self.assertEqual(dataframe.loc[0, "clicks"], 12)
-        self.assertEqual(request_payloads[0]["type"], "web")
-        self.assertEqual(request_payloads[0]["aggregationType"], "auto")
-        self.assertEqual(request_payloads[0]["dataState"], "all")
+        self.assertEqual(request_payloads[0]["dimensions"], ["date"])
+        self.assertNotIn("dataState", request_payloads[0])
 
     def test_search_console_falls_back_to_daily_rows(self):
         request_payloads = []
 
         def json_request(url, headers, payload):
             request_payloads.append(payload)
-            if payload["dimensions"] == ["date", "query", "page"]:
+            if "dataState" not in payload:
                 return {"rows": []}
             return {
                 "rows": [{
@@ -225,40 +224,26 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(report["dimensions"], ["date"])
         self.assertEqual(dataframe.loc[0, "date"], "2026-09-01")
         self.assertEqual(dataframe.loc[0, "clicks"], 12)
-        self.assertEqual(request_payloads[1]["type"], "web")
         self.assertEqual(request_payloads[1]["aggregationType"], "byProperty")
         self.assertEqual(request_payloads[1]["dataState"], "all")
 
-    def test_search_console_fills_a_date_omitted_by_detailed_results(self):
+    def test_search_console_prefers_nonzero_daily_result(self):
         def json_request(url, headers, payload):
-            if payload["dimensions"] == ["date", "query", "page"]:
-                return {
-                    "rows": [{
-                        "keys": ["2026-09-19", "decisionate", "https://example.com"],
-                        "clicks": 0,
-                        "impressions": 0,
-                        "ctr": 0,
-                        "position": 0,
-                    }],
-                }
-            return {
-                "rows": [
-                    {
-                        "keys": ["2026-09-18"],
-                        "clicks": 0,
-                        "impressions": 1,
-                        "ctr": 0,
-                        "position": 10,
-                    },
-                    {
-                        "keys": ["2026-09-19"],
-                        "clicks": 0,
-                        "impressions": 0,
-                        "ctr": 0,
-                        "position": 0,
-                    },
-                ],
-            }
+            if "dataState" not in payload:
+                return {"rows": [{
+                    "keys": ["2026-09-18"],
+                    "clicks": 0,
+                    "impressions": 1,
+                    "ctr": 0,
+                    "position": 10,
+                }]}
+            return {"rows": [{
+                "keys": ["2026-09-18"],
+                "clicks": 0,
+                "impressions": 0,
+                "ctr": 0,
+                "position": 0,
+            }]}
 
         with patch.object(
             connectors,
@@ -285,15 +270,29 @@ class NewConnectorTests(unittest.TestCase):
 
         september_18 = dataframe.loc[dataframe["date"] == "2026-09-18"].iloc[0]
         self.assertEqual(september_18["impressions"], 1)
-        self.assertTrue(
-            dataframe.loc[dataframe["date"] == "2026-09-18", "query"].isna().all()
-        )
-        self.assertEqual(report["dimensions"], ["date", "query", "page"])
+        self.assertEqual(report["dimensions"], ["date"])
 
     def test_search_console_uses_final_daily_metrics_when_fresh_data_is_zero(self):
         def json_request(url, headers, payload):
-            if payload["dimensions"] == ["date", "query", "page"]:
-                return {"rows": []}
+            if "dataState" not in payload:
+                return {
+                    "rows": [
+                        {
+                            "keys": ["2026-09-18"],
+                            "clicks": 0,
+                            "impressions": 0,
+                            "ctr": 0,
+                            "position": 0,
+                        },
+                        {
+                            "keys": ["2026-09-20"],
+                            "clicks": 0,
+                            "impressions": 0,
+                            "ctr": 0,
+                            "position": 0,
+                        },
+                    ],
+                }
             if payload["dataState"] == "all":
                 return {
                     "rows": [
@@ -366,7 +365,7 @@ class NewConnectorTests(unittest.TestCase):
 
     def test_search_console_retries_a_lagged_finalized_window(self):
         def json_request(url, headers, payload):
-            if payload["dimensions"] == ["date", "query", "page"]:
+            if "dataState" not in payload:
                 return {"rows": []}
             if payload["endDate"] == "2026-09-22":
                 return {
@@ -433,6 +432,40 @@ class NewConnectorTests(unittest.TestCase):
             ].tolist(),
             [1, 1],
         )
+
+    def test_search_console_daily_aggregate_replaces_stale_detailed_zero(self):
+        existing = pd.DataFrame([
+            {
+                "date": "2026-09-18",
+                "query": "decisionate",
+                "page": "https://decisionate.ca/",
+                "clicks": 0,
+                "impressions": 0,
+                "ctr": 0,
+                "position": 0,
+            },
+        ])
+        incoming = pd.DataFrame([
+            {
+                "date": "2026-09-18",
+                "clicks": 0,
+                "impressions": 1,
+                "ctr": 0,
+                "position": 6,
+            },
+        ])
+
+        merged = datasets_router.merge_connector_dataframes(
+            existing,
+            incoming,
+            "google_search_console",
+            {"dimensions": ["date"]},
+        )
+
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged.loc[0, "impressions"], 1)
+        self.assertTrue(pd.isna(merged.loc[0, "query"]))
+        self.assertTrue(pd.isna(merged.loc[0, "page"]))
 
     def test_search_console_daily_rows_are_deduplicated_by_date(self):
         existing = pd.DataFrame([

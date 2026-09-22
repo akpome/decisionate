@@ -5491,11 +5491,25 @@ def _google_search_console_daily_rows(dataframe: pd.DataFrame) -> pd.Series:
     return daily_rows
 
 
+def _google_search_console_metric_value(row, metric: str) -> float:
+    try:
+        return float(row.get(metric) or 0)
+    except (AttributeError, TypeError, ValueError):
+        return 0.0
+
+
+def _google_search_console_metric_score(row) -> tuple[float, float]:
+    return (
+        _google_search_console_metric_value(row, "impressions"),
+        _google_search_console_metric_value(row, "clicks"),
+    )
+
+
 def merge_google_search_console_dataframes(
     existing_dataframe: pd.DataFrame,
     incoming_dataframe: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Merge detailed and date-only Search Console results without duplicates."""
+    """Merge Search Console rows without allowing stale zeros to win."""
     combined = pd.concat(
         [existing_dataframe, incoming_dataframe],
         ignore_index=True,
@@ -5506,14 +5520,6 @@ def merge_google_search_console_dataframes(
 
     daily_rows = _google_search_console_daily_rows(combined)
     detailed_rows = ~daily_rows
-    detailed_dates = set(
-        combined.loc[
-            detailed_rows & combined["date"].notna(),
-            "date",
-        ].astype(str)
-    )
-    if detailed_dates:
-        daily_rows &= ~combined["date"].astype(str).isin(detailed_dates)
 
     detailed = combined.loc[detailed_rows]
     detailed_keys = [
@@ -5539,23 +5545,73 @@ def merge_google_search_console_dataframes(
         detailed = detailed.drop_duplicates(keep="last")
 
     daily = combined.loc[daily_rows]
-    daily_with_date = daily.loc[daily["date"].notna()].drop_duplicates(
-        subset=["date"],
-        keep="last",
-    )
-    daily_without_date = daily.loc[daily["date"].isna()].drop_duplicates(
-        keep="last"
-    )
-    daily = pd.concat(
-        [daily_with_date, daily_without_date],
-        ignore_index=True,
-        sort=False,
-    )
+    daily_by_date = {}
+    daily_without_date = []
+    for _, row in daily.iterrows():
+        if pd.isna(row.get("date")):
+            daily_without_date.append(row)
+            continue
+        date_key = str(row["date"])
+        current = daily_by_date.get(date_key)
+        if current is None or (
+            _google_search_console_metric_score(row)
+            >= _google_search_console_metric_score(current)
+        ):
+            daily_by_date[date_key] = row
 
-    return pd.concat(
-        [detailed, daily],
-        ignore_index=True,
-        sort=False,
+    detailed_by_date = {}
+    detailed_without_date = []
+    for _, row in detailed.iterrows():
+        if pd.isna(row.get("date")):
+            detailed_without_date.append(row)
+            continue
+        detailed_by_date.setdefault(str(row["date"]), []).append(row)
+
+    # A date-only aggregate is more authoritative when it contains more
+    # impressions or clicks than the older query/page rows for that date.
+    # Otherwise retain the detailed rows so existing dimensions are preserved.
+    date_order = []
+    seen_dates = set()
+    for _, row in combined.iterrows():
+        if pd.isna(row.get("date")):
+            continue
+        date_key = str(row["date"])
+        if date_key not in seen_dates:
+            date_order.append(date_key)
+            seen_dates.add(date_key)
+
+    selected_rows = []
+    for date_key in date_order:
+        daily_row = daily_by_date.get(date_key)
+        detailed_for_date = detailed_by_date.get(date_key, [])
+        if daily_row is None:
+            selected_rows.extend(detailed_for_date)
+            continue
+        if not detailed_for_date:
+            selected_rows.append(daily_row)
+            continue
+
+        detailed_score = (
+            sum(
+                _google_search_console_metric_value(row, "impressions")
+                for row in detailed_for_date
+            ),
+            sum(
+                _google_search_console_metric_value(row, "clicks")
+                for row in detailed_for_date
+            ),
+        )
+        if _google_search_console_metric_score(daily_row) > detailed_score:
+            selected_rows.append(daily_row)
+        else:
+            selected_rows.extend(detailed_for_date)
+
+    return pd.DataFrame(
+        [
+            *selected_rows,
+            *detailed_without_date,
+            *daily_without_date,
+        ]
     ).reset_index(drop=True)
 
 

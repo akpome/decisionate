@@ -1801,40 +1801,41 @@ def load_google_search_console_dataframe(
         f"{api_base_url}/sites/{quote(site_url, safe='')}"
         "/searchAnalytics/query"
     )
-    detailed_dimensions = ["date", "query", "page"]
     daily_dimensions = ["date"]
     row_limit = 25_000
     def fetch_rows(
         query_dimensions,
-        data_state="all",
+        data_state=None,
         query_end_date=None,
+        aggregation_type=None,
+        clean_query=False,
     ):
         fetched_rows = []
         start_row = 0
         while True:
-            payload = connector_json_post_request(
-                query_url,
-                headers={"Authorization": f"Bearer {access_token}"},
-                payload={
-                    "startDate": since.isoformat(),
-                    "endDate": (
-                        query_end_date or until
-                    ).isoformat(),
-                    "dimensions": query_dimensions,
+            payload = {
+                "startDate": since.isoformat(),
+                "endDate": (
+                    query_end_date or until
+                ).isoformat(),
+                "dimensions": query_dimensions,
+            }
+            if not clean_query:
+                payload.update({
                     "type": "web",
-                    "aggregationType": (
-                        "byProperty"
-                        if query_dimensions == daily_dimensions
-                        else "auto"
-                    ),
+                    "aggregationType": aggregation_type or "auto",
                     # Search Console can expose recent, still-processing rows
                     # before they become finalized. Include those rows so an
                     # initial sync does not appear empty while the property is
                     # actively receiving traffic.
-                    "dataState": data_state,
+                    "dataState": data_state or "all",
                     "rowLimit": row_limit,
                     "startRow": start_row,
-                },
+                })
+            payload = connector_json_post_request(
+                query_url,
+                headers={"Authorization": f"Bearer {access_token}"},
+                payload=payload,
             )
             records = payload.get("rows") or []
             if not isinstance(records, list):
@@ -1849,9 +1850,23 @@ def load_google_search_console_dataframe(
             start_row += len(records)
         return fetched_rows
 
-    detailed_rows = fetch_rows(detailed_dimensions, "all")
-    daily_rows = fetch_rows(daily_dimensions, "all")
-    finalized_daily_rows = fetch_rows(daily_dimensions, "final")
+    # A date-only query is the provider-recommended way to determine which
+    # days contain data. It also avoids losing property-level impressions when
+    # query/page grouping has a different aggregation boundary.
+    presence_daily_rows = fetch_rows(
+        daily_dimensions,
+        clean_query=True,
+    )
+    daily_rows = fetch_rows(
+        daily_dimensions,
+        "all",
+        aggregation_type="byProperty",
+    )
+    finalized_daily_rows = fetch_rows(
+        daily_dimensions,
+        "final",
+        aggregation_type="byProperty",
+    )
 
     def has_daily_metrics(records):
         for record in records:
@@ -1865,7 +1880,9 @@ def load_google_search_console_dataframe(
                 continue
         return False
 
-    if not has_daily_metrics([*daily_rows, *finalized_daily_rows]):
+    if not has_daily_metrics(
+        [*presence_daily_rows, *daily_rows, *finalized_daily_rows]
+    ):
         lagged_end_date = min(
             until,
             date.today() - timedelta(
@@ -1887,23 +1904,12 @@ def load_google_search_console_dataframe(
             return None
         return normalize_connector_date(keys[0])
 
-    def metric_total(records, metric):
-        total = 0.0
-        for record in records:
-            try:
-                total += float(record.get(metric) or 0)
-            except (TypeError, ValueError):
-                continue
-        return total
-
-    detailed_by_date = {}
-    for record in detailed_rows:
-        record_date_value = record_date(record)
-        if record_date_value:
-            detailed_by_date.setdefault(record_date_value, []).append(record)
-
     daily_by_date = {}
-    for record in [*daily_rows, *finalized_daily_rows]:
+    for record in [
+        *presence_daily_rows,
+        *daily_rows,
+        *finalized_daily_rows,
+    ]:
         record_date_value = record_date(record)
         if record_date_value:
             current_record = daily_by_date.get(record_date_value)
@@ -1921,41 +1927,9 @@ def load_google_search_console_dataframe(
             if candidate_score >= current_score:
                 daily_by_date[record_date_value] = record
 
-    # The detailed endpoint can omit a date while the date-only endpoint
-    # already exposes its aggregate. Use the aggregate for missing dates and
-    # for dates where the detailed result is visibly incomplete.
-    fallback_dates = set()
-    for record_date_value, daily_record in daily_by_date.items():
-        detailed_for_date = detailed_by_date.get(record_date_value, [])
-        if not detailed_for_date:
-            fallback_dates.add(record_date_value)
-            continue
-        for metric in ("clicks", "impressions"):
-            if metric_total(detailed_for_date, metric) != float(
-                daily_record.get(metric) or 0
-            ):
-                fallback_dates.add(record_date_value)
-                break
-
     daily_rows = list(daily_by_date.values())
-    if detailed_rows:
-        rows = [
-            record
-            for record in detailed_rows
-            if record_date(record) not in fallback_dates
-        ]
-        rows.extend(
-            record
-            for record in daily_rows
-            if record_date(record) in fallback_dates
-        )
-        dimensions = detailed_dimensions if rows else daily_dimensions
-    else:
-        # Google recommends a date-only query to verify that the range has
-        # data. Detailed query/page grouping can omit rows even when daily
-        # aggregate data is available, so preserve that usable evidence.
-        rows = daily_rows
-        dimensions = daily_dimensions
+    rows = daily_rows
+    dimensions = daily_dimensions
 
     normalized_rows = []
     for record in rows:
