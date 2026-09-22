@@ -5755,9 +5755,9 @@ def normalize_shop_domain(value) -> str | None:
 def shopify_order_params(start_date, end_date) -> dict[str, str]:
     params = {"limit": str(PAGE_SIZE), "status": "any"}
     if start_date:
-        params["created_at_min"] = f"{start_date.isoformat()}T00:00:00Z"
+        params["updated_at_min"] = f"{start_date.isoformat()}T00:00:00Z"
     if end_date:
-        params["created_at_max"] = f"{end_date.isoformat()}T23:59:59Z"
+        params["updated_at_max"] = f"{end_date.isoformat()}T23:59:59Z"
     return params
 
 

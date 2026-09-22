@@ -792,6 +792,23 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.loc[0, "billing_country"], "CA")
         self.assertTrue(request.call_args.kwargs["headers"]["Authorization"].startswith("Basic "))
 
+    def test_shopify_orders_sync_by_update_time(self):
+        params = connectors.shopify_order_params(
+            date(2026, 9, 1),
+            date(2026, 9, 30),
+        )
+
+        self.assertEqual(
+            params["updated_at_min"],
+            "2026-09-01T00:00:00Z",
+        )
+        self.assertEqual(
+            params["updated_at_max"],
+            "2026-09-30T23:59:59Z",
+        )
+        self.assertNotIn("created_at_min", params)
+        self.assertNotIn("created_at_max", params)
+
     def test_lightspeed_sales_are_normalized(self):
         with patch.object(
             connectors,
