@@ -43,6 +43,9 @@ class NewConnectorTests(unittest.TestCase):
                 date.today(),
                 datetime.min.time(),
             ),
+            connection_config=json.dumps({
+                datasets_router.INITIAL_CONNECTOR_SYNC_COMPLETED_KEY: True,
+            }),
         )
 
         start_date, end_date = datasets_router.get_incremental_sync_window(
@@ -55,6 +58,26 @@ class NewConnectorTests(unittest.TestCase):
             7,
         )
         self.assertEqual(end_date, date.today())
+
+    def test_search_console_existing_connection_without_backfill_marker_repeats_initial_window(self):
+        connection = SimpleNamespace(
+            source_type="google_search_console",
+            last_synced_at=datetime.combine(
+                date.today(),
+                datetime.min.time(),
+            ),
+            connection_config=json.dumps({"site_url": "decisionate.ca"}),
+        )
+
+        start_date, end_date = datasets_router.get_incremental_sync_window(
+            connection,
+            SimpleNamespace(start_date=None, end_date=None),
+        )
+
+        self.assertEqual(
+            (end_date - start_date).days + 1,
+            datasets_router.INITIAL_CONNECTOR_SYNC_DAYS,
+        )
 
     def test_google_business_profile_stays_planned_pending_google_approval(self):
         with patch.object(

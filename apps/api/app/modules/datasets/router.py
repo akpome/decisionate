@@ -235,6 +235,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 INITIAL_CONNECTOR_SYNC_DAYS = 30
+INITIAL_CONNECTOR_SYNC_COMPLETED_KEY = "_initial_connector_sync_completed"
 CONNECTOR_INCREMENTAL_LOOKBACK_DAYS = 1
 CONNECTOR_INCREMENTAL_LOOKBACK_DAYS_BY_SOURCE = {
     # Search Console can publish performance data several days after the
@@ -4588,8 +4589,16 @@ def get_incremental_sync_window(
     start_date = payload.start_date
     end_date = payload.end_date
 
+    connection_config = parse_schedule_config(
+        getattr(connection, "connection_config", None)
+    )
+    initial_sync_completed = (
+        connection.source_type != "google_search_console"
+        or connection_config.get(INITIAL_CONNECTOR_SYNC_COMPLETED_KEY) is True
+    )
+
     if start_date is None:
-        if connection.last_synced_at:
+        if connection.last_synced_at and initial_sync_completed:
             lookback_days = CONNECTOR_INCREMENTAL_LOOKBACK_DAYS_BY_SOURCE.get(
                 connection.source_type,
                 CONNECTOR_INCREMENTAL_LOOKBACK_DAYS,
@@ -6247,6 +6256,15 @@ def persist_connector_dataframe(
             )
             db.add(dataset)
 
+        if connection.source_type == "google_search_console":
+            connection_config = parse_schedule_config(
+                connection.connection_config
+            )
+            connection_config[INITIAL_CONNECTOR_SYNC_COMPLETED_KEY] = True
+            connection.connection_config = json.dumps(
+                connection_config,
+                sort_keys=True,
+            )
         connection.status = "connected"
         connection.last_synced_at = utc_now()
         connection.authorization_error = None
