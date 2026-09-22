@@ -774,7 +774,8 @@ class NewConnectorTests(unittest.TestCase):
             return_value=([{
                 "id": 42,
                 "number": "10042",
-                "date_created": "2026-09-01T12:00:00",
+                "date_created": "2020-09-01T12:00:00",
+                "date_modified": "2026-09-01T12:00:00",
                 "total": "125.00",
                 "billing": {"country": "CA"},
             }], {}),

@@ -2596,7 +2596,12 @@ def load_woocommerce_dataframe(
             break
         page += 1
 
-    dataframe = filter_date_range(pd.DataFrame(rows), start_date, end_date)
+    dataframe = filter_date_range(
+        pd.DataFrame(rows),
+        start_date,
+        end_date,
+        date_columns=("updated_at", "created_at"),
+    )
     return dataframe, {
         "connector": "woocommerce",
         "resource": "orders",
