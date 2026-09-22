@@ -258,8 +258,9 @@ class ZohoBooksConnectorTests(unittest.TestCase):
         def fake_request(url, headers):
             self.assertIn("/books/v3/invoices?", url)
             self.assertIn("organization_id=123456789", url)
-            self.assertIn("date_start=2026-01-01", url)
-            self.assertIn("date_end=2026-01-31", url)
+            self.assertIn("last_modified_time=2026-01-01T00%3A00%3A00%2B0000", url)
+            self.assertNotIn("date_start", url)
+            self.assertNotIn("date_end", url)
             self.assertEqual(
                 headers["Authorization"],
                 "Zoho-oauthtoken zoho-access-token",
@@ -269,7 +270,8 @@ class ZohoBooksConnectorTests(unittest.TestCase):
                     {
                         "invoice_id": "invoice-1",
                         "invoice_number": "INV-1001",
-                        "date": "2026-01-02",
+                        "date": "2020-01-02",
+                        "last_modified_time": "2026-01-03T00:00:00+0000",
                         "total": 125.50,
                         "customer_name": "Acme Ltd",
                         "custom_fields": [
@@ -309,6 +311,54 @@ class ZohoBooksConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.iloc[0]["custom_fields__0__value"], "SMB")
         self.assertEqual(report["connector"], "zoho_books")
         self.assertEqual(report["organization_id"], "123456789")
+
+    def test_invoice_sync_includes_records_updated_after_their_invoice_date(self):
+        connection = SimpleNamespace(
+            id=9,
+            source_type="zoho_books",
+            connection_config=json.dumps(
+                {
+                    "organization_id": "123456789",
+                    "api_domain": "https://www.zohoapis.com",
+                    "resource_types": ["invoices"],
+                }
+            ),
+        )
+
+        def fake_request(url, headers):
+            return {
+                "invoices": [{
+                    "invoice_id": "invoice-updated",
+                    "date": "2020-01-02",
+                    "last_modified_time": "2026-01-03T00:00:00+0000",
+                    "total": 200,
+                }],
+                "page_context": {"has_more_page": False},
+            }
+
+        with patch.dict(
+            os.environ,
+            {},
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="zoho-access-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=fake_request,
+        ):
+            dataframe, _report = connectors.load_connector_dataframe(
+                None,
+                connection,
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+                zoho_books_resource_type="invoices",
+            )
+
+        self.assertEqual(len(dataframe), 1)
+        self.assertEqual(dataframe.iloc[0]["record_id"], "invoice-updated")
 
     def test_customer_payment_sync_does_not_send_unsupported_range_filters(self):
         connection = SimpleNamespace(

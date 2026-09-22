@@ -573,6 +573,12 @@ ZOHO_BOOKS_DATE_FILTER_RESOURCES = {
     "estimates",
     "sales_orders",
 }
+ZOHO_BOOKS_UPDATED_FILTER_RESOURCES = {
+    "invoices",
+    "credit_notes",
+    "estimates",
+    "sales_orders",
+}
 
 XERO_RESOURCE_TYPES = {
     "invoices": ("Invoices", "Invoices"),
@@ -5185,7 +5191,12 @@ def load_zoho_books_dataframe(
             "page": str(page),
             "per_page": str(PAGE_SIZE),
         }
-        if resource_type in ZOHO_BOOKS_DATE_FILTER_RESOURCES:
+        if resource_type in ZOHO_BOOKS_UPDATED_FILTER_RESOURCES:
+            if start_date is not None:
+                params["last_modified_time"] = (
+                    f"{start_date.isoformat()}T00:00:00+0000"
+                )
+        elif resource_type in ZOHO_BOOKS_DATE_FILTER_RESOURCES:
             if start_date is not None:
                 params["date_start"] = start_date.isoformat()
             if end_date is not None:
@@ -5237,10 +5248,16 @@ def load_zoho_books_dataframe(
 
     dataframe = pd.DataFrame(rows)
     if resource_type in ZOHO_BOOKS_TRANSACTION_RESOURCES:
+        date_columns = (
+            ("updated_at", "created_at")
+            if resource_type in ZOHO_BOOKS_UPDATED_FILTER_RESOURCES
+            else ("created_at",)
+        )
         dataframe = filter_date_range(
             dataframe,
             start_date,
             end_date,
+            date_columns=date_columns,
         )
     return dataframe, {
         "connector": "zoho_books",
