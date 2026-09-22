@@ -277,6 +277,43 @@ class ConnectorSmokeTests(unittest.TestCase):
             ["deals"],
         )
 
+    def test_hubspot_sync_includes_records_updated_in_the_sync_window(self):
+        with patch.dict(
+            os.environ,
+            {
+                "HUBSPOT_API_BASE_URL": "https://api.hubapi.com",
+                "HUBSPOT_CRM_API_VERSION": "v3",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="hubspot-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            return_value={
+                "results": [{
+                    "id": "deal-1",
+                    "createdAt": "2020-01-02T00:00:00Z",
+                    "updatedAt": "2026-01-03T00:00:00Z",
+                    "properties": {"amount": "1250"},
+                }],
+            },
+        ):
+            dataframe, _report = connectors.load_hubspot_dataframe(
+                None,
+                make_connection(
+                    "hubspot",
+                    {"resource_types": ["deals"]},
+                ),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            )
+
+        self.assertEqual(len(dataframe), 1)
+        self.assertEqual(dataframe.iloc[0]["record_id"], "deal-1")
+
     def test_quickbooks_resource_selections_load_supported_entities(self):
         def json_request(url, headers):
             query = parse_qs(urlsplit(url).query)["query"][0]

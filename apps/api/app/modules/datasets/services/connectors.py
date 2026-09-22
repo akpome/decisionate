@@ -1301,7 +1301,12 @@ def load_hubspot_dataframe(
             break
 
     dataframe = pd.DataFrame(rows)
-    dataframe = filter_date_range(dataframe, start_date, end_date)
+    dataframe = filter_date_range(
+        dataframe,
+        start_date,
+        end_date,
+        date_columns=("updated_at", "created_at"),
+    )
     return dataframe, {
         "connector": "hubspot",
         "object_type": object_type,
@@ -5785,16 +5790,30 @@ def get_next_link(link_header: str | None) -> str | None:
     return match.group(1) if match else None
 
 
-def filter_date_range(dataframe: pd.DataFrame, start_date, end_date) -> pd.DataFrame:
+def filter_date_range(
+    dataframe: pd.DataFrame,
+    start_date,
+    end_date,
+    date_columns=("created_at",),
+) -> pd.DataFrame:
     if dataframe.empty or (start_date is None and end_date is None):
         return dataframe
-    if "created_at" not in dataframe.columns:
+    available_date_columns = [
+        column
+        for column in date_columns
+        if column in dataframe.columns
+    ]
+    if not available_date_columns:
         return dataframe
-    dates = pd.to_datetime(
-        dataframe["created_at"],
-        errors="coerce",
-        utc=True,
-    )
+    dates = pd.Series(pd.NaT, index=dataframe.index, dtype="datetime64[ns, UTC]")
+    for column in available_date_columns:
+        dates = dates.fillna(
+            pd.to_datetime(
+                dataframe[column],
+                errors="coerce",
+                utc=True,
+            )
+        )
     if not isinstance(dates, pd.Series) or dates.notna().sum() == 0:
         return dataframe
     mask = dates.notna()
