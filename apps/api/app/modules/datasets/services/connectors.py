@@ -3652,11 +3652,16 @@ def quickbooks_query(
 ) -> str:
     entity = QUICKBOOKS_RESOURCE_TYPES[resource_type]
     filters = []
-    if resource_type in QUICKBOOKS_TRANSACTION_RESOURCES:
-        if start_date is not None:
-            filters.append(f"TxnDate >= '{start_date.isoformat()}'")
-        if end_date is not None:
-            filters.append(f"TxnDate <= '{end_date.isoformat()}'")
+    if start_date is not None:
+        filters.append(
+            "MetaData.LastUpdatedTime >= "
+            f"'{start_date.isoformat()}T00:00:00Z'"
+        )
+    if end_date is not None:
+        filters.append(
+            "MetaData.LastUpdatedTime <= "
+            f"'{end_date.isoformat()}T23:59:59Z'"
+        )
     where_clause = f" WHERE {' AND '.join(filters)}" if filters else ""
     return (
         f"SELECT * FROM {entity}{where_clause} "
@@ -3836,8 +3841,13 @@ def load_quickbooks_dataframe(
         start_position += len(records)
 
     dataframe = pd.DataFrame(rows)
-    if resource_type in QUICKBOOKS_TRANSACTION_RESOURCES:
-        dataframe = filter_date_range(dataframe, start_date, end_date)
+    if start_date is not None or end_date is not None:
+        dataframe = filter_date_range(
+            dataframe,
+            start_date,
+            end_date,
+            date_columns=("updated_at", "created_at"),
+        )
     return dataframe, {
         "connector": "quickbooks",
         "resource": resource_type,

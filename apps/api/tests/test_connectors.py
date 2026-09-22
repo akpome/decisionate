@@ -422,6 +422,67 @@ class ConnectorSmokeTests(unittest.TestCase):
                 self.assertEqual(report["resource"], resource_type)
                 self.assertEqual(report["object_type"], entity)
 
+    def test_quickbooks_sync_uses_last_updated_time_window(self):
+        requested_queries = []
+
+        def json_request(url, headers):
+            requested_queries.append(parse_qs(urlsplit(url).query)["query"][0])
+            return {
+                "QueryResponse": {
+                    "Invoice": [{
+                        "Id": "invoice-updated",
+                        "TxnDate": "2020-01-02",
+                        "MetaData": {
+                            "CreateTime": "2020-01-02T00:00:00-05:00",
+                            "LastUpdatedTime": "2026-01-03T00:00:00Z",
+                        },
+                    }],
+                },
+            }
+
+        with patch.dict(
+            os.environ,
+            {
+                "QUICKBOOKS_API_BASE_URL": (
+                    "https://quickbooks.api.intuit.com"
+                ),
+                "QUICKBOOKS_API_VERSION": "v3",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="quickbooks-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ):
+            dataframe, _report = connectors.load_quickbooks_dataframe(
+                None,
+                make_connection(
+                    "quickbooks",
+                    {
+                        "company_id": "company-1",
+                        "resource_types": ["invoices"],
+                    },
+                ),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            )
+
+        self.assertEqual(len(dataframe), 1)
+        self.assertEqual(dataframe.iloc[0]["record_id"], "invoice-updated")
+        self.assertIn(
+            "MetaData.LastUpdatedTime >= '2026-01-01T00:00:00Z'",
+            requested_queries[0],
+        )
+        self.assertIn(
+            "MetaData.LastUpdatedTime <= '2026-01-31T23:59:59Z'",
+            requested_queries[0],
+        )
+        self.assertNotIn("TxnDate >=", requested_queries[0])
+
     def test_quickbooks_sync_falls_back_to_the_other_api_environment(self):
         requested_urls = []
 
