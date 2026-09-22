@@ -573,7 +573,9 @@ function DataSourceConnectionRow({
     showInlineConnectionSettings
   const showResourceSelection =
     hasResourceSelection &&
-    resourceOptions.length > 0
+    resourceOptions.length > 0 &&
+    (inlineConnectionConfigKeys.length === 0 ||
+      connectionReadyForResourceSelection)
   const hasEditedConnectionSettings =
     inlineConnectionConfigKeys.some((configKey) =>
       Boolean(
