@@ -1795,83 +1795,16 @@ def load_google_search_console_dataframe(
         "google_search_console",
     )
     api_base_url = require_provider_url("GOOGLE_SEARCH_CONSOLE_API_BASE_URL")
-    site_url = resolve_google_search_console_site_url(
-        api_base_url,
-        site_url,
-        access_token,
-    )
+    if site_url.startswith("sc-domain:"):
+        site_url = resolve_google_search_console_site_url(
+            api_base_url,
+            site_url,
+            access_token,
+        )
     since = start_date or date.today() - timedelta(days=365)
     until = end_date or date.today()
-    query_url = (
-        f"{api_base_url}/sites/{quote(site_url, safe='')}"
-        "/searchAnalytics/query"
-    )
     daily_dimensions = ["date"]
     row_limit = 25_000
-    def fetch_rows(
-        query_dimensions,
-        data_state=None,
-        query_end_date=None,
-        aggregation_type=None,
-        clean_query=False,
-    ):
-        fetched_rows = []
-        start_row = 0
-        while True:
-            payload = {
-                "startDate": since.isoformat(),
-                "endDate": (
-                    query_end_date or until
-                ).isoformat(),
-                "dimensions": query_dimensions,
-            }
-            if not clean_query:
-                payload.update({
-                    "type": "web",
-                    "aggregationType": aggregation_type or "auto",
-                    # Search Console can expose recent, still-processing rows
-                    # before they become finalized. Include those rows so an
-                    # initial sync does not appear empty while the property is
-                    # actively receiving traffic.
-                    "dataState": data_state or "all",
-                    "rowLimit": row_limit,
-                    "startRow": start_row,
-                })
-            payload = connector_json_post_request(
-                query_url,
-                headers={"Authorization": f"Bearer {access_token}"},
-                payload=payload,
-            )
-            records = payload.get("rows") or []
-            if not isinstance(records, list):
-                raise ConnectorUnavailable(
-                    "Google Search Console returned an invalid Search Analytics response"
-                )
-            fetched_rows.extend(
-                record for record in records if isinstance(record, dict)
-            )
-            if len(records) < row_limit:
-                break
-            start_row += len(records)
-        return fetched_rows
-
-    # A date-only query is the provider-recommended way to determine which
-    # days contain data. It also avoids losing property-level impressions when
-    # query/page grouping has a different aggregation boundary.
-    presence_daily_rows = fetch_rows(
-        daily_dimensions,
-        clean_query=True,
-    )
-    daily_rows = fetch_rows(
-        daily_dimensions,
-        "all",
-        aggregation_type="byProperty",
-    )
-    finalized_daily_rows = fetch_rows(
-        daily_dimensions,
-        "final",
-        aggregation_type="byProperty",
-    )
 
     def has_daily_metrics(records):
         for record in records:
@@ -1885,55 +1818,123 @@ def load_google_search_console_dataframe(
                 continue
         return False
 
-    if not has_daily_metrics(
-        [*presence_daily_rows, *daily_rows, *finalized_daily_rows]
-    ):
-        lagged_end_date = min(
-            until,
-            date.today() - timedelta(
-                days=GOOGLE_SEARCH_CONSOLE_DATA_LAG_DAYS
-            ),
-        )
-        if lagged_end_date >= since and lagged_end_date < until:
-            finalized_daily_rows.extend(
-                fetch_rows(
-                    daily_dimensions,
-                    "final",
-                    query_end_date=lagged_end_date,
-                )
-            )
-
     def record_date(record):
         keys = record.get("keys")
         if not isinstance(keys, list) or not keys:
             return None
         return normalize_connector_date(keys[0])
 
-    daily_by_date = {}
-    for record in [
-        *presence_daily_rows,
-        *daily_rows,
-        *finalized_daily_rows,
-    ]:
-        record_date_value = record_date(record)
-        if record_date_value:
-            current_record = daily_by_date.get(record_date_value)
-            if current_record is None:
-                daily_by_date[record_date_value] = record
-                continue
-            current_score = (
-                float(current_record.get("impressions") or 0),
-                float(current_record.get("clicks") or 0),
-            )
-            candidate_score = (
-                float(record.get("impressions") or 0),
-                float(record.get("clicks") or 0),
-            )
-            if candidate_score >= current_score:
-                daily_by_date[record_date_value] = record
+    def load_daily_rows(query_site_url):
+        query_url = (
+            f"{api_base_url}/sites/{quote(query_site_url, safe='')}"
+            "/searchAnalytics/query"
+        )
 
-    daily_rows = list(daily_by_date.values())
-    rows = daily_rows
+        def fetch_rows(
+            data_state=None,
+            query_end_date=None,
+            clean_query=False,
+        ):
+            fetched_rows = []
+            start_row = 0
+            while True:
+                payload = {
+                    "startDate": since.isoformat(),
+                    "endDate": (
+                        query_end_date or until
+                    ).isoformat(),
+                    "dimensions": daily_dimensions,
+                }
+                if not clean_query:
+                    payload.update({
+                        "type": "web",
+                        "aggregationType": "byProperty",
+                        # Search Console can expose recent, still-processing
+                        # rows before they become finalized.
+                        "dataState": data_state or "all",
+                        "rowLimit": row_limit,
+                        "startRow": start_row,
+                    })
+                response_payload = connector_json_post_request(
+                    query_url,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    payload=payload,
+                )
+                records = response_payload.get("rows") or []
+                if not isinstance(records, list):
+                    raise ConnectorUnavailable(
+                        "Google Search Console returned an invalid Search Analytics response"
+                    )
+                fetched_rows.extend(
+                    record for record in records if isinstance(record, dict)
+                )
+                if len(records) < row_limit:
+                    break
+                start_row += len(records)
+            return fetched_rows
+
+        # A date-only query is the provider-recommended way to determine
+        # which days contain data. It also avoids losing property-level
+        # impressions when query/page grouping has a different boundary.
+        presence_daily_rows = fetch_rows(clean_query=True)
+        daily_rows = fetch_rows("all")
+        finalized_daily_rows = fetch_rows("final")
+
+        if not has_daily_metrics(
+            [*presence_daily_rows, *daily_rows, *finalized_daily_rows]
+        ):
+            lagged_end_date = min(
+                until,
+                date.today() - timedelta(
+                    days=GOOGLE_SEARCH_CONSOLE_DATA_LAG_DAYS
+                ),
+            )
+            if lagged_end_date >= since and lagged_end_date < until:
+                finalized_daily_rows.extend(
+                    fetch_rows(
+                        "final",
+                        query_end_date=lagged_end_date,
+                    )
+                )
+
+        daily_by_date = {}
+        for record in [
+            *presence_daily_rows,
+            *daily_rows,
+            *finalized_daily_rows,
+        ]:
+            record_date_value = record_date(record)
+            if record_date_value:
+                current_record = daily_by_date.get(record_date_value)
+                if current_record is None:
+                    daily_by_date[record_date_value] = record
+                    continue
+                current_score = (
+                    float(current_record.get("impressions") or 0),
+                    float(current_record.get("clicks") or 0),
+                )
+                candidate_score = (
+                    float(record.get("impressions") or 0),
+                    float(record.get("clicks") or 0),
+                )
+                if candidate_score >= current_score:
+                    daily_by_date[record_date_value] = record
+
+        return list(daily_by_date.values())
+
+    rows = load_daily_rows(site_url)
+    if rows and not has_daily_metrics(rows) and not site_url.startswith(
+        "sc-domain:"
+    ):
+        fallback_site_url = resolve_google_search_console_site_url(
+            api_base_url,
+            site_url,
+            access_token,
+            prefer_domain_property=True,
+        )
+        if fallback_site_url != site_url:
+            site_url = fallback_site_url
+            rows = load_daily_rows(site_url)
     dimensions = daily_dimensions
 
     if rows and not has_daily_metrics(rows):
@@ -2017,9 +2018,10 @@ def resolve_google_search_console_site_url(
     api_base_url: str,
     site_url: str,
     access_token: str,
+    prefer_domain_property: bool = False,
 ) -> str:
-    """Use the exact accessible Domain property when one is available."""
-    if not site_url.startswith("sc-domain:"):
+    """Resolve a configured property against the authorized account."""
+    if not site_url.startswith("sc-domain:") and not prefer_domain_property:
         return site_url
 
     sites_url = f"{api_base_url}/sites"
@@ -2037,7 +2039,7 @@ def resolve_google_search_console_site_url(
     if not isinstance(entries, list):
         return site_url
 
-    accessible_properties = set()
+    accessible_properties = {}
     for entry in entries:
         if not isinstance(entry, dict):
             continue
@@ -2045,14 +2047,38 @@ def resolve_google_search_console_site_url(
         if not candidate:
             continue
         try:
-            accessible_properties.add(
-                normalize_google_search_console_site_url(candidate)
+            normalized_candidate = normalize_google_search_console_site_url(
+                candidate
             )
         except ConnectorUnavailable:
             continue
+        property_key = (
+            normalized_candidate.rstrip("/")
+            if "://" in normalized_candidate
+            else normalized_candidate
+        )
+        accessible_properties[property_key] = normalized_candidate
 
-    if not accessible_properties or site_url in accessible_properties:
+    requested_key = (
+        site_url.rstrip("/")
+        if "://" in site_url
+        else site_url
+    )
+    if not accessible_properties:
         return site_url
+
+    parsed_site_url = urlparse(site_url)
+    hostname = (parsed_site_url.hostname or "").lower()
+    if hostname.startswith("www."):
+        hostname = hostname.removeprefix("www.")
+    domain_property = f"sc-domain:{hostname}" if hostname else None
+
+    if prefer_domain_property and domain_property in accessible_properties:
+        return accessible_properties[domain_property]
+    if requested_key in accessible_properties:
+        return accessible_properties[requested_key]
+    if domain_property in accessible_properties:
+        return accessible_properties[domain_property]
 
     raise ConnectorUnavailable(
         "The authorized Google account does not have access to the Google "

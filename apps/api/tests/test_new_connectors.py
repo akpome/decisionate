@@ -212,6 +212,62 @@ class NewConnectorTests(unittest.TestCase):
                     date(2026, 9, 22),
                 )
 
+    def test_search_console_retries_domain_property_for_zero_url_prefix(self):
+        def json_request(url, headers, payload):
+            if "sc-domain%3Adecisionate.ca" in url:
+                return {
+                    "rows": [{
+                        "keys": ["2026-09-18"],
+                        "clicks": 0,
+                        "impressions": 1,
+                        "ctr": 0,
+                        "position": 6,
+                    }],
+                }
+            return {
+                "rows": [{
+                    "keys": ["2026-09-18"],
+                    "clicks": 0,
+                    "impressions": 0,
+                    "ctr": 0,
+                    "position": 0,
+                }],
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="search-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            return_value={
+                "siteEntry": [{
+                    "siteUrl": "sc-domain:decisionate.ca",
+                }],
+            },
+        ), patch.object(
+            connectors,
+            "connector_json_post_request",
+            side_effect=json_request,
+        ), patch.dict(
+            "os.environ",
+            {"GOOGLE_SEARCH_CONSOLE_API_BASE_URL": "https://www.googleapis.com/webmasters/v3"},
+            clear=False,
+        ):
+            dataframe, report = connectors.load_google_search_console_dataframe(
+                None,
+                make_connection(
+                    "google_search_console",
+                    {"site_url": "https://decisionate.ca"},
+                ),
+                date(2026, 9, 1),
+                date(2026, 9, 22),
+            )
+
+        self.assertEqual(report["site_url"], "sc-domain:decisionate.ca")
+        self.assertEqual(dataframe.loc[0, "impressions"], 1)
+
     def test_new_sources_are_registered_with_expected_connection_types(self):
         expected = {
             "google_search_console": "oauth",
