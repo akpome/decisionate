@@ -570,9 +570,7 @@ function DataSourceConnectionRow({
     (!hasResourceSelection ||
       !connectionReadyForResourceSelection)
   const showConnectionSettingsCard =
-    showInlineConnectionSettings ||
-    (hasResourceSelection &&
-      !connectionReadyForResourceSelection)
+    showInlineConnectionSettings
   const showResourceSelection =
     hasResourceSelection &&
     resourceOptions.length > 0 &&
