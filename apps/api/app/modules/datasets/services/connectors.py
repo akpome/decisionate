@@ -1812,6 +1812,11 @@ def load_google_search_console_dataframe(
                 "startDate": since.isoformat(),
                 "endDate": until.isoformat(),
                 "dimensions": dimensions,
+                # Search Console can expose recent, still-processing rows
+                # before they become finalized. Include those rows so an
+                # initial sync does not appear empty while the property is
+                # actively receiving traffic.
+                "dataState": "all",
                 "rowLimit": row_limit,
                 "startRow": start_row,
             },

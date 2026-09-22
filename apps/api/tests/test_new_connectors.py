@@ -113,14 +113,11 @@ class NewConnectorTests(unittest.TestCase):
             self.assertEqual(source["connection_type"], connection_type)
 
     def test_search_console_rows_are_normalized(self):
-        with patch.object(
-            connectors,
-            "get_oauth_access_token",
-            return_value="search-token",
-        ), patch.object(
-            connectors,
-            "connector_json_post_request",
-            return_value={
+        request_payloads = []
+
+        def json_request(url, headers, payload):
+            request_payloads.append(payload)
+            return {
                 "rows": [{
                     "keys": ["2026-09-01", "decisionate", "https://example.com"],
                     "clicks": 12,
@@ -128,7 +125,16 @@ class NewConnectorTests(unittest.TestCase):
                     "ctr": 0.12,
                     "position": 3.5,
                 }],
-            },
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="search-token",
+        ), patch.object(
+            connectors,
+            "connector_json_post_request",
+            side_effect=json_request,
         ), patch.dict(
             "os.environ",
             {"GOOGLE_SEARCH_CONSOLE_API_BASE_URL": "https://www.googleapis.com/webmasters/v3"},
@@ -147,6 +153,7 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(report["resource"], "search_analytics")
         self.assertEqual(dataframe.loc[0, "query"], "decisionate")
         self.assertEqual(dataframe.loc[0, "clicks"], 12)
+        self.assertEqual(request_payloads[0]["dataState"], "all")
 
     def test_google_business_profile_locations_and_metrics_are_normalized(self):
         def json_request(url, headers):
