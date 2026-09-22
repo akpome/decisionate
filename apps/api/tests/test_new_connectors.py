@@ -155,6 +155,51 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.loc[0, "clicks"], 12)
         self.assertEqual(request_payloads[0]["dataState"], "all")
 
+    def test_search_console_falls_back_to_daily_rows(self):
+        request_payloads = []
+
+        def json_request(url, headers, payload):
+            request_payloads.append(payload)
+            if payload["dimensions"] == ["date", "query", "page"]:
+                return {"rows": []}
+            return {
+                "rows": [{
+                    "keys": ["2026-09-01"],
+                    "clicks": 12,
+                    "impressions": 100,
+                    "ctr": 0.12,
+                    "position": 3.5,
+                }],
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="search-token",
+        ), patch.object(
+            connectors,
+            "connector_json_post_request",
+            side_effect=json_request,
+        ), patch.dict(
+            "os.environ",
+            {"GOOGLE_SEARCH_CONSOLE_API_BASE_URL": "https://www.googleapis.com/webmasters/v3"},
+            clear=False,
+        ):
+            dataframe, report = connectors.load_google_search_console_dataframe(
+                None,
+                make_connection(
+                    "google_search_console",
+                    {"site_url": "https://example.com/"},
+                ),
+                date(2026, 9, 1),
+                date(2026, 9, 2),
+            )
+
+        self.assertEqual(report["dimensions"], ["date"])
+        self.assertEqual(dataframe.loc[0, "date"], "2026-09-01")
+        self.assertEqual(dataframe.loc[0, "clicks"], 12)
+        self.assertEqual(request_payloads[1]["dataState"], "all")
+
     def test_google_business_profile_locations_and_metrics_are_normalized(self):
         def json_request(url, headers):
             self.assertEqual(headers["Authorization"], "Bearer business-token")

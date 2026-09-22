@@ -6054,9 +6054,18 @@ def persist_connector_dataframe(
                     if start_date and end_date
                     else " for the selected sync period"
                 )
+                property_context = ""
+                if connection.source_type == "google_search_console":
+                    property_url = str(
+                        report_config.get("site_url") or ""
+                    ).strip()
+                    if property_url:
+                        property_context = (
+                            f" for property {property_url}"
+                        )
                 raise ConnectorNoData(
                     f"{connection.source_type.replace('_', ' ').title()} "
-                    f"returned no records{period}. Verify that the connected "
+                    f"returned no records{property_context}{period}. Verify that the connected "
                     "account contains data in this range."
                 )
             dataframe = existing_dataframe

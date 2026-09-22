@@ -1800,63 +1800,74 @@ def load_google_search_console_dataframe(
         f"{api_base_url}/sites/{quote(site_url, safe='')}"
         "/searchAnalytics/query"
     )
-    rows = []
     dimensions = ["date", "query", "page"]
     row_limit = 25_000
-    start_row = 0
-    while True:
-        payload = connector_json_post_request(
-            query_url,
-            headers={"Authorization": f"Bearer {access_token}"},
-            payload={
-                "startDate": since.isoformat(),
-                "endDate": until.isoformat(),
-                "dimensions": dimensions,
-                # Search Console can expose recent, still-processing rows
-                # before they become finalized. Include those rows so an
-                # initial sync does not appear empty while the property is
-                # actively receiving traffic.
-                "dataState": "all",
-                "rowLimit": row_limit,
-                "startRow": start_row,
-            },
-        )
-        records = payload.get("rows") or []
-        if not isinstance(records, list):
-            raise ConnectorUnavailable(
-                "Google Search Console returned an invalid Search Analytics response"
+    def fetch_rows(query_dimensions):
+        fetched_rows = []
+        start_row = 0
+        while True:
+            payload = connector_json_post_request(
+                query_url,
+                headers={"Authorization": f"Bearer {access_token}"},
+                payload={
+                    "startDate": since.isoformat(),
+                    "endDate": until.isoformat(),
+                    "dimensions": query_dimensions,
+                    # Search Console can expose recent, still-processing rows
+                    # before they become finalized. Include those rows so an
+                    # initial sync does not appear empty while the property is
+                    # actively receiving traffic.
+                    "dataState": "all",
+                    "rowLimit": row_limit,
+                    "startRow": start_row,
+                },
             )
-
-        for record in records:
-            if not isinstance(record, dict):
-                continue
-            keys = record.get("keys")
-            if not isinstance(keys, list):
-                keys = []
-            normalized_row = {
-                dimension: keys[index] if index < len(keys) else None
-                for index, dimension in enumerate(dimensions)
-            }
-            normalized_row.update(
-                {
-                    "clicks": record.get("clicks"),
-                    "impressions": record.get("impressions"),
-                    "ctr": record.get("ctr"),
-                    "position": record.get("position"),
-                }
-            )
-            rows.append(
-                build_dynamic_connector_row(
-                    record,
-                    normalized_row,
+            records = payload.get("rows") or []
+            if not isinstance(records, list):
+                raise ConnectorUnavailable(
+                    "Google Search Console returned an invalid Search Analytics response"
                 )
+            fetched_rows.extend(
+                record for record in records if isinstance(record, dict)
             )
+            if len(records) < row_limit:
+                break
+            start_row += len(records)
+        return fetched_rows
 
-        if len(records) < row_limit:
-            break
-        start_row += len(records)
+    rows = fetch_rows(dimensions)
+    if not rows:
+        # Google recommends a date-only query to verify that the range has
+        # data. Detailed query/page grouping can omit rows even when daily
+        # aggregate data is available, so preserve that usable evidence.
+        dimensions = ["date"]
+        rows = fetch_rows(dimensions)
 
-    dataframe = pd.DataFrame(rows)
+    normalized_rows = []
+    for record in rows:
+        keys = record.get("keys")
+        if not isinstance(keys, list):
+            keys = []
+        normalized_row = {
+            dimension: keys[index] if index < len(keys) else None
+            for index, dimension in enumerate(dimensions)
+        }
+        normalized_row.update(
+            {
+                "clicks": record.get("clicks"),
+                "impressions": record.get("impressions"),
+                "ctr": record.get("ctr"),
+                "position": record.get("position"),
+            }
+        )
+        normalized_rows.append(
+            build_dynamic_connector_row(
+                record,
+                normalized_row,
+            )
+        )
+
+    dataframe = pd.DataFrame(normalized_rows)
     return dataframe, {
         "connector": "google_search_console",
         "resource": "search_analytics",
