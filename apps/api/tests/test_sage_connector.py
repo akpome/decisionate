@@ -42,10 +42,7 @@ class SageConnectorTests(unittest.TestCase):
             self.assertIn("sales_invoices", url)
             self.assertEqual(headers["Authorization"], "Bearer sage-token")
             self.assertEqual(headers["X-Site"], "business-1")
-            self.assertEqual(
-                headers["Ocp-Apim-Subscription-Key"],
-                "subscription-key",
-            )
+            self.assertNotIn("Ocp-Apim-Subscription-Key", headers)
             return {
                 "$items": [{
                     "id": "invoice-1",
@@ -65,7 +62,6 @@ class SageConnectorTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "SAGE_API_SUBSCRIPTION_KEY": "subscription-key",
                 "SAGE_API_BASE_URL": "https://api.example/sage",
                 "SAGE_BUSINESS_HEADER": "X-Site",
             },
@@ -118,7 +114,6 @@ class SageConnectorTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "SAGE_API_SUBSCRIPTION_KEY": "subscription-key",
                 "SAGE_API_BASE_URL": "https://api.example/sage",
                 "SAGE_BUSINESS_HEADER": "X-Site",
             },
@@ -171,7 +166,6 @@ class SageConnectorTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "SAGE_API_SUBSCRIPTION_KEY": "subscription-key",
                 "SAGE_API_BASE_URL": "https://api.example/sage",
                 "SAGE_BUSINESS_HEADER": "X-Site",
             },

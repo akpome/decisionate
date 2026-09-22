@@ -478,7 +478,6 @@ DATASET_SOURCE_ENV_KEYS = {
     "sage": [
         "SAGE_CLIENT_ID",
         "SAGE_CLIENT_SECRET",
-        "SAGE_API_SUBSCRIPTION_KEY",
     ],
     "xero": [
         "XERO_CLIENT_ID",
@@ -856,7 +855,6 @@ def clone_dataset_source(source):
     if source["type"] == "sage":
         if (
             is_oauth_provider_configured("sage")
-            and str(os.getenv("SAGE_API_SUBSCRIPTION_KEY", "") or "").strip()
             and not get_missing_provider_settings("sage")
         ):
             cloned_source["status"] = "available"
@@ -865,9 +863,9 @@ def clone_dataset_source(source):
             cloned_source["availability_note"] = (
                 provider_setup_note(
                     "sage",
-                    "Configure Sage OAuth credentials, the Sage API subscription "
-                    "key, and token encryption on the Decisionate server to "
-                    "enable sync.",
+                    "Configure Sage OAuth credentials, the Sage API endpoint and "
+                    "business header, and token encryption on the Decisionate "
+                    "server to enable sync.",
                 )
             )
 

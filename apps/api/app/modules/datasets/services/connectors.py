@@ -4532,14 +4532,6 @@ def load_sage_dataframe(
             "Connect a Sage business before syncing"
         )
 
-    subscription_key = str(
-        os.getenv("SAGE_API_SUBSCRIPTION_KEY", "") or ""
-    ).strip()
-    if not subscription_key:
-        raise ConnectorUnavailable(
-            "SAGE_API_SUBSCRIPTION_KEY is required before syncing Sage"
-        )
-
     access_token = get_oauth_access_token(db, connection, "sage")
     base_url = require_provider_url("SAGE_API_BASE_URL")
     business_header = get_provider_setting("SAGE_BUSINESS_HEADER")
@@ -4579,7 +4571,6 @@ def load_sage_dataframe(
             headers={
                 "Authorization": f"Bearer {access_token}",
                 business_header: business_id,
-                "Ocp-Apim-Subscription-Key": subscription_key,
                 "Content-Type": "application/json",
             },
         )

@@ -333,12 +333,12 @@ The adapter uses the read-only campaign performance `SearchStream` report and
 stores one row per campaign and day. Configure
 `GOOGLE_ADS_API_BASE_URL` and `GOOGLE_ADS_API_VERSION` alongside the Google Ads
 OAuth settings in `.env.example`.
-Sage requires `SAGE_CLIENT_ID`, `SAGE_CLIENT_SECRET`,
-`SAGE_API_SUBSCRIPTION_KEY`, and an encrypted OAuth token key. Sage is imported
-with the provider's read-only OAuth consent and the selected business resource
-owner ID returned during authorization. The default adapter targets the Sage
-UK/Ireland Accounting API path; set `SAGE_API_BASE_URL` for another supported
-country or deployment endpoint.
+Sage requires `SAGE_CLIENT_ID`, `SAGE_CLIENT_SECRET`, and an encrypted OAuth
+token key. Sage is imported with the provider's read-only OAuth consent and the
+selected business resource owner ID returned during authorization. Configure
+the Sage API endpoint and business selector header with `SAGE_API_BASE_URL`
+and `SAGE_BUSINESS_HEADER`. The connector uses the OAuth bearer token directly;
+it does not require an APIM or subscription key.
 PostgreSQL, MySQL, and SQL Server use customer-specific connection settings:
 host, optional port, database, read-only username, password, and a SELECT or
 WITH query. Passwords are encrypted before persistence. PostgreSQL and MySQL
