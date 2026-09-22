@@ -4002,7 +4002,12 @@ def load_freshbooks_dataframe(
             )
 
     dataframe = pd.DataFrame(rows)
-    dataframe = filter_date_range(dataframe, start_date, end_date)
+    dataframe = filter_date_range(
+        dataframe,
+        start_date,
+        end_date,
+        date_columns=("updated_at", "created_at"),
+    )
     return dataframe, {
         "connector": "freshbooks",
         "resource": resource_type,
@@ -4223,14 +4228,14 @@ def _load_freshbooks_account_resource(
         }
         if resource_type in {"invoices", "expenses"}:
             if start_date:
-                params["date_from"] = start_date.isoformat()
+                params["updated_min"] = start_date.isoformat()
             if end_date:
-                params["date_to"] = end_date.isoformat()
+                params["updated_max"] = end_date.isoformat()
         elif resource_type == "payments":
             if start_date:
-                params["date_min"] = start_date.isoformat()
+                params["updated_min"] = start_date.isoformat()
             if end_date:
-                params["date_max"] = end_date.isoformat()
+                params["updated_max"] = end_date.isoformat()
         elif resource_type == "clients":
             if start_date:
                 params["updated_min"] = start_date.isoformat()

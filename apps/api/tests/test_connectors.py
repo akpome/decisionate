@@ -246,6 +246,61 @@ class ConnectorSmokeTests(unittest.TestCase):
             ["invoices", "projects"],
         )
 
+    def test_freshbooks_invoices_sync_by_updated_date(self):
+        requested_urls = []
+
+        def json_request(url, headers):
+            requested_urls.append(url)
+            return {
+                "response": {
+                    "result": {
+                        "invoices": [{
+                            "invoiceid": 101,
+                            "create_date": "2020-01-02",
+                            "updated": "2026-01-03",
+                            "amount": {"amount": "125.00", "code": "CAD"},
+                        }],
+                    },
+                },
+            }
+
+        with patch.dict(
+            os.environ,
+            {
+                "FRESHBOOKS_API_BASE_URL_TEMPLATE": (
+                    "https://api.freshbooks.com/accounting/account/{account_id}"
+                ),
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="freshbooks-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ):
+            dataframe, _report = connectors.load_freshbooks_dataframe(
+                None,
+                make_connection(
+                    "freshbooks",
+                    {
+                        "account_id": "account-1",
+                        "resource_types": ["invoices"],
+                    },
+                ),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            )
+
+        request_params = parse_qs(urlsplit(requested_urls[0]).query)
+        self.assertEqual(len(dataframe), 1)
+        self.assertEqual(request_params["updated_min"], ["2026-01-01"])
+        self.assertEqual(request_params["updated_max"], ["2026-01-31"])
+        self.assertNotIn("date_from", request_params)
+        self.assertNotIn("date_to", request_params)
+
     def test_quickbooks_resource_selection_accepts_entity_aliases(self):
         self.assertEqual(
             connectors.normalize_quickbooks_resource_types({
