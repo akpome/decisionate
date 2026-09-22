@@ -5656,12 +5656,25 @@ def merge_connector_dataframes(
     source_type: str,
     report_config: dict,
 ):
-    if existing_dataframe is None or existing_dataframe.empty:
-        return incoming_dataframe.reset_index(drop=True)
-    if incoming_dataframe is None or incoming_dataframe.empty:
-        return existing_dataframe.reset_index(drop=True)
+    has_existing = (
+        isinstance(existing_dataframe, pd.DataFrame)
+        and not existing_dataframe.empty
+    )
+    has_incoming = (
+        isinstance(incoming_dataframe, pd.DataFrame)
+        and not incoming_dataframe.empty
+    )
+
+    if not has_incoming:
+        return (
+            existing_dataframe.reset_index(drop=True)
+            if has_existing
+            else pd.DataFrame()
+        )
 
     if source_type == "google_search_console":
+        if not has_existing:
+            return incoming_dataframe.reset_index(drop=True)
         return merge_google_search_console_dataframes(
             existing_dataframe,
             incoming_dataframe,
@@ -5669,10 +5682,14 @@ def merge_connector_dataframes(
             end_date=report_config.get("end_date"),
         )
 
-    combined = pd.concat(
-        [existing_dataframe, incoming_dataframe],
-        ignore_index=True,
-        sort=False,
+    combined = (
+        pd.concat(
+            [existing_dataframe, incoming_dataframe],
+            ignore_index=True,
+            sort=False,
+        )
+        if has_existing
+        else incoming_dataframe.copy()
     )
     if (
         source_type == "quickbooks"

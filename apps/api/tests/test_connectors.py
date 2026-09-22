@@ -892,30 +892,14 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(dataframe.iloc[0]["cost"], 1.25)
         self.assertEqual(report["customer_id"], "1234567890")
 
-    def test_google_ads_campaign_report_loads_metadata_when_metrics_are_empty(self):
-        metadata_response = [{
-            "results": [{
-                "campaign": {
-                    "id": "1234567890",
-                    "name": "Test campaign",
-                    "status": "PAUSED",
-                    "advertisingChannelType": "SEARCH",
-                    "startDateTime": "2026-01-02 00:00:00",
-                    "endDateTime": "2026-12-31 23:59:59",
-                },
-            }],
-        }]
+    def test_google_ads_campaign_report_does_not_create_zero_metric_rows(self):
         post_calls = []
 
         def post_request(url, headers, payload):
             post_calls.append((url, headers, payload))
             if "segments.date" in payload["query"]:
                 return [{"results": []}]
-            self.assertEqual(
-                payload["query"],
-                connectors.GOOGLE_ADS_CAMPAIGN_METADATA_QUERY,
-            )
-            return metadata_response
+            self.fail("Google Ads metadata fallback should not be requested")
 
         with patch.object(
             connectors,
@@ -945,17 +929,10 @@ class ConnectorSmokeTests(unittest.TestCase):
                 date(2026, 9, 6),
             )
 
-        self.assertEqual(len(post_calls), 2)
-        self.assertFalse(dataframe.empty)
-        self.assertEqual(dataframe.iloc[0]["campaign_name"], "Test campaign")
-        self.assertEqual(
-            dataframe.iloc[0]["campaign_start_date"],
-            "2026-01-02",
-        )
-        self.assertEqual(dataframe.iloc[0]["impressions"], 0)
-        self.assertEqual(dataframe.iloc[0]["cost"], 0)
-        self.assertEqual(report["data_mode"], "campaign_metadata")
-        self.assertEqual(report["row_count"], 1)
+        self.assertEqual(len(post_calls), 1)
+        self.assertTrue(dataframe.empty)
+        self.assertEqual(report["data_mode"], "campaign_performance")
+        self.assertEqual(report["row_count"], 0)
 
     def test_google_ads_campaign_report_resolves_manager_automatically(self):
         response = [{

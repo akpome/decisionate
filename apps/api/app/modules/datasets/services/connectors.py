@@ -1860,9 +1860,7 @@ def load_google_search_console_dataframe(
                     payload.update({
                         "type": "web",
                         "aggregationType": "byProperty",
-                        # Search Console can expose recent, still-processing
-                        # rows before they become finalized.
-                        "dataState": data_state or "all",
+                        "dataState": data_state or "final",
                         "rowLimit": row_limit,
                         "startRow": start_row,
                     })
@@ -1888,11 +1886,10 @@ def load_google_search_console_dataframe(
         # which days contain data. It also avoids losing property-level
         # impressions when query/page grouping has a different boundary.
         presence_daily_rows = fetch_rows(clean_query=True)
-        daily_rows = fetch_rows("all")
         finalized_daily_rows = fetch_rows("final")
 
         if not has_daily_metrics(
-            [*presence_daily_rows, *daily_rows, *finalized_daily_rows]
+            [*presence_daily_rows, *finalized_daily_rows]
         ):
             lagged_end_date = min(
                 until,
@@ -1908,25 +1905,16 @@ def load_google_search_console_dataframe(
                     )
                 )
 
-        # Prefer the date-only and finalized responses whenever either one
-        # contains real metrics. The `all` response may include provisional
-        # dates that are not present in the Search Console UI yet. Keep it as
-        # a fallback for properties whose only available data is still fresh.
+        # Only persist finalized/provider-authoritative rows. Search Console's
+        # `all` data state includes incomplete data that can later change, so
+        # it must never become part of the durable dataset.
         authoritative_rows = [
             *presence_daily_rows,
             *finalized_daily_rows,
         ]
-        rows_to_merge = (
-            authoritative_rows
-            if has_daily_metrics(authoritative_rows)
-            else [
-                *authoritative_rows,
-                *daily_rows,
-            ]
-        )
 
         daily_by_date = {}
-        for record in rows_to_merge:
+        for record in authoritative_rows:
             record_date_value = record_date(record)
             if record_date_value:
                 current_record = daily_by_date.get(record_date_value)
@@ -2284,7 +2272,6 @@ def load_google_business_profile_dataframe(
                 "Google Business Profile returned an invalid performance response"
             )
 
-        location_row_count = 0
         for metric_group in metric_groups:
             if not isinstance(metric_group, dict):
                 continue
@@ -2328,20 +2315,6 @@ def load_google_business_profile_dataframe(
                             normalized_row,
                         )
                     )
-                    location_row_count += 1
-
-        if location_row_count == 0:
-            rows.append(
-                build_dynamic_connector_row(
-                    location,
-                    {
-                        **location_fields,
-                        "record_id": location_name,
-                        "data_type": "location",
-                    },
-                )
-            )
-
     dataframe = pd.DataFrame(rows)
     return dataframe, {
         "connector": "google_business_profile",
@@ -3271,20 +3244,6 @@ GOOGLE_ADS_CUSTOMER_CLIENT_QUERY = " ".join([
     "WHERE customer_client.level <= 1",
 ])
 
-GOOGLE_ADS_CAMPAIGN_METADATA_QUERY = " ".join([
-    "SELECT",
-    "campaign.id,",
-    "campaign.name,",
-    "campaign.status,",
-    "campaign.advertising_channel_type,",
-    "campaign.start_date_time,",
-    "campaign.end_date_time",
-    "FROM campaign",
-    "WHERE campaign.status != 'REMOVED'",
-    "ORDER BY campaign.id",
-])
-
-
 def _google_ads_search_stream_results(
     base_url: str,
     api_version: str,
@@ -3582,73 +3541,6 @@ def load_google_ads_dataframe(
             )
 
     data_mode = "campaign_performance"
-    if not rows:
-        metadata_payload = connector_json_post_request(
-            url,
-            request_headers,
-            {"query": GOOGLE_ADS_CAMPAIGN_METADATA_QUERY},
-        )
-        if not isinstance(metadata_payload, list):
-            raise ConnectorUnavailable(
-                "Google Ads returned an invalid campaign metadata response"
-            )
-
-        for chunk in metadata_payload:
-            if not isinstance(chunk, dict):
-                raise ConnectorUnavailable(
-                    "Google Ads returned an invalid campaign metadata response"
-                )
-            records = chunk.get("results")
-            if records is None:
-                continue
-            if not isinstance(records, list):
-                raise ConnectorUnavailable(
-                    "Google Ads returned invalid campaign metadata results"
-                )
-            for record in records:
-                if not isinstance(record, dict):
-                    continue
-                campaign = record.get("campaign")
-                campaign = campaign if isinstance(campaign, dict) else {}
-                campaign_id = campaign.get("id")
-                if campaign_id is None:
-                    continue
-                normalized_row = {
-                    "record_id": f"{customer_id}:{campaign_id}",
-                    "customer_id": customer_id,
-                    "campaign_id": campaign_id,
-                    "campaign_name": campaign.get("name"),
-                    "campaign_status": campaign.get("status"),
-                    "advertising_channel_type": campaign.get(
-                        "advertisingChannelType"
-                    ),
-                    "campaign_start_date": (
-                        campaign.get("startDateTime")
-                        or campaign.get("startDate")
-                    ),
-                    "campaign_end_date": (
-                        campaign.get("endDateTime")
-                        or campaign.get("endDate")
-                    ),
-                    "impressions": 0,
-                    "clicks": 0,
-                    "cost_micros": 0,
-                    "cost": 0,
-                    "conversions": 0,
-                    "conversions_value": 0,
-                    "ctr": 0,
-                    "average_cpc_micros": 0,
-                    "average_cpc": 0,
-                }
-                rows.append(
-                    build_dynamic_connector_row(
-                        record,
-                        normalized_row,
-                    )
-                )
-        if rows:
-            data_mode = "campaign_metadata"
-
     dataframe = pd.DataFrame(rows)
     return dataframe, {
         "connector": "google_ads",
@@ -5904,12 +5796,17 @@ def filter_xero_sync_date_range(
     if dataframe.empty or (start_date is None and end_date is None):
         return dataframe
 
-    date_column = "updated_at" if "updated_at" in dataframe.columns else "created_at"
-    dates = pd.to_datetime(
-        dataframe[date_column],
-        errors="coerce",
-        utc=True,
-    )
+    dates = pd.Series(pd.NaT, index=dataframe.index, dtype="datetime64[ns, UTC]")
+    for column in ("updated_at", "created_at"):
+        if column not in dataframe.columns:
+            continue
+        dates = dates.fillna(
+            pd.to_datetime(
+                dataframe[column],
+                errors="coerce",
+                utc=True,
+            )
+        )
     if not isinstance(dates, pd.Series) or dates.notna().sum() == 0:
         return dataframe
 

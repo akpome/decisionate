@@ -170,7 +170,7 @@ class NewConnectorTests(unittest.TestCase):
 
         self.assertEqual(report["site_url"], "sc-domain:decisionate.ca")
         self.assertEqual(dataframe.loc[0, "impressions"], 1)
-        self.assertEqual(len(request_payloads), 3)
+        self.assertEqual(len(request_payloads), 2)
 
     def test_search_console_does_not_persist_zero_only_rows(self):
         with patch.object(
@@ -373,7 +373,11 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.loc[0, "date"], "2026-09-01")
         self.assertEqual(dataframe.loc[0, "clicks"], 12)
         self.assertEqual(request_payloads[1]["aggregationType"], "byProperty")
-        self.assertEqual(request_payloads[1]["dataState"], "all")
+        self.assertEqual(request_payloads[1]["dataState"], "final")
+        self.assertNotIn(
+            "all",
+            [payload.get("dataState") for payload in request_payloads],
+        )
 
     def test_search_console_prefers_nonzero_daily_result(self):
         def json_request(url, headers, payload):
@@ -808,6 +812,22 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged.loc[0, "revenue"], 125)
 
+    def test_initial_connector_fetch_deduplicates_provider_rows(self):
+        incoming = pd.DataFrame([
+            {"record_id": "contact-1", "name": "Old name"},
+            {"record_id": "contact-1", "name": "Current name"},
+        ])
+
+        merged = datasets_router.merge_connector_dataframes(
+            None,
+            incoming,
+            "hubspot",
+            {},
+        )
+
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged.loc[0, "name"], "Current name")
+
     def test_google_business_profile_locations_and_metrics_are_normalized(self):
         def json_request(url, headers):
             self.assertEqual(headers["Authorization"], "Bearer business-token")
@@ -879,6 +899,46 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.loc[0, "daily_metric"], "WEBSITE_CLICKS")
         self.assertEqual(dataframe.loc[0, "metric_value"], 7)
         self.assertEqual(dataframe.loc[0, "date"], "2026-09-01")
+
+    def test_google_business_profile_does_not_create_location_rows_without_metrics(self):
+        def json_request(url, headers):
+            if "mybusinessbusinessinformation.googleapis.com" in url:
+                return {
+                    "locations": [{
+                        "name": "locations/123",
+                        "title": "Decisionate Halifax",
+                    }],
+                }
+            return {"multiDailyMetricTimeSeries": []}
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="business-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ), patch.dict(
+            "os.environ",
+            {
+                "GOOGLE_BUSINESS_PROFILE_API_BASE_URL": (
+                    "https://mybusinessbusinessinformation.googleapis.com/v1"
+                ),
+                "GOOGLE_BUSINESS_PROFILE_PERFORMANCE_API_BASE_URL": (
+                    "https://businessprofileperformance.googleapis.com/v1"
+                ),
+            },
+            clear=False,
+        ):
+            dataframe, _report = connectors.load_google_business_profile_dataframe(
+                None,
+                make_connection("google_business_profile", {}),
+                date(2026, 9, 1),
+                date(2026, 9, 2),
+            )
+
+        self.assertTrue(dataframe.empty)
 
     def test_square_orders_are_normalized(self):
         with patch.object(

@@ -179,6 +179,39 @@ class XeroConnectorTests(unittest.TestCase):
 
         self.assertEqual(len(dataframe), 1)
 
+    def test_transaction_sync_falls_back_to_created_date_when_updated_is_missing(self):
+        def json_request(url, headers):
+            return {
+                "Invoices": [{
+                    "InvoiceID": "invoice-1",
+                    "DateString": "2020-01-02",
+                    "Total": 125.5,
+                }],
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="xero-access-token",
+        ), patch.object(
+            connectors,
+            "require_provider_url",
+            return_value="https://api.xero.com/api.xro/2.0",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ):
+            dataframe, _report = connectors.load_xero_dataframe(
+                None,
+                make_connection(),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+                "invoices",
+            )
+
+        self.assertTrue(dataframe.empty)
+
     def test_xero_accepts_current_granular_read_scopes(self):
         provider = OAUTH_PROVIDERS["xero"]
         with patch.dict(
