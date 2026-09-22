@@ -5656,6 +5656,27 @@ def merge_connector_dataframes(
     source_type: str,
     report_config: dict,
 ):
+    def remove_non_authoritative_rows(dataframe):
+        if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
+            return dataframe
+        cleaned = dataframe
+        if source_type == "google_ads":
+            # Older versions persisted campaign metadata with fabricated zero
+            # metrics. Durable Google Ads rows must have a report date.
+            if "date" not in cleaned.columns:
+                return cleaned.iloc[0:0].copy()
+            dates = cleaned["date"].astype("string").str.strip()
+            cleaned = cleaned.loc[dates.notna() & dates.ne("")]
+        elif source_type == "google_business_profile":
+            if "data_type" in cleaned.columns:
+                cleaned = cleaned.loc[
+                    cleaned["data_type"].astype("string").str.lower()
+                    != "location"
+                ]
+        return cleaned
+
+    existing_dataframe = remove_non_authoritative_rows(existing_dataframe)
+    incoming_dataframe = remove_non_authoritative_rows(incoming_dataframe)
     has_existing = (
         isinstance(existing_dataframe, pd.DataFrame)
         and not existing_dataframe.empty

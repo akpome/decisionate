@@ -828,6 +828,48 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged.loc[0, "name"], "Current name")
 
+    def test_merge_removes_legacy_google_ads_metadata_rows(self):
+        existing = pd.DataFrame([
+            {
+                "campaign_id": "campaign-1",
+                "campaign_name": "Legacy campaign",
+                "impressions": 0,
+            },
+        ])
+
+        merged = datasets_router.merge_connector_dataframes(
+            existing,
+            existing.copy(),
+            "google_ads",
+            {},
+        )
+
+        self.assertTrue(merged.empty)
+
+    def test_merge_removes_legacy_business_profile_location_rows(self):
+        existing = pd.DataFrame([
+            {
+                "record_id": "locations/123",
+                "data_type": "location",
+            },
+            {
+                "record_id": "locations/123:2026-09-18:WEBSITE_CLICKS",
+                "data_type": "daily_metric",
+                "date": "2026-09-18",
+                "metric_value": 1,
+            },
+        ])
+
+        merged = datasets_router.merge_connector_dataframes(
+            existing,
+            existing.copy(),
+            "google_business_profile",
+            {},
+        )
+
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged.iloc[0]["data_type"], "daily_metric")
+
     def test_google_business_profile_locations_and_metrics_are_normalized(self):
         def json_request(url, headers):
             self.assertEqual(headers["Authorization"], "Bearer business-token")
