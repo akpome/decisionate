@@ -3,7 +3,6 @@ import type { ReactNode } from "react"
 
 import { AuthCard } from "@/app/auth-card"
 import { ThemeToggle } from "@/app/theme-toggle"
-import { LanguageToggle } from "@/app/language-toggle"
 import { AuthPageCopy } from "@/app/auth-page-copy"
 
 export default function SignUpPage() {
@@ -29,7 +28,6 @@ function AuthShell({
   return (
     <main className="min-h-screen overflow-x-hidden bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-6xl justify-end gap-2">
-        <LanguageToggle />
         <ThemeToggle />
       </div>
 

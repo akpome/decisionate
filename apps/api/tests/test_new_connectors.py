@@ -1,12 +1,13 @@
 import json
 import unittest
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.modules.datasets.services import connectors
 from app.modules.datasets.services import sources
 from app.modules.datasets.services.sources import get_dataset_source
+from app.modules.datasets import router as datasets_router
 
 
 def make_connection(source_type, config):
@@ -18,6 +19,43 @@ def make_connection(source_type, config):
 
 
 class NewConnectorTests(unittest.TestCase):
+    def test_search_console_initial_sync_uses_standard_history(self):
+        connection = SimpleNamespace(
+            source_type="google_search_console",
+            last_synced_at=None,
+        )
+
+        start_date, end_date = datasets_router.get_incremental_sync_window(
+            connection,
+            SimpleNamespace(start_date=None, end_date=None),
+        )
+
+        self.assertEqual(
+            (date.today() - start_date).days,
+            30,
+        )
+        self.assertEqual(end_date, date.today())
+
+    def test_search_console_incremental_sync_rechecks_delayed_data(self):
+        connection = SimpleNamespace(
+            source_type="google_search_console",
+            last_synced_at=datetime.combine(
+                date.today(),
+                datetime.min.time(),
+            ),
+        )
+
+        start_date, end_date = datasets_router.get_incremental_sync_window(
+            connection,
+            SimpleNamespace(start_date=None, end_date=None),
+        )
+
+        self.assertEqual(
+            (date.today() - start_date).days,
+            7,
+        )
+        self.assertEqual(end_date, date.today())
+
     def test_google_business_profile_stays_planned_pending_google_approval(self):
         with patch.object(
             sources,

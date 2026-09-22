@@ -236,6 +236,12 @@ logger = logging.getLogger(__name__)
 
 INITIAL_CONNECTOR_SYNC_DAYS = 30
 CONNECTOR_INCREMENTAL_LOOKBACK_DAYS = 1
+CONNECTOR_INCREMENTAL_LOOKBACK_DAYS_BY_SOURCE = {
+    # Search Console can publish performance data several days after the
+    # corresponding search date. Re-fetch a small rolling window so delayed
+    # rows are ingested and deduplicated when they become available.
+    "google_search_console": 7,
+}
 CONNECTOR_DEDUP_KEYS = {
     "hubspot": ["record_id"],
     "stripe": ["charge_id"],
@@ -4584,9 +4590,13 @@ def get_incremental_sync_window(
 
     if start_date is None:
         if connection.last_synced_at:
+            lookback_days = CONNECTOR_INCREMENTAL_LOOKBACK_DAYS_BY_SOURCE.get(
+                connection.source_type,
+                CONNECTOR_INCREMENTAL_LOOKBACK_DAYS,
+            )
             start_date = (
                 connection.last_synced_at.date()
-                - timedelta(days=CONNECTOR_INCREMENTAL_LOOKBACK_DAYS)
+                - timedelta(days=lookback_days)
             )
         else:
             start_date = date.today() - timedelta(
