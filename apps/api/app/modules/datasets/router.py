@@ -4600,7 +4600,7 @@ def get_incremental_sync_window(
             )
         else:
             start_date = date.today() - timedelta(
-                days=INITIAL_CONNECTOR_SYNC_DAYS
+                days=INITIAL_CONNECTOR_SYNC_DAYS - 1
             )
 
     if end_date is None and start_date is not None:

@@ -31,8 +31,8 @@ class NewConnectorTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            (date.today() - start_date).days,
-            30,
+            (end_date - start_date).days + 1,
+            datasets_router.INITIAL_CONNECTOR_SYNC_DAYS,
         )
         self.assertEqual(end_date, date.today())
 
