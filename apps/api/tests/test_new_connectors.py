@@ -178,6 +178,8 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(report["resource"], "search_analytics")
         self.assertEqual(dataframe.loc[0, "query"], "decisionate")
         self.assertEqual(dataframe.loc[0, "clicks"], 12)
+        self.assertEqual(request_payloads[0]["type"], "web")
+        self.assertEqual(request_payloads[0]["aggregationType"], "auto")
         self.assertEqual(request_payloads[0]["dataState"], "all")
 
     def test_search_console_falls_back_to_daily_rows(self):
@@ -223,6 +225,8 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(report["dimensions"], ["date"])
         self.assertEqual(dataframe.loc[0, "date"], "2026-09-01")
         self.assertEqual(dataframe.loc[0, "clicks"], 12)
+        self.assertEqual(request_payloads[1]["type"], "web")
+        self.assertEqual(request_payloads[1]["aggregationType"], "byProperty")
         self.assertEqual(request_payloads[1]["dataState"], "all")
 
     def test_search_console_fills_a_date_omitted_by_detailed_results(self):

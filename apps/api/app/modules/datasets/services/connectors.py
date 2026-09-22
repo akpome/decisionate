@@ -1814,6 +1814,12 @@ def load_google_search_console_dataframe(
                     "startDate": since.isoformat(),
                     "endDate": until.isoformat(),
                     "dimensions": query_dimensions,
+                    "type": "web",
+                    "aggregationType": (
+                        "byProperty"
+                        if query_dimensions == daily_dimensions
+                        else "auto"
+                    ),
                     # Search Console can expose recent, still-processing rows
                     # before they become finalized. Include those rows so an
                     # initial sync does not appear empty while the property is
