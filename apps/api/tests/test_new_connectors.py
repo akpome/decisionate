@@ -650,6 +650,21 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(merged.loc[0, "impressions"], 1)
         self.assertEqual(merged.loc[0, "revision"], "new")
 
+    def test_empty_connector_fetch_does_not_duplicate_existing_rows(self):
+        existing = pd.DataFrame([
+            {"created_at": "2026-09-18", "revenue": 125},
+        ])
+
+        merged = datasets_router.merge_connector_dataframes(
+            existing,
+            pd.DataFrame(),
+            "postgresql",
+            {},
+        )
+
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged.loc[0, "revenue"], 125)
+
     def test_google_business_profile_locations_and_metrics_are_normalized(self):
         def json_request(url, headers):
             self.assertEqual(headers["Authorization"], "Bearer business-token")

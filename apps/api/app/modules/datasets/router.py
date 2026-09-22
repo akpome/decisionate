@@ -5623,6 +5623,8 @@ def merge_connector_dataframes(
 ):
     if existing_dataframe is None or existing_dataframe.empty:
         return incoming_dataframe.reset_index(drop=True)
+    if incoming_dataframe is None or incoming_dataframe.empty:
+        return existing_dataframe.reset_index(drop=True)
 
     if source_type == "google_search_console":
         return merge_google_search_console_dataframes(
