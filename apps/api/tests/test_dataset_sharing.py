@@ -741,6 +741,10 @@ class DatasetSharingTests(unittest.TestCase):
         for source_type, identifier in expected_identifiers.items():
             with self.subTest(source_type=source_type):
                 source = get_dataset_source(source_type)
+                self.assertEqual(
+                    source.get("oauth_account_key"),
+                    identifier,
+                )
                 self.assertIn(identifier, source["config_keys"])
                 self.assertIn("resource_types", source["config_keys"])
                 self.assertNotIn(

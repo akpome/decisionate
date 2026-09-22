@@ -40,19 +40,6 @@ export const REQUIRED_CONNECTION_CONFIG_KEYS: Record<
   meta_ads: ["ad_account_id"],
 }
 
-const OAUTH_MANAGED_CONNECTION_KEYS: Record<
-  string,
-  string[]
-> = {
-  salesforce: ["instance_url"],
-  hubspot: ["portal_id"],
-  zoho_books: ["organization_id"],
-  xero: ["tenant_id"],
-  freshbooks: ["account_id"],
-  quickbooks: ["company_id"],
-  sage: ["business_id"],
-}
-
 interface DataSourceConnectionsProps {
   connections: DataSourceConnection[]
   loadError?: boolean
@@ -561,17 +548,23 @@ function DataSourceConnectionRow({
       : hasRequiredConnectionSettings
   const inlineConnectionConfigKeys =
     editableConfigKeys.filter(
-      (configKey) => configKey !== "resource_types"
+      (configKey) =>
+        configKey !== "resource_types" &&
+        configKey !==
+          (source?.oauth_account_key ??
+            connection.oauth_account_key)
     )
   const connectionSettingsConfigKeys =
     inlineConnectionConfigKeys
-  const hasOAuthManagedConnectionSetting =
-    isOAuthConnector &&
-    inlineConnectionConfigKeys.some((configKey) =>
-      OAUTH_MANAGED_CONNECTION_KEYS[
-        connection.source_type
-      ]?.includes(configKey)
-    )
+  const oauthAccountOptions =
+    connection.oauth_account_options ?? []
+  const hasSelectedOAuthAccount = Boolean(
+    connection.oauth_account_value
+  )
+  const showOAuthAccountSelection =
+    isOAuthAuthorized &&
+    oauthAccountOptions.length > 1 &&
+    Boolean(connection.oauth_account_key)
   const showInlineConnectionSettings =
     inlineConnectionConfigKeys.length > 0 &&
     (!hasResourceSelection ||
@@ -627,6 +620,8 @@ function DataSourceConnectionRow({
       connection.status === "connected") &&
     (!hasResourceSelection ||
       selectedResourceTypes.length > 0) &&
+    (!showOAuthAccountSelection ||
+      hasSelectedOAuthAccount) &&
     Boolean(onSyncConnection)
   const canStartOAuth =
     source?.connection_type === "oauth" &&
@@ -1291,9 +1286,7 @@ function DataSourceConnectionRow({
                   )}
 
                   <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
-                    {hasOAuthManagedConnectionSetting
-                      ? t("The provider identifier is optional. Leave it blank for OAuth to identify the account automatically, or enter it to select a specific account.")
-                      : t("Save the required setting before data can be ingested. Without it, this connection will ingest no data.")}
+                    {t("Save the required setting before data can be ingested. Without it, this connection will ingest no data.")}
                   </p>
 
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -1334,11 +1327,9 @@ function DataSourceConnectionRow({
                     {t("Connection settings")}
                   </p>
                   <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
-                    {hasOAuthManagedConnectionSetting
-                      ? t("The provider identifier is optional. Leave it blank for OAuth to identify the account automatically, or enter it to select a specific account.")
-                      : isOAuthConnector
-                        ? `${t("Use Connect with OAuth to authorize the provider account, then select the")} ${source?.label ?? "provider"} ${t("objects to ingest.")}`
-                        : t("Connection settings are managed by this provider.")}
+                    {isOAuthConnector
+                      ? `${t("Use Connect with OAuth to authorize the provider account, then select the")} ${source?.label ?? "provider"} ${t("objects to ingest.")}`
+                      : t("Connection settings are managed by this provider.")}
                   </p>
                 </>
               )}
@@ -1346,10 +1337,35 @@ function DataSourceConnectionRow({
           </div>
         )}
 
+      {showOAuthAccountSelection && (
+        <div
+          className="h-full min-w-0 lg:col-start-2 lg:row-start-2"
+        >
+          <ConnectionAccountSelector
+            label={source?.label ?? "Provider"}
+            options={oauthAccountOptions}
+            value={connection.oauth_account_value ?? ""}
+            disabled={
+              !onConfigureConnection ||
+              updatingConnectionId === connection.id
+            }
+            onChange={(value) =>
+              onConfigureConnection?.(
+                connection,
+                {
+                  [connection.oauth_account_key ?? ""]: value,
+                }
+              )
+            }
+          />
+        </div>
+      )}
+
       {showResourceSelection && (
           <div
             className={`h-full min-w-0 lg:col-start-2 ${
-              showConnectionSettingsCard
+              showConnectionSettingsCard ||
+              showOAuthAccountSelection
                 ? "lg:row-start-3"
                 : "lg:row-start-2"
             }`}
@@ -1536,6 +1552,48 @@ function getResourceSelectionOptions(
     default:
       return []
   }
+}
+
+function ConnectionAccountSelector({
+  label,
+  options,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string
+  options: { id: string; label: string }[]
+  value: string
+  disabled: boolean
+  onChange: (value: string) => void
+}) {
+  const { t } = useDecisionateText()
+
+  return (
+    <div className="h-full rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
+      <label className="block text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
+        {label} {t("account")}
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          disabled={disabled}
+          className="mt-2 h-9 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 text-sm normal-case tracking-normal text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <option value="">
+            {t("Select an account")}
+          </option>
+          {options.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="mt-2 text-xs leading-4 text-[var(--decisionate-brand-primary-text)]">
+        {t("Select the provider account used for ingestion.")}
+      </p>
+    </div>
+  )
 }
 
 function getDefaultResourceTypes(
@@ -1960,7 +2018,11 @@ export function ConnectionSetupGuide({
   }
 
   const configKeys =
-    getEditableConnectionConfigKeys(source)
+    getEditableConnectionConfigKeys(source).filter(
+      (configKey) =>
+        configKey !== "resource_types" &&
+        configKey !== source.oauth_account_key
+    )
   const fieldGuides = configKeys.map((configKey) => ({
     configKey,
     ...getConnectionFieldGuide(source.type, configKey),

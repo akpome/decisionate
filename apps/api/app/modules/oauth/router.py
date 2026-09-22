@@ -19,6 +19,10 @@ from app.modules.datasets.router import (
     mark_connection_authorization_failed,
     parse_source_connection_config,
 )
+from app.modules.datasets.services.sources import (
+    OAUTH_ACCOUNT_IDENTIFIER_KEYS,
+    OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY,
+)
 from app.modules.datasets.services.authorization_notifications import (
     notify_workspace_owner_of_authorization_failure,
 )
@@ -54,6 +58,30 @@ from app.modules.oauth.service import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 STATE_TTL_MINUTES = 10
+
+
+def build_oauth_account_options(
+    records: list[dict],
+    identifier_key: str,
+    label_keys: tuple[str, ...] = (),
+) -> list[dict[str, str]]:
+    options = []
+    seen_ids = set()
+    for record in records:
+        identifier = str(record.get(identifier_key) or "").strip()
+        if not identifier or identifier in seen_ids:
+            continue
+        label = next(
+            (
+                str(record.get(key) or "").strip()
+                for key in label_keys
+                if str(record.get(key) or "").strip()
+            ),
+            identifier,
+        )
+        options.append({"id": identifier, "label": label})
+        seen_ids.add(identifier)
+    return options
 
 
 def clear_stale_oauth_authorization(
@@ -352,6 +380,30 @@ async def cancel_oauth_authorization(
                 if connection_config
                 else None
             )
+        else:
+            connection_config = parse_source_connection_config(
+                connection.connection_config
+            )
+            managed_identifier = OAUTH_ACCOUNT_IDENTIFIER_KEYS.get(
+                connection.source_type
+            )
+            if managed_identifier:
+                connection_config.pop(managed_identifier, None)
+            connection_config.pop(
+                OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY,
+                None,
+            )
+            for key in (
+                "organization_name",
+                "business_id",
+                "business_uuid",
+            ):
+                connection_config.pop(key, None)
+            connection.connection_config = (
+                json.dumps(connection_config, sort_keys=True)
+                if connection_config
+                else None
+            )
 
         db.query(OAuthConnectionState).filter(
             OAuthConnectionState.connection_id == connection.id
@@ -473,22 +525,33 @@ def process_oauth_callback(request: Request):
         if state_source_type == "freshbooks":
             access_token = str(payload.get("access_token") or "").strip()
             businesses = get_freshbooks_businesses(access_token)
-            configured_account_id = str(
-                connection_config.get("account_id") or ""
-            ).strip()
-            matching_businesses = [
+            active_businesses = [
                 business
                 for business in businesses
                 if business["active"]
             ]
-            if configured_account_id:
-                matching_businesses = [
+            account_options = build_oauth_account_options(
+                active_businesses,
+                "account_id",
+                ("name",),
+            )
+            connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = (
+                account_options
+            )
+            configured_account_id = str(
+                connection_config.get("account_id") or ""
+            ).strip()
+            selected_business = next(
+                (
                     business
-                    for business in matching_businesses
+                    for business in active_businesses
                     if business["account_id"] == configured_account_id
-                ]
-            if len(matching_businesses) == 1:
-                selected_business = matching_businesses[0]
+                ),
+                None,
+            ) if configured_account_id else None
+            if selected_business is None and len(active_businesses) == 1:
+                selected_business = active_businesses[0]
+            if selected_business is not None:
                 connection_config["account_id"] = selected_business[
                     "account_id"
                 ]
@@ -504,13 +567,17 @@ def process_oauth_callback(request: Request):
                     connection_config,
                     sort_keys=True,
                 )
-            elif not matching_businesses:
+            elif not active_businesses:
                 raise OAuthTokenExchangeError(
                     "FreshBooks did not return an active business account"
                 )
             else:
-                raise OAuthTokenExchangeError(
-                    "FreshBooks returned multiple business accounts; account selection is required"
+                connection_config.pop("account_id", None)
+                connection_config.pop("business_id", None)
+                connection_config.pop("business_uuid", None)
+                connection.connection_config = json.dumps(
+                    connection_config,
+                    sort_keys=True,
                 )
         if state_source_type == "quickbooks":
             realm_id = str(query.get("realmId") or "").strip()
@@ -530,6 +597,14 @@ def process_oauth_callback(request: Request):
         if state_source_type == "xero":
             access_token = str(payload.get("access_token") or "").strip()
             xero_connections = get_xero_connections(access_token)
+            account_options = build_oauth_account_options(
+                xero_connections,
+                "tenantId",
+                ("tenantName", "tenant_name"),
+            )
+            connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = (
+                account_options
+            )
             configured_tenant_id = str(
                 connection_config.get("tenant_id") or ""
             ).strip()
@@ -543,7 +618,7 @@ def process_oauth_callback(request: Request):
                     ),
                     None,
                 )
-            else:
+            elif len(xero_connections) == 1:
                 selected_connection = next(
                     (
                         item
@@ -557,16 +632,24 @@ def process_oauth_callback(request: Request):
                 if selected_connection
                 else ""
             ).strip()
-            if not tenant_id:
+            if not tenant_id and not xero_connections:
+                raise OAuthTokenExchangeError(
+                    "No Xero organisation was available for this account"
+                )
+            if configured_tenant_id and not selected_connection:
                 raise OAuthTokenExchangeError(
                     "The configured Xero tenant was not available"
-                    if configured_tenant_id
-                    else "No Xero organisation was available for this account"
                 )
             connection_config = parse_source_connection_config(
                 connection.connection_config
             )
-            connection_config["tenant_id"] = tenant_id
+            connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = (
+                account_options
+            )
+            if tenant_id:
+                connection_config["tenant_id"] = tenant_id
+            else:
+                connection_config.pop("tenant_id", None)
             connection.connection_config = json.dumps(
                 connection_config,
                 sort_keys=True,
@@ -623,48 +706,61 @@ def process_oauth_callback(request: Request):
                 )
                 if organization.get("is_org_active") is not False
             ]
+            account_options = build_oauth_account_options(
+                organizations,
+                "organization_id",
+                ("name",),
+            )
+            connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = (
+                account_options
+            )
             configured_organization_id = str(
                 connection_config.get("organization_id") or ""
             ).strip()
-            if configured_organization_id:
-                matching_organizations = [
+            selected_organization = next(
+                (
                     organization
                     for organization in organizations
                     if str(
                         organization.get("organization_id") or ""
                     ).strip()
                     == configured_organization_id
-                ]
-            else:
+                ),
+                None,
+            ) if configured_organization_id else None
+            if selected_organization is None:
                 default_organizations = [
                     organization
                     for organization in organizations
                     if organization.get("is_default_org") is True
                 ]
-                matching_organizations = (
-                    default_organizations
-                    if len(default_organizations) == 1
-                    else organizations
-                )
-            if len(matching_organizations) != 1:
+                if len(default_organizations) == 1:
+                    selected_organization = default_organizations[0]
+                elif len(organizations) == 1:
+                    selected_organization = organizations[0]
+            if not organizations:
                 raise OAuthTokenExchangeError(
-                    "Zoho Books returned multiple active organizations; "
-                    "organization selection is required"
-                    if len(matching_organizations) > 1
-                    else "Zoho Books did not return an active organization"
+                    "Zoho Books did not return an active organization"
                 )
-            selected_organization = matching_organizations[0]
-            organization_id = str(
-                selected_organization.get("organization_id") or ""
-            ).strip()
-            if not organization_id:
+            if configured_organization_id and not selected_organization:
                 raise OAuthTokenExchangeError(
-                    "Zoho Books returned an organization without an identifier"
+                    "The configured Zoho Books organization was not available"
                 )
-            connection_config["organization_id"] = organization_id
-            connection_config["organization_name"] = str(
-                selected_organization.get("name") or ""
-            ).strip()
+            if selected_organization:
+                organization_id = str(
+                    selected_organization.get("organization_id") or ""
+                ).strip()
+                if not organization_id:
+                    raise OAuthTokenExchangeError(
+                        "Zoho Books returned an organization without an identifier"
+                    )
+                connection_config["organization_id"] = organization_id
+                connection_config["organization_name"] = str(
+                    selected_organization.get("name") or ""
+                ).strip()
+            else:
+                connection_config.pop("organization_id", None)
+                connection_config.pop("organization_name", None)
             connection_config["api_domain"] = api_domain
             connection.connection_config = json.dumps(
                 connection_config,

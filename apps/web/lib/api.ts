@@ -490,6 +490,7 @@ export type DatasetSourceOption = {
   label: string
   category?: string
   connection_type?: string
+  oauth_account_key?: string
   sync_modes?: string[]
   config_keys?: string[]
   required_config_keys?: string[]
@@ -531,6 +532,12 @@ export type DataSourceConnection = {
   dataset_ids?: number[]
   dataset_file_names?: string[]
   configured_resource_types?: string[]
+  oauth_account_key?: string | null
+  oauth_account_value?: string | null
+  oauth_account_options?: {
+    id: string
+    label: string
+  }[]
   configured_customer_id?: string | null
   configured_object_type?: string | null
   last_synced_at?: string | null

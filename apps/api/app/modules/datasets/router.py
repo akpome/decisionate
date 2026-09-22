@@ -162,6 +162,8 @@ from app.modules.forecasting.services import (
 )
 from app.modules.datasets.services.sources import (
     IMPLEMENTED_CONNECTOR_TYPES,
+    OAUTH_ACCOUNT_IDENTIFIER_KEYS,
+    OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY,
     get_dataset_source,
     is_dataset_source_available,
     list_dataset_sources,
@@ -1585,6 +1587,25 @@ def build_source_connection_response(
     has_config = has_source_connection_config(
         connection.connection_config
     )
+    oauth_account_key = (
+        source.get("oauth_account_key")
+        if source
+        else OAUTH_ACCOUNT_IDENTIFIER_KEYS.get(source_type)
+    )
+    oauth_account_options = parsed_config.get(
+        OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY
+    )
+    if not isinstance(oauth_account_options, list):
+        oauth_account_options = []
+    oauth_account_options = [
+        {
+            "id": str(option.get("id") or "").strip(),
+            "label": str(option.get("label") or "").strip(),
+        }
+        for option in oauth_account_options
+        if isinstance(option, dict)
+        and str(option.get("id") or "").strip()
+    ]
     if source_type == "stripe":
         has_config = bool(
             parsed_config.get(STRIPE_ENCRYPTED_API_KEY_CONFIG)
@@ -1655,6 +1676,13 @@ def build_source_connection_response(
             for item in dataset_records
         ],
         "configured_resource_types": configured_resource_types,
+        "oauth_account_key": oauth_account_key,
+        "oauth_account_value": (
+            str(parsed_config.get(oauth_account_key) or "").strip()
+            if oauth_account_key
+            else None
+        ),
+        "oauth_account_options": oauth_account_options,
         "configured_customer_id": (
             str(parsed_config.get("customer_id") or "")
             .strip()
@@ -1857,11 +1885,29 @@ def get_source_connection_config_status(
 
 def require_source_connection_sync_config(connection):
     source = get_dataset_source(connection.source_type)
+    parsed_config = parse_source_connection_config(
+        connection.connection_config
+    )
     _, _, missing_config_keys = get_source_connection_config_status(
         source,
-        parse_source_connection_config(connection.connection_config),
+        parsed_config,
     )
     if not missing_config_keys:
+        oauth_account_key = source.get("oauth_account_key")
+        oauth_account_options = parsed_config.get(
+            OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY
+        )
+        if (
+            oauth_account_key
+            and isinstance(oauth_account_options, list)
+            and len(oauth_account_options) > 1
+            and not has_config_value(
+                parsed_config.get(oauth_account_key)
+            )
+        ):
+            raise ConnectorUnavailable(
+                "Select the provider account before syncing"
+            )
         return
 
     field_labels = {

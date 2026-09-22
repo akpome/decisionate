@@ -42,6 +42,17 @@ IMPLEMENTED_CONNECTOR_TYPES = {
     "mysql",
     "sql_server",
 }
+
+OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY = "_oauth_account_options"
+OAUTH_ACCOUNT_IDENTIFIER_KEYS = {
+    "salesforce": "instance_url",
+    "hubspot": "portal_id",
+    "zoho_books": "organization_id",
+    "xero": "tenant_id",
+    "freshbooks": "account_id",
+    "quickbooks": "company_id",
+    "sage": "business_id",
+}
 DATASET_SOURCES = [
     {
         "type": "csv",
@@ -339,6 +350,7 @@ DATASET_SOURCES = [
         "category": "accounting",
         "status": "planned",
         "connection_type": "oauth",
+        "oauth_account_key": "company_id",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["company_id", "resource_types"],
         "description": (
@@ -352,6 +364,7 @@ DATASET_SOURCES = [
         "category": "accounting",
         "status": "planned",
         "connection_type": "oauth",
+        "oauth_account_key": "account_id",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["account_id", "resource_types"],
         "description": (
@@ -366,6 +379,7 @@ DATASET_SOURCES = [
         "category": "accounting",
         "status": "planned",
         "connection_type": "oauth",
+        "oauth_account_key": "business_id",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["business_id", "resource_types"],
         "description": (
@@ -382,6 +396,7 @@ DATASET_SOURCES = [
         "category": "accounting",
         "status": "planned",
         "connection_type": "oauth",
+        "oauth_account_key": "tenant_id",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["tenant_id", "resource_types"],
         "description": (
@@ -395,6 +410,7 @@ DATASET_SOURCES = [
         "category": "accounting",
         "status": "planned",
         "connection_type": "oauth",
+        "oauth_account_key": "organization_id",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["organization_id", "resource_types"],
         "description": (
@@ -408,6 +424,7 @@ DATASET_SOURCES = [
         "category": "business_apps",
         "status": "planned",
         "connection_type": "oauth",
+        "oauth_account_key": "portal_id",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["portal_id", "resource_types"],
         "description": (
@@ -421,6 +438,7 @@ DATASET_SOURCES = [
         "category": "business_apps",
         "status": "planned",
         "connection_type": "oauth",
+        "oauth_account_key": "instance_url",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["instance_url", "resource_types"],
         "description": (
