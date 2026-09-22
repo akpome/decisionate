@@ -4,6 +4,8 @@ from datetime import date, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pandas as pd
+
 from app.modules.datasets.services import connectors
 from app.modules.datasets.services import sources
 from app.modules.datasets.services.sources import get_dataset_source
@@ -222,6 +224,102 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.loc[0, "date"], "2026-09-01")
         self.assertEqual(dataframe.loc[0, "clicks"], 12)
         self.assertEqual(request_payloads[1]["dataState"], "all")
+
+    def test_search_console_fills_a_date_omitted_by_detailed_results(self):
+        def json_request(url, headers, payload):
+            if payload["dimensions"] == ["date", "query", "page"]:
+                return {
+                    "rows": [{
+                        "keys": ["2026-09-19", "decisionate", "https://example.com"],
+                        "clicks": 0,
+                        "impressions": 0,
+                        "ctr": 0,
+                        "position": 0,
+                    }],
+                }
+            return {
+                "rows": [
+                    {
+                        "keys": ["2026-09-18"],
+                        "clicks": 0,
+                        "impressions": 1,
+                        "ctr": 0,
+                        "position": 10,
+                    },
+                    {
+                        "keys": ["2026-09-19"],
+                        "clicks": 0,
+                        "impressions": 0,
+                        "ctr": 0,
+                        "position": 0,
+                    },
+                ],
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="search-token",
+        ), patch.object(
+            connectors,
+            "connector_json_post_request",
+            side_effect=json_request,
+        ), patch.dict(
+            "os.environ",
+            {"GOOGLE_SEARCH_CONSOLE_API_BASE_URL": "https://www.googleapis.com/webmasters/v3"},
+            clear=False,
+        ):
+            dataframe, report = connectors.load_google_search_console_dataframe(
+                None,
+                make_connection(
+                    "google_search_console",
+                    {"site_url": "https://example.com/"},
+                ),
+                date(2026, 9, 1),
+                date(2026, 9, 30),
+            )
+
+        september_18 = dataframe.loc[dataframe["date"] == "2026-09-18"].iloc[0]
+        self.assertEqual(september_18["impressions"], 1)
+        self.assertTrue(
+            dataframe.loc[dataframe["date"] == "2026-09-18", "query"].isna().all()
+        )
+        self.assertEqual(report["dimensions"], ["date", "query", "page"])
+
+    def test_search_console_daily_rows_are_deduplicated_by_date(self):
+        existing = pd.DataFrame([
+            {
+                "keys": '["2026-09-18"]',
+                "date": "2026-09-18",
+                "clicks": 0,
+                "impressions": 0,
+                "ctr": 0,
+                "position": 0,
+                "revision": "old",
+            },
+        ])
+        incoming = pd.DataFrame([
+            {
+                "keys": '["2026-09-18"]',
+                "date": "2026-09-18",
+                "clicks": 0,
+                "impressions": 1,
+                "ctr": 0,
+                "position": 10,
+                "revision": "new",
+            },
+        ])
+
+        merged = datasets_router.merge_connector_dataframes(
+            existing,
+            incoming,
+            "google_search_console",
+            {"dimensions": ["date"]},
+        )
+
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged.loc[0, "impressions"], 1)
+        self.assertEqual(merged.loc[0, "revision"], "new")
 
     def test_google_business_profile_locations_and_metrics_are_normalized(self):
         def json_request(url, headers):

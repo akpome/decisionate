@@ -5478,6 +5478,87 @@ def get_connector_dedup_keys(
     return []
 
 
+def _google_search_console_daily_rows(dataframe: pd.DataFrame) -> pd.Series:
+    """Identify date-only Search Console rows after a fallback query."""
+    daily_rows = pd.Series(True, index=dataframe.index)
+    for dimension in ("query", "page"):
+        if dimension not in dataframe.columns:
+            continue
+        values = dataframe[dimension]
+        daily_rows &= values.isna() | values.astype("string").str.strip().isin(
+            {"", "nan", "none", "<na>"}
+        )
+    return daily_rows
+
+
+def merge_google_search_console_dataframes(
+    existing_dataframe: pd.DataFrame,
+    incoming_dataframe: pd.DataFrame,
+) -> pd.DataFrame:
+    """Merge detailed and date-only Search Console results without duplicates."""
+    combined = pd.concat(
+        [existing_dataframe, incoming_dataframe],
+        ignore_index=True,
+        sort=False,
+    )
+    if "date" not in combined.columns:
+        return combined.drop_duplicates(keep="last").reset_index(drop=True)
+
+    daily_rows = _google_search_console_daily_rows(combined)
+    detailed_rows = ~daily_rows
+    detailed_dates = set(
+        combined.loc[
+            detailed_rows & combined["date"].notna(),
+            "date",
+        ].astype(str)
+    )
+    if detailed_dates:
+        daily_rows &= ~combined["date"].astype(str).isin(detailed_dates)
+
+    detailed = combined.loc[detailed_rows]
+    detailed_keys = [
+        key
+        for key in ("date", "query", "page")
+        if key in detailed.columns
+    ]
+    if detailed_keys:
+        detailed_has_identity = detailed[detailed_keys].notna().all(axis=1)
+        detailed_identified = detailed.loc[detailed_has_identity].drop_duplicates(
+            subset=detailed_keys,
+            keep="last",
+        )
+        detailed_unidentified = detailed.loc[~detailed_has_identity].drop_duplicates(
+            keep="last"
+        )
+        detailed = pd.concat(
+            [detailed_identified, detailed_unidentified],
+            ignore_index=True,
+            sort=False,
+        )
+    else:
+        detailed = detailed.drop_duplicates(keep="last")
+
+    daily = combined.loc[daily_rows]
+    daily_with_date = daily.loc[daily["date"].notna()].drop_duplicates(
+        subset=["date"],
+        keep="last",
+    )
+    daily_without_date = daily.loc[daily["date"].isna()].drop_duplicates(
+        keep="last"
+    )
+    daily = pd.concat(
+        [daily_with_date, daily_without_date],
+        ignore_index=True,
+        sort=False,
+    )
+
+    return pd.concat(
+        [detailed, daily],
+        ignore_index=True,
+        sort=False,
+    ).reset_index(drop=True)
+
+
 def merge_connector_dataframes(
     existing_dataframe,
     incoming_dataframe,
@@ -5486,6 +5567,12 @@ def merge_connector_dataframes(
 ):
     if existing_dataframe is None or existing_dataframe.empty:
         return incoming_dataframe.reset_index(drop=True)
+
+    if source_type == "google_search_console":
+        return merge_google_search_console_dataframes(
+            existing_dataframe,
+            incoming_dataframe,
+        )
 
     combined = pd.concat(
         [existing_dataframe, incoming_dataframe],

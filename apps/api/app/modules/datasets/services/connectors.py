@@ -1800,7 +1800,8 @@ def load_google_search_console_dataframe(
         f"{api_base_url}/sites/{quote(site_url, safe='')}"
         "/searchAnalytics/query"
     )
-    dimensions = ["date", "query", "page"]
+    detailed_dimensions = ["date", "query", "page"]
+    daily_dimensions = ["date"]
     row_limit = 25_000
     def fetch_rows(query_dimensions):
         fetched_rows = []
@@ -1835,13 +1836,70 @@ def load_google_search_console_dataframe(
             start_row += len(records)
         return fetched_rows
 
-    rows = fetch_rows(dimensions)
-    if not rows:
+    detailed_rows = fetch_rows(detailed_dimensions)
+    daily_rows = fetch_rows(daily_dimensions)
+
+    def record_date(record):
+        keys = record.get("keys")
+        if not isinstance(keys, list) or not keys:
+            return None
+        return normalize_connector_date(keys[0])
+
+    def metric_total(records, metric):
+        total = 0.0
+        for record in records:
+            try:
+                total += float(record.get(metric) or 0)
+            except (TypeError, ValueError):
+                continue
+        return total
+
+    detailed_by_date = {}
+    for record in detailed_rows:
+        record_date_value = record_date(record)
+        if record_date_value:
+            detailed_by_date.setdefault(record_date_value, []).append(record)
+
+    daily_by_date = {}
+    for record in daily_rows:
+        record_date_value = record_date(record)
+        if record_date_value:
+            daily_by_date[record_date_value] = record
+
+    # The detailed endpoint can omit a date while the date-only endpoint
+    # already exposes its aggregate. Use the aggregate for missing dates and
+    # for dates where the detailed result is visibly incomplete.
+    fallback_dates = set()
+    for record_date_value, daily_record in daily_by_date.items():
+        detailed_for_date = detailed_by_date.get(record_date_value, [])
+        if not detailed_for_date:
+            fallback_dates.add(record_date_value)
+            continue
+        for metric in ("clicks", "impressions"):
+            if metric_total(detailed_for_date, metric) != float(
+                daily_record.get(metric) or 0
+            ):
+                fallback_dates.add(record_date_value)
+                break
+
+    if detailed_rows:
+        rows = [
+            record
+            for record in detailed_rows
+            if record_date(record) not in fallback_dates
+        ]
+        rows.extend(
+            record
+            for record in daily_rows
+            if record_date(record) in fallback_dates
+        )
+        dimensions = detailed_dimensions if rows else daily_dimensions
+    else:
         # Google recommends a date-only query to verify that the range has
         # data. Detailed query/page grouping can omit rows even when daily
         # aggregate data is available, so preserve that usable evidence.
-        dimensions = ["date"]
-        rows = fetch_rows(dimensions)
+        rows = daily_rows
+        dimensions = daily_dimensions
 
     normalized_rows = []
     for record in rows:
