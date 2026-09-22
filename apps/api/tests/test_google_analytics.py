@@ -103,6 +103,8 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             )
 
     def test_report_response_is_converted_to_dataset_rows(self):
+        from app.modules.datasets.services import google_analytics
+
         class FakeRequest:
             def __init__(self, **kwargs):
                 self.kwargs = kwargs
@@ -132,12 +134,9 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
                 FakeField("sessions"),
                 FakeField("activeUsers"),
             ]
-            rows = [
-                FakeRow(
-                    ["20260101"],
-                    ["12", "9"],
-                ),
-            ]
+
+            def __init__(self, rows):
+                self.rows = rows
 
         class FakeClient:
             def __init__(self, credentials):
@@ -145,7 +144,14 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
 
             def run_report(self, request):
                 self.request = request
-                return FakeResponse()
+                if request.kwargs["offset"] == 0:
+                    return FakeResponse([
+                        FakeRow(
+                            ["20260101"],
+                            ["12", "9"],
+                        ),
+                    ])
+                return FakeResponse([])
 
         class FakeCredentials:
             @classmethod
@@ -188,7 +194,11 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             "google.oauth2.service_account": service_account_module,
         }
 
-        with patch.dict(
+        with patch.object(
+            google_analytics,
+            "REPORT_PAGE_SIZE",
+            1,
+        ), patch.dict(
             os.environ,
             {
                 "GOOGLE_ANALYTICS_SERVICE_ACCOUNT_FILE": "",

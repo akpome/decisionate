@@ -17,6 +17,7 @@ DEFAULT_METRICS = [
 ]
 MAX_DIMENSIONS = 5
 MAX_METRICS = 10
+REPORT_PAGE_SIZE = 10_000
 IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
 
@@ -275,25 +276,41 @@ def load_google_analytics_report(
         client = BetaAnalyticsDataClient(
             credentials=credentials,
         )
-        response = client.run_report(
-            RunReportRequest(
-                property=f"properties/{clean_property_id}",
-                dimensions=[
-                    Dimension(name=dimension)
-                    for dimension in clean_dimensions
-                ],
-                metrics=[
-                    Metric(name=metric)
-                    for metric in clean_metrics
-                ],
-                date_ranges=[
-                    DateRange(
-                        start_date=clean_start_date,
-                        end_date=clean_end_date,
-                    )
-                ],
+        rows = []
+        offset = 0
+        dimension_headers = None
+        metric_headers = None
+        while True:
+            response = client.run_report(
+                RunReportRequest(
+                    property=f"properties/{clean_property_id}",
+                    dimensions=[
+                        Dimension(name=dimension)
+                        for dimension in clean_dimensions
+                    ],
+                    metrics=[
+                        Metric(name=metric)
+                        for metric in clean_metrics
+                    ],
+                    date_ranges=[
+                        DateRange(
+                            start_date=clean_start_date,
+                            end_date=clean_end_date,
+                        )
+                    ],
+                    limit=REPORT_PAGE_SIZE,
+                    offset=offset,
+                )
             )
-        )
+            if dimension_headers is None:
+                dimension_headers = response.dimension_headers
+                metric_headers = response.metric_headers
+
+            page_rows = list(response.rows)
+            rows.extend(page_rows)
+            if len(page_rows) < REPORT_PAGE_SIZE:
+                break
+            offset += len(page_rows)
     except Exception as error:
         raise GoogleAnalyticsConnectorUnavailable(
             format_google_analytics_error(error)
@@ -301,23 +318,22 @@ def load_google_analytics_report(
 
     columns = [
         header.name
-        for header in response.dimension_headers
+        for header in dimension_headers or []
     ] + [
         header.name
-        for header in response.metric_headers
+        for header in metric_headers or []
     ]
-    rows = []
-    for row in response.rows:
-        rows.append(
-            [
-                value.value
-                for value in row.dimension_values
-            ]
-            + [
-                value.value
-                for value in row.metric_values
-            ]
-        )
+    rows = [
+        [
+            value.value
+            for value in row.dimension_values
+        ]
+        + [
+            value.value
+            for value in row.metric_values
+        ]
+        for row in rows
+    ]
 
     dataframe = pd.DataFrame(rows, columns=columns)
     for metric in clean_metrics:
