@@ -31,6 +31,7 @@ from app.modules.oauth.service import (
 
 
 PAGE_SIZE = 100
+GOOGLE_SEARCH_CONSOLE_DATA_LAG_DAYS = 2
 # The Railway scheduler normally runs every 15 minutes. Refresh one hour
 # early so several heartbeat attempts remain available before expiry.
 OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(hours=1)
@@ -1803,7 +1804,11 @@ def load_google_search_console_dataframe(
     detailed_dimensions = ["date", "query", "page"]
     daily_dimensions = ["date"]
     row_limit = 25_000
-    def fetch_rows(query_dimensions, data_state="all"):
+    def fetch_rows(
+        query_dimensions,
+        data_state="all",
+        query_end_date=None,
+    ):
         fetched_rows = []
         start_row = 0
         while True:
@@ -1812,7 +1817,9 @@ def load_google_search_console_dataframe(
                 headers={"Authorization": f"Bearer {access_token}"},
                 payload={
                     "startDate": since.isoformat(),
-                    "endDate": until.isoformat(),
+                    "endDate": (
+                        query_end_date or until
+                    ).isoformat(),
                     "dimensions": query_dimensions,
                     "type": "web",
                     "aggregationType": (
@@ -1845,6 +1852,34 @@ def load_google_search_console_dataframe(
     detailed_rows = fetch_rows(detailed_dimensions, "all")
     daily_rows = fetch_rows(daily_dimensions, "all")
     finalized_daily_rows = fetch_rows(daily_dimensions, "final")
+
+    def has_daily_metrics(records):
+        for record in records:
+            try:
+                if (
+                    float(record.get("clicks") or 0)
+                    or float(record.get("impressions") or 0)
+                ):
+                    return True
+            except (TypeError, ValueError):
+                continue
+        return False
+
+    if not has_daily_metrics([*daily_rows, *finalized_daily_rows]):
+        lagged_end_date = min(
+            until,
+            date.today() - timedelta(
+                days=GOOGLE_SEARCH_CONSOLE_DATA_LAG_DAYS
+            ),
+        )
+        if lagged_end_date >= since and lagged_end_date < until:
+            finalized_daily_rows.extend(
+                fetch_rows(
+                    daily_dimensions,
+                    "final",
+                    query_end_date=lagged_end_date,
+                )
+            )
 
     def record_date(record):
         keys = record.get("keys")
