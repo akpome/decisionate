@@ -1908,12 +1908,25 @@ def load_google_search_console_dataframe(
                     )
                 )
 
-        daily_by_date = {}
-        for record in [
+        # Prefer the date-only and finalized responses whenever either one
+        # contains real metrics. The `all` response may include provisional
+        # dates that are not present in the Search Console UI yet. Keep it as
+        # a fallback for properties whose only available data is still fresh.
+        authoritative_rows = [
             *presence_daily_rows,
-            *daily_rows,
             *finalized_daily_rows,
-        ]:
+        ]
+        rows_to_merge = (
+            authoritative_rows
+            if has_daily_metrics(authoritative_rows)
+            else [
+                *authoritative_rows,
+                *daily_rows,
+            ]
+        )
+
+        daily_by_date = {}
+        for record in rows_to_merge:
             record_date_value = record_date(record)
             if record_date_value:
                 current_record = daily_by_date.get(record_date_value)

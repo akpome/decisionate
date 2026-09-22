@@ -5508,10 +5508,45 @@ def _google_search_console_metric_score(row) -> tuple[float, float]:
 def merge_google_search_console_dataframes(
     existing_dataframe: pd.DataFrame,
     incoming_dataframe: pd.DataFrame,
+    start_date=None,
+    end_date=None,
 ) -> pd.DataFrame:
     """Merge Search Console rows without allowing stale zeros to win."""
+
+    def coerce_date(value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        try:
+            return date.fromisoformat(str(value)[:10])
+        except (TypeError, ValueError):
+            return None
+
+    window_start = coerce_date(start_date)
+    window_end = coerce_date(end_date)
+    existing_for_merge = existing_dataframe
+    if (
+        "date" in existing_dataframe.columns
+        and (window_start is not None or window_end is not None)
+    ):
+        existing_dates = existing_dataframe["date"].map(coerce_date)
+        in_window = existing_dates.notna()
+        if window_start is not None:
+            in_window &= existing_dates >= window_start
+        if window_end is not None:
+            in_window &= existing_dates <= window_end
+        existing_daily_rows = _google_search_console_daily_rows(
+            existing_dataframe
+        )
+        existing_for_merge = existing_dataframe.loc[
+            ~(existing_daily_rows & in_window)
+        ]
+
     combined = pd.concat(
-        [existing_dataframe, incoming_dataframe],
+        [existing_for_merge, incoming_dataframe],
         ignore_index=True,
         sort=False,
     )
@@ -5630,6 +5665,8 @@ def merge_connector_dataframes(
         return merge_google_search_console_dataframes(
             existing_dataframe,
             incoming_dataframe,
+            start_date=report_config.get("start_date"),
+            end_date=report_config.get("end_date"),
         )
 
     combined = pd.concat(
