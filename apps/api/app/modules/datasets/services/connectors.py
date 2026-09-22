@@ -1803,7 +1803,7 @@ def load_google_search_console_dataframe(
     detailed_dimensions = ["date", "query", "page"]
     daily_dimensions = ["date"]
     row_limit = 25_000
-    def fetch_rows(query_dimensions):
+    def fetch_rows(query_dimensions, data_state="all"):
         fetched_rows = []
         start_row = 0
         while True:
@@ -1824,7 +1824,7 @@ def load_google_search_console_dataframe(
                     # before they become finalized. Include those rows so an
                     # initial sync does not appear empty while the property is
                     # actively receiving traffic.
-                    "dataState": "all",
+                    "dataState": data_state,
                     "rowLimit": row_limit,
                     "startRow": start_row,
                 },
@@ -1842,8 +1842,9 @@ def load_google_search_console_dataframe(
             start_row += len(records)
         return fetched_rows
 
-    detailed_rows = fetch_rows(detailed_dimensions)
-    daily_rows = fetch_rows(daily_dimensions)
+    detailed_rows = fetch_rows(detailed_dimensions, "all")
+    daily_rows = fetch_rows(daily_dimensions, "all")
+    finalized_daily_rows = fetch_rows(daily_dimensions, "final")
 
     def record_date(record):
         keys = record.get("keys")
@@ -1867,10 +1868,23 @@ def load_google_search_console_dataframe(
             detailed_by_date.setdefault(record_date_value, []).append(record)
 
     daily_by_date = {}
-    for record in daily_rows:
+    for record in [*daily_rows, *finalized_daily_rows]:
         record_date_value = record_date(record)
         if record_date_value:
-            daily_by_date[record_date_value] = record
+            current_record = daily_by_date.get(record_date_value)
+            if current_record is None:
+                daily_by_date[record_date_value] = record
+                continue
+            current_score = (
+                float(current_record.get("impressions") or 0),
+                float(current_record.get("clicks") or 0),
+            )
+            candidate_score = (
+                float(record.get("impressions") or 0),
+                float(record.get("clicks") or 0),
+            )
+            if candidate_score >= current_score:
+                daily_by_date[record_date_value] = record
 
     # The detailed endpoint can omit a date while the date-only endpoint
     # already exposes its aggregate. Use the aggregate for missing dates and
@@ -1888,6 +1902,7 @@ def load_google_search_console_dataframe(
                 fallback_dates.add(record_date_value)
                 break
 
+    daily_rows = list(daily_by_date.values())
     if detailed_rows:
         rows = [
             record
