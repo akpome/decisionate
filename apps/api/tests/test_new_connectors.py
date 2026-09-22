@@ -2,6 +2,7 @@ import json
 import unittest
 from datetime import date, datetime
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 import pandas as pd
@@ -791,6 +792,10 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.loc[0, "order_id"], 42)
         self.assertEqual(dataframe.loc[0, "billing_country"], "CA")
         self.assertTrue(request.call_args.kwargs["headers"]["Authorization"].startswith("Basic "))
+        request_params = parse_qs(urlsplit(request.call_args.args[0]).query)
+        self.assertEqual(request_params["modified_after"], ["2026-09-01T00:00:00Z"])
+        self.assertEqual(request_params["modified_before"], ["2026-09-02T23:59:59Z"])
+        self.assertEqual(request_params["dates_are_gmt"], ["true"])
 
     def test_shopify_orders_sync_by_update_time(self):
         params = connectors.shopify_order_params(

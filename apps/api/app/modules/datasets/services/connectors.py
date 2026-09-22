@@ -2539,13 +2539,14 @@ def load_woocommerce_dataframe(
         params = {
             "per_page": str(PAGE_SIZE),
             "page": str(page),
-            "orderby": "date",
+            "orderby": "modified",
             "order": "asc",
         }
         if since is not None:
-            params["after"] = f"{since.isoformat()}T00:00:00"
+            params["modified_after"] = f"{since.isoformat()}T00:00:00Z"
         if until is not None:
-            params["before"] = f"{until.isoformat()}T23:59:59"
+            params["modified_before"] = f"{until.isoformat()}T23:59:59Z"
+        params["dates_are_gmt"] = "true"
         payload, _response_headers = connector_json_request_with_headers(
             f"{api_base_url}/orders?{urlencode(params)}",
             headers=headers,
