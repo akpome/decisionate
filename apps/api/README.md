@@ -206,8 +206,10 @@ python scripts/run_scheduled_jobs.py
 
 Set `DECISIONATE_API_URL`, `CONNECTORS_SCHEDULER_SECRET`,
 `ALERTS_SCHEDULER_SECRET`, and `BILLING_SCHEDULER_SECRET` on that service.
-`SCHEDULED_JOBS` defaults to `connectors,alerts,billing`; set it to a
-comma-separated subset when a deployment does not use every scheduled feature.
+If `SCHEDULED_JOBS` is omitted, the runner executes only jobs whose matching
+secret is configured. Set it to an explicit comma-separated subset when a
+deployment should control the selected jobs, for example
+`SCHEDULED_JOBS=connectors` for connector ingestion only.
 The runner continues through all selected jobs and exits non-zero if any job
 fails. It does not require `DATABASE_URL` because the protected API performs
 the database work.

@@ -38,6 +38,12 @@ SCHEDULED_JOBS=connectors,alerts,billing
 SCHEDULER_TIMEOUT_SECONDS=60
 ```
 
+When `SCHEDULED_JOBS` is omitted, the combined runner executes only the jobs
+whose scheduler secret is configured on that service. For connector ingestion
+only, `DECISIONATE_API_URL`, `CONNECTORS_SCHEDULER_SECRET`, and
+`SCHEDULER_TIMEOUT_SECONDS` are sufficient; setting
+`SCHEDULED_JOBS=connectors` is also valid and explicit.
+
 `DECISIONATE_API_URL` must be the public domain of the existing persistent
 `decisionate` API service. Do not use the `decisionate-scheduler` domain; the
 cron service must call the API service rather than call itself. Include the
@@ -52,6 +58,9 @@ example:
 ```text
 SCHEDULED_JOBS=connectors,alerts
 ```
+
+For a connector-only scheduler, use `SCHEDULED_JOBS=connectors` or omit the
+variable and configure only `CONNECTORS_SCHEDULER_SECRET`.
 
 ## What runs
 

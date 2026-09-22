@@ -72,10 +72,17 @@ def normalize_api_url(value: str) -> str:
 
 
 def selected_jobs() -> list[ScheduledJob]:
-    configured = clean_env_value(
-        "SCHEDULED_JOBS",
-        ",".join(JOBS),
-    )
+    configured_value = os.getenv("SCHEDULED_JOBS")
+    if configured_value is None or not configured_value.strip():
+        # A connector-only Railway service should not fail its cron run because
+        # unrelated alert or billing secrets were intentionally omitted.
+        return [
+            job
+            for job in JOBS.values()
+            if clean_env_value(job.secret_name)
+        ]
+
+    configured = configured_value.strip()
     names = [item.strip().lower() for item in configured.split(",")]
     unknown = [name for name in names if name and name not in JOBS]
     if unknown:

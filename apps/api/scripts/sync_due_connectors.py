@@ -68,7 +68,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=int(
             clean_env_value(
                 "CONNECTORS_SCHEDULER_TIMEOUT_SECONDS",
-                str(DEFAULT_TIMEOUT_SECONDS),
+                clean_env_value(
+                    "SCHEDULER_TIMEOUT_SECONDS",
+                    str(DEFAULT_TIMEOUT_SECONDS),
+                ),
             )
         ),
     )
