@@ -1242,6 +1242,66 @@ class DatasetSharingTests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_sage_business_selection_preserves_region_and_authorization(self):
+        Session = self.build_memory_source_connection_session_factory()
+        db = Session()
+
+        try:
+            db.add(
+                DataSourceConnection(
+                    id=1,
+                    user_id="user-1",
+                    workspace_id="workspace-1",
+                    source_type="sage",
+                    display_name="Sage",
+                    status="connected",
+                    connection_config=(
+                        '{"country": "CA", "resource_types": "sales_invoices", '
+                        '"_oauth_account_options": [{"id": "business-1"}]}'
+                    ),
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        with patch(
+            "app.modules.datasets.router.SessionLocal",
+            Session,
+        ), patch(
+            "app.modules.datasets.router.get_user_id",
+            return_value="user-1",
+        ), patch(
+            "app.modules.datasets.router.get_workspace_id",
+            return_value="workspace-1",
+        ):
+            response = asyncio.run(
+                update_source_connection(
+                    SimpleNamespace(),
+                    1,
+                    DataSourceConnectionUpdate(
+                        connection_config={"business_id": "business-1"},
+                    ),
+                )
+            )
+
+        db = Session()
+        try:
+            connection = db.query(DataSourceConnection).one()
+            self.assertEqual(connection.status, "connected")
+            self.assertEqual(
+                json.loads(connection.connection_config),
+                {
+                    "_oauth_account_options": [{"id": "business-1"}],
+                    "business_id": "business-1",
+                    "country": "CA",
+                    "resource_types": "sales_invoices",
+                },
+            )
+            self.assertEqual(response["status"], "connected")
+        finally:
+            db.close()
+
     def test_delete_source_connection_route_rejects_inaccessible_connection(self):
         Session = self.build_memory_source_connection_session_factory()
         db = Session()

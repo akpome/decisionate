@@ -4443,6 +4443,7 @@ async def update_source_connection(
                         "business_id",
                         "resource_owner_id",
                         "site_id",
+                        "country",
                     }
                     and is_partial_config_update
                     and config_key not in next_config

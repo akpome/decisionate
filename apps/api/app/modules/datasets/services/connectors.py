@@ -38,6 +38,10 @@ GOOGLE_SEARCH_CONSOLE_DATA_LAG_DAYS = 2
 # The Railway scheduler normally runs every 15 minutes. Refresh one hour
 # early so several heartbeat attempts remain available before expiry.
 OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(hours=1)
+# Sage issues short-lived access tokens and its refresh flow can reject a
+# freshly issued token. Keep the early-refresh window below one scheduler
+# interval so interactive business discovery uses the token just exchanged.
+SAGE_OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(minutes=5)
 STRIPE_ENCRYPTED_API_KEY_CONFIG = "_stripe_api_key_encrypted"
 WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG = "_woocommerce_consumer_key_encrypted"
 WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG = "_woocommerce_consumer_secret_encrypted"
@@ -5501,10 +5505,6 @@ def get_oauth_access_token(
                 f"The stored {source_type} refresh authorization could not be read"
             ) from error
     expires_at = credential.expires_at
-    refresh_deadline = (
-        datetime.now(UTC).replace(tzinfo=None)
-        + OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY
-    )
     if not token and not refresh_token:
         raise ConnectorUnavailable(
             f"Connect the {source_type} account before syncing"
@@ -5521,6 +5521,12 @@ def get_oauth_access_token(
             "expired. Reconnect the account and try again."
         )
 
+    refresh_leeway = (
+        SAGE_OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY
+        if source_type == "sage"
+        else OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY
+    )
+    refresh_deadline = now + refresh_leeway
     if refresh_token and (
         not token
         or (

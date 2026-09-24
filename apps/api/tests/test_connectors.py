@@ -1266,6 +1266,49 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(token, "new-access-token")
         mocked_refresh.assert_called_once()
 
+    def test_sage_keeps_a_fresh_token_for_interactive_business_discovery(self):
+        credential = SimpleNamespace(
+            access_token_encrypted="encrypted-access-token",
+            refresh_token_encrypted="encrypted-refresh-token",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(
+                minutes=50,
+            ),
+            token_type=None,
+            scope=None,
+        )
+
+        class Query:
+            def filter(self, *_args):
+                return self
+
+            def first(self):
+                return credential
+
+        class FakeDb:
+            def query(self, *_args):
+                return Query()
+
+        connection = make_connection("sage", {"country": "CA"})
+        with patch.object(
+            connectors,
+            "decrypt_token",
+            side_effect=lambda value: {
+                "encrypted-access-token": "fresh-access-token",
+                "encrypted-refresh-token": "refresh-token",
+            }.get(value),
+        ), patch.object(
+            connectors,
+            "refresh_oauth_token",
+        ) as mocked_refresh:
+            token = connectors.get_oauth_access_token(
+                FakeDb(),
+                connection,
+                "sage",
+            )
+
+        self.assertEqual(token, "fresh-access-token")
+        mocked_refresh.assert_not_called()
+
     def test_expired_oauth_access_token_without_refresh_token_requires_reconnect(
         self,
     ):
