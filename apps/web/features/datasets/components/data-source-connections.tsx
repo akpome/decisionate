@@ -161,8 +161,7 @@ export function DataSourceConnections({
             (key) =>
               key !==
                 (source?.oauth_account_key ??
-                  connection.oauth_account_key) ||
-              source?.type === "sage"
+                  connection.oauth_account_key)
           )
           .map((key) => [key, ""])
       )
@@ -219,8 +218,7 @@ export function DataSourceConnections({
         (key) =>
           key !==
             (source?.oauth_account_key ??
-              connection.oauth_account_key) ||
-          source?.type === "sage"
+              connection.oauth_account_key)
       )
     const connectionConfig =
       Object.fromEntries(
@@ -455,9 +453,7 @@ function DataSourceConnectionRow({
     connection.oauth_account_key
   const editableConfigKeys =
     getEditableConnectionConfigKeys(source).filter(
-      (configKey) =>
-        configKey !== oauthAccountKey ||
-        source?.type === "sage"
+      (configKey) => configKey !== oauthAccountKey
     )
   const configKeys = editableConfigKeys.filter(
     (configKey) => configKey !== "resource_types"
@@ -481,9 +477,7 @@ function DataSourceConnectionRow({
   const isOAuthConnector =
     source?.connection_type === "oauth"
   const hasProviderManagedOAuthAccount =
-    isOAuthConnector &&
-    Boolean(oauthAccountKey) &&
-    source?.type !== "sage"
+    isOAuthConnector && Boolean(oauthAccountKey)
   const isOAuthAuthorized =
     !isOAuthConnector ||
     connection.status === "connected"
@@ -575,10 +569,9 @@ function DataSourceConnectionRow({
     editableConfigKeys.filter(
       (configKey) =>
         configKey !== "resource_types" &&
-        (configKey !==
+        configKey !==
           (source?.oauth_account_key ??
-            connection.oauth_account_key) ||
-          source?.type === "sage")
+            connection.oauth_account_key)
     )
   const connectionSettingsConfigKeys =
     inlineConnectionConfigKeys
@@ -2030,8 +2023,8 @@ const CONNECTION_FIELD_GUIDES: Record<
       example: "Canada",
     },
     business_id: {
-      description: "Optional Sage business identifier. Enter it to force this connection to use a specific business; leave it blank to use the business selected by Sage during OAuth.",
-      example: "12345678-1234-1234-1234-123456789012",
+      description: "Optional Sage business identifier. OAuth supplies it when left blank.",
+      example: "123456789",
     },
     resource_types: {
       description: "Select one or more Sage Cloud Accounting objects. Each selected object is stored as its own dataset after OAuth authorization.",
@@ -2095,8 +2088,7 @@ export function ConnectionSetupGuide({
     getEditableConnectionConfigKeys(source).filter(
       (configKey) =>
         configKey !== "resource_types" &&
-        (configKey !== source.oauth_account_key ||
-          source.type === "sage")
+        configKey !== source.oauth_account_key
     )
   const fieldGuides = configKeys.map((configKey) => ({
     configKey,
@@ -2725,11 +2717,6 @@ function ConnectionConfigField({
             </button>
           )}
         </div>
-      )}
-      {sourceType === "sage" && configKey === "business_id" && (
-        <span className="mt-1 block normal-case tracking-normal text-gray-500">
-          Enter a Sage Business ID to use a specific business. Leave it blank to use the business selected during OAuth.
-        </span>
       )}
     </label>
   )
