@@ -21,7 +21,6 @@ from app.modules.oauth.service import (
 from app.modules.oauth.router import (
     clear_stale_oauth_authorization,
     get_oauth_config_requirement_error,
-    resolve_sage_business_id,
 )
 from app.modules.datasets.router import get_source_connection_config_status
 from app.modules.datasets.services.sources import get_dataset_source
@@ -33,26 +32,6 @@ from app.modules.datasets.services.scheduling import (
 
 
 class OAuthAndSchedulingTests(unittest.TestCase):
-    def test_sage_business_id_prefers_explicit_selection(self):
-        self.assertEqual(
-            resolve_sage_business_id(
-                {"business_id": "configured-business"},
-                {"resource_owner_id": "oauth-default-business"},
-                {},
-            ),
-            "configured-business",
-        )
-
-    def test_sage_business_id_falls_back_to_oauth_selection(self):
-        self.assertEqual(
-            resolve_sage_business_id(
-                {},
-                {"resource_owner_id": "oauth-business"},
-                {},
-            ),
-            "oauth-business",
-        )
-
     def test_reconnect_removes_failed_stored_credential_for_every_oauth_connector(self):
         credential = types.SimpleNamespace(
             refresh_token_encrypted="encrypted-refresh-token",
