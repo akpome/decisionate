@@ -492,7 +492,10 @@ async def refresh_sage_businesses(
         except (ConnectorUnavailable, OAuthTokenExchangeError) as error:
             db.rollback()
             normalized_error = str(error).lower()
-            requires_reauthorization = any(
+            requires_reauthorization = isinstance(
+                error,
+                ConnectorUnavailable,
+            ) or any(
                 marker in normalized_error
                 for marker in (
                     "reconnect",
@@ -502,6 +505,13 @@ async def refresh_sage_businesses(
                     "no accessible businesses",
                     "no business list",
                 )
+            )
+            logger.warning(
+                "Sage business refresh failed connection_id=%s "
+                "requires_reauthorization=%s error=%s",
+                connection.id,
+                requires_reauthorization,
+                error,
             )
             if requires_reauthorization:
                 mark_connection_authorization_failed(

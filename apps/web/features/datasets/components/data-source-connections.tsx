@@ -600,6 +600,12 @@ function DataSourceConnectionRow({
     isOAuthAuthorized &&
     oauthAccountOptions.length > 1 &&
     Boolean(connection.oauth_account_key)
+  const sageBusinessSelectionRequired =
+    connection.source_type === "sage" &&
+    connection.status === "connected" &&
+    isOAuthAuthorized &&
+    !hasSelectedOAuthAccount &&
+    Boolean(onSyncConnection)
   const showInlineConnectionSettings =
     inlineConnectionConfigKeys.length > 0 &&
     (!hasResourceSelection ||
@@ -938,20 +944,28 @@ function DataSourceConnectionRow({
             onDeleteConnection ||
             canConfigure ||
             canSyncConnector ||
+            sageBusinessSelectionRequired ||
             canStartOAuth ||
             canCancelOAuth) && (
             <div className="flex w-full min-w-0 flex-wrap items-center justify-start gap-2 lg:justify-end">
-              {canSyncConnector && (
+              {(canSyncConnector ||
+                sageBusinessSelectionRequired) && (
                 <button
                   type="button"
                   onClick={() =>
                     syncConnection()
                   }
                   disabled={
+                    sageBusinessSelectionRequired ||
                     syncingConnectionId ===
                       connection.id ||
                     updatingConnectionId ===
                       connection.id
+                  }
+                  title={
+                    sageBusinessSelectionRequired
+                      ? "Select a Sage business before syncing"
+                      : undefined
                   }
                   className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
