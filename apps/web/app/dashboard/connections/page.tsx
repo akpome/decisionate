@@ -574,15 +574,6 @@ function ConnectionsPageContent({
       )
       window.location.assign(result.authorization_url)
     } catch (error) {
-      const status =
-        typeof error === "object" &&
-        error !== null &&
-        "status" in error
-          ? error.status
-          : undefined
-      if (status === 409) {
-        await loadConnections()
-      }
       showConnectionFeedback(
         connection.id,
         "error",
@@ -658,6 +649,15 @@ function ConnectionsPageContent({
           : "Sage business list refreshed."
       )
     } catch (error) {
+      const status =
+        typeof error === "object" &&
+        error !== null &&
+        "status" in error
+          ? error.status
+          : undefined
+      if (status === 409) {
+        await loadConnections()
+      }
       showConnectionFeedback(
         connection.id,
         "error",

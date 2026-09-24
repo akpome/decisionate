@@ -55,6 +55,52 @@ class SageConnectorTests(unittest.TestCase):
             impersonate="chrome",
         )
 
+    def test_sage_business_discovery_falls_back_after_browser_transport_5xx(
+        self,
+    ):
+        curl = MagicMock()
+        curl.get.return_value = type(
+            "Response",
+            (),
+            {
+                "status_code": 502,
+                "text": "upstream temporarily unavailable",
+            },
+        )()
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"$items": [{"id": "business-1"}]}'
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_BUSINESSES_API_URL": (
+                    "https://api.accounting.sage.com/v3.1/businesses"
+                ),
+            },
+            clear=False,
+        ), patch("app.modules.oauth.service.curl_requests", curl), patch(
+            "app.modules.oauth.service.urlopen",
+            return_value=Response(),
+        ) as urlopen:
+            businesses = get_sage_businesses("sage-token")
+
+        self.assertEqual(
+            businesses,
+            [{"business_id": "business-1", "name": "business-1"}],
+        )
+        request = urlopen.call_args.args[0]
+        self.assertTrue(
+            request.get_header("User-agent").startswith("Mozilla/5.0")
+        )
+
     def test_sage_business_discovery_normalizes_business_options(self):
         class Response:
             def __enter__(self):

@@ -1051,6 +1051,7 @@ def _read_sage_businesses_response(
         "Accept": "application/json",
         "Authorization": f"Bearer {access_token}",
     }
+    browser_transport_error = None
     if curl_requests is not None:
         try:
             response = curl_requests.get(
@@ -1060,24 +1061,34 @@ def _read_sage_businesses_response(
                 impersonate="chrome",
             )
         except Exception as error:
-            raise OAuthTokenExchangeError(
-                "Sage business lookup is unavailable"
-            ) from error
-        if response.status_code >= 400:
+            browser_transport_error = error
+        else:
+            if response.status_code < 400:
+                return response.text
             if response.status_code in {401, 403}:
                 raise OAuthTokenExchangeError(
                     "Sage rejected the stored authorization while loading "
                     "businesses. Reconnect Sage with OAuth."
                 )
-            raise OAuthTokenExchangeError(
-                f"Sage business lookup failed with HTTP "
+            if response.status_code < 500:
+                raise OAuthTokenExchangeError(
+                    f"Sage business lookup failed with HTTP "
+                    f"{response.status_code}: {response.text[:240]}"
+                )
+            browser_transport_error = OAuthTokenExchangeError(
+                f"Sage browser-compatible lookup failed with HTTP "
                 f"{response.status_code}: {response.text[:240]}"
             )
-        return response.text
 
     request = Request(
         businesses_url.rstrip("/"),
-        headers=headers,
+        headers={
+            **headers,
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ),
+        },
         method="GET",
     )
     try:
@@ -1095,6 +1106,10 @@ def _read_sage_businesses_response(
             f"{detail[:240]}"
         ) from error
     except (URLError, TimeoutError, OSError) as error:
+        if browser_transport_error is not None:
+            raise OAuthTokenExchangeError(
+                "Sage business lookup is unavailable"
+            ) from browser_transport_error
         raise OAuthTokenExchangeError(
             "Sage business lookup is unavailable"
         ) from error
