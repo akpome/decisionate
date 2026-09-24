@@ -4936,6 +4936,106 @@ MAX_SUMMARY_GROUP_COLUMNS = 4
 MAX_SUMMARY_GROUP_CARDINALITY = 50
 
 
+def _is_missing_connector_value(value):
+    if value is None or not pd.api.types.is_scalar(value):
+        return value is None
+    try:
+        return bool(pd.isna(value))
+    except (TypeError, ValueError):
+        return False
+
+
+def _connector_value_as_text(value):
+    if _is_missing_connector_value(value):
+        return None
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, (dict, list, tuple, set)):
+        return json.dumps(
+            value,
+            sort_keys=True,
+            default=str,
+        )
+    return str(value)
+
+
+def normalize_connector_dataframe_for_parquet(dataframe):
+    """Make dynamic connector columns compatible with Arrow's strict typing."""
+    if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
+        return dataframe.copy()
+
+    normalized = dataframe.copy()
+    for column in normalized.columns:
+        series = normalized[column]
+        values = [
+            value
+            for value in series.tolist()
+            if not _is_missing_connector_value(value)
+        ]
+        if not values:
+            continue
+
+        has_nested_values = any(
+            isinstance(value, (dict, list, tuple, set))
+            for value in values
+        )
+        if has_nested_values:
+            normalized[column] = series.map(_connector_value_as_text)
+            continue
+
+        if all(isinstance(value, bool) for value in values):
+            continue
+
+        # Connector APIs sometimes change a metric from a number to a numeric
+        # string between syncs. Preserve numeric analytics where the column is
+        # not identifier-like, while leaving IDs and codes lossless as text.
+        numeric_candidate = (
+            not is_identifier_column(column)
+            and any(not isinstance(value, str) for value in values)
+            and not any(
+                isinstance(value, (date, datetime))
+                for value in values
+            )
+        )
+        if numeric_candidate:
+            for value in values:
+                try:
+                    converted = pd.to_numeric(value, errors="raise")
+                except (TypeError, ValueError):
+                    numeric_candidate = False
+                    break
+                if _is_missing_connector_value(converted):
+                    numeric_candidate = False
+                    break
+        if numeric_candidate:
+            try:
+                normalized[column] = pd.to_numeric(
+                    series,
+                    errors="raise",
+                )
+                continue
+            except (TypeError, ValueError):
+                pass
+
+        value_types = {type(value) for value in values}
+        supported_scalar_types = (
+            str,
+            bool,
+            int,
+            float,
+            bytes,
+            date,
+            datetime,
+        )
+        if len(value_types) > 1 or not all(
+            isinstance(value, supported_scalar_types)
+            for value in values
+        ):
+            normalized[column] = series.map(_connector_value_as_text)
+
+    return normalized
+
+
 def build_connector_partition_dir(
     connection,
 ):
@@ -5327,13 +5427,15 @@ def write_connector_monthly_partitions(
     staging_hot_dir = build_connector_hot_dir(staging_dir)
     os.makedirs(staging_hot_dir, exist_ok=True)
 
+    partitioned_dataframe = normalize_connector_dataframe_for_parquet(
+        dataframe
+    )
     date_column = find_connector_partition_date_column(
-        dataframe,
+        partitioned_dataframe,
         report_config,
     )
     fallback_month = date.today().strftime("%Y-%m")
     partition_key = CONNECTOR_PARTITION_MONTH_COLUMN
-    partitioned_dataframe = dataframe.copy()
 
     if date_column:
         parsed_dates = pd.to_datetime(
@@ -5377,6 +5479,9 @@ def write_connector_monthly_partitions(
         existing_summary = load_connector_summary_dataframe(
             partition_dir
         )
+    existing_summary = normalize_connector_dataframe_for_parquet(
+        existing_summary
+    )
     existing_summary = filter_connector_summary_by_retention(
         existing_summary,
         SUMMARY_MONTH_COLUMN,
@@ -5391,6 +5496,9 @@ def write_connector_monthly_partitions(
     merged_summary = merge_connector_summary_dataframes(
         existing_summary,
         new_summary,
+    )
+    merged_summary = normalize_connector_dataframe_for_parquet(
+        merged_summary
     )
     merged_summary = filter_connector_summary_by_retention(
         merged_summary,
@@ -6369,6 +6477,15 @@ def persist_connector_dataframe(
                 "Connector dataset storage requires the pyarrow package"
             ) from error
         except Exception as error:
+            logger.exception(
+                "Connector Parquet write failed",
+                extra={
+                    "connection_id": getattr(connection, "id", None),
+                    "source_type": getattr(connection, "source_type", None),
+                    "row_count": len(merged_dataframe),
+                    "column_count": len(merged_dataframe.columns),
+                },
+            )
             raise ConnectorUnavailable(
                 "Connector data could not be stored as Parquet"
             ) from error
