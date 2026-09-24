@@ -537,10 +537,6 @@ function DataSourceConnectionRow({
         !hasProviderManagedOAuthAccount &&
         source?.connection_type !== "api_key"
     )
-  const canRefreshSageBusinesses =
-    connection.source_type === "sage" &&
-    isOAuthAuthorized &&
-    Boolean(onRefreshSageBusinesses)
   const requiredConnectionConfigKeys =
     Array.from(
       new Set([
@@ -606,6 +602,9 @@ function DataSourceConnectionRow({
     oauthAccountOptions.length > 0 &&
     Boolean(connection.oauth_account_key) &&
     !hasSelectedOAuthAccount
+  const canRefreshSageBusinesses =
+    showSageBusinessSelection &&
+    Boolean(onRefreshSageBusinesses)
   const showOAuthAccountSelection =
     isOAuthAuthorized &&
     Boolean(
@@ -954,6 +953,7 @@ function DataSourceConnectionRow({
             onDeleteConnection ||
             canConfigure ||
             canSyncConnector ||
+            canRefreshSageBusinesses ||
             canStartOAuth ||
             canCancelOAuth) && (
             <div className="flex w-full min-w-0 flex-wrap items-center justify-start gap-2 lg:justify-end">
@@ -1060,11 +1060,11 @@ function DataSourceConnectionRow({
                     updatingConnectionId ===
                     connection.id
                   }
-                  title="Refresh Sage businesses"
+                  title="Refresh business accounts"
                   className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--decisionate-brand-primary-ring)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   <RefreshCw size={14} />
-                  Refresh businesses
+                  Refresh business accounts
                 </button>
               )}
 
