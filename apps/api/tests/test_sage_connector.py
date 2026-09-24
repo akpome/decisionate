@@ -3,6 +3,7 @@ import os
 import unittest
 from datetime import date
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
 from app.modules.datasets.services import connectors
@@ -17,7 +18,7 @@ class SageConnectorTests(unittest.TestCase):
                 "SAGE_CLIENT_ID": "client-id",
                 "SAGE_CLIENT_SECRET": "client-secret",
                 "SAGE_OAUTH_AUTHORIZATION_URL": (
-                    "https://www.sageone.com/oauth2/auth/central"
+                    "https://www.sageone.com/oauth2/auth/central?filter=api.v3.1"
                 ),
                 "SAGE_OAUTH_TOKEN_URL": "https://oauth.example/token",
                 "SAGE_OAUTH_SCOPES": "readonly",
@@ -28,7 +29,9 @@ class SageConnectorTests(unittest.TestCase):
             token_url = get_sage_token_url("US")
 
         self.assertIn("sageone.com/oauth2/auth/central", url)
-        self.assertIn("scope=readonly", url)
+        query = parse_qs(urlparse(url).query)
+        self.assertEqual(query["filter"], ["apiv3.1"])
+        self.assertEqual(query["scope"], ["readonly"])
         self.assertEqual(token_url, "https://oauth.example/token")
 
     def test_sage_invoices_are_normalized_for_analytics(self):

@@ -9,7 +9,13 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlparse
+from urllib.parse import (
+    parse_qsl,
+    urlencode,
+    urlparse,
+    urlsplit,
+    urlunsplit,
+)
 from urllib.request import Request, urlopen
 
 from app.configuration import get_provider_setting, get_runtime_configuration
@@ -544,6 +550,27 @@ def build_authorization_url(
             raise OAuthProviderUnavailable(
                 "SHOPIFY_OAUTH_AUTHORIZATION_URL_TEMPLATE must include {shop_domain}"
             ) from error
+    if provider.source_type == "sage":
+        # Sage Accounting selects its API generation with this query value.
+        # Normalize an older/mistyped deployment value before adding OAuth
+        # parameters below.
+        parsed_authorization_url = urlsplit(authorization_url)
+        authorization_query = dict(
+            parse_qsl(
+                parsed_authorization_url.query,
+                keep_blank_values=True,
+            )
+        )
+        authorization_query["filter"] = "apiv3.1"
+        authorization_url = urlunsplit(
+            (
+                parsed_authorization_url.scheme,
+                parsed_authorization_url.netloc,
+                parsed_authorization_url.path,
+                urlencode(authorization_query),
+                parsed_authorization_url.fragment,
+            )
+        )
     params = {
         "client_id": client_id,
         "response_type": "code",
@@ -589,7 +616,23 @@ def build_authorization_url(
                 "prompt": "consent",
             }
         )
-    return f"{authorization_url}?{urlencode(params)}"
+    parsed_authorization_url = urlsplit(authorization_url)
+    authorization_query = dict(
+        parse_qsl(
+            parsed_authorization_url.query,
+            keep_blank_values=True,
+        )
+    )
+    authorization_query.update(params)
+    return urlunsplit(
+        (
+            parsed_authorization_url.scheme,
+            parsed_authorization_url.netloc,
+            parsed_authorization_url.path,
+            urlencode(authorization_query),
+            parsed_authorization_url.fragment,
+        )
+    )
 
 
 def build_woocommerce_authorization_url(
