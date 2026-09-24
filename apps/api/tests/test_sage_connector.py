@@ -13,6 +13,7 @@ from app.modules.oauth.service import (
     build_token_request,
     get_sage_token_url,
     normalize_sage_country,
+    read_token_response,
 )
 
 
@@ -119,6 +120,33 @@ class SageConnectorTests(unittest.TestCase):
 
         self.assertTrue(
             request.get_header("User-agent").startswith("Mozilla/5.0")
+        )
+
+    def test_sage_retries_central_endpoint_after_cloudflare_browser_block(self):
+        request = build_token_request(
+            "sage",
+            "https://oauth.na.sageone.com/token",
+            {"grant_type": "authorization_code", "code": "code"},
+            {"Accept": "application/json"},
+        )
+        blocked = SimpleNamespace(
+            status_code=403,
+            text="Error 1010: blocked based on your browser's signature",
+        )
+        accepted = SimpleNamespace(
+            status_code=200,
+            text='{"access_token":"sage-token"}',
+        )
+        with patch("curl_cffi.requests.post", side_effect=[blocked, accepted]) as post:
+            body = read_token_response("sage", request, "token exchange")
+
+        self.assertEqual(body, '{"access_token":"sage-token"}')
+        self.assertEqual(
+            [call.args[0] for call in post.call_args_list],
+            [
+                "https://oauth.na.sageone.com/token",
+                "https://oauth.accounting.sage.com/token",
+            ],
         )
 
     def test_sage_invoices_are_normalized_for_analytics(self):

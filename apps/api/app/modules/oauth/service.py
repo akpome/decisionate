@@ -795,25 +795,55 @@ def read_token_response(
                 for key, value in request.header_items()
                 if key.lower() != "user-agent"
             }
-            try:
-                response = curl_requests.post(
-                    request.full_url,
-                    data=request.data or b"",
-                    headers=request_headers,
-                    timeout=20,
-                    impersonate="chrome",
+            token_urls = [request.full_url]
+            regional_hosts = {
+                "oauth.na.sageone.com",
+                "oauth.eu.sageone.com",
+                "app.sageone.com",
+            }
+            if urlsplit(request.full_url).netloc.lower() in regional_hosts:
+                # Sage's regional token hosts are protected by a browser
+                # signature rule that can reject a cloud-hosted callback even
+                # when the same request is accepted from a normal browser.
+                # The central v3.1 endpoint accepts the same form payload and
+                # provides a server-side fallback for that specific response.
+                token_urls.append("https://oauth.accounting.sage.com/token")
+
+            last_status = None
+            last_body = ""
+            for token_url in token_urls:
+                try:
+                    response = curl_requests.post(
+                        token_url,
+                        data=request.data or b"",
+                        headers=request_headers,
+                        timeout=20,
+                        impersonate="chrome",
+                    )
+                except Exception as error:
+                    raise OAuthTokenExchangeError(
+                        f"Sage OAuth provider is unavailable during {operation}"
+                    ) from error
+                body = response.text
+                if response.status_code < 400:
+                    return body
+                last_status = response.status_code
+                last_body = body
+                is_cloudflare_browser_block = (
+                    response.status_code == 403
+                    and (
+                        "error 1010" in body.lower()
+                        or "browser's signature" in body.lower()
+                        or "browser's si" in body.lower()
+                    )
                 )
-            except Exception as error:
-                raise OAuthTokenExchangeError(
-                    f"Sage OAuth provider is unavailable during {operation}"
-                ) from error
-            body = response.text
-            if response.status_code >= 400:
-                raise OAuthTokenExchangeError(
-                    f"OAuth {operation} failed with HTTP "
-                    f"{response.status_code}: {body[:240]}"
-                )
-            return body
+                if not is_cloudflare_browser_block:
+                    break
+
+            raise OAuthTokenExchangeError(
+                f"OAuth {operation} failed with HTTP "
+                f"{last_status}: {last_body[:240]}"
+            )
 
     try:
         with urlopen(request, timeout=20) as response:
