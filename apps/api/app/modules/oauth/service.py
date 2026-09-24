@@ -449,31 +449,22 @@ def normalize_sage_country(country: str | None) -> str:
 
 def get_sage_token_url(country: str | None = None) -> str:
     configured = clean_env("SAGE_OAUTH_TOKEN_URL")
-    normalized_country = normalize_sage_country(country)
-    regional_urls = {
-        "CA": "https://oauth.na.sageone.com/token",
-        "US": "https://oauth.na.sageone.com/token",
-        "DE": "https://oauth.eu.sageone.com/token",
-        "ES": "https://oauth.eu.sageone.com/token",
-        "FR": "https://oauth.eu.sageone.com/token",
-        "GB": "https://app.sageone.com/oauth2/token",
-        "IE": "https://app.sageone.com/oauth2/token",
+    canonical_url = "https://oauth.accounting.sage.com/token"
+    legacy_regional_urls = {
+        "https://oauth.na.sageone.com/token",
+        "https://oauth.eu.sageone.com/token",
+        "https://app.sageone.com/oauth2/token",
     }
 
-    # Keep explicit non-generic endpoints usable for deployments targeting a
-    # different Sage environment. The generic v3.1 endpoint is replaced with
-    # Sage's country-specific endpoint because the OAuth response supplies the
-    # region only after authorization.
-    if configured and configured.rstrip("/") != (
-        "https://oauth.accounting.sage.com/token"
+    # Sage Accounting v3.1 uses one central token endpoint. Older regional
+    # endpoints can return a Cloudflare 1010 response when called by a server,
+    # so normalize those legacy deployment values as well.
+    if configured.rstrip("/") == canonical_url or (
+        configured.rstrip("/") in legacy_regional_urls
     ):
-        return configured
-    if normalized_country in regional_urls:
-        return regional_urls[normalized_country]
+        return canonical_url
     if configured:
-        raise OAuthProviderUnavailable(
-            "Sage OAuth region is required before exchanging the authorization code"
-        )
+        return configured
     raise OAuthProviderUnavailable(
         "SAGE_OAUTH_TOKEN_URL is required for Sage OAuth"
     )
@@ -616,6 +607,9 @@ def build_authorization_url(
             )
         )
         authorization_query["filter"] = "apiv3.1"
+        normalized_country = normalize_sage_country(config.get("country"))
+        if normalized_country:
+            authorization_query["country"] = normalized_country.lower()
         authorization_url = urlunsplit(
             (
                 parsed_authorization_url.scheme,
