@@ -16,6 +16,7 @@ from app.modules.datasets.services.sources import (
     IMPLEMENTED_CONNECTOR_TYPES,
     get_dataset_source,
 )
+from app.modules.oauth.service import OAuthProviderUnavailable
 
 
 def make_connection(source_type, config):
@@ -1295,6 +1296,94 @@ class ConnectorSmokeTests(unittest.TestCase):
         ), self.assertRaisesRegex(
             connectors.ConnectorUnavailable,
             "Sage authorization has expired. Reconnect the account",
+        ):
+            connectors.get_oauth_access_token(
+                FakeDb(),
+                connection,
+                "sage",
+            )
+
+    def test_sage_refresh_reports_missing_region_instead_of_generic_error(self):
+        credential = SimpleNamespace(
+            access_token_encrypted="encrypted-access-token",
+            refresh_token_encrypted="encrypted-refresh-token",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(
+                minutes=1,
+            ),
+        )
+
+        class Query:
+            def filter(self, *_args):
+                return self
+
+            def first(self):
+                return credential
+
+        class FakeDb:
+            def query(self, *_args):
+                return Query()
+
+        connection = make_connection("sage", {})
+        with patch.object(
+            connectors,
+            "decrypt_token",
+            side_effect=lambda value: {
+                "encrypted-access-token": "old-access-token",
+                "encrypted-refresh-token": "refresh-token",
+            }.get(value),
+        ), patch.object(
+            connectors,
+            "refresh_oauth_token",
+            side_effect=OAuthProviderUnavailable(
+                "Sage OAuth region is required before exchanging the authorization code"
+            ),
+        ), self.assertRaisesRegex(
+            connectors.ConnectorUnavailable,
+            "Sage region is missing from this connection",
+        ):
+            connectors.get_oauth_access_token(
+                FakeDb(),
+                connection,
+                "sage",
+            )
+
+    def test_sage_refresh_reports_rejected_client_credentials(self):
+        credential = SimpleNamespace(
+            access_token_encrypted="encrypted-access-token",
+            refresh_token_encrypted="encrypted-refresh-token",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(
+                minutes=1,
+            ),
+        )
+
+        class Query:
+            def filter(self, *_args):
+                return self
+
+            def first(self):
+                return credential
+
+        class FakeDb:
+            def query(self, *_args):
+                return Query()
+
+        connection = make_connection("sage", {"country": "CA"})
+        with patch.object(
+            connectors,
+            "decrypt_token",
+            side_effect=lambda value: {
+                "encrypted-access-token": "old-access-token",
+                "encrypted-refresh-token": "refresh-token",
+            }.get(value),
+        ), patch.object(
+            connectors,
+            "refresh_oauth_token",
+            side_effect=connectors.OAuthTokenExchangeError(
+                'Sage token refresh rejected: {"error":"invalid_client"}'
+            ),
+        ), self.assertRaisesRegex(
+            connectors.ConnectorUnavailable,
+            "Sage rejected the OAuth client credentials",
         ):
             connectors.get_oauth_access_token(
                 FakeDb(),

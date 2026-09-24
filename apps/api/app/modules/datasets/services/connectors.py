@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import importlib
 import json
+import logging
 import os
 from datetime import UTC, date, datetime, timedelta
 import re
@@ -49,6 +50,8 @@ DATABASE_ENCRYPTED_PASSWORD_CONFIGS = {
     "mysql": MYSQL_ENCRYPTED_PASSWORD_CONFIG,
     "sql_server": SQL_SERVER_ENCRYPTED_PASSWORD_CONFIG,
 }
+
+logger = logging.getLogger(__name__)
 DATABASE_DEFAULT_PORTS = {
     "postgresql": 5432,
     "mysql": 3306,
@@ -5555,7 +5558,47 @@ def get_oauth_access_token(
             db.commit()
         except ConnectorUnavailable:
             raise
+        except OAuthProviderUnavailable as error:
+            provider_message = str(error).strip()
+            normalized_message = provider_message.lower()
+            if source_type == "sage":
+                if "credentials are not configured" in normalized_message:
+                    raise ConnectorUnavailable(
+                        "Sage OAuth client credentials are not configured. "
+                        "Verify SAGE_CLIENT_ID and SAGE_CLIENT_SECRET in "
+                        "Railway, then reconnect with OAuth."
+                    ) from error
+                if "region is required" in normalized_message:
+                    raise ConnectorUnavailable(
+                        "Sage region is missing from this connection. Select "
+                        "the region, save it, and reconnect with OAuth."
+                    ) from error
+                raise ConnectorUnavailable(
+                    "Sage OAuth configuration is unavailable. Verify the "
+                    "Sage settings in Railway, then reconnect with OAuth."
+                ) from error
+            raise ConnectorUnavailable(
+                f"{connector_display_name(source_type)} OAuth configuration "
+                "is unavailable. Reconnect with OAuth and try again."
+            ) from error
         except OAuthTokenExchangeError as error:
+            normalized_message = str(error).lower()
+            if source_type == "sage" and "invalid_client" in normalized_message:
+                raise ConnectorUnavailable(
+                    "Sage rejected the OAuth client credentials. Verify "
+                    "SAGE_CLIENT_ID and SAGE_CLIENT_SECRET in Railway, then "
+                    "reconnect with OAuth."
+                ) from error
+            if source_type == "sage" and (
+                "error 1010" in normalized_message
+                or "cloudflare" in normalized_message
+                or "site owner has blocked access" in normalized_message
+            ):
+                raise ConnectorUnavailable(
+                    "Sage denied the token refresh from the server. Verify "
+                    "the Sage app callback URL and production OAuth settings, "
+                    "then reconnect with OAuth."
+                ) from error
             if oauth_refresh_requires_reauthorization(error):
                 raise ConnectorUnavailable(
                     f"{connector_display_name(source_type)} authorization is "
@@ -5566,6 +5609,17 @@ def get_oauth_access_token(
                 "not be refreshed. Try again later."
             ) from error
         except Exception as error:
+            logger.exception(
+                "OAuth token refresh failed source_type=%s connection_id=%s",
+                source_type,
+                getattr(connection, "id", None),
+            )
+            if source_type == "sage":
+                raise ConnectorUnavailable(
+                    "Sage authorization refresh failed unexpectedly. Verify "
+                    "the Sage OAuth settings in Railway, then reconnect with "
+                    "OAuth."
+                ) from error
             raise ConnectorUnavailable(
                 f"The {source_type} authorization could not be refreshed"
             ) from error
@@ -5847,6 +5901,8 @@ def connector_requires_reauthorization(
         for marker in (
             "authorization is no longer valid",
             "invalid_grant",
+            "invalid_client",
+            "unauthorized_client",
             "invalid_token",
             "no access token",
             "no refreshed token",
@@ -5926,6 +5982,8 @@ def oauth_refresh_requires_reauthorization(
         marker in normalized_message
         for marker in (
             "invalid_grant",
+            "invalid_client",
+            "unauthorized_client",
             "invalid_token",
             "no access token",
             "no refreshed token",
