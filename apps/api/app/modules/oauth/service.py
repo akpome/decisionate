@@ -45,6 +45,9 @@ SHOPIFY_SHOP_DOMAIN_PATTERN = re.compile(
     r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.myshopify\.com"
 )
 SHOPIFY_CONNECTOR_SCOPES = {"read_orders"}
+SAGE_DEFAULT_BUSINESSES_API_URL = (
+    "https://api.accounting.sage.com/v3.1/businesses"
+)
 
 
 def normalize_shopify_shop_domain(value: str | None) -> str:
@@ -1037,7 +1040,10 @@ def get_sage_businesses(access_token: str) -> list[dict]:
     from the token response. Older regional v3 deployments do not expose the
     endpoint, so the caller can fall back to the token's resource owner ID.
     """
-    businesses_url = get_provider_setting("SAGE_BUSINESSES_API_URL")
+    configured_businesses_url = get_provider_setting(
+        "SAGE_BUSINESSES_API_URL"
+    )
+    businesses_url = configured_businesses_url
     if not businesses_url:
         api_base_url = get_provider_setting("SAGE_API_BASE_URL")
         parsed_base_url = urlparse(api_base_url)
@@ -1047,7 +1053,7 @@ def get_sage_businesses(access_token: str) -> list[dict]:
         ):
             businesses_url = f"{api_base_url.rstrip('/')}/businesses"
     if not businesses_url:
-        return []
+        businesses_url = SAGE_DEFAULT_BUSINESSES_API_URL
 
     request = Request(
         businesses_url.rstrip("/"),
@@ -1062,11 +1068,26 @@ def get_sage_businesses(access_token: str) -> list[dict]:
             body = response.read().decode("utf-8")
     except HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
+        if not configured_businesses_url:
+            logger.warning(
+                "Sage business discovery unavailable; using the OAuth "
+                "resource owner fallback status=%s detail=%s",
+                error.code,
+                detail[:240],
+            )
+            return []
         raise OAuthTokenExchangeError(
             f"Sage business lookup failed with HTTP {error.code}: "
             f"{detail[:240]}"
         ) from error
     except (URLError, TimeoutError, OSError) as error:
+        if not configured_businesses_url:
+            logger.warning(
+                "Sage business discovery unavailable; using the OAuth "
+                "resource owner fallback",
+                exc_info=True,
+            )
+            return []
         raise OAuthTokenExchangeError(
             "Sage business lookup is unavailable"
         ) from error

@@ -89,6 +89,38 @@ class SageConnectorTests(unittest.TestCase):
             "https://api.accounting.sage.com/v3.1/businesses",
         )
 
+    def test_sage_business_discovery_defaults_when_legacy_base_is_configured(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"$items": [{"id": "business-1", "name": "Primary"}]}'
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_BUSINESSES_API_URL": "",
+                "SAGE_API_BASE_URL": (
+                    "https://api.columbus.sage.com/uki/sageone/accounts/v3"
+                ),
+            },
+            clear=False,
+        ), patch("app.modules.oauth.service.urlopen", return_value=Response()) as urlopen:
+            businesses = get_sage_businesses("sage-token")
+
+        self.assertEqual(
+            businesses,
+            [{"business_id": "business-1", "name": "Primary"}],
+        )
+        self.assertEqual(
+            urlopen.call_args.args[0].full_url,
+            "https://api.accounting.sage.com/v3.1/businesses",
+        )
+
     def test_sage_authorization_uses_read_only_consent(self):
         with patch.dict(
             os.environ,
