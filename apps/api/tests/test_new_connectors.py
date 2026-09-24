@@ -1075,6 +1075,192 @@ class NewConnectorTests(unittest.TestCase):
         self.assertNotIn("created_at_min", params)
         self.assertNotIn("created_at_max", params)
 
+    def test_shopify_orders_use_graphql_cursor_pagination_and_date_window(self):
+        requests = []
+
+        def graphql_request(url, headers, payload, source_type=None):
+            requests.append((url, headers, payload, source_type))
+            self.assertEqual(source_type, "shopify")
+            self.assertEqual(headers["X-Shopify-Access-Token"], "shopify-token")
+            if payload["variables"]["after"] is None:
+                return {
+                    "data": {
+                        "orders": {
+                            "nodes": [{
+                                "id": "gid://shopify/Order/1",
+                                "legacyResourceId": "1",
+                                "name": "#1001",
+                                "createdAt": "2026-09-02T12:00:00Z",
+                                "updatedAt": "2026-09-02T12:00:00Z",
+                                "currencyCode": "CAD",
+                                "totalPriceSet": {
+                                    "shopMoney": {
+                                        "amount": "25.00",
+                                        "currencyCode": "CAD",
+                                    },
+                                },
+                                "subtotalPriceSet": {
+                                    "shopMoney": {
+                                        "amount": "20.00",
+                                        "currencyCode": "CAD",
+                                    },
+                                },
+                                "totalTaxSet": {
+                                    "shopMoney": {
+                                        "amount": "5.00",
+                                        "currencyCode": "CAD",
+                                    },
+                                },
+                                "totalDiscountsSet": {
+                                    "shopMoney": {
+                                        "amount": "0.00",
+                                        "currencyCode": "CAD",
+                                    },
+                                },
+                                "displayFinancialStatus": "PAID",
+                                "displayFulfillmentStatus": "FULFILLED",
+                                "cancelledAt": None,
+                                "sourceName": "web",
+                                "subtotalLineItemsQuantity": 2,
+                                "test": False,
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": True,
+                                "endCursor": "cursor-1",
+                            },
+                        },
+                    },
+                }
+            return {
+                "data": {
+                    "orders": {
+                        "nodes": [{
+                            "id": "gid://shopify/Order/2",
+                            "legacyResourceId": "2",
+                            "name": "#1002",
+                            "createdAt": "2026-09-29T12:00:00Z",
+                            "updatedAt": "2026-09-29T12:00:00Z",
+                            "currencyCode": "CAD",
+                            "totalPriceSet": {
+                                "shopMoney": {
+                                    "amount": "30.00",
+                                    "currencyCode": "CAD",
+                                },
+                            },
+                            "subtotalPriceSet": None,
+                            "totalTaxSet": None,
+                            "totalDiscountsSet": None,
+                            "displayFinancialStatus": "PENDING",
+                            "displayFulfillmentStatus": "UNFULFILLED",
+                            "cancelledAt": None,
+                            "sourceName": "web",
+                            "subtotalLineItemsQuantity": 1,
+                            "test": False,
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": False,
+                            "endCursor": "cursor-2",
+                        },
+                    },
+                },
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="shopify-token",
+        ), patch.object(
+            connectors,
+            "connector_json_post_request",
+            side_effect=graphql_request,
+        ), patch.dict(
+            "os.environ",
+            {
+                "SHOPIFY_API_VERSION": "2026-07",
+                "SHOPIFY_GRAPHQL_API_URL_TEMPLATE": (
+                    "https://{shop_domain}/admin/api/{api_version}/graphql.json"
+                ),
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_shopify_dataframe(
+                None,
+                make_connection("shopify", {"shop_domain": "store.myshopify.com"}),
+                date(2026, 9, 1),
+                date(2026, 9, 30),
+            )
+
+        self.assertEqual(report["api"], "graphql_admin")
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(list(dataframe["order_id"]), ["1", "2"])
+        self.assertEqual(dataframe.loc[0, "total_price"], "25.00")
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(
+            requests[0][0],
+            "https://store.myshopify.com/admin/api/2026-07/graphql.json",
+        )
+        self.assertEqual(
+            requests[1][2]["variables"]["after"],
+            "cursor-1",
+        )
+        query = requests[0][2]["variables"]["query"]
+        self.assertEqual(
+            query,
+            "updated_at:>='2026-09-01T00:00:00Z' "
+            "updated_at:<'2026-10-01T00:00:00Z'",
+        )
+        self.assertNotIn("email", requests[0][2]["query"])
+        self.assertNotIn("shippingAddress", requests[0][2]["query"])
+
+    def test_shopify_graphql_protected_data_errors_are_actionable(self):
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="shopify-token",
+        ), patch.object(
+            connectors,
+            "connector_json_post_request",
+            return_value={
+                "errors": [{
+                    "message": (
+                        "This app is not approved to access protected customer "
+                        "data for the Order object."
+                    ),
+                }],
+            },
+        ), patch.dict(
+            "os.environ",
+            {
+                "SHOPIFY_API_VERSION": "2026-07",
+                "SHOPIFY_API_BASE_URL_TEMPLATE": (
+                    "https://{shop_domain}/admin/api/{api_version}"
+                ),
+            },
+            clear=False,
+        ):
+            with self.assertRaisesRegex(
+                connectors.ConnectorUnavailable,
+                "Shopify app access is not approved for protected customer data",
+            ):
+                connectors.load_shopify_dataframe(
+                    None,
+                    make_connection(
+                        "shopify",
+                        {"shop_domain": "store.myshopify.com"},
+                    ),
+                    date(2026, 9, 1),
+                    date(2026, 9, 2),
+                )
+
+    def test_shopify_domain_must_be_a_myshopify_host(self):
+        self.assertEqual(
+            connectors.normalize_shop_domain(
+                "https://Store.myshopify.com/"
+            ),
+            "store.myshopify.com",
+        )
+        self.assertIsNone(connectors.normalize_shop_domain("shop.example.com"))
+
     def test_lightspeed_sales_are_normalized(self):
         with patch.object(
             connectors,

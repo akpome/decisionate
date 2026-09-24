@@ -286,6 +286,13 @@ Google Business Profile imports accessible locations and daily profile
 performance metrics from Google Search and Maps. Configure the OAuth settings,
 enable the Business Profile Information and Performance APIs in Google Cloud,
 and request Google Business Profile API access if the project has zero quota.
+Shopify imports order-level sales data through the versioned GraphQL Admin API.
+Configure `SHOPIFY_API_VERSION` and either
+`SHOPIFY_GRAPHQL_API_URL_TEMPLATE` or the compatible
+`SHOPIFY_API_BASE_URL_TEMPLATE`. The adapter requests only order-level fields,
+does not request customer email or address fields, and requires the
+`read_orders` scope. Shopify's default order-history window is limited; request
+all-orders access in Shopify if a client needs history older than 60 days.
 Square imports order-level sales from the selected location and requires the
 `ORDERS_READ` OAuth permission. To connect WooCommerce, the workspace owner
 enters the client's HTTPS store URL, selects Connect with OAuth, and the client

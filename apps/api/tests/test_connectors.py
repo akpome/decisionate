@@ -684,6 +684,40 @@ class ConnectorSmokeTests(unittest.TestCase):
                     {},
                 ),
             ), \
+            patch.object(
+                connectors,
+                "connector_json_post_request",
+                return_value={
+                    "data": {
+                        "orders": {
+                            "nodes": [{
+                                "id": "gid://shopify/Order/1",
+                                "legacyResourceId": "1",
+                                "name": "#1001",
+                                "createdAt": "2026-01-02T00:00:00Z",
+                                "updatedAt": "2026-01-02T00:00:00Z",
+                                "currencyCode": "CAD",
+                                "totalPriceSet": {
+                                    "shopMoney": {"amount": "500"},
+                                },
+                                "subtotalPriceSet": None,
+                                "totalTaxSet": None,
+                                "totalDiscountsSet": None,
+                                "displayFinancialStatus": "PAID",
+                                "displayFulfillmentStatus": "FULFILLED",
+                                "cancelledAt": None,
+                                "sourceName": "web",
+                                "subtotalLineItemsQuantity": 1,
+                                "test": False,
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                        },
+                    },
+                },
+            ), \
             patch.dict(
                 os.environ,
                 {
@@ -711,7 +745,7 @@ class ConnectorSmokeTests(unittest.TestCase):
             cases = [
                 ("hubspot", {"object_type": "deals"}),
                 ("stripe", {"_stripe_api_key_encrypted": "encrypted-key"}),
-                ("shopify", {"shop_domain": "shop.example.com"}),
+                ("shopify", {"shop_domain": "shop.myshopify.com"}),
                 ("meta_ads", {"ad_account_id": "act_123"}),
                 ("quickbooks", {"company_id": "company-1"}),
                 ("freshbooks", {"account_id": "account-1"}),

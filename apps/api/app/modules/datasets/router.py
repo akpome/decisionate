@@ -4441,6 +4441,7 @@ async def update_source_connection(
                         "resource_owner_id",
                         "site_id",
                     }
+                    and is_partial_config_update
                     and config_key not in next_config
                 ):
                     next_config[config_key] = config_value

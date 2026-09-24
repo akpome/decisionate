@@ -41,6 +41,47 @@ class OAuthTokenExchangeError(RuntimeError):
     pass
 
 
+SHOPIFY_SHOP_DOMAIN_PATTERN = re.compile(
+    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.myshopify\.com"
+)
+SHOPIFY_CONNECTOR_SCOPES = {"read_orders"}
+
+
+def normalize_shopify_shop_domain(value: str | None) -> str:
+    """Return a Shopify Admin API shop host without accepting arbitrary hosts."""
+    candidate = str(value or "").strip().lower()
+    if not candidate:
+        raise OAuthProviderUnavailable(
+            "Configure a Shopify shop domain before connecting"
+        )
+
+    parsed = urlparse(
+        candidate if "://" in candidate else f"https://{candidate}"
+    )
+    try:
+        hostname = (parsed.hostname or "").rstrip(".")
+        port = parsed.port
+    except ValueError as error:
+        raise OAuthProviderUnavailable(
+            "Shopify shop domain must be a valid *.myshopify.com domain"
+        ) from error
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+        or parsed.username
+        or parsed.password
+        or port
+        or not SHOPIFY_SHOP_DOMAIN_PATTERN.fullmatch(hostname)
+    ):
+        raise OAuthProviderUnavailable(
+            "Shopify shop domain must be a valid *.myshopify.com domain"
+        )
+    return hostname
+
+
 @dataclass(frozen=True)
 class OAuthProvider:
     source_type: str
@@ -530,6 +571,12 @@ def get_provider_scopes(
         for scope in configured_scopes.replace(",", " ").split()
         if scope.strip()
     )
+    if provider.source_type == "shopify":
+        scopes = tuple(
+            scope
+            for scope in scopes
+            if scope in SHOPIFY_CONNECTOR_SCOPES
+        )
     if not scopes and not provider.allow_empty_scopes:
         raise OAuthProviderUnavailable(
             f"{provider.scopes_env} is required for {provider.source_type} OAuth"
@@ -595,12 +642,9 @@ def build_authorization_url(
     scopes = get_provider_scopes(provider, config)
 
     if provider.source_type == "shopify":
-        shop_domain = str(config.get("shop_domain") or "").strip()
-        if not shop_domain or "." not in shop_domain:
-            raise OAuthProviderUnavailable(
-                "Configure a Shopify shop domain before connecting"
-            )
-        shop_domain = shop_domain.removeprefix("https://").removeprefix("http://")
+        shop_domain = normalize_shopify_shop_domain(
+            config.get("shop_domain")
+        )
         try:
             authorization_url = authorization_url.format(
                 shop_domain=shop_domain,
@@ -876,8 +920,9 @@ def exchange_code(
     config = connection_config or {}
     token_url = get_provider_endpoint(provider, "token")
     if provider.source_type == "shopify":
-        shop_domain = str(config.get("shop_domain") or "").strip()
-        shop_domain = shop_domain.removeprefix("https://").removeprefix("http://")
+        shop_domain = normalize_shopify_shop_domain(
+            config.get("shop_domain")
+        )
         try:
             token_url = token_url.format(shop_domain=shop_domain)
         except KeyError as error:

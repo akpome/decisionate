@@ -24,6 +24,7 @@ from app.modules.oauth.service import (
     encrypt_token,
     get_freshbooks_businesses,
     normalize_lightspeed_x_domain_prefix,
+    normalize_shopify_shop_domain,
     normalize_zoho_books_api_domain,
     refresh_oauth_token,
     token_expiry,
@@ -31,6 +32,7 @@ from app.modules.oauth.service import (
 
 
 PAGE_SIZE = 100
+SHOPIFY_MAX_REQUEST_ATTEMPTS = 4
 GOOGLE_SEARCH_CONSOLE_DATA_LAG_DAYS = 2
 # The Railway scheduler normally runs every 15 minutes. Refresh one hour
 # early so several heartbeat attempts remain available before expiry.
@@ -1681,6 +1683,167 @@ def load_stripe_dataframe(
     }
 
 
+SHOPIFY_ORDERS_QUERY = """
+query ShopifyOrders($after: String, $query: String) {
+  orders(
+    first: 250
+    after: $after
+    query: $query
+    sortKey: UPDATED_AT
+  ) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      createdAt
+      updatedAt
+      currencyCode
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalTaxSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      displayFinancialStatus
+      displayFulfillmentStatus
+      cancelledAt
+      sourceName
+      subtotalLineItemsQuantity
+      test
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+"""
+
+
+def shopify_order_query(start_date, end_date) -> str | None:
+    filters = []
+    if start_date:
+        filters.append(
+            f"updated_at:>='{start_date.isoformat()}T00:00:00Z'"
+        )
+    if end_date:
+        exclusive_end_date = end_date + timedelta(days=1)
+        filters.append(
+            f"updated_at:<'{exclusive_end_date.isoformat()}T00:00:00Z'"
+        )
+    return " ".join(filters) or None
+
+
+def shopify_graphql_url(shop_domain: str, api_version: str) -> str:
+    """Build the versioned Shopify Admin GraphQL endpoint."""
+    template = get_provider_setting(
+        "SHOPIFY_GRAPHQL_API_URL_TEMPLATE"
+    ) or get_provider_setting("SHOPIFY_API_BASE_URL_TEMPLATE")
+    if not template:
+        raise ConnectorUnavailable(
+            "SHOPIFY_GRAPHQL_API_URL_TEMPLATE or "
+            "SHOPIFY_API_BASE_URL_TEMPLATE is required for the Shopify connector"
+        )
+    try:
+        url = template.format(
+            shop_domain=shop_domain,
+            api_version=api_version,
+        ).rstrip("/")
+    except KeyError as error:
+        raise ConnectorUnavailable(
+            "Shopify API URL template must include {shop_domain} and "
+            "{api_version}"
+        ) from error
+
+    if url.endswith("/graphql.json"):
+        return url
+    return f"{url}/graphql.json"
+
+
+def _shopify_money_amount(order: dict, field: str):
+    money_set = order.get(field)
+    if not isinstance(money_set, dict):
+        return None
+    shop_money = money_set.get("shopMoney")
+    if not isinstance(shop_money, dict):
+        return None
+    return shop_money.get("amount")
+
+
+def shopify_graphql_request(
+    url: str,
+    access_token: str,
+    variables: dict,
+):
+    """Execute a Shopify GraphQL query and surface GraphQL-level failures."""
+    for attempt in range(SHOPIFY_MAX_REQUEST_ATTEMPTS):
+        payload = connector_json_post_request(
+            url,
+            headers={
+                "Content-Type": "application/json",
+                "X-Shopify-Access-Token": access_token,
+            },
+            payload={
+                "query": SHOPIFY_ORDERS_QUERY,
+                "variables": variables,
+            },
+            source_type="shopify",
+        )
+        if not isinstance(payload, dict):
+            raise ConnectorUnavailable(
+                "Shopify returned an invalid GraphQL response"
+            )
+        errors = payload.get("errors")
+        if not errors:
+            data = payload.get("data")
+            if not isinstance(data, dict):
+                raise ConnectorUnavailable(
+                    "Shopify returned an invalid GraphQL response"
+                )
+            return data
+
+        error_items = errors if isinstance(errors, list) else [errors]
+        throttled = any(
+            isinstance(item, dict)
+            and str(
+                (item.get("extensions") or {}).get("code") or ""
+            ).upper() == "THROTTLED"
+            for item in error_items
+        )
+        if throttled and attempt < SHOPIFY_MAX_REQUEST_ATTEMPTS - 1:
+            sleep(0.5 * (2 ** attempt))
+            continue
+
+        messages = [
+            str(item.get("message") or "").strip()
+            for item in error_items
+            if isinstance(item, dict) and str(item.get("message") or "").strip()
+        ]
+        detail = "; ".join(messages) or "Shopify returned a GraphQL error"
+        raise ConnectorUnavailable(
+            "Shopify GraphQL request failed: "
+            f"{format_connector_error_detail(detail, 'shopify')[:240]}"
+        )
+
+
 def load_shopify_dataframe(
     db,
     connection: DataSourceConnection,
@@ -1700,70 +1863,74 @@ def load_shopify_dataframe(
         raise ConnectorUnavailable(
             "SHOPIFY_API_VERSION is required for the Shopify connector"
         )
-    base_template = get_provider_setting("SHOPIFY_API_BASE_URL_TEMPLATE")
-    if not base_template:
-        raise ConnectorUnavailable(
-            "SHOPIFY_API_BASE_URL_TEMPLATE is required for the Shopify connector"
-        )
-    next_url = (
-        f"{base_template.format(shop_domain=shop_domain, api_version=api_version)}/orders.json?"
-        f"{urlencode(shopify_order_params(start_date, end_date))}"
-    )
+    graphql_url = shopify_graphql_url(shop_domain, api_version)
+    order_query = shopify_order_query(start_date, end_date)
     rows = []
-    seen_urls = set()
+    after_cursor = None
+    seen_cursors = set()
 
     while True:
-        if not next_url or next_url in seen_urls:
-            break
-        seen_urls.add(next_url)
-        payload, headers = connector_json_request_with_headers(
-            next_url,
-            headers={"X-Shopify-Access-Token": access_token},
-            source_type="shopify",
+        if after_cursor and after_cursor in seen_cursors:
+            raise ConnectorUnavailable(
+                "Shopify returned a repeated pagination cursor"
+            )
+        if after_cursor:
+            seen_cursors.add(after_cursor)
+        data = shopify_graphql_request(
+            graphql_url,
+            access_token,
+            {
+                "after": after_cursor,
+                "query": order_query,
+            },
         )
-        orders = payload.get("orders")
-        if not isinstance(orders, list):
-            raise ConnectorUnavailable("Shopify returned an invalid orders response")
+        connection_payload = data.get("orders")
+        if not isinstance(connection_payload, dict):
+            raise ConnectorUnavailable(
+                "Shopify returned an invalid orders response"
+            )
+        orders = connection_payload.get("nodes")
+        page_info = connection_payload.get("pageInfo")
+        if not isinstance(orders, list) or not isinstance(page_info, dict):
+            raise ConnectorUnavailable(
+                "Shopify returned an invalid orders response"
+            )
 
         for order in orders:
             if not isinstance(order, dict):
                 continue
-            customer = order.get("customer")
-            shipping_address = order.get("shipping_address")
+            order_id = order.get("legacyResourceId") or order.get("id")
+            if not order_id:
+                raise ConnectorUnavailable(
+                    "Shopify returned an order without an ID"
+                )
             normalized_row = {
-                "order_id": order.get("id"),
+                "order_id": order_id,
                 "order_name": order.get("name"),
-                "created_at": order.get("created_at"),
-                "updated_at": order.get("updated_at"),
-                "currency": order.get("currency"),
-                "total_price": order.get("total_price"),
-                "subtotal_price": order.get("subtotal_price"),
-                "total_tax": order.get("total_tax"),
-                "total_discounts": order.get("total_discounts"),
-                "financial_status": order.get("financial_status"),
-                "fulfillment_status": order.get("fulfillment_status"),
-                "cancelled_at": order.get("cancelled_at"),
-                "customer_id": (
-                    customer.get("id")
-                    if isinstance(customer, dict)
-                    else None
+                "created_at": order.get("createdAt"),
+                "updated_at": order.get("updatedAt"),
+                "currency": order.get("currencyCode"),
+                "total_price": _shopify_money_amount(
+                    order,
+                    "totalPriceSet",
                 ),
-                "customer_email": (
-                    order.get("email") or customer.get("email")
-                    if isinstance(customer, dict)
-                    else order.get("email")
+                "subtotal_price": _shopify_money_amount(
+                    order,
+                    "subtotalPriceSet",
                 ),
-                "line_item_count": sum(
-                    int(item.get("quantity") or 0)
-                    for item in order.get("line_items", [])
-                    if isinstance(item, dict)
+                "total_tax": _shopify_money_amount(
+                    order,
+                    "totalTaxSet",
                 ),
-                "shipping_country": (
-                    shipping_address.get("country")
-                    if isinstance(shipping_address, dict)
-                    else None
+                "total_discounts": _shopify_money_amount(
+                    order,
+                    "totalDiscountsSet",
                 ),
-                "source_name": order.get("source_name"),
+                "financial_status": order.get("displayFinancialStatus"),
+                "fulfillment_status": order.get("displayFulfillmentStatus"),
+                "cancelled_at": order.get("cancelledAt"),
+                "line_item_count": order.get("subtotalLineItemsQuantity"),
+                "source_name": order.get("sourceName"),
                 "test": order.get("test"),
             }
             rows.append(
@@ -1773,14 +1940,31 @@ def load_shopify_dataframe(
                 )
             )
 
-        next_url = get_next_link(headers.get("Link"))
-        if not next_url or not orders:
+        if not page_info.get("hasNextPage"):
             break
+        next_cursor = page_info.get("endCursor")
+        if not next_cursor:
+            raise ConnectorUnavailable(
+                "Shopify returned no cursor for the next orders page"
+            )
+        after_cursor = str(next_cursor)
 
     dataframe = pd.DataFrame(rows)
+    dataframe = filter_date_range(
+        dataframe,
+        start_date,
+        end_date,
+        date_columns=("updated_at", "created_at"),
+    )
+    if not dataframe.empty and "order_id" in dataframe.columns:
+        dataframe = dataframe.drop_duplicates(
+            subset=["order_id"],
+            keep="last",
+        ).reset_index(drop=True)
     return dataframe, {
         "connector": "shopify",
         "resource": "orders",
+        "api": "graphql_admin",
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
@@ -5430,28 +5614,56 @@ def connector_json_post_request(
     url: str,
     headers: dict[str, str],
     payload: dict,
+    source_type: str | None = None,
 ):
-    request = Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            **headers,
-        },
-        method="POST",
+    normalized_source_type = str(source_type or "").strip().lower()
+    max_attempts = (
+        SHOPIFY_MAX_REQUEST_ATTEMPTS
+        if normalized_source_type == "shopify"
+        else 1
     )
-    try:
-        with urlopen(request, timeout=60) as response:
-            body = response.read().decode("utf-8")
-    except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        raise ConnectorUnavailable(
-            f"Connector request failed with HTTP {error.code}: "
-            f"{format_connector_error_detail(detail)[:240]}"
-        ) from error
-    except (URLError, TimeoutError, OSError) as error:
-        raise ConnectorUnavailable("Connector service is unavailable") from error
+    for attempt in range(max_attempts):
+        request = Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                **headers,
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=60) as response:
+                body = response.read().decode("utf-8")
+            break
+        except HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")
+            retryable = error.code in {429, 500, 502, 503, 504}
+            if (
+                normalized_source_type == "shopify"
+                and retryable
+                and attempt < max_attempts - 1
+            ):
+                retry_after = None
+                try:
+                    retry_after = float(error.headers.get("Retry-After"))
+                except (AttributeError, TypeError, ValueError):
+                    pass
+                sleep(
+                    max(retry_after, 0)
+                    if retry_after is not None
+                    else min(2 ** attempt, 8)
+                )
+                continue
+            raise ConnectorUnavailable(
+                f"Connector request failed with HTTP {error.code}: "
+                f"{format_connector_error_detail(detail, normalized_source_type)[:240]}"
+            ) from error
+        except (URLError, TimeoutError, OSError) as error:
+            raise ConnectorUnavailable("Connector service is unavailable") from error
+    else:
+        raise ConnectorUnavailable("Connector request failed after retries")
 
     try:
         parsed_payload = json.loads(body)
@@ -5470,8 +5682,13 @@ def format_connector_error_detail(
     normalized_detail = str(detail or "").lower()
     if (
         str(source_type or "").strip().lower() == "shopify"
-        and "protected customer data" in normalized_detail
         and "not approved" in normalized_detail
+        and (
+            "protected customer data" in normalized_detail
+            or "rest endpoints" in normalized_detail
+            or "order object" in normalized_detail
+            or "customer object" in normalized_detail
+        )
     ):
         return (
             "Shopify app access is not approved for protected customer data. "
@@ -5582,10 +5799,12 @@ def is_shopify_protected_customer_data_error(
     normalized_source_type = str(source_type or "").strip().lower()
     normalized_message = str(error or "").lower()
     return normalized_source_type == "shopify" and (
-        "protected customer data" in normalized_message
+        "not approved" in normalized_message
         and (
-            "not approved" in normalized_message
+            "protected customer data" in normalized_message
             or "rest endpoints" in normalized_message
+            or "order object" in normalized_message
+            or "customer object" in normalized_message
         )
     )
 
@@ -5734,14 +5953,10 @@ def bound_database_query(_source_type: str, query: str) -> str:
 
 
 def normalize_shop_domain(value) -> str | None:
-    domain = str(value or "").strip().lower()
-    domain = domain.removeprefix("https://").removeprefix("http://")
-    domain = domain.split("/", 1)[0]
-    if not domain or "." not in domain or any(
-        character in domain for character in " <>\"'"
-    ):
+    try:
+        return normalize_shopify_shop_domain(value)
+    except OAuthProviderUnavailable:
         return None
-    return domain
 
 
 def shopify_order_params(start_date, end_date) -> dict[str, str]:
