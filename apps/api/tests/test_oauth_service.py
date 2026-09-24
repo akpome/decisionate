@@ -137,6 +137,31 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         self.assertEqual(query["code_challenge"], ["challenge-1"])
         self.assertEqual(query["code_challenge_method"], ["S256"])
 
+    def test_square_authorization_url_selects_the_production_account(self):
+        with patch.dict(
+            os.environ,
+            {
+                "SQUARE_CLIENT_ID": "client-id",
+                "SQUARE_CLIENT_SECRET": "client-secret",
+                "SQUARE_OAUTH_AUTHORIZATION_URL": (
+                    "https://connect.squareup.com/oauth2/authorize"
+                ),
+                "SQUARE_OAUTH_TOKEN_URL": (
+                    "https://connect.squareup.com/oauth2/token"
+                ),
+                "SQUARE_OAUTH_SCOPES": "ORDERS_READ",
+                "OAUTH_CALLBACK_URL": (
+                    "https://api.example.com/oauth/callback"
+                ),
+            },
+            clear=False,
+        ):
+            url = build_authorization_url("square", "state-1")
+
+        query = parse_qs(urlparse(url).query)
+        self.assertEqual(query["scope"], ["ORDERS_READ"])
+        self.assertEqual(query["session"], ["false"])
+
     def test_lightspeed_r_series_authorization_url_uses_read_only_pkce(self):
         with patch.dict(
             os.environ,

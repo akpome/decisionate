@@ -572,6 +572,10 @@ def build_authorization_url(
                 "prompt": "consent",
             }
         )
+    elif provider.source_type == "square":
+        # Ensure production sellers can choose the intended Square account
+        # when their identity has access to more than one account.
+        params["session"] = "false"
     elif provider.source_type in {
         "google_analytics",
         "google_search_console",
