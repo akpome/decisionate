@@ -156,7 +156,14 @@ export function DataSourceConnections({
       Object.fromEntries(
         getEditableConnectionConfigKeys(
           source
-        ).map((key) => [key, ""])
+        )
+          .filter(
+            (key) =>
+              key !==
+              (source?.oauth_account_key ??
+                connection.oauth_account_key)
+          )
+          .map((key) => [key, ""])
       )
     if (hasResourceTypeSelection(source)) {
       emptyConfig.resource_types = (
@@ -207,6 +214,11 @@ export function DataSourceConnections({
     const configKeys =
       getEditableConnectionConfigKeys(
         source
+      ).filter(
+        (key) =>
+          key !==
+          (source?.oauth_account_key ??
+            connection.oauth_account_key)
       )
     const connectionConfig =
       Object.fromEntries(
@@ -434,16 +446,18 @@ function DataSourceConnectionRow({
       connection,
       sources
     )
-  const configKeys =
-    getEditableConnectionConfigKeys(source).filter(
-      (configKey) => configKey !== "resource_types"
-    )
   const credentialKeys =
     getSourceCredentialKeys(source)
+  const oauthAccountKey =
+    source?.oauth_account_key ??
+    connection.oauth_account_key
   const editableConfigKeys =
-    getEditableConnectionConfigKeys(
-      source
+    getEditableConnectionConfigKeys(source).filter(
+      (configKey) => configKey !== oauthAccountKey
     )
+  const configKeys = editableConfigKeys.filter(
+    (configKey) => configKey !== "resource_types"
+  )
   const requiresEnvironmentCredentials =
     credentialKeys.length > 0 ||
     Boolean(
@@ -462,6 +476,8 @@ function DataSourceConnectionRow({
     hasResourceTypeSelection(source)
   const isOAuthConnector =
     source?.connection_type === "oauth"
+  const hasProviderManagedOAuthAccount =
+    isOAuthConnector && Boolean(oauthAccountKey)
   const isOAuthAuthorized =
     !isOAuthConnector ||
     connection.status === "connected"
@@ -504,6 +520,7 @@ function DataSourceConnectionRow({
         !sourceIsPlanned &&
         (source?.connection_type !== "oauth" ||
           connection.source_type === "sage") &&
+        !hasProviderManagedOAuthAccount &&
         source?.connection_type !== "api_key"
     )
   const requiredConnectionConfigKeys =
