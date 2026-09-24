@@ -612,7 +612,7 @@ class SageConnectorTests(unittest.TestCase):
 
         def fake_request(url, headers, **_kwargs):
             self.assertIn(
-                "updated_or_created_since=2026-01-01T00%3A00%3A00%2B00%3A00",
+                "updated_or_created_since=2026-01-01T00%3A00%3A00Z",
                 url,
             )
             self.assertNotIn("from_date=", url)
@@ -652,6 +652,110 @@ class SageConnectorTests(unittest.TestCase):
 
         self.assertEqual(len(dataframe), 1)
         self.assertEqual(dataframe.iloc[0]["record_id"], "invoice-updated")
+
+    def test_sage_retries_without_change_filter_after_server_error(self):
+        connection = SimpleNamespace(
+            id=12,
+            source_type="sage",
+            connection_config=json.dumps({"business_id": "business-1"}),
+        )
+        calls = []
+
+        def fake_request(url, headers, **_kwargs):
+            calls.append(url)
+            if "updated_or_created_since=" in url:
+                raise connectors.ConnectorUnavailable(
+                    "Connector request failed with HTTP 500: Sage returned a temporary server error"
+                )
+            return {
+                "$items": [{
+                    "id": "invoice-1",
+                    "updated_at": "2026-01-15T12:00:00Z",
+                }],
+                "$next": None,
+            }
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_API_BASE_URL": "https://api.example/sage",
+                "SAGE_BUSINESS_HEADER": "X-Site",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="sage-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=fake_request,
+        ):
+            dataframe, _ = connectors.load_sage_dataframe(
+                None,
+                connection,
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            )
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(dataframe), 1)
+        self.assertNotIn("updated_or_created_since=", calls[1])
+
+    def test_sage_follows_provider_pagination_link(self):
+        connection = SimpleNamespace(
+            id=13,
+            source_type="sage",
+            connection_config=json.dumps({"business_id": "business-1"}),
+        )
+        calls = []
+
+        def fake_request(url, headers, **_kwargs):
+            calls.append(url)
+            if len(calls) == 1:
+                return {
+                    "$items": [{"id": "invoice-1"}],
+                    "$next": "/sales_invoices?page=2&items_per_page=100",
+                }
+            return {"$items": [{"id": "invoice-2"}], "$next": None}
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_API_BASE_URL": "https://api.accounting.sage.com/v3.1",
+                "SAGE_BUSINESS_HEADER": "X-Business",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="sage-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=fake_request,
+        ):
+            dataframe, _ = connectors.load_sage_dataframe(
+                None,
+                connection,
+                resource_type_override="sales_invoices",
+            )
+
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(
+            calls[1],
+            "https://api.accounting.sage.com/v3.1/sales_invoices?"
+            "page=2&items_per_page=100",
+        )
+
+    def test_sage_pagination_link_with_api_version_path_is_not_duplicated(self):
+        self.assertEqual(
+            connectors.build_sage_pagination_url(
+                "https://api.accounting.sage.com/v3.1",
+                "/v3.1/sales_invoices?page=2",
+            ),
+            "https://api.accounting.sage.com/v3.1/sales_invoices?page=2",
+        )
 
     def test_sage_resource_selection_uses_documented_endpoint(self):
         connection = SimpleNamespace(

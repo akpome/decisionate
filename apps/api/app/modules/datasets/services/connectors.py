@@ -497,6 +497,54 @@ def normalize_sage_resource_types(config: dict) -> list[str]:
     return resources
 
 
+def format_sage_datetime(value) -> str:
+    """Format a sync boundary in the RFC3339 form Sage documents."""
+    if not isinstance(value, datetime):
+        value = datetime(
+            value.year,
+            value.month,
+            value.day,
+            tzinfo=UTC,
+        )
+    elif value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    else:
+        value = value.astimezone(UTC)
+    return value.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def build_sage_pagination_url(base_url: str, next_page) -> str:
+    """Resolve Sage's relative pagination link without dropping /v3.1."""
+    next_value = str(next_page or "").strip()
+    if not next_value:
+        return ""
+
+    parsed_next = urlparse(next_value)
+    parsed_base = urlparse(base_url)
+    if parsed_next.scheme or parsed_next.netloc:
+        if (
+            parsed_next.scheme != parsed_base.scheme
+            or parsed_next.hostname != parsed_base.hostname
+        ):
+            raise ConnectorUnavailable(
+                "Sage returned an invalid pagination URL"
+            )
+        return next_value
+
+    if next_value.startswith("?"):
+        return f"{base_url}{next_value}"
+    relative_next = next_value.lstrip("/")
+    base_path = parsed_base.path.rstrip("/").lstrip("/")
+    if relative_next == base_path or relative_next.startswith(
+        f"{base_path}/"
+    ):
+        return (
+            f"{parsed_base.scheme}://{parsed_base.netloc}/"
+            f"{relative_next}"
+        )
+    return f"{base_url.rstrip('/')}/{relative_next}"
+
+
 class ConnectorUnavailable(RuntimeError):
     pass
 
@@ -4745,39 +4793,77 @@ def load_sage_dataframe(
 
     resource_path, response_key = SAGE_RESOURCE_TYPES[resource_type]
     rows = []
-    page = 1
-    seen_pages = set()
+    request_url = ""
+    seen_request_urls = set()
+    used_unfiltered_fallback = False
     while True:
-        if page in seen_pages:
+        params = {
+            "items_per_page": str(PAGE_SIZE),
+            "page": "1",
+        }
+        if start_date and resource_type in SAGE_DATE_FILTER_RESOURCES:
+            params["updated_or_created_since"] = format_sage_datetime(
+                start_date
+            )
+        if not request_url:
+            request_url = (
+                f"{base_url.rstrip('/')}/{resource_path}?{urlencode(params)}"
+            )
+        if request_url in seen_request_urls:
             raise ConnectorUnavailable(
                 "Sage returned a repeated pagination page"
             )
-        seen_pages.add(page)
-        params = {
-            "items_per_page": str(PAGE_SIZE),
-            "page": str(page),
-        }
-        if start_date:
-            updated_since = start_date
-            if not isinstance(updated_since, datetime):
-                updated_since = datetime(
-                    updated_since.year,
-                    updated_since.month,
-                    updated_since.day,
-                    tzinfo=UTC,
+        seen_request_urls.add(request_url)
+        try:
+            payload = connector_json_request(
+                request_url,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    business_header: business_id,
+                    "Content-Type": "application/json",
+                },
+                source_type="sage",
+            )
+        except ConnectorUnavailable as error:
+            # Some Sage businesses return an HTML 500 for the optional change
+            # filter. A full response is still safe because the dataframe is
+            # filtered locally before it is persisted.
+            if (
+                not used_unfiltered_fallback
+                and start_date
+                and resource_type in SAGE_DATE_FILTER_RESOURCES
+                and "updated_or_created_since=" in request_url
+                and "http 500" in str(error).lower()
+            ):
+                logger.warning(
+                    "Sage rejected the change-time filter; retrying without "
+                    "it connection_id=%s resource=%s",
+                    getattr(connection, "id", None),
+                    resource_type,
                 )
-            elif updated_since.tzinfo is None:
-                updated_since = updated_since.replace(tzinfo=UTC)
-            params["updated_or_created_since"] = updated_since.isoformat()
-        payload = connector_json_request(
-            f"{base_url}/{resource_path}?{urlencode(params)}",
-            headers={
-                "Authorization": f"Bearer {access_token}",
-                business_header: business_id,
-                "Content-Type": "application/json",
-            },
-            source_type="sage",
-        )
+                fallback_params = {
+                    "items_per_page": str(PAGE_SIZE),
+                    "page": "1",
+                }
+                request_url = (
+                    f"{base_url.rstrip('/')}/{resource_path}?"
+                    f"{urlencode(fallback_params)}"
+                )
+                used_unfiltered_fallback = True
+                if request_url in seen_request_urls:
+                    raise
+                seen_request_urls.add(request_url)
+                payload = connector_json_request(
+                    request_url,
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        business_header: business_id,
+                        "Content-Type": "application/json",
+                    },
+                    source_type="sage",
+                )
+            else:
+                raise
         records = payload.get(response_key)
         if not isinstance(records, list):
             records = payload.get("items")
@@ -4800,13 +4886,9 @@ def load_sage_dataframe(
             )
 
         next_page = payload.get("$next")
-        if (
-            not records
-            or len(records) < PAGE_SIZE
-            or not next_page
-        ):
+        if not next_page:
             break
-        page += 1
+        request_url = build_sage_pagination_url(base_url, next_page)
 
     dataframe = pd.DataFrame(rows)
     if resource_type in SAGE_TRANSACTION_RESOURCES:
