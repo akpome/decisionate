@@ -6,6 +6,7 @@ import {
   Database,
   Eye,
   EyeOff,
+  RefreshCw,
 } from "lucide-react"
 
 import {
@@ -70,6 +71,9 @@ interface DataSourceConnectionsProps {
   onStartOAuthConnection?: (
     connection: DataSourceConnection
   ) => void
+  onRefreshSageBusinesses?: (
+    connection: DataSourceConnection
+  ) => void
   onCancelOAuthAuthorization?: (
     connection: DataSourceConnection
   ) => void
@@ -107,6 +111,7 @@ export function DataSourceConnections({
   onConfigureConnection,
   onSyncConnection,
   onStartOAuthConnection,
+  onRefreshSageBusinesses,
   onCancelOAuthAuthorization,
   onUpdateSchedule,
 }: DataSourceConnectionsProps) {
@@ -319,6 +324,9 @@ export function DataSourceConnections({
           onStartOAuthConnection={
             onStartOAuthConnection
           }
+          onRefreshSageBusinesses={
+            onRefreshSageBusinesses
+          }
           onCancelOAuthAuthorization={
             onCancelOAuthAuthorization
           }
@@ -362,6 +370,7 @@ function DataSourceConnectionRow({
   onConfigureConnection,
   onSyncConnection,
   onStartOAuthConnection,
+  onRefreshSageBusinesses,
   onCancelOAuthAuthorization,
   onUpdateSchedule,
   sources,
@@ -406,6 +415,9 @@ function DataSourceConnectionRow({
     payload: DataSourceConnectionSyncPayload
   ) => void
   onStartOAuthConnection?: (
+    connection: DataSourceConnection
+  ) => void
+  onRefreshSageBusinesses?: (
     connection: DataSourceConnection
   ) => void
   onCancelOAuthAuthorization?: (
@@ -523,6 +535,10 @@ function DataSourceConnectionRow({
         !hasProviderManagedOAuthAccount &&
         source?.connection_type !== "api_key"
     )
+  const canRefreshSageBusinesses =
+    connection.source_type === "sage" &&
+    isOAuthAuthorized &&
+    Boolean(onRefreshSageBusinesses)
   const requiredConnectionConfigKeys =
     Array.from(
       new Set([
@@ -1011,6 +1027,26 @@ function DataSourceConnectionRow({
                   {connection.authorization_error
                     ? t("Reconnect with OAuth")
                     : t("Connect with OAuth")}
+                </button>
+              )}
+
+              {canRefreshSageBusinesses && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onRefreshSageBusinesses?.(
+                      connection
+                    )
+                  }
+                  disabled={
+                    updatingConnectionId ===
+                    connection.id
+                  }
+                  title="Refresh Sage businesses"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--decisionate-brand-primary-ring)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  <RefreshCw size={14} />
+                  Refresh businesses
                 </button>
               )}
 

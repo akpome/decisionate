@@ -14,6 +14,7 @@ from app.db.models import OAuthConnectionState
 from app.db.models import OAuthCredential
 from app.modules.auth_context import get_auth_context
 from app.modules.datasets.router import (
+    build_source_connection_response,
     get_dataset_source,
     get_source_connection_config_status,
     mark_connection_authorization_failed,
@@ -27,9 +28,11 @@ from app.modules.datasets.services.authorization_notifications import (
     notify_workspace_owner_of_authorization_failure,
 )
 from app.modules.datasets.services.connectors import (
+    ConnectorUnavailable,
     WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG,
     WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG,
     connector_requires_reauthorization,
+    get_oauth_access_token,
 )
 from app.modules.oauth.service import (
     OAuthProviderUnavailable,
@@ -91,6 +94,8 @@ def apply_sage_business_selection(
     businesses: list[dict],
     payload: dict,
     query,
+    *,
+    allow_legacy_fallback: bool = True,
 ) -> dict:
     """Persist Sage business options and select only an unambiguous target."""
     account_options = build_oauth_account_options(
@@ -118,6 +123,11 @@ def apply_sage_business_selection(
         else:
             connection_config.pop("business_id", None)
         return connection_config
+
+    if not allow_legacy_fallback:
+        raise OAuthTokenExchangeError(
+            "Sage returned no accessible businesses"
+        )
 
     # Legacy regional v3 OAuth returns one resource owner but has no business
     # discovery endpoint. Preserve that valid single business while enabling
@@ -390,6 +400,69 @@ async def start_oauth_connection(
     except OAuthProviderUnavailable as error:
         db.rollback()
         raise HTTPException(status_code=503, detail=str(error)) from error
+    finally:
+        db.close()
+
+
+@router.post("/connections/{connection_id}/sage-businesses")
+async def refresh_sage_businesses(
+    request: Request,
+    connection_id: int,
+):
+    auth_context = get_auth_context(request)
+    if auth_context.workspace_role != "owner":
+        raise HTTPException(
+            status_code=403,
+            detail="Only workspace owners can refresh Sage businesses",
+        )
+
+    db = SessionLocal()
+    try:
+        connection = get_workspace_connection(
+            db,
+            connection_id,
+            auth_context,
+        )
+        if connection.source_type != "sage":
+            raise HTTPException(
+                status_code=400,
+                detail="Business refresh is only available for Sage",
+            )
+
+        connection_config = parse_source_connection_config(
+            connection.connection_config
+        )
+        try:
+            access_token = get_oauth_access_token(
+                db,
+                connection,
+                "sage",
+            )
+            businesses = get_sage_businesses(
+                access_token,
+                allow_legacy_fallback=False,
+            )
+            connection_config = apply_sage_business_selection(
+                connection_config,
+                businesses,
+                {},
+                {},
+                allow_legacy_fallback=False,
+            )
+        except (ConnectorUnavailable, OAuthTokenExchangeError) as error:
+            db.rollback()
+            raise HTTPException(
+                status_code=502,
+                detail=str(error),
+            ) from error
+
+        connection.connection_config = json.dumps(
+            connection_config,
+            sort_keys=True,
+        )
+        db.commit()
+        db.refresh(connection)
+        return build_source_connection_response(connection)
     finally:
         db.close()
 
@@ -718,12 +791,16 @@ def process_oauth_callback(request: Request):
             )
         if state_source_type == "sage":
             access_token = str(payload.get("access_token") or "").strip()
-            businesses = get_sage_businesses(access_token)
+            businesses = get_sage_businesses(
+                access_token,
+                allow_legacy_fallback=False,
+            )
             connection_config = apply_sage_business_selection(
                 connection_config,
                 businesses,
                 payload,
                 query,
+                allow_legacy_fallback=False,
             )
             connection.connection_config = json.dumps(
                 connection_config,

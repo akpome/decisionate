@@ -4937,6 +4937,37 @@ export async function startOAuthConnection(
   return response.json()
 }
 
+export async function refreshSageBusinesses(
+  connectionId: number,
+  userId: string,
+  workspaceId?: string
+): Promise<DataSourceConnection> {
+  const cleanConnectionId =
+    cleanPositiveIntegerId(
+      connectionId,
+      "Connection id"
+    )
+  const response = await apiFetch(
+    `${API_URL}/oauth/connections/${cleanConnectionId}/sage-businesses`,
+    {
+      method: "POST",
+      headers: await workspaceHeaders(
+        userId,
+        workspaceId
+      ),
+    }
+  )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to refresh Sage businesses"
+    )
+  }
+
+  return response.json()
+}
+
 export async function cancelOAuthAuthorization(
   connectionId: number,
   userId: string,

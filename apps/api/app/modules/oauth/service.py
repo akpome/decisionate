@@ -32,6 +32,11 @@ except ModuleNotFoundError:  # Optional until OAuth token storage is enabled.
     class InvalidToken(Exception):
         pass
 
+try:
+    from curl_cffi import requests as curl_requests
+except ModuleNotFoundError:  # Keep local installs without the optional transport usable.
+    curl_requests = None
+
 
 class OAuthProviderUnavailable(RuntimeError):
     pass
@@ -1033,7 +1038,58 @@ def exchange_code(
     return payload
 
 
-def get_sage_businesses(access_token: str) -> list[dict]:
+def _read_sage_businesses_response(
+    businesses_url: str,
+    access_token: str,
+) -> str:
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
+    if curl_requests is not None:
+        try:
+            response = curl_requests.get(
+                businesses_url,
+                headers=headers,
+                timeout=20,
+                impersonate="chrome",
+            )
+        except Exception as error:
+            raise OAuthTokenExchangeError(
+                "Sage business lookup is unavailable"
+            ) from error
+        if response.status_code >= 400:
+            raise OAuthTokenExchangeError(
+                f"Sage business lookup failed with HTTP "
+                f"{response.status_code}: {response.text[:240]}"
+            )
+        return response.text
+
+    request = Request(
+        businesses_url.rstrip("/"),
+        headers=headers,
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            return response.read().decode("utf-8")
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise OAuthTokenExchangeError(
+            f"Sage business lookup failed with HTTP {error.code}: "
+            f"{detail[:240]}"
+        ) from error
+    except (URLError, TimeoutError, OSError) as error:
+        raise OAuthTokenExchangeError(
+            "Sage business lookup is unavailable"
+        ) from error
+
+
+def get_sage_businesses(
+    access_token: str,
+    *,
+    allow_legacy_fallback: bool = True,
+) -> list[dict]:
     """Return Sage businesses available to the OAuth identity.
 
     The current Sage Accounting API exposes business discovery separately
@@ -1055,42 +1111,20 @@ def get_sage_businesses(access_token: str) -> list[dict]:
     if not businesses_url:
         businesses_url = SAGE_DEFAULT_BUSINESSES_API_URL
 
-    request = Request(
-        businesses_url.rstrip("/"),
-        headers={
-            "Accept": "application/json",
-            "Authorization": f"Bearer {access_token}",
-        },
-        method="GET",
-    )
     try:
-        with urlopen(request, timeout=20) as response:
-            body = response.read().decode("utf-8")
-    except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        if not configured_businesses_url:
-            logger.warning(
-                "Sage business discovery unavailable; using the OAuth "
-                "resource owner fallback status=%s detail=%s",
-                error.code,
-                detail[:240],
-            )
-            return []
-        raise OAuthTokenExchangeError(
-            f"Sage business lookup failed with HTTP {error.code}: "
-            f"{detail[:240]}"
-        ) from error
-    except (URLError, TimeoutError, OSError) as error:
-        if not configured_businesses_url:
+        body = _read_sage_businesses_response(
+            businesses_url,
+            access_token,
+        )
+    except OAuthTokenExchangeError:
+        if allow_legacy_fallback and not configured_businesses_url:
             logger.warning(
                 "Sage business discovery unavailable; using the OAuth "
                 "resource owner fallback",
                 exc_info=True,
             )
             return []
-        raise OAuthTokenExchangeError(
-            "Sage business lookup is unavailable"
-        ) from error
+        raise
 
     try:
         payload = json.loads(body)

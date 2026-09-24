@@ -4,7 +4,7 @@ import unittest
 from datetime import date
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from app.modules.datasets.services import connectors
 from app.modules.oauth.service import (
@@ -19,6 +19,42 @@ from app.modules.oauth.service import (
 
 
 class SageConnectorTests(unittest.TestCase):
+    def test_sage_business_discovery_uses_browser_compatible_transport(self):
+        curl = MagicMock()
+        curl.get.return_value = type(
+            "Response",
+            (),
+            {
+                "status_code": 200,
+                "text": '{"$items": [{"id": "business-1", "displayed_as": "Primary"}]}',
+            },
+        )()
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_BUSINESSES_API_URL": (
+                    "https://api.accounting.sage.com/v3.1/businesses"
+                ),
+            },
+            clear=False,
+        ), patch("app.modules.oauth.service.curl_requests", curl):
+            businesses = get_sage_businesses("sage-token")
+
+        self.assertEqual(
+            businesses,
+            [{"business_id": "business-1", "name": "Primary"}],
+        )
+        curl.get.assert_called_once_with(
+            "https://api.accounting.sage.com/v3.1/businesses",
+            headers={
+                "Accept": "application/json",
+                "Authorization": "Bearer sage-token",
+            },
+            timeout=20,
+            impersonate="chrome",
+        )
+
     def test_sage_business_discovery_normalizes_business_options(self):
         class Response:
             def __enter__(self):
@@ -48,7 +84,10 @@ class SageConnectorTests(unittest.TestCase):
                 ),
             },
             clear=False,
-        ), patch("app.modules.oauth.service.urlopen", return_value=Response()) as urlopen:
+        ), patch("app.modules.oauth.service.curl_requests", None), patch(
+            "app.modules.oauth.service.urlopen",
+            return_value=Response(),
+        ) as urlopen:
             businesses = get_sage_businesses("sage-token")
 
         self.assertEqual(
@@ -80,7 +119,10 @@ class SageConnectorTests(unittest.TestCase):
                 "SAGE_API_BASE_URL": "https://api.accounting.sage.com/v3.1",
             },
             clear=False,
-        ), patch("app.modules.oauth.service.urlopen", return_value=Response()) as urlopen:
+        ), patch("app.modules.oauth.service.curl_requests", None), patch(
+            "app.modules.oauth.service.urlopen",
+            return_value=Response(),
+        ) as urlopen:
             get_sage_businesses("sage-token")
 
         request = urlopen.call_args.args[0]
@@ -109,7 +151,10 @@ class SageConnectorTests(unittest.TestCase):
                 ),
             },
             clear=False,
-        ), patch("app.modules.oauth.service.urlopen", return_value=Response()) as urlopen:
+        ), patch("app.modules.oauth.service.curl_requests", None), patch(
+            "app.modules.oauth.service.urlopen",
+            return_value=Response(),
+        ) as urlopen:
             businesses = get_sage_businesses("sage-token")
 
         self.assertEqual(

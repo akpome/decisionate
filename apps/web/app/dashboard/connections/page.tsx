@@ -16,6 +16,7 @@ import {
   deleteDataSourceConnection,
   getDataSourceConnections,
   getDatasetSources,
+  refreshSageBusinesses,
   syncDataSourceConnection,
   startOAuthConnection,
   updateDataSourceConnectionSchedule,
@@ -616,6 +617,51 @@ function ConnectionsPageContent({
     }
   }
 
+  async function handleRefreshSageBusinesses(
+    connection: DataSourceConnection
+  ) {
+    if (!user?.id) return
+
+    setUpdatingConnectionId(connection.id)
+    setConnectionError("")
+    clearConnectionFeedback(connection.id)
+    try {
+      const updatedConnection =
+        await refreshSageBusinesses(
+          connection.id,
+          user.id,
+          activeWorkspaceId
+        )
+      setSourceConnections((currentConnections) =>
+        currentConnections.map((currentConnection) =>
+          currentConnection.id === updatedConnection.id
+            ? updatedConnection
+            : currentConnection
+        )
+      )
+      const businessCount =
+        updatedConnection.oauth_account_options?.length ?? 0
+      showConnectionFeedback(
+        connection.id,
+        "success",
+        businessCount > 1
+          ? `Found ${businessCount} Sage businesses. Select one before syncing.`
+          : "Sage business list refreshed."
+      )
+    } catch (error) {
+      showConnectionFeedback(
+        connection.id,
+        "error",
+        getCustomerFacingConnectionError(
+          error,
+          "Sage businesses could not be loaded. Reconnect with OAuth and try again."
+        )
+      )
+    } finally {
+      setUpdatingConnectionId(null)
+    }
+  }
+
   async function handleUpdateConnectionSchedule(
     connection: DataSourceConnection,
     enabled: boolean,
@@ -920,6 +966,11 @@ function ConnectionsPageContent({
             onStartOAuthConnection={
               canConfigureWorkspace
                 ? handleStartOAuthConnection
+                : undefined
+            }
+            onRefreshSageBusinesses={
+              canConfigureWorkspace
+                ? handleRefreshSageBusinesses
                 : undefined
             }
             onCancelOAuthAuthorization={
