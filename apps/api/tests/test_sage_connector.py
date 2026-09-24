@@ -9,6 +9,7 @@ from unittest.mock import patch
 from app.modules.datasets.services import connectors
 from app.modules.oauth.service import (
     build_authorization_url,
+    build_token_request,
     get_sage_token_url,
     normalize_sage_country,
 )
@@ -105,6 +106,18 @@ class SageConnectorTests(unittest.TestCase):
                 get_sage_token_url(),
                 "https://oauth.accounting.sage.com/token",
             )
+
+    def test_sage_token_request_uses_browser_compatible_user_agent(self):
+        request = build_token_request(
+            "sage",
+            "https://oauth.accounting.sage.com/token",
+            {"grant_type": "authorization_code"},
+            {"Accept": "application/json"},
+        )
+
+        self.assertTrue(
+            request.get_header("User-agent").startswith("Mozilla/5.0")
+        )
 
     def test_sage_invoices_are_normalized_for_analytics(self):
         connection = SimpleNamespace(

@@ -744,7 +744,12 @@ def build_token_request(
     request_headers = {
         **headers,
         "Content-Type": content_type,
-        "User-Agent": "Decisionate/1.0 (+https://decisionate.ca)",
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            if source_type == "sage"
+            else "Decisionate/1.0 (+https://decisionate.ca)"
+        ),
     }
     if source_type == "zoho_books":
         separator = "&" if "?" in token_url else "?"
