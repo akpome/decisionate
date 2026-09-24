@@ -416,12 +416,46 @@ def get_zoho_books_organizations(
     ]
 
 
+SAGE_COUNTRY_ALIASES = {
+    "CA": "CA",
+    "CAN": "CA",
+    "CANADA": "CA",
+    "US": "US",
+    "USA": "US",
+    "UNITEDSTATES": "US",
+    "DE": "DE",
+    "DEU": "DE",
+    "GERMANY": "DE",
+    "ES": "ES",
+    "ESP": "ES",
+    "SPAIN": "ES",
+    "FR": "FR",
+    "FRA": "FR",
+    "FRANCE": "FR",
+    "GB": "GB",
+    "GBR": "GB",
+    "UK": "GB",
+    "UNITEDKINGDOM": "GB",
+    "IE": "IE",
+    "IRL": "IE",
+    "IRELAND": "IE",
+}
+
+
+def normalize_sage_country(country: str | None) -> str:
+    normalized = re.sub(r"[^A-Z]", "", str(country or "").upper())
+    return SAGE_COUNTRY_ALIASES.get(normalized, "")
+
+
 def get_sage_token_url(country: str | None = None) -> str:
     configured = clean_env("SAGE_OAUTH_TOKEN_URL")
-    normalized_country = str(country or "").strip().upper()
+    normalized_country = normalize_sage_country(country)
     regional_urls = {
         "CA": "https://oauth.na.sageone.com/token",
         "US": "https://oauth.na.sageone.com/token",
+        "DE": "https://oauth.eu.sageone.com/token",
+        "ES": "https://oauth.eu.sageone.com/token",
+        "FR": "https://oauth.eu.sageone.com/token",
         "GB": "https://app.sageone.com/oauth2/token",
         "IE": "https://app.sageone.com/oauth2/token",
     }
@@ -437,7 +471,9 @@ def get_sage_token_url(country: str | None = None) -> str:
     if normalized_country in regional_urls:
         return regional_urls[normalized_country]
     if configured:
-        return configured
+        raise OAuthProviderUnavailable(
+            "Sage OAuth region is required before exchanging the authorization code"
+        )
     raise OAuthProviderUnavailable(
         "SAGE_OAUTH_TOKEN_URL is required for Sage OAuth"
     )

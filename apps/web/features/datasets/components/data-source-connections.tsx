@@ -38,6 +38,7 @@ export const REQUIRED_CONNECTION_CONFIG_KEYS: Record<
   lightspeed_k: ["business_location_id", "resource_types"],
   lightspeed_o: ["company_id", "resource_types"],
   meta_ads: ["ad_account_id"],
+  sage: ["country", "resource_types"],
 }
 
 interface DataSourceConnectionsProps {
@@ -501,7 +502,8 @@ function DataSourceConnectionRow({
             configKey !== "resource_types"
         ) &&
         !sourceIsPlanned &&
-        source?.connection_type !== "oauth" &&
+        (source?.connection_type !== "oauth" ||
+          connection.source_type === "sage") &&
         source?.connection_type !== "api_key"
     )
   const requiredConnectionConfigKeys =
@@ -1507,6 +1509,16 @@ const SAGE_RESOURCE_OPTIONS = [
   { value: "journals", label: "Journals" },
 ]
 
+const SAGE_COUNTRY_OPTIONS = [
+  { value: "CA", label: "Canada" },
+  { value: "US", label: "United States" },
+  { value: "DE", label: "Germany" },
+  { value: "ES", label: "Spain" },
+  { value: "FR", label: "France" },
+  { value: "GB", label: "United Kingdom" },
+  { value: "IE", label: "Ireland" },
+]
+
 const HUBSPOT_RESOURCE_OPTIONS = [
   { value: "contacts", label: "Contacts" },
   { value: "companies", label: "Companies" },
@@ -1972,6 +1984,10 @@ const CONNECTION_FIELD_GUIDES: Record<
     },
   },
   sage: {
+    country: {
+      description: "Select the country/region of the Sage business you are authorizing.",
+      example: "Canada",
+    },
     business_id: {
       description: "Optional Sage business identifier. OAuth supplies it when left blank.",
       example: "123456789",
@@ -2212,6 +2228,29 @@ function ConnectionConfigField({
   const valueVisibilityLabel = showValue
     ? `Hide ${label.toLowerCase()}`
     : `Show ${label.toLowerCase()}`
+
+  if (sourceType === "sage" && configKey === "country") {
+    return (
+      <label className="block min-w-0 text-xs font-medium uppercase tracking-wide text-gray-500">
+        <span>{label}</span>
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={`${sharedClassName} h-9`}
+        >
+          <option value="">Select a region</option>
+          {SAGE_COUNTRY_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <span className="mt-1 block normal-case tracking-normal text-gray-500">
+          This selects Sage&apos;s regional OAuth authorization server.
+        </span>
+      </label>
+    )
+  }
 
   if (sourceType === "salesforce" && configKey === "resource_types") {
     const selectedResources = new Set(
@@ -2819,6 +2858,10 @@ function formatConnectionConfigLabel(
 
   if (sourceType === "lightspeed_o" && key === "company_id") {
     return "Company ID"
+  }
+
+  if (sourceType === "sage" && key === "country") {
+    return "Sage region"
   }
 
   if (sourceType === "lightspeed_o" && key === "site_id") {

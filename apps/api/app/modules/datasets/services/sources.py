@@ -381,7 +381,8 @@ DATASET_SOURCES = [
         "connection_type": "oauth",
         "oauth_account_key": "business_id",
         "sync_modes": ["manual", "scheduled"],
-        "config_keys": ["business_id", "resource_types"],
+        "config_keys": ["country", "business_id", "resource_types"],
+        "required_config_keys": ["country", "resource_types"],
         "description": (
             "Choose one or more Sage Cloud Accounting objects to ingest through "
             "OAuth: sales invoices, purchase invoices, sales credit notes, "

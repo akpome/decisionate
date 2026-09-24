@@ -45,6 +45,7 @@ from app.modules.oauth.service import (
     get_freshbooks_businesses,
     get_provider,
     normalize_lightspeed_x_domain_prefix,
+    normalize_sage_country,
     get_zoho_books_organizations,
     get_xero_connections,
     get_web_app_url,
@@ -193,6 +194,7 @@ def get_oauth_config_requirement_error(
         "resource_types": "at least one resource to ingest",
         "ad_account_id": "the Meta Ads account ID",
         "customer_id": "the Google Ads customer ID",
+        "country": "the Sage region",
     }
     missing_labels = [
         field_labels.get(key, key)
@@ -466,12 +468,17 @@ def process_oauth_callback(request: Request):
             connection.connection_config
         )
         if state_source_type == "sage":
-            callback_country = str(
+            callback_country = normalize_sage_country(
                 query.get("country")
                 or query.get("country_code")
-                or ""
-            ).strip().upper()
-            if callback_country:
+                or query.get("countryCode")
+            )
+            configured_country = normalize_sage_country(
+                connection_config.get("country")
+            )
+            if configured_country:
+                connection_config["country"] = configured_country
+            elif callback_country:
                 connection_config["country"] = callback_country
         if state_source_type == "zoho_books":
             callback_accounts_server = str(

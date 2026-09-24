@@ -715,7 +715,7 @@ class DatasetSharingTests(unittest.TestCase):
         self.assertEqual(source["connection_type"], "oauth")
         self.assertEqual(
             source["config_keys"],
-            ["business_id", "resource_types"],
+            ["country", "business_id", "resource_types"],
         )
 
     def test_freshbooks_exposes_resource_selector(self):
