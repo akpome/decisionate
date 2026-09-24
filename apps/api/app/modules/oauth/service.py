@@ -418,6 +418,24 @@ def get_zoho_books_organizations(
 
 def get_sage_token_url(country: str | None = None) -> str:
     configured = clean_env("SAGE_OAUTH_TOKEN_URL")
+    normalized_country = str(country or "").strip().upper()
+    regional_urls = {
+        "CA": "https://oauth.na.sageone.com/token",
+        "US": "https://oauth.na.sageone.com/token",
+        "GB": "https://app.sageone.com/oauth2/token",
+        "IE": "https://app.sageone.com/oauth2/token",
+    }
+
+    # Keep explicit non-generic endpoints usable for deployments targeting a
+    # different Sage environment. The generic v3.1 endpoint is replaced with
+    # Sage's country-specific endpoint because the OAuth response supplies the
+    # region only after authorization.
+    if configured and configured.rstrip("/") != (
+        "https://oauth.accounting.sage.com/token"
+    ):
+        return configured
+    if normalized_country in regional_urls:
+        return regional_urls[normalized_country]
     if configured:
         return configured
     raise OAuthProviderUnavailable(
@@ -696,6 +714,7 @@ def build_token_request(
     request_headers = {
         **headers,
         "Content-Type": content_type,
+        "User-Agent": "Decisionate/1.0 (+https://decisionate.ca)",
     }
     if source_type == "zoho_books":
         separator = "&" if "?" in token_url else "?"

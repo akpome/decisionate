@@ -34,6 +34,33 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(query["scope"], ["readonly"])
         self.assertEqual(token_url, "https://oauth.example/token")
 
+    def test_sage_uses_regional_token_endpoints_for_default_v31_url(self):
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_OAUTH_TOKEN_URL": (
+                    "https://oauth.accounting.sage.com/token"
+                ),
+            },
+            clear=False,
+        ):
+            self.assertEqual(
+                get_sage_token_url("CA"),
+                "https://oauth.na.sageone.com/token",
+            )
+            self.assertEqual(
+                get_sage_token_url("US"),
+                "https://oauth.na.sageone.com/token",
+            )
+            self.assertEqual(
+                get_sage_token_url("GB"),
+                "https://app.sageone.com/oauth2/token",
+            )
+            self.assertEqual(
+                get_sage_token_url("IE"),
+                "https://app.sageone.com/oauth2/token",
+            )
+
     def test_sage_invoices_are_normalized_for_analytics(self):
         connection = SimpleNamespace(
             id=7,
