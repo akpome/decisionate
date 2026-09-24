@@ -713,6 +713,21 @@ function DataSourceConnectionRow({
     )
   }
 
+  function handleConnectionConfigChange(
+    configKey: string,
+    value: string
+  ) {
+    if (
+      connection.source_type === "sage" &&
+      configKey === "country" &&
+      value.trim()
+    ) {
+      onConfigureConnection?.(connection, {
+        country: value.trim(),
+      })
+    }
+  }
+
   return (
     <div className="grid min-w-0 grid-cols-1 gap-4 bg-white p-4 first:rounded-t-xl last:rounded-b-xl lg:grid-cols-2 lg:items-start">
       <div className="min-w-0 flex-1">
@@ -1111,6 +1126,7 @@ function DataSourceConnectionRow({
                     ? ["password"]
                     : []
                 }
+                onConfigChange={handleConnectionConfigChange}
               />
             )}
 
@@ -1289,6 +1305,7 @@ function DataSourceConnectionRow({
                         ? ["consumer_key", "consumer_secret"]
                         : []
                     }
+                    onConfigChange={handleConnectionConfigChange}
                   />
 
                   {connection.source_type === "meta_ads" && (
@@ -2137,6 +2154,7 @@ function ConnectionConfigFieldGroup({
   setEditingConnectionConfig,
   secret = false,
   secretKeys = [],
+  onConfigChange,
 }: {
   title: string
   configKeys: string[]
@@ -2148,6 +2166,7 @@ function ConnectionConfigFieldGroup({
   ) => void
   secret?: boolean
   secretKeys?: string[]
+  onConfigChange?: (configKey: string, value: string) => void
 }) {
   const { t } = useDecisionateText()
 
@@ -2171,12 +2190,13 @@ function ConnectionConfigFieldGroup({
             hasSavedConfig={hasSavedConfig}
             secret={secret}
             secretKeys={secretKeys}
-            onChange={(value) =>
+            onChange={(value) => {
               setEditingConnectionConfig({
                 ...editingConnectionConfig,
                 [configKey]: value,
               })
-            }
+              onConfigChange?.(configKey, value)
+            }}
           />
         ))}
       </div>

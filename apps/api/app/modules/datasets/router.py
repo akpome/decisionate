@@ -4444,6 +4444,13 @@ async def update_source_connection(
                     and config_key not in next_config
                 ):
                     next_config[config_key] = config_value
+                if (
+                    connection.source_type == "sage"
+                    and config_key == "resource_types"
+                    and is_partial_config_update
+                    and config_key not in next_config
+                ):
+                    next_config[config_key] = config_value
             if (
                 connection.source_type == "lightspeed_x"
                 and is_partial_config_update
