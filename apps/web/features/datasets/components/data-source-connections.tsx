@@ -1394,7 +1394,11 @@ function DataSourceConnectionRow({
           className="h-full min-w-0 lg:col-start-2 lg:row-start-2"
         >
           <ConnectionAccountSelector
-            label={source?.label ?? "Provider"}
+            label={
+              connection.source_type === "sage"
+                ? "Sage business"
+                : source?.label ?? "Provider"
+            }
             options={oauthAccountOptions}
             value={connection.oauth_account_value ?? ""}
             disabled={
@@ -2023,7 +2027,7 @@ const CONNECTION_FIELD_GUIDES: Record<
       example: "Canada",
     },
     business_id: {
-      description: "Optional Sage business identifier. OAuth supplies it when left blank.",
+      description: "Select the Sage business returned after OAuth authorization.",
       example: "123456789",
     },
     resource_types: {

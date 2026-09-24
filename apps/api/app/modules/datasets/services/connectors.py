@@ -4721,8 +4721,14 @@ def load_sage_dataframe(
     base_url = require_provider_url("SAGE_API_BASE_URL")
     business_header = get_provider_setting("SAGE_BUSINESS_HEADER")
     if not business_header:
-        raise ConnectorUnavailable(
-            "SAGE_BUSINESS_HEADER is required for the Sage connector"
+        parsed_base_url = urlparse(base_url)
+        business_header = (
+            "X-Business"
+            if (
+                parsed_base_url.hostname == "api.accounting.sage.com"
+                and parsed_base_url.path.rstrip("/").endswith("/v3.1")
+            )
+            else "X-Site"
         )
 
     resource_path, response_key = SAGE_RESOURCE_TYPES[resource_type]

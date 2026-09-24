@@ -1030,6 +1030,95 @@ def exchange_code(
     return payload
 
 
+def get_sage_businesses(access_token: str) -> list[dict]:
+    """Return Sage businesses available to the OAuth identity.
+
+    The current Sage Accounting API exposes business discovery separately
+    from the token response. Older regional v3 deployments do not expose the
+    endpoint, so the caller can fall back to the token's resource owner ID.
+    """
+    businesses_url = get_provider_setting("SAGE_BUSINESSES_API_URL")
+    if not businesses_url:
+        api_base_url = get_provider_setting("SAGE_API_BASE_URL")
+        parsed_base_url = urlparse(api_base_url)
+        if (
+            parsed_base_url.hostname == "api.accounting.sage.com"
+            and parsed_base_url.path.rstrip("/").endswith("/v3.1")
+        ):
+            businesses_url = f"{api_base_url.rstrip('/')}/businesses"
+    if not businesses_url:
+        return []
+
+    request = Request(
+        businesses_url.rstrip("/"),
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        },
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            body = response.read().decode("utf-8")
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise OAuthTokenExchangeError(
+            f"Sage business lookup failed with HTTP {error.code}: "
+            f"{detail[:240]}"
+        ) from error
+    except (URLError, TimeoutError, OSError) as error:
+        raise OAuthTokenExchangeError(
+            "Sage business lookup is unavailable"
+        ) from error
+
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as error:
+        raise OAuthTokenExchangeError(
+            "Sage returned an invalid business lookup response"
+        ) from error
+
+    if isinstance(payload, list):
+        records = payload
+    elif isinstance(payload, dict):
+        records = None
+        for key in ("$items", "items", "businesses", "data"):
+            if key in payload:
+                records = payload[key]
+                break
+    else:
+        records = None
+    if not isinstance(records, list):
+        raise OAuthTokenExchangeError(
+            "Sage returned no business list"
+        )
+
+    businesses = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        business_id = str(
+            record.get("id")
+            or record.get("business_id")
+            or record.get("resource_owner_id")
+            or ""
+        ).strip()
+        if not business_id:
+            continue
+        businesses.append(
+            {
+                "business_id": business_id,
+                "name": str(
+                    record.get("name")
+                    or record.get("displayed_as")
+                    or record.get("business_name")
+                    or business_id
+                ).strip(),
+            }
+        )
+    return businesses
+
+
 def get_freshbooks_businesses(access_token: str) -> list[dict]:
     """Return FreshBooks businesses available to the authorized identity."""
     identity_url = get_provider_setting("FRESHBOOKS_IDENTITY_API_URL")

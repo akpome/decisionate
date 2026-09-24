@@ -44,6 +44,7 @@ from app.modules.oauth.service import (
     exchange_code,
     get_freshbooks_businesses,
     get_provider,
+    get_sage_businesses,
     normalize_lightspeed_x_domain_prefix,
     normalize_sage_country,
     get_zoho_books_organizations,
@@ -83,6 +84,60 @@ def build_oauth_account_options(
         options.append({"id": identifier, "label": label})
         seen_ids.add(identifier)
     return options
+
+
+def apply_sage_business_selection(
+    connection_config: dict,
+    businesses: list[dict],
+    payload: dict,
+    query,
+) -> dict:
+    """Persist Sage business options and select only an unambiguous target."""
+    account_options = build_oauth_account_options(
+        businesses,
+        "business_id",
+        ("name",),
+    )
+    if account_options:
+        connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = account_options
+        configured_business_id = str(
+            connection_config.get("business_id") or ""
+        ).strip()
+        selected_business_id = next(
+            (
+                option["id"]
+                for option in account_options
+                if option["id"] == configured_business_id
+            ),
+            None,
+        )
+        if selected_business_id is None and len(account_options) == 1:
+            selected_business_id = account_options[0]["id"]
+        if selected_business_id:
+            connection_config["business_id"] = selected_business_id
+        else:
+            connection_config.pop("business_id", None)
+        return connection_config
+
+    # Legacy regional v3 OAuth returns one resource owner but has no business
+    # discovery endpoint. Preserve that valid single business while enabling
+    # the selector for v3.1 deployments.
+    business_id = str(
+        payload.get("resource_owner_id")
+        or payload.get("business_id")
+        or query.get("resource_owner_id")
+        or query.get("business_id")
+        or ""
+    ).strip()
+    if not business_id:
+        raise OAuthTokenExchangeError(
+            "Sage did not return a business identifier"
+        )
+    connection_config["business_id"] = business_id
+    connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = [
+        {"id": business_id, "label": business_id}
+    ]
+    return connection_config
 
 
 def clear_stale_oauth_authorization(
@@ -662,18 +717,14 @@ def process_oauth_callback(request: Request):
                 sort_keys=True,
             )
         if state_source_type == "sage":
-            business_id = str(
-                payload.get("resource_owner_id")
-                or payload.get("business_id")
-                or query.get("resource_owner_id")
-                or query.get("business_id")
-                or ""
-            ).strip()
-            if not business_id:
-                raise OAuthTokenExchangeError(
-                    "Sage did not return a business identifier"
-                )
-            connection_config["business_id"] = business_id
+            access_token = str(payload.get("access_token") or "").strip()
+            businesses = get_sage_businesses(access_token)
+            connection_config = apply_sage_business_selection(
+                connection_config,
+                businesses,
+                payload,
+                query,
+            )
             connection.connection_config = json.dumps(
                 connection_config,
                 sort_keys=True,

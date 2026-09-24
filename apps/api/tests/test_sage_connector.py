@@ -11,6 +11,7 @@ from app.modules.oauth.service import (
     OAuthProviderUnavailable,
     build_authorization_url,
     build_token_request,
+    get_sage_businesses,
     get_sage_token_url,
     normalize_sage_country,
     read_token_response,
@@ -18,6 +19,76 @@ from app.modules.oauth.service import (
 
 
 class SageConnectorTests(unittest.TestCase):
+    def test_sage_business_discovery_normalizes_business_options(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {
+                        "$items": [
+                            {"id": "business-1", "name": "Primary"},
+                            {
+                                "business_id": "business-2",
+                                "displayed_as": "Secondary",
+                            },
+                        ]
+                    }
+                ).encode()
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_BUSINESSES_API_URL": (
+                    "https://api.accounting.sage.com/v3.1/businesses"
+                ),
+            },
+            clear=False,
+        ), patch("app.modules.oauth.service.urlopen", return_value=Response()) as urlopen:
+            businesses = get_sage_businesses("sage-token")
+
+        self.assertEqual(
+            businesses,
+            [
+                {"business_id": "business-1", "name": "Primary"},
+                {"business_id": "business-2", "name": "Secondary"},
+            ],
+        )
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.accounting.sage.com/v3.1/businesses")
+        self.assertEqual(request.get_header("Authorization"), "Bearer sage-token")
+
+    def test_sage_business_discovery_derives_current_v31_endpoint(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"items": []}'
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_BUSINESSES_API_URL": "",
+                "SAGE_API_BASE_URL": "https://api.accounting.sage.com/v3.1",
+            },
+            clear=False,
+        ), patch("app.modules.oauth.service.urlopen", return_value=Response()) as urlopen:
+            get_sage_businesses("sage-token")
+
+        request = urlopen.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "https://api.accounting.sage.com/v3.1/businesses",
+        )
+
     def test_sage_authorization_uses_read_only_consent(self):
         with patch.dict(
             os.environ,
@@ -204,6 +275,41 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.iloc[0]["invoice_id"], "invoice-1")
         self.assertEqual(dataframe.iloc[0]["total_amount"], 1200)
         self.assertEqual(report["connector"], "sage")
+
+    def test_sage_v31_defaults_to_x_business_header(self):
+        connection = SimpleNamespace(
+            id=10,
+            source_type="sage",
+            connection_config=json.dumps({"business_id": "business-1"}),
+        )
+
+        def fake_request(_url, headers):
+            self.assertEqual(headers["X-Business"], "business-1")
+            return {"$items": [], "$next": None}
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_API_BASE_URL": "https://api.accounting.sage.com/v3.1",
+                "SAGE_BUSINESS_HEADER": "",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="sage-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=fake_request,
+        ):
+            dataframe, _ = connectors.load_sage_dataframe(
+                None,
+                connection,
+                resource_type_override="contacts",
+            )
+
+        self.assertTrue(dataframe.empty)
 
     def test_sage_invoices_sync_by_updated_or_created_date(self):
         connection = SimpleNamespace(

@@ -19,6 +19,7 @@ from app.modules.oauth.service import (
     revoke_oauth_token,
 )
 from app.modules.oauth.router import (
+    apply_sage_business_selection,
     clear_stale_oauth_authorization,
     get_oauth_config_requirement_error,
 )
@@ -32,6 +33,36 @@ from app.modules.datasets.services.scheduling import (
 
 
 class OAuthAndSchedulingTests(unittest.TestCase):
+    def test_sage_business_selection_requires_a_choice_for_multiple_businesses(self):
+        config = apply_sage_business_selection(
+            {},
+            [
+                {"business_id": "business-1", "name": "Primary"},
+                {"business_id": "business-2", "name": "Secondary"},
+            ],
+            {"access_token": "token"},
+            {},
+        )
+
+        self.assertNotIn("business_id", config)
+        self.assertEqual(
+            config["_oauth_account_options"],
+            [
+                {"id": "business-1", "label": "Primary"},
+                {"id": "business-2", "label": "Secondary"},
+            ],
+        )
+
+    def test_sage_business_selection_auto_selects_single_business(self):
+        config = apply_sage_business_selection(
+            {},
+            [{"business_id": "business-1", "name": "Primary"}],
+            {"access_token": "token"},
+            {},
+        )
+
+        self.assertEqual(config["business_id"], "business-1")
+
     def test_reconnect_removes_failed_stored_credential_for_every_oauth_connector(self):
         credential = types.SimpleNamespace(
             refresh_token_encrypted="encrypted-refresh-token",

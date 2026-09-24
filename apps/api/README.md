@@ -342,10 +342,14 @@ stores one row per campaign and day. Configure
 OAuth settings in `.env.example`.
 Sage requires `SAGE_CLIENT_ID`, `SAGE_CLIENT_SECRET`, and an encrypted OAuth
 token key. Sage is imported with the provider's read-only OAuth consent and the
-selected business resource owner ID returned during authorization. Configure
-the Sage API endpoint and business selector header with `SAGE_API_BASE_URL`
-and `SAGE_BUSINESS_HEADER`. The connector uses the OAuth bearer token directly;
-it does not require an APIM or subscription key.
+selected business ID returned during authorization. For the current v3.1 API,
+set `SAGE_BUSINESSES_API_URL` to the provider's `/v3.1/businesses` endpoint;
+after OAuth, Decisionate lists the businesses, stores the user's selection, and
+uses it for subsequent requests. Set `SAGE_BUSINESS_HEADER=X-Business` with
+the v3.1 API. Legacy regional v3 deployments can leave business discovery
+blank and continue using `resource_owner_id` with `SAGE_BUSINESS_HEADER=X-Site`.
+The connector uses the OAuth bearer token directly; it does not require an
+APIM or subscription key.
 PostgreSQL, MySQL, and SQL Server use customer-specific connection settings:
 host, optional port, database, read-only username, password, and a SELECT or
 WITH query. Passwords are encrypted before persistence. PostgreSQL and MySQL

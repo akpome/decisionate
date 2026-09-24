@@ -388,7 +388,7 @@ DATASET_SOURCES = [
             "OAuth: sales invoices, purchase invoices, sales credit notes, "
             "purchase credit notes, contacts, ledger accounts, products, "
             "services, bank accounts, payments, other payments, or journals. "
-            "The connected business is selected automatically."
+            "After OAuth, select the Sage business to use for ingestion."
         ),
     },
     {
