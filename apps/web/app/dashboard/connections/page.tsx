@@ -550,7 +550,7 @@ function ConnectionsPageContent({
       getMissingRequiredConnectionConfigKeys(
         connection,
         sources
-      )
+      ).filter((configKey) => configKey !== "resource_types")
     if (missingConfigKeys.length > 0) {
       showConnectionFeedback(
         connection.id,
