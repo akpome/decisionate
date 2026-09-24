@@ -532,6 +532,8 @@ function DataSourceConnectionRow({
         !sourceIsPlanned &&
         (source?.connection_type !== "oauth" ||
           connection.source_type === "sage") &&
+        (connection.source_type !== "sage" ||
+          isOAuthAuthorized) &&
         !hasProviderManagedOAuthAccount &&
         source?.connection_type !== "api_key"
     )
@@ -596,16 +598,22 @@ function DataSourceConnectionRow({
   const hasSelectedOAuthAccount = Boolean(
     connection.oauth_account_value
   )
+  const isSageConnector =
+    connection.source_type === "sage"
+  const showSageBusinessSelection =
+    isSageConnector &&
+    isOAuthAuthorized &&
+    oauthAccountOptions.length > 0 &&
+    Boolean(connection.oauth_account_key) &&
+    !hasSelectedOAuthAccount
   const showOAuthAccountSelection =
     isOAuthAuthorized &&
-    oauthAccountOptions.length > 1 &&
+    Boolean(
+      showSageBusinessSelection ||
+        (!isSageConnector &&
+          oauthAccountOptions.length > 1)
+    ) &&
     Boolean(connection.oauth_account_key)
-  const sageBusinessSelectionRequired =
-    connection.source_type === "sage" &&
-    connection.status === "connected" &&
-    isOAuthAuthorized &&
-    !hasSelectedOAuthAccount &&
-    Boolean(onSyncConnection)
   const showInlineConnectionSettings =
     inlineConnectionConfigKeys.length > 0 &&
     (!hasResourceSelection ||
@@ -616,7 +624,8 @@ function DataSourceConnectionRow({
     hasResourceSelection &&
     resourceOptions.length > 0 &&
     (inlineConnectionConfigKeys.length === 0 ||
-      connectionReadyForResourceSelection)
+      connectionReadyForResourceSelection) &&
+    (!isSageConnector || hasSelectedOAuthAccount)
   const hasEditedConnectionSettings =
     inlineConnectionConfigKeys.some((configKey) =>
       Boolean(
@@ -662,6 +671,7 @@ function DataSourceConnectionRow({
       selectedResourceTypes.length > 0) &&
     (!showOAuthAccountSelection ||
       hasSelectedOAuthAccount) &&
+    (!isSageConnector || hasSelectedOAuthAccount) &&
     Boolean(onSyncConnection)
   const canStartOAuth =
     source?.connection_type === "oauth" &&
@@ -944,28 +954,20 @@ function DataSourceConnectionRow({
             onDeleteConnection ||
             canConfigure ||
             canSyncConnector ||
-            sageBusinessSelectionRequired ||
             canStartOAuth ||
             canCancelOAuth) && (
             <div className="flex w-full min-w-0 flex-wrap items-center justify-start gap-2 lg:justify-end">
-              {(canSyncConnector ||
-                sageBusinessSelectionRequired) && (
+              {canSyncConnector && (
                 <button
                   type="button"
                   onClick={() =>
                     syncConnection()
                   }
                   disabled={
-                    sageBusinessSelectionRequired ||
                     syncingConnectionId ===
                       connection.id ||
                     updatingConnectionId ===
                       connection.id
-                  }
-                  title={
-                    sageBusinessSelectionRequired
-                      ? "Select a Sage business before syncing"
-                      : undefined
                   }
                   className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >

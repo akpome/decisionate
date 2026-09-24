@@ -97,7 +97,7 @@ def apply_sage_business_selection(
     *,
     allow_legacy_fallback: bool = True,
 ) -> dict:
-    """Persist Sage business options and select only an unambiguous target."""
+    """Persist Sage business options and preserve only an explicit target."""
     account_options = build_oauth_account_options(
         businesses,
         "business_id",
@@ -116,8 +116,6 @@ def apply_sage_business_selection(
             ),
             None,
         )
-        if selected_business_id is None and len(account_options) == 1:
-            selected_business_id = account_options[0]["id"]
         if selected_business_id:
             connection_config["business_id"] = selected_business_id
         else:

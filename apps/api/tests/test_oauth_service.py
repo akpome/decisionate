@@ -53,7 +53,7 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             ],
         )
 
-    def test_sage_business_selection_auto_selects_single_business(self):
+    def test_sage_business_selection_requires_a_choice_for_single_business(self):
         config = apply_sage_business_selection(
             {},
             [{"business_id": "business-1", "name": "Primary"}],
@@ -61,7 +61,11 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             {},
         )
 
-        self.assertEqual(config["business_id"], "business-1")
+        self.assertNotIn("business_id", config)
+        self.assertEqual(
+            config["_oauth_account_options"],
+            [{"id": "business-1", "label": "Primary"}],
+        )
 
     def test_reconnect_removes_failed_stored_credential_for_every_oauth_connector(self):
         credential = types.SimpleNamespace(
