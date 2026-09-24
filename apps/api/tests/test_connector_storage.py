@@ -9,6 +9,7 @@ import pandas as pd
 
 from app.modules.datasets.router import (
     normalize_connector_dataframe_for_parquet,
+    normalize_connector_partition_month,
     write_connector_monthly_partitions,
 )
 
@@ -87,6 +88,29 @@ class ConnectorStorageTests(unittest.TestCase):
                 os.path.join(directory, "duplicate.parquet"),
                 index=False,
             )
+
+    def test_partition_month_normalizes_float_and_date_values(self):
+        self.assertEqual(
+            normalize_connector_partition_month(
+                float("nan"),
+                "2026-09",
+            ),
+            "2026-09",
+        )
+        self.assertEqual(
+            normalize_connector_partition_month(
+                "2026-09-24",
+                "2026-09",
+            ),
+            "2026-09",
+        )
+        self.assertEqual(
+            normalize_connector_partition_month(
+                2026.0,
+                "2026-09",
+            ),
+            "2026-09",
+        )
 
 
 if __name__ == "__main__":

@@ -5279,6 +5279,39 @@ def get_connector_month_index(
     return parsed_value.year * 12 + parsed_value.month - 1
 
 
+def normalize_connector_partition_month(
+    value,
+    fallback_month: str,
+):
+    """Return a valid partition month without passing floats to strptime."""
+    if _is_missing_connector_value(value):
+        return fallback_month
+
+    if isinstance(value, str):
+        text_value = value.strip()
+        try:
+            datetime.strptime(text_value, "%Y-%m")
+            return text_value
+        except ValueError:
+            parsed_value = pd.to_datetime(
+                text_value,
+                errors="coerce",
+                utc=True,
+            )
+    elif isinstance(value, (date, datetime)):
+        parsed_value = pd.to_datetime(
+            value,
+            errors="coerce",
+            utc=True,
+        )
+    else:
+        return fallback_month
+
+    if _is_missing_connector_value(parsed_value):
+        return fallback_month
+    return parsed_value.strftime("%Y-%m")
+
+
 def get_connector_summary_group_columns(
     dataframe,
     date_column,
@@ -5479,9 +5512,12 @@ def write_connector_monthly_partitions(
         )
     elif partition_key in partitioned_dataframe.columns:
         partitioned_dataframe[partition_key] = (
-            partitioned_dataframe[partition_key]
-            .astype(str)
-            .replace("nan", fallback_month)
+            partitioned_dataframe[partition_key].map(
+                lambda value: normalize_connector_partition_month(
+                    value,
+                    fallback_month,
+                )
+            )
         )
     else:
         partitioned_dataframe[partition_key] = fallback_month
