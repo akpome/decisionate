@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from app.modules.datasets.services import connectors
 from app.modules.oauth.service import (
+    OAuthProviderUnavailable,
     build_authorization_url,
     build_token_request,
     get_sage_token_url,
@@ -44,7 +45,7 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(query["scope"], ["readonly"])
         self.assertEqual(token_url, "https://oauth.example/token")
 
-    def test_sage_uses_central_token_endpoint_for_legacy_region_values(self):
+    def test_sage_uses_regional_token_endpoints_for_default_v31_url(self):
         with patch.dict(
             os.environ,
             {
@@ -56,31 +57,31 @@ class SageConnectorTests(unittest.TestCase):
         ):
             self.assertEqual(
                 get_sage_token_url("CA"),
-                "https://oauth.accounting.sage.com/token",
+                "https://oauth.na.sageone.com/token",
             )
             self.assertEqual(
                 get_sage_token_url("US"),
-                "https://oauth.accounting.sage.com/token",
+                "https://oauth.na.sageone.com/token",
             )
             self.assertEqual(
                 get_sage_token_url("DE"),
-                "https://oauth.accounting.sage.com/token",
+                "https://oauth.eu.sageone.com/token",
             )
             self.assertEqual(
                 get_sage_token_url("ES"),
-                "https://oauth.accounting.sage.com/token",
+                "https://oauth.eu.sageone.com/token",
             )
             self.assertEqual(
                 get_sage_token_url("FR"),
-                "https://oauth.accounting.sage.com/token",
+                "https://oauth.eu.sageone.com/token",
             )
             self.assertEqual(
                 get_sage_token_url("GB"),
-                "https://oauth.accounting.sage.com/token",
+                "https://app.sageone.com/oauth2/token",
             )
             self.assertEqual(
                 get_sage_token_url("IE"),
-                "https://oauth.accounting.sage.com/token",
+                "https://app.sageone.com/oauth2/token",
             )
 
     def test_sage_normalizes_region_aliases(self):
@@ -92,7 +93,7 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(normalize_sage_country("UK"), "GB")
         self.assertEqual(normalize_sage_country("IE"), "IE")
 
-    def test_sage_uses_central_endpoint_without_region(self):
+    def test_sage_requires_region_for_generic_endpoint(self):
         with patch.dict(
             os.environ,
             {
@@ -102,10 +103,11 @@ class SageConnectorTests(unittest.TestCase):
             },
             clear=False,
         ):
-            self.assertEqual(
-                get_sage_token_url(),
-                "https://oauth.accounting.sage.com/token",
-            )
+            with self.assertRaisesRegex(
+                OAuthProviderUnavailable,
+                "Sage OAuth region is required",
+            ):
+                get_sage_token_url()
 
     def test_sage_token_request_uses_browser_compatible_user_agent(self):
         request = build_token_request(

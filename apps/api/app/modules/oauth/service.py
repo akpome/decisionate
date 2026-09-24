@@ -449,24 +449,34 @@ def normalize_sage_country(country: str | None) -> str:
 
 def get_sage_token_url(country: str | None = None) -> str:
     configured = clean_env("SAGE_OAUTH_TOKEN_URL")
-    canonical_url = "https://oauth.accounting.sage.com/token"
-    legacy_regional_urls = {
-        "https://oauth.na.sageone.com/token",
-        "https://oauth.eu.sageone.com/token",
-        "https://app.sageone.com/oauth2/token",
+    normalized_country = normalize_sage_country(country)
+    regional_urls = {
+        "CA": "https://oauth.na.sageone.com/token",
+        "US": "https://oauth.na.sageone.com/token",
+        "DE": "https://oauth.eu.sageone.com/token",
+        "ES": "https://oauth.eu.sageone.com/token",
+        "FR": "https://oauth.eu.sageone.com/token",
+        "GB": "https://app.sageone.com/oauth2/token",
+        "IE": "https://app.sageone.com/oauth2/token",
     }
+    generic_url = "https://oauth.accounting.sage.com/token"
+    legacy_regional_urls = set(regional_urls.values())
 
-    # Sage Accounting v3.1 uses one central token endpoint. Older regional
-    # endpoints can return a Cloudflare 1010 response when called by a server,
-    # so normalize those legacy deployment values as well.
-    if configured.rstrip("/") == canonical_url or (
-        configured.rstrip("/") in legacy_regional_urls
-    ):
-        return canonical_url
-    if configured:
+    # Sage's central authorization flow returns a country, but the token
+    # exchange still uses the country's regional endpoint. Keep an explicitly
+    # configured non-generic endpoint usable for alternate Sage environments.
+    configured_url = configured.rstrip("/")
+    if configured and configured_url not in {
+        generic_url,
+        *legacy_regional_urls,
+    }:
         return configured
+    if normalized_country in regional_urls:
+        return regional_urls[normalized_country]
+    if configured and configured_url in legacy_regional_urls:
+        return configured_url
     raise OAuthProviderUnavailable(
-        "SAGE_OAUTH_TOKEN_URL is required for Sage OAuth"
+        "Sage OAuth region is required before exchanging the authorization code"
     )
 
 
