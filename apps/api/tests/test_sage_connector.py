@@ -2,7 +2,9 @@ import json
 import os
 import unittest
 from datetime import date
+from io import BytesIO
 from types import SimpleNamespace
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 from unittest.mock import MagicMock, patch
 
@@ -19,6 +21,65 @@ from app.modules.oauth.service import (
 
 
 class SageConnectorTests(unittest.TestCase):
+    def test_sage_retries_transient_data_request_failures(self):
+        error = HTTPError(
+            "https://api.accounting.sage.com/v3.1/contacts",
+            500,
+            "Internal Server Error",
+            {},
+            BytesIO(b"<html>500 Internal Server Error</html>"),
+        )
+
+        class Response:
+            headers = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"$items": []}'
+
+        with patch.object(
+            connectors,
+            "urlopen",
+            side_effect=[error, Response()],
+        ), patch.object(connectors, "sleep") as mocked_sleep:
+            payload = connectors.connector_json_request(
+                "https://api.accounting.sage.com/v3.1/contacts",
+                headers={"X-Business": "business-1"},
+                source_type="sage",
+            )
+
+        self.assertEqual(payload, {"$items": []})
+        mocked_sleep.assert_called_once_with(1)
+
+    def test_sage_persistent_html_500_has_a_recoverable_message(self):
+        error = HTTPError(
+            "https://api.accounting.sage.com/v3.1/contacts",
+            500,
+            "Internal Server Error",
+            {},
+            BytesIO(b"<html>500 Internal Server Error</html>"),
+        )
+
+        with patch.object(
+            connectors,
+            "urlopen",
+            side_effect=[error, error, error],
+        ), patch.object(connectors, "sleep"):
+            with self.assertRaisesRegex(
+                connectors.ConnectorUnavailable,
+                "temporary server error for the selected business",
+            ):
+                connectors.connector_json_request(
+                    "https://api.accounting.sage.com/v3.1/contacts",
+                    headers={"X-Business": "business-1"},
+                    source_type="sage",
+                )
+
     def test_sage_business_discovery_uses_browser_compatible_transport(self):
         curl = MagicMock()
         curl.get.return_value = type(
@@ -418,7 +479,7 @@ class SageConnectorTests(unittest.TestCase):
             connection_config=json.dumps({"business_id": "business-1"}),
         )
 
-        def fake_request(url, headers):
+        def fake_request(url, headers, **_kwargs):
             self.assertIn("sales_invoices", url)
             self.assertEqual(headers["Authorization"], "Bearer sage-token")
             self.assertEqual(headers["X-Site"], "business-1")
@@ -474,7 +535,7 @@ class SageConnectorTests(unittest.TestCase):
             connection_config=json.dumps({"business_id": "business-1"}),
         )
 
-        def fake_request(_url, headers):
+        def fake_request(_url, headers, **_kwargs):
             self.assertEqual(headers["X-Business"], "business-1")
             return {"$items": [], "$next": None}
 
@@ -511,7 +572,7 @@ class SageConnectorTests(unittest.TestCase):
             ),
         )
 
-        def fake_request(url, headers):
+        def fake_request(url, headers, **_kwargs):
             self.assertIn("api.accounting.sage.com/v3.1/contacts", url)
             self.assertEqual(headers["X-Business"], "business-1")
             return {"$items": [], "$next": None}
@@ -549,7 +610,7 @@ class SageConnectorTests(unittest.TestCase):
             connection_config=json.dumps({"business_id": "business-1"}),
         )
 
-        def fake_request(url, headers):
+        def fake_request(url, headers, **_kwargs):
             self.assertIn(
                 "updated_or_created_since=2026-01-01T00%3A00%3A00%2B00%3A00",
                 url,
@@ -604,7 +665,7 @@ class SageConnectorTests(unittest.TestCase):
             ),
         )
 
-        def fake_request(url, headers):
+        def fake_request(url, headers, **_kwargs):
             self.assertIn("/contacts?", url)
             self.assertIn("items_per_page=100", url)
             self.assertIn("page=1", url)

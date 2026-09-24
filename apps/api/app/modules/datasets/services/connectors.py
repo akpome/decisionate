@@ -34,6 +34,7 @@ from app.modules.oauth.service import (
 
 PAGE_SIZE = 100
 SHOPIFY_MAX_REQUEST_ATTEMPTS = 4
+SAGE_MAX_REQUEST_ATTEMPTS = 3
 GOOGLE_SEARCH_CONSOLE_DATA_LAG_DAYS = 2
 # The Railway scheduler normally runs every 15 minutes. Refresh one hour
 # early so several heartbeat attempts remain available before expiry.
@@ -4775,6 +4776,7 @@ def load_sage_dataframe(
                 business_header: business_id,
                 "Content-Type": "application/json",
             },
+            source_type="sage",
         )
         records = payload.get(response_key)
         if not isinstance(records, list):
@@ -5649,8 +5651,16 @@ def refresh_oauth_access_token_if_due(
     return True
 
 
-def connector_json_request(url: str, headers: dict[str, str]) -> dict:
-    payload, _headers = connector_json_request_with_headers(url, headers)
+def connector_json_request(
+    url: str,
+    headers: dict[str, str],
+    source_type: str | None = None,
+) -> dict:
+    payload, _headers = connector_json_request_with_headers(
+        url,
+        headers,
+        source_type=source_type,
+    )
     if not isinstance(payload, dict):
         raise ConnectorUnavailable("Connector returned an invalid response")
     return payload
@@ -5661,26 +5671,53 @@ def connector_json_request_with_headers(
     headers: dict[str, str],
     source_type: str | None = None,
 ) -> tuple[dict | list, dict[str, str]]:
-    request = Request(
-        url,
-        headers={"Accept": "application/json", **headers},
-        method="GET",
+    normalized_source_type = str(source_type or "").strip().lower()
+    max_attempts = (
+        SAGE_MAX_REQUEST_ATTEMPTS
+        if normalized_source_type == "sage"
+        else 1
     )
-    try:
-        with urlopen(request, timeout=30) as response:
-            body = response.read().decode("utf-8")
-            response_headers = {
-                key: value
-                for key, value in response.headers.items()
-            }
-    except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        raise ConnectorUnavailable(
-            f"Connector request failed with HTTP {error.code}: "
-            f"{format_connector_error_detail(detail, source_type)[:240]}"
-        ) from error
-    except (URLError, TimeoutError, OSError) as error:
-        raise ConnectorUnavailable("Connector service is unavailable") from error
+    for attempt in range(max_attempts):
+        request = Request(
+            url,
+            headers={"Accept": "application/json", **headers},
+            method="GET",
+        )
+        try:
+            with urlopen(request, timeout=30) as response:
+                body = response.read().decode("utf-8")
+                response_headers = {
+                    key: value
+                    for key, value in response.headers.items()
+                }
+            break
+        except HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")
+            retryable = error.code in {429, 500, 502, 503, 504}
+            if (
+                normalized_source_type == "sage"
+                and retryable
+                and attempt < max_attempts - 1
+            ):
+                retry_after = None
+                try:
+                    retry_after = float(error.headers.get("Retry-After"))
+                except (AttributeError, TypeError, ValueError):
+                    pass
+                sleep(
+                    max(retry_after, 0)
+                    if retry_after is not None
+                    else min(2 ** attempt, 4)
+                )
+                continue
+            raise ConnectorUnavailable(
+                f"Connector request failed with HTTP {error.code}: "
+                f"{format_connector_error_detail(detail, source_type, error.code)[:240]}"
+            ) from error
+        except (URLError, TimeoutError, OSError) as error:
+            raise ConnectorUnavailable("Connector service is unavailable") from error
+    else:
+        raise ConnectorUnavailable("Connector request failed after retries")
 
     try:
         payload = json.loads(body)
@@ -5758,9 +5795,24 @@ def connector_json_post_request(
 def format_connector_error_detail(
     detail: str,
     source_type: str | None = None,
+    status_code: int | None = None,
 ) -> str:
     """Keep provider error codes visible in the user-facing API message."""
     normalized_detail = str(detail or "").lower()
+    if (
+        str(source_type or "").strip().lower() == "sage"
+        and status_code in {500, 502, 503, 504}
+        and (
+            "internal server error" in normalized_detail
+            or "<html" in normalized_detail
+            or not normalized_detail.strip()
+        )
+    ):
+        return (
+            "Sage returned a temporary server error for the selected business. "
+            "Try again; if it persists, verify that the business setup is "
+            "complete and that the selected Sage object is available."
+        )
     if (
         str(source_type or "").strip().lower() == "shopify"
         and "not approved" in normalized_detail
