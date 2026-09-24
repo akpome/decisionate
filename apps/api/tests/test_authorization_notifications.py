@@ -180,6 +180,21 @@ class AuthorizationNotificationTests(unittest.TestCase):
                     )
                 )
 
+    def test_shopify_protected_customer_data_denial_is_not_token_failure(self):
+        message = (
+            "Connector request failed with HTTP 403: "
+            "Shopify app access is not approved for protected customer data. "
+            "Request protected customer data access in the Shopify Partner "
+            "Dashboard, then reconnect Shopify."
+        )
+
+        self.assertFalse(
+            connector_requires_reauthorization(
+                "shopify",
+                ConnectorUnavailable(message),
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

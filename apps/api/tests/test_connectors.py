@@ -1088,6 +1088,32 @@ class ConnectorSmokeTests(unittest.TestCase):
             )
         )
 
+    def test_shopify_protected_customer_data_error_is_customer_safe(self):
+        detail = connectors.format_connector_error_detail(
+            json.dumps({
+                "errors": (
+                    "[API] This app is not approved to access REST endpoints "
+                    "with protected customer data."
+                ),
+            }),
+            "shopify",
+        )
+
+        self.assertEqual(
+            detail,
+            "Shopify app access is not approved for protected customer data. "
+            "Request protected customer data access in the Shopify Partner "
+            "Dashboard, then reconnect Shopify.",
+        )
+        self.assertFalse(
+            connectors.connector_requires_reauthorization(
+                "shopify",
+                connectors.ConnectorUnavailable(
+                    f"Connector request failed with HTTP 403: {detail}"
+                ),
+            )
+        )
+
     def test_meta_expired_oauth_error_is_customer_safe(self):
         detail = connectors.format_connector_error_detail(
             json.dumps({

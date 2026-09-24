@@ -1719,6 +1719,7 @@ def load_shopify_dataframe(
         payload, headers = connector_json_request_with_headers(
             next_url,
             headers={"X-Shopify-Access-Token": access_token},
+            source_type="shopify",
         )
         orders = payload.get("orders")
         if not isinstance(orders, list):
@@ -5393,6 +5394,7 @@ def connector_json_request(url: str, headers: dict[str, str]) -> dict:
 def connector_json_request_with_headers(
     url: str,
     headers: dict[str, str],
+    source_type: str | None = None,
 ) -> tuple[dict | list, dict[str, str]]:
     request = Request(
         url,
@@ -5410,7 +5412,7 @@ def connector_json_request_with_headers(
         detail = error.read().decode("utf-8", errors="replace")
         raise ConnectorUnavailable(
             f"Connector request failed with HTTP {error.code}: "
-            f"{format_connector_error_detail(detail)[:240]}"
+            f"{format_connector_error_detail(detail, source_type)[:240]}"
         ) from error
     except (URLError, TimeoutError, OSError) as error:
         raise ConnectorUnavailable("Connector service is unavailable") from error
@@ -5460,8 +5462,23 @@ def connector_json_post_request(
     return parsed_payload
 
 
-def format_connector_error_detail(detail: str) -> str:
+def format_connector_error_detail(
+    detail: str,
+    source_type: str | None = None,
+) -> str:
     """Keep provider error codes visible in the user-facing API message."""
+    normalized_detail = str(detail or "").lower()
+    if (
+        str(source_type or "").strip().lower() == "shopify"
+        and "protected customer data" in normalized_detail
+        and "not approved" in normalized_detail
+    ):
+        return (
+            "Shopify app access is not approved for protected customer data. "
+            "Request protected customer data access in the Shopify Partner "
+            "Dashboard, then reconnect Shopify."
+        )
+
     try:
         payload = json.loads(detail)
     except (TypeError, json.JSONDecodeError):
@@ -5558,6 +5575,21 @@ def format_connector_error_detail(detail: str) -> str:
     return "; ".join(messages) or detail
 
 
+def is_shopify_protected_customer_data_error(
+    source_type: str,
+    error: Exception,
+) -> bool:
+    normalized_source_type = str(source_type or "").strip().lower()
+    normalized_message = str(error or "").lower()
+    return normalized_source_type == "shopify" and (
+        "protected customer data" in normalized_message
+        and (
+            "not approved" in normalized_message
+            or "rest endpoints" in normalized_message
+        )
+    )
+
+
 def connector_requires_reauthorization(
     source_type: str,
     error: Exception,
@@ -5565,6 +5597,11 @@ def connector_requires_reauthorization(
     """Identify OAuth failures that need a fresh provider authorization."""
     normalized_source_type = str(source_type or "").strip().lower()
     normalized_message = str(error or "").lower()
+    if is_shopify_protected_customer_data_error(
+        normalized_source_type,
+        error,
+    ):
+        return False
     if normalized_source_type in {*OAUTH_PROVIDERS, "woocommerce"} and any(
         marker in normalized_message
         for marker in (

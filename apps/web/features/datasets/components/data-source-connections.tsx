@@ -632,6 +632,11 @@ function DataSourceConnectionRow({
     source?.connection_type === "oauth" &&
     connection.status === "connected" &&
     Boolean(onCancelOAuthAuthorization)
+  const isShopifyProtectedCustomerDataError =
+    connection.source_type === "shopify" &&
+    /protected customer data|not approved to access rest endpoints/i.test(
+      connection.authorization_error ?? ""
+    )
   const canSchedule =
     source?.sync_modes?.includes("scheduled") === true &&
     Boolean(onUpdateSchedule) &&
@@ -807,14 +812,26 @@ function DataSourceConnectionRow({
             className="mt-3 min-w-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800"
           >
             <p className="font-semibold">
-              {t("Authorization requires attention")}
+              {isShopifyProtectedCustomerDataError
+                ? t("Shopify app approval required")
+                : t("Authorization requires attention")}
             </p>
             <p className="mt-1 break-words">
-              {connection.authorization_error}
+              {isShopifyProtectedCustomerDataError
+                ? t(
+                    "Shopify has not approved this app to access protected customer data."
+                  )
+                : connection.authorization_error}
             </p>
             {canStartOAuth && (
               <p className="mt-1">
-                {t("Select Reconnect with OAuth to resume scheduled ingestion.")}
+                {isShopifyProtectedCustomerDataError
+                  ? t(
+                      "Request protected customer data access in the Shopify Partner Dashboard, then select Reconnect with OAuth."
+                    )
+                  : t(
+                      "Select Reconnect with OAuth to resume scheduled ingestion."
+                    )}
               </p>
             )}
           </div>
