@@ -1149,7 +1149,7 @@ export default function DatasetDetailsPage() {
                         column => (
                           <td
                             key={column}
-                            className="max-w-xs break-words border-b px-4 py-3 text-gray-700"
+                            className="max-w-xs break-words border-b px-4 py-2 text-gray-700"
                           >
                             {formatPreviewValue(
                               row[column]
