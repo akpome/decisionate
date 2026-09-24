@@ -21,6 +21,53 @@ from app.modules.oauth.service import (
 
 
 class SageConnectorTests(unittest.TestCase):
+    def setUp(self):
+        self.curl_transport_patcher = patch.object(
+            connectors,
+            "curl_requests",
+            None,
+        )
+        self.curl_transport_patcher.start()
+        self.addCleanup(self.curl_transport_patcher.stop)
+
+    def test_sage_data_requests_use_browser_compatible_transport(self):
+        curl = MagicMock()
+        curl.get.return_value = type(
+            "Response",
+            (),
+            {
+                "status_code": 200,
+                "text": '{"$items": []}',
+                "headers": {"x-request-id": "sage-request-1"},
+            },
+        )()
+
+        with patch.object(connectors, "curl_requests", curl), patch.object(
+            connectors,
+            "urlopen",
+        ) as urlopen:
+            payload = connectors.connector_json_request(
+                "https://api.accounting.sage.com/v3.1/contacts",
+                headers={
+                    "Authorization": "Bearer sage-token",
+                    "X-Business": "business-1",
+                },
+                source_type="sage",
+            )
+
+        self.assertEqual(payload, {"$items": []})
+        curl.get.assert_called_once_with(
+            "https://api.accounting.sage.com/v3.1/contacts",
+            headers={
+                "Accept": "application/json",
+                "Authorization": "Bearer sage-token",
+                "X-Business": "business-1",
+            },
+            timeout=30,
+            impersonate="chrome",
+        )
+        urlopen.assert_not_called()
+
     def test_sage_retries_transient_data_request_failures(self):
         error = HTTPError(
             "https://api.accounting.sage.com/v3.1/contacts",
@@ -701,6 +748,48 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertEqual(len(dataframe), 1)
         self.assertNotIn("updated_or_created_since=", calls[1])
+
+    def test_sage_resource_failure_runs_business_preflight(self):
+        connection = SimpleNamespace(
+            id=14,
+            source_type="sage",
+            connection_config=json.dumps({"business_id": "business-1"}),
+        )
+
+        def fake_request(url, headers, **_kwargs):
+            self.assertEqual(headers["X-Business"], "business-1")
+            if url.endswith("/business"):
+                return {"id": "business-1"}
+            raise connectors.ConnectorUnavailable(
+                "Connector request failed with HTTP 500: Sage returned a "
+                "temporary server error"
+            )
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_API_BASE_URL": "https://api.accounting.sage.com/v3.1",
+                "SAGE_BUSINESS_HEADER": "X-Business",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="sage-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=fake_request,
+        ):
+            with self.assertRaisesRegex(
+                connectors.ConnectorUnavailable,
+                "sales_invoices.*business-1",
+            ):
+                connectors.load_sage_dataframe(
+                    None,
+                    connection,
+                    resource_type_override="sales_invoices",
+                )
 
     def test_sage_follows_provider_pagination_link(self):
         connection = SimpleNamespace(

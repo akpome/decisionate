@@ -31,6 +31,11 @@ from app.modules.oauth.service import (
     token_expiry,
 )
 
+try:
+    from curl_cffi import requests as curl_requests
+except ModuleNotFoundError:  # Keep local installs without the optional transport usable.
+    curl_requests = None
+
 
 PAGE_SIZE = 100
 SHOPIFY_MAX_REQUEST_ATTEMPTS = 4
@@ -4792,6 +4797,46 @@ def load_sage_dataframe(
         business_header = "X-Site"
 
     resource_path, response_key = SAGE_RESOURCE_TYPES[resource_type]
+    request_headers = {
+        "Authorization": f"Bearer {access_token}",
+        business_header: business_id,
+    }
+
+    def raise_sage_request_failure(error: ConnectorUnavailable):
+        if "http 5" not in str(error).lower():
+            raise error
+        try:
+            connector_json_request(
+                f"{base_url.rstrip('/')}/business",
+                headers=request_headers,
+                source_type="sage",
+            )
+        except ConnectorUnavailable as business_error:
+            logger.warning(
+                "Sage business preflight failed after resource request "
+                "error connection_id=%s resource=%s business_id=%s error=%s",
+                getattr(connection, "id", None),
+                resource_type,
+                business_id,
+                business_error,
+            )
+            raise ConnectorUnavailable(
+                "Sage could not open the selected business "
+                f"'{business_id}' while loading '{resource_path}'. "
+                "Reconnect Sage or select a business that is fully set up."
+            ) from error
+        logger.warning(
+            "Sage business preflight succeeded after resource request error "
+            "connection_id=%s resource=%s business_id=%s",
+            getattr(connection, "id", None),
+            resource_type,
+            business_id,
+        )
+        raise ConnectorUnavailable(
+            f"{error} Sage object '{resource_path}' could not be loaded "
+            f"for business '{business_id}'."
+        ) from error
+
     rows = []
     request_url = ""
     seen_request_urls = set()
@@ -4817,11 +4862,7 @@ def load_sage_dataframe(
         try:
             payload = connector_json_request(
                 request_url,
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    business_header: business_id,
-                    "Content-Type": "application/json",
-                },
+                headers=request_headers,
                 source_type="sage",
             )
         except ConnectorUnavailable as error:
@@ -4853,17 +4894,16 @@ def load_sage_dataframe(
                 if request_url in seen_request_urls:
                     raise
                 seen_request_urls.add(request_url)
-                payload = connector_json_request(
-                    request_url,
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        business_header: business_id,
-                        "Content-Type": "application/json",
-                    },
-                    source_type="sage",
-                )
+                try:
+                    payload = connector_json_request(
+                        request_url,
+                        headers=request_headers,
+                        source_type="sage",
+                    )
+                except ConnectorUnavailable as fallback_error:
+                    raise_sage_request_failure(fallback_error)
             else:
-                raise
+                raise_sage_request_failure(error)
         records = payload.get(response_key)
         if not isinstance(records, list):
             records = payload.get("items")
@@ -5759,10 +5799,86 @@ def connector_json_request_with_headers(
         if normalized_source_type == "sage"
         else 1
     )
+    request_headers = {"Accept": "application/json", **headers}
     for attempt in range(max_attempts):
+        if normalized_source_type == "sage" and curl_requests is not None:
+            try:
+                response = curl_requests.get(
+                    url,
+                    headers=request_headers,
+                    timeout=30,
+                    impersonate="chrome",
+                )
+            except Exception as error:
+                # A browser-compatible client avoids Sage's edge rejecting
+                # the default Python urllib fingerprint. If that optional
+                # transport is unavailable at runtime, use the standards
+                # based path below instead of making the connector unusable.
+                logger.warning(
+                    "Sage browser-compatible request failed; falling back "
+                    "to urllib url=%s error=%s",
+                    url,
+                    error,
+                )
+            else:
+                body = response.text
+                response_headers = {
+                    str(key): str(value)
+                    for key, value in response.headers.items()
+                }
+                if response.status_code < 400:
+                    break
+
+                detail = body
+                retryable = response.status_code in {
+                    429,
+                    500,
+                    502,
+                    503,
+                    504,
+                }
+                if retryable and attempt < max_attempts - 1:
+                    retry_after = None
+                    try:
+                        retry_after = float(
+                            response.headers.get("Retry-After")
+                        )
+                    except (AttributeError, TypeError, ValueError):
+                        pass
+                    logger.warning(
+                        "Sage data request failed; retrying status=%s "
+                        "url=%s request_id=%s attempt=%s",
+                        response.status_code,
+                        url,
+                        response.headers.get("x-request-id")
+                        or response.headers.get("x_request_id"),
+                        attempt + 1,
+                    )
+                    sleep(
+                        max(retry_after, 0)
+                        if retry_after is not None
+                        else min(2 ** attempt, 4)
+                    )
+                    continue
+                request_id = (
+                    response.headers.get("x-request-id")
+                    or response.headers.get("x_request_id")
+                )
+                request_id_detail = (
+                    f" (Sage request ID: {request_id})"
+                    if request_id
+                    else ""
+                )
+                raise ConnectorUnavailable(
+                    f"Connector request failed with HTTP "
+                    f"{response.status_code}: "
+                    f"{format_connector_error_detail(detail, source_type, response.status_code)[:240]}"
+                    f"{request_id_detail}"
+                )
+
         request = Request(
             url,
-            headers={"Accept": "application/json", **headers},
+            headers=request_headers,
             method="GET",
         )
         try:
@@ -5792,9 +5908,21 @@ def connector_json_request_with_headers(
                     else min(2 ** attempt, 4)
                 )
                 continue
+            request_id = (
+                error.headers.get("x-request-id")
+                or error.headers.get("x_request_id")
+                if error.headers
+                else None
+            )
+            request_id_detail = (
+                f" (Sage request ID: {request_id})"
+                if normalized_source_type == "sage" and request_id
+                else ""
+            )
             raise ConnectorUnavailable(
                 f"Connector request failed with HTTP {error.code}: "
                 f"{format_connector_error_detail(detail, source_type, error.code)[:240]}"
+                f"{request_id_detail}"
             ) from error
         except (URLError, TimeoutError, OSError) as error:
             raise ConnectorUnavailable("Connector service is unavailable") from error
