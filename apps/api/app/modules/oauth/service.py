@@ -766,6 +766,61 @@ def build_token_request(
     )
 
 
+def read_token_response(
+    source_type: str,
+    request: Request,
+    operation: str,
+) -> str:
+    """POST an OAuth token request, using Sage's browser-compatible path."""
+    if source_type == "sage":
+        try:
+            from curl_cffi import requests as curl_requests
+        except ModuleNotFoundError:
+            # Keep local and older deployments functional until the optional
+            # transport is installed; the normal path remains standards-based.
+            pass
+        else:
+            request_headers = {
+                key: value
+                for key, value in request.header_items()
+                if key.lower() != "user-agent"
+            }
+            try:
+                response = curl_requests.post(
+                    request.full_url,
+                    data=request.data or b"",
+                    headers=request_headers,
+                    timeout=20,
+                    impersonate="chrome",
+                )
+            except Exception as error:
+                raise OAuthTokenExchangeError(
+                    f"Sage OAuth provider is unavailable during {operation}"
+                ) from error
+            body = response.text
+            if response.status_code >= 400:
+                raise OAuthTokenExchangeError(
+                    f"OAuth {operation} failed with HTTP "
+                    f"{response.status_code}: {body[:240]}"
+                )
+            return body
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            return response.read().decode("utf-8")
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise OAuthTokenExchangeError(
+            f"OAuth {operation} failed with HTTP {error.code}: {detail[:240]}"
+        ) from error
+    except (URLError, TimeoutError, OSError) as error:
+        raise OAuthTokenExchangeError(
+            "OAuth provider is unavailable"
+            if operation == "token exchange"
+            else "OAuth provider is unavailable while refreshing the token"
+        ) from error
+
+
 def exchange_code(
     source_type: str,
     code: str,
@@ -844,18 +899,11 @@ def exchange_code(
         params,
         headers,
     )
-    try:
-        with urlopen(request, timeout=20) as response:
-            body = response.read().decode("utf-8")
-    except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        raise OAuthTokenExchangeError(
-            f"OAuth token exchange failed with HTTP {error.code}: {detail[:240]}"
-        ) from error
-    except (URLError, TimeoutError, OSError) as error:
-        raise OAuthTokenExchangeError(
-            "OAuth provider is unavailable"
-        ) from error
+    body = read_token_response(
+        source_type,
+        request,
+        "token exchange",
+    )
 
     try:
         payload = json.loads(body)
@@ -1026,18 +1074,11 @@ def refresh_oauth_token(
         params,
         headers,
     )
-    try:
-        with urlopen(request, timeout=20) as response:
-            body = response.read().decode("utf-8")
-    except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        raise OAuthTokenExchangeError(
-            f"OAuth token refresh failed with HTTP {error.code}: {detail[:240]}"
-        ) from error
-    except (URLError, TimeoutError, OSError) as error:
-        raise OAuthTokenExchangeError(
-            "OAuth provider is unavailable while refreshing the token"
-        ) from error
+    body = read_token_response(
+        source_type,
+        request,
+        "token refresh",
+    )
 
     try:
         payload = json.loads(body)

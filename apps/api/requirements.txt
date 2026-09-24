@@ -10,6 +10,7 @@ duckdb
 PyJWT
 python-multipart
 cryptography
+curl-cffi
 psycopg[binary]
 pymysql
 pymssql
