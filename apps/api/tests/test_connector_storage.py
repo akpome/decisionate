@@ -70,6 +70,24 @@ class ConnectorStorageTests(unittest.TestCase):
         self.assertTrue(normalized.empty)
         self.assertEqual(list(normalized.columns), [])
 
+    def test_duplicate_dynamic_columns_are_made_unique(self):
+        dataframe = pd.DataFrame(
+            [[1, "legacy"]],
+            columns=["value", "value"],
+        )
+
+        normalized = normalize_connector_dataframe_for_parquet(dataframe)
+
+        self.assertEqual(
+            list(normalized.columns),
+            ["value", "value__duplicate_2"],
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            normalized.to_parquet(
+                os.path.join(directory, "duplicate.parquet"),
+                index=False,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4951,20 +4951,50 @@ def _connector_value_as_text(value):
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
     if isinstance(value, (dict, list, tuple, set)):
-        return json.dumps(
-            value,
-            sort_keys=True,
-            default=str,
-        )
+        try:
+            return json.dumps(
+                value,
+                sort_keys=True,
+                default=str,
+            )
+        except (TypeError, ValueError, OverflowError):
+            return str(value)
     return str(value)
+
+
+def _unique_connector_column_names(columns):
+    used_names = set()
+    occurrences = {}
+    unique_names = []
+    for column in columns:
+        base_name = str(column)
+        occurrences[base_name] = occurrences.get(base_name, 0) + 1
+        occurrence = occurrences[base_name]
+        candidate = (
+            base_name
+            if occurrence == 1
+            else f"{base_name}__duplicate_{occurrence}"
+        )
+        while candidate in used_names:
+            occurrence += 1
+            occurrences[base_name] = occurrence
+            candidate = f"{base_name}__duplicate_{occurrence}"
+        used_names.add(candidate)
+        unique_names.append(candidate)
+    return unique_names
 
 
 def normalize_connector_dataframe_for_parquet(dataframe):
     """Make dynamic connector columns compatible with Arrow's strict typing."""
-    if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
-        return dataframe.copy()
+    if not isinstance(dataframe, pd.DataFrame):
+        return dataframe
 
     normalized = dataframe.copy()
+    normalized.columns = _unique_connector_column_names(
+        normalized.columns
+    )
+    if normalized.empty:
+        return normalized
     for column in normalized.columns:
         series = normalized[column]
         values = [
@@ -5001,7 +5031,7 @@ def normalize_connector_dataframe_for_parquet(dataframe):
             for value in values:
                 try:
                     converted = pd.to_numeric(value, errors="raise")
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, OverflowError):
                     numeric_candidate = False
                     break
                 if _is_missing_connector_value(converted):
@@ -5014,7 +5044,7 @@ def normalize_connector_dataframe_for_parquet(dataframe):
                     errors="raise",
                 )
                 continue
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 pass
 
         value_types = {type(value) for value in values}
@@ -6486,8 +6516,17 @@ def persist_connector_dataframe(
                     "column_count": len(merged_dataframe.columns),
                 },
             )
+            error_detail = " ".join(str(error).split())
+            if len(error_detail) > 280:
+                error_detail = f"{error_detail[:277]}..."
+            detail_suffix = (
+                f": {error_detail}"
+                if error_detail
+                else f": {type(error).__name__}"
+            )
             raise ConnectorUnavailable(
                 "Connector data could not be stored as Parquet"
+                f"{detail_suffix}"
             ) from error
         local_partition_dir = storage_result["partition_dir"]
         file_path = storage.put_directory(
