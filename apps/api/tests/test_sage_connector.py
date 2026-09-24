@@ -122,7 +122,7 @@ class SageConnectorTests(unittest.TestCase):
             request.get_header("User-agent").startswith("Mozilla/5.0")
         )
 
-    def test_sage_retries_central_endpoint_after_cloudflare_browser_block(self):
+    def test_sage_retries_central_endpoint_after_regional_forbidden(self):
         request = build_token_request(
             "sage",
             "https://oauth.na.sageone.com/token",
@@ -131,7 +131,7 @@ class SageConnectorTests(unittest.TestCase):
         )
         blocked = SimpleNamespace(
             status_code=403,
-            text="Error 1010: blocked based on your browser's signature",
+            text="forbidden",
         )
         accepted = SimpleNamespace(
             status_code=200,

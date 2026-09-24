@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -19,6 +20,9 @@ from urllib.parse import (
 from urllib.request import Request, urlopen
 
 from app.configuration import get_provider_setting, get_runtime_configuration
+
+
+logger = logging.getLogger(__name__)
 
 try:
     from cryptography.fernet import Fernet, InvalidToken
@@ -829,15 +833,20 @@ def read_token_response(
                     return body
                 last_status = response.status_code
                 last_body = body
-                is_cloudflare_browser_block = (
+                is_regional_forbidden = (
                     response.status_code == 403
-                    and (
-                        "error 1010" in body.lower()
-                        or "browser's signature" in body.lower()
-                        or "browser's si" in body.lower()
-                    )
+                    and token_url != token_urls[-1]
                 )
-                if not is_cloudflare_browser_block:
+                logger.warning(
+                    "Sage OAuth token endpoint rejected request",
+                    extra={
+                        "operation": operation,
+                        "host": urlsplit(token_url).netloc,
+                        "status_code": response.status_code,
+                        "retrying_central_endpoint": is_regional_forbidden,
+                    },
+                )
+                if not is_regional_forbidden:
                     break
 
             raise OAuthTokenExchangeError(
