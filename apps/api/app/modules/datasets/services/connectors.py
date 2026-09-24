@@ -5507,6 +5507,17 @@ def get_oauth_access_token(
             f"Connect the {source_type} account before syncing"
         )
 
+    # A credential without a refresh token can work until its access token
+    # expires, but sending that expired token to the provider only produces an
+    # opaque authorization or business-discovery failure. Surface the real
+    # recovery path before making the request.
+    now = datetime.now(UTC).replace(tzinfo=None)
+    if not refresh_token and expires_at and expires_at <= now:
+        raise ConnectorUnavailable(
+            f"{connector_display_name(source_type)} authorization has "
+            "expired. Reconnect the account and try again."
+        )
+
     if refresh_token and (
         not token
         or (

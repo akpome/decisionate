@@ -1265,6 +1265,43 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(token, "new-access-token")
         mocked_refresh.assert_called_once()
 
+    def test_expired_oauth_access_token_without_refresh_token_requires_reconnect(
+        self,
+    ):
+        credential = SimpleNamespace(
+            access_token_encrypted="encrypted-access-token",
+            refresh_token_encrypted=None,
+            expires_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(
+                minutes=1,
+            ),
+        )
+
+        class Query:
+            def filter(self, *_args):
+                return self
+
+            def first(self):
+                return credential
+
+        class FakeDb:
+            def query(self, *_args):
+                return Query()
+
+        connection = make_connection("sage", {})
+        with patch.object(
+            connectors,
+            "decrypt_token",
+            return_value="expired-access-token",
+        ), self.assertRaisesRegex(
+            connectors.ConnectorUnavailable,
+            "Sage authorization has expired. Reconnect the account",
+        ):
+            connectors.get_oauth_access_token(
+                FakeDb(),
+                connection,
+                "sage",
+            )
+
     def test_database_connectors_load_read_only_rows(self):
         with tempfile.NamedTemporaryFile(suffix=".sqlite") as database_file:
             engine = create_engine(f"sqlite:///{database_file.name}")

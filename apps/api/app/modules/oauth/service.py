@@ -525,8 +525,6 @@ def get_sage_token_url(country: str | None = None) -> str:
         *legacy_regional_urls,
     }:
         return configured
-    if configured and configured_url in legacy_regional_urls:
-        return configured_url
     if normalized_country in regional_urls:
         return generic_url
     raise OAuthProviderUnavailable(
@@ -649,6 +647,12 @@ def build_authorization_url(
     config = connection_config or {}
     authorization_url = get_provider_endpoint(provider, "authorization")
     scopes = get_provider_scopes(provider, config)
+
+    # Sage access tokens are short-lived. Request offline access so the
+    # stored credential can be refreshed by scheduled ingestion instead of
+    # forcing the workspace owner to authorize again after expiry.
+    if provider.source_type == "sage" and "offline_access" not in scopes:
+        scopes = (*scopes, "offline_access")
 
     if provider.source_type == "shopify":
         shop_domain = normalize_shopify_shop_domain(
@@ -1060,6 +1064,11 @@ def _read_sage_businesses_response(
                 "Sage business lookup is unavailable"
             ) from error
         if response.status_code >= 400:
+            if response.status_code in {401, 403}:
+                raise OAuthTokenExchangeError(
+                    "Sage rejected the stored authorization while loading "
+                    "businesses. Reconnect Sage with OAuth."
+                )
             raise OAuthTokenExchangeError(
                 f"Sage business lookup failed with HTTP "
                 f"{response.status_code}: {response.text[:240]}"
@@ -1076,6 +1085,11 @@ def _read_sage_businesses_response(
             return response.read().decode("utf-8")
     except HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
+        if error.code in {401, 403}:
+            raise OAuthTokenExchangeError(
+                "Sage rejected the stored authorization while loading "
+                "businesses. Reconnect Sage with OAuth."
+            ) from error
         raise OAuthTokenExchangeError(
             f"Sage business lookup failed with HTTP {error.code}: "
             f"{detail[:240]}"
@@ -1100,17 +1114,33 @@ def get_sage_businesses(
     configured_businesses_url = get_provider_setting(
         "SAGE_BUSINESSES_API_URL"
     )
-    businesses_url = configured_businesses_url
-    if not businesses_url:
+    businesses_url = SAGE_DEFAULT_BUSINESSES_API_URL
+    if configured_businesses_url:
+        parsed_businesses_url = urlparse(configured_businesses_url)
+        is_current_businesses_url = (
+            parsed_businesses_url.scheme == "https"
+            and parsed_businesses_url.hostname == "api.accounting.sage.com"
+            and parsed_businesses_url.path.rstrip("/")
+            == "/v3.1/businesses"
+            and not parsed_businesses_url.query
+            and not parsed_businesses_url.fragment
+        )
+        if is_current_businesses_url:
+            businesses_url = configured_businesses_url.rstrip("/")
+        else:
+            logger.warning(
+                "Ignoring stale Sage business discovery URL; using the "
+                "current v3.1 endpoint"
+            )
+    else:
         api_base_url = get_provider_setting("SAGE_API_BASE_URL")
         parsed_base_url = urlparse(api_base_url)
         if (
-            parsed_base_url.hostname == "api.accounting.sage.com"
+            parsed_base_url.scheme == "https"
+            and parsed_base_url.hostname == "api.accounting.sage.com"
             and parsed_base_url.path.rstrip("/").endswith("/v3.1")
         ):
             businesses_url = f"{api_base_url.rstrip('/')}/businesses"
-    if not businesses_url:
-        businesses_url = SAGE_DEFAULT_BUSINESSES_API_URL
 
     try:
         body = _read_sage_businesses_response(

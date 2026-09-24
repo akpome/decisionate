@@ -491,8 +491,26 @@ async def refresh_sage_businesses(
             )
         except (ConnectorUnavailable, OAuthTokenExchangeError) as error:
             db.rollback()
+            normalized_error = str(error).lower()
+            requires_reauthorization = any(
+                marker in normalized_error
+                for marker in (
+                    "reconnect",
+                    "rejected the stored authorization",
+                    "http 401",
+                    "http 403",
+                    "no accessible businesses",
+                    "no business list",
+                )
+            )
+            if requires_reauthorization:
+                mark_connection_authorization_failed(
+                    connection,
+                    error,
+                )
+                db.commit()
             raise HTTPException(
-                status_code=502,
+                status_code=409 if requires_reauthorization else 502,
                 detail=str(error),
             ) from error
 

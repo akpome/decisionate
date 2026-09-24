@@ -166,6 +166,36 @@ class SageConnectorTests(unittest.TestCase):
             "https://api.accounting.sage.com/v3.1/businesses",
         )
 
+    def test_sage_business_discovery_ignores_legacy_business_url_override(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"$items": []}'
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_BUSINESSES_API_URL": (
+                    "https://api.columbus.sage.com/uki/sageone/accounts/v3/businesses"
+                ),
+            },
+            clear=False,
+        ), patch("app.modules.oauth.service.curl_requests", None), patch(
+            "app.modules.oauth.service.urlopen",
+            return_value=Response(),
+        ) as urlopen:
+            get_sage_businesses("sage-token")
+
+        self.assertEqual(
+            urlopen.call_args.args[0].full_url,
+            "https://api.accounting.sage.com/v3.1/businesses",
+        )
+
     def test_sage_authorization_uses_read_only_consent(self):
         with patch.dict(
             os.environ,
@@ -191,7 +221,7 @@ class SageConnectorTests(unittest.TestCase):
         query = parse_qs(urlparse(url).query)
         self.assertEqual(query["filter"], ["apiv3.1"])
         self.assertEqual(query["country"], ["ca"])
-        self.assertEqual(query["scope"], ["readonly"])
+        self.assertEqual(query["scope"], ["readonly offline_access"])
         self.assertEqual(token_url, "https://oauth.example/token")
 
     def test_sage_uses_central_token_endpoint_for_default_v31_url(self):
@@ -230,6 +260,21 @@ class SageConnectorTests(unittest.TestCase):
             )
             self.assertEqual(
                 get_sage_token_url("IE"),
+                "https://oauth.accounting.sage.com/token",
+            )
+
+    def test_sage_upgrades_legacy_regional_token_url_for_v31(self):
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_OAUTH_TOKEN_URL": (
+                    "https://oauth.na.sageone.com/token"
+                ),
+            },
+            clear=False,
+        ):
+            self.assertEqual(
+                get_sage_token_url("CA"),
                 "https://oauth.accounting.sage.com/token",
             )
 
