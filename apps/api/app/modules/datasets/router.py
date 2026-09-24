@@ -39,6 +39,8 @@ from app.db.models import Dataset
 from app.db.models import DatasetJoinCache
 from app.db.models import DatasetRelationship
 from app.db.models import EntityIdentity
+from app.db.models import OAuthConnectionState
+from app.db.models import OAuthCredential
 from app.db.models import UserPreference
 from app.db.models import WeeklyReportPreference
 from app.db.models import utc_now
@@ -229,6 +231,7 @@ from app.modules.oauth.service import (
     OAuthProviderUnavailable,
     encrypt_token,
     normalize_lightspeed_x_domain_prefix,
+    normalize_sage_country,
 )
 
 router = APIRouter()
@@ -4485,6 +4488,36 @@ async def update_source_connection(
                     ],
                     None,
                 )
+            previous_sage_country = normalize_sage_country(
+                existing_config.get("country")
+            )
+            next_sage_country = normalize_sage_country(
+                next_config.get("country")
+            )
+            if (
+                connection.source_type == "sage"
+                and next_sage_country
+                and previous_sage_country != next_sage_country
+            ):
+                db.query(OAuthCredential).filter(
+                    OAuthCredential.connection_id == connection.id,
+                    OAuthCredential.source_type == "sage",
+                ).delete(synchronize_session=False)
+                db.query(OAuthConnectionState).filter(
+                    OAuthConnectionState.connection_id == connection.id,
+                ).delete(synchronize_session=False)
+                for key in (
+                    "business_id",
+                    "resource_owner_id",
+                    "site_id",
+                    OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY,
+                ):
+                    next_config.pop(key, None)
+                connection.status = "draft"
+                connection.authorization_error = None
+                connection.authorization_error_at = None
+                connection.authorization_notification_error = None
+                connection.authorization_notification_sent_at = None
             connection.connection_config = (
                 protect_source_connection_config(
                     connection.source_type,

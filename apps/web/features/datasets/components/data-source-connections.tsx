@@ -660,7 +660,8 @@ function DataSourceConnectionRow({
   const canStartOAuth =
     source?.connection_type === "oauth" &&
     source.status === "available" &&
-    connection.status !== "connected" &&
+    (connection.status !== "connected" ||
+      connection.source_type === "sage") &&
     hasRequiredConnectionSettings &&
     Boolean(onStartOAuthConnection)
   const canCancelOAuth =
@@ -1024,7 +1025,8 @@ function DataSourceConnectionRow({
                   }
                   className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
-                  {connection.authorization_error
+                  {connection.authorization_error ||
+                  connection.status === "connected"
                     ? t("Reconnect with OAuth")
                     : t("Connect with OAuth")}
                 </button>

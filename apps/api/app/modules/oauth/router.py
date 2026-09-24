@@ -231,6 +231,41 @@ def clear_stale_oauth_authorization(
     db.commit()
 
 
+def reset_sage_oauth_authorization(
+    db,
+    connection,
+) -> None:
+    """Force Sage to issue a fresh grant for the selected region."""
+    db.query(OAuthCredential).filter(
+        OAuthCredential.connection_id == connection.id,
+        OAuthCredential.source_type == "sage",
+    ).delete(synchronize_session=False)
+    db.query(OAuthConnectionState).filter(
+        OAuthConnectionState.connection_id == connection.id,
+    ).delete(synchronize_session=False)
+
+    connection_config = parse_source_connection_config(
+        connection.connection_config
+    )
+    for key in (
+        "business_id",
+        "resource_owner_id",
+        "site_id",
+        OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY,
+    ):
+        connection_config.pop(key, None)
+    connection.connection_config = (
+        json.dumps(connection_config, sort_keys=True)
+        if connection_config
+        else None
+    )
+    connection.status = "draft"
+    connection.authorization_error = None
+    connection.authorization_error_at = None
+    connection.authorization_notification_error = None
+    connection.authorization_notification_sent_at = None
+
+
 def get_oauth_config_requirement_error(
     source_type: str,
     connection_config: dict,
@@ -353,6 +388,11 @@ async def start_oauth_connection(
                 status_code=422,
                 detail=config_requirement_error,
             )
+        if (
+            connection.source_type == "sage"
+            and connection.status == "connected"
+        ):
+            reset_sage_oauth_authorization(db, connection)
         clear_stale_oauth_authorization(
             db,
             connection,

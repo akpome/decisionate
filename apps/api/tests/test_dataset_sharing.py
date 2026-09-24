@@ -1,5 +1,6 @@
 import unittest
 import asyncio
+import json
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +14,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.elements import BooleanClauseList
 
 from app.db.models import DataSourceConnection
+from app.db.models import Dataset
+from app.db.models import OAuthConnectionState
+from app.db.models import OAuthCredential
 from app.modules.datasets.router import (
     build_dataset_upload_path,
     build_dataset_share_result,
@@ -166,6 +170,15 @@ class DatasetSharingTests(unittest.TestCase):
             "sqlite:///:memory:",
         )
         DataSourceConnection.__table__.create(
+            engine,
+        )
+        Dataset.__table__.create(
+            engine,
+        )
+        OAuthConnectionState.__table__.create(
+            engine,
+        )
+        OAuthCredential.__table__.create(
             engine,
         )
 
@@ -1158,6 +1171,74 @@ class DatasetSharingTests(unittest.TestCase):
                 response["has_config"],
             )
 
+        finally:
+            db.close()
+
+    def test_sage_region_change_clears_previous_oauth_authorization(self):
+        Session = self.build_memory_source_connection_session_factory()
+        db = Session()
+
+        try:
+            db.add(
+                DataSourceConnection(
+                    id=1,
+                    user_id="user-1",
+                    workspace_id="workspace-1",
+                    source_type="sage",
+                    display_name="Sage",
+                    status="connected",
+                    connection_config=(
+                        '{"country": "GB", "business_id": "old-business", '
+                        '"_oauth_account_options": [{"id": "old-business"}]}'
+                    ),
+                )
+            )
+            db.add(
+                OAuthCredential(
+                    connection_id=1,
+                    workspace_id="workspace-1",
+                    source_type="sage",
+                    access_token_encrypted="old-token",
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        with patch(
+            "app.modules.datasets.router.SessionLocal",
+            Session,
+        ), patch(
+            "app.modules.datasets.router.get_user_id",
+            return_value="user-1",
+        ), patch(
+            "app.modules.datasets.router.get_workspace_id",
+            return_value="workspace-1",
+        ):
+            response = asyncio.run(
+                update_source_connection(
+                    SimpleNamespace(),
+                    1,
+                    DataSourceConnectionUpdate(
+                        connection_config={"country": "CA"},
+                    ),
+                )
+            )
+
+        db = Session()
+        try:
+            connection = db.query(DataSourceConnection).one()
+            self.assertEqual(connection.status, "draft")
+            self.assertEqual(
+                json.loads(connection.connection_config),
+                {"country": "CA"},
+            )
+            self.assertIsNone(
+                db.query(OAuthCredential).filter(
+                    OAuthCredential.connection_id == 1,
+                ).first()
+            )
+            self.assertEqual(response["status"], "draft")
         finally:
             db.close()
 
