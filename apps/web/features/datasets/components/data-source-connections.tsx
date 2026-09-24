@@ -2030,7 +2030,7 @@ const CONNECTION_FIELD_GUIDES: Record<
       example: "Canada",
     },
     business_id: {
-      description: "Optional Sage business identifier. Enter it to force this connection to use a specific business; leave it blank to use the business selected by Sage during OAuth.",
+      description: "Optional Sage API business identifier (resource_owner_id / X-Site). Enter it to use a specific business, then reconnect with OAuth; leave it blank to use the business selected by Sage.",
       example: "12345678-1234-1234-1234-123456789012",
     },
     resource_types: {
@@ -2728,7 +2728,7 @@ function ConnectionConfigField({
       )}
       {sourceType === "sage" && configKey === "business_id" && (
         <span className="mt-1 block normal-case tracking-normal text-gray-500">
-          Enter a Sage Business ID to use a specific business. Leave it blank to use the business selected during OAuth.
+          Use Sage&apos;s API resource_owner_id (the X-Site value), not only the business shown in the Sage page URL. Save it, then reconnect with OAuth to authorize that business.
         </span>
       )}
     </label>

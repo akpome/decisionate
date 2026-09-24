@@ -1,8 +1,10 @@
 import unittest
 import asyncio
+import json
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
+from datetime import datetime
 from unittest.mock import patch
 
 import pandas as pd
@@ -13,6 +15,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.elements import BooleanClauseList
 
 from app.db.models import DataSourceConnection
+from app.db.models import OAuthConnectionState
+from app.db.models import OAuthCredential
 from app.modules.datasets.router import (
     build_dataset_upload_path,
     build_dataset_share_result,
@@ -30,6 +34,7 @@ from app.modules.datasets.router import (
     get_dataset_upload_dir,
     has_source_connection_config,
     get_source_connection_config_status,
+    invalidate_sage_authorization_for_business_change,
     require_source_connection_sync_config,
     remove_dataset_preference_entry,
     remove_dataset_file,
@@ -168,6 +173,8 @@ class DatasetSharingTests(unittest.TestCase):
         DataSourceConnection.__table__.create(
             engine,
         )
+        OAuthCredential.__table__.create(engine)
+        OAuthConnectionState.__table__.create(engine)
 
         return sessionmaker(
             bind=engine,
@@ -1158,6 +1165,79 @@ class DatasetSharingTests(unittest.TestCase):
                 response["has_config"],
             )
 
+        finally:
+            db.close()
+
+    def test_changing_sage_business_id_requires_a_new_oauth_grant(self):
+        Session = self.build_memory_source_connection_session_factory()
+        db = Session()
+
+        try:
+            db.add(
+                DataSourceConnection(
+                    id=1,
+                    user_id="user-1",
+                    workspace_id="workspace-1",
+                    source_type="sage",
+                    display_name="Sage company",
+                    status="connected",
+                    connection_config=json.dumps(
+                        {
+                            "country": "CA",
+                            "business_id": "business-1",
+                        }
+                    ),
+                )
+            )
+            db.add(
+                OAuthCredential(
+                    connection_id=1,
+                    workspace_id="workspace-1",
+                    source_type="sage",
+                    access_token_encrypted="encrypted-access-token",
+                )
+            )
+            db.add(
+                OAuthConnectionState(
+                    state_token="pending-state",
+                    connection_id=1,
+                    workspace_id="workspace-1",
+                    user_id="user-1",
+                    source_type="sage",
+                    expires_at=datetime.now(),
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        db = Session()
+        try:
+            connection = db.query(DataSourceConnection).one()
+            next_config = {
+                "country": "CA",
+                "business_id": "business-2",
+            }
+            invalidate_sage_authorization_for_business_change(
+                db,
+                connection,
+                json.loads(connection.connection_config),
+                next_config,
+            )
+            connection.connection_config = json.dumps(next_config)
+            db.commit()
+
+            self.assertEqual(connection.status, "draft")
+            self.assertEqual(
+                connection.authorization_error,
+                "Sage business selection changed. Reconnect with OAuth to authorize the selected business.",
+            )
+            self.assertEqual(
+                json.loads(connection.connection_config)["business_id"],
+                "business-2",
+            )
+            self.assertIsNone(db.query(OAuthCredential).first())
+            self.assertIsNone(db.query(OAuthConnectionState).first())
         finally:
             db.close()
 

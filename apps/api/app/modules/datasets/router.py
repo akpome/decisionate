@@ -39,6 +39,8 @@ from app.db.models import Dataset
 from app.db.models import DatasetJoinCache
 from app.db.models import DatasetRelationship
 from app.db.models import EntityIdentity
+from app.db.models import OAuthConnectionState
+from app.db.models import OAuthCredential
 from app.db.models import UserPreference
 from app.db.models import WeeklyReportPreference
 from app.db.models import utc_now
@@ -1730,6 +1732,55 @@ def mark_connection_authorization_failed(
     connection.status = "draft"
     connection.authorization_error = str(error)[:500]
     connection.authorization_error_at = utc_now()
+
+
+def invalidate_sage_authorization_for_business_change(
+    db,
+    connection,
+    previous_config,
+    next_config,
+):
+    """Require a fresh Sage grant when the API business target changes."""
+    if connection.source_type != "sage":
+        return
+
+    previous_business_id = str(
+        (previous_config or {}).get("business_id")
+        or (previous_config or {}).get("resource_owner_id")
+        or (previous_config or {}).get("site_id")
+        or ""
+    ).strip()
+    next_business_id = str(
+        (next_config or {}).get("business_id")
+        or (next_config or {}).get("resource_owner_id")
+        or (next_config or {}).get("site_id")
+        or ""
+    ).strip()
+    if previous_business_id == next_business_id:
+        return
+
+    credential = (
+        db.query(OAuthCredential)
+        .filter(OAuthCredential.connection_id == connection.id)
+        .first()
+    )
+    pending_states = (
+        db.query(OAuthConnectionState)
+        .filter(OAuthConnectionState.connection_id == connection.id)
+        .all()
+    )
+    if credential:
+        db.delete(credential)
+    for state in pending_states:
+        db.delete(state)
+
+    if credential or pending_states or connection.status == "connected":
+        connection.status = "draft"
+        connection.authorization_error = (
+            "Sage business selection changed. Reconnect with OAuth to "
+            "authorize the selected business."
+        )
+        connection.authorization_error_at = utc_now()
 
 
 def has_source_connection_config(
@@ -4485,6 +4536,12 @@ async def update_source_connection(
                     ],
                     None,
                 )
+            invalidate_sage_authorization_for_business_change(
+                db,
+                connection,
+                existing_config,
+                next_config,
+            )
             connection.connection_config = (
                 protect_source_connection_config(
                     connection.source_type,
