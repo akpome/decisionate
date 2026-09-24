@@ -800,18 +800,14 @@ def read_token_response(
                 if key.lower() != "user-agent"
             }
             token_urls = [request.full_url]
-            regional_hosts = {
-                "oauth.na.sageone.com",
-                "oauth.eu.sageone.com",
-                "app.sageone.com",
-            }
-            if urlsplit(request.full_url).netloc.lower() in regional_hosts:
+            central_token_url = "https://oauth.accounting.sage.com/token"
+            if request.full_url.rstrip("/") != central_token_url:
                 # Sage's regional token hosts are protected by a browser
                 # signature rule that can reject a cloud-hosted callback even
                 # when the same request is accepted from a normal browser.
                 # The central v3.1 endpoint accepts the same form payload and
                 # provides a server-side fallback for that specific response.
-                token_urls.append("https://oauth.accounting.sage.com/token")
+                token_urls.append(central_token_url)
 
             last_status = None
             last_body = ""
@@ -838,13 +834,12 @@ def read_token_response(
                     and token_url != token_urls[-1]
                 )
                 logger.warning(
-                    "Sage OAuth token endpoint rejected request",
-                    extra={
-                        "operation": operation,
-                        "host": urlsplit(token_url).netloc,
-                        "status_code": response.status_code,
-                        "retrying_central_endpoint": is_regional_forbidden,
-                    },
+                    "Sage OAuth token endpoint rejected request "
+                    "operation=%s host=%s status=%s retrying_central=%s",
+                    operation,
+                    urlsplit(token_url).netloc,
+                    response.status_code,
+                    is_regional_forbidden,
                 )
                 if not is_regional_forbidden:
                     break
