@@ -169,6 +169,7 @@ class AuthorizationNotificationTests(unittest.TestCase):
             "meta_ads": "Connector request failed with HTTP 400: OAuthException code 190",
             "google_analytics": "Google Analytics report request failed: 403 Permission denied",
             "shopify": "Connector request failed with HTTP 401: access token is invalid",
+            "sage": 'OAuth token exchange failed with HTTP 400: {"error":"invalid_client"}',
         }
 
         for source_type, message in failures.items():

@@ -5637,6 +5637,7 @@ def connector_requires_reauthorization(
             "permission_denied",
             "unauthorized",
             "user_permission_denied",
+            "http 400",
             "http 401",
             "http 403",
         )
