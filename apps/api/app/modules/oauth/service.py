@@ -515,19 +515,20 @@ def get_sage_token_url(country: str | None = None) -> str:
     generic_url = "https://oauth.accounting.sage.com/token"
     legacy_regional_urls = set(regional_urls.values())
 
-    # Sage's central authorization flow returns a country, but the token
-    # exchange still uses the country's regional endpoint. Keep an explicitly
-    # configured non-generic endpoint usable for alternate Sage environments.
+    # Sage Accounting v3.1 uses one token endpoint for every supported region.
+    # The country belongs on the authorization request; routing the code
+    # exchange through a legacy regional host can return a grant that does not
+    # expose the v3.1 multi-business endpoint.
     configured_url = configured.rstrip("/")
     if configured and configured_url not in {
         generic_url,
         *legacy_regional_urls,
     }:
         return configured
-    if normalized_country in regional_urls:
-        return regional_urls[normalized_country]
     if configured and configured_url in legacy_regional_urls:
         return configured_url
+    if normalized_country in regional_urls:
+        return generic_url
     raise OAuthProviderUnavailable(
         "Sage OAuth region is required before exchanging the authorization code"
     )

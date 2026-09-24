@@ -194,7 +194,7 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(query["scope"], ["readonly"])
         self.assertEqual(token_url, "https://oauth.example/token")
 
-    def test_sage_uses_regional_token_endpoints_for_default_v31_url(self):
+    def test_sage_uses_central_token_endpoint_for_default_v31_url(self):
         with patch.dict(
             os.environ,
             {
@@ -206,31 +206,31 @@ class SageConnectorTests(unittest.TestCase):
         ):
             self.assertEqual(
                 get_sage_token_url("CA"),
-                "https://oauth.na.sageone.com/token",
+                "https://oauth.accounting.sage.com/token",
             )
             self.assertEqual(
                 get_sage_token_url("US"),
-                "https://oauth.na.sageone.com/token",
+                "https://oauth.accounting.sage.com/token",
             )
             self.assertEqual(
                 get_sage_token_url("DE"),
-                "https://oauth.eu.sageone.com/token",
+                "https://oauth.accounting.sage.com/token",
             )
             self.assertEqual(
                 get_sage_token_url("ES"),
-                "https://oauth.eu.sageone.com/token",
+                "https://oauth.accounting.sage.com/token",
             )
             self.assertEqual(
                 get_sage_token_url("FR"),
-                "https://oauth.eu.sageone.com/token",
+                "https://oauth.accounting.sage.com/token",
             )
             self.assertEqual(
                 get_sage_token_url("GB"),
-                "https://app.sageone.com/oauth2/token",
+                "https://oauth.accounting.sage.com/token",
             )
             self.assertEqual(
                 get_sage_token_url("IE"),
-                "https://app.sageone.com/oauth2/token",
+                "https://oauth.accounting.sage.com/token",
             )
 
     def test_sage_normalizes_region_aliases(self):
@@ -369,6 +369,46 @@ class SageConnectorTests(unittest.TestCase):
             {
                 "SAGE_API_BASE_URL": "https://api.accounting.sage.com/v3.1",
                 "SAGE_BUSINESS_HEADER": "",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="sage-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=fake_request,
+        ):
+            dataframe, _ = connectors.load_sage_dataframe(
+                None,
+                connection,
+                resource_type_override="contacts",
+            )
+
+        self.assertTrue(dataframe.empty)
+
+    def test_sage_legacy_environment_is_upgraded_to_v31_for_business_selection(self):
+        connection = SimpleNamespace(
+            id=11,
+            source_type="sage",
+            connection_config=json.dumps(
+                {"country": "CA", "business_id": "business-1"}
+            ),
+        )
+
+        def fake_request(url, headers):
+            self.assertIn("api.accounting.sage.com/v3.1/contacts", url)
+            self.assertEqual(headers["X-Business"], "business-1")
+            return {"$items": [], "$next": None}
+
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_API_BASE_URL": (
+                    "https://api.columbus.sage.com/uki/sageone/accounts/v3"
+                ),
+                "SAGE_BUSINESS_HEADER": "X-Site",
             },
             clear=False,
         ), patch.object(

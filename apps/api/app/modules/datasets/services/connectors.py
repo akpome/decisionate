@@ -4719,17 +4719,21 @@ def load_sage_dataframe(
 
     access_token = get_oauth_access_token(db, connection, "sage")
     base_url = require_provider_url("SAGE_API_BASE_URL")
-    business_header = get_provider_setting("SAGE_BUSINESS_HEADER")
-    if not business_header:
+    parsed_base_url = urlparse(base_url)
+    if (
+        parsed_base_url.hostname == "api.columbus.sage.com"
+        or parsed_base_url.path.rstrip("/").endswith("/v3")
+    ):
+        base_url = "https://api.accounting.sage.com/v3.1"
         parsed_base_url = urlparse(base_url)
-        business_header = (
-            "X-Business"
-            if (
-                parsed_base_url.hostname == "api.accounting.sage.com"
-                and parsed_base_url.path.rstrip("/").endswith("/v3.1")
-            )
-            else "X-Site"
-        )
+    business_header = get_provider_setting("SAGE_BUSINESS_HEADER")
+    if (
+        parsed_base_url.hostname == "api.accounting.sage.com"
+        and parsed_base_url.path.rstrip("/").endswith("/v3.1")
+    ):
+        business_header = "X-Business"
+    elif not business_header:
+        business_header = "X-Site"
 
     resource_path, response_key = SAGE_RESOURCE_TYPES[resource_type]
     rows = []
