@@ -9,7 +9,13 @@ from datetime import UTC, date, datetime, timedelta
 import re
 from time import sleep
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode, urlparse
+from urllib.parse import (
+    parse_qsl,
+    quote,
+    urlencode,
+    urlparse,
+    urlunparse,
+)
 from urllib.request import Request, urlopen
 
 import pandas as pd
@@ -548,6 +554,17 @@ def build_sage_pagination_url(base_url: str, next_page) -> str:
             f"{relative_next}"
         )
     return f"{base_url.rstrip('/')}/{relative_next}"
+
+
+def ensure_sage_all_attributes(url: str) -> str:
+    """Request Sage's full resource fields on every paginated request."""
+    parsed = urlparse(url)
+    query = parse_qsl(parsed.query, keep_blank_values=True)
+    if not any(key == "attributes" for key, _value in query):
+        query.append(("attributes", "all"))
+    return urlunparse(
+        parsed._replace(query=urlencode(query))
+    )
 
 
 class ConnectorUnavailable(RuntimeError):
@@ -4845,6 +4862,7 @@ def load_sage_dataframe(
         params = {
             "items_per_page": str(PAGE_SIZE),
             "page": "1",
+            "attributes": "all",
         }
         if start_date and resource_type in SAGE_DATE_FILTER_RESOURCES:
             params["updated_or_created_since"] = format_sage_datetime(
@@ -4928,7 +4946,9 @@ def load_sage_dataframe(
         next_page = payload.get("$next")
         if not next_page:
             break
-        request_url = build_sage_pagination_url(base_url, next_page)
+        request_url = ensure_sage_all_attributes(
+            build_sage_pagination_url(base_url, next_page)
+        )
 
     dataframe = pd.DataFrame(rows)
     if resource_type in SAGE_TRANSACTION_RESOURCES:

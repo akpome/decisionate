@@ -528,6 +528,7 @@ class SageConnectorTests(unittest.TestCase):
 
         def fake_request(url, headers, **_kwargs):
             self.assertIn("sales_invoices", url)
+            self.assertIn("attributes=all", url)
             self.assertEqual(headers["Authorization"], "Bearer sage-token")
             self.assertEqual(headers["X-Site"], "business-1")
             self.assertNotIn("Ocp-Apim-Subscription-Key", headers)
@@ -544,6 +545,11 @@ class SageConnectorTests(unittest.TestCase):
                         "displayed_as": "Acme Ltd",
                     },
                     "currency": {"id": "GBP"},
+                    "invoice_lines": [{
+                        "description": "Consulting",
+                        "quantity": 2,
+                        "unit_price": 600,
+                    }],
                 }],
             }
 
@@ -573,6 +579,11 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(len(dataframe), 1)
         self.assertEqual(dataframe.iloc[0]["invoice_id"], "invoice-1")
         self.assertEqual(dataframe.iloc[0]["total_amount"], 1200)
+        self.assertEqual(
+            dataframe.iloc[0]["invoice_lines__0__description"],
+            "Consulting",
+        )
+        self.assertEqual(dataframe.iloc[0]["invoice_lines__0__quantity"], 2)
         self.assertEqual(report["connector"], "sage")
 
     def test_sage_v31_defaults_to_x_business_header(self):
@@ -834,7 +845,7 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(
             calls[1],
             "https://api.accounting.sage.com/v3.1/sales_invoices?"
-            "page=2&items_per_page=100",
+            "page=2&items_per_page=100&attributes=all",
         )
 
     def test_sage_pagination_link_with_api_version_path_is_not_duplicated(self):
@@ -862,12 +873,17 @@ class SageConnectorTests(unittest.TestCase):
             self.assertIn("/contacts?", url)
             self.assertIn("items_per_page=100", url)
             self.assertIn("page=1", url)
+            self.assertIn("attributes=all", url)
             self.assertEqual(headers["X-Site"], "business-1")
             return {
                 "$items": [{
                     "id": "contact-1",
                     "displayed_as": "Acme Ltd",
                     "email": "finance@example.com",
+                    "main_address": {
+                        "address_line_1": "1 Main Street",
+                        "city": "Halifax",
+                    },
                 }],
                 "$next": None,
             }
@@ -897,6 +913,11 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(len(dataframe), 1)
         self.assertEqual(dataframe.iloc[0]["contact_id"], "contact-1")
         self.assertEqual(dataframe.iloc[0]["contact_name"], "Acme Ltd")
+        self.assertEqual(
+            dataframe.iloc[0]["main_address__address_line_1"],
+            "1 Main Street",
+        )
+        self.assertEqual(dataframe.iloc[0]["main_address__city"], "Halifax")
         self.assertEqual(report["resource"], "contacts")
 
     def test_sage_requires_at_least_one_supported_resource(self):
