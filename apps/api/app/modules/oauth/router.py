@@ -85,6 +85,30 @@ def build_oauth_account_options(
     return options
 
 
+def resolve_sage_business_id(
+    connection_config,
+    payload,
+    query,
+):
+    """Keep an explicit Sage business selection across OAuth callbacks."""
+    configured_business_id = str(
+        (connection_config or {}).get("business_id") or ""
+    ).strip()
+    callback_business_id = str(
+        payload.get("resource_owner_id")
+        or payload.get("business_id")
+        or query.get("resource_owner_id")
+        or query.get("business_id")
+        or ""
+    ).strip()
+    business_id = configured_business_id or callback_business_id
+    if not business_id:
+        raise OAuthTokenExchangeError(
+            "Sage did not return a business identifier"
+        )
+    return business_id
+
+
 def clear_stale_oauth_authorization(
     db,
     connection,
@@ -662,17 +686,11 @@ def process_oauth_callback(request: Request):
                 sort_keys=True,
             )
         if state_source_type == "sage":
-            business_id = str(
-                payload.get("resource_owner_id")
-                or payload.get("business_id")
-                or query.get("resource_owner_id")
-                or query.get("business_id")
-                or ""
-            ).strip()
-            if not business_id:
-                raise OAuthTokenExchangeError(
-                    "Sage did not return a business identifier"
-                )
+            business_id = resolve_sage_business_id(
+                connection_config,
+                payload,
+                query,
+            )
             connection_config["business_id"] = business_id
             connection.connection_config = json.dumps(
                 connection_config,
