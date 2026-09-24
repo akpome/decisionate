@@ -578,6 +578,14 @@ def get_provider_scopes(
         for scope in configured_scopes.replace(",", " ").split()
         if scope.strip()
     )
+    if provider.source_type == "sage":
+        # Sage Accounting accepts only readonly or full_access here. Do not
+        # pass offline_access, which belongs to other Sage OAuth flows.
+        scopes = tuple(
+            scope
+            for scope in scopes
+            if scope in {"readonly", "full_access"}
+        )
     if provider.source_type == "shopify":
         scopes = tuple(
             scope
@@ -647,12 +655,6 @@ def build_authorization_url(
     config = connection_config or {}
     authorization_url = get_provider_endpoint(provider, "authorization")
     scopes = get_provider_scopes(provider, config)
-
-    # Sage access tokens are short-lived. Request offline access so the
-    # stored credential can be refreshed by scheduled ingestion instead of
-    # forcing the workspace owner to authorize again after expiry.
-    if provider.source_type == "sage" and "offline_access" not in scopes:
-        scopes = (*scopes, "offline_access")
 
     if provider.source_type == "shopify":
         shop_domain = normalize_shopify_shop_domain(

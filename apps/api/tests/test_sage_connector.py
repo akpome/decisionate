@@ -267,8 +267,31 @@ class SageConnectorTests(unittest.TestCase):
         query = parse_qs(urlparse(url).query)
         self.assertEqual(query["filter"], ["apiv3.1"])
         self.assertEqual(query["country"], ["ca"])
-        self.assertEqual(query["scope"], ["readonly offline_access"])
+        self.assertEqual(query["scope"], ["readonly"])
         self.assertEqual(token_url, "https://oauth.example/token")
+
+    def test_sage_drops_unsupported_offline_access_scope(self):
+        with patch.dict(
+            os.environ,
+            {
+                "SAGE_CLIENT_ID": "client-id",
+                "SAGE_CLIENT_SECRET": "client-secret",
+                "SAGE_OAUTH_AUTHORIZATION_URL": (
+                    "https://www.sageone.com/oauth2/auth/central"
+                ),
+                "SAGE_OAUTH_TOKEN_URL": "https://oauth.example/token",
+                "SAGE_OAUTH_SCOPES": "readonly offline_access",
+            },
+            clear=False,
+        ):
+            url = build_authorization_url(
+                "sage",
+                "state-1",
+                {"country": "CA"},
+            )
+
+        query = parse_qs(urlparse(url).query)
+        self.assertEqual(query["scope"], ["readonly"])
 
     def test_sage_uses_central_token_endpoint_for_default_v31_url(self):
         with patch.dict(
