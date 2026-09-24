@@ -134,6 +134,17 @@ function formatPreviewValue(
   return String(value)
 }
 
+function truncatePreviewValue(
+  value: string,
+  maxLength = 160
+) {
+  if (value.length <= maxLength) {
+    return value
+  }
+
+  return `${value.slice(0, maxLength - 3)}...`
+}
+
 function getPreviewNumericColumns(
   columns: string[],
   preview: DatasetRow[] | undefined
@@ -1146,16 +1157,30 @@ export default function DatasetDetailsPage() {
                   ) => (
                     <tr key={index}>
                       {visiblePreviewColumns.map(
-                        column => (
-                          <td
-                            key={column}
-                            className="max-w-xs break-words border-b px-4 py-2 text-gray-700"
-                          >
-                            {formatPreviewValue(
-                              row[column]
-                            )}
-                          </td>
-                        )
+                        column => {
+                          const previewValue =
+                            formatPreviewValue(row[column])
+                          const displayValue =
+                            truncatePreviewValue(previewValue)
+
+                          return (
+                            <td
+                              key={column}
+                              className="max-w-xs align-top border-b px-4 py-2 text-gray-700"
+                            >
+                              <div
+                                className="block max-w-xs truncate"
+                                title={
+                                  displayValue !== previewValue
+                                    ? previewValue
+                                    : undefined
+                                }
+                              >
+                                {displayValue}
+                              </div>
+                            </td>
+                          )
+                        }
                       )}
                     </tr>
                   )
