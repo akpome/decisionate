@@ -440,6 +440,66 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             db.close()
             engine.dispose()
 
+    def test_sync_route_returns_unexpected_error_notification(self):
+        engine = create_engine("sqlite:///:memory:")
+        DataSourceConnection.__table__.create(engine)
+        Dataset.__table__.create(engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+        db.add(
+            DataSourceConnection(
+                id=1,
+                user_id="user-1",
+                workspace_id="workspace-1",
+                source_type="google_analytics",
+                display_name="Marketing analytics",
+                status="connected",
+                connection_config='{"property_id": "123456"}',
+            )
+        )
+        db.commit()
+        db.close()
+
+        with patch(
+            "app.modules.datasets.router.SessionLocal",
+            Session,
+        ), patch(
+            "app.modules.datasets.router.get_user_id",
+            return_value="user-1",
+        ), patch(
+            "app.modules.datasets.router.get_workspace_id",
+            return_value="workspace-1",
+        ), patch(
+            "app.modules.datasets.router.run_data_source_sync",
+            side_effect=RuntimeError("storage connection dropped"),
+        ):
+            response = asyncio.run(
+                sync_source_connection(
+                    types.SimpleNamespace(),
+                    1,
+                    DataSourceConnectionSync(
+                        start_date="2026-08-07",
+                        end_date="2026-09-06",
+                    ),
+                )
+            )
+
+        self.assertEqual(
+            response,
+            {
+                "connection_id": 1,
+                "status": "error",
+                "message": "Connector sync failed: storage connection dropped",
+                "datasets": [],
+            },
+        )
+        db = Session()
+        try:
+            self.assertEqual(db.query(Dataset).count(), 0)
+        finally:
+            db.close()
+            engine.dispose()
+
 
 if __name__ == "__main__":
     unittest.main()

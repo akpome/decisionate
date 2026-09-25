@@ -7204,6 +7204,10 @@ async def sync_source_connection(
             connection,
             payload,
         )
+        if not sync_results:
+            raise ConnectorUnavailable(
+                "Connector sync completed without producing a dataset"
+            )
         db.commit()
         datasets = []
         for dataset, report_config, _file_path, replaced_file_path in sync_results:
@@ -7270,18 +7274,30 @@ async def sync_source_connection(
         }
     except HTTPException:
         raise
-    except Exception:
+    except Exception as error:
+        db.rollback()
+        error_detail = " ".join(str(error).split())
+        if len(error_detail) > 280:
+            error_detail = f"{error_detail[:277]}..."
+        message = (
+            f"Connector sync failed: {error_detail}"
+            if error_detail
+            else "Connector sync failed unexpectedly"
+        )
         logger.exception(
             "Connector sync failed",
             extra={
                 "connection_id": connection_id,
                 "source_type": getattr(connection, "source_type", None),
+                "error_type": type(error).__name__,
             },
         )
-        raise HTTPException(
-            status_code=502,
-            detail="Connector data could not be loaded",
-        )
+        return {
+            "connection_id": connection_id,
+            "status": "error",
+            "message": message,
+            "datasets": [],
+        }
     finally:
         db.close()
 
