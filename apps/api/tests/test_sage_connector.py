@@ -535,7 +535,9 @@ class SageConnectorTests(unittest.TestCase):
             return {
                 "$items": [{
                     "id": "invoice-1",
+                    "legacy_id": 1001,
                     "displayed_as": "SI-1001",
+                    "$path": "/sales_invoices/invoice-1",
                     "date": "2026-01-02",
                     "due_date": "2026-02-01",
                     "status": "PROGRESS",
@@ -543,6 +545,7 @@ class SageConnectorTests(unittest.TestCase):
                     "contact": {
                         "id": "contact-1",
                         "displayed_as": "Acme Ltd",
+                        "$path": "/contacts/contact-1",
                     },
                     "currency": {"id": "GBP"},
                     "invoice_lines": [{
@@ -579,6 +582,12 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(len(dataframe), 1)
         self.assertEqual(dataframe.iloc[0]["invoice_id"], "invoice-1")
         self.assertEqual(dataframe.iloc[0]["total_amount"], 1200)
+        self.assertNotIn("id", dataframe.columns)
+        self.assertNotIn("legacy_id", dataframe.columns)
+        self.assertNotIn("displayed_as", dataframe.columns)
+        self.assertNotIn("$path", dataframe.columns)
+        self.assertNotIn("contact__id", dataframe.columns)
+        self.assertNotIn("contact__$path", dataframe.columns)
         self.assertEqual(
             dataframe.iloc[0]["invoice_lines__0__description"],
             "Consulting",
@@ -878,9 +887,13 @@ class SageConnectorTests(unittest.TestCase):
             return {
                 "$items": [{
                     "id": "contact-1",
+                    "legacy_id": 1002,
                     "displayed_as": "Acme Ltd",
+                    "$path": "/contacts/contact-1",
                     "email": "finance@example.com",
                     "main_address": {
+                        "id": "address-1",
+                        "$path": "/addresses/address-1",
                         "address_line_1": "1 Main Street",
                         "city": "Halifax",
                     },
@@ -913,6 +926,12 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(len(dataframe), 1)
         self.assertEqual(dataframe.iloc[0]["contact_id"], "contact-1")
         self.assertEqual(dataframe.iloc[0]["contact_name"], "Acme Ltd")
+        self.assertNotIn("id", dataframe.columns)
+        self.assertNotIn("legacy_id", dataframe.columns)
+        self.assertNotIn("displayed_as", dataframe.columns)
+        self.assertNotIn("$path", dataframe.columns)
+        self.assertNotIn("main_address__id", dataframe.columns)
+        self.assertNotIn("main_address__$path", dataframe.columns)
         self.assertEqual(
             dataframe.iloc[0]["main_address__address_line_1"],
             "1 Main Street",

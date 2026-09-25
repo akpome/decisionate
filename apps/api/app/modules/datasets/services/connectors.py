@@ -4581,8 +4581,22 @@ def _sage_nested_value(record: dict, field: str, *keys: str):
     return _sage_first_value(nested, *keys)
 
 
+def strip_sage_metadata(value):
+    """Remove Sage transport metadata while retaining object content."""
+    if isinstance(value, dict):
+        return {
+            key: strip_sage_metadata(child)
+            for key, child in value.items()
+            if not str(key).startswith("$")
+            and key not in {"id", "legacy_id", "displayed_as"}
+        }
+    if isinstance(value, list):
+        return [strip_sage_metadata(item) for item in value]
+    return value
+
+
 def build_sage_normalized_fields(record: dict, resource_type: str) -> dict:
-    """Expose stable analytical aliases without dropping Sage fields."""
+    """Expose stable analytical aliases for Sage object content."""
     contact = record.get("contact")
     contact = contact if isinstance(contact, dict) else {}
     normalized = {
@@ -4935,10 +4949,14 @@ def load_sage_dataframe(
         for record in records:
             if not isinstance(record, dict):
                 continue
+            normalized_fields = build_sage_normalized_fields(
+                record,
+                resource_type,
+            )
             rows.append(
                 build_dynamic_connector_row(
-                    record,
-                    build_sage_normalized_fields(record, resource_type),
+                    strip_sage_metadata(record),
+                    normalized_fields,
                     flatten_lists=True,
                 )
             )
