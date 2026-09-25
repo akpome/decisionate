@@ -114,6 +114,7 @@ class ConnectorStorageTests(unittest.TestCase):
             {
                 "id": "invoice-1",
                 "path": "/sales_invoices/invoice-1",
+                "href": "https://api.sage.example/invoice-1",
                 "displayed_as": "SI-1001",
                 "contact__id": "contact-1",
                 "record_id": "invoice-1",

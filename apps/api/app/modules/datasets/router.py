@@ -4937,6 +4937,7 @@ MAX_SUMMARY_GROUP_CARDINALITY = 50
 SAGE_METADATA_COLUMN_LEAVES = {
     "created_at",
     "displayed_as",
+    "href",
     "id",
     "legacy_id",
     "path",
