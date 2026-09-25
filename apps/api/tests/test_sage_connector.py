@@ -586,8 +586,10 @@ class SageConnectorTests(unittest.TestCase):
         self.assertNotIn("legacy_id", dataframe.columns)
         self.assertNotIn("displayed_as", dataframe.columns)
         self.assertNotIn("$path", dataframe.columns)
+        self.assertNotIn("path", dataframe.columns)
         self.assertNotIn("contact__id", dataframe.columns)
         self.assertNotIn("contact__$path", dataframe.columns)
+        self.assertNotIn("contact__path", dataframe.columns)
         self.assertEqual(
             dataframe.iloc[0]["invoice_lines__0__description"],
             "Consulting",
@@ -930,8 +932,10 @@ class SageConnectorTests(unittest.TestCase):
         self.assertNotIn("legacy_id", dataframe.columns)
         self.assertNotIn("displayed_as", dataframe.columns)
         self.assertNotIn("$path", dataframe.columns)
+        self.assertNotIn("path", dataframe.columns)
         self.assertNotIn("main_address__id", dataframe.columns)
         self.assertNotIn("main_address__$path", dataframe.columns)
+        self.assertNotIn("main_address__path", dataframe.columns)
         self.assertEqual(
             dataframe.iloc[0]["main_address__address_line_1"],
             "1 Main Street",

@@ -4934,6 +4934,16 @@ SUMMARY_MARKER_COLUMN = "__decisionate_summary__"
 CONNECTOR_PARTITION_MONTH_COLUMN = "__decisionate_partition_month__"
 MAX_SUMMARY_GROUP_COLUMNS = 4
 MAX_SUMMARY_GROUP_CARDINALITY = 50
+SAGE_METADATA_COLUMN_LEAVES = {
+    "created_at",
+    "displayed_as",
+    "id",
+    "legacy_id",
+    "path",
+    "record_id",
+    "resource_type",
+    "updated_at",
+}
 
 
 def _is_missing_connector_value(value):
@@ -5064,6 +5074,31 @@ def normalize_connector_dataframe_for_parquet(dataframe):
             normalized[column] = series.map(_connector_value_as_text)
 
     return normalized
+
+
+def strip_sage_metadata_columns(dataframe):
+    """Remove Sage transport and identity columns from persisted rows."""
+    if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
+        return dataframe
+
+    columns_to_remove = []
+    for column in dataframe.columns:
+        column_name = str(column)
+        leaf = column_name.rsplit("__", 1)[-1].lower()
+        normalized_leaf = leaf.lstrip("$")
+        if (
+            normalized_leaf in SAGE_METADATA_COLUMN_LEAVES
+            or normalized_leaf.endswith("_id")
+            or column_name.startswith("decisionate__")
+        ):
+            columns_to_remove.append(column)
+
+    if not columns_to_remove:
+        return dataframe
+    return dataframe.drop(
+        columns=columns_to_remove,
+        errors="ignore",
+    )
 
 
 def build_connector_partition_dir(
@@ -5684,9 +5719,9 @@ def get_connector_dedup_keys(
         return available_keys
 
     for candidate in (
-        "id",
         "record_id",
         "external_id",
+        "id",
     ):
         if candidate in columns:
             return [candidate]
@@ -6530,6 +6565,16 @@ def persist_connector_dataframe(
             connection.source_type,
             report_config,
         )
+        if connection.source_type == "sage":
+            merged_dataframe = strip_sage_metadata_columns(
+                merged_dataframe
+            )
+            if not merged_dataframe.empty:
+                merged_dataframe = (
+                    merged_dataframe
+                    .drop_duplicates(keep="last")
+                    .reset_index(drop=True)
+                )
         base_filename = build_connector_dataset_filename(
             connection.source_type,
             report_config,

@@ -11,6 +11,7 @@ from app.modules.datasets.router import (
     merge_connector_dataframes,
     normalize_connector_dataframe_for_parquet,
     normalize_connector_partition_month,
+    strip_sage_metadata_columns,
     write_connector_monthly_partitions,
 )
 
@@ -106,6 +107,36 @@ class ConnectorStorageTests(unittest.TestCase):
         self.assertEqual(
             merged.iloc[0]["record_id"],
             '{"id": "invoice-1"}',
+        )
+
+    def test_sage_persistence_shape_removes_metadata_and_duplicate_rows(self):
+        dataframe = pd.DataFrame([
+            {
+                "id": "invoice-1",
+                "path": "/sales_invoices/invoice-1",
+                "displayed_as": "SI-1001",
+                "contact__id": "contact-1",
+                "record_id": "invoice-1",
+                "resource_type": "sales_invoices",
+                "date": "2026-09-24",
+                "description": "Consulting",
+                "total_amount": 1200,
+            },
+            {
+                "record_id": "invoice-1",
+                "date": "2026-09-24",
+                "description": "Consulting",
+                "total_amount": 1200,
+            },
+        ])
+
+        cleaned = strip_sage_metadata_columns(dataframe)
+        cleaned = cleaned.drop_duplicates(keep="last").reset_index(drop=True)
+
+        self.assertEqual(len(cleaned), 1)
+        self.assertEqual(
+            set(cleaned.columns),
+            {"date", "description", "total_amount"},
         )
 
     def test_partition_month_normalizes_float_and_date_values(self):
