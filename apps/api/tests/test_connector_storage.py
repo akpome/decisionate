@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pandas as pd
 
 from app.modules.datasets.router import (
+    merge_connector_dataframes,
     normalize_connector_dataframe_for_parquet,
     normalize_connector_partition_month,
     write_connector_monthly_partitions,
@@ -88,6 +89,24 @@ class ConnectorStorageTests(unittest.TestCase):
                 os.path.join(directory, "duplicate.parquet"),
                 index=False,
             )
+
+    def test_connector_merge_hashes_dynamic_identity_values_after_normalization(self):
+        incoming = pd.DataFrame({
+            "record_id": [{"id": "invoice-1"}],
+            "total_amount": [12.5],
+        })
+
+        merged = merge_connector_dataframes(
+            pd.DataFrame(),
+            normalize_connector_dataframe_for_parquet(incoming),
+            "sage",
+            {},
+        )
+
+        self.assertEqual(
+            merged.iloc[0]["record_id"],
+            '{"id": "invoice-1"}',
+        )
 
     def test_partition_month_normalizes_float_and_date_values(self):
         self.assertEqual(

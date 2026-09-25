@@ -6484,6 +6484,15 @@ def persist_connector_dataframe(
                 existing_dataframe = None
                 existing_summary = pd.DataFrame()
 
+        # Normalize dynamic values before deduplication. Older connector
+        # partitions and provider aliases can contain dict/list values in an
+        # identity column, which pandas cannot hash during drop_duplicates.
+        existing_dataframe = normalize_connector_dataframe_for_parquet(
+            existing_dataframe
+        )
+        dataframe = normalize_connector_dataframe_for_parquet(
+            dataframe
+        )
         fetched_row_count = len(dataframe)
         storage_migration_required = bool(
             existing_dataset

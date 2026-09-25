@@ -1107,6 +1107,12 @@ def build_dynamic_connector_row(
     for key, value in normalized_fields.items():
         if value is None:
             continue
+        if isinstance(value, (dict, list, tuple, set)):
+            value = json.dumps(
+                value,
+                sort_keys=True,
+                default=str,
+            )
         if is_connector_date_column(key):
             value = normalize_connector_date(value)
         if key in row and row[key] not in (None, "") and row[key] != value:
