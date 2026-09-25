@@ -11,6 +11,7 @@ from app.modules.datasets.router import (
     merge_connector_dataframes,
     normalize_connector_dataframe_for_parquet,
     normalize_connector_partition_month,
+    deduplicate_sage_dataframe,
     strip_sage_metadata_columns,
     write_connector_monthly_partitions,
 )
@@ -131,14 +132,39 @@ class ConnectorStorageTests(unittest.TestCase):
             },
         ])
 
-        cleaned = strip_sage_metadata_columns(dataframe)
-        cleaned = cleaned.drop_duplicates(keep="last").reset_index(drop=True)
+        cleaned = deduplicate_sage_dataframe(
+            dataframe,
+            {"resource": "sales_invoices"},
+        )
 
         self.assertEqual(len(cleaned), 1)
         self.assertEqual(
             set(cleaned.columns),
             {"date", "description", "total_amount"},
         )
+
+    def test_sage_deduplicates_changed_invoice_by_invoice_number(self):
+        dataframe = pd.DataFrame([
+            {
+                "invoice_number": "SI-1001",
+                "description": "Consulting",
+                "total_amount": 100,
+            },
+            {
+                "record_id": "invoice-new",
+                "invoice_number": "SI-1001",
+                "description": "Consulting",
+                "total_amount": 120,
+            },
+        ])
+
+        deduplicated = deduplicate_sage_dataframe(
+            dataframe,
+            {"resource": "sales_invoices"},
+        )
+
+        self.assertEqual(len(deduplicated), 1)
+        self.assertEqual(deduplicated.iloc[0]["total_amount"], 120)
 
     def test_partition_month_normalizes_float_and_date_values(self):
         self.assertEqual(

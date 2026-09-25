@@ -4939,11 +4939,27 @@ SAGE_METADATA_COLUMN_LEAVES = {
     "displayed_as",
     "href",
     "id",
+    "links",
     "legacy_id",
     "path",
     "record_id",
+    "resource_uri",
     "resource_type",
+    "resource_url",
+    "uri",
     "updated_at",
+    "url",
+}
+SAGE_NATURAL_DEDUP_COLUMNS = {
+    "sales_invoices": ("invoice_number",),
+    "purchase_invoices": ("invoice_number",),
+    "sales_credit_notes": ("credit_note_number",),
+    "purchase_credit_notes": ("credit_note_number",),
+    "contacts": ("email",),
+    "ledger_accounts": ("account_code",),
+    "products": ("sku",),
+    "services": ("sku",),
+    "bank_accounts": ("account_number",),
 }
 
 
@@ -5100,6 +5116,71 @@ def strip_sage_metadata_columns(dataframe):
         columns=columns_to_remove,
         errors="ignore",
     )
+
+
+def deduplicate_sage_dataframe(dataframe, report_config):
+    """Keep one current row per Sage object after removing metadata."""
+    if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
+        return dataframe
+
+    resource = str(
+        (report_config or {}).get("resource")
+        or (report_config or {}).get("resource_type")
+        or ""
+    ).strip().lower()
+    identity_columns = [
+        column
+        for column in (
+            "record_id",
+            "id",
+            "external_id",
+            *SAGE_NATURAL_DEDUP_COLUMNS.get(resource, ()),
+        )
+        if column in dataframe.columns
+    ]
+
+    # Connect legacy rows to their refreshed versions even when the old row
+    # lost its ID during an earlier metadata cleanup. A shared invoice number,
+    # account code, SKU, or email is enough to identify the same Sage object.
+    parent = list(range(len(dataframe)))
+
+    def find(position):
+        while parent[position] != position:
+            parent[position] = parent[parent[position]]
+            position = parent[position]
+        return position
+
+    def union(left, right):
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parent[left_root] = right_root
+
+    for column in identity_columns:
+        owners = {}
+        for position, value in enumerate(dataframe[column].tolist()):
+            if _is_missing_connector_value(value):
+                continue
+            identity = _connector_value_as_text(value)
+            if identity is None:
+                continue
+            identity = identity.strip().casefold()
+            if not identity:
+                continue
+            previous = owners.get(identity)
+            if previous is None:
+                owners[identity] = position
+            else:
+                union(previous, position)
+
+    latest_by_root = {}
+    for position in range(len(dataframe)):
+        latest_by_root[find(position)] = position
+    deduplicated = dataframe.iloc[
+        sorted(latest_by_root.values())
+    ].reset_index(drop=True)
+    cleaned = strip_sage_metadata_columns(deduplicated)
+    return cleaned.drop_duplicates(keep="last").reset_index(drop=True)
 
 
 def build_connector_partition_dir(
@@ -6529,6 +6610,16 @@ def persist_connector_dataframe(
         dataframe = normalize_connector_dataframe_for_parquet(
             dataframe
         )
+        if connection.source_type == "sage":
+            existing_summary = strip_sage_metadata_columns(
+                existing_summary
+            )
+            if not existing_summary.empty:
+                existing_summary = (
+                    existing_summary
+                    .drop_duplicates(keep="last")
+                    .reset_index(drop=True)
+                )
         fetched_row_count = len(dataframe)
         storage_migration_required = bool(
             existing_dataset
@@ -6567,15 +6658,10 @@ def persist_connector_dataframe(
             report_config,
         )
         if connection.source_type == "sage":
-            merged_dataframe = strip_sage_metadata_columns(
-                merged_dataframe
+            merged_dataframe = deduplicate_sage_dataframe(
+                merged_dataframe,
+                report_config,
             )
-            if not merged_dataframe.empty:
-                merged_dataframe = (
-                    merged_dataframe
-                    .drop_duplicates(keep="last")
-                    .reset_index(drop=True)
-                )
         base_filename = build_connector_dataset_filename(
             connection.source_type,
             report_config,
