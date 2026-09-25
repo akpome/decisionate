@@ -123,6 +123,21 @@ def run_job(
         result = json.loads(body) if body else {}
         if not isinstance(result, dict):
             result = {"response": result}
+        failed_count = result.get("failed_count", 0)
+        try:
+            has_failed_work = int(failed_count) > 0
+        except (TypeError, ValueError):
+            has_failed_work = False
+        if has_failed_work:
+            return {
+                "job": job.name,
+                "status": "failed",
+                "detail": (
+                    "The API processed the scheduler request but reported "
+                    f"{failed_count} failed item(s)."
+                ),
+                "result": result,
+            }
         return {
             "job": job.name,
             "status": "succeeded",
