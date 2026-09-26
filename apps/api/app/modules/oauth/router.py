@@ -97,13 +97,18 @@ def apply_sage_business_selection(
     *,
     allow_legacy_fallback: bool = True,
 ) -> dict:
-    """Persist Sage business options and preserve only an explicit target."""
+    """Persist Sage businesses and auto-select when exactly one is available."""
     account_options = build_oauth_account_options(
         businesses,
         "business_id",
         ("name",),
     )
     if account_options:
+        if len(account_options) == 1:
+            connection_config["business_id"] = account_options[0]["id"]
+            connection_config.pop(OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY, None)
+            return connection_config
+
         connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = account_options
         configured_business_id = str(
             connection_config.get("business_id") or ""
@@ -128,8 +133,8 @@ def apply_sage_business_selection(
         )
 
     # Legacy regional v3 OAuth returns one resource owner but has no business
-    # discovery endpoint. Preserve that valid single business while enabling
-    # the selector for v3.1 deployments.
+    # discovery endpoint. Preserve that valid single business without showing
+    # a selector for an account that is already known.
     business_id = str(
         payload.get("resource_owner_id")
         or payload.get("business_id")
@@ -142,9 +147,7 @@ def apply_sage_business_selection(
             "Sage did not return a business identifier"
         )
     connection_config["business_id"] = business_id
-    connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = [
-        {"id": business_id, "label": business_id}
-    ]
+    connection_config.pop(OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY, None)
     return connection_config
 
 
