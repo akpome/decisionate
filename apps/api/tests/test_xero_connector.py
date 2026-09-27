@@ -4,6 +4,8 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pandas as pd
+
 from app.modules.datasets.services import connectors
 from app.modules.oauth.service import OAUTH_PROVIDERS, get_provider_scopes
 
@@ -119,6 +121,7 @@ class XeroConnectorTests(unittest.TestCase):
                     "InvoiceID": "invoice-1",
                     "DateString": "2026-01-02",
                     "UpdatedDateUTCString": "2026-01-03T00:00:00Z",
+                    "Total": 125,
                     "LineItems": [
                         {
                             "LineItemID": "line-1",
@@ -164,6 +167,8 @@ class XeroConnectorTests(unittest.TestCase):
         self.assertEqual(report["resource"], "invoices")
         self.assertEqual(dataframe["line_item_id"].tolist(), ["line-1", "line-2"])
         self.assertEqual(dataframe["item_description"].tolist(), ["Consulting", "Support"])
+        self.assertEqual(dataframe.loc[0, "total"], 125)
+        self.assertTrue(pd.isna(dataframe.loc[1, "total"]))
         self.assertFalse(any("LineItems__" in column for column in dataframe.columns))
 
     def test_master_data_is_not_removed_by_transaction_date_window(self):

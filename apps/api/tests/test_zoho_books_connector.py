@@ -6,6 +6,8 @@ from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
+
 from app.modules.datasets.services import connectors
 from app.modules.oauth.service import (
     build_authorization_url,
@@ -325,7 +327,8 @@ class ZohoBooksConnectorTests(unittest.TestCase):
 
         self.assertEqual(len(dataframe), 2)
         self.assertEqual(dataframe["record_id"].tolist(), ["invoice-1", "invoice-1"])
-        self.assertEqual(dataframe["total_amount"].tolist(), [125.50, 125.50])
+        self.assertEqual(dataframe.loc[0, "total_amount"], 125.50)
+        self.assertTrue(pd.isna(dataframe.loc[1, "total_amount"]))
         self.assertEqual(dataframe["line_item_id"].tolist(), ["line-1", "line-2"])
         self.assertEqual(
             dataframe["item_description"].tolist(),

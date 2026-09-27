@@ -321,6 +321,8 @@ class ConnectorSmokeTests(unittest.TestCase):
             dataframe["item_description"].tolist(),
             ["Consulting", "Support"],
         )
+        self.assertEqual(dataframe.loc[0, "amount"], "125.00")
+        self.assertTrue(pd.isna(dataframe.loc[1, "amount"]))
         self.assertFalse(any("lines__" in column for column in dataframe.columns))
         self.assertEqual(request_params["updated_min"], ["2026-01-01"])
         self.assertEqual(request_params["updated_max"], ["2026-01-31"])
@@ -347,6 +349,7 @@ class ConnectorSmokeTests(unittest.TestCase):
                     "Invoice": [{
                         "Id": "invoice-1",
                         "TxnDate": "2026-01-02",
+                        "TotalAmt": 125,
                         "Line": [
                             {
                                 "Id": "line-1",
@@ -413,6 +416,8 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(report["resource"], "invoices")
         self.assertEqual(dataframe["line_item_id"].tolist(), ["line-1", "line-2"])
         self.assertEqual(dataframe["item_description"].tolist(), ["Consulting", "Support"])
+        self.assertEqual(dataframe.loc[0, "total_amount"], 125)
+        self.assertTrue(pd.isna(dataframe.loc[1, "total_amount"]))
         self.assertFalse(any("Line__" in column for column in dataframe.columns))
 
     def test_hubspot_resource_selection_accepts_multiple_objects(self):

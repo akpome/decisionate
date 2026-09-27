@@ -1465,26 +1465,100 @@ def _lightspeed_item_description(line: dict) -> str | None:
     return None
 
 
-LIGHTSPEED_TRANSACTION_METRIC_NAMES = {
+TRANSACTION_METRIC_NAMES = {
+    "amount",
+    "amountdue",
+    "amountpaid",
+    "balance",
     "calctax",
     "calctotal",
     "discount",
+    "discountamount",
+    "discounttotal",
     "gratuity",
+    "netamount",
+    "netsalesamount",
+    "outstanding",
+    "outstandingamount",
+    "shippingamount",
+    "shippingtotal",
+    "subtotal",
+    "subtotalamount",
+    "subtotalprice",
+    "tax",
+    "taxamount",
+    "tip",
+    "total",
+    "totalamount",
+    "totalamt",
+    "totaldiscount",
+    "totaldiscounts",
+    "totalprice",
+    "totaltax",
+}
+
+
+TRANSACTION_METRIC_SUFFIXES = (
+    "amountdue",
+    "amountpaid",
+    "discountamount",
+    "discounttotal",
+    "shippingamount",
+    "shippingtotal",
+    "subtotalamount",
+    "subtotalprice",
+    "taxamount",
+    "totalamount",
+    "totalamt",
+    "totaldiscount",
+    "totaldiscounts",
+    "totalprice",
+    "totaltax",
+    "amount",
+    "balance",
+    "discount",
+    "gratuity",
+    "netamount",
+    "netsalesamount",
+    "outstanding",
     "subtotal",
     "tax",
     "tip",
     "total",
-}
+)
 
 
-def _is_lightspeed_transaction_metric(column_name: str) -> bool:
-    """Identify sale-level numeric values that must not repeat per item."""
+def _is_transaction_metric(column_name: str) -> bool:
+    """Identify parent transaction metrics that must not repeat per item."""
     normalized_name = re.sub(
         r"[^a-z0-9]",
         "",
         str(column_name).lower(),
     )
-    return normalized_name in LIGHTSPEED_TRANSACTION_METRIC_NAMES
+    if normalized_name in TRANSACTION_METRIC_NAMES:
+        return True
+    return (
+        any(marker in normalized_name for marker in TRANSACTION_METRIC_NAMES)
+        and any(
+            normalized_name.endswith(suffix)
+            for suffix in TRANSACTION_METRIC_SUFFIXES
+        )
+    )
+
+
+def _is_lightspeed_transaction_metric(column_name: str) -> bool:
+    """Backward-compatible alias for the Lightspeed transaction rule."""
+    return _is_transaction_metric(column_name)
+
+
+def _parent_values_for_item_row(parent_row: dict, line_index: int) -> dict:
+    """Keep additive parent metrics only on the first item row."""
+    if line_index == 0:
+        return parent_row
+    return {
+        key: None if _is_transaction_metric(key) else value
+        for key, value in parent_row.items()
+    }
 
 
 def _lightspeed_x_sale_lines(sale: dict) -> list[dict]:
@@ -2494,7 +2568,7 @@ def load_shopify_dataframe(
                 variant = line.get("variant")
                 variant = variant if isinstance(variant, dict) else {}
                 rows.append({
-                    **order_row,
+                    **_parent_values_for_item_row(order_row, line_index),
                     **build_dynamic_connector_row(
                         line,
                         {
@@ -3224,7 +3298,7 @@ def load_square_dataframe(
                 connector_line_items(order, "line_items")
             ):
                 rows.append({
-                    **order_row,
+                    **_parent_values_for_item_row(order_row, line_index),
                     **build_dynamic_connector_row(
                         line,
                         {
@@ -3404,7 +3478,7 @@ def load_woocommerce_dataframe(
                 connector_line_items(order, "line_items")
             ):
                 rows.append({
-                    **order_row,
+                    **_parent_values_for_item_row(order_row, line_index),
                     **build_dynamic_connector_row(
                         line,
                         {
@@ -3814,7 +3888,10 @@ def load_lightspeed_x_dataframe(
                         flatten_lists=False,
                         prefix="line",
                     )
-                    rows.append({**sale_row, **line_row})
+                    rows.append({
+                        **_parent_values_for_item_row(sale_row, line_index),
+                        **line_row,
+                    })
                 continue
             elif resource_type == "customers":
                 normalized_fields = {
@@ -4000,7 +4077,7 @@ def load_lightspeed_k_dataframe(
                     pricing = line.get("pricing")
                     pricing = pricing if isinstance(pricing, dict) else {}
                     rows.append({
-                        **sale_row,
+                        **_parent_values_for_item_row(sale_row, line_index),
                         **build_dynamic_connector_row(
                             line,
                             {
@@ -4257,7 +4334,7 @@ def load_lightspeed_o_dataframe(
                     )
                 ):
                     rows.append({
-                        **sale_row,
+                        **_parent_values_for_item_row(sale_row, line_index),
                         **build_dynamic_connector_row(
                             line,
                             {
@@ -5016,7 +5093,7 @@ def load_quickbooks_dataframe(
                     item_ref = detail.get("ItemRef")
                     item_ref = item_ref if isinstance(item_ref, dict) else {}
                     rows.append({
-                        **parent_row,
+                        **_parent_values_for_item_row(parent_row, line_index),
                         **build_dynamic_connector_row(
                             line,
                             {
@@ -5654,7 +5731,7 @@ def _load_freshbooks_account_resource(
                     if isinstance(line_amount, dict):
                         line_amount = line_amount.get("amount")
                     rows.append({
-                        **parent_row,
+                        **_parent_values_for_item_row(parent_row, line_index),
                         **build_dynamic_connector_row(
                             line,
                             {
@@ -6118,7 +6195,7 @@ def load_sage_dataframe(
                     )
                     line_source = strip_sage_metadata(line)
                     rows.append({
-                        **parent_row,
+                        **_parent_values_for_item_row(parent_row, line_index),
                         **build_dynamic_connector_row(
                             line_source,
                             {
@@ -6470,7 +6547,7 @@ def load_xero_dataframe(
                     connector_line_items(record, "LineItems")
                 ):
                     rows.append({
-                        **parent_row,
+                        **_parent_values_for_item_row(parent_row, line_index),
                         **build_dynamic_connector_row(
                             line,
                             {
@@ -6810,7 +6887,7 @@ def load_zoho_books_dataframe(
                     )
                 ):
                     rows.append({
-                        **parent_row,
+                        **_parent_values_for_item_row(parent_row, line_index),
                         **build_dynamic_connector_row(
                             line,
                             {

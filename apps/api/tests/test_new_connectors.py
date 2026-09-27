@@ -1054,6 +1054,7 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe["item_description"].tolist(), ["Coffee", "Muffin"])
         self.assertFalse(any("line_items__" in column for column in dataframe.columns))
         self.assertEqual(dataframe.loc[0, "total_amount"], 12.5)
+        self.assertTrue(pd.isna(dataframe.loc[1, "total_amount"]))
         request_payload = square_request.call_args.kwargs["payload"]
         self.assertEqual(
             request_payload["query"]["filter"]["state_filter"]["states"],
@@ -1108,6 +1109,7 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe["line_item_id"].tolist(), ["501", "502"])
         self.assertEqual(dataframe["item_description"].tolist(), ["Coffee", "Muffin"])
         self.assertEqual(dataframe.loc[0, "billing_country"], "CA")
+        self.assertTrue(pd.isna(dataframe.loc[1, "total"]))
         self.assertFalse(any("line_items__" in column for column in dataframe.columns))
         self.assertTrue(request.call_args.kwargs["headers"]["Authorization"].startswith("Basic "))
         request_params = parse_qs(urlsplit(request.call_args.args[0]).query)
@@ -1200,6 +1202,10 @@ class NewConnectorTests(unittest.TestCase):
                                         "discountedTotalSet": {
                                             "shopMoney": {"amount": "18.00"},
                                         },
+                                    }, {
+                                        "id": "gid://shopify/LineItem/1b",
+                                        "name": "Muffin",
+                                        "quantity": 1,
                                     }],
                                 },
                             }],
@@ -1277,18 +1283,23 @@ class NewConnectorTests(unittest.TestCase):
             )
 
         self.assertEqual(report["api"], "graphql_admin")
-        self.assertEqual(len(dataframe), 2)
-        self.assertEqual(list(dataframe["order_id"]), ["1", "2"])
+        self.assertEqual(len(dataframe), 3)
+        self.assertEqual(list(dataframe["order_id"]), ["1", "1", "2"])
         self.assertEqual(
             list(dataframe["item_description"]),
-            ["Coffee", "Tea"],
+            ["Coffee", "Muffin", "Tea"],
         )
         self.assertEqual(
             list(dataframe["line_item_id"]),
-            ["gid://shopify/LineItem/1", "gid://shopify/LineItem/2"],
+            [
+                "gid://shopify/LineItem/1",
+                "gid://shopify/LineItem/1b",
+                "gid://shopify/LineItem/2",
+            ],
         )
         self.assertFalse(any("lineItems__" in column for column in dataframe.columns))
         self.assertEqual(dataframe.loc[0, "total_price"], "25.00")
+        self.assertTrue(pd.isna(dataframe.loc[1, "total_price"]))
         self.assertEqual(len(requests), 2)
         self.assertEqual(
             requests[0][0],
@@ -1798,6 +1809,7 @@ class NewConnectorTests(unittest.TestCase):
                         "id": "sale-1",
                         "created_at": "2026-09-01T12:00:00Z",
                         "state": "closed",
+                        "total": "28.00",
                         "line_items": [
                             {
                                 "id": "line-1",
@@ -1887,6 +1899,8 @@ class NewConnectorTests(unittest.TestCase):
             list(dataframe["item_id"]),
             ["product-1", "product-2", "product-3", "product-4"],
         )
+        self.assertEqual(dataframe.loc[0, "total"], "28.00")
+        self.assertTrue(pd.isna(dataframe.loc[1, "total"]))
 
     def test_lightspeed_x_sales_merge_by_sale_line_id(self):
         existing = pd.DataFrame([
@@ -2029,6 +2043,7 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe["item_description"].tolist(), ["Coffee", "Muffin"])
         self.assertEqual(dataframe.loc[0, "customer_id"], 42)
         self.assertEqual(dataframe.loc[0, "total"], 125.0)
+        self.assertTrue(pd.isna(dataframe.loc[1, "total"]))
         self.assertFalse(any("line_items__" in column for column in dataframe.columns))
         self.assertIn(
             "/f/v2/business-location/45454565682155/sales",
@@ -2097,6 +2112,7 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe["item_description"].tolist(), ["Coffee", "Muffin"])
         self.assertEqual(dataframe.loc[0, "customer_id"], 42)
         self.assertEqual(dataframe.loc[0, "total"], "125.00")
+        self.assertTrue(pd.isna(dataframe.loc[1, "total"]))
         self.assertFalse(any("line_items__" in column for column in dataframe.columns))
         self.assertIn(
             "/v1/companies/5678/sites/827/orders/complete.json",

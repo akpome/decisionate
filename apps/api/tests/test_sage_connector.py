@@ -8,6 +8,8 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
+
 from app.modules.datasets.services import connectors
 from app.modules.oauth.service import (
     OAuthProviderUnavailable,
@@ -586,6 +588,7 @@ class SageConnectorTests(unittest.TestCase):
         self.assertEqual(len(dataframe), 2)
         self.assertEqual(dataframe.iloc[0]["invoice_id"], "invoice-1")
         self.assertEqual(dataframe.iloc[0]["total_amount"], 1200)
+        self.assertTrue(pd.isna(dataframe.iloc[1]["total_amount"]))
         self.assertNotIn("id", dataframe.columns)
         self.assertNotIn("legacy_id", dataframe.columns)
         self.assertNotIn("displayed_as", dataframe.columns)
