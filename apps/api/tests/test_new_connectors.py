@@ -1603,6 +1603,8 @@ class NewConnectorTests(unittest.TestCase):
                 "saleID": "sale-1",
                 "timeStamp": "2026-09-01T11:30:45+00:00",
                 "completed": True,
+                "calcTotal": "18.00",
+                "tip": "2.00",
                 "SaleLines": {
                     "SaleLine": [
                         {
@@ -1689,6 +1691,10 @@ class NewConnectorTests(unittest.TestCase):
             "Sandwich",
             "Tea",
         ])
+        self.assertEqual(dataframe.loc[0, "calcTotal"], "18.00")
+        self.assertTrue(pd.isna(dataframe.loc[1, "calcTotal"]))
+        self.assertEqual(dataframe.loc[0, "tip"], "2.00")
+        self.assertTrue(pd.isna(dataframe.loc[1, "tip"]))
         self.assertFalse(
             any(str(column).startswith("SaleLines__") for column in dataframe.columns)
         )

@@ -1465,6 +1465,28 @@ def _lightspeed_item_description(line: dict) -> str | None:
     return None
 
 
+LIGHTSPEED_TRANSACTION_METRIC_NAMES = {
+    "calctax",
+    "calctotal",
+    "discount",
+    "gratuity",
+    "subtotal",
+    "tax",
+    "tip",
+    "total",
+}
+
+
+def _is_lightspeed_transaction_metric(column_name: str) -> bool:
+    """Identify sale-level numeric values that must not repeat per item."""
+    normalized_name = re.sub(
+        r"[^a-z0-9]",
+        "",
+        str(column_name).lower(),
+    )
+    return normalized_name in LIGHTSPEED_TRANSACTION_METRIC_NAMES
+
+
 def _lightspeed_x_sale_lines(sale: dict) -> list[dict]:
     """Return X-Series sale line items without flattening by array index."""
     relation = None
@@ -3568,7 +3590,17 @@ def load_lightspeed_dataframe(
                     flatten_lists=False,
                     prefix="line",
                 )
-                rows.append({**sale_row, **line_row})
+                sale_values = sale_row
+                if line_index > 0:
+                    sale_values = {
+                        key: (
+                            None
+                            if _is_lightspeed_transaction_metric(key)
+                            else value
+                        )
+                        for key, value in sale_row.items()
+                    }
+                rows.append({**sale_values, **line_row})
         attributes = payload.get("@attributes")
         if not isinstance(attributes, dict):
             attributes = payload.get("attributes")
