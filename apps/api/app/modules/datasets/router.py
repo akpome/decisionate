@@ -4364,6 +4364,22 @@ async def create_source_connection(
         )
 
         if existing_connection:
+            incoming_config = parse_source_connection_config(
+                connection_config
+            )
+            if incoming_config:
+                existing_config = parse_source_connection_config(
+                    existing_connection.connection_config
+                )
+                existing_config.update(incoming_config)
+                existing_connection.connection_config = (
+                    protect_source_connection_config(
+                        source_type,
+                        existing_config,
+                    )
+                )
+                db.commit()
+                db.refresh(existing_connection)
             return build_source_connection_response(
                 existing_connection,
                 datasets=find_connector_datasets(

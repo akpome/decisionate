@@ -1172,6 +1172,65 @@ class DatasetSharingTests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_create_existing_lightspeed_x_connection_merges_domain_prefix(self):
+        Session = self.build_memory_source_connection_session_factory()
+
+        with patch(
+            "app.modules.datasets.router.SessionLocal",
+            Session,
+        ), patch(
+            "app.modules.datasets.router.get_user_id",
+            return_value="user-1",
+        ), patch(
+            "app.modules.datasets.router.get_workspace_id",
+            return_value="workspace-1",
+        ), patch(
+            "app.modules.datasets.router.require_source_connection_available",
+        ):
+            asyncio.run(
+                create_source_connection(
+                    SimpleNamespace(),
+                    DataSourceConnectionCreate(
+                        source_type="lightspeed_x",
+                        display_name="Lightspeed store",
+                        connection_config={
+                            "resource_types": "sales",
+                        },
+                    ),
+                )
+            )
+            response = asyncio.run(
+                create_source_connection(
+                    SimpleNamespace(),
+                    DataSourceConnectionCreate(
+                        source_type="lightspeed_x",
+                        connection_config={
+                            "domain_prefix": " Demo-Store ",
+                        },
+                    ),
+                )
+            )
+
+        db = Session()
+
+        try:
+            connection = db.query(DataSourceConnection).one()
+            saved_config = json.loads(connection.connection_config)
+
+            self.assertEqual(
+                saved_config,
+                {
+                    "domain_prefix": "demo-store",
+                    "resource_types": "sales",
+                },
+            )
+            self.assertIn(
+                "domain_prefix",
+                response["configured_config_keys"],
+            )
+        finally:
+            db.close()
+
     def test_sage_region_change_clears_previous_oauth_authorization(self):
         Session = self.build_memory_source_connection_session_factory()
         db = Session()

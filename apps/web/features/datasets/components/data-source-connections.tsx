@@ -63,7 +63,7 @@ interface DataSourceConnectionsProps {
   onConfigureConnection?: (
     connection: DataSourceConnection,
     connectionConfig: Record<string, unknown>
-  ) => void
+  ) => void | Promise<void>
   onSyncConnection?: (
     connection: DataSourceConnection,
     payload: DataSourceConnectionSyncPayload
@@ -208,7 +208,7 @@ export function DataSourceConnections({
     stopEditing()
   }
 
-  function saveConfiguration(
+  async function saveConfiguration(
     connection: DataSourceConnection
   ) {
     const source =
@@ -239,7 +239,7 @@ export function DataSourceConnections({
       return
     }
 
-    onConfigureConnection?.(
+    await onConfigureConnection?.(
       connection,
       connectionConfig
     )
@@ -409,7 +409,7 @@ function DataSourceConnectionRow({
   onConfigureConnection?: (
     connection: DataSourceConnection,
     connectionConfig: Record<string, unknown>
-  ) => void
+  ) => void | Promise<void>
   onSyncConnection?: (
     connection: DataSourceConnection,
     payload: DataSourceConnectionSyncPayload
@@ -1202,11 +1202,9 @@ function DataSourceConnectionRow({
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button
                 type="button"
-                onClick={() =>
-                  saveConfiguration(
-                    connection
-                  )
-                }
+                onClick={() => {
+                  void saveConfiguration(connection)
+                }}
                 disabled={
                   updatingConnectionId ===
                     connection.id ||
@@ -1396,7 +1394,9 @@ function DataSourceConnectionRow({
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                     <button
                       type="button"
-                      onClick={() => saveConfiguration(connection)}
+                      onClick={() => {
+                        void saveConfiguration(connection)
+                      }}
                       disabled={
                         updatingConnectionId ===
                           connection.id ||
