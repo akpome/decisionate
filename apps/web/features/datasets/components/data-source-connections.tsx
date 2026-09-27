@@ -124,6 +124,8 @@ function getAdvancedSyncDateBounds(
   connection: DataSourceConnection
 ) {
   const today = new Date()
+  const defaultStart = new Date(today)
+  defaultStart.setDate(today.getDate() - 1)
   const initialStart = new Date(today)
   initialStart.setDate(today.getDate() - 89)
   const backfillEnd = new Date(initialStart)
@@ -141,6 +143,7 @@ function getAdvancedSyncDateBounds(
   return {
     min: formatDateInputValue(earliest),
     max: formatDateInputValue(today),
+    defaultStart: formatDateInputValue(defaultStart),
   }
 }
 
@@ -764,7 +767,7 @@ function DataSourceConnectionRow({
   const [advancedStartDate, setAdvancedStartDate] =
     useState(() => {
       const bounds = getAdvancedSyncDateBounds(connection)
-      return bounds.min
+      return bounds.defaultStart
     })
   const [advancedEndDate, setAdvancedEndDate] =
     useState(() => getAdvancedSyncDateBounds(connection).max)
@@ -1048,7 +1051,7 @@ function DataSourceConnectionRow({
 
       </div>
 
-      <div className="flex w-full min-w-0 shrink-0 flex-col items-start gap-2 lg:max-w-xl lg:items-end">
+      <div className="flex w-full min-w-0 shrink-0 flex-col items-start gap-2 lg:ml-auto lg:max-w-xl lg:items-end">
         <span
           className={getConnectionStatusClassName(
             connection.status
@@ -1068,7 +1071,7 @@ function DataSourceConnectionRow({
             canRefreshSageBusinesses ||
             canStartOAuth ||
             canCancelOAuth) && (
-            <div className="flex w-full min-w-0 flex-wrap items-center justify-start gap-2 lg:justify-end">
+            <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2">
               {canSyncConnector && (
                 <button
                   type="button"
