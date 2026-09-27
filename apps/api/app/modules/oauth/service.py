@@ -820,7 +820,7 @@ def build_token_request(
         "User-Agent": (
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-            if source_type == "sage"
+            if source_type in {"sage", "lightspeed"}
             else "Decisionate/1.0 (+https://decisionate.ca)"
         ),
     }
@@ -844,8 +844,8 @@ def read_token_response(
     request: Request,
     operation: str,
 ) -> str:
-    """POST an OAuth token request, using Sage's browser-compatible path."""
-    if source_type == "sage":
+    """POST an OAuth token request, using browser-compatible provider paths."""
+    if source_type in {"sage", "lightspeed"}:
         try:
             from curl_cffi import requests as curl_requests
         except ModuleNotFoundError:
@@ -866,10 +866,12 @@ def read_token_response(
                 # when the same request is accepted from a normal browser.
                 # The central v3.1 endpoint accepts the same form payload and
                 # provides a server-side fallback for that specific response.
-                token_urls.append(central_token_url)
+                if source_type == "sage":
+                    token_urls.append(central_token_url)
 
             last_status = None
             last_body = ""
+            provider_label = source_type.replace("_", " ").title()
             for token_url in token_urls:
                 try:
                     response = curl_requests.post(
@@ -881,7 +883,8 @@ def read_token_response(
                     )
                 except Exception as error:
                     raise OAuthTokenExchangeError(
-                        f"Sage OAuth provider is unavailable during {operation}"
+                        f"{provider_label} OAuth provider is unavailable "
+                        f"during {operation}"
                     ) from error
                 body = response.text
                 if response.status_code < 400:
@@ -889,12 +892,14 @@ def read_token_response(
                 last_status = response.status_code
                 last_body = body
                 is_regional_forbidden = (
-                    response.status_code == 403
+                    source_type == "sage"
+                    and response.status_code == 403
                     and token_url != token_urls[-1]
                 )
                 logger.warning(
-                    "Sage OAuth token endpoint rejected request "
+                    "%s OAuth token endpoint rejected request "
                     "operation=%s host=%s status=%s retrying_central=%s",
+                    provider_label,
                     operation,
                     urlsplit(token_url).netloc,
                     response.status_code,

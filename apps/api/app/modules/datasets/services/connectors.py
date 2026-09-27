@@ -5776,6 +5776,17 @@ def get_oauth_access_token(
                     "the Sage app callback URL and production OAuth settings, "
                     "then reconnect with OAuth."
                 ) from error
+            if source_type == "lightspeed" and (
+                "error 1010" in normalized_message
+                or "cloudflare" in normalized_message
+                or "site owner has blocked access" in normalized_message
+            ):
+                raise ConnectorUnavailable(
+                    "Lightspeed Retail blocked the token refresh at its edge "
+                    "(Cloudflare Error 1010). This is not an OAuth credential "
+                    "failure; verify that the Lightspeed API client is enabled "
+                    "for this account and try again."
+                ) from error
             if oauth_refresh_requires_reauthorization(error):
                 raise ConnectorUnavailable(
                     f"{connector_display_name(source_type)} authorization is "

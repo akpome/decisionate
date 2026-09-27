@@ -10,12 +10,14 @@ from cryptography.fernet import Fernet
 
 from app.modules.oauth.service import (
     build_authorization_url,
+    build_token_request,
     build_woocommerce_authorization_url,
     create_pkce_challenge,
     decrypt_token,
     encrypt_token,
     exchange_code,
     is_oauth_provider_configured,
+    read_token_response,
     revoke_oauth_token,
 )
 from app.modules.oauth.router import (
@@ -367,16 +369,6 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         self.assertEqual(query["code_challenge_method"], ["S256"])
 
     def test_lightspeed_token_exchange_omits_unregistered_redirect_uri(self):
-        class FakeResponse:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                return False
-
-            def read(self):
-                return b'{"access_token":"access-token"}'
-
         with patch.dict(
             os.environ,
             {
@@ -395,9 +387,12 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             },
             clear=False,
         ), patch(
-            "app.modules.oauth.service.urlopen",
-            return_value=FakeResponse(),
-        ) as mocked_urlopen:
+            "curl_cffi.requests.post",
+            return_value=types.SimpleNamespace(
+                status_code=200,
+                text='{"access_token":"access-token"}',
+            ),
+        ) as mocked_post:
             exchange_code(
                 "lightspeed",
                 "auth-code",
@@ -405,10 +400,48 @@ class OAuthAndSchedulingTests(unittest.TestCase):
                 code_verifier="verifier-1",
             )
 
-        request = mocked_urlopen.call_args.args[0]
-        body = parse_qs(request.data.decode("utf-8"))
+        body = parse_qs(
+            mocked_post.call_args.kwargs["data"].decode("utf-8")
+        )
         self.assertNotIn("redirect_uri", body)
         self.assertEqual(body["code_verifier"], ["verifier-1"])
+
+    def test_lightspeed_token_requests_use_browser_compatible_transport(self):
+        request = build_token_request(
+            "lightspeed",
+            "https://cloud.lightspeedapp.com/auth/oauth/token",
+            {"grant_type": "refresh_token", "refresh_token": "refresh-1"},
+            {"Accept": "application/json"},
+        )
+        accepted = types.SimpleNamespace(
+            status_code=200,
+            text='{"access_token":"access-token"}',
+        )
+
+        with patch(
+            "curl_cffi.requests.post",
+            return_value=accepted,
+        ) as post, patch(
+            "app.modules.oauth.service.urlopen",
+        ) as urlopen:
+            body = read_token_response(
+                "lightspeed",
+                request,
+                "token refresh",
+            )
+
+        self.assertEqual(body, '{"access_token":"access-token"}')
+        post.assert_called_once_with(
+            "https://cloud.lightspeedapp.com/auth/oauth/token",
+            data=request.data,
+            headers={
+                "Accept": "application/json",
+                "Content-type": "application/x-www-form-urlencoded",
+            },
+            timeout=20,
+            impersonate="chrome",
+        )
+        urlopen.assert_not_called()
 
     def test_lightspeed_x_token_exchange_uses_callback_domain_prefix(self):
         class FakeResponse:
