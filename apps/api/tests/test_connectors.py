@@ -1286,6 +1286,51 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(token, "new-access-token")
         mocked_refresh.assert_called_once()
 
+    def test_lightspeed_refresh_preserves_provider_error_details(self):
+        credential = SimpleNamespace(
+            access_token_encrypted="encrypted-access-token",
+            refresh_token_encrypted="encrypted-refresh-token",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(
+                minutes=1,
+            ),
+        )
+
+        class Query:
+            def filter(self, *_args):
+                return self
+
+            def first(self):
+                return credential
+
+        class FakeDb:
+            def query(self, *_args):
+                return Query()
+
+        connection = make_connection("lightspeed", {"account_id": "123456"})
+        with patch.object(
+            connectors,
+            "decrypt_token",
+            side_effect=lambda value: {
+                "encrypted-access-token": "old-access-token",
+                "encrypted-refresh-token": "refresh-token",
+            }.get(value),
+        ), patch.object(
+            connectors,
+            "refresh_oauth_token",
+            side_effect=connectors.OAuthTokenExchangeError(
+                "OAuth token refresh failed with HTTP 500: provider unavailable"
+            ),
+        ), self.assertRaisesRegex(
+            connectors.ConnectorUnavailable,
+            "Lightspeed Retail token refresh failed: OAuth token refresh failed "
+            "with HTTP 500",
+        ):
+            connectors.get_oauth_access_token(
+                FakeDb(),
+                connection,
+                "lightspeed",
+            )
+
     def test_forced_oauth_access_token_refresh_ignores_stale_expiry(self):
         credential = SimpleNamespace(
             access_token_encrypted="encrypted-access-token",

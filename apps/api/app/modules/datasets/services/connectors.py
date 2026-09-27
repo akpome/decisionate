@@ -5648,14 +5648,17 @@ def get_oauth_access_token(
     source_type: str,
     force_refresh: bool = False,
 ) -> str:
-    credential = (
-        db.query(OAuthCredential)
-        .filter(
-            OAuthCredential.connection_id == connection.id,
-            OAuthCredential.source_type == source_type,
-        )
-        .first()
+    credential_query = db.query(OAuthCredential).filter(
+        OAuthCredential.connection_id == connection.id,
+        OAuthCredential.source_type == source_type,
     )
+    # Lightspeed rotates refresh tokens. Serialize refresh decisions when the
+    # database supports row locks so a scheduler and an interactive sync
+    # cannot both redeem the same refresh token.
+    with_for_update = getattr(credential_query, "with_for_update", None)
+    if callable(with_for_update):
+        credential_query = with_for_update()
+    credential = credential_query.first()
     if not credential:
         raise ConnectorUnavailable(
             f"Connect the {source_type} account before syncing"
@@ -5791,6 +5794,12 @@ def get_oauth_access_token(
                 raise ConnectorUnavailable(
                     f"{connector_display_name(source_type)} authorization is "
                     "no longer valid. Reconnect the account and try again."
+                ) from error
+            if source_type == "lightspeed":
+                raise ConnectorUnavailable(
+                    "Lightspeed Retail token refresh failed: "
+                    f"{str(error)[:240]}. Reconnect Lightspeed if the "
+                    "refresh token has expired."
                 ) from error
             raise ConnectorUnavailable(
                 f"{connector_display_name(source_type)} authorization could "
