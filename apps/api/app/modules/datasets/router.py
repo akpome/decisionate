@@ -7125,6 +7125,35 @@ def run_data_source_sync(
     ]
 
 
+def run_data_source_sync_with_oauth_retry(
+    db,
+    connection,
+    payload: DataSourceConnectionSync,
+):
+    """Retry one provider-reported OAuth expiry after forcing a refresh."""
+    try:
+        return run_data_source_sync(db, connection, payload)
+    except (
+        GoogleAnalyticsConnectorUnavailable,
+        ConnectorUnavailable,
+        OAuthProviderUnavailable,
+    ) as error:
+        if not connector_requires_reauthorization(
+            connection.source_type,
+            error,
+        ):
+            raise
+
+        db.rollback()
+        if not refresh_oauth_access_token_if_due(
+            db,
+            connection,
+            force_refresh=True,
+        ):
+            raise
+        return run_data_source_sync(db, connection, payload)
+
+
 def get_connectors_scheduler_secret():
     return str(
         os.getenv("CONNECTORS_SCHEDULER_SECRET", "") or ""
@@ -7273,7 +7302,7 @@ async def sync_due_source_connections(request: Request):
                 continue
 
             try:
-                sync_results = run_data_source_sync(
+                sync_results = run_data_source_sync_with_oauth_retry(
                     db,
                     connection,
                     DataSourceConnectionSync(),
@@ -7379,7 +7408,7 @@ async def sync_source_connection(
                 detail="Manual sync is not enabled for this source",
             )
 
-        sync_results = run_data_source_sync(
+        sync_results = run_data_source_sync_with_oauth_retry(
             db,
             connection,
             payload,
@@ -7417,7 +7446,11 @@ async def sync_source_connection(
             "message": str(error),
             "datasets": [],
         }
-    except (GoogleAnalyticsConnectorUnavailable, ConnectorUnavailable) as error:
+    except (
+        GoogleAnalyticsConnectorUnavailable,
+        ConnectorUnavailable,
+        OAuthProviderUnavailable,
+    ) as error:
         logger.warning(
             "Connector sync unavailable",
             extra={

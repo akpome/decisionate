@@ -5645,6 +5645,7 @@ def get_oauth_access_token(
     db,
     connection: DataSourceConnection,
     source_type: str,
+    force_refresh: bool = False,
 ) -> str:
     credential = (
         db.query(OAuthCredential)
@@ -5696,7 +5697,8 @@ def get_oauth_access_token(
     )
     refresh_deadline = now + refresh_leeway
     if refresh_token and (
-        not token
+        force_refresh
+        or not token
         or (
             expires_at
             and expires_at <= refresh_deadline
@@ -5803,6 +5805,7 @@ def get_oauth_access_token(
 def refresh_oauth_access_token_if_due(
     db,
     connection: DataSourceConnection,
+    force_refresh: bool = False,
 ) -> bool:
     """Check an OAuth credential during every scheduled connector heartbeat."""
     credential = (
@@ -5813,7 +5816,12 @@ def refresh_oauth_access_token_if_due(
     if not credential or not credential.refresh_token_encrypted:
         return False
 
-    get_oauth_access_token(db, connection, connection.source_type)
+    get_oauth_access_token(
+        db,
+        connection,
+        connection.source_type,
+        force_refresh=force_refresh,
+    )
     return True
 
 

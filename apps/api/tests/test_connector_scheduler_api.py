@@ -2,7 +2,10 @@ import types
 import unittest
 from unittest.mock import patch
 
-from app.modules.datasets.router import record_scheduled_connector_failure
+from app.modules.datasets.router import (
+    record_scheduled_connector_failure,
+    run_data_source_sync_with_oauth_retry,
+)
 from app.modules.datasets.services.connectors import ConnectorUnavailable
 from app.modules.oauth.service import OAuthProviderUnavailable
 
@@ -20,6 +23,39 @@ class FakeDb:
 
 
 class ConnectorSchedulerApiTests(unittest.TestCase):
+    def test_provider_reported_expiry_forces_one_refresh_and_retries(self):
+        db = FakeDb()
+        connection = types.SimpleNamespace(
+            id=26,
+            source_type="quickbooks",
+        )
+        payload = object()
+        successful_sync = ["sync-result"]
+
+        with patch(
+            "app.modules.datasets.router.run_data_source_sync",
+            side_effect=[
+                ConnectorUnavailable("QuickBooks access token has expired"),
+                successful_sync,
+            ],
+        ) as run_sync, patch(
+            "app.modules.datasets.router.refresh_oauth_access_token_if_due",
+            return_value=True,
+        ) as refresh_token:
+            result = run_data_source_sync_with_oauth_retry(
+                db,
+                connection,
+                payload,
+            )
+
+        self.assertEqual(result, successful_sync)
+        self.assertEqual(run_sync.call_count, 2)
+        refresh_token.assert_called_once_with(
+            db,
+            connection,
+            force_refresh=True,
+        )
+
     def test_expired_oauth_for_any_connector_is_nonfatal(self):
         failures = (
             (

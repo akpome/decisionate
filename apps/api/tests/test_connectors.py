@@ -1266,6 +1266,61 @@ class ConnectorSmokeTests(unittest.TestCase):
         self.assertEqual(token, "new-access-token")
         mocked_refresh.assert_called_once()
 
+    def test_forced_oauth_access_token_refresh_ignores_stale_expiry(self):
+        credential = SimpleNamespace(
+            access_token_encrypted="encrypted-access-token",
+            refresh_token_encrypted="encrypted-refresh-token",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(
+                hours=2,
+            ),
+            token_type=None,
+            scope=None,
+        )
+
+        class Query:
+            def filter(self, *_args):
+                return self
+
+            def first(self):
+                return credential
+
+        class FakeDb:
+            def query(self, *_args):
+                return Query()
+
+            def commit(self):
+                return None
+
+        connection = make_connection("quickbooks", {})
+        with patch.object(
+            connectors,
+            "decrypt_token",
+            side_effect=lambda value: {
+                "encrypted-access-token": "old-access-token",
+                "encrypted-refresh-token": "refresh-token",
+            }.get(value),
+        ), patch.object(
+            connectors,
+            "encrypt_token",
+            side_effect=lambda value: f"encrypted-{value}",
+        ), patch.object(
+            connectors,
+            "refresh_oauth_token",
+            return_value={
+                "access_token": "new-access-token",
+                "expires_in": 3600,
+            },
+        ) as mocked_refresh:
+            token = connectors.get_oauth_access_token(
+                FakeDb(),
+                connection,
+                "quickbooks",
+                force_refresh=True,
+            )
+
+        self.assertEqual(token, "new-access-token")
+        mocked_refresh.assert_called_once()
+
     def test_sage_keeps_a_fresh_token_for_interactive_business_discovery(self):
         credential = SimpleNamespace(
             access_token_encrypted="encrypted-access-token",
