@@ -5,7 +5,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode, urlparse
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.db.database import SessionLocal
@@ -19,6 +19,7 @@ from app.modules.datasets.router import (
     get_source_connection_config_status,
     mark_connection_authorization_failed,
     parse_source_connection_config,
+    queue_connector_initial_import,
 )
 from app.modules.datasets.services.sources import (
     OAUTH_ACCOUNT_IDENTIFIER_KEYS,
@@ -680,7 +681,10 @@ async def cancel_oauth_authorization(
         db.close()
 
 
-def process_oauth_callback(request: Request):
+def process_oauth_callback(
+    request: Request,
+    background_tasks: BackgroundTasks | None = None,
+):
     query = request.query_params
     state_token = str(query.get("state") or "").strip()
     code = str(query.get("code") or "").strip()
@@ -946,6 +950,10 @@ def process_oauth_callback(request: Request):
         connection.authorization_notification_sent_at = None
         db.delete(state)
         db.commit()
+        queue_connector_initial_import(
+            background_tasks,
+            connection.id,
+        )
         return oauth_redirect("connected", state_source_type)
     except (OAuthProviderUnavailable, OAuthTokenExchangeError) as error:
         db.rollback()
@@ -1007,7 +1015,10 @@ def process_oauth_callback(request: Request):
         db.close()
 
 
-async def process_woocommerce_callback(request: Request):
+async def process_woocommerce_callback(
+    request: Request,
+    background_tasks: BackgroundTasks | None = None,
+):
     """Persist the read-only API keys posted by a WooCommerce store."""
     try:
         payload = await request.json()
@@ -1092,6 +1103,10 @@ async def process_woocommerce_callback(request: Request):
         connection.authorization_notification_sent_at = None
         db.delete(state)
         db.commit()
+        queue_connector_initial_import(
+            background_tasks,
+            connection.id,
+        )
         return JSONResponse(
             {"connected": True, "source_type": "woocommerce"},
             status_code=200,
@@ -1125,15 +1140,17 @@ async def process_woocommerce_callback(request: Request):
 @router.get("/callback")
 async def oauth_callback(
     request: Request,
+    background_tasks: BackgroundTasks = None,
 ):
-    return process_oauth_callback(request)
+    return process_oauth_callback(request, background_tasks)
 
 
 @router.post("/callback")
 async def woocommerce_oauth_callback(
     request: Request,
+    background_tasks: BackgroundTasks = None,
 ):
-    return await process_woocommerce_callback(request)
+    return await process_woocommerce_callback(request, background_tasks)
 
 
 def oauth_redirect(status: str, source_type: str | None = None):

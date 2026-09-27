@@ -24,24 +24,59 @@ def make_connection(source_type, config):
 
 
 class NewConnectorTests(unittest.TestCase):
-    def test_advanced_sync_window_accepts_last_30_days(self):
+    def test_initial_connector_backfill_starts_after_the_90_day_window(self):
+        backfill_start, backfill_end = (
+            datasets_router.get_initial_connector_backfill_window(
+                date(2026, 9, 27)
+            )
+        )
+
+        self.assertEqual(backfill_end, date(2026, 6, 29))
+        self.assertEqual(backfill_start, date(2024, 9, 29))
+
+    def test_initial_connector_sync_status_is_stored_in_connection_config(self):
+        connection = SimpleNamespace(
+            connection_config=json.dumps({"resource_types": "sales"})
+        )
+
+        datasets_router.set_initial_connector_sync_status(
+            connection,
+            datasets_router.INITIAL_CONNECTOR_SYNC_INITIAL,
+        )
+
+        self.assertEqual(
+            datasets_router.get_initial_connector_sync_status(connection),
+            datasets_router.INITIAL_CONNECTOR_SYNC_INITIAL,
+        )
+        self.assertEqual(
+            json.loads(connection.connection_config)["resource_types"],
+            "sales",
+        )
+
+    def test_advanced_sync_window_accepts_initial_import_history(self):
         today = date.today()
+        earliest_date, _end_date = (
+            datasets_router.get_initial_connector_backfill_window(today)
+        )
         payload = DataSourceConnectionSync(
             advanced_date_range=True,
-            start_date=today - timedelta(days=30),
+            start_date=earliest_date,
             end_date=today,
         )
 
         datasets_router.validate_advanced_sync_window(payload)
 
-    def test_advanced_sync_window_rejects_dates_outside_recovery_limit(self):
+    def test_advanced_sync_window_rejects_dates_before_initial_import_history(self):
         today = date.today()
+        earliest_date, _end_date = (
+            datasets_router.get_initial_connector_backfill_window(today)
+        )
 
         with self.assertRaises(HTTPException):
             datasets_router.validate_advanced_sync_window(
                 DataSourceConnectionSync(
                     advanced_date_range=True,
-                    start_date=today - timedelta(days=31),
+                    start_date=earliest_date - timedelta(days=1),
                     end_date=today,
                 )
             )

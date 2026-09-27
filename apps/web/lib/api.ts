@@ -541,6 +541,14 @@ export type DataSourceConnection = {
   configured_customer_id?: string | null
   configured_object_type?: string | null
   last_synced_at?: string | null
+  initial_sync_status?:
+    | "pending"
+    | "initial"
+    | "backfill"
+    | "complete"
+    | "failed"
+    | null
+  initial_sync_earliest_date?: string | null
   authorization_error?: string | null
   authorization_error_at?: string | null
   sync_enabled?: boolean

@@ -1,4 +1,5 @@
 import asyncio
+import calendar
 import hashlib
 import json
 import logging
@@ -20,6 +21,7 @@ from urllib.request import urlopen
 
 import pandas as pd
 from fastapi import APIRouter
+from fastapi import BackgroundTasks
 from fastapi import File
 from fastapi import HTTPException
 from fastapi import Query
@@ -240,8 +242,15 @@ from app.modules.oauth.service import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-INITIAL_CONNECTOR_SYNC_DAYS = 30
+INITIAL_CONNECTOR_SYNC_DAYS = 90
+INITIAL_CONNECTOR_BACKFILL_MONTHS = 21
 INITIAL_CONNECTOR_SYNC_COMPLETED_KEY = "_initial_connector_sync_completed"
+INITIAL_CONNECTOR_SYNC_STATUS_KEY = "_initial_connector_sync_status"
+INITIAL_CONNECTOR_SYNC_PENDING = "pending"
+INITIAL_CONNECTOR_SYNC_INITIAL = "initial"
+INITIAL_CONNECTOR_SYNC_BACKFILL = "backfill"
+INITIAL_CONNECTOR_SYNC_COMPLETE = "complete"
+INITIAL_CONNECTOR_SYNC_FAILED = "failed"
 CONNECTOR_INCREMENTAL_LOOKBACK_DAYS = 1
 CONNECTOR_INCREMENTAL_LOOKBACK_DAYS_BY_SOURCE = {
     # Search Console can publish performance data several days after the
@@ -1717,6 +1726,12 @@ def build_source_connection_response(
             else None
         ),
         "last_synced_at": connection.last_synced_at,
+        "initial_sync_status": parsed_config.get(
+            INITIAL_CONNECTOR_SYNC_STATUS_KEY
+        ),
+        "initial_sync_earliest_date": get_initial_connector_earliest_date(
+            connection
+        ).isoformat(),
         "authorization_error": getattr(
             connection,
             "authorization_error",
@@ -4420,6 +4435,7 @@ async def update_source_connection(
     request: Request,
     connection_id: int,
     payload: DataSourceConnectionUpdate,
+    background_tasks: BackgroundTasks = None,
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -4615,6 +4631,12 @@ async def update_source_connection(
 
         db.commit()
         db.refresh(connection)
+        if connection.status == "connected":
+            queue_connector_initial_import(
+                background_tasks,
+                connection.id,
+            )
+            db.refresh(connection)
 
         return build_source_connection_response(
             connection,
@@ -4711,6 +4733,101 @@ async def update_source_connection_schedule(
         db.close()
 
 
+def get_initial_connector_sync_status(connection) -> str | None:
+    connection_config = parse_schedule_config(
+        getattr(connection, "connection_config", None)
+    )
+    status = str(
+        connection_config.get(INITIAL_CONNECTOR_SYNC_STATUS_KEY) or ""
+    ).strip().lower()
+    return status or None
+
+
+def set_initial_connector_sync_status(
+    connection,
+    status: str,
+    error: str | None = None,
+):
+    connection_config = parse_schedule_config(
+        getattr(connection, "connection_config", None)
+    )
+    connection_config[INITIAL_CONNECTOR_SYNC_STATUS_KEY] = status
+    if error:
+        connection_config["_initial_connector_sync_error"] = str(error)[:500]
+    else:
+        connection_config.pop("_initial_connector_sync_error", None)
+    connection.connection_config = json.dumps(
+        connection_config,
+        sort_keys=True,
+    )
+
+
+def subtract_calendar_months(value: date, months: int) -> date:
+    month_index = value.year * 12 + value.month - 1 - months
+    year, month_index = divmod(month_index, 12)
+    month = month_index + 1
+    day = min(value.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def get_initial_connector_backfill_window(
+    reference_date: date | None = None,
+):
+    end_date = reference_date or date.today()
+    initial_start_date = end_date - timedelta(
+        days=INITIAL_CONNECTOR_SYNC_DAYS - 1
+    )
+    backfill_end_date = initial_start_date - timedelta(days=1)
+    backfill_start_date = subtract_calendar_months(
+        backfill_end_date,
+        INITIAL_CONNECTOR_BACKFILL_MONTHS,
+    )
+    return backfill_start_date, backfill_end_date
+
+
+def initial_connector_sync_is_required(db, connection) -> bool:
+    if connection.last_synced_at is not None:
+        return False
+    if find_connector_datasets(db, connection):
+        return False
+    return get_initial_connector_sync_status(connection) not in {
+        INITIAL_CONNECTOR_SYNC_PENDING,
+        INITIAL_CONNECTOR_SYNC_INITIAL,
+        INITIAL_CONNECTOR_SYNC_BACKFILL,
+        INITIAL_CONNECTOR_SYNC_COMPLETE,
+    }
+
+
+def initial_connector_backfill_is_required(connection) -> bool:
+    if connection.last_synced_at is None:
+        return False
+    if get_initial_connector_sync_status(connection) != (
+        INITIAL_CONNECTOR_SYNC_FAILED
+    ):
+        return False
+    connection_config = parse_schedule_config(
+        getattr(connection, "connection_config", None)
+    )
+    return bool(
+        connection_config.get("_initial_connector_backfill_start_date")
+        and connection_config.get("_initial_connector_backfill_end_date")
+    )
+
+
+def get_initial_connector_earliest_date(connection) -> date:
+    connection_config = parse_schedule_config(
+        getattr(connection, "connection_config", None)
+    )
+    configured_start = connection_config.get(
+        "_initial_connector_backfill_start_date"
+    )
+    try:
+        return date.fromisoformat(str(configured_start))
+    except (TypeError, ValueError):
+        start_date, _end_date = get_initial_connector_backfill_window()
+        return start_date
+
+
 def get_incremental_sync_window(
     connection,
     payload: DataSourceConnectionSync,
@@ -4747,13 +4864,18 @@ def get_incremental_sync_window(
     return start_date, end_date
 
 
-def validate_advanced_sync_window(payload: DataSourceConnectionSync):
-    """Keep manual recovery syncs inside the supported 30-day lookback."""
+def validate_advanced_sync_window(
+    payload: DataSourceConnectionSync,
+    earliest_date: date | None = None,
+):
+    """Keep manual recovery syncs inside the connector's initial history."""
     if not payload.advanced_date_range:
         return
 
     today = date.today()
-    earliest_date = today - timedelta(days=30)
+    earliest_date = earliest_date or (
+        get_initial_connector_backfill_window(today)[0]
+    )
     start_date = payload.start_date
     end_date = payload.end_date
 
@@ -4777,13 +4899,6 @@ def validate_advanced_sync_window(payload: DataSourceConnectionSync):
             status_code=422,
             detail="Advanced sync start date must be on or before its end date",
         )
-    if (end_date - start_date).days > 30:
-        raise HTTPException(
-            status_code=422,
-            detail="Advanced sync can cover at most 30 days",
-        )
-
-
 def find_connector_dataset(
     db,
     connection,
@@ -7244,6 +7359,326 @@ def run_data_source_sync_with_oauth_retry(
         return run_data_source_sync(db, connection, payload)
 
 
+def queue_connector_initial_backfill(
+    background_tasks: BackgroundTasks | None,
+    connection_id: int,
+):
+    """Queue the historical phase after the first dataset is committed."""
+    if background_tasks is None:
+        return False
+
+    db = SessionLocal()
+    try:
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == connection_id)
+            .first()
+        )
+        if not connection:
+            return False
+
+        status = get_initial_connector_sync_status(connection)
+        if status in {
+            INITIAL_CONNECTOR_SYNC_INITIAL,
+            INITIAL_CONNECTOR_SYNC_BACKFILL,
+            INITIAL_CONNECTOR_SYNC_COMPLETE,
+        }:
+            return False
+        connection_config = parse_schedule_config(
+            connection.connection_config
+        )
+        if not connection_config.get(
+            "_initial_connector_backfill_start_date"
+        ):
+            backfill_start, backfill_end = (
+                get_initial_connector_backfill_window()
+            )
+            connection_config[
+                "_initial_connector_backfill_start_date"
+            ] = backfill_start.isoformat()
+            connection_config[
+                "_initial_connector_backfill_end_date"
+            ] = backfill_end.isoformat()
+            connection.connection_config = json.dumps(
+                connection_config,
+                sort_keys=True,
+            )
+        set_initial_connector_sync_status(
+            connection,
+            INITIAL_CONNECTOR_SYNC_BACKFILL,
+        )
+        db.commit()
+        background_tasks.add_task(
+            run_connector_initial_backfill,
+            connection.id,
+        )
+        return True
+    finally:
+        db.close()
+
+
+def queue_connector_initial_import(
+    background_tasks: BackgroundTasks | None,
+    connection_id: int,
+):
+    """Start the two-phase import after an OAuth grant is stored."""
+    if background_tasks is None:
+        return False
+
+    db = SessionLocal()
+    try:
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == connection_id)
+            .first()
+        )
+        if not connection or connection.status != "connected":
+            return False
+        if initial_connector_backfill_is_required(connection):
+            return queue_connector_initial_backfill(
+                background_tasks,
+                connection.id,
+            )
+        if not initial_connector_sync_is_required(db, connection):
+            return False
+        try:
+            require_source_connection_sync_config(connection)
+        except (ConnectorUnavailable, HTTPException):
+            # OAuth may have returned multiple accounts. The account selector
+            # will queue the import after the user chooses one.
+            return False
+
+        set_initial_connector_sync_status(
+            connection,
+            INITIAL_CONNECTOR_SYNC_PENDING,
+        )
+        db.commit()
+        background_tasks.add_task(
+            run_connector_initial_import,
+            connection.id,
+        )
+        return True
+    finally:
+        db.close()
+
+
+def _persist_initial_backfill_failure(
+    db,
+    connection_id: int,
+    error: Exception,
+):
+    db.rollback()
+    connection = (
+        db.query(DataSourceConnection)
+        .filter(DataSourceConnection.id == connection_id)
+        .first()
+    )
+    if not connection:
+        return
+    set_initial_connector_sync_status(
+        connection,
+        INITIAL_CONNECTOR_SYNC_FAILED,
+        error,
+    )
+    if connector_requires_reauthorization(connection.source_type, error):
+        mark_connection_authorization_failed(connection, error)
+    db.commit()
+
+
+def run_connector_initial_backfill(connection_id: int):
+    """Import the 21 months immediately preceding the initial 90 days."""
+    db = SessionLocal()
+    try:
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == connection_id)
+            .first()
+        )
+        if not connection:
+            return
+        status = get_initial_connector_sync_status(connection)
+        if status == INITIAL_CONNECTOR_SYNC_COMPLETE:
+            return
+
+        connection_config = parse_schedule_config(
+            connection.connection_config
+        )
+        stored_start = connection_config.get(
+            "_initial_connector_backfill_start_date"
+        )
+        stored_end = connection_config.get(
+            "_initial_connector_backfill_end_date"
+        )
+        try:
+            start_date = date.fromisoformat(str(stored_start))
+            end_date = date.fromisoformat(str(stored_end))
+        except (TypeError, ValueError):
+            start_date, end_date = get_initial_connector_backfill_window()
+            connection_config[
+                "_initial_connector_backfill_start_date"
+            ] = start_date.isoformat()
+            connection_config[
+                "_initial_connector_backfill_end_date"
+            ] = end_date.isoformat()
+            connection.connection_config = json.dumps(
+                connection_config,
+                sort_keys=True,
+            )
+
+        set_initial_connector_sync_status(
+            connection,
+            INITIAL_CONNECTOR_SYNC_BACKFILL,
+        )
+        db.commit()
+
+        try:
+            sync_results = run_data_source_sync_with_oauth_retry(
+                db,
+                connection,
+                DataSourceConnectionSync(
+                    start_date=start_date,
+                    end_date=end_date,
+                ),
+            )
+        except ConnectorNoData:
+            sync_results = []
+
+        db.commit()
+        for _dataset, _report_config, _file_path, replaced_file_path in (
+            sync_results
+        ):
+            remove_dataset_file(replaced_file_path)
+
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == connection_id)
+            .first()
+        )
+        if connection:
+            set_initial_connector_sync_status(
+                connection,
+                INITIAL_CONNECTOR_SYNC_COMPLETE,
+            )
+            db.commit()
+    except (
+        GoogleAnalyticsConnectorUnavailable,
+        ConnectorUnavailable,
+        OAuthProviderUnavailable,
+    ) as error:
+        logger.warning(
+            "Initial connector backfill failed",
+            extra={
+                "connection_id": connection_id,
+                "reason": str(error)[:500],
+            },
+        )
+        _persist_initial_backfill_failure(db, connection_id, error)
+    except Exception as error:
+        logger.exception(
+            "Initial connector backfill failed unexpectedly",
+            extra={"connection_id": connection_id},
+        )
+        _persist_initial_backfill_failure(db, connection_id, error)
+    finally:
+        db.close()
+
+
+def run_connector_initial_import(connection_id: int):
+    """Run the initial 90-day phase, then continue with historical data."""
+    db = SessionLocal()
+    try:
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == connection_id)
+            .first()
+        )
+        if not connection:
+            return
+        if get_initial_connector_sync_status(connection) == (
+            INITIAL_CONNECTOR_SYNC_COMPLETE
+        ):
+            return
+
+        reference_date = date.today()
+        backfill_start, backfill_end = (
+            get_initial_connector_backfill_window(reference_date)
+        )
+        connection_config = parse_schedule_config(
+            connection.connection_config
+        )
+        connection_config[
+            "_initial_connector_backfill_start_date"
+        ] = backfill_start.isoformat()
+        connection_config[
+            "_initial_connector_backfill_end_date"
+        ] = backfill_end.isoformat()
+        connection.connection_config = json.dumps(
+            connection_config,
+            sort_keys=True,
+        )
+        set_initial_connector_sync_status(
+            connection,
+            INITIAL_CONNECTOR_SYNC_INITIAL,
+        )
+        db.commit()
+
+        sync_results = run_data_source_sync_with_oauth_retry(
+            db,
+            connection,
+            DataSourceConnectionSync(),
+        )
+        db.commit()
+        for _dataset, _report_config, _file_path, replaced_file_path in (
+            sync_results
+        ):
+            remove_dataset_file(replaced_file_path)
+    except ConnectorNoData as error:
+        logger.info(
+            "Initial connector import returned no data",
+            extra={
+                "connection_id": connection_id,
+                "reason": str(error)[:500],
+            },
+        )
+        db.rollback()
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == connection_id)
+            .first()
+        )
+        if connection:
+            set_initial_connector_sync_status(
+                connection,
+                INITIAL_CONNECTOR_SYNC_BACKFILL,
+            )
+            db.commit()
+    except (
+        GoogleAnalyticsConnectorUnavailable,
+        ConnectorUnavailable,
+        OAuthProviderUnavailable,
+    ) as error:
+        logger.warning(
+            "Initial connector import failed",
+            extra={
+                "connection_id": connection_id,
+                "reason": str(error)[:500],
+            },
+        )
+        _persist_initial_backfill_failure(db, connection_id, error)
+        return
+    except Exception as error:
+        logger.exception(
+            "Initial connector import failed unexpectedly",
+            extra={"connection_id": connection_id},
+        )
+        _persist_initial_backfill_failure(db, connection_id, error)
+        return
+    finally:
+        db.close()
+
+    run_connector_initial_backfill(connection_id)
+
+
 def get_connectors_scheduler_secret():
     return str(
         os.getenv("CONNECTORS_SCHEDULER_SECRET", "") or ""
@@ -7268,7 +7703,10 @@ def require_connectors_scheduler_secret(request: Request):
 
 
 @router.post("/source-connections/sync-due")
-async def sync_due_source_connections(request: Request):
+async def sync_due_source_connections(
+    request: Request,
+    background_tasks: BackgroundTasks = None,
+):
     require_connectors_scheduler_secret(request)
     now = utc_now()
     db = SessionLocal()
@@ -7353,6 +7791,17 @@ async def sync_due_source_connections(request: Request):
                     )
                     continue
 
+            if initial_connector_backfill_is_required(connection):
+                queue_connector_initial_backfill(
+                    background_tasks,
+                    connection.id,
+                )
+                results.append({
+                    "connection_id": connection.id,
+                    "status": "initial_backfill_queued",
+                })
+                continue
+
             (
                 enabled,
                 interval_hours,
@@ -7377,6 +7826,26 @@ async def sync_due_source_connections(request: Request):
             ):
                 continue
 
+            initial_sync_status = get_initial_connector_sync_status(
+                connection
+            )
+            if initial_sync_status in {
+                INITIAL_CONNECTOR_SYNC_PENDING,
+                INITIAL_CONNECTOR_SYNC_INITIAL,
+                INITIAL_CONNECTOR_SYNC_BACKFILL,
+            }:
+                results.append({
+                    "connection_id": connection.id,
+                    "status": "initial_sync_in_progress",
+                    "initial_sync_status": initial_sync_status,
+                })
+                continue
+
+            initial_sync_required = initial_connector_sync_is_required(
+                db,
+                connection,
+            )
+
             if connection.source_type not in {
                 "google_analytics",
                 *IMPLEMENTED_CONNECTOR_TYPES,
@@ -7400,6 +7869,11 @@ async def sync_due_source_connections(request: Request):
                 db.commit()
                 for _dataset, _report_config, _file_path, replaced_file_path in sync_results:
                     remove_dataset_file(replaced_file_path)
+                if initial_sync_required:
+                    queue_connector_initial_backfill(
+                        background_tasks,
+                        connection.id,
+                    )
                 primary_dataset, primary_report, *_ = sync_results[0]
                 results.append({
                     "connection_id": connection.id,
@@ -7421,6 +7895,11 @@ async def sync_due_source_connections(request: Request):
                 })
             except ConnectorNoData as error:
                 db.rollback()
+                if initial_sync_required:
+                    queue_connector_initial_backfill(
+                        background_tasks,
+                        connection.id,
+                    )
                 results.append({
                     "connection_id": connection.id,
                     "status": "no_data",
@@ -7469,6 +7948,7 @@ async def sync_source_connection(
     request: Request,
     connection_id: int,
     payload: DataSourceConnectionSync,
+    background_tasks: BackgroundTasks = None,
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -7498,7 +7978,35 @@ async def sync_source_connection(
                 detail="Manual sync is not enabled for this source",
             )
 
-        validate_advanced_sync_window(payload)
+        validate_advanced_sync_window(
+            payload,
+            get_initial_connector_earliest_date(connection),
+        )
+        initial_sync_status = get_initial_connector_sync_status(
+            connection
+        )
+        if initial_sync_status in {
+            INITIAL_CONNECTOR_SYNC_PENDING,
+            INITIAL_CONNECTOR_SYNC_INITIAL,
+            INITIAL_CONNECTOR_SYNC_BACKFILL,
+        }:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "The connector's initial import is still running. "
+                    "The latest 90 days will be available first, followed "
+                    "by the historical import."
+                ),
+            )
+        initial_sync_required = (
+            not payload.advanced_date_range
+            and payload.start_date is None
+            and payload.end_date is None
+            and (
+                initial_connector_sync_is_required(db, connection)
+                or initial_connector_backfill_is_required(connection)
+            )
+        )
         sync_results = run_data_source_sync_with_oauth_retry(
             db,
             connection,
@@ -7509,6 +8017,12 @@ async def sync_source_connection(
                 "Connector sync completed without producing a dataset"
             )
         db.commit()
+        if initial_sync_required:
+            queue_connector_initial_backfill(
+                background_tasks,
+                connection.id,
+            )
+            db.refresh(connection)
         datasets = []
         for dataset, report_config, _file_path, replaced_file_path in sync_results:
             remove_dataset_file(replaced_file_path)
@@ -7531,6 +8045,11 @@ async def sync_source_connection(
             "datasets": datasets,
         }
     except ConnectorNoData as error:
+        if initial_sync_required:
+            queue_connector_initial_backfill(
+                background_tasks,
+                connection.id,
+            )
         return {
             "connection_id": connection.id,
             "status": "no_data",

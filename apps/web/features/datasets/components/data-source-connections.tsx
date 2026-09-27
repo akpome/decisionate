@@ -99,8 +99,6 @@ function getBrowserTimezone() {
   )
 }
 
-const ADVANCED_SYNC_LOOKBACK_DAYS = 30
-
 function formatDateInputValue(value: Date) {
   const year = value.getFullYear()
   const month = String(value.getMonth() + 1).padStart(2, "0")
@@ -108,10 +106,38 @@ function formatDateInputValue(value: Date) {
   return `${year}-${month}-${day}`
 }
 
-function getAdvancedSyncDateBounds() {
+function subtractCalendarMonths(value: Date, months: number) {
+  const result = new Date(value)
+  const targetMonth = result.getMonth() - months
+  result.setDate(1)
+  result.setMonth(targetMonth)
+  const lastDay = new Date(
+    result.getFullYear(),
+    result.getMonth() + 1,
+    0
+  ).getDate()
+  result.setDate(Math.min(value.getDate(), lastDay))
+  return result
+}
+
+function getAdvancedSyncDateBounds(
+  connection: DataSourceConnection
+) {
   const today = new Date()
-  const earliest = new Date(today)
-  earliest.setDate(today.getDate() - ADVANCED_SYNC_LOOKBACK_DAYS)
+  const initialStart = new Date(today)
+  initialStart.setDate(today.getDate() - 89)
+  const backfillEnd = new Date(initialStart)
+  backfillEnd.setDate(initialStart.getDate() - 1)
+  const fallbackEarliest = subtractCalendarMonths(
+    backfillEnd,
+    21
+  )
+  const configuredEarliest = connection.initial_sync_earliest_date
+    ? new Date(`${connection.initial_sync_earliest_date}T00:00:00`)
+    : fallbackEarliest
+  const earliest = Number.isNaN(configuredEarliest.getTime())
+    ? fallbackEarliest
+    : configuredEarliest
   return {
     min: formatDateInputValue(earliest),
     max: formatDateInputValue(today),
@@ -616,6 +642,15 @@ function DataSourceConnectionRow({
   )
   const hasMultipleOAuthAccounts =
     oauthAccountOptions.length > 1
+  const initialSyncInProgress = [
+    "pending",
+    "initial",
+    "backfill",
+  ].includes(connection.initial_sync_status ?? "")
+  const initialSyncCompleted =
+    connection.initial_sync_status === "complete" ||
+    (!connection.initial_sync_status &&
+      Boolean(connection.last_synced_at))
   const isSageConnector =
     connection.source_type === "sage"
   const requiresOAuthAccountSelection =
@@ -651,34 +686,38 @@ function DataSourceConnectionRow({
     )
   const configuredGoogleAdsAccountId =
     connection.configured_customer_id ?? ""
-  const canSyncConnector =
-    [
-      "google_analytics",
-      "google_search_console",
-      "google_ads",
-      "google_business_profile",
-      "hubspot",
-      "stripe",
-      "shopify",
-      "square",
-      "woocommerce",
-      "lightspeed",
-      "lightspeed_x",
-      "lightspeed_k",
-      "lightspeed_o",
-      "meta_ads",
-      "quickbooks",
-      "freshbooks",
-      "sage",
-      "xero",
-      "zoho_books",
-      "salesforce",
-      "postgresql",
-      "mysql",
-      "sql_server",
-    ].includes(
-      connection.source_type
-    ) &&
+  const advancedDateRangeSupported = [
+    "google_analytics",
+    "google_search_console",
+    "google_ads",
+    "google_business_profile",
+    "hubspot",
+    "stripe",
+    "shopify",
+    "square",
+    "woocommerce",
+    "lightspeed",
+    "lightspeed_x",
+    "lightspeed_k",
+    "lightspeed_o",
+    "meta_ads",
+    "quickbooks",
+    "freshbooks",
+    "sage",
+    "xero",
+    "zoho_books",
+    "salesforce",
+    "postgresql",
+    "mysql",
+    "sql_server",
+  ].includes(connection.source_type)
+  const canShowAdvancedDateRange =
+    advancedDateRangeSupported &&
+    initialSyncCompleted &&
+    !sourceIsPlanned &&
+    Boolean(onSyncConnection)
+  const canUseAdvancedDateRange =
+    canShowAdvancedDateRange &&
     source?.status === "available" &&
     stripeKeyConfigured &&
     hasRequiredConnectionConfig &&
@@ -687,9 +726,9 @@ function DataSourceConnectionRow({
     (!hasResourceSelection ||
       selectedResourceTypes.length > 0) &&
     (!showOAuthAccountSelection ||
-      hasSelectedOAuthAccount) &&
-    (!isSageConnector || hasSelectedOAuthAccount) &&
-    Boolean(onSyncConnection)
+      hasSelectedOAuthAccount)
+  const canSyncConnector =
+    canUseAdvancedDateRange && !initialSyncInProgress
   const canStartOAuth =
     source?.connection_type === "oauth" &&
     source.status === "available" &&
@@ -724,17 +763,17 @@ function DataSourceConnectionRow({
     useState(false)
   const [advancedStartDate, setAdvancedStartDate] =
     useState(() => {
-      const bounds = getAdvancedSyncDateBounds()
+      const bounds = getAdvancedSyncDateBounds(connection)
       return bounds.min
     })
   const [advancedEndDate, setAdvancedEndDate] =
-    useState(() => getAdvancedSyncDateBounds().max)
+    useState(() => getAdvancedSyncDateBounds(connection).max)
   const [advancedDateError, setAdvancedDateError] =
     useState<string | null>(null)
 
   function syncConnection(advancedDateRange = false) {
     if (advancedDateRange) {
-      const bounds = getAdvancedSyncDateBounds()
+      const bounds = getAdvancedSyncDateBounds(connection)
       if (!advancedStartDate || !advancedEndDate) {
         setAdvancedDateError(
           t("Choose both a start date and an end date.")
@@ -746,7 +785,7 @@ function DataSourceConnectionRow({
         advancedEndDate > bounds.max
       ) {
         setAdvancedDateError(
-          t("Choose dates within the last 30 days, through today.")
+          t("Choose dates within the initial import history, through today.")
         )
         return
       }
@@ -933,6 +972,17 @@ function DataSourceConnectionRow({
           )}
         </p>
 
+        {initialSyncInProgress && (
+          <p
+            className="mt-2 break-words text-xs text-blue-700"
+            role="status"
+          >
+            {t(
+              "Initial import is running. The most recent 90 days will appear first, followed by the preceding 21 months in the background."
+            )}
+          </p>
+        )}
+
         {connection.authorization_error && (
           <div
             role="alert"
@@ -1014,6 +1064,7 @@ function DataSourceConnectionRow({
             onDeleteConnection ||
             canConfigure ||
             canSyncConnector ||
+            canShowAdvancedDateRange ||
             canRefreshSageBusinesses ||
             canStartOAuth ||
             canCancelOAuth) && (
@@ -1039,7 +1090,7 @@ function DataSourceConnectionRow({
                 </button>
               )}
 
-              {canSyncConnector && (
+              {canShowAdvancedDateRange && (
                 <div className="w-full min-w-0 sm:w-auto">
                   <button
                     type="button"
@@ -1066,8 +1117,8 @@ function DataSourceConnectionRow({
                           <input
                             type="date"
                             value={advancedStartDate}
-                            min={getAdvancedSyncDateBounds().min}
-                            max={getAdvancedSyncDateBounds().max}
+                            min={getAdvancedSyncDateBounds(connection).min}
+                            max={getAdvancedSyncDateBounds(connection).max}
                             onChange={(event) => {
                               setAdvancedStartDate(event.target.value)
                               setAdvancedDateError(null)
@@ -1080,8 +1131,8 @@ function DataSourceConnectionRow({
                           <input
                             type="date"
                             value={advancedEndDate}
-                            min={getAdvancedSyncDateBounds().min}
-                            max={getAdvancedSyncDateBounds().max}
+                            min={getAdvancedSyncDateBounds(connection).min}
+                            max={getAdvancedSyncDateBounds(connection).max}
                             onChange={(event) => {
                               setAdvancedEndDate(event.target.value)
                               setAdvancedDateError(null)
@@ -1091,7 +1142,7 @@ function DataSourceConnectionRow({
                         </label>
                       </div>
                       <p className="mt-2 text-xs text-gray-500">
-                        {t("Manual recovery is limited to the last 30 days.")}
+                        {t("Manual recovery can cover the initial import history.")}
                       </p>
                       {advancedDateError && (
                         <p className="mt-2 text-xs text-red-700" role="alert">
@@ -1103,7 +1154,9 @@ function DataSourceConnectionRow({
                         onClick={() => syncConnection(true)}
                         disabled={
                           syncingConnectionId === connection.id ||
-                          updatingConnectionId === connection.id
+                          updatingConnectionId === connection.id ||
+                          initialSyncInProgress ||
+                          !canUseAdvancedDateRange
                         }
                         className="mt-3 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                       >

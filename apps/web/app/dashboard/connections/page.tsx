@@ -845,6 +845,48 @@ function ConnectionsPageContent({
     loadRetryKey,
   ])
 
+  useEffect(() => {
+    if (
+      !user?.id ||
+      !canViewConnections ||
+      !sourceConnections.some((connection) =>
+        ["pending", "initial", "backfill"].includes(
+          connection.initial_sync_status ?? ""
+        )
+      )
+    ) {
+      return
+    }
+
+    let ignoreResult = false
+    const intervalId = window.setInterval(() => {
+      void getDataSourceConnections(
+        user.id,
+        activeWorkspaceId
+      )
+        .then((data) => {
+          if (!ignoreResult) {
+            setSourceConnections(data)
+          }
+        })
+        .catch((error) => {
+          if (!ignoreResult) {
+            console.error(error)
+          }
+        })
+    }, 5000)
+
+    return () => {
+      ignoreResult = true
+      window.clearInterval(intervalId)
+    }
+  }, [
+    activeWorkspaceId,
+    canViewConnections,
+    sourceConnections,
+    user?.id,
+  ])
+
   return (
     <div className="space-y-8">
       <DashboardPageHeader
