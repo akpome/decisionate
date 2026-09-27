@@ -13,6 +13,7 @@ from urllib.parse import (
     parse_qsl,
     quote,
     urlencode,
+    urljoin,
     urlparse,
     urlunparse,
 )
@@ -2887,15 +2888,20 @@ def load_lightspeed_dataframe(
             "LIGHTSPEED_API_BASE_URL_TEMPLATE must include {account_id}"
         ) from error
     rows = []
-    offset = 0
-    while True:
-        params = {
-            "limit": str(PAGE_SIZE),
-            "offset": str(offset),
-            "load_relations": "[\"SaleLines\"]",
-        }
+    params = {
+        "limit": str(PAGE_SIZE),
+        "load_relations": "[\"SaleLines\"]",
+    }
+    next_url = f"{base_url}/Sale.json?{urlencode(params)}"
+    seen_urls = set()
+    while next_url:
+        if next_url in seen_urls:
+            raise ConnectorUnavailable(
+                "Lightspeed returned a repeated sales pagination URL"
+            )
+        seen_urls.add(next_url)
         payload = connector_json_request(
-            f"{base_url}/Sale.json?{urlencode(params)}",
+            next_url,
             headers={"Authorization": f"Bearer {access_token}"},
             source_type="lightspeed",
         )
@@ -2927,9 +2933,13 @@ def load_lightspeed_dataframe(
                     flatten_lists=True,
                 )
             )
-        if len(sales) < PAGE_SIZE:
-            break
-        offset += len(sales)
+        attributes = payload.get("@attributes")
+        if not isinstance(attributes, dict):
+            attributes = payload.get("attributes")
+        next_url = build_lightspeed_pagination_url(
+            next_url,
+            attributes.get("next") if isinstance(attributes, dict) else None,
+        )
 
     dataframe = filter_date_range(pd.DataFrame(rows), start_date, end_date)
     return dataframe, {
@@ -2940,6 +2950,29 @@ def load_lightspeed_dataframe(
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
     }
+
+
+def build_lightspeed_pagination_url(
+    current_url: str,
+    next_page,
+) -> str:
+    """Use Lightspeed's returned cursor URL without trusting another host."""
+    next_value = str(next_page or "").strip()
+    if not next_value:
+        return ""
+
+    parsed_next = urlparse(next_value)
+    parsed_current = urlparse(current_url)
+    if parsed_next.scheme or parsed_next.netloc:
+        if (
+            parsed_next.scheme != parsed_current.scheme
+            or parsed_next.hostname != parsed_current.hostname
+        ):
+            raise ConnectorUnavailable(
+                "Lightspeed returned an invalid pagination URL"
+            )
+        return next_value
+    return urljoin(current_url, next_value)
 
 
 def load_lightspeed_x_dataframe(
@@ -6101,6 +6134,16 @@ def format_connector_error_detail(
             "for this account and try again."
         )
     if (
+        normalized_source_type == "lightspeed"
+        and status_code == 400
+        and "offset parameter is no longer supported" in normalized_detail
+    ):
+        return (
+            "Lightspeed Retail rejected legacy offset pagination. The "
+            "connector now follows Lightspeed's returned next-page URLs; "
+            "retry the sync after deployment."
+        )
+    if (
         normalized_source_type == "sage"
         and status_code in {500, 502, 503, 504}
         and (
@@ -6261,6 +6304,14 @@ def connector_requires_reauthorization(
             "error 1010" in normalized_message
             or "site owner has blocked access" in normalized_message
             or "cloudflare" in normalized_message
+        )
+    ):
+        return False
+    if (
+        normalized_source_type == "lightspeed"
+        and (
+            "offset parameter is no longer supported" in normalized_message
+            or "legacy offset pagination" in normalized_message
         )
     ):
         return False

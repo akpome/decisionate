@@ -1169,6 +1169,26 @@ class ConnectorSmokeTests(unittest.TestCase):
             )
         )
 
+    def test_lightspeed_offset_pagination_error_is_not_oauth_failure(self):
+        detail = connectors.format_connector_error_detail(
+            '{"httpCode":"400","httpMessage":"Bad Request",'
+            '"message":"The offset parameter is no longer supported. '
+            'Please use the next and previous URLs provided in each response '
+            'payload.","errorClass":"BadRequestHttpException"}',
+            "lightspeed",
+            400,
+        )
+
+        self.assertIn("legacy offset pagination", detail)
+        self.assertFalse(
+            connectors.connector_requires_reauthorization(
+                "lightspeed",
+                connectors.ConnectorUnavailable(
+                    f"Connector request failed with HTTP 400: {detail}"
+                ),
+            )
+        )
+
     def test_meta_expired_oauth_error_is_customer_safe(self):
         detail = connectors.format_connector_error_detail(
             json.dumps({

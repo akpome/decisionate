@@ -1299,9 +1299,75 @@ class NewConnectorTests(unittest.TestCase):
             "/API/V3/Account/account-1/Sale.json",
             request_url,
         )
+        self.assertNotIn("offset=", request_url)
         self.assertEqual(
             request.call_args.kwargs["source_type"],
             "lightspeed",
+        )
+
+    def test_lightspeed_sales_follow_provider_next_page_urls(self):
+        first_page_url = (
+            "https://api.lightspeedapp.com/API/V3/Account/account-1/"
+            "Sale.json?limit=100&load_relations=%5B%22SaleLines%22%5D"
+        )
+        second_page_url = (
+            "https://api.lightspeedapp.com/API/V3/Account/account-1/"
+            "Sale.json?limit=100&load_relations=%5B%22SaleLines%22%5D&after=cursor-1"
+        )
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="lightspeed-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=[
+                {
+                    "@attributes": {
+                        "next": second_page_url,
+                        "previous": "",
+                    },
+                    "Sale": [{
+                        "saleID": "sale-1",
+                        "createTime": "2026-09-01T12:00:00Z",
+                        "total": "125.00",
+                    }],
+                },
+                {
+                    "@attributes": {"next": "", "previous": first_page_url},
+                    "Sale": [{
+                        "saleID": "sale-2",
+                        "createTime": "2026-09-02T12:00:00Z",
+                        "total": "250.00",
+                    }],
+                },
+            ],
+        ) as request, patch.dict(
+            "os.environ",
+            {
+                "LIGHTSPEED_API_BASE_URL_TEMPLATE": (
+                    "https://api.lightspeedapp.com/API/V3/Account/{account_id}"
+                ),
+            },
+            clear=False,
+        ):
+            dataframe, _report = connectors.load_lightspeed_dataframe(
+                None,
+                make_connection("lightspeed", {"account_id": "account-1"}),
+                date(2026, 9, 1),
+                date(2026, 9, 2),
+            )
+
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(
+            [call.args[0] for call in request.call_args_list],
+            [first_page_url, second_page_url],
+        )
+        self.assertTrue(
+            all(
+                call.kwargs["source_type"] == "lightspeed"
+                for call in request.call_args_list
+            )
         )
 
     def test_lightspeed_data_requests_use_browser_compatible_transport(self):
