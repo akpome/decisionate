@@ -106,6 +106,7 @@ FRESHBOOKS_RESOURCE_TYPES = {
     "projects",
     *FRESHBOOKS_RESOURCE_PATHS,
 }
+FRESHBOOKS_LINE_ITEM_RESOURCES = {"invoices", "credit_notes"}
 
 SAGE_RESOURCE_TYPES = {
     "sales_invoices": ("sales_invoices", "$items"),
@@ -167,6 +168,12 @@ SAGE_TRANSACTION_RESOURCES = {
     "payments",
     "other_payments",
     "journals",
+}
+SAGE_LINE_ITEM_RESOURCES = {
+    "sales_invoices",
+    "purchase_invoices",
+    "sales_credit_notes",
+    "purchase_credit_notes",
 }
 SAGE_DATE_FILTER_RESOURCES = {
     "sales_invoices",
@@ -609,6 +616,13 @@ QUICKBOOKS_TRANSACTION_RESOURCES = {
     "bills",
     "purchases",
 }
+QUICKBOOKS_LINE_ITEM_RESOURCES = {
+    "invoices",
+    "sales_receipts",
+    "estimates",
+    "bills",
+    "purchases",
+}
 QUICKBOOKS_PRODUCTION_API_BASE_URL = "https://quickbooks.api.intuit.com"
 QUICKBOOKS_SANDBOX_API_BASE_URL = "https://sandbox-quickbooks.api.intuit.com"
 QUICKBOOKS_API_BASE_URL_CONFIG_KEY = "_quickbooks_api_base_url"
@@ -647,6 +661,13 @@ ZOHO_BOOKS_TRANSACTION_RESOURCES = {
     "estimates",
     "sales_orders",
 }
+ZOHO_BOOKS_LINE_ITEM_RESOURCES = {
+    "invoices",
+    "expenses",
+    "credit_notes",
+    "estimates",
+    "sales_orders",
+}
 ZOHO_BOOKS_DATE_FILTER_RESOURCES = {
     "invoices",
     "expenses",
@@ -672,6 +693,12 @@ XERO_RESOURCE_TYPES = {
     "items": ("Items", "Items"),
 }
 XERO_MASTER_DATA_RESOURCES = {"contacts", "accounts", "items"}
+XERO_LINE_ITEM_RESOURCES = {
+    "invoices",
+    "credit_notes",
+    "quotes",
+    "purchase_orders",
+}
 XERO_RESOURCE_ALIASES = {
     "invoice": "invoices",
     "contact": "contacts",
@@ -1176,6 +1203,196 @@ def deduplicate_lightspeed_sales(dataframe: pd.DataFrame) -> pd.DataFrame:
                     identified_sale_ids
                 )
             ]
+    return pd.concat(
+        [identified, unidentified],
+        ignore_index=True,
+        sort=False,
+    ).reset_index(drop=True)
+
+
+def connector_line_items(record: dict, *keys: str) -> list[dict]:
+    """Extract provider line-item arrays without using array indexes as columns."""
+    relation = None
+    for key in keys:
+        if key in record:
+            relation = record.get(key)
+            break
+    if isinstance(relation, dict):
+        for key in (
+            "nodes",
+            "items",
+            "data",
+            "lines",
+            "Line",
+            "line_items",
+            "lineItems",
+        ):
+            nested = relation.get(key)
+            if isinstance(nested, (dict, list)):
+                relation = nested
+                break
+    if isinstance(relation, dict):
+        relation = [relation]
+    if not isinstance(relation, list):
+        return [{}]
+    lines = [line for line in relation if isinstance(line, dict)]
+    return lines or [{}]
+
+
+def connector_first_value(record: dict, *keys: str):
+    """Return the first present value, including falsey values such as zero."""
+    for key in keys:
+        if key in record and record.get(key) is not None:
+            return record.get(key)
+    return None
+
+
+def connector_line_item_id(
+    line: dict,
+    parent_id,
+    line_index: int,
+) -> str:
+    value = connector_first_value(
+        line,
+        "id",
+        "uid",
+        "line_id",
+        "line_item_id",
+        "lineItemId",
+        "lineItemID",
+        "LineItemID",
+        "Id",
+        "LineId",
+        "lineid",
+        "lineId",
+        "lineID",
+        "LineID",
+        "uuid",
+    )
+    if value is not None and str(value).strip():
+        return str(value)
+    return f"{parent_id}:line:{line_index}"
+
+
+def connector_line_item_description(line: dict) -> str | None:
+    for key in ("item", "product", "variant", "Item", "Product"):
+        nested = line.get(key)
+        if not isinstance(nested, dict):
+            continue
+        value = connector_first_value(
+            nested,
+            "description",
+            "Description",
+            "itemDescription",
+            "ItemDescription",
+            "name",
+            "Name",
+            "title",
+            "Title",
+            "item_name",
+            "product_name",
+        )
+        if value not in (None, ""):
+            return value
+    value = connector_first_value(
+        line,
+        "description",
+        "Description",
+        "itemDescription",
+        "ItemDescription",
+        "name",
+        "Name",
+        "title",
+        "Title",
+        "item_name",
+        "product_name",
+    )
+    return value if value not in (None, "") else None
+
+
+def connector_line_item_reference(line: dict):
+    for key in (
+        "item_id",
+        "product_id",
+        "catalog_object_id",
+        "variation_id",
+        "sku",
+        "item_code",
+        "ItemCode",
+        "ItemID",
+    ):
+        value = line.get(key)
+        if value is not None:
+            return value
+    for key in (
+        "item",
+        "product",
+        "variant",
+        "ItemRef",
+        "item_ref",
+        "ProductRef",
+    ):
+        nested = line.get(key)
+        if isinstance(nested, dict):
+            value = connector_first_value(
+                nested,
+                "id",
+                "value",
+                "item_id",
+                "product_id",
+            )
+            if value is not None:
+                return value
+    return None
+
+
+def deduplicate_connector_line_items(
+    dataframe: pd.DataFrame,
+    line_item_key: str,
+    parent_id_keys: tuple[str, ...] = (),
+) -> pd.DataFrame:
+    """Deduplicate line rows and remove old parent-only rows on resync."""
+    if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
+        return dataframe
+    if line_item_key not in dataframe.columns:
+        return dataframe.drop_duplicates(keep="last").reset_index(drop=True)
+
+    deduplicated = dataframe.copy()
+    identity_values = deduplicated[line_item_key].astype("string").str.strip()
+    has_identity = (
+        deduplicated[line_item_key].notna()
+        & identity_values.ne("")
+        & identity_values.ne("<NA>")
+    )
+    identified = deduplicated.loc[has_identity].drop_duplicates(
+        subset=[line_item_key],
+        keep="last",
+    )
+    unidentified = deduplicated.loc[~has_identity].drop_duplicates(
+        keep="last",
+    )
+
+    parent_values = set()
+    for key in parent_id_keys:
+        if key not in identified.columns:
+            continue
+        parent_values.update(
+            identified[key]
+            .dropna()
+            .astype("string")
+            .loc[lambda values: values.str.strip().ne("")]
+            .tolist()
+        )
+    if parent_values and parent_id_keys:
+        legacy_parent_row = pd.Series(False, index=unidentified.index)
+        for key in parent_id_keys:
+            if key not in unidentified.columns:
+                continue
+            legacy_parent_row |= unidentified[key].astype("string").isin(
+                parent_values
+            )
+        unidentified = unidentified.loc[~legacy_parent_row]
+
     return pd.concat(
         [identified, unidentified],
         ignore_index=True,
@@ -1998,6 +2215,40 @@ query ShopifyOrders($after: String, $query: String) {
       sourceName
       subtotalLineItemsQuantity
       test
+      lineItems(first: 250) {
+        nodes {
+          id
+          name
+          quantity
+          sku
+          product {
+            id
+            title
+          }
+          variant {
+            id
+            title
+          }
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          discountedUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          discountedTotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
     }
     pageInfo {
       hasNextPage
@@ -2203,12 +2454,60 @@ def load_shopify_dataframe(
                 "source_name": order.get("sourceName"),
                 "test": order.get("test"),
             }
-            rows.append(
-                build_dynamic_connector_row(
-                    order,
-                    normalized_row,
-                )
+            order_source = {
+                key: value
+                for key, value in order.items()
+                if key != "lineItems"
+            }
+            order_row = build_dynamic_connector_row(
+                order_source,
+                normalized_row,
+                flatten_lists=True,
             )
+            for line_index, line in enumerate(
+                connector_line_items(order, "lineItems")
+            ):
+                product = line.get("product")
+                product = product if isinstance(product, dict) else {}
+                variant = line.get("variant")
+                variant = variant if isinstance(variant, dict) else {}
+                rows.append({
+                    **order_row,
+                    **build_dynamic_connector_row(
+                        line,
+                        {
+                            "line_item_id": connector_line_item_id(
+                                line,
+                                order_id,
+                                line_index,
+                            ),
+                            "item_id": (
+                                variant.get("id")
+                                or product.get("id")
+                            ),
+                            "item_description": connector_line_item_description(
+                                line
+                            ),
+                            "item_sku": line.get("sku"),
+                            "quantity": line.get("quantity"),
+                            "unit_price": _shopify_money_amount(
+                                line,
+                                "originalUnitPriceSet",
+                            ),
+                            "discounted_unit_price": _shopify_money_amount(
+                                line,
+                                "discountedUnitPriceSet",
+                            ),
+                            "line_total": _shopify_money_amount(
+                                line,
+                                "discountedTotalSet",
+                            ),
+                            "line_index": line_index,
+                        },
+                        flatten_lists=False,
+                        prefix="line",
+                    ),
+                })
 
         if not page_info.get("hasNextPage"):
             break
@@ -2226,14 +2525,17 @@ def load_shopify_dataframe(
         end_date,
         date_columns=("updated_at", "created_at"),
     )
-    if not dataframe.empty and "order_id" in dataframe.columns:
-        dataframe = dataframe.drop_duplicates(
-            subset=["order_id"],
-            keep="last",
-        ).reset_index(drop=True)
+    dataframe = deduplicate_connector_line_items(
+        dataframe,
+        "line_item_id",
+        ("order_id",),
+    )
     return dataframe, {
         "connector": "shopify",
         "resource": "orders",
+        "dedup_keys": ["line_item_id"],
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": ["order_id"],
         "api": "graphql_admin",
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
@@ -2887,22 +3189,63 @@ def load_square_dataframe(
                 ),
                 "customer_id": order.get("customer_id"),
             }
-            rows.append(
-                build_dynamic_connector_row(
-                    order,
-                    normalized_row,
-                    flatten_lists=True,
-                )
+            order_row = build_dynamic_connector_row(
+                {
+                    key: value
+                    for key, value in order.items()
+                    if key != "line_items"
+                },
+                normalized_row,
+                flatten_lists=True,
             )
+            for line_index, line in enumerate(
+                connector_line_items(order, "line_items")
+            ):
+                rows.append({
+                    **order_row,
+                    **build_dynamic_connector_row(
+                        line,
+                        {
+                            "line_item_id": connector_line_item_id(
+                                line,
+                                order.get("id"),
+                                line_index,
+                            ),
+                            "item_id": connector_line_item_reference(line),
+                            "item_description": connector_line_item_description(
+                                line
+                            ),
+                            "item_sku": line.get("sku"),
+                            "quantity": line.get("quantity"),
+                            "unit_price": square_money_amount(
+                                line.get("base_price_money")
+                            ),
+                            "line_total": square_money_amount(
+                                line.get("total_money")
+                            ),
+                            "line_index": line_index,
+                        },
+                        flatten_lists=False,
+                        prefix="line",
+                    ),
+                })
         next_cursor = str(payload.get("cursor") or "").strip() or None
         if not next_cursor or next_cursor in seen_cursors or not orders:
             break
         seen_cursors.add(next_cursor)
 
     dataframe = pd.DataFrame(rows)
+    dataframe = deduplicate_connector_line_items(
+        dataframe,
+        "line_item_id",
+        ("order_id",),
+    )
     return dataframe, {
         "connector": "square",
         "resource": "orders",
+        "dedup_keys": ["line_item_id"],
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": ["order_id"],
         "location_id": location_id,
         "start_date": since.isoformat(),
         "end_date": until.isoformat(),
@@ -3026,13 +3369,49 @@ def load_woocommerce_dataframe(
                     len(line_items) if isinstance(line_items, list) else None
                 ),
             }
-            rows.append(
-                build_dynamic_connector_row(
-                    order,
-                    normalized_row,
-                    flatten_lists=True,
-                )
+            order_row = build_dynamic_connector_row(
+                {
+                    key: value
+                    for key, value in order.items()
+                    if key != "line_items"
+                },
+                normalized_row,
+                flatten_lists=True,
             )
+            for line_index, line in enumerate(
+                connector_line_items(order, "line_items")
+            ):
+                rows.append({
+                    **order_row,
+                    **build_dynamic_connector_row(
+                        line,
+                        {
+                            "line_item_id": connector_line_item_id(
+                                line,
+                                order.get("id"),
+                                line_index,
+                            ),
+                            "item_id": connector_line_item_reference(line),
+                            "item_description": connector_line_item_description(
+                                line
+                            ),
+                            "item_sku": line.get("sku"),
+                            "quantity": line.get("quantity"),
+                            "unit_price": line.get("price"),
+                            "line_subtotal": line.get("subtotal"),
+                            "line_total": line.get("total"),
+                            "line_tax": line.get("total_tax"),
+                            "line_discount": connector_first_value(
+                                line,
+                                "discount",
+                                "discount_total",
+                            ),
+                            "line_index": line_index,
+                        },
+                        flatten_lists=False,
+                        prefix="line",
+                    ),
+                })
         if len(payload) < PAGE_SIZE:
             break
         page += 1
@@ -3043,9 +3422,17 @@ def load_woocommerce_dataframe(
         end_date,
         date_columns=("updated_at", "created_at"),
     )
+    dataframe = deduplicate_connector_line_items(
+        dataframe,
+        "line_item_id",
+        ("order_id",),
+    )
     return dataframe, {
         "connector": "woocommerce",
         "resource": "orders",
+        "dedup_keys": ["line_item_id"],
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": ["order_id"],
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
@@ -3134,7 +3521,7 @@ def load_lightspeed_dataframe(
             sale_row = build_dynamic_connector_row(
                 sale_source,
                 normalized_row,
-                flatten_lists=False,
+                flatten_lists=True,
             )
             for timestamp_key in (
                 "timeStamp",
@@ -3167,6 +3554,7 @@ def load_lightspeed_dataframe(
                 line_row = build_dynamic_connector_row(
                     line,
                     {
+                        "line_item_id": line_id,
                         "sale_line_id": line_id,
                         "item_id": line.get("itemID") or line.get("itemId"),
                         "item_description": item_description,
@@ -3195,6 +3583,9 @@ def load_lightspeed_dataframe(
     return dataframe, {
         "connector": "lightspeed",
         "resource": "sales",
+        "dedup_keys": ["sale_line_id"],
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": ["sale_id"],
         "account_id": account_id,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
@@ -3314,7 +3705,7 @@ def load_lightspeed_x_dataframe(
                 sale_row = build_dynamic_connector_row(
                     sale_source,
                     normalized_fields,
-                    flatten_lists=False,
+                    flatten_lists=True,
                 )
                 for timestamp_key in (
                     "created_at",
@@ -3350,6 +3741,7 @@ def load_lightspeed_x_dataframe(
                     line_row = build_dynamic_connector_row(
                         line,
                         {
+                            "line_item_id": line_id,
                             "sale_line_id": line_id,
                             "item_id": (
                                 line.get("product_id")
@@ -3436,6 +3828,15 @@ def load_lightspeed_x_dataframe(
     return dataframe, {
         "connector": "lightspeed_x",
         "resource": resource_type,
+        **(
+            {
+                "dedup_keys": ["sale_line_id"],
+                "line_item_key": "sale_line_id",
+                "line_item_parent_keys": ["sale_id"],
+            }
+            if resource_type == "sales"
+            else {}
+        ),
         "domain_prefix": domain_prefix,
         "api_version": api_version.strip(),
         "start_date": date_value(start_date),
@@ -3536,13 +3937,80 @@ def load_lightspeed_k_dataframe(
                         else None
                     ),
                 }
-                rows.append(
-                    build_dynamic_connector_row(
-                        sale,
-                        normalized_fields,
-                        flatten_lists=True,
-                    )
+                sale_id = normalized_fields["sale_id"]
+                sale_row = build_dynamic_connector_row(
+                    {
+                        key: value
+                        for key, value in sale.items()
+                        if key not in {
+                            "line_items",
+                            "lineItems",
+                            "items",
+                            "products",
+                            "sale_lines",
+                            "register_sale_products",
+                        }
+                    },
+                    normalized_fields,
+                    flatten_lists=True,
                 )
+                for line_index, line in enumerate(
+                    connector_line_items(
+                        sale,
+                        "line_items",
+                        "lineItems",
+                        "items",
+                        "products",
+                        "sale_lines",
+                        "register_sale_products",
+                    )
+                ):
+                    pricing = line.get("pricing")
+                    pricing = pricing if isinstance(pricing, dict) else {}
+                    rows.append({
+                        **sale_row,
+                        **build_dynamic_connector_row(
+                            line,
+                            {
+                                "line_item_id": connector_line_item_id(
+                                    line,
+                                    sale_id,
+                                    line_index,
+                                ),
+                                "sale_line_id": connector_line_item_id(
+                                    line,
+                                    sale_id,
+                                    line_index,
+                                ),
+                                "item_id": connector_line_item_reference(line),
+                                "item_description": (
+                                    connector_line_item_description(line)
+                                ),
+                                "item_sku": line.get("sku"),
+                                "quantity": _lightspeed_x_line_value(
+                                    line,
+                                    pricing,
+                                    "quantity",
+                                    "unit_quantity",
+                                ),
+                                "unit_price": _lightspeed_x_line_value(
+                                    line,
+                                    pricing,
+                                    "unit_price",
+                                    "price",
+                                ),
+                                "line_total": _lightspeed_x_line_value(
+                                    line,
+                                    pricing,
+                                    "total_price",
+                                    "total",
+                                ),
+                                "line_index": line_index,
+                            },
+                            flatten_lists=False,
+                            prefix="line",
+                        ),
+                    })
             next_page_token = str(
                 payload.get("nextPageToken") or ""
             ).strip()
@@ -3594,9 +4062,23 @@ def load_lightspeed_k_dataframe(
     dataframe = pd.DataFrame(rows)
     if resource_type == "sales":
         dataframe = filter_date_range(dataframe, start_date, end_date)
+        dataframe = deduplicate_connector_line_items(
+            dataframe,
+            "line_item_id",
+            ("sale_id",),
+        )
     return dataframe, {
         "connector": "lightspeed_k",
         "resource": resource_type,
+        **(
+            {
+                "dedup_keys": ["line_item_id"],
+                "line_item_key": "line_item_id",
+                "line_item_parent_keys": ["sale_id"],
+            }
+            if resource_type == "sales"
+            else {}
+        ),
         "business_location_id": business_location_id,
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
@@ -3714,13 +4196,83 @@ def load_lightspeed_o_dataframe(
                     "price": record.get("price")
                     or record.get("unit_price"),
                 }
-            rows.append(
-                build_dynamic_connector_row(
-                    record,
+            if resource_type == "sales":
+                sale_row = build_dynamic_connector_row(
+                    {
+                        key: value
+                        for key, value in record.items()
+                        if key not in {
+                            "line_items",
+                            "lineItems",
+                            "items",
+                            "products",
+                            "order_lines",
+                            "lines",
+                        }
+                    },
                     normalized_fields,
                     flatten_lists=True,
                 )
-            )
+                for line_index, line in enumerate(
+                    connector_line_items(
+                        record,
+                        "line_items",
+                        "lineItems",
+                        "items",
+                        "products",
+                        "order_lines",
+                        "lines",
+                    )
+                ):
+                    rows.append({
+                        **sale_row,
+                        **build_dynamic_connector_row(
+                            line,
+                            {
+                                "line_item_id": connector_line_item_id(
+                                    line,
+                                    record_id,
+                                    line_index,
+                                ),
+                                "sale_line_id": connector_line_item_id(
+                                    line,
+                                    record_id,
+                                    line_index,
+                                ),
+                                "item_id": connector_line_item_reference(line),
+                                "item_description": (
+                                    connector_line_item_description(line)
+                                ),
+                                "item_sku": line.get("sku"),
+                                "quantity": connector_first_value(
+                                    line,
+                                    "quantity",
+                                    "unit_quantity",
+                                ),
+                                "unit_price": connector_first_value(
+                                    line,
+                                    "unit_price",
+                                    "price",
+                                ),
+                                "line_total": connector_first_value(
+                                    line,
+                                    "total",
+                                    "total_price",
+                                ),
+                                "line_index": line_index,
+                            },
+                            flatten_lists=False,
+                            prefix="line",
+                        ),
+                    })
+            else:
+                rows.append(
+                    build_dynamic_connector_row(
+                        record,
+                        normalized_fields,
+                        flatten_lists=True,
+                    )
+                )
         next_url = (
             response_headers.get("X-Next-Page")
             or response_headers.get("x-next-page")
@@ -3730,9 +4282,23 @@ def load_lightspeed_o_dataframe(
     dataframe = pd.DataFrame(rows)
     if resource_type == "sales":
         dataframe = filter_date_range(dataframe, start_date, end_date)
+        dataframe = deduplicate_connector_line_items(
+            dataframe,
+            "line_item_id",
+            ("sale_id",),
+        )
     return dataframe, {
         "connector": "lightspeed_o",
         "resource": resource_type,
+        **(
+            {
+                "dedup_keys": ["line_item_id"],
+                "line_item_key": "line_item_id",
+                "line_item_parent_keys": ["sale_id"],
+            }
+            if resource_type == "sales"
+            else {}
+        ),
         "company_id": company_id,
         "site_id": site_id or None,
         "start_date": date_value(start_date),
@@ -4386,16 +4952,74 @@ def load_quickbooks_dataframe(
         for record in records:
             if not isinstance(record, dict):
                 continue
-            rows.append(
-                build_dynamic_connector_row(
-                    record,
-                    build_quickbooks_normalized_fields(
-                        record,
-                        resource_type,
-                    ),
+            normalized_fields = build_quickbooks_normalized_fields(
+                record,
+                resource_type,
+            )
+            if resource_type in QUICKBOOKS_LINE_ITEM_RESOURCES:
+                parent_id = normalized_fields.get("record_id")
+                parent_row = build_dynamic_connector_row(
+                    {
+                        key: value
+                        for key, value in record.items()
+                        if key != "Line"
+                    },
+                    normalized_fields,
                     flatten_lists=True,
                 )
-            )
+                for line_index, line in enumerate(
+                    connector_line_items(record, "Line")
+                ):
+                    detail = None
+                    for key in (
+                        "SalesItemLineDetail",
+                        "ItemBasedExpenseLineDetail",
+                        "AccountBasedExpenseLineDetail",
+                    ):
+                        candidate = line.get(key)
+                        if isinstance(candidate, dict):
+                            detail = candidate
+                            break
+                    detail = detail if isinstance(detail, dict) else {}
+                    item_ref = detail.get("ItemRef")
+                    item_ref = item_ref if isinstance(item_ref, dict) else {}
+                    rows.append({
+                        **parent_row,
+                        **build_dynamic_connector_row(
+                            line,
+                            {
+                                "line_item_id": connector_line_item_id(
+                                    line,
+                                    parent_id,
+                                    line_index,
+                                ),
+                                "item_id": connector_first_value(
+                                    item_ref,
+                                    "value",
+                                    "id",
+                                ) or connector_line_item_reference(line),
+                                "item_description": connector_line_item_description(
+                                    line
+                                ) or item_ref.get("name"),
+                                "item_name": item_ref.get("name"),
+                                "quantity": detail.get("Qty"),
+                                "unit_price": detail.get("UnitPrice"),
+                                "line_total": line.get("Amount"),
+                                "line_detail_type": line.get("DetailType"),
+                                "line_index": line_index,
+                            },
+                            flatten_lists=False,
+                            prefix="line",
+                        ),
+                    })
+            else:
+                rows.append(
+                    build_dynamic_connector_row(
+                        record,
+                        normalized_fields,
+                        flatten_lists=True,
+                    )
+                )
 
         if not records or len(records) < PAGE_SIZE:
             break
@@ -4409,9 +5033,24 @@ def load_quickbooks_dataframe(
             end_date,
             date_columns=("updated_at", "created_at"),
         )
+    if resource_type in QUICKBOOKS_LINE_ITEM_RESOURCES:
+        dataframe = deduplicate_connector_line_items(
+            dataframe,
+            "line_item_id",
+            ("record_id",),
+        )
     return dataframe, {
         "connector": "quickbooks",
         "resource": resource_type,
+        **(
+            {
+                "dedup_keys": ["line_item_id"],
+                "line_item_key": "line_item_id",
+                "line_item_parent_keys": ["record_id"],
+            }
+            if resource_type in QUICKBOOKS_LINE_ITEM_RESOURCES
+            else {}
+        ),
         "object_type": entity,
         "company_id": company_id,
         "start_date": date_value(start_date),
@@ -4585,9 +5224,24 @@ def load_freshbooks_dataframe(
         end_date,
         date_columns=("updated_at", "created_at"),
     )
+    if resource_type in FRESHBOOKS_LINE_ITEM_RESOURCES:
+        dataframe = deduplicate_connector_line_items(
+            dataframe,
+            "line_item_id",
+            ("record_id",),
+        )
     return dataframe, {
         "connector": "freshbooks",
         "resource": resource_type,
+        **(
+            {
+                "dedup_keys": ["line_item_id"],
+                "line_item_key": "line_item_id",
+                "line_item_parent_keys": ["record_id"],
+            }
+            if resource_type in FRESHBOOKS_LINE_ITEM_RESOURCES
+            else {}
+        ),
         "account_id": account_id,
         "business_id": business_id,
         "business_uuid": business_uuid,
@@ -4940,12 +5594,73 @@ def _load_freshbooks_account_resource(
                         else None
                     ),
                 })
-            rows.append(
-                build_dynamic_connector_row(
-                    record,
+            if resource_type in FRESHBOOKS_LINE_ITEM_RESOURCES:
+                parent_row = build_dynamic_connector_row(
+                    {
+                        key: value
+                        for key, value in record.items()
+                        if key not in {
+                            "lines",
+                            "line_items",
+                            "invoice_lines",
+                            "items",
+                        }
+                    },
                     normalized_row,
+                    flatten_lists=True,
                 )
-            )
+                for line_index, line in enumerate(
+                    connector_line_items(
+                        record,
+                        "lines",
+                        "line_items",
+                        "invoice_lines",
+                        "items",
+                    )
+                ):
+                    line_amount = line.get("amount")
+                    if isinstance(line_amount, dict):
+                        line_amount = line_amount.get("amount")
+                    rows.append({
+                        **parent_row,
+                        **build_dynamic_connector_row(
+                            line,
+                            {
+                                "line_item_id": connector_line_item_id(
+                                    line,
+                                    record_id,
+                                    line_index,
+                                ),
+                                "item_id": connector_line_item_reference(line),
+                                "item_description": connector_line_item_description(
+                                    line
+                                ),
+                                "item_sku": line.get("sku"),
+                                "quantity": connector_first_value(
+                                    line,
+                                    "quantity",
+                                    "qty",
+                                ),
+                                "unit_price": connector_first_value(
+                                    line,
+                                    "unit_price",
+                                    "unit_cost",
+                                    "rate",
+                                ),
+                                "line_total": line_amount,
+                                "line_index": line_index,
+                            },
+                            flatten_lists=False,
+                            prefix="line",
+                        ),
+                    })
+            else:
+                rows.append(
+                    build_dynamic_connector_row(
+                        record,
+                        normalized_row,
+                    )
+                )
 
         if not records or len(records) < PAGE_SIZE:
             break
@@ -5341,13 +6056,81 @@ def load_sage_dataframe(
                 record,
                 resource_type,
             )
-            rows.append(
-                build_dynamic_connector_row(
-                    strip_sage_metadata(record),
+            if resource_type in SAGE_LINE_ITEM_RESOURCES:
+                parent_source = strip_sage_metadata(record)
+                for key in (
+                    "invoice_lines",
+                    "credit_note_lines",
+                    "lines",
+                    "line_items",
+                ):
+                    parent_source.pop(key, None)
+                parent_row = build_dynamic_connector_row(
+                    parent_source,
                     normalized_fields,
                     flatten_lists=True,
                 )
-            )
+                for line_index, line in enumerate(
+                    connector_line_items(
+                        record,
+                        "invoice_lines",
+                        "credit_note_lines",
+                        "lines",
+                        "line_items",
+                    )
+                ):
+                    line_id = connector_line_item_id(
+                        line,
+                        normalized_fields.get("record_id"),
+                        line_index,
+                    )
+                    line_source = strip_sage_metadata(line)
+                    rows.append({
+                        **parent_row,
+                        **build_dynamic_connector_row(
+                            line_source,
+                            {
+                                "line_item_id": line_id,
+                                "invoice_line_id": line_id,
+                                "item_id": _sage_first_value(
+                                    line,
+                                    "product_id",
+                                    "item_id",
+                                    "service_id",
+                                ) or _sage_nested_value(line, "product", "id"),
+                                "item_description": _sage_first_value(
+                                    line,
+                                    "description",
+                                    "details",
+                                    "name",
+                                ),
+                                "quantity": line.get("quantity"),
+                                "unit_price": _sage_first_value(
+                                    line,
+                                    "unit_price",
+                                    "price",
+                                ),
+                                "line_total": _sage_first_value(
+                                    line,
+                                    "total_amount",
+                                    "total",
+                                    "net_amount",
+                                ),
+                                "line_tax": line.get("tax_amount"),
+                                "line_index": line_index,
+                            },
+                            flatten_lists=False,
+                            prefix="line",
+                        ),
+                    })
+            else:
+                rows.append(
+                    build_dynamic_connector_row(
+                        strip_sage_metadata(record),
+                        normalized_fields,
+                        flatten_lists=True,
+                    )
+                )
 
         next_page = payload.get("$next")
         if not next_page:
@@ -5364,9 +6147,24 @@ def load_sage_dataframe(
             end_date,
             date_columns=("updated_at", "created_at"),
         )
+    if resource_type in SAGE_LINE_ITEM_RESOURCES:
+        dataframe = deduplicate_connector_line_items(
+            dataframe,
+            "line_item_id",
+            ("record_id",),
+        )
     return dataframe, {
         "connector": "sage",
         "resource": resource_type,
+        **(
+            {
+                "dedup_keys": ["line_item_id"],
+                "line_item_key": "line_item_id",
+                "line_item_parent_keys": ["record_id"],
+            }
+            if resource_type in SAGE_LINE_ITEM_RESOURCES
+            else {}
+        ),
         "object_type": resource_path,
         "business_id": business_id,
         "start_date": date_value(start_date),
@@ -5620,18 +6418,65 @@ def load_xero_dataframe(
             contact = contact if isinstance(contact, dict) else {}
             line_items = record.get("LineItems")
             line_items = line_items if isinstance(line_items, list) else []
-            rows.append(
-                build_dynamic_connector_row(
-                    record,
-                    build_xero_normalized_fields(
-                        record,
-                        resource_type,
-                        contact=contact,
-                        line_item_count=len(line_items),
-                    ),
+            normalized_fields = build_xero_normalized_fields(
+                record,
+                resource_type,
+                contact=contact,
+                line_item_count=len(line_items),
+            )
+            if resource_type in XERO_LINE_ITEM_RESOURCES:
+                parent_row = build_dynamic_connector_row(
+                    {
+                        key: value
+                        for key, value in record.items()
+                        if key != "LineItems"
+                    },
+                    normalized_fields,
                     flatten_lists=True,
                 )
-            )
+                for line_index, line in enumerate(
+                    connector_line_items(record, "LineItems")
+                ):
+                    rows.append({
+                        **parent_row,
+                        **build_dynamic_connector_row(
+                            line,
+                            {
+                                "line_item_id": connector_line_item_id(
+                                    line,
+                                    normalized_fields.get("record_id"),
+                                    line_index,
+                                ),
+                                "invoice_line_id": connector_line_item_id(
+                                    line,
+                                    normalized_fields.get("record_id"),
+                                    line_index,
+                                ),
+                                "item_id": connector_line_item_reference(line),
+                                "item_description": connector_line_item_description(
+                                    line
+                                ),
+                                "item_sku": line.get("ItemCode"),
+                                "quantity": line.get("Quantity"),
+                                "unit_price": line.get("UnitAmount"),
+                                "line_total": line.get("LineAmount"),
+                                "line_tax": line.get("TaxAmount"),
+                                "account_code": line.get("AccountCode"),
+                                "tax_type": line.get("TaxType"),
+                                "line_index": line_index,
+                            },
+                            flatten_lists=False,
+                            prefix="line",
+                        ),
+                    })
+            else:
+                rows.append(
+                    build_dynamic_connector_row(
+                        record,
+                        normalized_fields,
+                        flatten_lists=True,
+                    )
+                )
 
         if not records or len(records) < PAGE_SIZE:
             break
@@ -5644,9 +6489,24 @@ def load_xero_dataframe(
             start_date,
             end_date,
         )
+    if resource_type in XERO_LINE_ITEM_RESOURCES:
+        dataframe = deduplicate_connector_line_items(
+            dataframe,
+            "line_item_id",
+            ("record_id",),
+        )
     return dataframe, {
         "connector": "xero",
         "resource": resource_type,
+        **(
+            {
+                "dedup_keys": ["line_item_id"],
+                "line_item_key": "line_item_id",
+                "line_item_parent_keys": ["record_id"],
+            }
+            if resource_type in XERO_LINE_ITEM_RESOURCES
+            else {}
+        ),
         "object_type": resource_path,
         "tenant_id": tenant_id,
         "start_date": date_value(start_date),
@@ -5891,16 +6751,80 @@ def load_zoho_books_dataframe(
         for record in records:
             if not isinstance(record, dict):
                 continue
-            rows.append(
-                build_dynamic_connector_row(
-                    record,
-                    build_zoho_books_normalized_fields(
-                        record,
-                        resource_type,
-                    ),
+            normalized_fields = build_zoho_books_normalized_fields(
+                record,
+                resource_type,
+            )
+            if resource_type in ZOHO_BOOKS_LINE_ITEM_RESOURCES:
+                parent_row = build_dynamic_connector_row(
+                    {
+                        key: value
+                        for key, value in record.items()
+                        if key not in {
+                            "line_items",
+                            "lineItems",
+                            "items",
+                        }
+                    },
+                    normalized_fields,
                     flatten_lists=True,
                 )
-            )
+                for line_index, line in enumerate(
+                    connector_line_items(
+                        record,
+                        "line_items",
+                        "lineItems",
+                        "items",
+                    )
+                ):
+                    rows.append({
+                        **parent_row,
+                        **build_dynamic_connector_row(
+                            line,
+                            {
+                                "line_item_id": connector_line_item_id(
+                                    line,
+                                    normalized_fields.get("record_id"),
+                                    line_index,
+                                ),
+                                "invoice_line_id": connector_line_item_id(
+                                    line,
+                                    normalized_fields.get("record_id"),
+                                    line_index,
+                                ),
+                                "item_id": connector_line_item_reference(line),
+                                "item_description": connector_line_item_description(
+                                    line
+                                ),
+                                "item_sku": line.get("sku"),
+                                "quantity": line.get("quantity"),
+                                "unit_price": connector_first_value(
+                                    line,
+                                    "rate",
+                                    "unit_price",
+                                ),
+                                "line_total": connector_first_value(
+                                    line,
+                                    "item_total",
+                                    "amount",
+                                    "total",
+                                ),
+                                "line_tax": line.get("tax_amount"),
+                                "line_discount": line.get("discount"),
+                                "line_index": line_index,
+                            },
+                            flatten_lists=False,
+                            prefix="line",
+                        ),
+                    })
+            else:
+                rows.append(
+                    build_dynamic_connector_row(
+                        record,
+                        normalized_fields,
+                        flatten_lists=True,
+                    )
+                )
 
         page_context = payload.get("page_context")
         if isinstance(page_context, list):
@@ -5934,9 +6858,24 @@ def load_zoho_books_dataframe(
             end_date,
             date_columns=date_columns,
         )
+    if resource_type in ZOHO_BOOKS_LINE_ITEM_RESOURCES:
+        dataframe = deduplicate_connector_line_items(
+            dataframe,
+            "line_item_id",
+            ("record_id",),
+        )
     return dataframe, {
         "connector": "zoho_books",
         "resource": resource_type,
+        **(
+            {
+                "dedup_keys": ["line_item_id"],
+                "line_item_key": "line_item_id",
+                "line_item_parent_keys": ["record_id"],
+            }
+            if resource_type in ZOHO_BOOKS_LINE_ITEM_RESOURCES
+            else {}
+        ),
         "object_type": resource_path,
         "organization_id": organization_id,
         "api_domain": api_domain,

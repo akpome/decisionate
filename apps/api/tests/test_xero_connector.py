@@ -111,6 +111,61 @@ class XeroConnectorTests(unittest.TestCase):
         ):
             connectors.normalize_xero_resource_type("bank_transactions")
 
+    def test_invoice_lines_are_one_row_per_item(self):
+        def json_request(url, headers):
+            self.assertEqual(headers["Xero-tenant-id"], TENANT_ID)
+            return {
+                "Invoices": [{
+                    "InvoiceID": "invoice-1",
+                    "DateString": "2026-01-02",
+                    "UpdatedDateUTCString": "2026-01-03T00:00:00Z",
+                    "LineItems": [
+                        {
+                            "LineItemID": "line-1",
+                            "ItemCode": "CONSULTING",
+                            "Description": "Consulting",
+                            "Quantity": 1,
+                            "UnitAmount": 100,
+                            "LineAmount": 100,
+                        },
+                        {
+                            "LineItemID": "line-2",
+                            "ItemCode": "SUPPORT",
+                            "Description": "Support",
+                            "Quantity": 1,
+                            "UnitAmount": 25,
+                            "LineAmount": 25,
+                        },
+                    ],
+                }],
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="xero-access-token",
+        ), patch.object(
+            connectors,
+            "require_provider_url",
+            return_value="https://api.xero.com/api.xro/2.0",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ):
+            dataframe, report = connectors.load_xero_dataframe(
+                None,
+                make_connection(),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+                "invoices",
+            )
+
+        self.assertEqual(report["resource"], "invoices")
+        self.assertEqual(dataframe["line_item_id"].tolist(), ["line-1", "line-2"])
+        self.assertEqual(dataframe["item_description"].tolist(), ["Consulting", "Support"])
+        self.assertFalse(any("LineItems__" in column for column in dataframe.columns))
+
     def test_master_data_is_not_removed_by_transaction_date_window(self):
         def json_request(url, headers):
             return {

@@ -277,6 +277,24 @@ class ZohoBooksConnectorTests(unittest.TestCase):
                         "custom_fields": [
                             {"label": "Segment", "value": "SMB"}
                         ],
+                        "line_items": [
+                            {
+                                "line_item_id": "line-1",
+                                "item_id": "item-1",
+                                "name": "Consulting",
+                                "quantity": 1,
+                                "rate": 100,
+                                "item_total": 100,
+                            },
+                            {
+                                "line_item_id": "line-2",
+                                "item_id": "item-2",
+                                "name": "Support",
+                                "quantity": 1,
+                                "rate": 25.50,
+                                "item_total": 25.50,
+                            },
+                        ],
                     }
                 ],
                 "page_context": {"has_more_page": False},
@@ -305,10 +323,16 @@ class ZohoBooksConnectorTests(unittest.TestCase):
                 zoho_books_resource_type="invoices",
             )
 
-        self.assertEqual(len(dataframe), 1)
-        self.assertEqual(dataframe.iloc[0]["record_id"], "invoice-1")
-        self.assertEqual(dataframe.iloc[0]["total_amount"], 125.50)
-        self.assertEqual(dataframe.iloc[0]["custom_fields__0__value"], "SMB")
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(dataframe["record_id"].tolist(), ["invoice-1", "invoice-1"])
+        self.assertEqual(dataframe["total_amount"].tolist(), [125.50, 125.50])
+        self.assertEqual(dataframe["line_item_id"].tolist(), ["line-1", "line-2"])
+        self.assertEqual(
+            dataframe["item_description"].tolist(),
+            ["Consulting", "Support"],
+        )
+        self.assertEqual(dataframe["custom_fields__0__value"].tolist(), ["SMB", "SMB"])
+        self.assertFalse(any("line_items__" in column for column in dataframe.columns))
         self.assertEqual(report["connector"], "zoho_books")
         self.assertEqual(report["organization_id"], "123456789")
 

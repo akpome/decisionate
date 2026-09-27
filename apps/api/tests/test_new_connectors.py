@@ -1016,7 +1016,20 @@ class NewConnectorTests(unittest.TestCase):
                     "location_id": "location-1",
                     "created_at": "2026-09-01T12:00:00Z",
                     "total_money": {"amount": 1250, "currency": "CAD"},
-                    "line_items": [{"uid": "line-1"}],
+                    "line_items": [
+                        {
+                            "uid": "line-1",
+                            "catalog_object_id": "item-1",
+                            "name": "Coffee",
+                            "quantity": "1",
+                        },
+                        {
+                            "uid": "line-2",
+                            "catalog_object_id": "item-2",
+                            "name": "Muffin",
+                            "quantity": "2",
+                        },
+                    ],
                 }],
             },
         ) as square_request, patch.dict(
@@ -1035,7 +1048,11 @@ class NewConnectorTests(unittest.TestCase):
             )
 
         self.assertEqual(report["resource"], "orders")
-        self.assertEqual(dataframe.loc[0, "order_id"], "order-1")
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(dataframe["order_id"].tolist(), ["order-1", "order-1"])
+        self.assertEqual(dataframe["line_item_id"].tolist(), ["line-1", "line-2"])
+        self.assertEqual(dataframe["item_description"].tolist(), ["Coffee", "Muffin"])
+        self.assertFalse(any("line_items__" in column for column in dataframe.columns))
         self.assertEqual(dataframe.loc[0, "total_amount"], 12.5)
         request_payload = square_request.call_args.kwargs["payload"]
         self.assertEqual(
@@ -1058,6 +1075,22 @@ class NewConnectorTests(unittest.TestCase):
                 "date_modified": "2026-09-01T12:00:00",
                 "total": "125.00",
                 "billing": {"country": "CA"},
+                "line_items": [
+                    {
+                        "id": 501,
+                        "product_id": 11,
+                        "name": "Coffee",
+                        "quantity": 1,
+                        "price": "5.00",
+                    },
+                    {
+                        "id": 502,
+                        "product_id": 12,
+                        "name": "Muffin",
+                        "quantity": 2,
+                        "price": "3.00",
+                    },
+                ],
             }], {}),
         ) as request:
             dataframe, report = connectors.load_woocommerce_dataframe(
@@ -1070,8 +1103,12 @@ class NewConnectorTests(unittest.TestCase):
             )
 
         self.assertEqual(report["resource"], "orders")
-        self.assertEqual(dataframe.loc[0, "order_id"], 42)
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(dataframe["order_id"].tolist(), [42, 42])
+        self.assertEqual(dataframe["line_item_id"].tolist(), ["501", "502"])
+        self.assertEqual(dataframe["item_description"].tolist(), ["Coffee", "Muffin"])
         self.assertEqual(dataframe.loc[0, "billing_country"], "CA")
+        self.assertFalse(any("line_items__" in column for column in dataframe.columns))
         self.assertTrue(request.call_args.kwargs["headers"]["Authorization"].startswith("Basic "))
         request_params = parse_qs(urlsplit(request.call_args.args[0]).query)
         self.assertEqual(request_params["modified_after"], ["2026-09-01T00:00:00Z"])
@@ -1143,6 +1180,28 @@ class NewConnectorTests(unittest.TestCase):
                                 "sourceName": "web",
                                 "subtotalLineItemsQuantity": 2,
                                 "test": False,
+                                "lineItems": {
+                                    "nodes": [{
+                                        "id": "gid://shopify/LineItem/1",
+                                        "name": "Coffee",
+                                        "quantity": 2,
+                                        "sku": "COFFEE",
+                                        "product": {
+                                            "id": "gid://shopify/Product/1",
+                                            "title": "Coffee",
+                                        },
+                                        "variant": None,
+                                        "originalUnitPriceSet": {
+                                            "shopMoney": {"amount": "10.00"},
+                                        },
+                                        "discountedUnitPriceSet": {
+                                            "shopMoney": {"amount": "9.00"},
+                                        },
+                                        "discountedTotalSet": {
+                                            "shopMoney": {"amount": "18.00"},
+                                        },
+                                    }],
+                                },
                             }],
                             "pageInfo": {
                                 "hasNextPage": True,
@@ -1176,6 +1235,13 @@ class NewConnectorTests(unittest.TestCase):
                             "sourceName": "web",
                             "subtotalLineItemsQuantity": 1,
                             "test": False,
+                            "lineItems": {
+                                "nodes": [{
+                                    "id": "gid://shopify/LineItem/2",
+                                    "name": "Tea",
+                                    "quantity": 1,
+                                }],
+                            },
                         }],
                         "pageInfo": {
                             "hasNextPage": False,
@@ -1213,6 +1279,15 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(report["api"], "graphql_admin")
         self.assertEqual(len(dataframe), 2)
         self.assertEqual(list(dataframe["order_id"]), ["1", "2"])
+        self.assertEqual(
+            list(dataframe["item_description"]),
+            ["Coffee", "Tea"],
+        )
+        self.assertEqual(
+            list(dataframe["line_item_id"]),
+            ["gid://shopify/LineItem/1", "gid://shopify/LineItem/2"],
+        )
+        self.assertFalse(any("lineItems__" in column for column in dataframe.columns))
         self.assertEqual(dataframe.loc[0, "total_price"], "25.00")
         self.assertEqual(len(requests), 2)
         self.assertEqual(
@@ -1844,6 +1919,43 @@ class NewConnectorTests(unittest.TestCase):
             {"line-1": "Updated item", "line-2": "Second item"},
         )
 
+    def test_line_item_merge_removes_legacy_parent_only_rows(self):
+        existing = pd.DataFrame([
+            {
+                "record_id": "invoice-1",
+                "order_id": "invoice-1",
+                "total": 125,
+            },
+        ])
+        incoming = pd.DataFrame([
+            {
+                "record_id": "invoice-1",
+                "order_id": "invoice-1",
+                "line_item_id": "line-1",
+                "item_description": "Consulting",
+            },
+            {
+                "record_id": "invoice-1",
+                "order_id": "invoice-1",
+                "line_item_id": "line-2",
+                "item_description": "Support",
+            },
+        ])
+
+        merged = datasets_router.merge_connector_dataframes(
+            existing,
+            incoming,
+            "shopify",
+            {
+                "resource": "orders",
+                "line_item_key": "line_item_id",
+                "line_item_parent_keys": ["order_id"],
+                "dedup_keys": ["line_item_id"],
+            },
+        )
+
+        self.assertEqual(merged["line_item_id"].tolist(), ["line-1", "line-2"])
+
     def test_lightspeed_k_sales_are_normalized(self):
         with patch.object(
             connectors,
@@ -1858,6 +1970,24 @@ class NewConnectorTests(unittest.TestCase):
                     "timeOpening": "2026-09-01T12:00:00Z",
                     "timeClosed": "2026-09-01T12:30:00Z",
                     "type": "SALE",
+                    "line_items": [
+                        {
+                            "id": "line-1",
+                            "item_id": "item-1",
+                            "name": "Coffee",
+                            "quantity": 1,
+                            "unit_price": 5,
+                            "total": 5,
+                        },
+                        {
+                            "id": "line-2",
+                            "item_id": "item-2",
+                            "name": "Muffin",
+                            "quantity": 2,
+                            "unit_price": 3,
+                            "total": 6,
+                        },
+                    ],
                     "payments": [{
                         "netAmountWithTax": "125.00",
                         "consumer": {
@@ -1887,9 +2017,13 @@ class NewConnectorTests(unittest.TestCase):
             )
 
         self.assertEqual(report["resource"], "sales")
-        self.assertEqual(dataframe.loc[0, "sale_id"], "A65315.17")
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(dataframe["sale_id"].tolist(), ["A65315.17", "A65315.17"])
+        self.assertEqual(dataframe["line_item_id"].tolist(), ["line-1", "line-2"])
+        self.assertEqual(dataframe["item_description"].tolist(), ["Coffee", "Muffin"])
         self.assertEqual(dataframe.loc[0, "customer_id"], 42)
         self.assertEqual(dataframe.loc[0, "total"], 125.0)
+        self.assertFalse(any("line_items__" in column for column in dataframe.columns))
         self.assertIn(
             "/f/v2/business-location/45454565682155/sales",
             request.call_args.args[0],
@@ -1910,6 +2044,24 @@ class NewConnectorTests(unittest.TestCase):
                     "status": "COMPLETE",
                     "value": "125.00",
                     "customer_id": 42,
+                    "line_items": [
+                        {
+                            "id": "line-1",
+                            "item_id": "item-1",
+                            "name": "Coffee",
+                            "quantity": 1,
+                            "price": "5.00",
+                            "total": "5.00",
+                        },
+                        {
+                            "id": "line-2",
+                            "item_id": "item-2",
+                            "name": "Muffin",
+                            "quantity": 2,
+                            "price": "3.00",
+                            "total": "6.00",
+                        },
+                    ],
                 },
             ], {}),
         ) as request, patch.dict(
@@ -1933,9 +2085,13 @@ class NewConnectorTests(unittest.TestCase):
             )
 
         self.assertEqual(report["resource"], "sales")
-        self.assertEqual(dataframe.loc[0, "sale_id"], 77)
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(dataframe["sale_id"].tolist(), [77, 77])
+        self.assertEqual(dataframe["line_item_id"].tolist(), ["line-1", "line-2"])
+        self.assertEqual(dataframe["item_description"].tolist(), ["Coffee", "Muffin"])
         self.assertEqual(dataframe.loc[0, "customer_id"], 42)
         self.assertEqual(dataframe.loc[0, "total"], "125.00")
+        self.assertFalse(any("line_items__" in column for column in dataframe.columns))
         self.assertIn(
             "/v1/companies/5678/sites/827/orders/complete.json",
             request.call_args.args[0],

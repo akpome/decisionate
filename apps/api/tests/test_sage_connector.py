@@ -552,6 +552,10 @@ class SageConnectorTests(unittest.TestCase):
                         "description": "Consulting",
                         "quantity": 2,
                         "unit_price": 600,
+                    }, {
+                        "description": "Support",
+                        "quantity": 1,
+                        "unit_price": 100,
                     }],
                 }],
             }
@@ -579,7 +583,7 @@ class SageConnectorTests(unittest.TestCase):
                 date(2026, 1, 31),
             )
 
-        self.assertEqual(len(dataframe), 1)
+        self.assertEqual(len(dataframe), 2)
         self.assertEqual(dataframe.iloc[0]["invoice_id"], "invoice-1")
         self.assertEqual(dataframe.iloc[0]["total_amount"], 1200)
         self.assertNotIn("id", dataframe.columns)
@@ -591,10 +595,15 @@ class SageConnectorTests(unittest.TestCase):
         self.assertNotIn("contact__$path", dataframe.columns)
         self.assertNotIn("contact__path", dataframe.columns)
         self.assertEqual(
-            dataframe.iloc[0]["invoice_lines__0__description"],
-            "Consulting",
+            dataframe["item_description"].tolist(),
+            ["Consulting", "Support"],
         )
-        self.assertEqual(dataframe.iloc[0]["invoice_lines__0__quantity"], 2)
+        self.assertEqual(dataframe["quantity"].tolist(), [2, 1])
+        self.assertEqual(
+            dataframe["line_item_id"].tolist(),
+            ["invoice-1:line:0", "invoice-1:line:1"],
+        )
+        self.assertFalse(any("invoice_lines__" in column for column in dataframe.columns))
         self.assertEqual(report["connector"], "sage")
 
     def test_sage_v31_defaults_to_x_business_header(self):

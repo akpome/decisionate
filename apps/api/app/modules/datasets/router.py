@@ -184,6 +184,7 @@ from app.modules.datasets.services.connectors import (
     STRIPE_ENCRYPTED_API_KEY_CONFIG,
     WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG,
     WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG,
+    deduplicate_connector_line_items,
     deduplicate_lightspeed_sales,
     filter_lightspeed_completed_sales,
     load_connector_dataframe,
@@ -5873,7 +5874,10 @@ def get_connector_dedup_keys(
     report_config: dict,
     columns,
 ):
-    if source_type == "google_analytics":
+    configured_keys = report_config.get("dedup_keys")
+    if isinstance(configured_keys, list) and configured_keys:
+        keys = configured_keys
+    elif source_type == "google_analytics":
         keys = report_config.get("dimensions") or []
     elif (
         source_type == "lightspeed_x"
@@ -6146,6 +6150,14 @@ def merge_connector_dataframes(
         == "sales"
     ):
         combined = deduplicate_lightspeed_sales(combined)
+    line_item_key = report_config.get("line_item_key")
+    parent_id_keys = report_config.get("line_item_parent_keys") or []
+    if line_item_key:
+        combined = deduplicate_connector_line_items(
+            combined,
+            str(line_item_key),
+            tuple(str(key) for key in parent_id_keys),
+        )
     if (
         source_type == "quickbooks"
         and "record_id" in combined.columns

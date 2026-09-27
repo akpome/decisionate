@@ -260,6 +260,22 @@ class ConnectorSmokeTests(unittest.TestCase):
                             "create_date": "2020-01-02",
                             "updated": "2026-01-03",
                             "amount": {"amount": "125.00", "code": "CAD"},
+                            "lines": [
+                                {
+                                    "id": "line-101",
+                                    "description": "Consulting",
+                                    "quantity": 1,
+                                    "unit_price": "100.00",
+                                    "amount": "100.00",
+                                },
+                                {
+                                    "id": "line-102",
+                                    "description": "Support",
+                                    "quantity": 1,
+                                    "unit_price": "25.00",
+                                    "amount": "25.00",
+                                },
+                            ],
                         }],
                     },
                 },
@@ -296,7 +312,16 @@ class ConnectorSmokeTests(unittest.TestCase):
             )
 
         request_params = parse_qs(urlsplit(requested_urls[0]).query)
-        self.assertEqual(len(dataframe), 1)
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(
+            dataframe["line_item_id"].tolist(),
+            ["line-101", "line-102"],
+        )
+        self.assertEqual(
+            dataframe["item_description"].tolist(),
+            ["Consulting", "Support"],
+        )
+        self.assertFalse(any("lines__" in column for column in dataframe.columns))
         self.assertEqual(request_params["updated_min"], ["2026-01-01"])
         self.assertEqual(request_params["updated_max"], ["2026-01-31"])
         self.assertNotIn("date_from", request_params)
@@ -314,6 +339,81 @@ class ConnectorSmokeTests(unittest.TestCase):
             }),
             ["invoices", "customers", "sales_receipts"],
         )
+
+    def test_quickbooks_invoice_lines_are_one_row_per_item(self):
+        def json_request(url, headers):
+            return {
+                "QueryResponse": {
+                    "Invoice": [{
+                        "Id": "invoice-1",
+                        "TxnDate": "2026-01-02",
+                        "Line": [
+                            {
+                                "Id": "line-1",
+                                "Amount": 100,
+                                "DetailType": "SalesItemLineDetail",
+                                "SalesItemLineDetail": {
+                                    "Qty": 1,
+                                    "UnitPrice": 100,
+                                    "ItemRef": {
+                                        "value": "item-1",
+                                        "name": "Consulting",
+                                    },
+                                },
+                            },
+                            {
+                                "Id": "line-2",
+                                "Amount": 25,
+                                "DetailType": "SalesItemLineDetail",
+                                "SalesItemLineDetail": {
+                                    "Qty": 1,
+                                    "UnitPrice": 25,
+                                    "ItemRef": {
+                                        "value": "item-2",
+                                        "name": "Support",
+                                    },
+                                },
+                            },
+                        ],
+                    }],
+                },
+            }
+
+        with patch.dict(
+            os.environ,
+            {
+                "QUICKBOOKS_API_BASE_URL": (
+                    "https://quickbooks.api.intuit.com"
+                ),
+                "QUICKBOOKS_API_VERSION": "v3",
+            },
+            clear=False,
+        ), patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="quickbooks-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=json_request,
+        ):
+            dataframe, report = connectors.load_quickbooks_dataframe(
+                None,
+                make_connection(
+                    "quickbooks",
+                    {
+                        "company_id": "company-1",
+                        "resource_types": ["invoices"],
+                    },
+                ),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            )
+
+        self.assertEqual(report["resource"], "invoices")
+        self.assertEqual(dataframe["line_item_id"].tolist(), ["line-1", "line-2"])
+        self.assertEqual(dataframe["item_description"].tolist(), ["Consulting", "Support"])
+        self.assertFalse(any("Line__" in column for column in dataframe.columns))
 
     def test_hubspot_resource_selection_accepts_multiple_objects(self):
         self.assertEqual(
