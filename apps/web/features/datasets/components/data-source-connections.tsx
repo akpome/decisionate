@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import {
+  CalendarDays,
   Database,
   Eye,
   EyeOff,
@@ -96,6 +97,25 @@ function getBrowserTimezone() {
     Intl.DateTimeFormat().resolvedOptions().timeZone ||
     "UTC"
   )
+}
+
+const ADVANCED_SYNC_LOOKBACK_DAYS = 30
+
+function formatDateInputValue(value: Date) {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, "0")
+  const day = String(value.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function getAdvancedSyncDateBounds() {
+  const today = new Date()
+  const earliest = new Date(today)
+  earliest.setDate(today.getDate() - ADVANCED_SYNC_LOOKBACK_DAYS)
+  return {
+    min: formatDateInputValue(earliest),
+    max: formatDateInputValue(today),
+  }
 }
 
 export function DataSourceConnections({
@@ -700,12 +720,55 @@ function DataSourceConnectionRow({
     useState(connection.sync_timezone ?? "")
   const [scheduleDayOfWeek, setScheduleDayOfWeek] =
     useState(String(connection.sync_day_of_week ?? 0))
+  const [showAdvancedDateRange, setShowAdvancedDateRange] =
+    useState(false)
+  const [advancedStartDate, setAdvancedStartDate] =
+    useState(() => {
+      const bounds = getAdvancedSyncDateBounds()
+      return bounds.min
+    })
+  const [advancedEndDate, setAdvancedEndDate] =
+    useState(() => getAdvancedSyncDateBounds().max)
+  const [advancedDateError, setAdvancedDateError] =
+    useState<string | null>(null)
 
+  function syncConnection(advancedDateRange = false) {
+    if (advancedDateRange) {
+      const bounds = getAdvancedSyncDateBounds()
+      if (!advancedStartDate || !advancedEndDate) {
+        setAdvancedDateError(
+          t("Choose both a start date and an end date.")
+        )
+        return
+      }
+      if (
+        advancedStartDate < bounds.min ||
+        advancedEndDate > bounds.max
+      ) {
+        setAdvancedDateError(
+          t("Choose dates within the last 30 days, through today.")
+        )
+        return
+      }
+      if (advancedStartDate > advancedEndDate) {
+        setAdvancedDateError(
+          t("The start date must be on or before the end date.")
+        )
+        return
+      }
+      setAdvancedDateError(null)
+    }
 
-  function syncConnection() {
     onSyncConnection?.(
       connection,
       {
+        ...(advancedDateRange
+          ? {
+              advanced_date_range: true,
+              start_date: advancedStartDate,
+              end_date: advancedEndDate,
+            }
+          : {}),
         dimensions: ["date"],
         metrics: syncMetrics,
       }
@@ -974,6 +1037,83 @@ function DataSourceConnectionRow({
                     ? t("Syncing...")
                     : t("Sync now")}
                 </button>
+              )}
+
+              {canSyncConnector && (
+                <div className="w-full min-w-0 sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAdvancedDateRange(
+                        (visible) => !visible
+                      )
+                      setAdvancedDateError(null)
+                    }}
+                    aria-expanded={showAdvancedDateRange}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  >
+                    <CalendarDays size={14} />
+                    {showAdvancedDateRange
+                      ? t("Hide advanced date range")
+                      : t("Advanced date range")}
+                  </button>
+
+                  {showAdvancedDateRange && (
+                    <div className="mt-2 w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-left sm:min-w-[21rem]">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <label className="min-w-0 text-xs font-medium text-gray-700">
+                          {t("From")}
+                          <input
+                            type="date"
+                            value={advancedStartDate}
+                            min={getAdvancedSyncDateBounds().min}
+                            max={getAdvancedSyncDateBounds().max}
+                            onChange={(event) => {
+                              setAdvancedStartDate(event.target.value)
+                              setAdvancedDateError(null)
+                            }}
+                            className="mt-1 h-9 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
+                          />
+                        </label>
+                        <label className="min-w-0 text-xs font-medium text-gray-700">
+                          {t("To")}
+                          <input
+                            type="date"
+                            value={advancedEndDate}
+                            min={getAdvancedSyncDateBounds().min}
+                            max={getAdvancedSyncDateBounds().max}
+                            onChange={(event) => {
+                              setAdvancedEndDate(event.target.value)
+                              setAdvancedDateError(null)
+                            }}
+                            className="mt-1 h-9 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700"
+                          />
+                        </label>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">
+                        {t("Manual recovery is limited to the last 30 days.")}
+                      </p>
+                      {advancedDateError && (
+                        <p className="mt-2 text-xs text-red-700" role="alert">
+                          {advancedDateError}
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => syncConnection(true)}
+                        disabled={
+                          syncingConnectionId === connection.id ||
+                          updatingConnectionId === connection.id
+                        }
+                        className="mt-3 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {syncingConnectionId === connection.id
+                          ? t("Syncing...")
+                          : t("Sync selected range")}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
 
               {datasetIds.length > 0 && (

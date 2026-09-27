@@ -1,16 +1,18 @@
 import json
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+from fastapi import HTTPException
 
 from app.modules.datasets.services import connectors
 from app.modules.datasets.services import sources
 from app.modules.datasets.services.sources import get_dataset_source
 from app.modules.datasets import router as datasets_router
+from app.modules.datasets.schemas import DataSourceConnectionSync
 
 
 def make_connection(source_type, config):
@@ -22,6 +24,37 @@ def make_connection(source_type, config):
 
 
 class NewConnectorTests(unittest.TestCase):
+    def test_advanced_sync_window_accepts_last_30_days(self):
+        today = date.today()
+        payload = DataSourceConnectionSync(
+            advanced_date_range=True,
+            start_date=today - timedelta(days=30),
+            end_date=today,
+        )
+
+        datasets_router.validate_advanced_sync_window(payload)
+
+    def test_advanced_sync_window_rejects_dates_outside_recovery_limit(self):
+        today = date.today()
+
+        with self.assertRaises(HTTPException):
+            datasets_router.validate_advanced_sync_window(
+                DataSourceConnectionSync(
+                    advanced_date_range=True,
+                    start_date=today - timedelta(days=31),
+                    end_date=today,
+                )
+            )
+
+        with self.assertRaises(HTTPException):
+            datasets_router.validate_advanced_sync_window(
+                DataSourceConnectionSync(
+                    advanced_date_range=True,
+                    start_date=today,
+                    end_date=today + timedelta(days=1),
+                )
+            )
+
     def test_search_console_initial_sync_uses_standard_history(self):
         connection = SimpleNamespace(
             source_type="google_search_console",

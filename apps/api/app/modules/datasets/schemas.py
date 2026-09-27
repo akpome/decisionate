@@ -231,6 +231,7 @@ class DataSourceConnectionUpdate(BaseModel):
 
 
 class DataSourceConnectionSync(BaseModel):
+    advanced_date_range: bool = False
     start_date: date | None = None
     end_date: date | None = None
     dimensions: List[str] = Field(

@@ -4747,6 +4747,43 @@ def get_incremental_sync_window(
     return start_date, end_date
 
 
+def validate_advanced_sync_window(payload: DataSourceConnectionSync):
+    """Keep manual recovery syncs inside the supported 30-day lookback."""
+    if not payload.advanced_date_range:
+        return
+
+    today = date.today()
+    earliest_date = today - timedelta(days=30)
+    start_date = payload.start_date
+    end_date = payload.end_date
+
+    if start_date is None or end_date is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Advanced sync requires both a start date and an end date",
+        )
+    if start_date < earliest_date:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Advanced sync cannot start before {earliest_date.isoformat()}",
+        )
+    if end_date > today:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Advanced sync cannot end after {today.isoformat()}",
+        )
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=422,
+            detail="Advanced sync start date must be on or before its end date",
+        )
+    if (end_date - start_date).days > 30:
+        raise HTTPException(
+            status_code=422,
+            detail="Advanced sync can cover at most 30 days",
+        )
+
+
 def find_connector_dataset(
     db,
     connection,
@@ -7461,6 +7498,7 @@ async def sync_source_connection(
                 detail="Manual sync is not enabled for this source",
             )
 
+        validate_advanced_sync_window(payload)
         sync_results = run_data_source_sync_with_oauth_retry(
             db,
             connection,

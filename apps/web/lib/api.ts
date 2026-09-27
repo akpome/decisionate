@@ -589,6 +589,7 @@ export type DataSourceConnectionSyncResult = {
 }
 
 export type DataSourceConnectionSyncPayload = {
+  advanced_date_range?: boolean
   start_date?: string
   end_date?: string
   dimensions?: string[]
