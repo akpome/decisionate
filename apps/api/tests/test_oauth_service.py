@@ -72,6 +72,26 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         self.assertEqual(config["business_id"], "business-1")
         self.assertNotIn("_oauth_account_options", config)
 
+    def test_sage_business_selection_clears_previous_choice_for_multiple(self):
+        config = apply_sage_business_selection(
+            {"business_id": "business-1"},
+            [
+                {"business_id": "business-1", "name": "Primary"},
+                {"business_id": "business-2", "name": "Secondary"},
+            ],
+            {"access_token": "token"},
+            {},
+        )
+
+        self.assertNotIn("business_id", config)
+        self.assertEqual(
+            config["_oauth_account_options"],
+            [
+                {"id": "business-1", "label": "Primary"},
+                {"id": "business-2", "label": "Secondary"},
+            ],
+        )
+
     def test_provider_account_selection_auto_selects_a_single_account(self):
         config = apply_oauth_account_selection(
             {

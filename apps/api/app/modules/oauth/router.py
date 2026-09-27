@@ -173,13 +173,18 @@ def apply_sage_business_selection(
         ("name",),
     )
     if account_options:
-        return apply_oauth_account_selection(
-            connection_config,
-            businesses,
-            "business_id",
-            ("name",),
-            missing_accounts_error="Sage returned no accessible businesses",
-        )
+        if len(account_options) == 1:
+            connection_config["business_id"] = account_options[0]["id"]
+            connection_config.pop(OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY, None)
+            return connection_config
+
+        # A new Sage authorization must ask again when more than one
+        # business is available. A previously saved business may be stale or
+        # may have been entered before OAuth discovery, and retaining it would
+        # make the UI hide the selector while Sage has multiple choices.
+        connection_config.pop("business_id", None)
+        connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = account_options
+        return connection_config
 
     if not allow_legacy_fallback:
         raise OAuthTokenExchangeError(
