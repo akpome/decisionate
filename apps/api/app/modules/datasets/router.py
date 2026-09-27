@@ -260,7 +260,7 @@ CONNECTOR_DEDUP_KEYS = {
     ],
     "square": ["order_id"],
     "woocommerce": ["order_id"],
-    "lightspeed": ["sale_id"],
+    "lightspeed": ["sale_line_id"],
     "lightspeed_x": ["record_id"],
     "lightspeed_k": ["record_id"],
     "lightspeed_o": ["record_id"],

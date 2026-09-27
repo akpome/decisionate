@@ -1328,11 +1328,11 @@ class NewConnectorTests(unittest.TestCase):
     def test_lightspeed_sales_follow_provider_next_page_urls(self):
         first_page_url = (
             "https://api.lightspeedapp.com/API/V3/Account/account-1/"
-            "Sale.json?limit=100&load_relations=%5B%22SaleLines%22%5D"
+            "Sale.json?limit=100&load_relations=%5B%22SaleLines%22%2C%22SaleLines.Item%22%5D"
         )
         second_page_url = (
             "https://api.lightspeedapp.com/API/V3/Account/account-1/"
-            "Sale.json?limit=100&load_relations=%5B%22SaleLines%22%5D&after=cursor-1"
+            "Sale.json?limit=100&load_relations=%5B%22SaleLines%22%2C%22SaleLines.Item%22%5D&after=cursor-1"
         )
         with patch.object(
             connectors,
@@ -1390,7 +1390,7 @@ class NewConnectorTests(unittest.TestCase):
             )
         )
 
-    def test_lightspeed_sales_deduplicate_provider_rows_by_sale_id(self):
+    def test_lightspeed_sale_lines_deduplicate_provider_rows_by_line_id(self):
         with patch.object(
             connectors,
             "get_oauth_access_token",
@@ -1467,8 +1467,12 @@ class NewConnectorTests(unittest.TestCase):
                 date(2026, 9, 2),
             )
 
-        self.assertEqual(report["row_count"], 2)
-        self.assertEqual(dataframe["sale_id"].tolist(), ["sale-1", "sale-2"])
+        self.assertEqual(report["row_count"], 3)
+        self.assertEqual(dataframe["sale_line_id"].tolist(), [
+            "line-1",
+            "line-2",
+            "line-3",
+        ])
 
     def test_lightspeed_sales_only_include_completed_sales_and_keep_time(self):
         sales = [
@@ -1516,6 +1520,102 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(
             dataframe["created_at"].tolist(),
             dataframe["timestamp"].tolist(),
+        )
+
+    def test_lightspeed_sales_expand_to_one_row_per_item_with_description(self):
+        sales = [
+            {
+                "saleID": "sale-1",
+                "timeStamp": "2026-09-01T11:30:45+00:00",
+                "completed": True,
+                "SaleLines": {
+                    "SaleLine": [
+                        {
+                            "saleLineID": "line-1",
+                            "itemID": "item-1",
+                            "unitQuantity": "1",
+                            "unitPrice": "10.00",
+                            "Item": {"description": "Coffee"},
+                        },
+                        {
+                            "saleLineID": "line-2",
+                            "itemID": "item-2",
+                            "unitQuantity": "2",
+                            "unitPrice": "4.00",
+                            "Item": {"description": "Muffin"},
+                        },
+                    ],
+                },
+            },
+            {
+                "saleID": "sale-2",
+                "timeStamp": "2026-09-01T12:30:45+00:00",
+                "completed": True,
+                "SaleLines": {
+                    "SaleLine": [
+                        {
+                            "saleLineID": "line-3",
+                            "itemID": "item-3",
+                            "unitQuantity": "1",
+                            "unitPrice": "8.00",
+                            "Item": {"description": "Sandwich"},
+                        },
+                        {
+                            "saleLineID": "line-4",
+                            "itemID": "item-4",
+                            "unitQuantity": "1",
+                            "unitPrice": "3.00",
+                            "Item": {"description": "Tea"},
+                        },
+                    ],
+                },
+            },
+        ]
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="lightspeed-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            return_value={"Sale": sales},
+        ), patch.dict(
+            "os.environ",
+            {
+                "LIGHTSPEED_API_BASE_URL_TEMPLATE": (
+                    "https://api.lightspeedapp.com/API/V3/Account/{account_id}"
+                ),
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_lightspeed_dataframe(
+                None,
+                make_connection("lightspeed", {"account_id": "account-1"}),
+                date(2026, 9, 1),
+                date(2026, 9, 2),
+            )
+
+        self.assertEqual(report["row_count"], 4)
+        self.assertEqual(dataframe["sale_id"].tolist(), [
+            "sale-1",
+            "sale-1",
+            "sale-2",
+            "sale-2",
+        ])
+        self.assertEqual(dataframe["sale_line_id"].tolist(), [
+            "line-1",
+            "line-2",
+            "line-3",
+            "line-4",
+        ])
+        self.assertEqual(dataframe["item_description"].tolist(), [
+            "Coffee",
+            "Muffin",
+            "Sandwich",
+            "Tea",
+        ])
+        self.assertFalse(
+            any(str(column).startswith("SaleLines__") for column in dataframe.columns)
         )
 
     def test_lightspeed_data_requests_use_browser_compatible_transport(self):

@@ -1091,10 +1091,12 @@ def build_dynamic_connector_row(
     source_record: dict,
     normalized_fields: dict,
     flatten_lists: bool = False,
+    prefix: str = "",
 ) -> dict:
     """Combine all source fields with stable aliases used by analytics."""
     row = flatten_connector_record(
         source_record,
+        prefix=prefix,
         flatten_lists=flatten_lists,
     )
     row = {
@@ -1127,11 +1129,22 @@ def build_dynamic_connector_row(
 
 
 def deduplicate_lightspeed_sales(dataframe: pd.DataFrame) -> pd.DataFrame:
-    """Keep one row per R-Series sale, including legacy identity columns."""
+    """Keep one row per R-Series sale line, including legacy rows."""
     if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
         return dataframe
 
     deduplicated = dataframe.copy()
+    identity_column = None
+    if "sale_line_id" in deduplicated.columns:
+        for alias in ("saleLineID", "line__saleLineID", "line_id"):
+            if alias not in deduplicated.columns:
+                continue
+            deduplicated["sale_line_id"] = deduplicated["sale_line_id"].fillna(
+                deduplicated[alias]
+            )
+        if deduplicated["sale_line_id"].notna().any():
+            identity_column = "sale_line_id"
+
     if "sale_id" not in deduplicated.columns:
         deduplicated["sale_id"] = pd.NA
 
@@ -1142,14 +1155,27 @@ def deduplicate_lightspeed_sales(dataframe: pd.DataFrame) -> pd.DataFrame:
             deduplicated[alias]
         )
 
-    has_identity = deduplicated["sale_id"].notna()
+    if identity_column is None:
+        identity_column = "sale_id"
+
+    has_identity = deduplicated[identity_column].notna()
     identified = deduplicated.loc[has_identity].drop_duplicates(
-        subset=["sale_id"],
+        subset=[identity_column],
         keep="last",
     )
     unidentified = deduplicated.loc[~has_identity].drop_duplicates(
         keep="last",
     )
+    if identity_column == "sale_line_id" and "sale_id" in identified.columns:
+        identified_sale_ids = set(
+            identified["sale_id"].dropna().astype("string")
+        )
+        if identified_sale_ids and "sale_id" in unidentified.columns:
+            unidentified = unidentified.loc[
+                ~unidentified["sale_id"].astype("string").isin(
+                    identified_sale_ids
+                )
+            ]
     return pd.concat(
         [identified, unidentified],
         ignore_index=True,
@@ -1194,6 +1220,32 @@ def normalize_lightspeed_timestamp(value):
     if re.search(r"(?:T|\s)\d{2}:\d{2}", text_value):
         return parsed_value.isoformat()
     return parsed_value.date().isoformat()
+
+
+def _lightspeed_sale_lines(sale: dict) -> list[dict]:
+    relation = sale.get("SaleLines") or sale.get("saleLines")
+    if isinstance(relation, dict):
+        relation = relation.get("SaleLine") or relation.get("saleLine")
+    if isinstance(relation, dict):
+        relation = [relation]
+    if not isinstance(relation, list):
+        return [{}]
+    lines = [line for line in relation if isinstance(line, dict)]
+    return lines or [{}]
+
+
+def _lightspeed_item_description(line: dict) -> str | None:
+    item = line.get("Item") or line.get("item")
+    if isinstance(item, dict):
+        for key in ("description", "itemDescription", "name"):
+            value = item.get(key)
+            if value not in (None, ""):
+                return value
+    for key in ("description", "itemDescription", "item_name", "name"):
+        value = line.get(key)
+        if value not in (None, ""):
+            return value
+    return None
 
 
 def normalize_connector_dataframe_dates(dataframe: pd.DataFrame):
@@ -2960,7 +3012,7 @@ def load_lightspeed_dataframe(
     rows = []
     params = {
         "limit": str(PAGE_SIZE),
-        "load_relations": "[\"SaleLines\"]",
+        "load_relations": "[\"SaleLines\",\"SaleLines.Item\"]",
     }
     next_url = f"{base_url}/Sale.json?{urlencode(params)}"
     seen_urls = set()
@@ -2990,6 +3042,7 @@ def load_lightspeed_dataframe(
                 "yes",
             }:
                 continue
+            sale_id = sale.get("saleID") or sale.get("id")
             sale_timestamp = (
                 sale.get("timeStamp")
                 or sale.get("timestamp")
@@ -2997,7 +3050,7 @@ def load_lightspeed_dataframe(
                 or sale.get("completedTime")
             )
             normalized_row = {
-                "sale_id": sale.get("saleID") or sale.get("id"),
+                "sale_id": sale_id,
                 "created_at": sale_timestamp,
                 "updated_at": sale.get("updateTime"),
                 "completed_at": sale.get("completedTime"),
@@ -3010,10 +3063,15 @@ def load_lightspeed_dataframe(
                 "employee_id": sale.get("employeeID"),
                 "shop_id": sale.get("shopID"),
             }
-            row = build_dynamic_connector_row(
-                sale,
+            sale_source = {
+                key: value
+                for key, value in sale.items()
+                if str(key).lower() not in {"salelines", "saleline"}
+            }
+            sale_row = build_dynamic_connector_row(
+                sale_source,
                 normalized_row,
-                flatten_lists=True,
+                flatten_lists=False,
             )
             for timestamp_key in (
                 "timeStamp",
@@ -3025,7 +3083,7 @@ def load_lightspeed_dataframe(
                 "updated_at",
                 "completed_at",
             ):
-                if timestamp_key in row or timestamp_key in sale:
+                if timestamp_key in sale_row or timestamp_key in sale:
                     source_value = sale.get(timestamp_key)
                     if timestamp_key in {
                         "timestamp",
@@ -3034,10 +3092,32 @@ def load_lightspeed_dataframe(
                         "completed_at",
                     }:
                         source_value = normalized_row.get(timestamp_key)
-                    row[timestamp_key] = normalize_lightspeed_timestamp(
+                    sale_row[timestamp_key] = normalize_lightspeed_timestamp(
                         source_value
                     )
-            rows.append(row)
+            sale_lines = _lightspeed_sale_lines(sale)
+            for line_index, line in enumerate(sale_lines):
+                item_description = _lightspeed_item_description(line)
+                line_id = line.get("saleLineID") or line.get("id")
+                if line_id is None and sale_id is not None:
+                    line_id = f"{sale_id}:line:{line_index}"
+                line_row = build_dynamic_connector_row(
+                    line,
+                    {
+                        "sale_line_id": line_id,
+                        "item_id": line.get("itemID") or line.get("itemId"),
+                        "item_description": item_description,
+                        "quantity": line.get("unitQuantity")
+                        or line.get("quantity"),
+                        "unit_price": line.get("unitPrice"),
+                        "normal_unit_price": line.get("normalUnitPrice"),
+                        "discount_id": line.get("discountID"),
+                        "line_index": line_index,
+                    },
+                    flatten_lists=False,
+                    prefix="line",
+                )
+                rows.append({**sale_row, **line_row})
         attributes = payload.get("@attributes")
         if not isinstance(attributes, dict):
             attributes = payload.get("attributes")
