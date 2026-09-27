@@ -54,9 +54,6 @@ OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(hours=1)
 # freshly issued token. Keep the early-refresh window below one scheduler
 # interval so interactive business discovery uses the token just exchanged.
 SAGE_OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(minutes=5)
-# Lightspeed can rate-limit refresh-token redemption. A short window prevents
-# hourly tokens from being refreshed again on every scheduler heartbeat.
-LIGHTSPEED_OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY = timedelta(minutes=5)
 STRIPE_ENCRYPTED_API_KEY_CONFIG = "_stripe_api_key_encrypted"
 WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG = "_woocommerce_consumer_key_encrypted"
 WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG = "_woocommerce_consumer_secret_encrypted"
@@ -5700,8 +5697,6 @@ def get_oauth_access_token(
     refresh_leeway = (
         SAGE_OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY
         if source_type == "sage"
-        else LIGHTSPEED_OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY
-        if source_type == "lightspeed"
         else OAUTH_ACCESS_TOKEN_REFRESH_LEEWAY
     )
     refresh_deadline = now + refresh_leeway
@@ -5794,16 +5789,6 @@ def get_oauth_access_token(
                     "(Cloudflare Error 1010). This is not an OAuth credential "
                     "failure; verify that the Lightspeed API client is enabled "
                     "for this account and try again."
-                ) from error
-            if source_type == "lightspeed" and (
-                "http 429" in normalized_message
-                or "too_many_request" in normalized_message
-                or "too many requests" in normalized_message
-            ):
-                raise ConnectorUnavailable(
-                    "Lightspeed Retail token refresh is temporarily "
-                    "rate-limited. The connector will retry automatically; "
-                    "wait a few minutes before reconnecting."
                 ) from error
             if oauth_refresh_requires_reauthorization(error):
                 raise ConnectorUnavailable(
