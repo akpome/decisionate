@@ -812,6 +812,26 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged.loc[0, "revenue"], 125)
 
+    def test_lightspeed_merge_removes_incomplete_legacy_sales(self):
+        existing = pd.DataFrame([
+            {"sale_id": "1", "completed": True, "total": 10},
+            {"sale_id": "2", "completed": False, "total": 20},
+        ])
+        incoming = pd.DataFrame([
+            {"sale_id": "1", "completed": True, "total": 12},
+        ])
+
+        merged = datasets_router.merge_connector_dataframes(
+            existing,
+            incoming,
+            "lightspeed",
+            {},
+        )
+
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged.iloc[0]["sale_id"], "1")
+        self.assertEqual(merged.iloc[0]["total"], 12)
+
     def test_initial_connector_fetch_deduplicates_provider_rows(self):
         incoming = pd.DataFrame([
             {"record_id": "contact-1", "name": "Old name"},

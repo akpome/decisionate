@@ -1157,6 +1157,25 @@ def deduplicate_lightspeed_sales(dataframe: pd.DataFrame) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+def filter_lightspeed_completed_sales(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Remove unfinished R-Series register records from stored data."""
+    if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
+        return dataframe
+
+    for column in ("completed", "status"):
+        if column not in dataframe.columns:
+            continue
+        values = dataframe[column]
+        known = values.notna() & values.astype("string").str.strip().ne("")
+        if not known.any():
+            continue
+        completed = values.astype("string").str.strip().str.lower().isin(
+            {"1", "true", "yes"}
+        )
+        return dataframe.loc[(~known) | completed].reset_index(drop=True)
+    return dataframe
+
+
 def normalize_lightspeed_timestamp(value):
     """Preserve time-of-day for R-Series event timestamps."""
     if value is None:
@@ -3028,6 +3047,7 @@ def load_lightspeed_dataframe(
         )
 
     dataframe = filter_date_range(pd.DataFrame(rows), start_date, end_date)
+    dataframe = filter_lightspeed_completed_sales(dataframe)
     dataframe = deduplicate_lightspeed_sales(dataframe)
     return dataframe, {
         "connector": "lightspeed",
