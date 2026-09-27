@@ -2897,6 +2897,7 @@ def load_lightspeed_dataframe(
         payload = connector_json_request(
             f"{base_url}/Sale.json?{urlencode(params)}",
             headers={"Authorization": f"Bearer {access_token}"},
+            source_type="lightspeed",
         )
         sales = payload.get("Sale") or payload.get("sale")
         if isinstance(sales, dict):
@@ -5853,7 +5854,7 @@ def connector_json_request_with_headers(
     )
     request_headers = {"Accept": "application/json", **headers}
     for attempt in range(max_attempts):
-        if normalized_source_type == "sage" and curl_requests is not None:
+        if normalized_source_type in {"sage", "lightspeed"} and curl_requests is not None:
             try:
                 response = curl_requests.get(
                     url,
@@ -5867,8 +5868,9 @@ def connector_json_request_with_headers(
                 # transport is unavailable at runtime, use the standards
                 # based path below instead of making the connector unusable.
                 logger.warning(
-                    "Sage browser-compatible request failed; falling back "
+                    "%s browser-compatible request failed; falling back "
                     "to urllib url=%s error=%s",
+                    connector_display_name(normalized_source_type),
                     url,
                     error,
                 )
@@ -5917,7 +5919,8 @@ def connector_json_request_with_headers(
                     or response.headers.get("x_request_id")
                 )
                 request_id_detail = (
-                    f" (Sage request ID: {request_id})"
+                    f" ({connector_display_name(normalized_source_type)} "
+                    f"request ID: {request_id})"
                     if request_id
                     else ""
                 )
@@ -6061,8 +6064,24 @@ def format_connector_error_detail(
 ) -> str:
     """Keep provider error codes visible in the user-facing API message."""
     normalized_detail = str(detail or "").lower()
+    normalized_source_type = str(source_type or "").strip().lower()
     if (
-        str(source_type or "").strip().lower() == "sage"
+        normalized_source_type == "lightspeed"
+        and status_code == 403
+        and (
+            "error 1010" in normalized_detail
+            or "site owner has blocked access" in normalized_detail
+            or "cloudflare" in normalized_detail
+        )
+    ):
+        return (
+            "Lightspeed Retail blocked the API request at its edge "
+            "(Cloudflare Error 1010). This is not an OAuth credential "
+            "failure; verify that the Lightspeed API client is enabled "
+            "for this account and try again."
+        )
+    if (
+        normalized_source_type == "sage"
         and status_code in {500, 502, 503, 504}
         and (
             "internal server error" in normalized_detail
@@ -6214,6 +6233,15 @@ def connector_requires_reauthorization(
     if is_shopify_protected_customer_data_error(
         normalized_source_type,
         error,
+    ):
+        return False
+    if (
+        normalized_source_type == "lightspeed"
+        and (
+            "error 1010" in normalized_message
+            or "site owner has blocked access" in normalized_message
+            or "cloudflare" in normalized_message
+        )
     ):
         return False
     if normalized_source_type in {*OAUTH_PROVIDERS, "woocommerce"} and any(

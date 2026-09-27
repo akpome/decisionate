@@ -1149,6 +1149,26 @@ class ConnectorSmokeTests(unittest.TestCase):
             )
         )
 
+    def test_lightspeed_cloudflare_1010_is_not_treated_as_oauth_failure(self):
+        detail = connectors.format_connector_error_detail(
+            '{"type":"https://developers.cloudflare.com/support/'
+            'troubleshooting/http-status-codes/cloudflare-1xxx-errors/'
+            'error-1010/","title":"Error 1010: Access denied",'
+            '"status":403,"detail":"The site owner has blocked access"}',
+            "lightspeed",
+            403,
+        )
+
+        self.assertIn("Cloudflare Error 1010", detail)
+        self.assertFalse(
+            connectors.connector_requires_reauthorization(
+                "lightspeed",
+                connectors.ConnectorUnavailable(
+                    f"Connector request failed with HTTP 403: {detail}"
+                ),
+            )
+        )
+
     def test_meta_expired_oauth_error_is_customer_safe(self):
         detail = connectors.format_connector_error_detail(
             json.dumps({

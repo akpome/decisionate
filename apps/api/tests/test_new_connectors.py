@@ -3,7 +3,7 @@ import unittest
 from datetime import date, datetime
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
@@ -1299,6 +1299,44 @@ class NewConnectorTests(unittest.TestCase):
             "/API/V3/Account/account-1/Sale.json",
             request_url,
         )
+        self.assertEqual(
+            request.call_args.kwargs["source_type"],
+            "lightspeed",
+        )
+
+    def test_lightspeed_data_requests_use_browser_compatible_transport(self):
+        curl = MagicMock()
+        curl.get.return_value = type(
+            "Response",
+            (),
+            {
+                "status_code": 200,
+                "text": '{"Sale": []}',
+                "headers": {},
+            },
+        )()
+
+        with patch.object(connectors, "curl_requests", curl), patch.object(
+            connectors,
+            "urlopen",
+        ) as urlopen:
+            payload = connectors.connector_json_request(
+                "https://api.lightspeedapp.com/API/V3/Account/account-1/Sale.json",
+                headers={"Authorization": "Bearer lightspeed-token"},
+                source_type="lightspeed",
+            )
+
+        self.assertEqual(payload, {"Sale": []})
+        curl.get.assert_called_once_with(
+            "https://api.lightspeedapp.com/API/V3/Account/account-1/Sale.json",
+            headers={
+                "Accept": "application/json",
+                "Authorization": "Bearer lightspeed-token",
+            },
+            timeout=30,
+            impersonate="chrome",
+        )
+        urlopen.assert_not_called()
 
     def test_lightspeed_x_resources_are_normalized(self):
         with patch.object(
