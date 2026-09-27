@@ -356,26 +356,26 @@ class DatasetSharingTests(unittest.TestCase):
 
     def test_remove_dataset_file_ignores_missing_file(self):
         with patch(
-            "app.modules.datasets.router.os.remove",
-            side_effect=FileNotFoundError(),
-        ) as remove_file:
+            "app.modules.datasets.router.get_object_storage",
+        ) as get_storage:
+            get_storage.return_value.delete.side_effect = FileNotFoundError()
             remove_dataset_file(
                 "missing.csv",
             )
 
-        remove_file.assert_called_once_with(
+        get_storage.return_value.delete.assert_called_once_with(
             "missing.csv",
         )
 
     def test_remove_dataset_file_removes_existing_file(self):
         with patch(
-            "app.modules.datasets.router.os.remove",
-        ) as remove_file:
+            "app.modules.datasets.router.get_object_storage",
+        ) as get_storage:
             remove_dataset_file(
                 "uploads/data.csv",
             )
 
-        remove_file.assert_called_once_with(
+        get_storage.return_value.delete.assert_called_once_with(
             "uploads/data.csv",
         )
 
@@ -676,8 +676,6 @@ class DatasetSharingTests(unittest.TestCase):
             "quickbooks",
             "freshbooks",
             "hubspot",
-            "google_drive",
-            "onedrive",
             "meta_ads",
         ]:
             self.assertIn(source_type, source_types)
@@ -1445,6 +1443,7 @@ class DatasetSharingTests(unittest.TestCase):
                 "original_file_name": "sales.JSONL",
                 "file_extension": ".jsonl",
                 "file_format": "json",
+                "stored_file_format": "parquet",
             },
         )
         self.assertEqual(
@@ -1456,6 +1455,7 @@ class DatasetSharingTests(unittest.TestCase):
                 "original_file_name": "dataset.csv",
                 "file_extension": ".csv",
                 "file_format": "csv",
+                "stored_file_format": "parquet",
             },
         )
 
@@ -1717,7 +1717,7 @@ class DatasetSharingTests(unittest.TestCase):
         )
         self.assertEqual(
             response["source_status"],
-            "planned",
+            "needs_setup",
         )
         self.assertFalse(
             response["environment_configured"],

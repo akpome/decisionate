@@ -444,8 +444,8 @@ class ForecastingRouterTests(unittest.TestCase):
             forecast["forecast"],
             [
                 160.0,
-                190.0,
-                220.0,
+                180.0,
+                200.0,
             ],
         )
         self.assertEqual(

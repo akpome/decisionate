@@ -135,6 +135,34 @@ from app.modules.decisions.schemas import (
 
 
 class DecisionFilterTests(unittest.TestCase):
+    def setUp(self):
+        self.user_reference_patch = patch(
+            "app.modules.decisions.router.resolve_user_reference",
+            side_effect=lambda value: str(value or "").strip(),
+        )
+        self.workspace_reference_patch = patch(
+            "app.modules.decisions.router.resolve_workspace_reference",
+            side_effect=lambda value, internal_user_id, external_subject=None: (
+                str(value or "").strip() or internal_user_id
+            ),
+        )
+        self.manager_patch = patch(
+            "app.modules.decisions.router.require_decision_manager",
+        )
+        self.owner_patch = patch(
+            "app.modules.decisions.router.require_decision_owner_or_workspace_owner",
+        )
+        self.user_reference_patch.start()
+        self.workspace_reference_patch.start()
+        self.manager_patch.start()
+        self.owner_patch.start()
+
+    def tearDown(self):
+        self.owner_patch.stop()
+        self.manager_patch.stop()
+        self.workspace_reference_patch.stop()
+        self.user_reference_patch.stop()
+
     def build_memory_decision_session_factory(self):
         engine = create_engine(
             "sqlite:///:memory:",
@@ -181,7 +209,7 @@ class DecisionFilterTests(unittest.TestCase):
             "decision_activities.workspace_id = 'workspace-1'",
             sql,
         )
-        self.assertNotIn(
+        self.assertIn(
             "decisions.id IS NULL",
             sql,
         )
@@ -807,6 +835,7 @@ class DecisionFilterTests(unittest.TestCase):
                     DecisionUpdate(
                         status=DEFAULT_DECISION_STATUS,
                     ),
+                    None,
                     x_user_id="user-1",
                     x_workspace_id="workspace-1",
                 )
@@ -814,6 +843,7 @@ class DecisionFilterTests(unittest.TestCase):
             asyncio.run(
                 archive_decision(
                     1,
+                    None,
                     x_user_id="user-1",
                     x_workspace_id="workspace-1",
                 )
@@ -894,6 +924,7 @@ class DecisionFilterTests(unittest.TestCase):
             asyncio.run(
                 delete_decision(
                     1,
+                    None,
                     x_user_id="user-1",
                     x_workspace_id="workspace-1",
                 )

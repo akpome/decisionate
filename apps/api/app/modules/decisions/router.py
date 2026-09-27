@@ -177,6 +177,8 @@ DECISION_ACTIVITY_MESSAGES: dict[DecisionActivityType, str] = {
         "Confidence updated",
     ASSIGNEE_DECISION_ACTIVITY:
         "Decision owner updated",
+    EXPORT_DECISION_ACTIVITY:
+        "Decision portfolio exported",
     DELETE_DECISION_ACTIVITY:
         "Decision deleted",
 }

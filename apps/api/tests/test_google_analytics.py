@@ -408,6 +408,9 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
         ), patch(
             "app.modules.datasets.router.run_data_source_sync",
             side_effect=ConnectorUnavailable(message),
+        ), patch(
+            "app.modules.datasets.router.refresh_oauth_access_token_if_due",
+            return_value=False,
         ):
             response = asyncio.run(
                 sync_source_connection(

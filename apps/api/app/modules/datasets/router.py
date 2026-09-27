@@ -1228,11 +1228,19 @@ def cleanup_deleted_dataset_preferences(
             dataset.id,
         )
         preference.dashboard_dataset_ids = remove_dashboard_dataset_id_entry(
-            preference.dashboard_dataset_ids,
+            getattr(
+                preference,
+                "dashboard_dataset_ids",
+                None,
+            ),
             dataset.id,
         )
         preference.dashboard_views = remove_dashboard_view_dataset_entry(
-            preference.dashboard_views,
+            getattr(
+                preference,
+                "dashboard_views",
+                None,
+            ),
             dataset.id,
         )
 

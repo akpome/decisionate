@@ -382,6 +382,9 @@ class PublicDashboardTests(unittest.TestCase):
         ), patch(
             "app.modules.public_dashboard.get_public_dashboard_brand",
             return_value=branding,
+        ), patch(
+            "app.modules.public_dashboard.get_public_join_cache_result",
+            return_value=None,
         ):
             result = asyncio.run(
                 get_public_shared_dashboard(

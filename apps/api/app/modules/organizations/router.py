@@ -688,14 +688,22 @@ def serialize_user_preference(
         "dashboard_preferences": dashboard_preferences,
         "dashboard_dataset_ids": clean_dashboard_dataset_ids(
             parse_preference_json_object(
-                preference.dashboard_dataset_ids
+                getattr(
+                    preference,
+                    "dashboard_dataset_ids",
+                    None,
+                )
                 if preference
                 else None
             )
         ),
         "dashboard_views": clean_dashboard_views(
             parse_preference_json_object(
-                preference.dashboard_views
+                getattr(
+                    preference,
+                    "dashboard_views",
+                    None,
+                )
                 if preference
                 else None
             )

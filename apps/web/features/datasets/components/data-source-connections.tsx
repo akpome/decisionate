@@ -594,25 +594,23 @@ function DataSourceConnectionRow({
   const hasSelectedOAuthAccount = Boolean(
     connection.oauth_account_value
   )
+  const hasMultipleOAuthAccounts =
+    oauthAccountOptions.length > 1
   const isSageConnector =
     connection.source_type === "sage"
-  const showSageBusinessSelection =
-    isSageConnector &&
+  const requiresOAuthAccountSelection =
     isOAuthAuthorized &&
-    oauthAccountOptions.length > 0 &&
+    hasMultipleOAuthAccounts &&
     Boolean(connection.oauth_account_key) &&
     !hasSelectedOAuthAccount
+  const showSageBusinessSelection =
+    isSageConnector &&
+    requiresOAuthAccountSelection
   const canRefreshSageBusinesses =
     showSageBusinessSelection &&
     Boolean(onRefreshSageBusinesses)
   const showOAuthAccountSelection =
-    isOAuthAuthorized &&
-    Boolean(
-      showSageBusinessSelection ||
-        (!isSageConnector &&
-          oauthAccountOptions.length > 1)
-    ) &&
-    Boolean(connection.oauth_account_key)
+    requiresOAuthAccountSelection
   const showInlineConnectionSettings =
     inlineConnectionConfigKeys.length > 0 &&
     (!hasResourceSelection ||
@@ -624,7 +622,7 @@ function DataSourceConnectionRow({
     resourceOptions.length > 0 &&
     (inlineConnectionConfigKeys.length === 0 ||
       connectionReadyForResourceSelection) &&
-    (!isSageConnector || hasSelectedOAuthAccount)
+    !requiresOAuthAccountSelection
   const hasEditedConnectionSettings =
     inlineConnectionConfigKeys.some((configKey) =>
       Boolean(
@@ -2037,7 +2035,7 @@ const CONNECTION_FIELD_GUIDES: Record<
   },
   freshbooks: {
     account_id: {
-      description: "Optional FreshBooks account identifier. Leave blank to use the active business returned by OAuth.",
+      description: "OAuth discovers active FreshBooks accounts. If multiple are returned, select one before syncing.",
       example: "123456",
     },
     resource_types: {
@@ -2057,17 +2055,17 @@ const CONNECTION_FIELD_GUIDES: Record<
   },
   zoho_books: {
     organization_id: {
-      description: "Optional Zoho Books organization ID. Use it when the authorized account contains more than one organization.",
+      description: "OAuth discovers active Zoho Books organizations. If multiple are returned, select one before syncing.",
       example: "123456789",
     },
     resource_types: {
-      description: "Select one or more Zoho Books objects. Each selected object is stored as its own dataset; the organization is selected automatically after OAuth authorization.",
+      description: "Select one or more Zoho Books objects. Each selected object is stored as its own dataset after OAuth authorization.",
       example: "Invoices, Contacts",
     },
   },
   xero: {
     tenant_id: {
-      description: "Optional Xero tenant ID. Leave blank to use the first organization returned by OAuth.",
+      description: "OAuth discovers connected Xero organisations. If multiple are returned, select one before syncing.",
       example: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     },
     resource_types: {

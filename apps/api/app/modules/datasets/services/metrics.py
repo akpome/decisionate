@@ -1,6 +1,7 @@
 import pandas as pd
 
 from app.modules.datasets.services.numeric import (
+    coerce_numeric_series,
     get_numeric_columns,
     is_identifier_column,
 )
@@ -20,9 +21,22 @@ def generate_metrics(
 
     metrics = []
 
-    for column, numeric_series in get_numeric_columns(
-        dataframe
-    ):
+    numeric_columns = dict(
+        get_numeric_columns(dataframe)
+    )
+
+    # Preserve numeric columns that contain only missing values so their
+    # metrics remain stable and serialize as zeroes instead of disappearing.
+    for column in dataframe.columns:
+        if column in numeric_columns:
+            continue
+        if not pd.api.types.is_numeric_dtype(dataframe[column]):
+            continue
+        numeric_columns[column] = coerce_numeric_series(
+            dataframe[column]
+        )
+
+    for column, numeric_series in numeric_columns.items():
         column_label = str(column)
         if (
             is_identifier_column(column)

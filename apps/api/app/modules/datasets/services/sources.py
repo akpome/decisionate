@@ -402,7 +402,7 @@ DATASET_SOURCES = [
         "config_keys": ["tenant_id", "resource_types"],
         "description": (
             "Choose one or more Xero resources to ingest through OAuth. "
-            "The connected organisation is selected automatically."
+            "If OAuth returns multiple organisations, select one before syncing."
         ),
     },
     {
@@ -416,7 +416,7 @@ DATASET_SOURCES = [
         "config_keys": ["organization_id", "resource_types"],
         "description": (
             "Choose one or more Zoho Books resources to ingest through OAuth. "
-            "The connected organization is selected automatically."
+            "If OAuth returns multiple organizations, select one before syncing."
         ),
     },
     {

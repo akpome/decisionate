@@ -62,7 +62,7 @@ class AICreditTests(unittest.TestCase):
         credits.reserve_ai_credits(
             workspace_id="workspace-1",
             operation="large analysis",
-            estimated_tokens=5_000_000,
+            estimated_tokens=1_000_000,
         )
 
         with self.assertRaises(credits.AICreditLimitExceeded):

@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.security.config import build_security_configuration_status
@@ -10,6 +11,18 @@ class SecurityConfigurationTests(unittest.TestCase):
             "os.environ",
             {"APP_ENV": "production"},
             clear=True,
+        ), patch(
+            "app.security.config.get_runtime_configuration",
+            return_value=SimpleNamespace(
+                app_env="production",
+                auth_jwks_url="",
+                database_url="sqlite:///./decisionate.db",
+                object_storage_provider="local",
+                web_url="http://localhost:3000",
+                api_url="http://localhost:8000",
+                cors_allowed_origins=(),
+                sentry_dsn="",
+            ),
         ):
             status = build_security_configuration_status()
 

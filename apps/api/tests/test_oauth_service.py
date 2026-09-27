@@ -19,6 +19,7 @@ from app.modules.oauth.service import (
     revoke_oauth_token,
 )
 from app.modules.oauth.router import (
+    apply_oauth_account_selection,
     apply_sage_business_selection,
     clear_stale_oauth_authorization,
     get_oauth_config_requirement_error,
@@ -68,6 +69,134 @@ class OAuthAndSchedulingTests(unittest.TestCase):
 
         self.assertEqual(config["business_id"], "business-1")
         self.assertNotIn("_oauth_account_options", config)
+
+    def test_provider_account_selection_auto_selects_a_single_account(self):
+        config = apply_oauth_account_selection(
+            {
+                "account_id": "stale-account",
+                "business_id": "stale-business",
+                "business_uuid": "stale-uuid",
+                "_oauth_account_options": [
+                    {"id": "stale-account", "label": "Stale"}
+                ],
+            },
+            [
+                {
+                    "account_id": "account-1",
+                    "business_id": "business-1",
+                    "business_uuid": "uuid-1",
+                    "name": "Primary",
+                }
+            ],
+            "account_id",
+            ("name",),
+            missing_accounts_error="FreshBooks returned no accounts",
+            additional_config_keys=(
+                ("business_id", "business_id"),
+                ("business_uuid", "business_uuid"),
+            ),
+        )
+
+        self.assertEqual(config["account_id"], "account-1")
+        self.assertEqual(config["business_id"], "business-1")
+        self.assertEqual(config["business_uuid"], "uuid-1")
+        self.assertNotIn("_oauth_account_options", config)
+
+    def test_provider_account_selection_requires_a_choice_for_multiple_accounts(self):
+        provider_cases = (
+            (
+                "account_id",
+                "account_id",
+                [
+                    {"account_id": "account-1", "name": "Primary"},
+                    {"account_id": "account-2", "name": "Secondary"},
+                ],
+            ),
+            (
+                "tenant_id",
+                "tenantId",
+                [
+                    {"tenantId": "tenant-1", "tenantName": "Primary"},
+                    {"tenantId": "tenant-2", "tenantName": "Secondary"},
+                ],
+            ),
+            (
+                "organization_id",
+                "organization_id",
+                [
+                    {
+                        "organization_id": "organization-1",
+                        "name": "Primary",
+                        "is_default_org": True,
+                    },
+                    {
+                        "organization_id": "organization-2",
+                        "name": "Secondary",
+                    },
+                ],
+            ),
+        )
+
+        for config_key, record_key, records in provider_cases:
+            with self.subTest(config_key=config_key):
+                config = apply_oauth_account_selection(
+                    {},
+                    records,
+                    record_key,
+                    ("name", "tenantName"),
+                    config_key=config_key,
+                    missing_accounts_error="No accounts returned",
+                )
+
+                self.assertNotIn(config_key, config)
+                self.assertEqual(
+                    config["_oauth_account_options"],
+                    [
+                        {
+                            "id": str(record[record_key]),
+                            "label": next(
+                                (
+                                    str(record[key])
+                                    for key in ("name", "tenantName")
+                                    if record.get(key)
+                                ),
+                                str(record[record_key]),
+                            ),
+                        }
+                        for record in records
+                    ],
+                )
+
+    def test_provider_account_selection_preserves_a_valid_existing_choice(self):
+        config = apply_oauth_account_selection(
+            {"tenant_id": "tenant-2"},
+            [
+                {"tenantId": "tenant-1", "tenantName": "Primary"},
+                {"tenantId": "tenant-2", "tenantName": "Secondary"},
+            ],
+            "tenantId",
+            ("tenantName",),
+            config_key="tenant_id",
+            missing_accounts_error="Xero returned no organisations",
+        )
+
+        self.assertEqual(config["tenant_id"], "tenant-2")
+        self.assertEqual(len(config["_oauth_account_options"]), 2)
+
+    def test_provider_account_selection_clears_a_stale_choice(self):
+        config = apply_oauth_account_selection(
+            {"organization_id": "stale-organization"},
+            [
+                {"organization_id": "organization-1", "name": "Primary"},
+                {"organization_id": "organization-2", "name": "Secondary"},
+            ],
+            "organization_id",
+            ("name",),
+            missing_accounts_error="Zoho Books returned no organizations",
+        )
+
+        self.assertNotIn("organization_id", config)
+        self.assertEqual(len(config["_oauth_account_options"]), 2)
 
     def test_reconnect_removes_failed_stored_credential_for_every_oauth_connector(self):
         credential = types.SimpleNamespace(

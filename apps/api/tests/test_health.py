@@ -51,8 +51,9 @@ class HealthEndpointTests(unittest.TestCase):
         self.assertEqual(
             body["capabilities"]["billing"],
             {
-                "provider": "stripe",
+                "provider": "",
                 "configured": False,
+                "lifecycle_scheduler_configured": False,
             },
         )
 

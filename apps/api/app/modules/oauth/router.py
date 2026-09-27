@@ -89,6 +89,75 @@ def build_oauth_account_options(
     return options
 
 
+def apply_oauth_account_selection(
+    connection_config: dict,
+    records: list[dict],
+    identifier_key: str,
+    label_keys: tuple[str, ...],
+    *,
+    missing_accounts_error: str,
+    config_key: str | None = None,
+    additional_config_keys: tuple[tuple[str, str], ...] = (),
+) -> dict:
+    """Persist one account or expose a required choice for multiple accounts."""
+    config_key = config_key or identifier_key
+    account_options = build_oauth_account_options(
+        records,
+        identifier_key,
+        label_keys,
+    )
+    if not account_options:
+        raise OAuthTokenExchangeError(missing_accounts_error)
+
+    configured_account_id = str(
+        connection_config.get(config_key) or ""
+    ).strip()
+    selected_record = None
+    if len(account_options) == 1:
+        selected_record = next(
+            (
+                record
+                for record in records
+                if str(record.get(identifier_key) or "").strip()
+                == account_options[0]["id"]
+            ),
+            None,
+        )
+    elif configured_account_id:
+        selected_record = next(
+            (
+                record
+                for record in records
+                if str(record.get(identifier_key) or "").strip()
+                == configured_account_id
+            ),
+            None,
+        )
+
+    if selected_record is None:
+        connection_config.pop(config_key, None)
+        for extra_config_key, _ in additional_config_keys:
+            connection_config.pop(extra_config_key, None)
+    else:
+        selected_account_id = str(
+            selected_record.get(identifier_key) or ""
+        ).strip()
+        connection_config[config_key] = selected_account_id
+        for extra_config_key, record_key in additional_config_keys:
+            value = str(selected_record.get(record_key) or "").strip()
+            if value:
+                connection_config[extra_config_key] = value
+            else:
+                connection_config.pop(extra_config_key, None)
+
+    if len(account_options) == 1:
+        connection_config.pop(OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY, None)
+    else:
+        connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = account_options
+
+    return connection_config
+
+
 def apply_sage_business_selection(
     connection_config: dict,
     businesses: list[dict],
@@ -104,28 +173,13 @@ def apply_sage_business_selection(
         ("name",),
     )
     if account_options:
-        if len(account_options) == 1:
-            connection_config["business_id"] = account_options[0]["id"]
-            connection_config.pop(OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY, None)
-            return connection_config
-
-        connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = account_options
-        configured_business_id = str(
-            connection_config.get("business_id") or ""
-        ).strip()
-        selected_business_id = next(
-            (
-                option["id"]
-                for option in account_options
-                if option["id"] == configured_business_id
-            ),
-            None,
+        return apply_oauth_account_selection(
+            connection_config,
+            businesses,
+            "business_id",
+            ("name",),
+            missing_accounts_error="Sage returned no accessible businesses",
         )
-        if selected_business_id:
-            connection_config["business_id"] = selected_business_id
-        else:
-            connection_config.pop("business_id", None)
-        return connection_config
 
     if not allow_legacy_fallback:
         raise OAuthTokenExchangeError(
@@ -734,55 +788,23 @@ def process_oauth_callback(request: Request):
                 for business in businesses
                 if business["active"]
             ]
-            account_options = build_oauth_account_options(
+            connection_config = apply_oauth_account_selection(
+                connection_config,
                 active_businesses,
                 "account_id",
                 ("name",),
-            )
-            connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = (
-                account_options
-            )
-            configured_account_id = str(
-                connection_config.get("account_id") or ""
-            ).strip()
-            selected_business = next(
-                (
-                    business
-                    for business in active_businesses
-                    if business["account_id"] == configured_account_id
-                ),
-                None,
-            ) if configured_account_id else None
-            if selected_business is None and len(active_businesses) == 1:
-                selected_business = active_businesses[0]
-            if selected_business is not None:
-                connection_config["account_id"] = selected_business[
-                    "account_id"
-                ]
-                if selected_business.get("business_id"):
-                    connection_config["business_id"] = selected_business[
-                        "business_id"
-                    ]
-                if selected_business.get("business_uuid"):
-                    connection_config["business_uuid"] = selected_business[
-                        "business_uuid"
-                    ]
-                connection.connection_config = json.dumps(
-                    connection_config,
-                    sort_keys=True,
-                )
-            elif not active_businesses:
-                raise OAuthTokenExchangeError(
+                missing_accounts_error=(
                     "FreshBooks did not return an active business account"
-                )
-            else:
-                connection_config.pop("account_id", None)
-                connection_config.pop("business_id", None)
-                connection_config.pop("business_uuid", None)
-                connection.connection_config = json.dumps(
-                    connection_config,
-                    sort_keys=True,
-                )
+                ),
+                additional_config_keys=(
+                    ("business_id", "business_id"),
+                    ("business_uuid", "business_uuid"),
+                ),
+            )
+            connection.connection_config = json.dumps(
+                connection_config,
+                sort_keys=True,
+            )
         if state_source_type == "quickbooks":
             realm_id = str(query.get("realmId") or "").strip()
             if not realm_id:
@@ -801,59 +823,16 @@ def process_oauth_callback(request: Request):
         if state_source_type == "xero":
             access_token = str(payload.get("access_token") or "").strip()
             xero_connections = get_xero_connections(access_token)
-            account_options = build_oauth_account_options(
+            connection_config = apply_oauth_account_selection(
+                connection_config,
                 xero_connections,
                 "tenantId",
                 ("tenantName", "tenant_name"),
-            )
-            connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = (
-                account_options
-            )
-            configured_tenant_id = str(
-                connection_config.get("tenant_id") or ""
-            ).strip()
-            if configured_tenant_id:
-                selected_connection = next(
-                    (
-                        item
-                        for item in xero_connections
-                        if str(item.get("tenantId") or "").strip()
-                        == configured_tenant_id
-                    ),
-                    None,
-                )
-            elif len(xero_connections) == 1:
-                selected_connection = next(
-                    (
-                        item
-                        for item in xero_connections
-                        if str(item.get("tenantId") or "").strip()
-                    ),
-                    None,
-                )
-            tenant_id = str(
-                selected_connection.get("tenantId")
-                if selected_connection
-                else ""
-            ).strip()
-            if not tenant_id and not xero_connections:
-                raise OAuthTokenExchangeError(
+                missing_accounts_error=(
                     "No Xero organisation was available for this account"
-                )
-            if configured_tenant_id and not selected_connection:
-                raise OAuthTokenExchangeError(
-                    "The configured Xero tenant was not available"
-                )
-            connection_config = parse_source_connection_config(
-                connection.connection_config
+                ),
+                config_key="tenant_id",
             )
-            connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = (
-                account_options
-            )
-            if tenant_id:
-                connection_config["tenant_id"] = tenant_id
-            else:
-                connection_config.pop("tenant_id", None)
             connection.connection_config = json.dumps(
                 connection_config,
                 sort_keys=True,
@@ -910,61 +889,18 @@ def process_oauth_callback(request: Request):
                 )
                 if organization.get("is_org_active") is not False
             ]
-            account_options = build_oauth_account_options(
+            connection_config = apply_oauth_account_selection(
+                connection_config,
                 organizations,
                 "organization_id",
                 ("name",),
-            )
-            connection_config[OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY] = (
-                account_options
-            )
-            configured_organization_id = str(
-                connection_config.get("organization_id") or ""
-            ).strip()
-            selected_organization = next(
-                (
-                    organization
-                    for organization in organizations
-                    if str(
-                        organization.get("organization_id") or ""
-                    ).strip()
-                    == configured_organization_id
-                ),
-                None,
-            ) if configured_organization_id else None
-            if selected_organization is None:
-                default_organizations = [
-                    organization
-                    for organization in organizations
-                    if organization.get("is_default_org") is True
-                ]
-                if len(default_organizations) == 1:
-                    selected_organization = default_organizations[0]
-                elif len(organizations) == 1:
-                    selected_organization = organizations[0]
-            if not organizations:
-                raise OAuthTokenExchangeError(
+                missing_accounts_error=(
                     "Zoho Books did not return an active organization"
-                )
-            if configured_organization_id and not selected_organization:
-                raise OAuthTokenExchangeError(
-                    "The configured Zoho Books organization was not available"
-                )
-            if selected_organization:
-                organization_id = str(
-                    selected_organization.get("organization_id") or ""
-                ).strip()
-                if not organization_id:
-                    raise OAuthTokenExchangeError(
-                        "Zoho Books returned an organization without an identifier"
-                    )
-                connection_config["organization_id"] = organization_id
-                connection_config["organization_name"] = str(
-                    selected_organization.get("name") or ""
-                ).strip()
-            else:
-                connection_config.pop("organization_id", None)
-                connection_config.pop("organization_name", None)
+                ),
+                additional_config_keys=(
+                    ("organization_name", "name"),
+                ),
+            )
             connection_config["api_domain"] = api_domain
             connection.connection_config = json.dumps(
                 connection_config,

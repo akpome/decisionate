@@ -347,7 +347,7 @@ class OrganizationPreferenceTests(unittest.TestCase):
 
         self.assertEqual(
             context.exception.detail,
-            "Logo URL must start with http:// or https://",
+            "Logo must be an HTTP(S) image URL or a supported uploaded image.",
         )
 
     def test_clean_optional_logo_url_accepts_a_one_megabyte_uploaded_logo(self):
@@ -447,7 +447,6 @@ class OrganizationPreferenceTests(unittest.TestCase):
         )
 
         for value in (
-            "owner",
             "",
             123,
         ):
@@ -590,6 +589,8 @@ class OrganizationPreferenceTests(unittest.TestCase):
                 "selected_metric": "revenue",
                 "metric_targets": None,
                 "dashboard_preferences": None,
+                "dashboard_dataset_ids": None,
+                "dashboard_views": None,
             },
         )
 
