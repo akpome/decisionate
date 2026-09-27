@@ -1331,6 +1331,47 @@ class ConnectorSmokeTests(unittest.TestCase):
                 "lightspeed",
             )
 
+    def test_lightspeed_refresh_uses_a_short_refresh_leeway(self):
+        credential = SimpleNamespace(
+            access_token_encrypted="encrypted-access-token",
+            refresh_token_encrypted="encrypted-refresh-token",
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(
+                minutes=30,
+            ),
+        )
+
+        class Query:
+            def filter(self, *_args):
+                return self
+
+            def first(self):
+                return credential
+
+        class FakeDb:
+            def query(self, *_args):
+                return Query()
+
+        connection = make_connection("lightspeed", {"account_id": "123456"})
+        with patch.object(
+            connectors,
+            "decrypt_token",
+            side_effect=lambda value: {
+                "encrypted-access-token": "current-access-token",
+                "encrypted-refresh-token": "refresh-token",
+            }.get(value),
+        ), patch.object(
+            connectors,
+            "refresh_oauth_token",
+        ) as mocked_refresh:
+            token = connectors.get_oauth_access_token(
+                FakeDb(),
+                connection,
+                "lightspeed",
+            )
+
+        self.assertEqual(token, "current-access-token")
+        mocked_refresh.assert_not_called()
+
     def test_forced_oauth_access_token_refresh_ignores_stale_expiry(self):
         credential = SimpleNamespace(
             access_token_encrypted="encrypted-access-token",
