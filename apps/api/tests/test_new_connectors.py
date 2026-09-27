@@ -1450,6 +1450,54 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(report["row_count"], 2)
         self.assertEqual(dataframe["sale_id"].tolist(), ["sale-1", "sale-2"])
 
+    def test_lightspeed_sales_only_include_completed_sales_and_keep_time(self):
+        sales = [
+            {
+                "saleID": str(index),
+                "timeStamp": f"2026-09-01T1{index}:30:45+00:00",
+                "completed": index <= 2,
+                "total": str(index * 10),
+            }
+            for index in range(1, 7)
+        ]
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="lightspeed-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            return_value={"Sale": sales},
+        ), patch.dict(
+            "os.environ",
+            {
+                "LIGHTSPEED_API_BASE_URL_TEMPLATE": (
+                    "https://api.lightspeedapp.com/API/V3/Account/{account_id}"
+                ),
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_lightspeed_dataframe(
+                None,
+                make_connection("lightspeed", {"account_id": "account-1"}),
+                date(2026, 9, 1),
+                date(2026, 9, 2),
+            )
+
+        self.assertEqual(report["row_count"], 2)
+        self.assertEqual(dataframe["sale_id"].tolist(), ["1", "2"])
+        self.assertEqual(
+            dataframe["timestamp"].tolist(),
+            [
+                "2026-09-01T11:30:45+00:00",
+                "2026-09-01T12:30:45+00:00",
+            ],
+        )
+        self.assertEqual(
+            dataframe["created_at"].tolist(),
+            dataframe["timestamp"].tolist(),
+        )
+
     def test_lightspeed_data_requests_use_browser_compatible_transport(self):
         curl = MagicMock()
         curl.get.return_value = type(

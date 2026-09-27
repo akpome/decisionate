@@ -1157,6 +1157,26 @@ def deduplicate_lightspeed_sales(dataframe: pd.DataFrame) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+def normalize_lightspeed_timestamp(value):
+    """Preserve time-of-day for R-Series event timestamps."""
+    if value is None:
+        return None
+    text_value = str(value).strip()
+    if not text_value:
+        return None
+
+    parsed_value = pd.to_datetime(
+        text_value,
+        errors="coerce",
+        utc=True,
+    )
+    if pd.isna(parsed_value):
+        return value
+    if re.search(r"(?:T|\s)\d{2}:\d{2}", text_value):
+        return parsed_value.isoformat()
+    return parsed_value.date().isoformat()
+
+
 def normalize_connector_dataframe_dates(dataframe: pd.DataFrame):
     """Normalize date-like columns in persisted connector data for querying."""
     if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
@@ -2944,11 +2964,25 @@ def load_lightspeed_dataframe(
         for sale in sales:
             if not isinstance(sale, dict):
                 continue
+            completed = sale.get("completed")
+            if completed is not None and str(completed).strip().lower() not in {
+                "1",
+                "true",
+                "yes",
+            }:
+                continue
+            sale_timestamp = (
+                sale.get("timeStamp")
+                or sale.get("timestamp")
+                or sale.get("createTime")
+                or sale.get("completedTime")
+            )
             normalized_row = {
                 "sale_id": sale.get("saleID") or sale.get("id"),
-                "created_at": sale.get("createTime") or sale.get("completedTime"),
+                "created_at": sale_timestamp,
                 "updated_at": sale.get("updateTime"),
                 "completed_at": sale.get("completedTime"),
+                "timestamp": sale_timestamp,
                 "status": sale.get("completed"),
                 "total": sale.get("total"),
                 "tax": sale.get("tax"),
@@ -2957,13 +2991,34 @@ def load_lightspeed_dataframe(
                 "employee_id": sale.get("employeeID"),
                 "shop_id": sale.get("shopID"),
             }
-            rows.append(
-                build_dynamic_connector_row(
-                    sale,
-                    normalized_row,
-                    flatten_lists=True,
-                )
+            row = build_dynamic_connector_row(
+                sale,
+                normalized_row,
+                flatten_lists=True,
             )
+            for timestamp_key in (
+                "timeStamp",
+                "timestamp",
+                "createTime",
+                "completedTime",
+                "updateTime",
+                "created_at",
+                "updated_at",
+                "completed_at",
+            ):
+                if timestamp_key in row or timestamp_key in sale:
+                    source_value = sale.get(timestamp_key)
+                    if timestamp_key in {
+                        "timestamp",
+                        "created_at",
+                        "updated_at",
+                        "completed_at",
+                    }:
+                        source_value = normalized_row.get(timestamp_key)
+                    row[timestamp_key] = normalize_lightspeed_timestamp(
+                        source_value
+                    )
+            rows.append(row)
         attributes = payload.get("@attributes")
         if not isinstance(attributes, dict):
             attributes = payload.get("attributes")
