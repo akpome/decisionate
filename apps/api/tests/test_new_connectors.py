@@ -1370,6 +1370,86 @@ class NewConnectorTests(unittest.TestCase):
             )
         )
 
+    def test_lightspeed_sales_deduplicate_provider_rows_by_sale_id(self):
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="lightspeed-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            side_effect=[
+                {
+                    "@attributes": {
+                        "next": "https://api.lightspeedapp.com/API/V3/Account/"
+                        "account-1/Sale.json?after=cursor-1",
+                    },
+                    "Sale": [
+                        {
+                            "saleID": "sale-1",
+                            "createTime": "2026-09-01T12:00:00Z",
+                            "SaleLines": {
+                                "SaleLine": [
+                                    {"saleLineID": "line-1"},
+                                    {"saleLineID": "line-2"},
+                                ],
+                            },
+                        },
+                        {
+                            "saleID": "sale-2",
+                            "createTime": "2026-09-01T13:00:00Z",
+                            "SaleLines": {
+                                "SaleLine": [
+                                    {"saleLineID": "line-3"},
+                                ],
+                            },
+                        },
+                    ],
+                },
+                {
+                    "@attributes": {"next": ""},
+                    "Sale": [
+                        {
+                            "saleID": "sale-1",
+                            "createTime": "2026-09-01T12:00:00Z",
+                            "SaleLines": {
+                                "SaleLine": [
+                                    {"saleLineID": "line-1"},
+                                    {"saleLineID": "line-2"},
+                                ],
+                            },
+                        },
+                        {
+                            "saleID": "sale-2",
+                            "createTime": "2026-09-01T13:00:00Z",
+                            "SaleLines": {
+                                "SaleLine": [
+                                    {"saleLineID": "line-3"},
+                                ],
+                            },
+                        },
+                    ],
+                },
+            ],
+        ), patch.dict(
+            "os.environ",
+            {
+                "LIGHTSPEED_API_BASE_URL_TEMPLATE": (
+                    "https://api.lightspeedapp.com/API/V3/Account/{account_id}"
+                ),
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_lightspeed_dataframe(
+                None,
+                make_connection("lightspeed", {"account_id": "account-1"}),
+                date(2026, 9, 1),
+                date(2026, 9, 2),
+            )
+
+        self.assertEqual(report["row_count"], 2)
+        self.assertEqual(dataframe["sale_id"].tolist(), ["sale-1", "sale-2"])
+
     def test_lightspeed_data_requests_use_browser_compatible_transport(self):
         curl = MagicMock()
         curl.get.return_value = type(

@@ -184,6 +184,7 @@ from app.modules.datasets.services.connectors import (
     STRIPE_ENCRYPTED_API_KEY_CONFIG,
     WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG,
     WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG,
+    deduplicate_lightspeed_sales,
     load_connector_dataframe,
     normalize_hubspot_resource_types,
     normalize_lightspeed_x_resource_types,
@@ -6129,6 +6130,8 @@ def merge_connector_dataframes(
         if has_existing
         else incoming_dataframe.copy()
     )
+    if source_type == "lightspeed":
+        combined = deduplicate_lightspeed_sales(combined)
     if (
         source_type == "quickbooks"
         and "record_id" in combined.columns

@@ -1126,6 +1126,37 @@ def build_dynamic_connector_row(
     return row
 
 
+def deduplicate_lightspeed_sales(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Keep one row per R-Series sale, including legacy identity columns."""
+    if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
+        return dataframe
+
+    deduplicated = dataframe.copy()
+    if "sale_id" not in deduplicated.columns:
+        deduplicated["sale_id"] = pd.NA
+
+    for alias in ("saleID", "id"):
+        if alias not in deduplicated.columns:
+            continue
+        deduplicated["sale_id"] = deduplicated["sale_id"].fillna(
+            deduplicated[alias]
+        )
+
+    has_identity = deduplicated["sale_id"].notna()
+    identified = deduplicated.loc[has_identity].drop_duplicates(
+        subset=["sale_id"],
+        keep="last",
+    )
+    unidentified = deduplicated.loc[~has_identity].drop_duplicates(
+        keep="last",
+    )
+    return pd.concat(
+        [identified, unidentified],
+        ignore_index=True,
+        sort=False,
+    ).reset_index(drop=True)
+
+
 def normalize_connector_dataframe_dates(dataframe: pd.DataFrame):
     """Normalize date-like columns in persisted connector data for querying."""
     if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
@@ -2942,6 +2973,7 @@ def load_lightspeed_dataframe(
         )
 
     dataframe = filter_date_range(pd.DataFrame(rows), start_date, end_date)
+    dataframe = deduplicate_lightspeed_sales(dataframe)
     return dataframe, {
         "connector": "lightspeed",
         "resource": "sales",
