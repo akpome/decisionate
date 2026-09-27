@@ -93,6 +93,15 @@ def selected_jobs() -> list[ScheduledJob]:
     return [JOBS[name] for name in names if name]
 
 
+def reported_failure_count(result: dict[str, Any]) -> int:
+    if not isinstance(result, dict):
+        return 0
+    try:
+        return max(int(result.get("failed_count", 0) or 0), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def run_job(
     api_url: str,
     job: ScheduledJob,
@@ -123,17 +132,14 @@ def run_job(
         result = json.loads(body) if body else {}
         if not isinstance(result, dict):
             result = {"response": result}
-        failed_count = result.get("failed_count", 0)
-        try:
-            has_failed_work = int(failed_count) > 0
-        except (TypeError, ValueError):
-            has_failed_work = False
+        failed_count = reported_failure_count(result)
+        has_failed_work = failed_count > 0
         if has_failed_work:
             return {
                 "job": job.name,
-                "status": "failed",
+                "status": "succeeded",
                 "detail": (
-                    "The API processed the scheduler request but reported "
+                    "The API completed the scheduler request but reported "
                     f"{failed_count} failed item(s)."
                 ),
                 "result": result,
@@ -198,6 +204,11 @@ def main(argv: list[str] | None = None) -> int:
         "failed_count": sum(
             result["status"] == "failed"
             for result in results
+        ),
+        "warning_count": sum(
+            reported_failure_count(result.get("result", {}))
+            for result in results
+            if isinstance(result.get("result"), dict)
         ),
     }
     print(json.dumps(payload, indent=2, sort_keys=True))

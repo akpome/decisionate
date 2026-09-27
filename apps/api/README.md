@@ -210,9 +210,11 @@ If `SCHEDULED_JOBS` is omitted, the runner executes only jobs whose matching
 secret is configured. Set it to an explicit comma-separated subset when a
 deployment should control the selected jobs, for example
 `SCHEDULED_JOBS=connectors` for connector ingestion only.
-The runner continues through all selected jobs and exits non-zero if any job
-fails. It does not require `DATABASE_URL` because the protected API performs
-the database work.
+The runner continues through all selected jobs and exits non-zero only if a
+selected job cannot complete its API request. Per-connection connector failures
+remain visible in each job's API result without turning the whole cron process
+into a failed run. It does not require `DATABASE_URL` because the protected API
+performs the database work.
 
 ## Billing
 

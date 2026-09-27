@@ -93,7 +93,15 @@ def main(argv: list[str] | None = None) -> int:
         print(str(error), file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 1 if result.get("failed_count", 0) else 0
+    failed_count = result.get("failed_count", 0)
+    if failed_count:
+        print(
+            "Connector scheduler completed with "
+            f"{failed_count} failed connection(s); other connections were "
+            "processed.",
+            file=sys.stderr,
+        )
+    return 0
 
 
 if __name__ == "__main__":

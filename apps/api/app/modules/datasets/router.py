@@ -1735,6 +1735,66 @@ def mark_connection_authorization_failed(
     connection.authorization_error_at = utc_now()
 
 
+def record_scheduled_connector_failure(
+    db,
+    connection,
+    error: Exception,
+    results: list[dict],
+):
+    """Record one failed connection without aborting the scheduler loop."""
+    connection_id = getattr(connection, "id", None)
+    source_type = getattr(connection, "source_type", "")
+    db.rollback()
+    try:
+        requires_reauthorization = connector_requires_reauthorization(
+            source_type,
+            error,
+        )
+    except Exception:
+        logger.exception(
+            "Could not classify scheduled connector failure",
+            extra={
+                "connection_id": connection_id,
+                "source_type": source_type,
+            },
+        )
+        requires_reauthorization = False
+
+    if requires_reauthorization:
+        try:
+            mark_connection_authorization_failed(connection, error)
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception(
+                "Could not persist scheduled connector authorization failure",
+                extra={
+                    "connection_id": connection_id,
+                    "source_type": source_type,
+                },
+            )
+        else:
+            try:
+                notify_workspace_owner_of_authorization_failure(
+                    db,
+                    connection,
+                )
+            except Exception:
+                logger.exception(
+                    "Could not notify workspace owner of scheduled connector failure",
+                    extra={
+                        "connection_id": connection_id,
+                        "source_type": source_type,
+                    },
+                )
+
+    results.append({
+        "connection_id": connection_id,
+        "status": "failed",
+        "detail": str(error),
+    })
+
+
 def has_source_connection_config(
     connection_config,
 ):
@@ -7164,26 +7224,14 @@ async def sync_due_source_connections(request: Request):
                 except (
                     GoogleAnalyticsConnectorUnavailable,
                     ConnectorUnavailable,
+                    OAuthProviderUnavailable,
                 ) as error:
-                    db.rollback()
-                    if connector_requires_reauthorization(
-                        connection.source_type,
+                    record_scheduled_connector_failure(
+                        db,
+                        connection,
                         error,
-                    ):
-                        mark_connection_authorization_failed(
-                            connection,
-                            error,
-                        )
-                        db.commit()
-                        notify_workspace_owner_of_authorization_failure(
-                            db,
-                            connection,
-                        )
-                    results.append({
-                        "connection_id": connection.id,
-                        "status": "failed",
-                        "detail": str(error),
-                    })
+                        results,
+                    )
                     continue
 
             (
@@ -7259,26 +7307,17 @@ async def sync_due_source_connections(request: Request):
                     "status": "no_data",
                     "detail": str(error),
                 })
-            except (GoogleAnalyticsConnectorUnavailable, ConnectorUnavailable) as error:
-                db.rollback()
-                if connector_requires_reauthorization(
-                    connection.source_type,
+            except (
+                GoogleAnalyticsConnectorUnavailable,
+                ConnectorUnavailable,
+                OAuthProviderUnavailable,
+            ) as error:
+                record_scheduled_connector_failure(
+                    db,
+                    connection,
                     error,
-                ):
-                    mark_connection_authorization_failed(
-                        connection,
-                        error,
-                    )
-                    db.commit()
-                    notify_workspace_owner_of_authorization_failure(
-                        db,
-                        connection,
-                    )
-                results.append({
-                    "connection_id": connection.id,
-                    "status": "failed",
-                    "detail": str(error),
-                })
+                    results,
+                )
             except Exception as error:
                 db.rollback()
                 results.append({

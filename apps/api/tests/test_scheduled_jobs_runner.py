@@ -51,7 +51,7 @@ class ScheduledJobsRunnerTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(selected_jobs(), [])
 
-    def test_api_reported_failures_make_the_cron_job_fail(self):
+    def test_api_reported_connector_failures_are_nonfatal_warnings(self):
         job = ScheduledJob(
             name="connectors",
             path="/datasets/source-connections/sync-due",
@@ -81,7 +81,7 @@ class ScheduledJobsRunnerTests(unittest.TestCase):
                     60,
                 )
 
-        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["status"], "succeeded")
         self.assertEqual(result["result"]["failed_count"], 1)
 
     def test_api_without_reported_failures_succeeds(self):
@@ -112,6 +112,38 @@ class ScheduledJobsRunnerTests(unittest.TestCase):
                 )
 
         self.assertEqual(result["status"], "succeeded")
+
+    def test_main_only_fails_when_the_scheduler_request_fails(self):
+        from scripts import run_scheduled_jobs
+
+        with patch.object(
+            run_scheduled_jobs,
+            "selected_jobs",
+            return_value=[
+                ScheduledJob(
+                    name="connectors",
+                    path="/datasets/source-connections/sync-due",
+                    secret_name="CONNECTORS_SCHEDULER_SECRET",
+                    header_name="X-Connectors-Scheduler-Secret",
+                )
+            ],
+        ), patch.object(
+            run_scheduled_jobs,
+            "run_job",
+            return_value={
+                "job": "connectors",
+                "status": "succeeded",
+                "result": {"failed_count": 1},
+            },
+        ), patch.dict(
+            os.environ,
+            {
+                "DECISIONATE_API_URL": "https://api.example.com",
+                "CONNECTORS_SCHEDULER_SECRET": "connector-secret",
+            },
+            clear=True,
+        ):
+            self.assertEqual(run_scheduled_jobs.main(), 0)
 
 
 if __name__ == "__main__":
