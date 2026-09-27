@@ -5875,6 +5875,12 @@ def get_connector_dedup_keys(
 ):
     if source_type == "google_analytics":
         keys = report_config.get("dimensions") or []
+    elif (
+        source_type == "lightspeed_x"
+        and str(report_config.get("resource") or "").strip().lower()
+        == "sales"
+    ):
+        keys = ["sale_line_id"]
     else:
         keys = CONNECTOR_DEDUP_KEYS.get(source_type, [])
 
@@ -6133,6 +6139,12 @@ def merge_connector_dataframes(
     )
     if source_type == "lightspeed":
         combined = filter_lightspeed_completed_sales(combined)
+        combined = deduplicate_lightspeed_sales(combined)
+    elif (
+        source_type == "lightspeed_x"
+        and str(report_config.get("resource") or "").strip().lower()
+        == "sales"
+    ):
         combined = deduplicate_lightspeed_sales(combined)
     if (
         source_type == "quickbooks"

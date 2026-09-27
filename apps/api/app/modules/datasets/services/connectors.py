@@ -1129,7 +1129,7 @@ def build_dynamic_connector_row(
 
 
 def deduplicate_lightspeed_sales(dataframe: pd.DataFrame) -> pd.DataFrame:
-    """Keep one row per R-Series sale line, including legacy rows."""
+    """Keep one row per Lightspeed sale line, including legacy rows."""
     if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
         return dataframe
 
@@ -1245,6 +1245,69 @@ def _lightspeed_item_description(line: dict) -> str | None:
         value = line.get(key)
         if value not in (None, ""):
             return value
+    return None
+
+
+def _lightspeed_x_sale_lines(sale: dict) -> list[dict]:
+    """Return X-Series sale line items without flattening by array index."""
+    relation = None
+    for key in ("line_items", "lineItems", "sale_lines", "saleLines", "items"):
+        if key in sale:
+            relation = sale.get(key)
+            break
+
+    if isinstance(relation, dict):
+        for key in ("data", "items", "line_items", "lineItems", "lines"):
+            nested = relation.get(key)
+            if isinstance(nested, (dict, list)):
+                relation = nested
+                break
+    if isinstance(relation, dict):
+        relation = [relation]
+    if not isinstance(relation, list):
+        return [{}]
+
+    lines = [line for line in relation if isinstance(line, dict)]
+    return lines or [{}]
+
+
+def _lightspeed_x_item_description(line: dict) -> str | None:
+    """Find an X-Series item description across common product shapes."""
+    for key in ("product", "item", "variant"):
+        nested = line.get(key)
+        if not isinstance(nested, dict):
+            continue
+        for description_key in (
+            "description",
+            "item_description",
+            "itemDescription",
+            "product_name",
+            "name",
+        ):
+            value = nested.get(description_key)
+            if value not in (None, ""):
+                return value
+
+    for key in (
+        "description",
+        "item_description",
+        "itemDescription",
+        "product_name",
+        "name",
+    ):
+        value = line.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _lightspeed_x_line_value(line: dict, pricing: dict, *keys):
+    """Return the first non-null line or pricing value."""
+    for source in (line, pricing):
+        for key in keys:
+            value = source.get(key)
+            if value is not None:
+                return value
     return None
 
 
@@ -3220,10 +3283,15 @@ def load_lightspeed_x_dataframe(
                 continue
             record_id = record.get("id")
             if resource_type == "sales":
+                sale_timestamp = (
+                    record.get("created_at")
+                    or record.get("date")
+                    or record.get("completed_at")
+                )
                 normalized_fields = {
                     "record_id": record_id,
                     "sale_id": record_id,
-                    "created_at": record.get("created_at"),
+                    "created_at": sale_timestamp,
                     "updated_at": record.get("updated_at"),
                     "customer_id": record.get("customer_id"),
                     "state": record.get("state"),
@@ -3232,6 +3300,98 @@ def load_lightspeed_x_dataframe(
                         or record.get("total")
                     ),
                 }
+                sale_source = {
+                    key: value
+                    for key, value in record.items()
+                    if key not in {
+                        "line_items",
+                        "lineItems",
+                        "sale_lines",
+                        "saleLines",
+                        "items",
+                    }
+                }
+                sale_row = build_dynamic_connector_row(
+                    sale_source,
+                    normalized_fields,
+                    flatten_lists=False,
+                )
+                for timestamp_key in (
+                    "created_at",
+                    "updated_at",
+                    "completed_at",
+                    "date",
+                    "timestamp",
+                ):
+                    if timestamp_key in sale_row or timestamp_key in record:
+                        source_value = record.get(timestamp_key)
+                        if timestamp_key == "created_at":
+                            source_value = sale_timestamp
+                        sale_row[timestamp_key] = normalize_lightspeed_timestamp(
+                            source_value
+                        )
+
+                for line_index, line in enumerate(
+                    _lightspeed_x_sale_lines(record)
+                ):
+                    product = line.get("product")
+                    if not isinstance(product, dict):
+                        product = {}
+                    pricing = line.get("pricing")
+                    if not isinstance(pricing, dict):
+                        pricing = {}
+                    line_id = (
+                        line.get("id")
+                        or line.get("line_item_id")
+                        or line.get("lineItemId")
+                    )
+                    if line_id is None:
+                        line_id = f"{record_id}:line:{line_index}"
+                    line_row = build_dynamic_connector_row(
+                        line,
+                        {
+                            "sale_line_id": line_id,
+                            "item_id": (
+                                line.get("product_id")
+                                or line.get("item_id")
+                                or product.get("id")
+                            ),
+                            "item_description": (
+                                _lightspeed_x_item_description(line)
+                            ),
+                            "quantity": _lightspeed_x_line_value(
+                                line,
+                                pricing,
+                                "quantity",
+                                "unit_quantity",
+                            ),
+                            "unit_price": _lightspeed_x_line_value(
+                                line,
+                                pricing,
+                                "unit_price",
+                                "price",
+                            ),
+                            "line_total": _lightspeed_x_line_value(
+                                line,
+                                pricing,
+                                "line_total",
+                                "total_price",
+                                "total",
+                            ),
+                            "discount": _lightspeed_x_line_value(
+                                line,
+                                pricing,
+                                "discount",
+                                "discount_total",
+                            ),
+                            "line_status": line.get("status"),
+                            "line_index": line_index,
+                        },
+                        flatten_lists=False,
+                        prefix="line",
+                    )
+                    rows.append({**sale_row, **line_row})
+                continue
             elif resource_type == "customers":
                 normalized_fields = {
                     "record_id": record_id,
@@ -3272,6 +3432,7 @@ def load_lightspeed_x_dataframe(
     dataframe = pd.DataFrame(rows)
     if resource_type == "sales":
         dataframe = filter_date_range(dataframe, start_date, end_date)
+        dataframe = deduplicate_lightspeed_sales(dataframe)
     return dataframe, {
         "connector": "lightspeed_x",
         "resource": resource_type,

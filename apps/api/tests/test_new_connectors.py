@@ -1697,9 +1697,151 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.loc[0, "sale_id"], "sale-1")
         self.assertEqual(dataframe.loc[0, "customer_id"], "customer-1")
         self.assertEqual(dataframe.loc[0, "total"], "125.00")
+        self.assertEqual(dataframe.loc[0, "sale_line_id"], "sale-1:line:0")
         self.assertIn(
             "https://client-store.retail.lightspeed.app/api/2026-07/sales",
             request.call_args.args[0],
+        )
+
+    def test_lightspeed_x_sales_are_one_row_per_sale_item(self):
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="lightspeed-x-token",
+        ), patch.object(
+            connectors,
+            "connector_json_request",
+            return_value={
+                "data": [
+                    {
+                        "id": "sale-1",
+                        "created_at": "2026-09-01T12:00:00Z",
+                        "state": "closed",
+                        "line_items": [
+                            {
+                                "id": "line-1",
+                                "product": {
+                                    "id": "product-1",
+                                    "name": "Blue mug",
+                                },
+                                "quantity": 1,
+                                "pricing": {"price": "12.00", "total": "12.00"},
+                            },
+                            {
+                                "id": "line-2",
+                                "product": {
+                                    "id": "product-2",
+                                    "name": "Green mug",
+                                },
+                                "quantity": 2,
+                                "pricing": {"price": "8.00", "total": "16.00"},
+                            },
+                        ],
+                    },
+                    {
+                        "id": "sale-2",
+                        "created_at": "2026-09-01T13:00:00Z",
+                        "state": "closed",
+                        "line_items": [
+                            {
+                                "id": "line-3",
+                                "product": {
+                                    "id": "product-3",
+                                    "name": "Red mug",
+                                },
+                                "quantity": 1,
+                                "pricing": {"price": "10.00", "total": "10.00"},
+                            },
+                            {
+                                "id": "line-4",
+                                "product": {
+                                    "id": "product-4",
+                                    "name": "White mug",
+                                },
+                                "quantity": 1,
+                                "pricing": {"price": "9.00", "total": "9.00"},
+                            },
+                        ],
+                    },
+                ],
+                "version": {"max": None},
+            },
+        ), patch.dict(
+            "os.environ",
+            {
+                "LIGHTSPEED_X_API_BASE_URL_TEMPLATE": (
+                    "https://{domain_prefix}.retail.lightspeed.app/api/{version}"
+                ),
+                "LIGHTSPEED_X_API_VERSION": "2026-07",
+            },
+            clear=False,
+        ):
+            dataframe, report = connectors.load_lightspeed_x_dataframe(
+                None,
+                make_connection(
+                    "lightspeed_x",
+                    {
+                        "domain_prefix": "client-store",
+                        "resource_types": ["sales"],
+                    },
+                ),
+                date(2026, 9, 1),
+                date(2026, 9, 1),
+            )
+
+        self.assertEqual(report["row_count"], 4)
+        self.assertEqual(
+            list(dataframe["sale_id"]),
+            ["sale-1", "sale-1", "sale-2", "sale-2"],
+        )
+        self.assertEqual(
+            list(dataframe["sale_line_id"]),
+            ["line-1", "line-2", "line-3", "line-4"],
+        )
+        self.assertEqual(
+            list(dataframe["item_description"]),
+            ["Blue mug", "Green mug", "Red mug", "White mug"],
+        )
+        self.assertEqual(
+            list(dataframe["item_id"]),
+            ["product-1", "product-2", "product-3", "product-4"],
+        )
+
+    def test_lightspeed_x_sales_merge_by_sale_line_id(self):
+        existing = pd.DataFrame([
+            {
+                "record_id": "sale-1",
+                "sale_id": "sale-1",
+                "sale_line_id": "line-1",
+                "item_description": "Old item",
+            },
+        ])
+        incoming = pd.DataFrame([
+            {
+                "record_id": "sale-1",
+                "sale_id": "sale-1",
+                "sale_line_id": "line-1",
+                "item_description": "Updated item",
+            },
+            {
+                "record_id": "sale-1",
+                "sale_id": "sale-1",
+                "sale_line_id": "line-2",
+                "item_description": "Second item",
+            },
+        ])
+
+        merged = datasets_router.merge_connector_dataframes(
+            existing,
+            incoming,
+            "lightspeed_x",
+            {"resource": "sales"},
+        )
+
+        self.assertEqual(len(merged), 2)
+        self.assertEqual(
+            dict(zip(merged["sale_line_id"], merged["item_description"])),
+            {"line-1": "Updated item", "line-2": "Second item"},
         )
 
     def test_lightspeed_k_sales_are_normalized(self):
