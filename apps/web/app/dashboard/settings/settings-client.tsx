@@ -82,6 +82,7 @@ export function SettingsClient({
 }: SettingsClientProps) {
   const {
     activeWorkspace,
+    activeWorkspaceId,
     canConfigureWorkspace,
     isClientWorkspace,
     loadingWorkspaceAccess,
@@ -394,10 +395,12 @@ export function SettingsClient({
       ) {
         const accessResults = await Promise.allSettled([
           getOrganizationMembers(
-            userId
+            userId,
+            activeWorkspaceId
           ),
           getOrganizationInvites(
-            userId
+            userId,
+            activeWorkspaceId
           ),
         ])
 
@@ -493,6 +496,7 @@ export function SettingsClient({
       ignoreResult = true
     }
   }, [
+    activeWorkspaceId,
     canConfigureWorkspace,
     organizationLoadRetryKey,
     userId,
@@ -633,7 +637,8 @@ export function SettingsClient({
         inviteResult,
       ] = await Promise.allSettled([
         getOrganizationMembers(
-          userId
+          userId,
+          activeWorkspaceId
         ),
         getOrganizationWorkspaces(
           userId,
@@ -643,7 +648,8 @@ export function SettingsClient({
           }
         ),
         getOrganizationInvites(
-          userId
+          userId,
+          activeWorkspaceId
         ),
       ])
 
@@ -811,7 +817,7 @@ export function SettingsClient({
   }
 
   async function handleRetryOrganizationAccess() {
-    if (accessRetrying) {
+    if (accessRetrying || !canConfigureWorkspace) {
       return
     }
 
@@ -822,10 +828,12 @@ export function SettingsClient({
     const [memberResult, inviteResult] =
       await Promise.allSettled([
         getOrganizationMembers(
-          userId
+          userId,
+          activeWorkspaceId
         ),
         getOrganizationInvites(
-          userId
+          userId,
+          activeWorkspaceId
         ),
       ])
 

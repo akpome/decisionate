@@ -9,6 +9,7 @@ from app.modules.auth_context import (
     get_auth_context,
     get_verified_user_id,
     get_verified_workspace_id,
+    is_agency_managed_client_workspace,
     verify_clerk_bearer_token,
     verify_clerk_bearer_token_identity,
 )
@@ -241,6 +242,15 @@ class AuthContextTests(unittest.TestCase):
         self.assertEqual(
             context.workspace_role,
             "client",
+        )
+
+    def test_managed_client_workspace_accepts_external_owner_reference(self):
+        self.assertTrue(
+            is_agency_managed_client_workspace(
+                "usr_agency_owner",
+                "user_agency_owner:client:workspace-1",
+                external_subject="user_agency_owner",
+            )
         )
 
     def test_dev_auth_context_returns_trimmed_email(self):

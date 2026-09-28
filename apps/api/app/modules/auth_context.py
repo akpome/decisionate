@@ -225,6 +225,7 @@ def get_verified_workspace_access(
     if is_agency_managed_client_workspace(
         clean_user_id,
         workspace_id,
+        external_subject=external_user_id,
     ):
         if allow_managed_client_workspace:
             # Organization-management routes use this explicit escape hatch
@@ -262,9 +263,18 @@ def get_verified_workspace_access(
 def is_agency_managed_client_workspace(
     user_id: str,
     workspace_id: str,
+    external_subject: str | None = None,
 ) -> bool:
-    return workspace_id.startswith(
-        f"{user_id}:client:"
+    clean_workspace_id = clean_auth_value(workspace_id)
+    owner_references = {
+        clean_auth_value(user_id),
+        clean_auth_value(external_subject),
+    }
+    return any(
+        owner_reference and clean_workspace_id.startswith(
+            f"{owner_reference}:client:"
+        )
+        for owner_reference in owner_references
     )
 
 

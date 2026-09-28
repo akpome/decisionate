@@ -1,13 +1,42 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.models import OrganizationInvite, OrganizationMember
-from app.modules.organizations.router import claim_pending_invites
+from app.modules.auth_context import AuthContext
+from app.modules.organizations.router import (
+    claim_pending_invites,
+    get_managed_organization_or_404,
+)
 
 
 class OrganizationInviteClaimTests(unittest.TestCase):
+    def test_managed_client_invites_accept_external_agency_owner_identity(self):
+        organization = SimpleNamespace(
+            owner_user_id="external-owner:client:workspace-1",
+        )
+        query = Mock()
+        query.filter.return_value.first.return_value = organization
+        db = Mock()
+        db.query.return_value = query
+        auth_context = AuthContext(
+            user_id="usr_internal_owner",
+            external_user_id="external-owner",
+            workspace_id=organization.owner_user_id,
+            workspace_role="owner",
+        )
+
+        self.assertIs(
+            get_managed_organization_or_404(
+                db,
+                auth_context,
+            ),
+            organization,
+        )
+
     def test_pending_invite_creates_membership_and_is_idempotent(self):
         engine = create_engine("sqlite:///:memory:")
         OrganizationMember.__table__.create(engine)

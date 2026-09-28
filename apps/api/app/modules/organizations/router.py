@@ -18,6 +18,7 @@ from app.db.models import (
     utc_now,
 )
 from app.modules.auth_context import (
+    clean_auth_value,
     get_auth_context,
 )
 from app.modules.billing.service import (
@@ -1131,7 +1132,11 @@ def get_managed_organization_or_404(
             ":client:",
             1,
         )[0]
-        if auth_context.user_id != agency_owner_id:
+        authenticated_owner_ids = {
+            clean_auth_value(auth_context.user_id),
+            clean_auth_value(auth_context.external_user_id),
+        }
+        if agency_owner_id not in authenticated_owner_ids:
             raise HTTPException(
                 status_code=403,
                 detail="Only the agency workspace owner can manage client members",
