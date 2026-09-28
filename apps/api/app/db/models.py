@@ -971,6 +971,12 @@ class WorkspaceSubscription(Base):
         default=0,
     )
 
+    ai_recurring_credits_used = Column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
     additional_ai_credit_packs = Column(
         Integer,
         nullable=False,
@@ -1066,6 +1072,12 @@ class AIUsageEvent(Base):
     )
 
     estimated_credits = Column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    topup_credits_reserved = Column(
         Integer,
         nullable=False,
         default=0,

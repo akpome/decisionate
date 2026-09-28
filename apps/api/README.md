@@ -249,7 +249,9 @@ Agency client workspaces use the agency owner's subscription AI credit pool;
 their usage remains attributed to the client workspace for reporting. Low
 balances trigger one owner email per billing period. Professional owners receive
 the same low-balance notification for their direct workspace. One-time top-ups
-are granted only after the signed Stripe checkout webhook is received.
+are granted only after the signed Stripe checkout webhook is received and remain
+available until consumed; they do not renew or expire. Optional monthly AI credit
+packs reset with each billing period.
 
 ## OAuth Connectors And Automated Sync
 

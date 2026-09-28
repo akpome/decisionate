@@ -131,10 +131,11 @@ def _rollover_period_if_needed(
     subscription.current_period_start = period_start
     subscription.current_period_end = period_end
     subscription.ai_credits_used = 0
+    subscription.ai_recurring_credits_used = 0
     subscription.ai_credit_low_notice_key = None
 
 
-def _get_credit_limit(
+def _get_recurring_credit_limit(
     subscription,
 ) -> int | None:
     plan = normalize_billing_plan(subscription.plan)
@@ -157,10 +158,6 @@ def _get_credit_limit(
         int(subscription.additional_ai_credit_packs or 0),
         0,
     )
-    purchased_credits = max(
-        int(subscription.ai_credit_topup_credits or 0),
-        0,
-    )
     additional_workspaces = max(
         int(subscription.additional_client_workspaces or 0),
         0,
@@ -177,8 +174,39 @@ def _get_credit_limit(
         plan_limit
         + additional_workspaces * additional_workspace_credits
         + additional_packs * get_ai_credit_pack_size()
-        + purchased_credits
     )
+
+
+def _get_credit_limit(
+    subscription,
+) -> int | None:
+    recurring_limit = _get_recurring_credit_limit(subscription)
+    purchased_credits = max(
+        int(subscription.ai_credit_topup_credits or 0),
+        0,
+    )
+    return recurring_limit + purchased_credits
+
+
+def get_recurring_ai_credit_limit(
+    subscription,
+) -> int | None:
+    return _get_recurring_credit_limit(subscription)
+
+
+def get_ai_credit_remaining(
+    subscription,
+) -> int:
+    recurring_remaining = max(
+        int(_get_recurring_credit_limit(subscription) or 0)
+        - max(int(subscription.ai_recurring_credits_used or 0), 0),
+        0,
+    )
+    topup_remaining = max(
+        int(subscription.ai_credit_topup_credits or 0),
+        0,
+    )
+    return recurring_remaining + topup_remaining
 
 
 def get_ai_credit_low_balance_threshold(
@@ -229,6 +257,15 @@ def _maybe_notify_low_balance(
         )
 
 
+def _usage_event_matches_current_period(
+    subscription,
+    usage_event,
+) -> bool:
+    if not subscription.current_period_start or not usage_event.period_start:
+        return True
+    return subscription.current_period_start == usage_event.period_start
+
+
 def _ensure_usable_subscription(
     db,
     workspace_id: str,
@@ -273,7 +310,20 @@ def reserve_ai_credits(
             db,
             billing_workspace_id,
         )
-        credit_limit = _get_credit_limit(subscription)
+        recurring_credit_limit = _get_recurring_credit_limit(subscription)
+        current_recurring_usage = max(
+            int(subscription.ai_recurring_credits_used or 0),
+            0,
+        )
+        recurring_remaining = max(
+            recurring_credit_limit - current_recurring_usage,
+            0,
+        )
+        topup_balance = max(
+            int(subscription.ai_credit_topup_credits or 0),
+            0,
+        )
+        credit_limit = recurring_credit_limit + topup_balance
         current_usage = max(
             int(subscription.ai_credits_used or 0),
             0,
@@ -281,7 +331,7 @@ def reserve_ai_credits(
 
         if (
             credit_limit is not None
-            and current_usage + estimated_credits > credit_limit
+            and estimated_credits > recurring_remaining + topup_balance
         ):
             limit_message = (
                 "The agency's shared AI credit pool has been exhausted. "
@@ -294,8 +344,17 @@ def reserve_ai_credits(
                 limit_message
             )
 
-        subscription.ai_credits_used = (
-            current_usage + estimated_credits
+        recurring_reserved = min(
+            estimated_credits,
+            recurring_remaining,
+        )
+        topup_reserved = estimated_credits - recurring_reserved
+        subscription.ai_credits_used = current_usage + estimated_credits
+        subscription.ai_recurring_credits_used = (
+            current_recurring_usage + recurring_reserved
+        )
+        subscription.ai_credit_topup_credits = (
+            topup_balance - topup_reserved
         )
         usage_event = AIUsageEvent(
             workspace_id=clean_workspace_id,
@@ -308,6 +367,7 @@ def reserve_ai_credits(
             period_start=subscription.current_period_start,
             estimated_tokens=max(int(estimated_tokens or 0), 0),
             estimated_credits=estimated_credits,
+            topup_credits_reserved=topup_reserved,
             credits=estimated_credits,
         )
         db.add(usage_event)
@@ -317,7 +377,7 @@ def reserve_ai_credits(
         _maybe_notify_low_balance(
             db,
             subscription,
-            max(credit_limit - int(subscription.ai_credits_used or 0), 0),
+            get_ai_credit_remaining(subscription),
             credit_limit,
         )
 
@@ -381,20 +441,53 @@ def settle_ai_credits(
             .first()
         )
         if subscription:
-            subscription.ai_credits_used = max(
-                int(subscription.ai_credits_used or 0)
-                - int(usage_event.estimated_credits or 0)
-                + actual_credits,
+            same_period = _usage_event_matches_current_period(
+                subscription,
+                usage_event,
+            )
+            estimated_credits = max(
+                int(usage_event.estimated_credits or 0),
+                0,
+            )
+            reserved_topup_credits = max(
+                int(usage_event.topup_credits_reserved or 0),
+                0,
+            )
+            reserved_recurring_credits = max(
+                estimated_credits - reserved_topup_credits,
+                0,
+            )
+            actual_recurring_credits = min(
+                actual_credits,
+                reserved_recurring_credits,
+            )
+            actual_topup_credits = max(
+                actual_credits - actual_recurring_credits,
+                0,
+            )
+            if same_period:
+                subscription.ai_credits_used = max(
+                    int(subscription.ai_credits_used or 0)
+                    - estimated_credits
+                    + actual_credits,
+                    0,
+                )
+                subscription.ai_recurring_credits_used = max(
+                    int(subscription.ai_recurring_credits_used or 0)
+                    - reserved_recurring_credits
+                    + actual_recurring_credits,
+                    0,
+                )
+            subscription.ai_credit_topup_credits = max(
+                int(subscription.ai_credit_topup_credits or 0)
+                + reserved_topup_credits
+                - actual_topup_credits,
                 0,
             )
             _maybe_notify_low_balance(
                 db,
                 subscription,
-                max(
-                    _get_credit_limit(subscription)
-                    - int(subscription.ai_credits_used or 0),
-                    0,
-                ),
+                get_ai_credit_remaining(subscription),
                 _get_credit_limit(subscription),
             )
 
@@ -434,9 +527,34 @@ def release_ai_credits(
             .first()
         )
         if subscription:
-            subscription.ai_credits_used = max(
-                int(subscription.ai_credits_used or 0)
-                - int(usage_event.estimated_credits or 0),
+            same_period = _usage_event_matches_current_period(
+                subscription,
+                usage_event,
+            )
+            if same_period:
+                subscription.ai_credits_used = max(
+                    int(subscription.ai_credits_used or 0)
+                    - int(usage_event.estimated_credits or 0),
+                    0,
+                )
+            reserved_topup_credits = max(
+                int(usage_event.topup_credits_reserved or 0),
+                0,
+            )
+            reserved_recurring_credits = max(
+                int(usage_event.estimated_credits or 0)
+                - reserved_topup_credits,
+                0,
+            )
+            if same_period:
+                subscription.ai_recurring_credits_used = max(
+                    int(subscription.ai_recurring_credits_used or 0)
+                    - reserved_recurring_credits,
+                    0,
+                )
+            subscription.ai_credit_topup_credits = max(
+                int(subscription.ai_credit_topup_credits or 0)
+                + reserved_topup_credits,
                 0,
             )
 

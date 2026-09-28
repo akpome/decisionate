@@ -324,12 +324,14 @@ def ensure_billing_subscription_columns():
             "workspace_subscriptions",
         )
 
+        added_columns = []
         for column_name, column_type, default_value in [
             ("additional_client_workspaces", "INTEGER", "0"),
             ("provider_addon_subscription_item_id", "VARCHAR", "NULL"),
             ("billing_interval", "VARCHAR", "'month'"),
             ("current_period_start", "TIMESTAMP", "NULL"),
             ("ai_credits_used", "INTEGER", "0"),
+            ("ai_recurring_credits_used", "INTEGER", "0"),
             ("additional_ai_credit_packs", "INTEGER", "0"),
             ("ai_credit_topup_credits", "INTEGER", "0"),
             ("ai_credit_low_notice_key", "VARCHAR", "NULL"),
@@ -351,6 +353,15 @@ def ensure_billing_subscription_columns():
                         f"{default_clause}"
                     )
                 )
+                added_columns.append(column_name)
+
+        if "ai_recurring_credits_used" in added_columns:
+            connection.execute(
+                text(
+                    "UPDATE workspace_subscriptions "
+                    "SET ai_recurring_credits_used = ai_credits_used"
+                )
+            )
 
 
 ensure_billing_subscription_columns()
@@ -390,6 +401,15 @@ def ensure_ai_usage_event_columns():
                 text(
                     "ALTER TABLE ai_usage_events "
                     "ADD COLUMN actor_user_id VARCHAR"
+                )
+            )
+
+        if "topup_credits_reserved" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE ai_usage_events "
+                    "ADD COLUMN topup_credits_reserved "
+                    "INTEGER NOT NULL DEFAULT 0"
                 )
             )
 

@@ -2097,6 +2097,23 @@ def serialize_platform_admin_organization(
         context.ai_credit_allocations if context else None,
         context.ai_credit_pack_size if context else None,
     )
+    ai_credit_topup_credits = (
+        max(int(subscription.ai_credit_topup_credits or 0), 0)
+        if subscription and not is_client_workspace
+        else 0
+    )
+    recurring_ai_credit_limit = max(
+        ai_credit_limit - ai_credit_topup_credits,
+        0,
+    )
+    ai_recurring_credits_used = max(
+        int(
+            subscription.ai_recurring_credits_used
+            if subscription
+            else ai_credits_used
+        ),
+        0,
+    )
     last_activity_at = (
         context.last_activity_at.get(workspace_id)
         if context is not None
@@ -2236,13 +2253,17 @@ def serialize_platform_admin_organization(
             else 0
         ),
         ai_credit_topup_credits=(
-            max(int(subscription.ai_credit_topup_credits or 0), 0)
-            if subscription and not is_client_workspace
-            else 0
+            ai_credit_topup_credits
         ),
         ai_credits_used=ai_credits_used,
         ai_credit_limit=ai_credit_limit,
-        ai_credits_remaining=max(ai_credit_limit - ai_credits_used, 0),
+        ai_credits_remaining=(
+            max(
+                recurring_ai_credit_limit - ai_recurring_credits_used,
+                0,
+            )
+            + ai_credit_topup_credits
+        ),
         last_activity_at=(
             last_activity_at.isoformat()
             if last_activity_at

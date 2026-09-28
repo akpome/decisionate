@@ -81,6 +81,7 @@ class AICreditPoolingTests(unittest.TestCase):
                 current_period_start=period_start,
                 current_period_end=period_start + timedelta(days=30),
                 ai_credits_used=4000,
+                ai_recurring_credits_used=4000,
             )
         )
         session.commit()

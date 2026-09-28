@@ -307,8 +307,8 @@ function BillingPageContent() {
               </div>
             </div>
             <p className="mt-3 text-xs text-gray-500">
-              {t("Each pack adds")} {billing.ai_credit_pack_size.toLocaleString()} {t("credits at")}{" "}
-              ${(billing.ai_credit_topup_price_cents / 100).toFixed(2)} CAD. {t("There is no workspace limit on the number of packs purchased.")}
+              {t("Each one-time pack adds")} {billing.ai_credit_pack_size.toLocaleString()} {t("credits at")}{" "}
+              ${(billing.ai_credit_topup_price_cents / 100).toFixed(2)} CAD. {t("Top-up credits remain available until consumed and do not renew or expire.")}
             </p>
             {!billing.ai_credit_topup_configured && (
               <p className="mt-2 text-xs text-amber-700">
@@ -516,7 +516,7 @@ function BillingPageContent() {
               <p className="text-sm font-medium text-gray-900">{t("Additional AI credit packs")}</p>
                 <p className="mt-1 text-sm text-gray-500">
                   {t("Each monthly pack adds")} {billing.ai_credit_pack_size.toLocaleString()} {t("credits at")}{" "}
-                  ${(billing.ai_credit_pack_price_cents / 100).toFixed(2)} CAD.
+                  ${(billing.ai_credit_pack_price_cents / 100).toFixed(2)} CAD and resets each billing period.
                 </p>
             </div>
             <label className="text-xs font-medium text-gray-600">

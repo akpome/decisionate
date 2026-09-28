@@ -19,6 +19,7 @@ from app.modules.billing.schemas import BillingLifecycleSchedulerResponse
 from app.modules.billing.schemas import AICreditTopupRequest
 from app.modules.billing.schemas import AICreditTopupResponse
 from app.modules.ai.credits import get_ai_credit_low_balance_threshold
+from app.modules.ai.credits import get_ai_credit_remaining
 from app.modules.billing.lifecycle import (
     build_subscription_access_state,
     get_subscription_for_workspace,
@@ -245,9 +246,10 @@ async def get_billing_status(
             * get_ai_credit_pack_size()
             + max(ai_credit_topup_credits, 0)
         )
-        ai_credits_remaining = max(
-            total_ai_credit_limit - ai_credits_used,
-            0,
+        ai_credits_remaining = (
+            get_ai_credit_remaining(subscription)
+            if subscription
+            else max(total_ai_credit_limit - ai_credits_used, 0)
         )
         ai_credit_low_balance_threshold = (
             get_ai_credit_low_balance_threshold(total_ai_credit_limit)
@@ -877,6 +879,7 @@ def apply_stripe_billing_event(
         and incoming_period_start != subscription.current_period_start
     ):
         subscription.ai_credits_used = 0
+        subscription.ai_recurring_credits_used = 0
         subscription.lifecycle_notice_key = None
         subscription.lifecycle_notice_at = None
 
