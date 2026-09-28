@@ -376,14 +376,41 @@ def ensure_platform_billing_columns():
         if not column_names:
             return
 
-        if "agency_client_ai_credits" not in column_names:
-            connection.execute(
-                text(
-                    "ALTER TABLE platform_billing_settings "
-                    "ADD COLUMN agency_client_ai_credits "
-                    "INTEGER NOT NULL DEFAULT 2500"
+        for column_name, column_type, default_clause in [
+            ("agency_client_ai_credits", "INTEGER", "NOT NULL DEFAULT 2500"),
+            ("professional_monthly_price_cents", "INTEGER", "NOT NULL DEFAULT 7900"),
+            ("professional_annual_price_cents", "INTEGER", "NOT NULL DEFAULT 79000"),
+            ("agency_monthly_price_cents", "INTEGER", "NOT NULL DEFAULT 19900"),
+            ("agency_annual_price_cents", "INTEGER", "NOT NULL DEFAULT 199000"),
+            (
+                "additional_client_workspace_monthly_price_cents",
+                "INTEGER",
+                "NOT NULL DEFAULT 2000",
+            ),
+            (
+                "additional_client_workspace_annual_price_cents",
+                "INTEGER",
+                "NOT NULL DEFAULT 20000",
+            ),
+            ("ai_credit_pack_price_cents", "INTEGER", "NOT NULL DEFAULT 750"),
+            ("ai_credit_topup_price_cents", "INTEGER", "NOT NULL DEFAULT 1000"),
+            ("professional_price_id", "VARCHAR", ""),
+            ("professional_annual_price_id", "VARCHAR", ""),
+            ("agency_price_id", "VARCHAR", ""),
+            ("agency_annual_price_id", "VARCHAR", ""),
+            ("client_workspace_addon_price_id", "VARCHAR", ""),
+            ("client_workspace_addon_annual_price_id", "VARCHAR", ""),
+            ("ai_credit_pack_price_id", "VARCHAR", ""),
+            ("ai_credit_topup_price_id", "VARCHAR", ""),
+        ]:
+            if column_name not in column_names:
+                connection.execute(
+                    text(
+                        "ALTER TABLE platform_billing_settings "
+                        f"ADD COLUMN {column_name} {column_type} "
+                        f"{default_clause}"
+                    )
                 )
-            )
 
 
 ensure_platform_billing_columns()

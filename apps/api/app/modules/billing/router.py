@@ -36,15 +36,12 @@ from app.modules.billing.service import (
     create_checkout_session,
     create_customer_portal_session,
     get_billing_config,
+    get_billing_pricing,
     is_billing_configured,
     AGENCY_PLAN,
     FREE_PLAN,
     PROFESSIONAL_PLAN,
-    ADDITIONAL_CLIENT_WORKSPACE_PRICE_CENTS,
-    ADDITIONAL_CLIENT_WORKSPACE_ANNUAL_PRICE_CENTS,
     ANNUAL_AI_CREDIT_MULTIPLIER,
-    AI_CREDIT_PACK_PRICE_CENTS,
-    AI_CREDIT_TOPUP_PRICE_CENTS,
     get_ai_credit_allocations,
     get_ai_credit_pack_size,
     get_billing_period_ai_credit_limit,
@@ -160,9 +157,9 @@ async def get_billing_status(
     request: Request,
 ):
     auth_context = require_billing_owner(request)
-    config = get_billing_config()
     db = SessionLocal()
     try:
+        config = get_billing_config(db)
         subscription = (
             db.query(WorkspaceSubscription)
             .filter(
@@ -175,7 +172,8 @@ async def get_billing_status(
         plan = normalize_billing_plan(
             subscription.plan if subscription else FREE_PLAN
         )
-        plan_definition = get_billing_plan_definition(plan)
+        plan_definition = get_billing_plan_definition(plan, db)
+        billing_pricing = get_billing_pricing(db)
         billing_interval = normalize_billing_interval(
             subscription.billing_interval
             if subscription
@@ -194,7 +192,7 @@ async def get_billing_status(
             plan,
             additional_client_workspaces,
         )
-        ai_credit_allocations = get_ai_credit_allocations()
+        ai_credit_allocations = get_ai_credit_allocations(db)
         monthly_included_ai_credits = int(
             ai_credit_allocations["agency_client"]
             if ":client:" in auth_context.workspace_id
@@ -286,15 +284,23 @@ async def get_billing_status(
             client_workspaces_used=client_workspaces_used,
             additional_client_workspaces=additional_client_workspaces,
             additional_client_workspace_price_cents=(
-                ADDITIONAL_CLIENT_WORKSPACE_PRICE_CENTS
+                billing_pricing[
+                    "additional_client_workspace_monthly_price_cents"
+                ]
             ),
             additional_client_workspace_annual_price_cents=(
-                ADDITIONAL_CLIENT_WORKSPACE_ANNUAL_PRICE_CENTS
+                billing_pricing[
+                    "additional_client_workspace_annual_price_cents"
+                ]
             ),
             additional_ai_credit_packs=additional_ai_credit_packs,
-            ai_credit_pack_size=get_ai_credit_pack_size(),
-            ai_credit_pack_price_cents=AI_CREDIT_PACK_PRICE_CENTS,
-            ai_credit_topup_price_cents=AI_CREDIT_TOPUP_PRICE_CENTS,
+            ai_credit_pack_size=get_ai_credit_pack_size(db),
+            ai_credit_pack_price_cents=billing_pricing[
+                "ai_credit_pack_price_cents"
+            ],
+            ai_credit_topup_price_cents=billing_pricing[
+                "ai_credit_topup_price_cents"
+            ],
             ai_credit_pack_configured=bool(
                 config.get("ai_credit_pack_price_id")
             ),
@@ -326,7 +332,7 @@ async def get_billing_status(
             grace_period_end=access_state.grace_period_end,
             days_remaining=access_state.days_remaining,
             access_reason=access_state.reason,
-            plan_options=get_billing_plan_options(),
+            plan_options=get_billing_plan_options(db),
         )
     finally:
         db.close()

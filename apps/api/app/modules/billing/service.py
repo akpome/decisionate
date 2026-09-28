@@ -39,6 +39,48 @@ AI_CREDIT_TOPUP_PRICE_CENTS = 1000
 ANNUAL_AI_CREDIT_MULTIPLIER = 12
 DEFAULT_ADDITIONAL_CLIENT_WORKSPACE_AI_CREDITS = 2500
 DEFAULT_AGENCY_CLIENT_AI_CREDITS = 2500
+BILLING_PRICING_COLUMNS = {
+    "professional_monthly_price_cents": "professional_monthly_price_cents",
+    "professional_annual_price_cents": "professional_annual_price_cents",
+    "agency_monthly_price_cents": "agency_monthly_price_cents",
+    "agency_annual_price_cents": "agency_annual_price_cents",
+    "additional_client_workspace_monthly_price_cents": (
+        "additional_client_workspace_monthly_price_cents"
+    ),
+    "additional_client_workspace_annual_price_cents": (
+        "additional_client_workspace_annual_price_cents"
+    ),
+    "ai_credit_pack_price_cents": "ai_credit_pack_price_cents",
+    "ai_credit_topup_price_cents": "ai_credit_topup_price_cents",
+}
+BILLING_PRICE_ID_COLUMNS = {
+    "professional_price_id": "professional_price_id",
+    "professional_annual_price_id": "professional_annual_price_id",
+    "agency_price_id": "agency_price_id",
+    "agency_annual_price_id": "agency_annual_price_id",
+    "client_workspace_addon_price_id": (
+        "client_workspace_addon_price_id"
+    ),
+    "client_workspace_addon_annual_price_id": (
+        "client_workspace_addon_annual_price_id"
+    ),
+    "ai_credit_pack_price_id": "ai_credit_pack_price_id",
+    "ai_credit_topup_price_id": "ai_credit_topup_price_id",
+}
+BILLING_PRICING_DEFAULTS = {
+    "professional_monthly_price_cents": 7900,
+    "professional_annual_price_cents": 79000,
+    "agency_monthly_price_cents": 19900,
+    "agency_annual_price_cents": 199000,
+    "additional_client_workspace_monthly_price_cents": (
+        ADDITIONAL_CLIENT_WORKSPACE_PRICE_CENTS
+    ),
+    "additional_client_workspace_annual_price_cents": (
+        ADDITIONAL_CLIENT_WORKSPACE_ANNUAL_PRICE_CENTS
+    ),
+    "ai_credit_pack_price_cents": AI_CREDIT_PACK_PRICE_CENTS,
+    "ai_credit_topup_price_cents": AI_CREDIT_TOPUP_PRICE_CENTS,
+}
 AI_CREDIT_ALLOCATION_COLUMNS = {
     FREE_PLAN: "free_ai_credits",
     PROFESSIONAL_PLAN: "professional_ai_credits",
@@ -114,6 +156,23 @@ def clean_nonnegative_int(
         return default
 
 
+def _get_platform_billing_settings(db=None):
+    owns_db = db is None
+    if owns_db:
+        db = SessionLocal()
+    try:
+        return (
+            db.query(PlatformBillingSettings)
+            .filter(PlatformBillingSettings.id == 1)
+            .first()
+        )
+    except Exception:
+        return None
+    finally:
+        if owns_db:
+            db.close()
+
+
 def get_ai_credit_allocations(db=None) -> dict[str, int]:
     """Read persisted allocations, falling back to environment defaults.
 
@@ -147,25 +206,12 @@ def get_ai_credit_allocations(db=None) -> dict[str, int]:
         ),
     }
 
-    owns_db = db is None
-    if owns_db:
-        db = SessionLocal()
-    try:
-        settings = (
-            db.query(PlatformBillingSettings)
-            .filter(PlatformBillingSettings.id == 1)
-            .first()
-        )
-        if settings:
-            for plan, column_name in AI_CREDIT_ALLOCATION_COLUMNS.items():
-                value = getattr(settings, column_name, None)
-                if value is not None:
-                    allocations[plan] = max(int(value), 0)
-    except Exception:
-        pass
-    finally:
-        if owns_db:
-            db.close()
+    settings = _get_platform_billing_settings(db)
+    if settings:
+        for plan, column_name in AI_CREDIT_ALLOCATION_COLUMNS.items():
+            value = getattr(settings, column_name, None)
+            if value is not None:
+                allocations[plan] = max(int(value), 0)
 
     return allocations
 
@@ -183,28 +229,26 @@ def get_ai_credit_pack_size(db=None) -> int:
         AI_CREDIT_PACK_SIZE,
     )
 
-    owns_db = db is None
-    if owns_db:
-        db = SessionLocal()
-    try:
-        settings = (
-            db.query(PlatformBillingSettings)
-            .filter(PlatformBillingSettings.id == 1)
-            .first()
-        )
-        if settings and settings.ai_credit_pack_size is not None:
-            return max(int(settings.ai_credit_pack_size), 0)
-    except Exception:
-        pass
-    finally:
-        if owns_db:
-            db.close()
+    settings = _get_platform_billing_settings(db)
+    if settings and settings.ai_credit_pack_size is not None:
+        return max(int(settings.ai_credit_pack_size), 0)
 
     return pack_size
 
 
-def get_billing_config() -> dict[str, str]:
-    return {
+def get_billing_pricing(db=None) -> dict[str, int]:
+    pricing = dict(BILLING_PRICING_DEFAULTS)
+    settings = _get_platform_billing_settings(db)
+    if settings:
+        for pricing_key, column_name in BILLING_PRICING_COLUMNS.items():
+            value = getattr(settings, column_name, None)
+            if value is not None:
+                pricing[pricing_key] = max(int(value), 0)
+    return pricing
+
+
+def get_billing_config(db=None) -> dict[str, str]:
+    config = {
         "provider": clean_env("BILLING_PROVIDER").lower(),
         "secret_key": clean_env("STRIPE_SECRET_KEY"),
         "professional_price_id": clean_env(
@@ -239,6 +283,13 @@ def get_billing_config() -> dict[str, str]:
             get_runtime_configuration().web_url,
         ).rstrip("/"),
     }
+    settings = _get_platform_billing_settings(db)
+    if settings:
+        for config_key, column_name in BILLING_PRICE_ID_COLUMNS.items():
+            value = str(getattr(settings, column_name, "") or "").strip()
+            if value:
+                config[config_key] = value
+    return config
 
 
 def is_billing_configured() -> bool:
@@ -258,12 +309,23 @@ def is_billing_configured() -> bool:
     )
 
 
-def get_billing_plan_definition(plan: str | None) -> dict:
+def get_billing_plan_definition(
+    plan: str | None,
+    db=None,
+) -> dict:
     normalized_plan = normalize_billing_plan(plan)
     definition = dict(
         BILLING_PLAN_DEFINITIONS[normalized_plan]
     )
-    definition["ai_credit_limit"] = get_ai_credit_allocations().get(
+    pricing = get_billing_pricing(db)
+    if normalized_plan != FREE_PLAN:
+        definition["monthly_price_cents"] = pricing[
+            f"{normalized_plan}_monthly_price_cents"
+        ]
+        definition["annual_price_cents"] = pricing[
+            f"{normalized_plan}_annual_price_cents"
+        ]
+    definition["ai_credit_limit"] = get_ai_credit_allocations(db).get(
         normalized_plan,
         definition["ai_credit_limit"],
     )
@@ -287,8 +349,8 @@ def get_billing_period_ai_credit_limit(
     return max(int(monthly_limit or 0), 0) * multiplier
 
 
-def get_billing_plan_options() -> list[dict]:
-    config = get_billing_config()
+def get_billing_plan_options(db=None) -> list[dict]:
+    config = get_billing_config(db)
     options = []
     for plan in PUBLIC_BILLING_PLANS:
         definition = BILLING_PLAN_DEFINITIONS[plan]
@@ -297,7 +359,7 @@ def get_billing_plan_options() -> list[dict]:
         price_key = definition["price_config_key"]
         options.append({
             "plan": plan,
-            **get_billing_plan_definition(plan),
+            **get_billing_plan_definition(plan, db),
             "configured": bool(
                 config.get(price_key)
                 or config.get(

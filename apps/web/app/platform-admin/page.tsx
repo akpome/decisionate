@@ -224,6 +224,40 @@ const creditSettingFields = [
   { key: "ai_credit_pack_size", label: "AI credit pack" },
 ] as const
 
+const billingPriceSettingFields = [
+  { key: "professional_monthly_price_cents", label: "Professional monthly price (CAD cents)" },
+  { key: "professional_annual_price_cents", label: "Professional annual price (CAD cents)" },
+  { key: "agency_monthly_price_cents", label: "Agency monthly price (CAD cents)" },
+  { key: "agency_annual_price_cents", label: "Agency annual price (CAD cents)" },
+  {
+    key: "additional_client_workspace_monthly_price_cents",
+    label: "Additional workspace monthly price (CAD cents)",
+  },
+  {
+    key: "additional_client_workspace_annual_price_cents",
+    label: "Additional workspace annual price (CAD cents)",
+  },
+  { key: "ai_credit_pack_price_cents", label: "Monthly AI pack price (CAD cents)" },
+  { key: "ai_credit_topup_price_cents", label: "One-time top-up price (CAD cents)" },
+] as const
+
+const billingStripePriceFields = [
+  { key: "professional_price_id", label: "Professional monthly Stripe price ID" },
+  { key: "professional_annual_price_id", label: "Professional annual Stripe price ID" },
+  { key: "agency_price_id", label: "Agency monthly Stripe price ID" },
+  { key: "agency_annual_price_id", label: "Agency annual Stripe price ID" },
+  {
+    key: "client_workspace_addon_price_id",
+    label: "Additional workspace monthly Stripe price ID",
+  },
+  {
+    key: "client_workspace_addon_annual_price_id",
+    label: "Additional workspace annual Stripe price ID",
+  },
+  { key: "ai_credit_pack_price_id", label: "Monthly AI pack Stripe price ID" },
+  { key: "ai_credit_topup_price_id", label: "One-time top-up Stripe price ID" },
+] as const
+
 function MetricCard({
   label,
   value,
@@ -414,6 +448,22 @@ export default function PlatformAdminPage() {
     agency_client_ai_credits: "2500",
     additional_client_workspace_ai_credits: "2500",
     ai_credit_pack_size: "5000",
+    professional_monthly_price_cents: "7900",
+    professional_annual_price_cents: "79000",
+    agency_monthly_price_cents: "19900",
+    agency_annual_price_cents: "199000",
+    additional_client_workspace_monthly_price_cents: "2000",
+    additional_client_workspace_annual_price_cents: "20000",
+    ai_credit_pack_price_cents: "750",
+    ai_credit_topup_price_cents: "1000",
+    professional_price_id: "",
+    professional_annual_price_id: "",
+    agency_price_id: "",
+    agency_annual_price_id: "",
+    client_workspace_addon_price_id: "",
+    client_workspace_addon_annual_price_id: "",
+    ai_credit_pack_price_id: "",
+    ai_credit_topup_price_id: "",
   })
   const [emailForm, setEmailForm] = useState({
     provider: "smtp" as "smtp" | "resend",
@@ -689,6 +739,40 @@ export default function PlatformAdminPage() {
                       settings.additional_client_workspace_ai_credits
                     ),
                     ai_credit_pack_size: String(settings.ai_credit_pack_size),
+                    professional_monthly_price_cents: String(
+                      settings.professional_monthly_price_cents
+                    ),
+                    professional_annual_price_cents: String(
+                      settings.professional_annual_price_cents
+                    ),
+                    agency_monthly_price_cents: String(
+                      settings.agency_monthly_price_cents
+                    ),
+                    agency_annual_price_cents: String(
+                      settings.agency_annual_price_cents
+                    ),
+                    additional_client_workspace_monthly_price_cents: String(
+                      settings.additional_client_workspace_monthly_price_cents
+                    ),
+                    additional_client_workspace_annual_price_cents: String(
+                      settings.additional_client_workspace_annual_price_cents
+                    ),
+                    ai_credit_pack_price_cents: String(
+                      settings.ai_credit_pack_price_cents
+                    ),
+                    ai_credit_topup_price_cents: String(
+                      settings.ai_credit_topup_price_cents
+                    ),
+                    professional_price_id: settings.professional_price_id,
+                    professional_annual_price_id: settings.professional_annual_price_id,
+                    agency_price_id: settings.agency_price_id,
+                    agency_annual_price_id: settings.agency_annual_price_id,
+                    client_workspace_addon_price_id:
+                      settings.client_workspace_addon_price_id,
+                    client_workspace_addon_annual_price_id:
+                      settings.client_workspace_addon_annual_price_id,
+                    ai_credit_pack_price_id: settings.ai_credit_pack_price_id,
+                    ai_credit_topup_price_id: settings.ai_credit_topup_price_id,
                   })
                   setCreditSettingsError("")
                 }
@@ -944,12 +1028,20 @@ export default function PlatformAdminPage() {
     try {
       const settings = await updatePlatformAdminCreditSettings(
         user.id,
-        Object.fromEntries(
-          creditSettingFields.map(field => [
-            field.key,
-            Math.max(Number(creditForm[field.key]) || 0, 0),
-          ])
-        )
+        {
+          ...Object.fromEntries(
+            [...creditSettingFields, ...billingPriceSettingFields].map(field => [
+              field.key,
+              Math.max(Number(creditForm[field.key]) || 0, 0),
+            ])
+          ),
+          ...Object.fromEntries(
+            billingStripePriceFields.map(field => [
+              field.key,
+              creditForm[field.key].trim(),
+            ])
+          ),
+        }
       )
       setCreditSettings(settings)
       setCreditSettingsMessage("AI credit allocations saved.")
@@ -2147,9 +2239,9 @@ export default function PlatformAdminPage() {
 
             <section className={canView("credit_settings") ? "mt-8 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" : "hidden"}>
               <div className="border-b border-gray-200 px-5 py-4">
-                <h2 className="font-semibold">AI credit allocations</h2>
+                <h2 className="font-semibold">Billing and AI credit pricing</h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  Set the monthly credits included with each plan. These values are used immediately for new AI reservations and billing displays.
+                  Configure plan entitlements, customer-facing prices, and the Stripe price IDs used for checkout. Changes apply to new billing displays and checkout sessions.
                 </p>
               </div>
 
@@ -2192,6 +2284,56 @@ export default function PlatformAdminPage() {
                         />
                       </label>
                     ))}
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-5">
+                    <h3 className="text-sm font-semibold text-gray-900">Subscription and AI bundle prices</h3>
+                    <p className="mt-1 text-xs text-gray-500">Enter amounts in CAD cents. The monthly AI pack renews with the subscription; the one-time top-up does not.</p>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      {billingPriceSettingFields.map((field) => (
+                        <label
+                          key={field.key}
+                          className="text-xs font-medium text-gray-600"
+                        >
+                          {field.label}
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={creditForm[field.key]}
+                            onChange={(event) => setCreditForm(currentForm => ({
+                              ...currentForm,
+                              [field.key]: event.target.value,
+                            }))}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-5">
+                    <h3 className="text-sm font-semibold text-gray-900">Stripe price IDs</h3>
+                    <p className="mt-1 text-xs text-gray-500">Create or select the matching Stripe prices first, then save their IDs here so checkout charges the configured amount.</p>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      {billingStripePriceFields.map((field) => (
+                        <label
+                          key={field.key}
+                          className="text-xs font-medium text-gray-600"
+                        >
+                          {field.label}
+                          <input
+                            type="text"
+                            value={creditForm[field.key]}
+                            onChange={(event) => setCreditForm(currentForm => ({
+                              ...currentForm,
+                              [field.key]: event.target.value,
+                            }))}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
+                          />
+                        </label>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">

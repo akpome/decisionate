@@ -7,8 +7,13 @@ import unittest
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.db.models import PlatformBillingSettings
 from app.db.models import WorkspaceSubscription
 from app.modules.billing.lifecycle import build_subscription_access_state
+from app.modules.billing import service as billing_service
 from app.modules.billing.service import (
     ANNUAL_AI_CREDIT_MULTIPLIER,
     AI_CREDIT_PACK_PRICE_CENTS,
@@ -39,6 +44,53 @@ class BillingServiceTests(unittest.TestCase):
     def test_ai_credit_pack_and_topup_prices(self):
         self.assertEqual(AI_CREDIT_PACK_PRICE_CENTS, 750)
         self.assertEqual(AI_CREDIT_TOPUP_PRICE_CENTS, 1000)
+
+    def test_platform_billing_settings_override_prices_and_stripe_ids(self):
+        engine = create_engine("sqlite:///:memory:")
+        PlatformBillingSettings.__table__.create(engine)
+        session_factory = sessionmaker(bind=engine)
+        session = session_factory()
+        session.add(
+            PlatformBillingSettings(
+                id=1,
+                professional_monthly_price_cents=1234,
+                ai_credit_pack_price_cents=456,
+                ai_credit_topup_price_cents=789,
+                professional_price_id="price_professional_new",
+                ai_credit_topup_price_id="price_topup_new",
+            )
+        )
+        session.commit()
+
+        with patch.dict(
+            os.environ,
+            {
+                "STRIPE_PROFESSIONAL_PRICE_ID": "price_professional_env",
+                "STRIPE_AI_CREDIT_TOPUP_PRICE_ID": "price_topup_env",
+            },
+            clear=False,
+        ):
+            definition = billing_service.get_billing_plan_definition(
+                "professional",
+                session,
+            )
+            pricing = billing_service.get_billing_pricing(session)
+            config = billing_service.get_billing_config(session)
+
+        self.assertEqual(definition["monthly_price_cents"], 1234)
+        self.assertEqual(pricing["ai_credit_pack_price_cents"], 456)
+        self.assertEqual(pricing["ai_credit_topup_price_cents"], 789)
+        self.assertEqual(
+            config["professional_price_id"],
+            "price_professional_new",
+        )
+        self.assertEqual(
+            config["ai_credit_topup_price_id"],
+            "price_topup_new",
+        )
+
+        session.close()
+        engine.dispose()
 
     def test_trial_plan_workspace_entitlements(self):
         self.assertEqual(

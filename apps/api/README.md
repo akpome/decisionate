@@ -236,6 +236,13 @@ server-side values before enabling paid plans:
 - `STRIPE_WEBHOOK_SECRET`
 - `DECISIONATE_WEB_APP_URL`
 
+The environment values are bootstrap fallbacks. Platform administrators can
+manage the live plan prices, add-on prices, AI bundle prices, AI entitlements,
+and Stripe Price IDs from the platform admin portal under **Billing and AI
+credit pricing**. Create matching recurring or one-time Prices in Stripe first,
+then save their IDs there; checkout uses the saved IDs and the customer billing
+page uses the saved amounts without requiring a frontend code change.
+
 Professional includes one direct workspace and a 30-day full-access trial. Agency
 includes up to 10 client workspaces, and additional client workspaces are
 priced separately rather than charging per seat. The owner starts

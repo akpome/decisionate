@@ -68,6 +68,7 @@ from app.modules.billing.lifecycle import build_subscription_access_state
 from app.modules.billing.service import (
     AGENCY_PLAN,
     PROFESSIONAL_PLAN,
+    get_billing_pricing,
     get_billing_config,
     get_ai_credit_allocations,
     get_ai_credit_pack_size,
@@ -453,6 +454,22 @@ class PlatformAdminCreditSettingsResponse(BaseModel):
     agency_client_ai_credits: int
     additional_client_workspace_ai_credits: int
     ai_credit_pack_size: int
+    professional_monthly_price_cents: int
+    professional_annual_price_cents: int
+    agency_monthly_price_cents: int
+    agency_annual_price_cents: int
+    additional_client_workspace_monthly_price_cents: int
+    additional_client_workspace_annual_price_cents: int
+    ai_credit_pack_price_cents: int
+    ai_credit_topup_price_cents: int
+    professional_price_id: str
+    professional_annual_price_id: str
+    agency_price_id: str
+    agency_annual_price_id: str
+    client_workspace_addon_price_id: str
+    client_workspace_addon_annual_price_id: str
+    ai_credit_pack_price_id: str
+    ai_credit_topup_price_id: str
     updated_at: str | None
 
 
@@ -463,6 +480,22 @@ class PlatformAdminCreditSettingsUpdate(BaseModel):
     agency_client_ai_credits: int | None = None
     additional_client_workspace_ai_credits: int | None = None
     ai_credit_pack_size: int | None = None
+    professional_monthly_price_cents: int | None = None
+    professional_annual_price_cents: int | None = None
+    agency_monthly_price_cents: int | None = None
+    agency_annual_price_cents: int | None = None
+    additional_client_workspace_monthly_price_cents: int | None = None
+    additional_client_workspace_annual_price_cents: int | None = None
+    ai_credit_pack_price_cents: int | None = None
+    ai_credit_topup_price_cents: int | None = None
+    professional_price_id: str | None = None
+    professional_annual_price_id: str | None = None
+    agency_price_id: str | None = None
+    agency_annual_price_id: str | None = None
+    client_workspace_addon_price_id: str | None = None
+    client_workspace_addon_annual_price_id: str | None = None
+    ai_credit_pack_price_id: str | None = None
+    ai_credit_topup_price_id: str | None = None
 
 
 def configured_platform_admin_references() -> set[str]:
@@ -777,7 +810,9 @@ def serialize_platform_admin_credit_settings() -> PlatformAdminCreditSettingsRes
             .filter(PlatformBillingSettings.id == 1)
             .first()
         )
-        allocations = get_ai_credit_allocations()
+        allocations = get_ai_credit_allocations(db)
+        pricing = get_billing_pricing(db)
+        billing_config = get_billing_config(db)
         return PlatformAdminCreditSettingsResponse(
             source="database" if settings else "environment/default",
             free_ai_credits=allocations["free"],
@@ -787,7 +822,63 @@ def serialize_platform_admin_credit_settings() -> PlatformAdminCreditSettingsRes
             additional_client_workspace_ai_credits=allocations[
                 "additional_client_workspace"
             ],
-            ai_credit_pack_size=get_ai_credit_pack_size(),
+            ai_credit_pack_size=get_ai_credit_pack_size(db),
+            professional_monthly_price_cents=pricing[
+                "professional_monthly_price_cents"
+            ],
+            professional_annual_price_cents=pricing[
+                "professional_annual_price_cents"
+            ],
+            agency_monthly_price_cents=pricing[
+                "agency_monthly_price_cents"
+            ],
+            agency_annual_price_cents=pricing[
+                "agency_annual_price_cents"
+            ],
+            additional_client_workspace_monthly_price_cents=pricing[
+                "additional_client_workspace_monthly_price_cents"
+            ],
+            additional_client_workspace_annual_price_cents=pricing[
+                "additional_client_workspace_annual_price_cents"
+            ],
+            ai_credit_pack_price_cents=pricing[
+                "ai_credit_pack_price_cents"
+            ],
+            ai_credit_topup_price_cents=pricing[
+                "ai_credit_topup_price_cents"
+            ],
+            professional_price_id=billing_config.get(
+                "professional_price_id",
+                "",
+            ),
+            professional_annual_price_id=billing_config.get(
+                "professional_annual_price_id",
+                "",
+            ),
+            agency_price_id=billing_config.get(
+                "agency_price_id",
+                "",
+            ),
+            agency_annual_price_id=billing_config.get(
+                "agency_annual_price_id",
+                "",
+            ),
+            client_workspace_addon_price_id=billing_config.get(
+                "client_workspace_addon_price_id",
+                "",
+            ),
+            client_workspace_addon_annual_price_id=billing_config.get(
+                "client_workspace_addon_annual_price_id",
+                "",
+            ),
+            ai_credit_pack_price_id=billing_config.get(
+                "ai_credit_pack_price_id",
+                "",
+            ),
+            ai_credit_topup_price_id=billing_config.get(
+                "ai_credit_topup_price_id",
+                "",
+            ),
             updated_at=(
                 settings.updated_at.isoformat()
                 if settings and settings.updated_at
@@ -1169,7 +1260,24 @@ async def update_platform_admin_credit_settings(
     request: Request,
 ):
     auth_context = require_platform_admin(request)
-    for field_name, value in payload.dict().items():
+    numeric_fields = {
+        "free_ai_credits",
+        "professional_ai_credits",
+        "agency_ai_credits",
+        "agency_client_ai_credits",
+        "additional_client_workspace_ai_credits",
+        "ai_credit_pack_size",
+        "professional_monthly_price_cents",
+        "professional_annual_price_cents",
+        "agency_monthly_price_cents",
+        "agency_annual_price_cents",
+        "additional_client_workspace_monthly_price_cents",
+        "additional_client_workspace_annual_price_cents",
+        "ai_credit_pack_price_cents",
+        "ai_credit_topup_price_cents",
+    }
+    for field_name in numeric_fields:
+        value = getattr(payload, field_name)
         if value is not None and value < 0:
             raise HTTPException(
                 status_code=400,
@@ -1187,7 +1295,9 @@ async def update_platform_admin_credit_settings(
             settings = PlatformBillingSettings(id=1)
             db.add(settings)
 
-        current_allocations = get_ai_credit_allocations()
+        current_allocations = get_ai_credit_allocations(db)
+        current_pricing = get_billing_pricing(db)
+        current_config = get_billing_config(db)
         values = {
             "free_ai_credits": current_allocations["free"],
             "professional_ai_credits": current_allocations[
@@ -1200,10 +1310,24 @@ async def update_platform_admin_credit_settings(
             "additional_client_workspace_ai_credits": current_allocations[
                 "additional_client_workspace"
             ],
-            "ai_credit_pack_size": get_ai_credit_pack_size(),
+            "ai_credit_pack_size": get_ai_credit_pack_size(db),
+            **current_pricing,
+            **{
+                field_name: current_config.get(field_name, "")
+                for field_name in current_config
+                if field_name.endswith("price_id")
+            },
         }
         for field_name, current_value in values.items():
             submitted_value = getattr(payload, field_name)
+            if field_name.endswith("price_id"):
+                clean_value = (
+                    str(submitted_value).strip()
+                    if submitted_value is not None
+                    else str(current_value or "").strip()
+                )
+                setattr(settings, field_name, clean_value or None)
+                continue
             setattr(
                 settings,
                 field_name,

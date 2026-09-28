@@ -1359,6 +1359,94 @@ class PlatformBillingSettings(Base):
         default=5000,
     )
 
+    professional_monthly_price_cents = Column(
+        Integer,
+        nullable=False,
+        default=7900,
+    )
+
+    professional_annual_price_cents = Column(
+        Integer,
+        nullable=False,
+        default=79000,
+    )
+
+    agency_monthly_price_cents = Column(
+        Integer,
+        nullable=False,
+        default=19900,
+    )
+
+    agency_annual_price_cents = Column(
+        Integer,
+        nullable=False,
+        default=199000,
+    )
+
+    additional_client_workspace_monthly_price_cents = Column(
+        Integer,
+        nullable=False,
+        default=2000,
+    )
+
+    additional_client_workspace_annual_price_cents = Column(
+        Integer,
+        nullable=False,
+        default=20000,
+    )
+
+    ai_credit_pack_price_cents = Column(
+        Integer,
+        nullable=False,
+        default=750,
+    )
+
+    ai_credit_topup_price_cents = Column(
+        Integer,
+        nullable=False,
+        default=1000,
+    )
+
+    professional_price_id = Column(
+        String,
+        nullable=True,
+    )
+
+    professional_annual_price_id = Column(
+        String,
+        nullable=True,
+    )
+
+    agency_price_id = Column(
+        String,
+        nullable=True,
+    )
+
+    agency_annual_price_id = Column(
+        String,
+        nullable=True,
+    )
+
+    client_workspace_addon_price_id = Column(
+        String,
+        nullable=True,
+    )
+
+    client_workspace_addon_annual_price_id = Column(
+        String,
+        nullable=True,
+    )
+
+    ai_credit_pack_price_id = Column(
+        String,
+        nullable=True,
+    )
+
+    ai_credit_topup_price_id = Column(
+        String,
+        nullable=True,
+    )
+
     updated_by_user_id = Column(
         String,
         nullable=True,

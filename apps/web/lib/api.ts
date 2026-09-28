@@ -1286,6 +1286,22 @@ export type PlatformAdminCreditSettings = {
   agency_client_ai_credits: number
   additional_client_workspace_ai_credits: number
   ai_credit_pack_size: number
+  professional_monthly_price_cents: number
+  professional_annual_price_cents: number
+  agency_monthly_price_cents: number
+  agency_annual_price_cents: number
+  additional_client_workspace_monthly_price_cents: number
+  additional_client_workspace_annual_price_cents: number
+  ai_credit_pack_price_cents: number
+  ai_credit_topup_price_cents: number
+  professional_price_id: string
+  professional_annual_price_id: string
+  agency_price_id: string
+  agency_annual_price_id: string
+  client_workspace_addon_price_id: string
+  client_workspace_addon_annual_price_id: string
+  ai_credit_pack_price_id: string
+  ai_credit_topup_price_id: string
   updated_at?: string | null
 }
 
