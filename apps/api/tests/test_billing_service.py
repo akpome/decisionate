@@ -11,6 +11,8 @@ from app.db.models import WorkspaceSubscription
 from app.modules.billing.lifecycle import build_subscription_access_state
 from app.modules.billing.service import (
     ANNUAL_AI_CREDIT_MULTIPLIER,
+    AI_CREDIT_PACK_PRICE_CENTS,
+    AI_CREDIT_TOPUP_PRICE_CENTS,
     BillingWebhookSignatureError,
     create_checkout_session,
     get_billing_period_ai_credit_limit,
@@ -34,6 +36,10 @@ class FakeResponse:
 
 
 class BillingServiceTests(unittest.TestCase):
+    def test_ai_credit_pack_and_topup_prices(self):
+        self.assertEqual(AI_CREDIT_PACK_PRICE_CENTS, 750)
+        self.assertEqual(AI_CREDIT_TOPUP_PRICE_CENTS, 1000)
+
     def test_trial_plan_workspace_entitlements(self):
         self.assertEqual(
             get_client_workspace_limit("professional"),

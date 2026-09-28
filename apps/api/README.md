@@ -229,7 +229,7 @@ server-side values before enabling paid plans:
 - `STRIPE_CLIENT_WORKSPACE_ADDON_PRICE_ID` for additional client workspaces ($20/month each)
 - `STRIPE_CLIENT_WORKSPACE_ADDON_ANNUAL_PRICE_ID` for additional client workspaces ($200/year each)
 - `STRIPE_AI_CREDIT_PACK_PRICE_ID` for optional 5,000-credit monthly packs at
-  CAD $10 per pack
+  CAD $7.50 per pack
 - `STRIPE_AI_CREDIT_TOPUP_PRICE_ID` for one-time AI credit top-ups. This price
   represents one 5,000-credit pack at CAD $10; workspace owners can purchase
   any positive number of packs.

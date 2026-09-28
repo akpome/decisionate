@@ -629,6 +629,7 @@ export type BillingStatus = {
   additional_ai_credit_packs: number
   ai_credit_pack_size: number
   ai_credit_pack_price_cents: number
+  ai_credit_topup_price_cents: number
   ai_credit_pack_configured: boolean
   included_ai_credits: number
   annual_additional_client_workspace_ai_credits: number

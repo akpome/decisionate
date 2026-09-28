@@ -308,7 +308,7 @@ function BillingPageContent() {
             </div>
             <p className="mt-3 text-xs text-gray-500">
               {t("Each pack adds")} {billing.ai_credit_pack_size.toLocaleString()} {t("credits at")}{" "}
-              ${(billing.ai_credit_pack_price_cents / 100).toFixed(2)} CAD. {t("There is no workspace limit on the number of packs purchased.")}
+              ${(billing.ai_credit_topup_price_cents / 100).toFixed(2)} CAD. {t("There is no workspace limit on the number of packs purchased.")}
             </p>
             {!billing.ai_credit_topup_configured && (
               <p className="mt-2 text-xs text-amber-700">
