@@ -242,6 +242,11 @@ class PlatformAdminSubscriptionUpdate(BaseModel):
     billing_expires_at: datetime | None = None
 
 
+class PlatformAdminAccountProfileResponse(BaseModel):
+    account_type: str
+    account_name: str
+
+
 class PlatformAdminUserResponse(BaseModel):
     clerk_user_id: str
     email: str | None = None
@@ -249,6 +254,9 @@ class PlatformAdminUserResponse(BaseModel):
     organization_names: list[str]
     roles: list[str]
     account_types: list[str] = Field(default_factory=list)
+    account_profiles: list[PlatformAdminAccountProfileResponse] = Field(
+        default_factory=list,
+    )
     owner: bool
     protected: bool = False
     platform_admin: bool = False
@@ -2100,6 +2108,27 @@ def platform_admin_account_type_for_organization(
     return FREE_PLAN
 
 
+def platform_admin_account_profile_for_organization(
+    organization,
+    subscriptions: dict[str, WorkspaceSubscription],
+    organizations_by_owner_user_id: dict[str, Organization],
+) -> tuple[str, str]:
+    account_type = platform_admin_account_type_for_organization(
+        organization,
+        subscriptions,
+    )
+    owner_user_id = str(organization.owner_user_id or "")
+    if account_type == "agency_client":
+        agency = organizations_by_owner_user_id.get(
+            resolve_billing_workspace_id(owner_user_id),
+        )
+        account_name = str(agency.name if agency else "").strip()
+        return account_type, account_name or "Unknown agency"
+
+    account_name = str(organization.name or "").strip()
+    return account_type, account_name or "Unnamed workspace"
+
+
 def platform_admin_ai_credit_limit(
     subscription: WorkspaceSubscription | None,
     workspace_id: str,
@@ -2736,6 +2765,11 @@ async def get_platform_admin_users(
             organization.id: organization
             for organization in organizations
         }
+        organizations_by_owner_user_id = {
+            organization.owner_user_id: organization
+            for organization in organizations
+            if organization.owner_user_id
+        }
         billing_workspace_ids = {
             resolve_billing_workspace_id(organization.owner_user_id)
             for organization in organizations
@@ -2777,6 +2811,7 @@ async def get_platform_admin_users(
                 "email": app_user.email or identity_emails.get(app_user.id),
                 "organization_names": set(),
                 "account_types": set(),
+                "account_profiles": set(),
                 "roles": set(),
                 "owner": False,
                 "protected": app_user.id in protected_user_ids,
@@ -2788,6 +2823,7 @@ async def get_platform_admin_users(
                 {
                     "organization_names": set(),
                     "account_types": set(),
+                    "account_profiles": set(),
                     "roles": set(),
                     "owner": False,
                     "email": None,
@@ -2796,11 +2832,16 @@ async def get_platform_admin_users(
                 },
             )
             owner_record["organization_names"].add(organization.name)
-            owner_record["account_types"].add(
-                platform_admin_account_type_for_organization(
+            account_type, account_name = (
+                platform_admin_account_profile_for_organization(
                     organization,
                     subscriptions,
+                    organizations_by_owner_user_id,
                 )
+            )
+            owner_record["account_types"].add(account_type)
+            owner_record["account_profiles"].add(
+                (account_type, account_name)
             )
             owner_record["roles"].add("owner")
             owner_record["owner"] = True
@@ -2815,6 +2856,7 @@ async def get_platform_admin_users(
                 {
                     "organization_names": set(),
                     "account_types": set(),
+                    "account_profiles": set(),
                     "roles": set(),
                     "owner": False,
                     "email": None,
@@ -2823,11 +2865,16 @@ async def get_platform_admin_users(
                 },
             )
             user_record["organization_names"].add(organization.name)
-            user_record["account_types"].add(
-                platform_admin_account_type_for_organization(
+            account_type, account_name = (
+                platform_admin_account_profile_for_organization(
                     organization,
                     subscriptions,
+                    organizations_by_owner_user_id,
                 )
+            )
+            user_record["account_types"].add(account_type)
+            user_record["account_profiles"].add(
+                (account_type, account_name)
             )
             user_record["roles"].add(
                 "owner"
@@ -2843,6 +2890,7 @@ async def get_platform_admin_users(
                 {
                     "organization_names": set(),
                     "account_types": set(),
+                    "account_profiles": set(),
                     "roles": set(),
                     "owner": False,
                     "email": platform_admin_user_email(
@@ -2878,6 +2926,13 @@ async def get_platform_admin_users(
                     str(user_record.get("email") or ""),
                     *user_record["organization_names"],
                     *user_record["account_types"],
+                    *[
+                        value
+                        for account_type, account_name in user_record[
+                            "account_profiles"
+                        ]
+                        for value in (account_type, account_name)
+                    ],
                     *user_record["roles"],
                 ]
                 if not any(
@@ -2899,6 +2954,15 @@ async def get_platform_admin_users(
                     account_types=sorted(
                         user_record["account_types"]
                     ),
+                    account_profiles=[
+                        {
+                            "account_type": account_type,
+                            "account_name": account_name,
+                        }
+                        for account_type, account_name in sorted(
+                            user_record["account_profiles"]
+                        )
+                    ],
                     roles=sorted(user_record["roles"]),
                     owner=bool(user_record["owner"]),
                     protected=bool(user_record["protected"]),

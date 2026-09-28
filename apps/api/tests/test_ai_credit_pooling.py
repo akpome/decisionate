@@ -12,8 +12,11 @@ from app.db.models import utc_now
 from app.modules.ai import credits
 from app.modules.billing import service as billing_service
 from app.modules.billing.router import apply_stripe_billing_event
-from app.modules.platform_admin import platform_admin_account_type_for_organization
-from app.modules.platform_admin import platform_admin_ai_credit_limit
+from app.modules.platform_admin import (
+    platform_admin_account_profile_for_organization,
+    platform_admin_account_type_for_organization,
+    platform_admin_ai_credit_limit,
+)
 
 
 class AICreditPoolingTests(unittest.TestCase):
@@ -108,6 +111,10 @@ class AICreditPoolingTests(unittest.TestCase):
             "agency-1": agency_subscription,
             "professional-1": professional_subscription,
         }
+        organizations = {
+            "agency-1": SimpleNamespace(name="Acme Agency"),
+            "professional-1": SimpleNamespace(name="Northstar Ltd."),
+        }
 
         self.assertEqual(
             platform_admin_account_type_for_organization(
@@ -138,6 +145,42 @@ class AICreditPoolingTests(unittest.TestCase):
                 subscriptions,
             ),
             "professional",
+        )
+        self.assertEqual(
+            platform_admin_account_profile_for_organization(
+                SimpleNamespace(
+                    owner_user_id="agency-1",
+                    name="Acme Agency",
+                    business_type="agency",
+                ),
+                subscriptions,
+                organizations,
+            ),
+            ("agency", "Acme Agency"),
+        )
+        self.assertEqual(
+            platform_admin_account_profile_for_organization(
+                SimpleNamespace(
+                    owner_user_id="agency-1:client:one",
+                    name="Client workspace",
+                    business_type="business",
+                ),
+                subscriptions,
+                organizations,
+            ),
+            ("agency_client", "Acme Agency"),
+        )
+        self.assertEqual(
+            platform_admin_account_profile_for_organization(
+                SimpleNamespace(
+                    owner_user_id="professional-1",
+                    name="Northstar Ltd.",
+                    business_type="business",
+                ),
+                subscriptions,
+                organizations,
+            ),
+            ("professional", "Northstar Ltd."),
         )
 
     def test_low_balance_notice_is_sent_once_per_period(self):

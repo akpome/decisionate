@@ -1888,6 +1888,7 @@ export default function PlatformAdminPage() {
   )
   const visiblePlatformUsers = platformUsers.filter((platformUser) => {
     const search = userSearch.trim().toLowerCase()
+    const accountProfiles = platformUser.account_profiles || []
     if (!search) {
       return true
     }
@@ -1895,6 +1896,10 @@ export default function PlatformAdminPage() {
     return [
       platformUser.clerk_user_id,
       ...platformUser.organization_names,
+      ...accountProfiles.flatMap(profile => [
+        profile.account_type,
+        profile.account_name,
+      ]),
       ...platformUser.roles,
     ].some(value => value.toLowerCase().includes(search))
   })
@@ -3821,14 +3826,17 @@ export default function PlatformAdminPage() {
                             {platformUser.email || "-"}
                           </td>
                           <td className="px-5 py-3 text-gray-700">
-                            {platformUser.account_types.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {platformUser.account_types.map((accountType) => (
+                            {(platformUser.account_profiles || []).length > 0 ? (
+                              <div className="flex flex-col items-start gap-1">
+                                {(platformUser.account_profiles || []).map((profile) => (
                                   <span
-                                    key={accountType}
+                                    key={`${profile.account_type}:${profile.account_name}`}
                                     className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800"
                                   >
-                                    {formatAdminLabel(accountType)}
+                                    {formatAdminLabel(profile.account_type)}
+                                    <span className="ml-1 font-normal text-blue-700">
+                                      · {profile.account_name}
+                                    </span>
                                   </span>
                                 ))}
                               </div>

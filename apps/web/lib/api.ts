@@ -1086,6 +1086,10 @@ export type PlatformAdminUser = {
   organization_count: number
   organization_names: string[]
   account_types: string[]
+  account_profiles?: Array<{
+    account_type: string
+    account_name: string
+  }>
   roles: string[]
   owner: boolean
   protected?: boolean
