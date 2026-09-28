@@ -39,6 +39,7 @@ class BillingStatusResponse(BaseModel):
     additional_client_workspace_annual_price_cents: int = 20000
     additional_ai_credit_packs: int = 0
     ai_credit_pack_size: int = 5000
+    ai_credit_pack_price_cents: int = 1000
     ai_credit_pack_configured: bool = False
     additional_client_workspace_ai_credits: int = 2500
     annual_additional_client_workspace_ai_credits: int = 30000

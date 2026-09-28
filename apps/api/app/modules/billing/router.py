@@ -42,6 +42,7 @@ from app.modules.billing.service import (
     ADDITIONAL_CLIENT_WORKSPACE_PRICE_CENTS,
     ADDITIONAL_CLIENT_WORKSPACE_ANNUAL_PRICE_CENTS,
     ANNUAL_AI_CREDIT_MULTIPLIER,
+    AI_CREDIT_PACK_PRICE_CENTS,
     get_ai_credit_allocations,
     get_ai_credit_pack_size,
     get_billing_period_ai_credit_limit,
@@ -289,6 +290,7 @@ async def get_billing_status(
             ),
             additional_ai_credit_packs=additional_ai_credit_packs,
             ai_credit_pack_size=get_ai_credit_pack_size(),
+            ai_credit_pack_price_cents=AI_CREDIT_PACK_PRICE_CENTS,
             ai_credit_pack_configured=bool(
                 config.get("ai_credit_pack_price_id")
             ),

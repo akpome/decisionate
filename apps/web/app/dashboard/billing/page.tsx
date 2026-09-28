@@ -307,7 +307,8 @@ function BillingPageContent() {
               </div>
             </div>
             <p className="mt-3 text-xs text-gray-500">
-              {t("Each pack adds")} {billing.ai_credit_pack_size.toLocaleString()} {t("credits. There is no workspace limit on the number of packs purchased.")}
+              {t("Each pack adds")} {billing.ai_credit_pack_size.toLocaleString()} {t("credits at")}{" "}
+              ${(billing.ai_credit_pack_price_cents / 100).toFixed(2)} CAD. {t("There is no workspace limit on the number of packs purchased.")}
             </p>
             {!billing.ai_credit_topup_configured && (
               <p className="mt-2 text-xs text-amber-700">
@@ -513,9 +514,10 @@ function BillingPageContent() {
           <div className="mt-4 flex flex-wrap items-end justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
             <div>
               <p className="text-sm font-medium text-gray-900">{t("Additional AI credit packs")}</p>
-              <p className="mt-1 text-sm text-gray-500">
-                {t("Each monthly pack adds")} {billing.ai_credit_pack_size.toLocaleString()} {t("credits.")}
-              </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {t("Each monthly pack adds")} {billing.ai_credit_pack_size.toLocaleString()} {t("credits at")}{" "}
+                  ${(billing.ai_credit_pack_price_cents / 100).toFixed(2)} CAD.
+                </p>
             </div>
             <label className="text-xs font-medium text-gray-600">
               {t("Packs")}
