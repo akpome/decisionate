@@ -1,5 +1,6 @@
 import unittest
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from sqlalchemy import create_engine
@@ -11,6 +12,8 @@ from app.db.models import utc_now
 from app.modules.ai import credits
 from app.modules.billing import service as billing_service
 from app.modules.billing.router import apply_stripe_billing_event
+from app.modules.platform_admin import platform_admin_account_type_for_organization
+from app.modules.platform_admin import platform_admin_ai_credit_limit
 
 
 class AICreditPoolingTests(unittest.TestCase):
@@ -69,6 +72,73 @@ class AICreditPoolingTests(unittest.TestCase):
             self.assertNotEqual(first["id"], second["id"])
         finally:
             session.close()
+
+    def test_client_workspace_admin_limit_uses_agency_allocation(self):
+        subscription = WorkspaceSubscription(
+            workspace_id="agency-1",
+            plan="agency",
+            billing_interval="month",
+            additional_client_workspaces=0,
+            additional_ai_credit_packs=0,
+        )
+
+        limit = platform_admin_ai_credit_limit(
+            subscription,
+            "agency-1:client:first",
+            {
+                "free": 1000,
+                "agency": 25000,
+                "additional_client_workspace": 2500,
+            },
+            5000,
+        )
+
+        self.assertEqual(limit, 25000)
+
+    def test_admin_user_account_types_distinguish_agency_client_and_professional(self):
+        agency_subscription = WorkspaceSubscription(
+            workspace_id="agency-1",
+            plan="agency",
+        )
+        professional_subscription = WorkspaceSubscription(
+            workspace_id="professional-1",
+            plan="professional",
+        )
+        subscriptions = {
+            "agency-1": agency_subscription,
+            "professional-1": professional_subscription,
+        }
+
+        self.assertEqual(
+            platform_admin_account_type_for_organization(
+                SimpleNamespace(
+                    owner_user_id="agency-1",
+                    business_type="agency",
+                ),
+                subscriptions,
+            ),
+            "agency",
+        )
+        self.assertEqual(
+            platform_admin_account_type_for_organization(
+                SimpleNamespace(
+                    owner_user_id="agency-1:client:one",
+                    business_type="business",
+                ),
+                subscriptions,
+            ),
+            "agency_client",
+        )
+        self.assertEqual(
+            platform_admin_account_type_for_organization(
+                SimpleNamespace(
+                    owner_user_id="professional-1",
+                    business_type="business",
+                ),
+                subscriptions,
+            ),
+            "professional",
+        )
 
     def test_low_balance_notice_is_sent_once_per_period(self):
         session = self.session_factory()

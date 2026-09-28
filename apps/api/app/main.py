@@ -377,7 +377,6 @@ def ensure_platform_billing_columns():
             return
 
         for column_name, column_type, default_clause in [
-            ("agency_client_ai_credits", "INTEGER", "NOT NULL DEFAULT 2500"),
             ("professional_monthly_price_cents", "INTEGER", "NOT NULL DEFAULT 7900"),
             ("professional_annual_price_cents", "INTEGER", "NOT NULL DEFAULT 79000"),
             ("agency_monthly_price_cents", "INTEGER", "NOT NULL DEFAULT 19900"),

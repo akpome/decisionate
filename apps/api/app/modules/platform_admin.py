@@ -64,9 +64,13 @@ from app.modules.alerts.email_delivery import (
 )
 from app.modules.auth_context import get_auth_context
 from app.modules.billing.notifications import get_workspace_owner_email
-from app.modules.billing.lifecycle import build_subscription_access_state
+from app.modules.billing.lifecycle import (
+    build_subscription_access_state,
+    resolve_billing_workspace_id,
+)
 from app.modules.billing.service import (
     AGENCY_PLAN,
+    FREE_PLAN,
     PROFESSIONAL_PLAN,
     get_billing_pricing,
     get_billing_config,
@@ -244,6 +248,7 @@ class PlatformAdminUserResponse(BaseModel):
     organization_count: int
     organization_names: list[str]
     roles: list[str]
+    account_types: list[str] = Field(default_factory=list)
     owner: bool
     protected: bool = False
     platform_admin: bool = False
@@ -451,7 +456,6 @@ class PlatformAdminCreditSettingsResponse(BaseModel):
     free_ai_credits: int
     professional_ai_credits: int
     agency_ai_credits: int
-    agency_client_ai_credits: int
     additional_client_workspace_ai_credits: int
     ai_credit_pack_size: int
     professional_monthly_price_cents: int
@@ -477,7 +481,6 @@ class PlatformAdminCreditSettingsUpdate(BaseModel):
     free_ai_credits: int | None = None
     professional_ai_credits: int | None = None
     agency_ai_credits: int | None = None
-    agency_client_ai_credits: int | None = None
     additional_client_workspace_ai_credits: int | None = None
     ai_credit_pack_size: int | None = None
     professional_monthly_price_cents: int | None = None
@@ -818,7 +821,6 @@ def serialize_platform_admin_credit_settings() -> PlatformAdminCreditSettingsRes
             free_ai_credits=allocations["free"],
             professional_ai_credits=allocations[PROFESSIONAL_PLAN],
             agency_ai_credits=allocations[AGENCY_PLAN],
-            agency_client_ai_credits=allocations["agency_client"],
             additional_client_workspace_ai_credits=allocations[
                 "additional_client_workspace"
             ],
@@ -1264,7 +1266,6 @@ async def update_platform_admin_credit_settings(
         "free_ai_credits",
         "professional_ai_credits",
         "agency_ai_credits",
-        "agency_client_ai_credits",
         "additional_client_workspace_ai_credits",
         "ai_credit_pack_size",
         "professional_monthly_price_cents",
@@ -1304,9 +1305,6 @@ async def update_platform_admin_credit_settings(
                 PROFESSIONAL_PLAN
             ],
             "agency_ai_credits": current_allocations[AGENCY_PLAN],
-            "agency_client_ai_credits": current_allocations[
-                "agency_client"
-            ],
             "additional_client_workspace_ai_credits": current_allocations[
                 "additional_client_workspace"
             ],
@@ -2077,6 +2075,31 @@ def platform_admin_account_status(
     return "free"
 
 
+def platform_admin_account_type_for_organization(
+    organization,
+    subscriptions: dict[str, WorkspaceSubscription],
+) -> str:
+    owner_user_id = str(organization.owner_user_id or "")
+    if ":client:" in owner_user_id:
+        return "agency_client"
+
+    subscription = subscriptions.get(
+        resolve_billing_workspace_id(owner_user_id)
+    )
+    plan = normalize_billing_plan(
+        subscription.plan if subscription else FREE_PLAN,
+    )
+    if plan in {AGENCY_PLAN, PROFESSIONAL_PLAN}:
+        return plan
+
+    business_type = str(organization.business_type or "").strip().lower()
+    if business_type == "agency":
+        return AGENCY_PLAN
+    if business_type == "business":
+        return PROFESSIONAL_PLAN
+    return FREE_PLAN
+
+
 def platform_admin_ai_credit_limit(
     subscription: WorkspaceSubscription | None,
     workspace_id: str,
@@ -2093,7 +2116,7 @@ def platform_admin_ai_credit_limit(
     )
     monthly_included_credits = int(
         resolved_allocations.get(
-            "agency_client" if ":client:" in workspace_id else plan,
+            plan,
             resolved_allocations.get("free", 0),
         )
     )
@@ -2175,13 +2198,14 @@ def serialize_platform_admin_organization(
     """
     workspace_id = organization.owner_user_id or ""
     is_client_workspace = ":client:" in workspace_id
+    billing_workspace_id = resolve_billing_workspace_id(workspace_id)
     subscription = (
-        context.subscriptions.get(workspace_id)
+        context.subscriptions.get(billing_workspace_id)
         if context is not None
         else (
             db.query(WorkspaceSubscription)
             .filter(
-                WorkspaceSubscription.workspace_id == workspace_id,
+                WorkspaceSubscription.workspace_id == billing_workspace_id,
             )
             .first()
         )
@@ -2223,7 +2247,7 @@ def serialize_platform_admin_organization(
     )
     ai_credit_topup_credits = (
         max(int(subscription.ai_credit_topup_credits or 0), 0)
-        if subscription and not is_client_workspace
+        if subscription
         else 0
     )
     recurring_ai_credit_limit = max(
@@ -2712,6 +2736,24 @@ async def get_platform_admin_users(
             organization.id: organization
             for organization in organizations
         }
+        billing_workspace_ids = {
+            resolve_billing_workspace_id(organization.owner_user_id)
+            for organization in organizations
+            if organization.owner_user_id
+        }
+        subscriptions = {
+            subscription.workspace_id: subscription
+            for subscription in (
+                db.query(WorkspaceSubscription)
+                .filter(
+                    WorkspaceSubscription.workspace_id.in_(
+                        billing_workspace_ids
+                    ),
+                )
+                .all()
+            )
+        } if billing_workspace_ids else {}
+
         protected_user_ids = platform_owner_user_ids(
             db,
             auth_context.user_id,
@@ -2734,6 +2776,7 @@ async def get_platform_admin_users(
             users[app_user.id] = {
                 "email": app_user.email or identity_emails.get(app_user.id),
                 "organization_names": set(),
+                "account_types": set(),
                 "roles": set(),
                 "owner": False,
                 "protected": app_user.id in protected_user_ids,
@@ -2744,6 +2787,7 @@ async def get_platform_admin_users(
                 organization.owner_user_id,
                 {
                     "organization_names": set(),
+                    "account_types": set(),
                     "roles": set(),
                     "owner": False,
                     "email": None,
@@ -2752,6 +2796,12 @@ async def get_platform_admin_users(
                 },
             )
             owner_record["organization_names"].add(organization.name)
+            owner_record["account_types"].add(
+                platform_admin_account_type_for_organization(
+                    organization,
+                    subscriptions,
+                )
+            )
             owner_record["roles"].add("owner")
             owner_record["owner"] = True
 
@@ -2764,6 +2814,7 @@ async def get_platform_admin_users(
                 member.clerk_user_id,
                 {
                     "organization_names": set(),
+                    "account_types": set(),
                     "roles": set(),
                     "owner": False,
                     "email": None,
@@ -2772,6 +2823,12 @@ async def get_platform_admin_users(
                 },
             )
             user_record["organization_names"].add(organization.name)
+            user_record["account_types"].add(
+                platform_admin_account_type_for_organization(
+                    organization,
+                    subscriptions,
+                )
+            )
             user_record["roles"].add(
                 "owner"
                 if member.clerk_user_id == organization.owner_user_id
@@ -2785,6 +2842,7 @@ async def get_platform_admin_users(
                 admin_role.user_id,
                 {
                     "organization_names": set(),
+                    "account_types": set(),
                     "roles": set(),
                     "owner": False,
                     "email": platform_admin_user_email(
@@ -2819,6 +2877,7 @@ async def get_platform_admin_users(
                     clerk_user_id,
                     str(user_record.get("email") or ""),
                     *user_record["organization_names"],
+                    *user_record["account_types"],
                     *user_record["roles"],
                 ]
                 if not any(
@@ -2836,6 +2895,9 @@ async def get_platform_admin_users(
                     ),
                     organization_names=sorted(
                         user_record["organization_names"]
+                    ),
+                    account_types=sorted(
+                        user_record["account_types"]
                     ),
                     roles=sorted(user_record["roles"]),
                     owner=bool(user_record["owner"]),

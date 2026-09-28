@@ -216,7 +216,6 @@ const creditSettingFields = [
   { key: "free_ai_credits", label: "Free" },
   { key: "professional_ai_credits", label: "Professional" },
   { key: "agency_ai_credits", label: "Agency" },
-  { key: "agency_client_ai_credits", label: "Agency client" },
   {
     key: "additional_client_workspace_ai_credits",
     label: "Additional client workspace",
@@ -445,7 +444,6 @@ export default function PlatformAdminPage() {
     free_ai_credits: "1000",
     professional_ai_credits: "5000",
     agency_ai_credits: "25000",
-    agency_client_ai_credits: "2500",
     additional_client_workspace_ai_credits: "2500",
     ai_credit_pack_size: "5000",
     professional_monthly_price_cents: "7900",
@@ -734,7 +732,6 @@ export default function PlatformAdminPage() {
                     free_ai_credits: String(settings.free_ai_credits),
                     professional_ai_credits: String(settings.professional_ai_credits),
                     agency_ai_credits: String(settings.agency_ai_credits),
-                    agency_client_ai_credits: String(settings.agency_client_ai_credits),
                     additional_client_workspace_ai_credits: String(
                       settings.additional_client_workspace_ai_credits
                     ),
@@ -3805,9 +3802,10 @@ export default function PlatformAdminPage() {
                   <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
                     <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                       <tr>
-                        <th className="px-5 py-3 font-medium">Internal user</th>
-                        <th className="px-5 py-3 font-medium">Email</th>
-                        <th className="px-5 py-3 font-medium">Workspaces</th>
+                      <th className="px-5 py-3 font-medium">Internal user</th>
+                      <th className="px-5 py-3 font-medium">Email</th>
+                      <th className="px-5 py-3 font-medium">Account type</th>
+                      <th className="px-5 py-3 font-medium">Workspaces</th>
                         <th className="px-5 py-3 font-medium">Roles and admin cards</th>
                         <th className="px-5 py-3 font-medium">Organizations</th>
                         <th className="px-5 py-3 font-medium">Actions</th>
@@ -3821,6 +3819,22 @@ export default function PlatformAdminPage() {
                           </td>
                           <td className="px-5 py-3 text-gray-500">
                             {platformUser.email || "-"}
+                          </td>
+                          <td className="px-5 py-3 text-gray-700">
+                            {platformUser.account_types.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {platformUser.account_types.map((accountType) => (
+                                  <span
+                                    key={accountType}
+                                    className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800"
+                                  >
+                                    {formatAdminLabel(accountType)}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              "Not assigned"
+                            )}
                           </td>
                           <td className="px-5 py-3 text-gray-700">
                             {platformUser.organization_count}

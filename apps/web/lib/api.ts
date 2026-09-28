@@ -1085,6 +1085,7 @@ export type PlatformAdminUser = {
   email?: string | null
   organization_count: number
   organization_names: string[]
+  account_types: string[]
   roles: string[]
   owner: boolean
   protected?: boolean
@@ -1283,7 +1284,6 @@ export type PlatformAdminCreditSettings = {
   free_ai_credits: number
   professional_ai_credits: number
   agency_ai_credits: number
-  agency_client_ai_credits: number
   additional_client_workspace_ai_credits: number
   ai_credit_pack_size: number
   professional_monthly_price_cents: number

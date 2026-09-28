@@ -1323,12 +1323,6 @@ class PlatformBillingSettings(Base):
         default=25000,
     )
 
-    agency_client_ai_credits = Column(
-        Integer,
-        nullable=False,
-        default=2500,
-    )
-
     agency_growth_ai_credits = Column(
         Integer,
         nullable=False,

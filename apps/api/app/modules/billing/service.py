@@ -38,7 +38,6 @@ AI_CREDIT_PACK_PRICE_CENTS = 750
 AI_CREDIT_TOPUP_PRICE_CENTS = 1000
 ANNUAL_AI_CREDIT_MULTIPLIER = 12
 DEFAULT_ADDITIONAL_CLIENT_WORKSPACE_AI_CREDITS = 2500
-DEFAULT_AGENCY_CLIENT_AI_CREDITS = 2500
 BILLING_PRICING_COLUMNS = {
     "professional_monthly_price_cents": "professional_monthly_price_cents",
     "professional_annual_price_cents": "professional_annual_price_cents",
@@ -85,7 +84,6 @@ AI_CREDIT_ALLOCATION_COLUMNS = {
     FREE_PLAN: "free_ai_credits",
     PROFESSIONAL_PLAN: "professional_ai_credits",
     AGENCY_PLAN: "agency_ai_credits",
-    "agency_client": "agency_client_ai_credits",
     "additional_client_workspace": "additional_client_workspace_ai_credits",
 }
 PUBLIC_BILLING_PLANS = (
@@ -195,10 +193,6 @@ def get_ai_credit_allocations(db=None) -> dict[str, int]:
         AGENCY_PLAN: clean_nonnegative_int(
             "DECISIONATE_AGENCY_AI_CREDITS",
             25000,
-        ),
-        "agency_client": clean_nonnegative_int(
-            "DECISIONATE_AGENCY_CLIENT_AI_CREDITS",
-            DEFAULT_AGENCY_CLIENT_AI_CREDITS,
         ),
         "additional_client_workspace": clean_nonnegative_int(
             "DECISIONATE_ADDITIONAL_CLIENT_WORKSPACE_AI_CREDITS",

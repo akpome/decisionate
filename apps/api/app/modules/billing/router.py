@@ -160,13 +160,9 @@ async def get_billing_status(
     db = SessionLocal()
     try:
         config = get_billing_config(db)
-        subscription = (
-            db.query(WorkspaceSubscription)
-            .filter(
-                WorkspaceSubscription.workspace_id
-                == auth_context.workspace_id,
-            )
-            .first()
+        subscription = get_subscription_for_workspace(
+            db,
+            auth_context.workspace_id,
         )
         access_state = build_subscription_access_state(subscription)
         plan = normalize_billing_plan(
@@ -194,9 +190,7 @@ async def get_billing_status(
         )
         ai_credit_allocations = get_ai_credit_allocations(db)
         monthly_included_ai_credits = int(
-            ai_credit_allocations["agency_client"]
-            if ":client:" in auth_context.workspace_id
-            else plan_definition["ai_credit_limit"]
+            plan_definition["ai_credit_limit"]
         )
         annual_ai_credit_limit = (
             monthly_included_ai_credits

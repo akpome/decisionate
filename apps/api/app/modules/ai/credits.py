@@ -139,17 +139,9 @@ def _get_recurring_credit_limit(
     subscription,
 ) -> int | None:
     plan = normalize_billing_plan(subscription.plan)
-    if ":client:" in str(subscription.workspace_id or ""):
-        monthly_plan_limit = int(
-            get_ai_credit_allocations().get(
-                "agency_client",
-                0,
-            )
-        )
-    else:
-        monthly_plan_limit = int(
-            get_billing_plan_definition(plan)["ai_credit_limit"]
-        )
+    monthly_plan_limit = int(
+        get_billing_plan_definition(plan)["ai_credit_limit"]
+    )
     plan_limit = get_billing_period_ai_credit_limit(
         monthly_plan_limit,
         subscription.billing_interval,
