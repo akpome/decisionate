@@ -1426,6 +1426,113 @@ class NewConnectorTests(unittest.TestCase):
                     date(2026, 9, 2),
                 )
 
+    def test_shopify_orders_paginate_nested_line_items(self):
+        requests = []
+
+        def graphql_request(url, headers, payload, source_type=None):
+            requests.append(payload)
+            self.assertEqual(source_type, "shopify")
+            if "ShopifyOrderLineItems" in payload["query"]:
+                self.assertEqual(
+                    payload["variables"],
+                    {
+                        "id": "gid://shopify/Order/9",
+                        "after": "line-cursor-1",
+                    },
+                )
+                return {
+                    "data": {
+                        "node": {
+                            "lineItems": {
+                                "nodes": [{
+                                    "id": "gid://shopify/LineItem/9b",
+                                    "name": "Second item",
+                                    "quantity": 1,
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": False,
+                                    "endCursor": "line-cursor-2",
+                                },
+                            },
+                        },
+                    },
+                }
+            return {
+                "data": {
+                    "orders": {
+                        "nodes": [{
+                            "id": "gid://shopify/Order/9",
+                            "legacyResourceId": "9",
+                            "name": "#1009",
+                            "createdAt": "2026-09-02T12:00:00Z",
+                            "updatedAt": "2026-09-02T12:00:00Z",
+                            "currencyCode": "CAD",
+                            "subtotalLineItemsQuantity": 2,
+                            "lineItems": {
+                                "nodes": [{
+                                    "id": "gid://shopify/LineItem/9a",
+                                    "name": "First item",
+                                    "quantity": 1,
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": True,
+                                    "endCursor": "line-cursor-1",
+                                },
+                            },
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": False,
+                            "endCursor": "order-cursor-1",
+                        },
+                    },
+                },
+            }
+
+        with patch.object(
+            connectors,
+            "get_oauth_access_token",
+            return_value="shopify-token",
+        ), patch.object(
+            connectors,
+            "connector_json_post_request",
+            side_effect=graphql_request,
+        ), patch.dict(
+            "os.environ",
+            {
+                "SHOPIFY_API_VERSION": "2026-07",
+                "SHOPIFY_GRAPHQL_API_URL_TEMPLATE": (
+                    "https://{shop_domain}/admin/api/{api_version}/graphql.json"
+                ),
+            },
+            clear=False,
+        ):
+            dataframe, _report = connectors.load_shopify_dataframe(
+                None,
+                make_connection(
+                    "shopify",
+                    {"shop_domain": "store.myshopify.com"},
+                ),
+                date(2026, 9, 1),
+                date(2026, 9, 3),
+            )
+
+        self.assertEqual(len(dataframe), 2)
+        self.assertEqual(
+            list(dataframe["item_description"]),
+            ["First item", "Second item"],
+        )
+        self.assertEqual(
+            list(dataframe["line_item_id"]),
+            [
+                "gid://shopify/LineItem/9a",
+                "gid://shopify/LineItem/9b",
+            ],
+        )
+        self.assertEqual(len(requests), 2)
+        self.assertIn("node(id: $id)", requests[1]["query"])
+        self.assertNotIn("product", requests[0]["query"])
+        self.assertNotIn("variant", requests[0]["query"])
+
     def test_shopify_domain_must_be_a_myshopify_host(self):
         self.assertEqual(
             connectors.normalize_shop_domain(

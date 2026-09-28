@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -49,7 +50,8 @@ class OAuthTokenExchangeError(RuntimeError):
 SHOPIFY_SHOP_DOMAIN_PATTERN = re.compile(
     r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.myshopify\.com"
 )
-SHOPIFY_CONNECTOR_SCOPES = {"read_orders"}
+SHOPIFY_CONNECTOR_SCOPES = {"read_orders", "read_all_orders"}
+SHOPIFY_REQUIRED_SCOPES = ("read_orders", "read_all_orders")
 SAGE_DEFAULT_BUSINESSES_API_URL = (
     "https://api.accounting.sage.com/v3.1/businesses"
 )
@@ -90,6 +92,74 @@ def normalize_shopify_shop_domain(value: str | None) -> str:
     return hostname
 
 
+def verify_shopify_oauth_callback(
+    query_params,
+    expected_shop_domain: str | None,
+) -> None:
+    """Verify Shopify's signed callback belongs to the configured shop."""
+    expected_shop = normalize_shopify_shop_domain(expected_shop_domain)
+    callback_shop = normalize_shopify_shop_domain(query_params.get("shop"))
+    if callback_shop != expected_shop:
+        raise OAuthTokenExchangeError(
+            "Shopify OAuth callback shop does not match the configured shop"
+        )
+
+    received_hmac = str(query_params.get("hmac") or "").strip().lower()
+    if not received_hmac:
+        raise OAuthTokenExchangeError(
+            "Shopify OAuth callback is missing its HMAC signature"
+        )
+    if not re.fullmatch(r"[0-9a-f]{64}", received_hmac):
+        raise OAuthTokenExchangeError(
+            "Shopify OAuth callback HMAC signature is invalid"
+        )
+
+    provider = OAUTH_PROVIDERS["shopify"]
+    _client_id, client_secret = get_provider_credentials(provider)
+    if hasattr(query_params, "multi_items"):
+        query_items = list(query_params.multi_items())
+    else:
+        query_items = list(query_params.items())
+    message = "&".join(
+        f"{key}={value}"
+        for key, value in sorted(query_items)
+        if key != "hmac"
+    )
+    expected_hmac = hmac.new(
+        client_secret.encode("utf-8"),
+        message.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected_hmac, received_hmac):
+        raise OAuthTokenExchangeError(
+            "Shopify OAuth callback HMAC validation failed"
+        )
+
+
+def validate_shopify_token_scopes(payload: dict) -> None:
+    """Prevent a successful OAuth exchange from silently yielding partial history."""
+    raw_scopes = payload.get("scope")
+    if isinstance(raw_scopes, (list, tuple, set)):
+        granted_scopes = {str(scope).strip() for scope in raw_scopes}
+    else:
+        granted_scopes = {
+            scope.strip()
+            for scope in str(raw_scopes or "").replace(",", " ").split()
+            if scope.strip()
+        }
+    missing_scopes = [
+        scope
+        for scope in SHOPIFY_REQUIRED_SCOPES
+        if scope not in granted_scopes
+    ]
+    if missing_scopes:
+        raise OAuthTokenExchangeError(
+            "Shopify authorization did not grant the required scope(s): "
+            f"{', '.join(missing_scopes)}. Approve them in the Shopify app "
+            "version and reconnect the store."
+        )
+
+
 @dataclass(frozen=True)
 class OAuthProvider:
     source_type: str
@@ -114,7 +184,7 @@ OAUTH_PROVIDERS = {
         client_id_env="SHOPIFY_CLIENT_ID",
         client_secret_env="SHOPIFY_CLIENT_SECRET",
         scopes_env="SHOPIFY_OAUTH_SCOPES",
-        required_scopes=("read_orders",),
+        required_scopes=SHOPIFY_REQUIRED_SCOPES,
     ),
     "hubspot": OAuthProvider(
         source_type="hubspot",

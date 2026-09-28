@@ -51,6 +51,8 @@ from app.modules.oauth.service import (
     get_sage_businesses,
     normalize_lightspeed_x_domain_prefix,
     normalize_sage_country,
+    validate_shopify_token_scopes,
+    verify_shopify_oauth_callback,
     get_zoho_books_organizations,
     get_xero_connections,
     get_web_app_url,
@@ -727,6 +729,11 @@ def process_oauth_callback(
         connection_config = parse_source_connection_config(
             connection.connection_config
         )
+        if state_source_type == "shopify":
+            verify_shopify_oauth_callback(
+                query,
+                connection_config.get("shop_domain"),
+            )
         if state_source_type == "sage":
             callback_country = normalize_sage_country(
                 query.get("country")
@@ -789,6 +796,8 @@ def process_oauth_callback(
             connection_config,
             code_verifier=code_verifier,
         )
+        if state_source_type == "shopify":
+            validate_shopify_token_scopes(payload)
         if state_source_type == "freshbooks":
             access_token = str(payload.get("access_token") or "").strip()
             businesses = get_freshbooks_businesses(access_token)

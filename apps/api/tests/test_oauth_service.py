@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import json
 import os
 import types
@@ -9,6 +11,7 @@ from unittest.mock import patch
 from cryptography.fernet import Fernet
 
 from app.modules.oauth.service import (
+    OAuthTokenExchangeError,
     build_authorization_url,
     build_token_request,
     build_woocommerce_authorization_url,
@@ -19,6 +22,8 @@ from app.modules.oauth.service import (
     is_oauth_provider_configured,
     read_token_response,
     revoke_oauth_token,
+    validate_shopify_token_scopes,
+    verify_shopify_oauth_callback,
 )
 from app.modules.oauth.router import (
     apply_oauth_account_selection,
@@ -619,7 +624,7 @@ class OAuthAndSchedulingTests(unittest.TestCase):
                     "https://{shop_domain}/admin/oauth/access_token"
                 ),
                 "SHOPIFY_OAUTH_SCOPES": (
-                    "read_orders read_products read_customers"
+                    "read_orders read_all_orders read_products read_customers"
                 ),
                 "OAUTH_TOKEN_ENCRYPTION_KEY": key,
             },
@@ -636,10 +641,59 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             self.assertIn("state=state-1", url)
             self.assertEqual(
                 parse_qs(urlparse(url).query)["scope"],
-                ["read_orders"],
+                ["read_orders read_all_orders"],
             )
             self.assertNotEqual(encrypted, "access-token")
             self.assertEqual(decrypt_token(encrypted), "access-token")
+
+    def test_shopify_token_must_grant_all_order_scope(self):
+        validate_shopify_token_scopes(
+            {"scope": "read_orders,read_all_orders"}
+        )
+        with self.assertRaisesRegex(
+            OAuthTokenExchangeError,
+            "did not grant the required scope.*read_all_orders",
+        ):
+            validate_shopify_token_scopes({"scope": "read_orders"})
+
+    def test_shopify_oauth_callback_requires_matching_shop_and_hmac(self):
+        callback = {
+            "code": "authorization-code",
+            "shop": "store.myshopify.com",
+            "state": "state-1",
+            "timestamp": "1726000000",
+        }
+        message = "&".join(
+            f"{key}={value}"
+            for key, value in sorted(callback.items())
+        )
+        callback["hmac"] = hmac.new(
+            b"client-secret",
+            message.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+
+        with patch.dict(
+            os.environ,
+            {
+                "SHOPIFY_CLIENT_ID": "client-id",
+                "SHOPIFY_CLIENT_SECRET": "client-secret",
+            },
+            clear=False,
+        ):
+            verify_shopify_oauth_callback(
+                callback,
+                "https://store.myshopify.com/",
+            )
+            callback["shop"] = "other.myshopify.com"
+            with self.assertRaisesRegex(
+                OAuthTokenExchangeError,
+                "does not match the configured shop",
+            ):
+                verify_shopify_oauth_callback(
+                    callback,
+                    "https://store.myshopify.com/",
+                )
 
     def test_google_analytics_uses_default_offline_callback(self):
         key = Fernet.generate_key().decode()

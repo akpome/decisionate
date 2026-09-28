@@ -2266,6 +2266,38 @@ def load_stripe_dataframe(
     }
 
 
+SHOPIFY_LINE_ITEM_FIELDS = """
+        nodes {
+          id
+          name
+          quantity
+          sku
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          discountedUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          discountedTotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+"""
+
+
 SHOPIFY_ORDERS_QUERY = """
 query ShopifyOrders($after: String, $query: String) {
   orders(
@@ -2312,38 +2344,7 @@ query ShopifyOrders($after: String, $query: String) {
       subtotalLineItemsQuantity
       test
       lineItems(first: 250) {
-        nodes {
-          id
-          name
-          quantity
-          sku
-          product {
-            id
-            title
-          }
-          variant {
-            id
-            title
-          }
-          originalUnitPriceSet {
-            shopMoney {
-              amount
-              currencyCode
-            }
-          }
-          discountedUnitPriceSet {
-            shopMoney {
-              amount
-              currencyCode
-            }
-          }
-          discountedTotalSet {
-            shopMoney {
-              amount
-              currencyCode
-            }
-          }
-        }
+{SHOPIFY_LINE_ITEM_FIELDS}
       }
     }
     pageInfo {
@@ -2352,7 +2353,20 @@ query ShopifyOrders($after: String, $query: String) {
     }
   }
 }
-"""
+""".replace("{SHOPIFY_LINE_ITEM_FIELDS}", SHOPIFY_LINE_ITEM_FIELDS)
+
+
+SHOPIFY_ORDER_LINE_ITEMS_QUERY = """
+query ShopifyOrderLineItems($id: ID!, $after: String) {
+  node(id: $id) {
+    ... on Order {
+      lineItems(first: 250, after: $after) {
+{SHOPIFY_LINE_ITEM_FIELDS}
+      }
+    }
+  }
+}
+""".replace("{SHOPIFY_LINE_ITEM_FIELDS}", SHOPIFY_LINE_ITEM_FIELDS)
 
 
 def shopify_order_query(start_date, end_date) -> str | None:
@@ -2409,6 +2423,7 @@ def shopify_graphql_request(
     url: str,
     access_token: str,
     variables: dict,
+    query: str = SHOPIFY_ORDERS_QUERY,
 ):
     """Execute a Shopify GraphQL query and surface GraphQL-level failures."""
     for attempt in range(SHOPIFY_MAX_REQUEST_ATTEMPTS):
@@ -2419,7 +2434,7 @@ def shopify_graphql_request(
                 "X-Shopify-Access-Token": access_token,
             },
             payload={
-                "query": SHOPIFY_ORDERS_QUERY,
+                "query": query,
                 "variables": variables,
             },
             source_type="shopify",
@@ -2459,6 +2474,63 @@ def shopify_graphql_request(
             "Shopify GraphQL request failed: "
             f"{format_connector_error_detail(detail, 'shopify')[:240]}"
         )
+
+
+def shopify_order_line_items(
+    graphql_url: str,
+    access_token: str,
+    order: dict,
+) -> list[dict]:
+    """Collect every line item for an order, including nested cursor pages."""
+    line_items_payload = order.get("lineItems")
+    if not isinstance(line_items_payload, dict):
+        return [{}]
+    line_items = line_items_payload.get("nodes")
+    page_info = line_items_payload.get("pageInfo") or {}
+    if not isinstance(line_items, list) or not isinstance(page_info, dict):
+        raise ConnectorUnavailable(
+            "Shopify returned an invalid order line-items response"
+        )
+    line_items = list(line_items)
+    order_graphql_id = str(order.get("id") or "").strip()
+    after_cursor = page_info.get("endCursor")
+    seen_cursors = set()
+    while page_info.get("hasNextPage"):
+        if not order_graphql_id:
+            raise ConnectorUnavailable(
+                "Shopify returned an order without a GraphQL ID for line-item pagination"
+            )
+        if not after_cursor or str(after_cursor) in seen_cursors:
+            raise ConnectorUnavailable(
+                "Shopify returned an invalid line-item pagination cursor"
+            )
+        after_cursor = str(after_cursor)
+        seen_cursors.add(after_cursor)
+        data = shopify_graphql_request(
+            graphql_url,
+            access_token,
+            {"id": order_graphql_id, "after": after_cursor},
+            query=SHOPIFY_ORDER_LINE_ITEMS_QUERY,
+        )
+        node = data.get("node")
+        if not isinstance(node, dict):
+            raise ConnectorUnavailable(
+                "Shopify returned no order while paginating line items"
+            )
+        line_items_payload = node.get("lineItems")
+        if not isinstance(line_items_payload, dict):
+            raise ConnectorUnavailable(
+                "Shopify returned an invalid paginated line-items response"
+            )
+        page_items = line_items_payload.get("nodes")
+        page_info = line_items_payload.get("pageInfo")
+        if not isinstance(page_items, list) or not isinstance(page_info, dict):
+            raise ConnectorUnavailable(
+                "Shopify returned an invalid paginated line-items response"
+            )
+        line_items.extend(page_items)
+        after_cursor = page_info.get("endCursor")
+    return line_items or [{}]
 
 
 def load_shopify_dataframe(
@@ -2561,7 +2633,11 @@ def load_shopify_dataframe(
                 flatten_lists=True,
             )
             for line_index, line in enumerate(
-                connector_line_items(order, "lineItems")
+                shopify_order_line_items(
+                    graphql_url,
+                    access_token,
+                    order,
+                )
             ):
                 product = line.get("product")
                 product = product if isinstance(product, dict) else {}

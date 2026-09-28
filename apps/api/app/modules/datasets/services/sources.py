@@ -259,7 +259,7 @@ DATASET_SOURCES = [
         "config_keys": ["shop_domain"],
         "required_config_keys": ["shop_domain"],
         "description": (
-            "Connect store orders, products, and customer data."
+            "Connect store orders and line items through Shopify's GraphQL Admin API."
         ),
     },
     {
