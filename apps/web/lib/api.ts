@@ -4412,7 +4412,7 @@ export async function deletePlatformAdminUser(
 
 export async function getPlatformAdminAuditEvents(
   userId: string,
-  limit = 0
+  limit = 100
 ): Promise<PlatformAdminAuditEvent[]> {
   const response =
     await apiFetch(
@@ -4439,7 +4439,7 @@ export async function getPlatformAdminAuditEvents(
 export async function getPlatformAdminAlertDeliveries(
   userId: string,
   status?: string,
-  limit = 0
+  limit = 50
 ): Promise<PlatformAdminAlertDelivery[]> {
   const params = new URLSearchParams({
     limit: String(limit),
@@ -4473,7 +4473,7 @@ export async function getPlatformAdminAlertDeliveries(
 export async function getPlatformAdminUsageActivity(
   userId: string,
   days = 30,
-  limit = 0
+  limit = 200
 ): Promise<PlatformAdminUsage> {
   const params = new URLSearchParams({
     days: String(days),
