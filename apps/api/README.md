@@ -292,10 +292,13 @@ Shopify imports order-level sales and line items through the versioned GraphQL A
 Configure `SHOPIFY_API_VERSION` and either
 `SHOPIFY_GRAPHQL_API_URL_TEMPLATE` or the compatible
 `SHOPIFY_API_BASE_URL_TEMPLATE`. The adapter requests only order and line-item fields,
-does not request customer email or address fields, and requires the
-`read_orders` and `read_all_orders` scopes. Shopify's all-orders access and
-protected customer-data approval must be granted to the app in the Shopify
-Partner Dashboard before production connections can import the full history.
+does not request customer email or address fields, and defaults to a 60-day initial
+sync with no historical backfill. Manual Shopify date-range syncs are limited to
+60 days. The default OAuth request uses `read_orders` only, so all-orders access
+and its associated Shopify review can be enabled later with
+`SHOPIFY_REQUIRE_ALL_ORDERS_ACCESS=true`, `SHOPIFY_INITIAL_SYNC_DAYS=90`,
+`SHOPIFY_INITIAL_BACKFILL_ENABLED=true`, and
+`SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS=0`.
 Square imports order-level sales from the selected location and requires the
 `ORDERS_READ` OAuth permission. To connect WooCommerce, the workspace owner
 enters the client's HTTPS store URL, selects Connect with OAuth, and the client

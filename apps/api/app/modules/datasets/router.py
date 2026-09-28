@@ -244,6 +244,9 @@ logger = logging.getLogger(__name__)
 
 INITIAL_CONNECTOR_SYNC_DAYS = 90
 INITIAL_CONNECTOR_BACKFILL_MONTHS = 21
+SHOPIFY_INITIAL_SYNC_DAYS_DEFAULT = 60
+SHOPIFY_INITIAL_BACKFILL_ENABLED_DEFAULT = False
+SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS_DEFAULT = 60
 INITIAL_CONNECTOR_SYNC_COMPLETED_KEY = "_initial_connector_sync_completed"
 INITIAL_CONNECTOR_SYNC_STATUS_KEY = "_initial_connector_sync_status"
 INITIAL_CONNECTOR_SYNC_PENDING = "pending"
@@ -258,6 +261,65 @@ CONNECTOR_INCREMENTAL_LOOKBACK_DAYS_BY_SOURCE = {
     # rows are ingested and deduplicated when they become available.
     "google_search_console": 7,
 }
+
+
+def _read_boolean_environment_value(name: str, default: bool) -> bool:
+    raw_value = os.getenv(name)
+    if raw_value is None or not str(raw_value).strip():
+        return default
+    return str(raw_value).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _read_positive_integer_environment_value(
+    name: str,
+    default: int | None,
+) -> int | None:
+    raw_value = os.getenv(name)
+    if raw_value is None or not str(raw_value).strip():
+        return default
+    try:
+        value = int(str(raw_value).strip())
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else None
+
+
+def get_initial_connector_sync_days(source_type: str | None = None) -> int:
+    if source_type == "shopify":
+        return (
+            _read_positive_integer_environment_value(
+                "SHOPIFY_INITIAL_SYNC_DAYS",
+                SHOPIFY_INITIAL_SYNC_DAYS_DEFAULT,
+            )
+            or SHOPIFY_INITIAL_SYNC_DAYS_DEFAULT
+        )
+    return INITIAL_CONNECTOR_SYNC_DAYS
+
+
+def initial_connector_backfill_enabled(source_type: str | None = None) -> bool:
+    if source_type == "shopify":
+        return _read_boolean_environment_value(
+            "SHOPIFY_INITIAL_BACKFILL_ENABLED",
+            SHOPIFY_INITIAL_BACKFILL_ENABLED_DEFAULT,
+        )
+    return True
+
+
+def get_connector_max_custom_date_range_days(
+    source_type: str | None = None,
+) -> int | None:
+    if source_type != "shopify":
+        return None
+    configured_days = _read_positive_integer_environment_value(
+        "SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS",
+        SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS_DEFAULT,
+    )
+    return configured_days
 CONNECTOR_DEDUP_KEYS = {
     "hubspot": ["record_id"],
     "stripe": ["charge_id"],
@@ -1732,6 +1794,9 @@ def build_source_connection_response(
         "initial_sync_earliest_date": get_initial_connector_earliest_date(
             connection
         ).isoformat(),
+        "advanced_sync_max_days": get_connector_max_custom_date_range_days(
+            source_type
+        ),
         "authorization_error": getattr(
             connection,
             "authorization_error",
@@ -4740,6 +4805,13 @@ def get_initial_connector_sync_status(connection) -> str | None:
     status = str(
         connection_config.get(INITIAL_CONNECTOR_SYNC_STATUS_KEY) or ""
     ).strip().lower()
+    if (
+        status == INITIAL_CONNECTOR_SYNC_BACKFILL
+        and not initial_connector_backfill_enabled(
+            getattr(connection, "source_type", None)
+        )
+    ):
+        return INITIAL_CONNECTOR_SYNC_COMPLETE
     return status or None
 
 
@@ -4772,10 +4844,11 @@ def subtract_calendar_months(value: date, months: int) -> date:
 
 def get_initial_connector_backfill_window(
     reference_date: date | None = None,
+    source_type: str | None = None,
 ):
     end_date = reference_date or date.today()
     initial_start_date = end_date - timedelta(
-        days=INITIAL_CONNECTOR_SYNC_DAYS - 1
+        days=get_initial_connector_sync_days(source_type) - 1
     )
     backfill_end_date = initial_start_date - timedelta(days=1)
     backfill_start_date = subtract_calendar_months(
@@ -4799,6 +4872,10 @@ def initial_connector_sync_is_required(db, connection) -> bool:
 
 
 def initial_connector_backfill_is_required(connection) -> bool:
+    if not initial_connector_backfill_enabled(
+        getattr(connection, "source_type", None)
+    ):
+        return False
     if connection.last_synced_at is None:
         return False
     if get_initial_connector_sync_status(connection) != (
@@ -4815,6 +4892,11 @@ def initial_connector_backfill_is_required(connection) -> bool:
 
 
 def get_initial_connector_earliest_date(connection) -> date:
+    source_type = getattr(connection, "source_type", None)
+    if not initial_connector_backfill_enabled(source_type):
+        return date.today() - timedelta(
+            days=get_initial_connector_sync_days(source_type) - 1
+        )
     connection_config = parse_schedule_config(
         getattr(connection, "connection_config", None)
     )
@@ -4824,7 +4906,9 @@ def get_initial_connector_earliest_date(connection) -> date:
     try:
         return date.fromisoformat(str(configured_start))
     except (TypeError, ValueError):
-        start_date, _end_date = get_initial_connector_backfill_window()
+        start_date, _end_date = get_initial_connector_backfill_window(
+            source_type=source_type,
+        )
         return start_date
 
 
@@ -4855,7 +4939,10 @@ def get_incremental_sync_window(
             )
         else:
             start_date = date.today() - timedelta(
-                days=INITIAL_CONNECTOR_SYNC_DAYS - 1
+                days=get_initial_connector_sync_days(
+                    getattr(connection, "source_type", None)
+                )
+                - 1
             )
 
     if end_date is None and start_date is not None:
@@ -4867,6 +4954,7 @@ def get_incremental_sync_window(
 def validate_advanced_sync_window(
     payload: DataSourceConnectionSync,
     earliest_date: date | None = None,
+    source_type: str | None = None,
 ):
     """Keep manual recovery syncs inside the connector's initial history."""
     if not payload.advanced_date_range:
@@ -4874,7 +4962,10 @@ def validate_advanced_sync_window(
 
     today = date.today()
     earliest_date = earliest_date or (
-        get_initial_connector_backfill_window(today)[0]
+        get_initial_connector_backfill_window(
+            today,
+            source_type=source_type,
+        )[0]
     )
     start_date = payload.start_date
     end_date = payload.end_date
@@ -4884,7 +4975,21 @@ def validate_advanced_sync_window(
             status_code=422,
             detail="Advanced sync requires both a start date and an end date",
         )
+    max_custom_days = get_connector_max_custom_date_range_days(source_type)
+    if max_custom_days is not None:
+        earliest_date = max(
+            earliest_date,
+            today - timedelta(days=max_custom_days - 1),
+        )
     if start_date < earliest_date:
+        if max_custom_days is not None:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"{source_type or 'Connector'} advanced sync cannot "
+                    f"cover more than {max_custom_days} days"
+                ),
+            )
         raise HTTPException(
             status_code=422,
             detail=f"Advanced sync cannot start before {earliest_date.isoformat()}",
@@ -7377,6 +7482,17 @@ def queue_connector_initial_backfill(
         if not connection:
             return False
 
+        if not initial_connector_backfill_enabled(connection.source_type):
+            if get_initial_connector_sync_status(connection) != (
+                INITIAL_CONNECTOR_SYNC_COMPLETE
+            ):
+                set_initial_connector_sync_status(
+                    connection,
+                    INITIAL_CONNECTOR_SYNC_COMPLETE,
+                )
+                db.commit()
+            return False
+
         status = get_initial_connector_sync_status(connection)
         if status in {
             INITIAL_CONNECTOR_SYNC_INITIAL,
@@ -7391,7 +7507,9 @@ def queue_connector_initial_backfill(
             "_initial_connector_backfill_start_date"
         ):
             backfill_start, backfill_end = (
-                get_initial_connector_backfill_window()
+                get_initial_connector_backfill_window(
+                    source_type=connection.source_type,
+                )
             )
             connection_config[
                 "_initial_connector_backfill_start_date"
@@ -7486,7 +7604,7 @@ def _persist_initial_backfill_failure(
 
 
 def run_connector_initial_backfill(connection_id: int):
-    """Import the 21 months immediately preceding the initial 90 days."""
+    """Import the historical phase when the connector policy enables it."""
     db = SessionLocal()
     try:
         connection = (
@@ -7495,6 +7613,13 @@ def run_connector_initial_backfill(connection_id: int):
             .first()
         )
         if not connection:
+            return
+        if not initial_connector_backfill_enabled(connection.source_type):
+            set_initial_connector_sync_status(
+                connection,
+                INITIAL_CONNECTOR_SYNC_COMPLETE,
+            )
+            db.commit()
             return
         status = get_initial_connector_sync_status(connection)
         if status == INITIAL_CONNECTOR_SYNC_COMPLETE:
@@ -7513,7 +7638,9 @@ def run_connector_initial_backfill(connection_id: int):
             start_date = date.fromisoformat(str(stored_start))
             end_date = date.fromisoformat(str(stored_end))
         except (TypeError, ValueError):
-            start_date, end_date = get_initial_connector_backfill_window()
+            start_date, end_date = get_initial_connector_backfill_window(
+                source_type=connection.source_type,
+            )
             connection_config[
                 "_initial_connector_backfill_start_date"
             ] = start_date.isoformat()
@@ -7584,7 +7711,7 @@ def run_connector_initial_backfill(connection_id: int):
 
 
 def run_connector_initial_import(connection_id: int):
-    """Run the initial 90-day phase, then continue with historical data."""
+    """Run the initial phase, then continue with historical data if enabled."""
     db = SessionLocal()
     try:
         connection = (
@@ -7601,7 +7728,10 @@ def run_connector_initial_import(connection_id: int):
 
         reference_date = date.today()
         backfill_start, backfill_end = (
-            get_initial_connector_backfill_window(reference_date)
+            get_initial_connector_backfill_window(
+                reference_date,
+                source_type=connection.source_type,
+            )
         )
         connection_config = parse_schedule_config(
             connection.connection_config
@@ -7649,7 +7779,13 @@ def run_connector_initial_import(connection_id: int):
         if connection:
             set_initial_connector_sync_status(
                 connection,
-                INITIAL_CONNECTOR_SYNC_BACKFILL,
+                (
+                    INITIAL_CONNECTOR_SYNC_BACKFILL
+                    if initial_connector_backfill_enabled(
+                        connection.source_type
+                    )
+                    else INITIAL_CONNECTOR_SYNC_COMPLETE
+                ),
             )
             db.commit()
     except (
@@ -7676,7 +7812,24 @@ def run_connector_initial_import(connection_id: int):
     finally:
         db.close()
 
-    run_connector_initial_backfill(connection_id)
+    if initial_connector_backfill_enabled(connection.source_type):
+        run_connector_initial_backfill(connection_id)
+    else:
+        db = SessionLocal()
+        try:
+            connection = (
+                db.query(DataSourceConnection)
+                .filter(DataSourceConnection.id == connection_id)
+                .first()
+            )
+            if connection:
+                set_initial_connector_sync_status(
+                    connection,
+                    INITIAL_CONNECTOR_SYNC_COMPLETE,
+                )
+                db.commit()
+        finally:
+            db.close()
 
 
 def get_connectors_scheduler_secret():
@@ -7981,6 +8134,7 @@ async def sync_source_connection(
         validate_advanced_sync_window(
             payload,
             get_initial_connector_earliest_date(connection),
+            connection.source_type,
         )
         initial_sync_status = get_initial_connector_sync_status(
             connection

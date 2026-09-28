@@ -51,7 +51,8 @@ SHOPIFY_SHOP_DOMAIN_PATTERN = re.compile(
     r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.myshopify\.com"
 )
 SHOPIFY_CONNECTOR_SCOPES = {"read_orders", "read_all_orders"}
-SHOPIFY_REQUIRED_SCOPES = ("read_orders", "read_all_orders")
+SHOPIFY_REQUIRED_SCOPES = ("read_orders",)
+SHOPIFY_ALL_ORDERS_SCOPE = "read_all_orders"
 SAGE_DEFAULT_BUSINESSES_API_URL = (
     "https://api.accounting.sage.com/v3.1/businesses"
 )
@@ -90,6 +91,24 @@ def normalize_shopify_shop_domain(value: str | None) -> str:
             "Shopify shop domain must be a valid *.myshopify.com domain"
         )
     return hostname
+
+
+def shopify_all_orders_access_enabled() -> bool:
+    raw_value = os.getenv("SHOPIFY_REQUIRE_ALL_ORDERS_ACCESS")
+    if raw_value is None or not str(raw_value).strip():
+        return False
+    return str(raw_value).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def get_shopify_required_scopes() -> tuple[str, ...]:
+    if shopify_all_orders_access_enabled():
+        return (*SHOPIFY_REQUIRED_SCOPES, SHOPIFY_ALL_ORDERS_SCOPE)
+    return SHOPIFY_REQUIRED_SCOPES
 
 
 def verify_shopify_oauth_callback(
@@ -149,7 +168,7 @@ def validate_shopify_token_scopes(payload: dict) -> None:
         }
     missing_scopes = [
         scope
-        for scope in SHOPIFY_REQUIRED_SCOPES
+        for scope in get_shopify_required_scopes()
         if scope not in granted_scopes
     ]
     if missing_scopes:
@@ -662,13 +681,22 @@ def get_provider_scopes(
             for scope in scopes
             if scope in SHOPIFY_CONNECTOR_SCOPES
         )
+        if not shopify_all_orders_access_enabled():
+            scopes = tuple(
+                scope
+                for scope in scopes
+                if scope != SHOPIFY_ALL_ORDERS_SCOPE
+            )
     if not scopes and not provider.allow_empty_scopes:
         raise OAuthProviderUnavailable(
             f"{provider.scopes_env} is required for {provider.source_type} OAuth"
         )
+    required_scopes = provider.required_scopes
+    if provider.source_type == "shopify":
+        required_scopes = get_shopify_required_scopes()
     missing_scopes = [
         scope
-        for scope in provider.required_scopes
+        for scope in required_scopes
         if scope not in scopes
     ]
     if missing_scopes:

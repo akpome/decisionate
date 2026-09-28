@@ -140,8 +140,22 @@ function getAdvancedSyncDateBounds(
   const earliest = Number.isNaN(configuredEarliest.getTime())
     ? fallbackEarliest
     : configuredEarliest
+  const maxCustomDateRangeDays = connection.advanced_sync_max_days
+  const policyEarliest =
+    maxCustomDateRangeDays && maxCustomDateRangeDays > 0
+      ? new Date(today)
+      : null
+  if (policyEarliest && maxCustomDateRangeDays) {
+    policyEarliest.setDate(
+      today.getDate() - maxCustomDateRangeDays + 1
+    )
+  }
   return {
-    min: formatDateInputValue(earliest),
+    min: formatDateInputValue(
+      policyEarliest && policyEarliest > earliest
+        ? policyEarliest
+        : earliest
+    ),
     max: formatDateInputValue(today),
     defaultStart: formatDateInputValue(defaultStart),
   }

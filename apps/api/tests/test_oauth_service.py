@@ -626,6 +626,7 @@ class OAuthAndSchedulingTests(unittest.TestCase):
                 "SHOPIFY_OAUTH_SCOPES": (
                     "read_orders read_all_orders read_products read_customers"
                 ),
+                "SHOPIFY_REQUIRE_ALL_ORDERS_ACCESS": "false",
                 "OAUTH_TOKEN_ENCRYPTION_KEY": key,
             },
             clear=False,
@@ -641,20 +642,55 @@ class OAuthAndSchedulingTests(unittest.TestCase):
             self.assertIn("state=state-1", url)
             self.assertEqual(
                 parse_qs(urlparse(url).query)["scope"],
-                ["read_orders read_all_orders"],
+                ["read_orders"],
             )
             self.assertNotEqual(encrypted, "access-token")
             self.assertEqual(decrypt_token(encrypted), "access-token")
 
     def test_shopify_token_must_grant_all_order_scope(self):
-        validate_shopify_token_scopes(
-            {"scope": "read_orders,read_all_orders"}
-        )
-        with self.assertRaisesRegex(
-            OAuthTokenExchangeError,
-            "did not grant the required scope.*read_all_orders",
+        with patch.dict(
+            os.environ,
+            {"SHOPIFY_REQUIRE_ALL_ORDERS_ACCESS": "true"},
+            clear=False,
         ):
-            validate_shopify_token_scopes({"scope": "read_orders"})
+            validate_shopify_token_scopes(
+                {"scope": "read_orders,read_all_orders"}
+            )
+            with self.assertRaisesRegex(
+                OAuthTokenExchangeError,
+                "did not grant the required scope.*read_all_orders",
+            ):
+                validate_shopify_token_scopes({"scope": "read_orders"})
+
+    def test_shopify_all_orders_scope_can_be_disabled_without_recreating_app(self):
+        key = Fernet.generate_key().decode()
+        with patch.dict(
+            os.environ,
+            {
+                "SHOPIFY_CLIENT_ID": "client-id",
+                "SHOPIFY_CLIENT_SECRET": "client-secret",
+                "SHOPIFY_OAUTH_AUTHORIZATION_URL_TEMPLATE": (
+                    "https://{shop_domain}/admin/oauth/authorize"
+                ),
+                "SHOPIFY_OAUTH_TOKEN_URL_TEMPLATE": (
+                    "https://{shop_domain}/admin/oauth/access_token"
+                ),
+                "SHOPIFY_OAUTH_SCOPES": "read_orders read_all_orders",
+                "SHOPIFY_REQUIRE_ALL_ORDERS_ACCESS": "false",
+                "OAUTH_TOKEN_ENCRYPTION_KEY": key,
+            },
+            clear=False,
+        ):
+            url = build_authorization_url(
+                "shopify",
+                "state-1",
+                {"shop_domain": "shop.myshopify.com"},
+            )
+
+        self.assertEqual(
+            parse_qs(urlparse(url).query)["scope"],
+            ["read_orders"],
+        )
 
     def test_shopify_oauth_callback_requires_matching_shop_and_hmac(self):
         callback = {

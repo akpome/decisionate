@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
@@ -24,6 +25,100 @@ def make_connection(source_type, config):
 
 
 class NewConnectorTests(unittest.TestCase):
+    def test_shopify_initial_sync_policy_is_60_days_without_backfill(self):
+        connection = SimpleNamespace(
+            source_type="shopify",
+            last_synced_at=None,
+            connection_config=json.dumps({}),
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                "SHOPIFY_INITIAL_SYNC_DAYS": "60",
+                "SHOPIFY_INITIAL_BACKFILL_ENABLED": "false",
+                "SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS": "60",
+            },
+            clear=False,
+        ):
+            start_date, end_date = datasets_router.get_incremental_sync_window(
+                connection,
+                SimpleNamespace(start_date=None, end_date=None),
+            )
+
+            self.assertEqual((end_date - start_date).days + 1, 60)
+            self.assertEqual(
+                datasets_router.get_initial_connector_earliest_date(
+                    connection
+                ),
+                date.today() - timedelta(days=59),
+            )
+            self.assertFalse(
+                datasets_router.initial_connector_backfill_is_required(
+                    connection
+                )
+            )
+
+    def test_shopify_custom_sync_is_limited_to_60_days(self):
+        today = date.today()
+        with patch.dict(
+            os.environ,
+            {
+                "SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS": "60",
+            },
+            clear=False,
+        ):
+            datasets_router.validate_advanced_sync_window(
+                DataSourceConnectionSync(
+                    advanced_date_range=True,
+                    start_date=today - timedelta(days=59),
+                    end_date=today,
+                ),
+                source_type="shopify",
+            )
+
+            with self.assertRaisesRegex(
+                HTTPException,
+                "cannot cover more than 60 days",
+            ):
+                datasets_router.validate_advanced_sync_window(
+                    DataSourceConnectionSync(
+                        advanced_date_range=True,
+                        start_date=today - timedelta(days=60),
+                        end_date=today,
+                    ),
+                    source_type="shopify",
+                )
+
+    def test_shopify_initial_policy_can_restore_previous_behavior(self):
+        connection = SimpleNamespace(
+            source_type="shopify",
+            last_synced_at=None,
+            connection_config=json.dumps({}),
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                "SHOPIFY_INITIAL_SYNC_DAYS": "90",
+                "SHOPIFY_INITIAL_BACKFILL_ENABLED": "true",
+                "SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS": "0",
+            },
+            clear=False,
+        ):
+            start_date, end_date = datasets_router.get_incremental_sync_window(
+                connection,
+                SimpleNamespace(start_date=None, end_date=None),
+            )
+
+            self.assertEqual((end_date - start_date).days + 1, 90)
+            self.assertEqual(
+                datasets_router.get_connector_max_custom_date_range_days(
+                    "shopify"
+                ),
+                None,
+            )
+
     def test_initial_connector_backfill_starts_after_the_90_day_window(self):
         backfill_start, backfill_end = (
             datasets_router.get_initial_connector_backfill_window(
