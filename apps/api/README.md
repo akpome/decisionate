@@ -321,13 +321,10 @@ settings from `.env.example`; enter the retailer's domain prefix in the
 Decisionate connection settings (for example, `developerdemodv182z` for a
 test store). Lightspeed also returns the domain prefix during OAuth, and
 Decisionate preserves that callback value when it is available.
-Lightspeed Restaurant (K-Series) and O-Series are separate restaurant
-connectors. K-Series uses its production API host and OAuth authorization code
-flow; configure the K-Series client credentials, scopes, and the customer's
-business location ID. It imports sales with associated consumer fields and
-menu items. O-Series uses the Kounta API and OAuth; configure the O-Series
-client credentials, company ID, and optionally a site ID. It imports completed
-orders, customers, and products.
+Lightspeed Restaurant (K-Series) and O-Series are separate planned restaurant
+connectors. Their adapter and OAuth configuration remain documented for
+development, but both are intentionally unavailable in the connector catalog
+until their restaurant integrations are released.
 Google Search Console uses read-only OAuth and imports Search Analytics rows
 for a URL-prefix or Domain property. In Google Cloud, enable the Search
 Console API, create a Web application OAuth client, and add the deployed

@@ -265,6 +265,21 @@ class NewConnectorTests(unittest.TestCase):
             source["availability_note"],
         )
 
+    def test_lightspeed_restaurant_connectors_remain_planned(self):
+        with patch.object(
+            sources,
+            "is_oauth_provider_configured",
+            return_value=True,
+        ), patch.object(
+            sources,
+            "get_missing_provider_settings",
+            return_value=[],
+        ):
+            for source_type in ("lightspeed_k", "lightspeed_o"):
+                source = sources.get_dataset_source(source_type)
+                self.assertIsNotNone(source)
+                self.assertEqual(source["status"], "planned")
+
     def test_search_console_property_formats_are_normalized(self):
         self.assertEqual(
             connectors.normalize_google_search_console_site_url(

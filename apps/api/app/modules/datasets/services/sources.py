@@ -43,6 +43,11 @@ IMPLEMENTED_CONNECTOR_TYPES = {
     "sql_server",
 }
 
+FORCED_PLANNED_CONNECTOR_TYPES = {
+    "lightspeed_k",
+    "lightspeed_o",
+}
+
 OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY = "_oauth_account_options"
 OAUTH_ACCOUNT_IDENTIFIER_KEYS = {
     "salesforce": "instance_url",
@@ -837,7 +842,7 @@ def clone_dataset_source(source):
         "salesforce",
         "google_ads",
         "google_search_console",
-    }:
+    } and source["type"] not in FORCED_PLANNED_CONNECTOR_TYPES:
         if (
             is_oauth_provider_configured(source["type"])
             and not get_missing_provider_settings(source["type"])
