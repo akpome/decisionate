@@ -98,7 +98,10 @@ from app.modules.datasets.services.numeric import (
     is_identifier_column,
 )
 from app.modules.datasets.services.metric_selection import (
+    DATASET_METRIC_DECISIONS_KEY,
+    DATASET_METRIC_OBJECTIVE_KEY,
     DATASET_SELECTED_METRICS_KEY,
+    build_metric_selection_profile,
     filter_dataframe_to_selected_metrics,
     get_effective_dataset_metric_columns,
     get_selectable_numeric_columns,
@@ -1521,8 +1524,13 @@ def build_dataset_details_response(
     aggregation_type: str | None = None,
     include_ai_analysis: bool = True,
 ):
+    metric_profile = build_metric_selection_profile(
+        dataset,
+        dataframe,
+    )
     available_metric_columns = get_selectable_numeric_columns(
-        dataframe
+        dataframe,
+        dataset,
     )
     selected_metric_columns = (
         get_effective_dataset_metric_columns(
@@ -1574,6 +1582,7 @@ def build_dataset_details_response(
         ),
         "numeric_columns": available_metric_columns,
         "selected_metric_columns": selected_metric_columns,
+        "metric_profile": metric_profile,
     }
 
     if include_ai_analysis:
@@ -7183,6 +7192,12 @@ def persist_connector_dataframe(
                 next_source_config[DATASET_SELECTED_METRICS_KEY] = (
                     previous_source_config[DATASET_SELECTED_METRICS_KEY]
                 )
+            for key in (
+                DATASET_METRIC_DECISIONS_KEY,
+                DATASET_METRIC_OBJECTIVE_KEY,
+            ):
+                if key in previous_source_config:
+                    next_source_config[key] = previous_source_config[key]
         source_config = json.dumps(
             next_source_config,
             sort_keys=True,
@@ -8311,6 +8326,7 @@ async def update_dataset_metric_selection(
             normalize_selected_metric_columns(
                 dataframe,
                 payload.selected_metric_columns,
+                dataset,
             )
         )
         source_config = parse_source_connection_config(
@@ -8319,6 +8335,29 @@ async def update_dataset_metric_selection(
         source_config[DATASET_SELECTED_METRICS_KEY] = (
             selected_columns
         )
+        if payload.business_objective:
+            source_config[DATASET_METRIC_OBJECTIVE_KEY] = (
+                payload.business_objective.strip().lower()
+            )
+        profile = build_metric_selection_profile(
+            dataset,
+            dataframe,
+            objective=payload.business_objective,
+        )
+        selected_set = set(selected_columns)
+        source_config[DATASET_METRIC_DECISIONS_KEY] = {
+            field["column"]: (
+                "metric"
+                if field["column"] in selected_set
+                and field["column"] in profile["available_metric_columns"]
+                else (
+                    "rejected"
+                    if field["status"] == "ambiguous"
+                    else field["role"]
+                )
+            )
+            for field in profile["fields"]
+        }
         dataset.source_config = json.dumps(
             source_config,
             sort_keys=True,
@@ -8331,6 +8370,10 @@ async def update_dataset_metric_selection(
             "file_name": connector_dataset_display_name(dataset),
             "numeric_columns": numeric_columns,
             "selected_metric_columns": selected_columns,
+            "metric_profile": build_metric_selection_profile(
+                dataset,
+                dataframe,
+            ),
         }
     except ValueError as error:
         raise HTTPException(

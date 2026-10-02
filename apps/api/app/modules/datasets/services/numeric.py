@@ -27,6 +27,15 @@ _IDENTIFIER_COLUMN_WORDS = {
     "number",
     "no",
     "version",
+    "index",
+    "phone",
+    "postal",
+    "sequence",
+    "uuid",
+    "reference",
+    "ref",
+    "row",
+    "zip",
 }
 
 

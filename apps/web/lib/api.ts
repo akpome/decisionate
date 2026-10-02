@@ -255,6 +255,40 @@ export type DatasetMetricSelectionResponse = {
   file_name: string
   numeric_columns: string[]
   selected_metric_columns: string[]
+  metric_profile?: {
+    objective: string
+    recommended_metric_columns: string[]
+    ambiguous_metric_columns: string[]
+    advanced_metric_columns: string[]
+    available_metric_columns: string[]
+    dimension_columns: string[]
+    time_columns: string[]
+    excluded_columns: string[]
+    fields: Array<{
+      column: string
+      role: string
+      status: string
+      score: number
+      confidence: number
+      reason: string
+      exclusion_reason?: string | null
+      completeness: number
+      distinct_count: number
+      unique_ratio: number
+      registry?: {
+        canonical_name: string
+        patterns: string[]
+        business_definition: string
+        unit: string
+        aggregation: string
+        direction: string
+        time_grains: string[]
+        business_functions: string[]
+        target_or_driver: string
+        derived: boolean
+      } | null
+    }>
+  }
 }
 
 export type DatasetJoinMetadata = {
@@ -5296,6 +5330,7 @@ export async function updateDatasetMetricSelection(
   selectedMetricColumns: string[],
   userId: string,
   workspaceId?: string,
+  businessObjective?: string,
 ): Promise<DatasetMetricSelectionResponse> {
   const cleanDatasetId =
     cleanPositiveIntegerId(
@@ -5319,6 +5354,9 @@ export async function updateDatasetMetricSelection(
       ),
       body: JSON.stringify({
         selected_metric_columns: selectedColumns,
+        ...(businessObjective
+          ? { business_objective: businessObjective }
+          : {}),
       }),
     },
     apiMutationTimeoutMs

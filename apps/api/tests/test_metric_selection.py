@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pandas as pd
 
 from app.modules.datasets.services.metric_selection import (
+    build_metric_selection_profile,
     filter_dataframe_to_selected_metrics,
     get_effective_dataset_metric_columns,
     get_selectable_numeric_columns,
@@ -64,7 +65,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             ],
         )
 
-    def test_legacy_dataset_defaults_to_all_numeric_columns(self):
+    def test_legacy_dataset_defaults_to_recommended_numeric_columns(self):
         dataset = SimpleNamespace(source_config=None)
 
         self.assertEqual(
@@ -72,7 +73,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 dataset,
                 self.dataframe,
             ),
-            ["revenue", "visits", "numeric_text"],
+            ["revenue", "visits"],
         )
         self.assertEqual(
             list(
@@ -81,7 +82,14 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                     self.dataframe,
                 ).columns
             ),
-            list(self.dataframe.columns),
+            [
+                "date",
+                "revenue",
+                "visits",
+                "is_returning",
+                "customer_email",
+                "revenue__sum",
+            ],
         )
 
     def test_connector_suffix_metric_is_filtered_like_other_numeric_columns(self):
@@ -154,6 +162,69 @@ class DatasetMetricSelectionTests(unittest.TestCase):
         self.assertEqual(
             selected_columns,
             ["revenue", "customer_email"],
+        )
+
+    def test_profile_classifies_and_excludes_unsuitable_columns(self):
+        dataframe = pd.DataFrame({
+            "date": [f"2026-01-0{index}" for index in range(1, 7)],
+            "revenue": [100, 125, 90, 140, 110, 130],
+            "customer_id": [1, 2, 3, 4, 5, 6],
+            "row_sequence": [1, 2, 3, 4, 5, 6],
+            "constant_value": [1, 1, 1, 1, 1, 1],
+            "revenue_copy": [100, 125, 90, 140, 110, 130],
+            "channel": ["web", "store", "web", "store", "web", "store"],
+            "notes": ["a", "b", "c", "d", "e", "f"],
+        })
+        dataset = SimpleNamespace(
+            source_type="quickbooks",
+            source_config=None,
+        )
+
+        profile = build_metric_selection_profile(
+            dataset,
+            dataframe,
+        )
+        fields = {
+            field["column"]: field
+            for field in profile["fields"]
+        }
+
+        self.assertIn("revenue", profile["recommended_metric_columns"])
+        self.assertEqual(fields["date"]["role"], "time")
+        self.assertEqual(fields["customer_id"]["role"], "identifier")
+        self.assertEqual(fields["row_sequence"]["role"], "identifier")
+        self.assertEqual(fields["constant_value"]["status"], "excluded")
+        self.assertEqual(fields["revenue_copy"]["status"], "excluded")
+        self.assertEqual(fields["channel"]["role"], "dimension")
+        self.assertNotIn("customer_id", profile["available_metric_columns"])
+
+    def test_connector_registry_adds_semantic_metadata(self):
+        dataframe = pd.DataFrame({
+            "invoice_date": ["2026-01-01", "2026-01-02"],
+            "total_amount": [100, 125],
+            "balance": [25, 0],
+        })
+        dataset = SimpleNamespace(
+            source_type="quickbooks",
+            source_config=None,
+        )
+
+        profile = build_metric_selection_profile(
+            dataset,
+            dataframe,
+        )
+        fields = {
+            field["column"]: field
+            for field in profile["fields"]
+        }
+
+        self.assertEqual(
+            fields["total_amount"]["registry"]["canonical_name"],
+            "revenue",
+        )
+        self.assertEqual(
+            fields["total_amount"]["registry"]["aggregation"],
+            "sum",
         )
 
     def test_normalization_rejects_unknown_columns(self):

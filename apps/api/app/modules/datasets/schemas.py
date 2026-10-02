@@ -15,6 +15,10 @@ class DatasetMetricSelectionUpdate(BaseModel):
         default_factory=list,
         max_length=500,
     )
+    business_objective: str | None = Field(
+        default=None,
+        max_length=80,
+    )
 
 
 class DatasetSignedUrlImport(BaseModel):
