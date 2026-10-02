@@ -1,11 +1,33 @@
 import json
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from app.main import health
+from app.main import get_allowed_origins, health
 
 
 class HealthEndpointTests(unittest.TestCase):
+    def test_allowed_origins_include_decisionate_www_alias(self):
+        with patch(
+            "app.main.get_runtime_configuration",
+            return_value=SimpleNamespace(
+                cors_allowed_origins=(
+                    "https://decisionate.ca",
+                ),
+                web_url="https://decisionate.ca",
+            ),
+        ):
+            origins = get_allowed_origins()
+
+        self.assertIn(
+            "https://decisionate.ca",
+            origins,
+        )
+        self.assertIn(
+            "https://www.decisionate.ca",
+            origins,
+        )
+
     def test_health_reports_non_secret_alert_readiness(self):
         with patch.dict(
             "os.environ",

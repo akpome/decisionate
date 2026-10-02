@@ -6058,14 +6058,11 @@ export async function getMyOrganization(
   )
 }
 
-export async function getActiveMaintenanceNotice(
-  userId: string
-): Promise<MaintenanceNotice | null> {
+export async function getActiveMaintenanceNotice(): Promise<MaintenanceNotice | null> {
   const response =
     await apiFetch(
       `${API_URL}/maintenance/active`,
       {
-        headers: await workspaceHeaders(userId),
         cache: "no-store",
       },
       apiRequestTimeoutMs,

@@ -349,7 +349,7 @@ export function DashboardShell({
     let ignoreResult = false
     const loadMaintenanceNotice = async () => {
       try {
-        const notice = await getActiveMaintenanceNotice(user.id)
+        const notice = await getActiveMaintenanceNotice()
         if (!ignoreResult) {
           setMaintenanceNotice(notice)
         }

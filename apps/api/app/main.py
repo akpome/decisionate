@@ -1515,6 +1515,25 @@ def get_allowed_origins():
     ):
         configured_origins.append(configured_web_origin)
 
+    # Decisionate is served from both the apex and www production hostnames.
+    # Treat those two explicitly-owned origins as aliases so a deployment does
+    # not silently lose CORS when the web host redirects between them.
+    decisionate_origins = {
+        "https://decisionate.ca",
+        "https://www.decisionate.ca",
+    }
+    configured_hosts = {
+        origin
+        for origin in configured_origins
+        if origin in decisionate_origins
+    }
+    if configured_hosts:
+        configured_origins.extend(
+            origin
+            for origin in decisionate_origins
+            if origin not in configured_origins
+        )
+
     if configured_origins:
         return configured_origins
 

@@ -1,13 +1,10 @@
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.db.database import SessionLocal
 from app.db.models import PlatformMaintenanceNotice
-from app.modules.auth_context import get_auth_context
-
-
 router = APIRouter()
 
 
@@ -47,10 +44,9 @@ def serialize_maintenance_notice(
     "/active",
     response_model=MaintenanceNoticeResponse | None,
 )
-async def get_active_maintenance_notice(request: Request):
-    # The notice is platform-wide, but the caller still needs a valid
-    # authenticated workspace session before it is returned.
-    get_auth_context(request)
+async def get_active_maintenance_notice():
+    # This is intentionally public: it only contains a platform-wide
+    # availability notice and must work before a Clerk session is ready.
     db = SessionLocal()
     try:
         notice = (
