@@ -235,6 +235,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
     def test_known_metrics_are_detected_in_single_row_datasets(self):
         dataframe = pd.DataFrame({
             "order_id": [1001],
+            "amount": [25.0],
             "quantity": [2],
             "unit_price": [12.5],
             "line_total": [25.0],
@@ -255,6 +256,10 @@ class DatasetMetricSelectionTests(unittest.TestCase):
         }
 
         self.assertIn(
+            "amount",
+            profile["recommended_metric_columns"],
+        )
+        self.assertIn(
             "quantity",
             profile["recommended_metric_columns"],
         )
@@ -267,6 +272,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             profile["recommended_metric_columns"],
         )
         self.assertEqual(fields["quantity"]["status"], "recommended")
+        self.assertEqual(fields["amount"]["status"], "recommended")
         self.assertEqual(fields["unit_price"]["status"], "recommended")
         self.assertEqual(fields["line_total"]["status"], "recommended")
         self.assertEqual(fields["order_id"]["role"], "identifier")

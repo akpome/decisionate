@@ -209,6 +209,17 @@ def _semantic_relevance(normalized_column: str, definition) -> float:
     return 0.25
 
 
+def _has_value_semantics(normalized_column: str, definition) -> bool:
+    """Return whether a field name is plausibly a business measure."""
+    return bool(
+        definition
+        or any(
+            word in _VALUE_COLUMN_WORDS
+            for word in normalized_column.split("_")
+        )
+    )
+
+
 def _metric_reason(
     definition,
     completeness: float,
@@ -454,7 +465,11 @@ def build_metric_selection_profile(
                     reason="Almost entirely empty.",
                 )
             elif distinct_count <= 1 and (
-                not definition or row_count > 1
+                row_count > 1
+                or not _has_value_semantics(
+                    normalized_column,
+                    definition,
+                )
             ):
                 field.update(
                     role="dimension",
@@ -462,7 +477,21 @@ def build_metric_selection_profile(
                     exclusion_reason="Contains no meaningful variation.",
                     reason="Contains no meaningful variation.",
                 )
-            elif _is_low_cardinality_dimension(column, numeric_series, valid_count) and not definition:
+            elif (
+                _is_low_cardinality_dimension(
+                    column,
+                    numeric_series,
+                    valid_count,
+                )
+                and not definition
+                and not (
+                    row_count == 1
+                    and _has_value_semantics(
+                        normalized_column,
+                        definition,
+                    )
+                )
+            ):
                 field.update(
                     role="dimension",
                     status="available",
