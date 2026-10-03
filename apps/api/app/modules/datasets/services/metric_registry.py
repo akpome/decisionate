@@ -60,7 +60,7 @@ _REVENUE = _definition(
     (
         r"(^|_)(revenue|sales|sale_value|order_total|invoice_total)$",
         r"(^|_)(gross_sales|net_sales|conversion_value|total_amount)$",
-        r"(^|_)(total|subtotal|sub_total|amount_paid|paid_amount)$",
+        r"(^|_)(total|subtotal|sub_total|line_total|line_amount|amount_paid|paid_amount)$",
     ),
     "Money earned from completed sales, orders, or invoices.",
     "currency",
@@ -68,6 +68,19 @@ _REVENUE = _definition(
     "positive",
     ("increase_revenue", "profitability", "marketing_return", "cash_flow"),
     "outcome",
+)
+
+_UNIT_PRICE = _definition(
+    "unit_price",
+    (
+        r"(^|_)(unit_price|price_per_unit|item_price|selling_price|sale_price|retail_price)$",
+    ),
+    "Price charged for one unit or line item.",
+    "currency",
+    "avg",
+    "positive",
+    ("increase_revenue", "profitability", "marketing_return"),
+    "driver",
 )
 
 _SPEND = _definition(
@@ -189,6 +202,7 @@ GENERIC_METRIC_REGISTRY = (
     _SPEND,
     _PROFIT,
     _QUANTITY,
+    _UNIT_PRICE,
     _TAX,
     _BALANCE,
     _DERIVED_RETURN,

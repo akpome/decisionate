@@ -24,6 +24,7 @@ _IDENTIFIER_COLUMN_WORDS = {
     "id",
     "key",
     "code",
+    "sku",
     "number",
     "no",
     "version",

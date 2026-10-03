@@ -73,7 +73,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 dataset,
                 self.dataframe,
             ),
-            ["revenue", "visits"],
+            ["revenue", "visits", "numeric_text"],
         )
         self.assertEqual(
             list(
@@ -87,6 +87,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 "revenue",
                 "visits",
                 "is_returning",
+                "numeric_text",
                 "customer_email",
                 "revenue__sum",
             ],
@@ -96,8 +97,12 @@ class DatasetMetricSelectionTests(unittest.TestCase):
         dataframe = pd.DataFrame({
             **{
                 f"metric_{index}": [
-                    index + offset
-                    for offset in range(6)
+                    index,
+                    index + 1,
+                    index,
+                    index + 1,
+                    index,
+                    index + 1,
                 ]
                 for index in range(1, 9)
             },
@@ -176,6 +181,42 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             ],
             ["revenue"],
         )
+
+    def test_quantity_is_recommended_over_numeric_sku(self):
+        dataframe = pd.DataFrame({
+            "sku": [1001, 1002, 1003, 1004, 1005, 1006],
+            "unit_price": [12.5, 15.0, 12.5, 20.0, 15.0, 18.0],
+            "quantity": [2, 1, 4, 3, 2, 5],
+            "line_total": [25.0, 15.0, 50.0, 60.0, 30.0, 90.0],
+        })
+        dataset = SimpleNamespace(
+            source_type="shopify",
+            source_config=None,
+        )
+
+        profile = build_metric_selection_profile(
+            dataset,
+            dataframe,
+        )
+        fields = {
+            field["column"]: field
+            for field in profile["fields"]
+        }
+
+        self.assertEqual(fields["sku"]["role"], "identifier")
+        self.assertEqual(fields["sku"]["status"], "excluded")
+        self.assertEqual(
+            fields["unit_price"]["registry"]["canonical_name"],
+            "unit_price",
+        )
+        self.assertEqual(
+            fields["line_total"]["registry"]["canonical_name"],
+            "revenue",
+        )
+        self.assertIn("quantity", profile["recommended_metric_columns"])
+        self.assertIn("unit_price", profile["recommended_metric_columns"])
+        self.assertIn("line_total", profile["recommended_metric_columns"])
+        self.assertNotIn("sku", profile["recommended_metric_columns"])
 
     def test_generate_metrics_can_limit_output_to_selected_columns(self):
         self.assertEqual(
