@@ -94,10 +94,6 @@ class DatasetMetricSelectionTests(unittest.TestCase):
 
     def test_default_metric_recommendations_are_limited_to_six(self):
         dataframe = pd.DataFrame({
-            "date": [
-                f"2026-01-0{index}"
-                for index in range(1, 7)
-            ],
             **{
                 f"metric_{index}": [
                     index + offset

@@ -454,14 +454,15 @@ def build_metric_selection_profile(
             advanced_candidates.append(field)
         fields.append(field)
 
+    metric_candidates = recommended_candidates + ambiguous_candidates
     outcomes = [
         field
-        for field in recommended_candidates
+        for field in metric_candidates
         if field["registry"] and field["registry"]["target_or_driver"] in {"outcome", "both"}
     ]
     drivers = [
         field
-        for field in recommended_candidates
+        for field in metric_candidates
         if field not in outcomes
     ]
     outcomes = sorted(outcomes, key=lambda field: (-field["score"], field["column"]))[:3]
@@ -471,6 +472,19 @@ def build_metric_selection_profile(
         + [field for field in drivers if field not in outcomes]
     )[:DEFAULT_RECOMMENDED_METRIC_LIMIT]
     recommended_names = [field["column"] for field in recommended]
+    recommended_name_set = set(recommended_names)
+    for field in fields:
+        if (
+            field["column"] in recommended_name_set
+            and field["status"] == "ambiguous"
+        ):
+            field.update(
+                status="recommended",
+                reason=(
+                    "Selected as one of the six highest-ranked metric "
+                    "candidates by default; review if needed."
+                ),
+            )
 
     return {
         "version": DATASET_METRIC_PROFILE_VERSION,
@@ -479,7 +493,9 @@ def build_metric_selection_profile(
         "time_columns": time_columns,
         "recommended_metric_columns": recommended_names,
         "ambiguous_metric_columns": [
-            field["column"] for field in ambiguous_candidates
+            field["column"]
+            for field in ambiguous_candidates
+            if field["column"] not in recommended_name_set
         ],
         "advanced_metric_columns": [
             field["column"] for field in advanced_candidates
