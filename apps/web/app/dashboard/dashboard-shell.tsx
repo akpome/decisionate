@@ -778,7 +778,7 @@ export function DashboardShell({
   }
 
   return (
-    <div className="dashboard-shell-layout flex h-screen overflow-hidden bg-gray-50">
+    <div className="dashboard-shell-layout flex h-dvh overflow-hidden bg-gray-50">
       {apiUnavailableMessage && (
         <div
           role="alert"
@@ -823,7 +823,7 @@ export function DashboardShell({
       <aside
         id="dashboard-sidebar"
         aria-label={text("dashboardNavigation")}
-        className={`dashboard-print-hidden fixed inset-y-0 left-0 z-40 flex h-screen w-72 shrink-0 flex-col border-r bg-white shadow-xl transition-transform duration-200 xl:static xl:z-auto xl:w-64 xl:translate-x-0 xl:shadow-none ${
+        className={`dashboard-print-hidden fixed inset-y-0 left-0 z-40 flex h-dvh w-72 shrink-0 flex-col border-r bg-white shadow-xl transition-transform duration-200 xl:static xl:z-auto xl:w-64 xl:translate-x-0 xl:shadow-none ${
           mobileNavOpen
             ? "translate-x-0"
             : "-translate-x-full"
@@ -1054,7 +1054,7 @@ export function DashboardShell({
             Dashboard Account Footer With Clerk User Controls
         ========================= */}
 
-        <div className="shrink-0 border-t p-4">
+        <div className="shrink-0 border-t px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 xl:hidden">
               <div className="shrink-0">
@@ -1104,7 +1104,7 @@ export function DashboardShell({
           Dashboard Main Content Area For Nested Product Pages
       ========================= */}
 
-      <main className="dashboard-print-main h-screen flex-1 overflow-y-auto p-8">
+      <main className="dashboard-print-main h-dvh flex-1 overflow-y-auto p-8">
         <div className="dashboard-print-hidden mb-4 xl:hidden">
           <button
             type="button"
