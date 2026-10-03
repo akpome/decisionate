@@ -591,8 +591,24 @@ export type DataSourceConnection = {
   sync_time_of_day?: string | null
   sync_timezone?: string | null
   sync_day_of_week?: number | null
+  ingestion_job?: DataIngestionJob | null
   created_at?: string
   updated_at?: string
+}
+
+export type DataIngestionJob = {
+  id: number
+  connection_id?: number | null
+  job_type: string
+  status: "queued" | "running" | "succeeded" | "no_data" | "failed"
+  error_message?: string | null
+  created_at?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+}
+
+export type DataIngestionJobResponse = DataIngestionJob & {
+  result?: Record<string, unknown> | null
 }
 
 export type DataSourceConnectionCreatePayload = {
@@ -616,7 +632,8 @@ export type DataSourceConnectionSchedulePayload = {
 
 export type DataSourceConnectionSyncResult = {
   connection_id: number
-  status?: "synced" | "no_data" | "error"
+  status?: "queued" | "synced" | "no_data" | "error"
+  job_id?: number
   message?: string
   dataset_id?: number
   workspace_id?: string | null
@@ -3185,6 +3202,69 @@ export async function uploadDataset(
   ])
 
   return response.json()
+}
+
+export async function getDataIngestionJob(
+  jobId: number,
+  userId: string,
+  workspaceId?: string
+): Promise<DataIngestionJobResponse> {
+  const response = await apiFetch(
+    `${API_URL}/datasets/ingestion-jobs/${jobId}`,
+    {
+      headers: await workspaceHeaders(
+        userId,
+        workspaceId ?? userId
+      ),
+      cache: "no-store",
+    }
+  )
+
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Failed to check data ingestion status"
+    )
+  }
+
+  return response.json()
+}
+
+export async function waitForDataIngestionJob(
+  jobId: number,
+  userId: string,
+  workspaceId?: string
+): Promise<DataIngestionJobResponse> {
+  const deadline = Date.now() + 10 * 60 * 1000
+
+  while (Date.now() < deadline) {
+    const job = await getDataIngestionJob(
+      jobId,
+      userId,
+      workspaceId
+    )
+    if (
+      ["succeeded", "no_data", "failed"].includes(
+        job.status
+      )
+    ) {
+      if (job.status === "failed") {
+        throw new Error(
+          job.error_message ||
+            "Data ingestion failed. Please try again."
+        )
+      }
+      return job
+    }
+
+    await new Promise((resolve) =>
+      window.setTimeout(resolve, 2000)
+    )
+  }
+
+  throw new Error(
+    "Data ingestion is taking longer than expected. Check the dataset list again shortly."
+  )
 }
 
 export type SignedUrlDatasetImportPayload = {

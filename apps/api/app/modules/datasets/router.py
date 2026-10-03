@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import SessionLocal
 from app.db.models import CanonicalEntity
+from app.db.models import DataIngestionJob
 from app.db.models import DataSourceConnection
 from app.db.models import DashboardShare
 from app.db.models import Dataset
@@ -237,6 +238,7 @@ from app.modules.datasets.services.auth import (
 )
 from app.modules.oauth.service import (
     OAuthProviderUnavailable,
+    decrypt_token,
     encrypt_token,
     normalize_lightspeed_x_domain_prefix,
     normalize_sage_country,
@@ -258,6 +260,15 @@ INITIAL_CONNECTOR_SYNC_BACKFILL = "backfill"
 INITIAL_CONNECTOR_SYNC_COMPLETE = "complete"
 INITIAL_CONNECTOR_SYNC_FAILED = "failed"
 CONNECTOR_INCREMENTAL_LOOKBACK_DAYS = 1
+INGESTION_JOB_QUEUED = "queued"
+INGESTION_JOB_RUNNING = "running"
+INGESTION_JOB_SUCCEEDED = "succeeded"
+INGESTION_JOB_NO_DATA = "no_data"
+INGESTION_JOB_FAILED = "failed"
+ACTIVE_INGESTION_JOB_STATUSES = {
+    INGESTION_JOB_QUEUED,
+    INGESTION_JOB_RUNNING,
+}
 CONNECTOR_INCREMENTAL_LOOKBACK_DAYS_BY_SOURCE = {
     # Search Console can publish performance data several days after the
     # corresponding search date. Re-fetch a small rolling window so delayed
@@ -1599,10 +1610,27 @@ def build_dataset_details_response(
     return response
 
 
+def build_ingestion_job_response(job):
+    if not job:
+        return None
+
+    return {
+        "id": job.id,
+        "connection_id": job.connection_id,
+        "job_type": job.job_type,
+        "status": job.status,
+        "error_message": job.error_message,
+        "created_at": job.created_at,
+        "started_at": job.started_at,
+        "completed_at": job.completed_at,
+    }
+
+
 def build_source_connection_response(
     connection,
     dataset=None,
     datasets=None,
+    ingestion_job=None,
 ):
     source_type = normalize_dataset_source_type(
         connection.source_type
@@ -1823,6 +1851,7 @@ def build_source_connection_response(
         "sync_day_of_week": sync_day_of_week,
         "created_at": connection.created_at,
         "updated_at": connection.updated_at,
+        "ingestion_job": build_ingestion_job_response(ingestion_job),
     }
 
 
@@ -2508,6 +2537,96 @@ def get_owned_source_connection(
     return connection
 
 
+def get_active_ingestion_job(
+    db,
+    connection_id: int,
+):
+    return (
+        db.query(DataIngestionJob)
+        .filter(
+            DataIngestionJob.connection_id == connection_id,
+            DataIngestionJob.status.in_(ACTIVE_INGESTION_JOB_STATUSES),
+        )
+        .order_by(
+            DataIngestionJob.created_at.desc(),
+            DataIngestionJob.id.desc(),
+        )
+        .first()
+    )
+
+
+def serialize_sync_payload(payload: DataSourceConnectionSync) -> str:
+    return json.dumps(
+        payload.model_dump(mode="json"),
+        sort_keys=True,
+    )
+
+
+def enqueue_connector_ingestion_job(
+    db,
+    connection,
+    payload: DataSourceConnectionSync,
+    background_tasks: BackgroundTasks,
+    job_type: str = "connector_sync",
+    reject_if_active: bool = True,
+):
+    """Persist and enqueue connector work without doing provider I/O inline."""
+    active_job = get_active_ingestion_job(db, connection.id)
+    if active_job:
+        if reject_if_active:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "A connector ingestion is already running for this "
+                    f"connection (job {active_job.id})."
+                ),
+            )
+        return active_job
+
+    job = DataIngestionJob(
+        connection_id=connection.id,
+        user_id=connection.user_id,
+        workspace_id=connection.workspace_id,
+        job_type=job_type,
+        status=INGESTION_JOB_QUEUED,
+        request_payload=serialize_sync_payload(payload),
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    background_tasks.add_task(
+        run_connector_ingestion_job,
+        job.id,
+    )
+    return job
+
+
+def enqueue_file_ingestion_job(
+    db,
+    user_id: str,
+    workspace_id: str,
+    job_type: str,
+    payload: dict,
+    background_tasks: BackgroundTasks,
+):
+    job = DataIngestionJob(
+        connection_id=None,
+        user_id=user_id,
+        workspace_id=workspace_id,
+        job_type=job_type,
+        status=INGESTION_JOB_QUEUED,
+        request_payload=json.dumps(payload, sort_keys=True),
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    background_tasks.add_task(
+        run_file_ingestion_job,
+        job.id,
+    )
+    return job
+
+
 def generate_share_token():
     return token_urlsafe(32)
 
@@ -2727,8 +2846,12 @@ async def create_dataset(
         db.close()
 
 
-@router.post("/upload")
-async def upload_dataset(request: Request, file: UploadFile = File(...)):
+@router.post("/upload", status_code=202)
+async def upload_dataset(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
         request,
@@ -2751,39 +2874,38 @@ async def upload_dataset(request: Request, file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
 
     db = SessionLocal()
-
     try:
-        dataset = persist_dataset_file(
+        job = enqueue_file_ingestion_job(
             db,
             user_id,
             workspace_id,
-            file_path,
-            upload_filename,
-            build_upload_source_config(
-                upload_filename
-            ),
+            "file_upload",
+            {
+                "file_path": file_path,
+                "upload_filename": upload_filename,
+                "source_config": build_upload_source_config(
+                    upload_filename
+                ),
+            },
+            background_tasks,
         )
-
         return {
-            "id": dataset.id,
-            "workspace_id": dataset.workspace_id,
-            **build_dataset_source_metadata(
-                dataset
-            ),
-            "file_name": dataset.file_name,
-            "file_path": dataset.file_path,
-            "row_count": dataset.row_count,
-            "column_count": dataset.column_count,
+            "status": INGESTION_JOB_QUEUED,
+            "job_id": job.id,
+            "file_name": upload_filename,
         }
-
+    except Exception:
+        remove_dataset_file(file_path)
+        raise
     finally:
         db.close()
 
 
-@router.post("/import-url")
+@router.post("/import-url", status_code=202)
 async def import_dataset_from_signed_url(
     request: Request,
     payload: DatasetSignedUrlImport,
+    background_tasks: BackgroundTasks,
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -2793,66 +2915,78 @@ async def import_dataset_from_signed_url(
     require_workspace_data_manager(request)
     signed_url = str(payload.url).strip()
     parsed_url = validate_signed_file_url(signed_url)
-    upload_dir = get_dataset_upload_dir()
-    os.makedirs(upload_dir, exist_ok=True)
-    temporary_path = os.path.join(
-        upload_dir,
-        f"{uuid.uuid4()}-signed-download",
-    )
-    file_path = None
-
     try:
-        content_type = download_signed_file(
-            signed_url,
-            temporary_path,
-        )
-        upload_filename = infer_signed_file_name(
-            signed_url,
-            payload.file_name,
-            content_type,
-        )
-        file_path = build_dataset_upload_path(
-            upload_filename,
-        )
-        os.replace(
-            temporary_path,
-            file_path,
-        )
+        encrypted_url = encrypt_token(signed_url)
+    except OAuthProviderUnavailable as error:
+        raise HTTPException(
+            status_code=503,
+            detail=str(error),
+        ) from error
 
-        source_config = build_upload_source_config(
-            upload_filename
+    db = SessionLocal()
+    try:
+        job = enqueue_file_ingestion_job(
+            db,
+            user_id,
+            workspace_id,
+            "signed_url_import",
+            {
+                "encrypted_url": encrypted_url,
+                "file_name": payload.file_name,
+                "source_provider": parsed_url.hostname,
+            },
+            background_tasks,
         )
-        source_config.update({
-            "ingestion_mode": "signed_url_import",
-            "source_provider": parsed_url.hostname,
-        })
-        db = SessionLocal()
-        try:
-            dataset = persist_dataset_file(
-                db,
-                user_id,
-                workspace_id,
-                file_path,
-                upload_filename,
-                source_config,
+        return {
+            "status": INGESTION_JOB_QUEUED,
+            "job_id": job.id,
+            "file_name": payload.file_name,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/ingestion-jobs/{job_id}")
+async def get_ingestion_job(
+    request: Request,
+    job_id: int,
+):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(request, user_id)
+    require_workspace_connection_viewer(request)
+    db = SessionLocal()
+    try:
+        job = (
+            db.query(DataIngestionJob)
+            .filter(
+                DataIngestionJob.id == job_id,
+                or_(
+                    DataIngestionJob.workspace_id == workspace_id,
+                    and_(
+                        DataIngestionJob.workspace_id.is_(None),
+                        DataIngestionJob.user_id == user_id,
+                    ),
+                ),
             )
-        finally:
-            db.close()
+            .first()
+        )
+        if not job:
+            raise HTTPException(
+                status_code=404,
+                detail="Ingestion job not found",
+            )
+
+        try:
+            result = json.loads(job.result_payload or "null")
+        except (TypeError, json.JSONDecodeError):
+            result = None
 
         return {
-            "id": dataset.id,
-            "workspace_id": dataset.workspace_id,
-            **build_dataset_source_metadata(dataset),
-            "file_name": dataset.file_name,
-            "file_path": dataset.file_path,
-            "row_count": dataset.row_count,
-            "column_count": dataset.column_count,
+            **build_ingestion_job_response(job),
+            "result": result,
         }
-    except Exception:
-        remove_dataset_file(temporary_path)
-        if file_path:
-            remove_dataset_file(file_path)
-        raise
+    finally:
+        db.close()
 
 
 @router.get("/")
@@ -4381,6 +4515,21 @@ async def get_source_connections(
             )
             .all()
         )
+        connection_ids = [connection.id for connection in connections]
+        ingestion_jobs = (
+            db.query(DataIngestionJob)
+            .filter(DataIngestionJob.connection_id.in_(connection_ids))
+            .order_by(
+                DataIngestionJob.created_at.desc(),
+                DataIngestionJob.id.desc(),
+            )
+            .all()
+            if connection_ids
+            else []
+        )
+        latest_ingestion_jobs = {}
+        for job in ingestion_jobs:
+            latest_ingestion_jobs.setdefault(job.connection_id, job)
 
         return [
             build_source_connection_response(
@@ -4389,6 +4538,7 @@ async def get_source_connections(
                     db,
                     connection,
                 ),
+                ingestion_job=latest_ingestion_jobs.get(connection.id),
             )
             for connection in connections
         ]
@@ -7479,6 +7629,414 @@ def run_data_source_sync_with_oauth_retry(
         return run_data_source_sync(db, connection, payload)
 
 
+def _build_connector_sync_job_result(
+    db,
+    connection,
+    sync_results,
+):
+    datasets = []
+    for dataset, report_config, _file_path, replaced_file_path in sync_results:
+        remove_dataset_file(replaced_file_path)
+        db.refresh(dataset)
+        datasets.append({
+            "dataset_id": dataset.id,
+            "workspace_id": dataset.workspace_id,
+            **build_dataset_source_metadata(dataset),
+            "file_name": connector_dataset_display_name(dataset),
+            "file_path": dataset.file_path,
+            "row_count": dataset.row_count,
+            "column_count": dataset.column_count,
+            "report": report_config,
+        })
+
+    if not datasets:
+        raise ConnectorUnavailable(
+            "Connector sync completed without producing a dataset"
+        )
+
+    return {
+        "connection_id": connection.id,
+        **datasets[0],
+        "datasets": datasets,
+    }
+
+
+def _set_ingestion_job_result(
+    db,
+    job_id: int,
+    status: str,
+    result: dict | None = None,
+    error_message: str | None = None,
+):
+    job = (
+        db.query(DataIngestionJob)
+        .filter(DataIngestionJob.id == job_id)
+        .first()
+    )
+    if not job:
+        return
+    job.status = status
+    job.result_payload = (
+        json.dumps(result, default=str, sort_keys=True)
+        if result is not None
+        else None
+    )
+    job.error_message = str(error_message)[:1000] if error_message else None
+    job.completed_at = utc_now()
+    db.commit()
+
+
+def _persist_ingestion_job_failure(
+    db,
+    job_id: int,
+    error: Exception,
+    mark_authorization_failure: bool = False,
+):
+    db.rollback()
+    job = (
+        db.query(DataIngestionJob)
+        .filter(DataIngestionJob.id == job_id)
+        .first()
+    )
+    if not job:
+        return
+
+    connection = (
+        db.query(DataSourceConnection)
+        .filter(DataSourceConnection.id == job.connection_id)
+        .first()
+    )
+    if connection and mark_authorization_failure:
+        mark_connection_authorization_failed(connection, error)
+
+    job.status = INGESTION_JOB_FAILED
+    job.error_message = str(error)[:1000]
+    job.completed_at = utc_now()
+    db.commit()
+
+    if connection and mark_authorization_failure:
+        try:
+            notify_workspace_owner_of_authorization_failure(
+                db,
+                connection,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to notify workspace owner about connector job authorization failure",
+                extra={"connection_id": connection.id},
+            )
+
+
+def run_connector_ingestion_job(job_id: int):
+    """Run one connector sync outside the request and scheduler lifecycles."""
+    db = SessionLocal()
+    connection = None
+    initial_sync_required = False
+    try:
+        job = (
+            db.query(DataIngestionJob)
+            .filter(DataIngestionJob.id == job_id)
+            .first()
+        )
+        if not job or job.status != INGESTION_JOB_QUEUED:
+            return
+
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == job.connection_id)
+            .first()
+        )
+        if not connection:
+            raise ConnectorUnavailable(
+                "The connector connection no longer exists"
+            )
+
+        job.status = INGESTION_JOB_RUNNING
+        job.started_at = utc_now()
+        db.commit()
+
+        try:
+            payload_data = json.loads(job.request_payload or "{}")
+        except (TypeError, json.JSONDecodeError) as error:
+            raise ConnectorUnavailable(
+                "Connector ingestion request is invalid"
+            ) from error
+        payload = DataSourceConnectionSync(**payload_data)
+
+        initial_sync_required = (
+            not payload.advanced_date_range
+            and payload.start_date is None
+            and payload.end_date is None
+            and (
+                initial_connector_sync_is_required(db, connection)
+                or initial_connector_backfill_is_required(connection)
+            )
+        )
+        if initial_sync_required:
+            set_initial_connector_sync_status(
+                connection,
+                INITIAL_CONNECTOR_SYNC_INITIAL,
+            )
+            db.commit()
+
+        source = get_dataset_source(connection.source_type)
+        if source and source.get("connection_type") == "oauth":
+            refresh_oauth_access_token_if_due(
+                db,
+                connection,
+            )
+
+        try:
+            retention_result = purge_expired_connector_dataset(
+                db,
+                connection,
+            )
+            if retention_result:
+                db.commit()
+                remove_dataset_file(
+                    retention_result["replaced_file_path"]
+                )
+        except Exception:
+            db.rollback()
+            logger.exception(
+                "Connector retention cleanup failed before ingestion",
+                extra={"connection_id": connection.id},
+            )
+
+        sync_results = run_data_source_sync_with_oauth_retry(
+            db,
+            connection,
+            payload,
+        )
+        db.commit()
+        result = _build_connector_sync_job_result(
+            db,
+            connection,
+            sync_results,
+        )
+
+        # The first phase is committed before the historical phase starts so
+        # the newest data is available while the backfill continues in this
+        # already-detached background job.
+        if initial_sync_required:
+            if initial_connector_backfill_enabled(connection.source_type):
+                set_initial_connector_sync_status(
+                    connection,
+                    INITIAL_CONNECTOR_SYNC_BACKFILL,
+                )
+                db.commit()
+                run_connector_initial_backfill(connection.id)
+            else:
+                set_initial_connector_sync_status(
+                    connection,
+                    INITIAL_CONNECTOR_SYNC_COMPLETE,
+                )
+                db.commit()
+
+        db.expire_all()
+        refreshed_job = (
+            db.query(DataIngestionJob)
+            .filter(DataIngestionJob.id == job_id)
+            .first()
+        )
+        refreshed_connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == connection.id)
+            .first()
+        )
+        if (
+            refreshed_connection
+            and initial_sync_required
+            and get_initial_connector_sync_status(refreshed_connection)
+            == INITIAL_CONNECTOR_SYNC_FAILED
+        ):
+            _set_ingestion_job_result(
+                db,
+                job_id,
+                INGESTION_JOB_FAILED,
+                result=result,
+                error_message=(
+                    "Initial connector backfill failed after the first "
+                    "dataset was stored."
+                ),
+            )
+        elif refreshed_job:
+            _set_ingestion_job_result(
+                db,
+                job_id,
+                INGESTION_JOB_SUCCEEDED,
+                result=result,
+            )
+    except ConnectorNoData as error:
+        if initial_sync_required and connection:
+            db.rollback()
+            current_connection = (
+                db.query(DataSourceConnection)
+                .filter(DataSourceConnection.id == connection.id)
+                .first()
+            )
+            if current_connection:
+                set_initial_connector_sync_status(
+                    current_connection,
+                    (
+                        INITIAL_CONNECTOR_SYNC_BACKFILL
+                        if initial_connector_backfill_enabled(
+                            current_connection.source_type
+                        )
+                        else INITIAL_CONNECTOR_SYNC_COMPLETE
+                    ),
+                )
+                db.commit()
+        _set_ingestion_job_result(
+            db,
+            job_id,
+            INGESTION_JOB_NO_DATA,
+            result={
+                "connection_id": getattr(connection, "id", None),
+                "status": INGESTION_JOB_NO_DATA,
+                "message": str(error),
+                "datasets": [],
+            },
+        )
+    except (
+        GoogleAnalyticsConnectorUnavailable,
+        ConnectorUnavailable,
+        OAuthProviderUnavailable,
+    ) as error:
+        _persist_ingestion_job_failure(
+            db,
+            job_id,
+            error,
+            mark_authorization_failure=bool(
+                connection
+                and connector_requires_reauthorization(
+                    connection.source_type,
+                    error,
+                )
+            ),
+        )
+    except Exception as error:
+        logger.exception(
+            "Connector ingestion job failed unexpectedly",
+            extra={"job_id": job_id},
+        )
+        _persist_ingestion_job_failure(
+            db,
+            job_id,
+            error,
+        )
+    finally:
+        db.close()
+
+
+def run_file_ingestion_job(job_id: int):
+    """Parse and persist an uploaded or signed cloud file in the background."""
+    db = SessionLocal()
+    file_path = None
+    temporary_path = None
+    try:
+        job = (
+            db.query(DataIngestionJob)
+            .filter(DataIngestionJob.id == job_id)
+            .first()
+        )
+        if not job or job.status != INGESTION_JOB_QUEUED:
+            return
+
+        job.status = INGESTION_JOB_RUNNING
+        job.started_at = utc_now()
+        db.commit()
+
+        try:
+            payload = json.loads(job.request_payload or "{}")
+        except (TypeError, json.JSONDecodeError) as error:
+            raise ValueError("File ingestion request is invalid") from error
+
+        job_type = str(job.job_type or "")
+        if job_type == "file_upload":
+            file_path = str(payload.get("file_path") or "").strip()
+            upload_filename = str(
+                payload.get("upload_filename") or ""
+            ).strip()
+            source_config = payload.get("source_config") or {}
+            if not file_path or not upload_filename:
+                raise ValueError("Uploaded file details are missing")
+        elif job_type == "signed_url_import":
+            encrypted_url = str(
+                payload.get("encrypted_url") or ""
+            ).strip()
+            if not encrypted_url:
+                raise ValueError("Signed file URL is missing")
+            signed_url = decrypt_token(encrypted_url)
+            if not signed_url:
+                raise ValueError("Signed file URL could not be decrypted")
+            upload_dir = get_dataset_upload_dir()
+            os.makedirs(upload_dir, exist_ok=True)
+            temporary_path = os.path.join(
+                upload_dir,
+                f"{uuid.uuid4()}-signed-download",
+            )
+            content_type = download_signed_file(
+                signed_url,
+                temporary_path,
+            )
+            upload_filename = infer_signed_file_name(
+                signed_url,
+                payload.get("file_name"),
+                content_type,
+            )
+            file_path = build_dataset_upload_path(upload_filename)
+            os.replace(temporary_path, file_path)
+            temporary_path = None
+            source_config = build_upload_source_config(upload_filename)
+            source_config.update({
+                "ingestion_mode": "signed_url_import",
+                "source_provider": payload.get("source_provider"),
+            })
+        else:
+            raise ValueError(f"Unsupported file ingestion job type: {job_type}")
+
+        dataset = persist_dataset_file(
+            db,
+            job.user_id,
+            job.workspace_id,
+            file_path,
+            upload_filename,
+            source_config,
+        )
+        result = {
+            "status": INGESTION_JOB_SUCCEEDED,
+            "id": dataset.id,
+            "workspace_id": dataset.workspace_id,
+            **build_dataset_source_metadata(dataset),
+            "file_name": dataset.file_name,
+            "file_path": dataset.file_path,
+            "row_count": dataset.row_count,
+            "column_count": dataset.column_count,
+        }
+        file_path = None
+        _set_ingestion_job_result(
+            db,
+            job_id,
+            INGESTION_JOB_SUCCEEDED,
+            result=result,
+        )
+    except Exception as error:
+        logger.exception(
+            "File ingestion job failed",
+            extra={"job_id": job_id},
+        )
+        _persist_ingestion_job_failure(
+            db,
+            job_id,
+            error,
+        )
+    finally:
+        remove_dataset_file(temporary_path)
+        remove_dataset_file(file_path)
+        db.close()
+
+
 def queue_connector_initial_backfill(
     background_tasks: BackgroundTasks | None,
     connection_id: int,
@@ -7873,13 +8431,12 @@ def require_connectors_scheduler_secret(request: Request):
 @router.post("/source-connections/sync-due")
 async def sync_due_source_connections(
     request: Request,
-    background_tasks: BackgroundTasks = None,
+    background_tasks: BackgroundTasks,
 ):
     require_connectors_scheduler_secret(request)
     now = utc_now()
     db = SessionLocal()
     results = []
-    retention_results = []
     try:
         connections = (
             db.query(DataSourceConnection)
@@ -7888,32 +8445,6 @@ async def sync_due_source_connections(
             .all()
         )
         for connection in connections:
-            try:
-                retention_result = purge_expired_connector_dataset(
-                    db,
-                    connection,
-                )
-                if retention_result:
-                    db.commit()
-                    remove_dataset_file(
-                        retention_result["replaced_file_path"]
-                    )
-                    retention_results.append({
-                        "connection_id": connection.id,
-                        "status": "retention_pruned",
-                        "dataset_id": retention_result["dataset_id"],
-                        "deleted_before_month": retention_result[
-                            "deleted_before_month"
-                        ],
-                    })
-            except Exception as error:
-                db.rollback()
-                retention_results.append({
-                    "connection_id": connection.id,
-                    "status": "retention_cleanup_failed",
-                    "detail": str(error)[:240],
-                })
-
             source = get_dataset_source(connection.source_type)
             if (
                 source
@@ -7939,25 +8470,6 @@ async def sync_due_source_connections(
                 )
             ):
                 continue
-
-            if source and source.get("connection_type") == "oauth":
-                try:
-                    refresh_oauth_access_token_if_due(
-                        db,
-                        connection,
-                    )
-                except (
-                    GoogleAnalyticsConnectorUnavailable,
-                    ConnectorUnavailable,
-                    OAuthProviderUnavailable,
-                ) as error:
-                    record_scheduled_connector_failure(
-                        db,
-                        connection,
-                        error,
-                        results,
-                    )
-                    continue
 
             if initial_connector_backfill_is_required(connection):
                 queue_connector_initial_backfill(
@@ -8028,95 +8540,56 @@ async def sync_due_source_connections(
                 })
                 continue
 
-            try:
-                sync_results = run_data_source_sync_with_oauth_retry(
-                    db,
-                    connection,
-                    DataSourceConnectionSync(),
-                )
-                db.commit()
-                for _dataset, _report_config, _file_path, replaced_file_path in sync_results:
-                    remove_dataset_file(replaced_file_path)
-                if initial_sync_required:
-                    queue_connector_initial_backfill(
-                        background_tasks,
-                        connection.id,
-                    )
-                primary_dataset, primary_report, *_ = sync_results[0]
+            active_job = get_active_ingestion_job(db, connection.id)
+            if active_job:
                 results.append({
                     "connection_id": connection.id,
-                    "dataset_id": primary_dataset.id,
-                    "dataset_ids": [
-                        item[0].id
-                        for item in sync_results
-                    ],
-                    "status": "synced",
-                    "row_count": sum(
-                        item[0].row_count
-                        for item in sync_results
-                    ),
-                    "reports": [
-                        item[1]
-                        for item in sync_results
-                    ],
-                    "report": primary_report,
+                    "status": "ingestion_in_progress",
+                    "job_id": active_job.id,
                 })
-            except ConnectorNoData as error:
-                db.rollback()
-                if initial_sync_required:
-                    queue_connector_initial_backfill(
-                        background_tasks,
-                        connection.id,
-                    )
-                results.append({
-                    "connection_id": connection.id,
-                    "status": "no_data",
-                    "detail": str(error),
-                })
-            except (
-                GoogleAnalyticsConnectorUnavailable,
-                ConnectorUnavailable,
-                OAuthProviderUnavailable,
-            ) as error:
-                record_scheduled_connector_failure(
-                    db,
-                    connection,
-                    error,
-                    results,
-                )
-            except Exception as error:
-                db.rollback()
-                results.append({
-                    "connection_id": connection.id,
-                    "status": "failed",
-                    "detail": str(error)[:240],
-                })
+                continue
+
+            job = enqueue_connector_ingestion_job(
+                db,
+                connection,
+                DataSourceConnectionSync(),
+                background_tasks,
+                job_type="scheduled_connector_sync",
+                reject_if_active=False,
+            )
+            results.append({
+                "connection_id": connection.id,
+                "status": "ingestion_queued",
+                "job_id": job.id,
+                "initial_sync": initial_sync_required,
+            })
 
         return {
             "processed_count": len(results),
-            "synced_count": sum(
-                result["status"] == "synced" for result in results
+            "queued_count": sum(
+                result["status"] == "ingestion_queued"
+                for result in results
             ),
-            "failed_count": sum(
-                result["status"] == "failed" for result in results
+            "in_progress_count": sum(
+                result["status"] == "ingestion_in_progress"
+                for result in results
             ),
-            "retention_pruned_count": sum(
-                result["status"] == "retention_pruned"
-                for result in retention_results
-            ),
-            "retention_results": retention_results,
+            # The scheduler now only accepts work. Keep the legacy counters
+            # in the response so existing cron monitoring remains compatible.
+            "synced_count": 0,
+            "failed_count": 0,
             "results": results,
         }
     finally:
         db.close()
 
 
-@router.post("/source-connections/{connection_id}/sync")
+@router.post("/source-connections/{connection_id}/sync", status_code=202)
 async def sync_source_connection(
     request: Request,
     connection_id: int,
     payload: DataSourceConnectionSync,
-    background_tasks: BackgroundTasks = None,
+    background_tasks: BackgroundTasks,
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -8167,129 +8640,22 @@ async def sync_source_connection(
                     "by the historical import."
                 ),
             )
-        initial_sync_required = (
-            not payload.advanced_date_range
-            and payload.start_date is None
-            and payload.end_date is None
-            and (
-                initial_connector_sync_is_required(db, connection)
-                or initial_connector_backfill_is_required(connection)
-            )
-        )
-        sync_results = run_data_source_sync_with_oauth_retry(
+
+        require_source_connection_sync_config(connection)
+        job = enqueue_connector_ingestion_job(
             db,
             connection,
             payload,
+            background_tasks,
+            job_type="manual_connector_sync",
         )
-        if not sync_results:
-            raise ConnectorUnavailable(
-                "Connector sync completed without producing a dataset"
-            )
-        db.commit()
-        if initial_sync_required:
-            queue_connector_initial_backfill(
-                background_tasks,
-                connection.id,
-            )
-            db.refresh(connection)
-        datasets = []
-        for dataset, report_config, _file_path, replaced_file_path in sync_results:
-            remove_dataset_file(replaced_file_path)
-            db.refresh(dataset)
-            datasets.append({
-                "dataset_id": dataset.id,
-                "workspace_id": dataset.workspace_id,
-                **build_dataset_source_metadata(dataset),
-                "file_name": connector_dataset_display_name(dataset),
-                "file_path": dataset.file_path,
-                "row_count": dataset.row_count,
-                "column_count": dataset.column_count,
-                "report": report_config,
-            })
-        dataset = datasets[0]
+        return {
+            "connection_id": connection.id,
+            "status": INGESTION_JOB_QUEUED,
+            "job_id": job.id,
+            "datasets": [],
+        }
 
-        return {
-            "connection_id": connection.id,
-            **dataset,
-            "datasets": datasets,
-        }
-    except ConnectorNoData as error:
-        if initial_sync_required:
-            queue_connector_initial_backfill(
-                background_tasks,
-                connection.id,
-            )
-        return {
-            "connection_id": connection.id,
-            "status": "no_data",
-            "message": str(error),
-            "datasets": [],
-        }
-    except (
-        GoogleAnalyticsConnectorUnavailable,
-        ConnectorUnavailable,
-        OAuthProviderUnavailable,
-    ) as error:
-        logger.warning(
-            "Connector sync unavailable",
-            extra={
-                "connection_id": connection_id,
-                "source_type": getattr(connection, "source_type", None),
-                "reason": str(error)[:500],
-            },
-        )
-        if connector_requires_reauthorization(
-            connection.source_type,
-            error,
-        ):
-            mark_connection_authorization_failed(
-                connection,
-                error,
-            )
-            db.commit()
-            notify_workspace_owner_of_authorization_failure(
-                db,
-                connection,
-            )
-        return {
-            "connection_id": connection.id,
-            "status": "error",
-            "message": str(error),
-            "datasets": [],
-        }
-    except ValueError as error:
-        return {
-            "connection_id": connection.id,
-            "status": "error",
-            "message": str(error),
-            "datasets": [],
-        }
-    except HTTPException:
-        raise
-    except Exception as error:
-        db.rollback()
-        error_detail = " ".join(str(error).split())
-        if len(error_detail) > 280:
-            error_detail = f"{error_detail[:277]}..."
-        message = (
-            f"Connector sync failed: {error_detail}"
-            if error_detail
-            else "Connector sync failed unexpectedly"
-        )
-        logger.exception(
-            "Connector sync failed",
-            extra={
-                "connection_id": connection_id,
-                "source_type": getattr(connection, "source_type", None),
-                "error_type": type(error).__name__,
-            },
-        )
-        return {
-            "connection_id": connection_id,
-            "status": "error",
-            "message": message,
-            "datasets": [],
-        }
     finally:
         db.close()
 

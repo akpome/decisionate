@@ -570,6 +570,86 @@ class DataSourceConnection(Base):
     )
 
 
+class DataIngestionJob(Base):
+    """Durable state for connector ingestion performed after the API response."""
+
+    __tablename__ = "data_ingestion_jobs"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+    connection_id = Column(
+        Integer,
+        nullable=True,
+        index=True,
+    )
+
+    user_id = Column(
+        String,
+        nullable=False,
+        index=True,
+    )
+
+    workspace_id = Column(
+        String,
+        nullable=True,
+        index=True,
+    )
+
+    job_type = Column(
+        String,
+        nullable=False,
+        default="connector_sync",
+        index=True,
+    )
+
+    status = Column(
+        String,
+        nullable=False,
+        default="queued",
+        index=True,
+    )
+
+    request_payload = Column(
+        Text,
+        nullable=True,
+    )
+
+    result_payload = Column(
+        Text,
+        nullable=True,
+    )
+
+    error_message = Column(
+        Text,
+        nullable=True,
+    )
+
+    created_at = Column(
+        DateTime,
+        default=utc_now,
+    )
+
+    started_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
+    completed_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
 class OAuthConnectionState(Base):
     __tablename__ = "oauth_connection_states"
 

@@ -6,6 +6,7 @@ import {
 } from "react"
 import {
   type DatasetSourceOption,
+  waitForDataIngestionJob,
   uploadDataset,
 } from "@/lib/api"
 import { useUser } from "@clerk/nextjs"
@@ -118,11 +119,21 @@ export function CsvUpload({
     setLoading(true)
 
     try {
-      await uploadDataset(
+      const queuedJob = await uploadDataset(
         file,
         user.id,
         activeWorkspaceId
       )
+      if (
+        queuedJob.status === "queued" &&
+        queuedJob.job_id
+      ) {
+        await waitForDataIngestionJob(
+          queuedJob.job_id,
+          user.id,
+          activeWorkspaceId
+        )
+      }
       await onUploadSuccess()
     } catch (error) {
       setFileName("")

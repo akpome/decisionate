@@ -668,6 +668,10 @@ function DataSourceConnectionRow({
     connection.initial_sync_status === "complete" ||
     (!connection.initial_sync_status &&
       Boolean(connection.last_synced_at))
+  const ingestionInProgress = [
+    "queued",
+    "running",
+  ].includes(connection.ingestion_job?.status ?? "")
   const isSageConnector =
     connection.source_type === "sage"
   const requiresOAuthAccountSelection =
@@ -732,6 +736,7 @@ function DataSourceConnectionRow({
     advancedDateRangeSupported &&
     initialSyncCompleted &&
     !sourceIsPlanned &&
+    !ingestionInProgress &&
     Boolean(onSyncConnection)
   const canUseAdvancedDateRange =
     canShowAdvancedDateRange &&
@@ -745,7 +750,9 @@ function DataSourceConnectionRow({
     (!showOAuthAccountSelection ||
       hasSelectedOAuthAccount)
   const canSyncConnector =
-    canUseAdvancedDateRange && !initialSyncInProgress
+    canUseAdvancedDateRange &&
+    !initialSyncInProgress &&
+    !ingestionInProgress
   const canStartOAuth =
     source?.connection_type === "oauth" &&
     source.status === "available" &&
@@ -1000,6 +1007,27 @@ function DataSourceConnectionRow({
           </p>
         )}
 
+        {ingestionInProgress && (
+          <p
+            className="mt-2 break-words text-xs text-blue-700"
+            role="status"
+          >
+            {connection.ingestion_job?.status === "queued"
+              ? t("Data ingestion is queued and will run in the background.")
+              : t("Data ingestion is running in the background.")}
+          </p>
+        )}
+
+        {connection.ingestion_job?.status === "failed" &&
+          connection.ingestion_job.error_message && (
+            <p
+              className="mt-2 break-words text-xs text-red-700"
+              role="alert"
+            >
+              {connection.ingestion_job.error_message}
+            </p>
+          )}
+
         {connection.authorization_error && (
           <div
             role="alert"
@@ -1173,6 +1201,7 @@ function DataSourceConnectionRow({
                           syncingConnectionId === connection.id ||
                           updatingConnectionId === connection.id ||
                           initialSyncInProgress ||
+                          ingestionInProgress ||
                           !canUseAdvancedDateRange
                         }
                         className="mt-3 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"

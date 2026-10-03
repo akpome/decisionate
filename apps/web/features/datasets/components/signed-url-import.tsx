@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs"
 
 import {
   importDatasetFromSignedUrl,
+  waitForDataIngestionJob,
 } from "@/lib/api"
 import {
   useActiveWorkspace,
@@ -59,6 +60,16 @@ export function SignedUrlImport({
           user.id,
           activeWorkspaceId
         )
+      if (
+        result.status === "queued" &&
+        result.job_id
+      ) {
+        await waitForDataIngestionJob(
+          result.job_id,
+          user.id,
+          activeWorkspaceId
+        )
+      }
       setUrl("")
       setFileName("")
       setNotice(`${t("Imported")} ${result.file_name}.`)

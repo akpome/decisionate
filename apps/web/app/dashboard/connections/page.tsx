@@ -486,6 +486,16 @@ function ConnectionsPageContent({
           payload
         )
 
+      if (result.status === "queued" && result.job_id) {
+        showConnectionFeedback(
+          connection.id,
+          "success",
+          `${connection.source_label} sync queued. Data will appear when processing completes.`
+        )
+        await loadConnections()
+        return
+      }
+
       const isEmptySyncResult =
         result.status === "no_data" ||
         (Array.isArray(result.datasets) &&
@@ -852,6 +862,9 @@ function ConnectionsPageContent({
       !sourceConnections.some((connection) =>
         ["pending", "initial", "backfill"].includes(
           connection.initial_sync_status ?? ""
+        ) ||
+        ["queued", "running"].includes(
+          connection.ingestion_job?.status ?? ""
         )
       )
     ) {
