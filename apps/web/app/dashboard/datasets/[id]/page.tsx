@@ -626,6 +626,7 @@ export default function DatasetDetailsPage() {
   async function saveMetricSelection(
     columns: string[],
     objective = metricObjective,
+    selectRecommendedMetricColumns = false,
   ) {
     if (
       !userId ||
@@ -647,6 +648,7 @@ export default function DatasetDetailsPage() {
         userId,
         activeWorkspaceId,
         objective,
+        selectRecommendedMetricColumns,
       )
 
       const refreshedDataset = await getDatasetDetails(
@@ -704,7 +706,8 @@ export default function DatasetDetailsPage() {
     setMetricObjective(objective)
     await saveMetricSelection(
       selectedMetricColumns,
-      objective
+      objective,
+      true,
     )
   }
 

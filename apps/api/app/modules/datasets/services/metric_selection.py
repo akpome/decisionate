@@ -25,7 +25,6 @@ DATASET_SELECTED_METRICS_KEY = "selected_metric_columns"
 DATASET_METRIC_DECISIONS_KEY = "metric_decisions"
 DATASET_METRIC_OBJECTIVE_KEY = "business_objective"
 DATASET_METRIC_PROFILE_VERSION = 1
-DEFAULT_RECOMMENDED_METRIC_LIMIT = 6
 SMALL_DATASET_MAX_ROWS = 15
 
 _SUMMARY_STATISTICS = (
@@ -578,53 +577,25 @@ def build_metric_selection_profile(
         for field in metric_candidates
         if field not in outcomes
     ]
-    outcomes = sorted(outcomes, key=lambda field: (-field["score"], field["column"]))[:3]
-    drivers = sorted(drivers, key=lambda field: (-field["score"], field["column"]))[:10]
+    outcomes = sorted(
+        outcomes,
+        key=lambda field: (-field["score"], field["column"]),
+    )
+    drivers = sorted(
+        drivers,
+        key=lambda field: (-field["score"], field["column"]),
+    )
     ranked_candidates = (
         outcomes
         + [field for field in drivers if field not in outcomes]
     )
-    priority_candidates = [
-        field
-        for field in metric_candidates
-        if field["status"] == "recommended"
-        and (
-            is_small_dataset
-            or _has_value_semantics(
-                normalize_metric_column_name(field["column"]),
-                field.get("registry"),
-            )
-        )
-    ]
-    recommended = priority_candidates + [
+    recommended = [
         field
         for field in ranked_candidates
-        if field not in priority_candidates
+        if field["status"] == "recommended"
     ]
-    if not is_small_dataset:
-        priority_names = {
-            field["column"]
-            for field in priority_candidates
-        }
-        recommended = priority_candidates + [
-            field
-            for field in ranked_candidates
-            if field["column"] not in priority_names
-        ][:DEFAULT_RECOMMENDED_METRIC_LIMIT]
     recommended_names = [field["column"] for field in recommended]
     recommended_name_set = set(recommended_names)
-    for field in fields:
-        if (
-            field["column"] in recommended_name_set
-            and field["status"] == "ambiguous"
-        ):
-            field.update(
-                status="recommended",
-                reason=(
-                    "Selected as a high-ranked metric candidate by default; "
-                    "review if needed."
-                ),
-            )
 
     return {
         "version": DATASET_METRIC_PROFILE_VERSION,

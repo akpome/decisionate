@@ -8703,10 +8703,15 @@ async def update_dataset_metric_selection(
             dataframe,
             payload.business_objective,
         )
+        requested_metric_columns = (
+            profile["recommended_metric_columns"]
+            if payload.select_recommended_metric_columns
+            else payload.selected_metric_columns
+        )
         numeric_columns, selected_columns = (
             normalize_selected_metric_columns(
                 dataframe,
-                payload.selected_metric_columns,
+                requested_metric_columns,
                 dataset,
                 available_metric_columns=profile[
                     "available_metric_columns"

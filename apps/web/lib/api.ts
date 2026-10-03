@@ -5412,6 +5412,7 @@ export async function updateDatasetMetricSelection(
   userId: string,
   workspaceId?: string,
   businessObjective?: string,
+  selectRecommendedMetricColumns = false,
 ): Promise<DatasetMetricSelectionResponse> {
   const cleanDatasetId =
     cleanPositiveIntegerId(
@@ -5437,6 +5438,9 @@ export async function updateDatasetMetricSelection(
         selected_metric_columns: selectedColumns,
         ...(businessObjective
           ? { business_objective: businessObjective }
+          : {}),
+        ...(selectRecommendedMetricColumns
+          ? { select_recommended_metric_columns: true }
           : {}),
       }),
     },

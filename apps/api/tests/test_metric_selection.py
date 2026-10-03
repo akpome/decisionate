@@ -96,7 +96,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             ],
         )
 
-    def test_default_metric_recommendations_are_limited_to_six(self):
+    def test_unrecognized_numeric_columns_require_confirmation(self):
         dataframe = pd.DataFrame({
             **{
                 f"metric_{index}": [
@@ -116,16 +116,17 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             dataframe,
         )
 
+        self.assertEqual(profile["recommended_metric_columns"], [])
         self.assertEqual(
-            len(profile["recommended_metric_columns"]),
-            6,
+            profile["ambiguous_metric_columns"],
+            list(dataframe.columns),
         )
         self.assertEqual(
             get_effective_dataset_metric_columns(
                 dataset,
                 dataframe,
             ),
-            profile["recommended_metric_columns"],
+            [],
         )
 
     def test_semantic_metric_columns_are_not_truncated(self):

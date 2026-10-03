@@ -19,6 +19,7 @@ class DatasetMetricSelectionUpdate(BaseModel):
         default=None,
         max_length=80,
     )
+    select_recommended_metric_columns: bool = False
 
 
 class DatasetSignedUrlImport(BaseModel):
