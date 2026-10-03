@@ -292,6 +292,49 @@ def build_metric_selection_profile(
             if is_numeric and numeric_series is not None
             else None
         )
+        if duplicate_of and definition:
+            duplicate_definition = get_metric_definition(
+                duplicate_of,
+                source_type,
+            )
+            if (
+                duplicate_definition
+                and duplicate_definition.canonical_name == definition.canonical_name
+                and normalized_column == definition.canonical_name
+            ):
+                # Prefer the canonical field name when a connector exposes
+                # both an alias such as ``unitquantity`` and ``quantity``.
+                duplicate_field = next(
+                    (
+                        field
+                        for field in fields
+                        if field["column"] == duplicate_of
+                    ),
+                    None,
+                )
+                if duplicate_field:
+                    duplicate_field.update(
+                        role="technical",
+                        status="excluded",
+                        exclusion_reason=f"Duplicates '{column_name}'.",
+                        reason=f"Duplicates '{column_name}'.",
+                    )
+                    available_metric_columns = [
+                        name
+                        for name in available_metric_columns
+                        if name != duplicate_of
+                    ]
+                    recommended_candidates = [
+                        field
+                        for field in recommended_candidates
+                        if field["column"] != duplicate_of
+                    ]
+                    ambiguous_candidates = [
+                        field
+                        for field in ambiguous_candidates
+                        if field["column"] != duplicate_of
+                    ]
+                duplicate_of = None
         field = {
             "column": column_name,
             "role": "dimension",

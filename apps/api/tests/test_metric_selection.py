@@ -185,8 +185,9 @@ class DatasetMetricSelectionTests(unittest.TestCase):
     def test_quantity_is_recommended_over_numeric_sku(self):
         dataframe = pd.DataFrame({
             "sku": [1001, 1002, 1003, 1004, 1005, 1006],
+            "unitquantity": [1, 2, 1, 3, 2, 4],
+            "quantity": [1, 2, 1, 3, 2, 4],
             "unit_price": [12.5, 15.0, 12.5, 20.0, 15.0, 18.0],
-            "quantity": [2, 1, 4, 3, 2, 5],
             "line_total": [25.0, 15.0, 50.0, 60.0, 30.0, 90.0],
         })
         dataset = SimpleNamespace(
@@ -205,6 +206,16 @@ class DatasetMetricSelectionTests(unittest.TestCase):
 
         self.assertEqual(fields["sku"]["role"], "identifier")
         self.assertEqual(fields["sku"]["status"], "excluded")
+        self.assertEqual(
+            fields["unitquantity"]["registry"]["canonical_name"],
+            "quantity",
+        )
+        self.assertEqual(
+            fields["quantity"]["registry"]["canonical_name"],
+            "quantity",
+        )
+        self.assertEqual(fields["quantity"]["status"], "recommended")
+        self.assertNotIn("unitquantity", profile["recommended_metric_columns"])
         self.assertEqual(
             fields["unit_price"]["registry"]["canonical_name"],
             "unit_price",
