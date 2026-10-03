@@ -232,6 +232,50 @@ class DatasetMetricSelectionTests(unittest.TestCase):
         self.assertIn("line_total", profile["recommended_metric_columns"])
         self.assertNotIn("sku", profile["recommended_metric_columns"])
 
+    def test_known_metrics_are_detected_in_single_row_datasets(self):
+        dataframe = pd.DataFrame({
+            "order_id": [1001],
+            "quantity": [2],
+            "unit_price": [12.5],
+            "line_total": [25.0],
+            "unclassified_number": [7],
+        })
+        dataset = SimpleNamespace(
+            source_type="shopify",
+            source_config=None,
+        )
+
+        profile = build_metric_selection_profile(
+            dataset,
+            dataframe,
+        )
+        fields = {
+            field["column"]: field
+            for field in profile["fields"]
+        }
+
+        self.assertIn(
+            "quantity",
+            profile["recommended_metric_columns"],
+        )
+        self.assertIn(
+            "unit_price",
+            profile["recommended_metric_columns"],
+        )
+        self.assertIn(
+            "line_total",
+            profile["recommended_metric_columns"],
+        )
+        self.assertEqual(fields["quantity"]["status"], "recommended")
+        self.assertEqual(fields["unit_price"]["status"], "recommended")
+        self.assertEqual(fields["line_total"]["status"], "recommended")
+        self.assertEqual(fields["order_id"]["role"], "identifier")
+        self.assertEqual(fields["order_id"]["status"], "excluded")
+        self.assertEqual(
+            fields["unclassified_number"]["status"],
+            "excluded",
+        )
+
     def test_line_quantity_aliases_map_to_quantity(self):
         for column in (
             "linequantity",

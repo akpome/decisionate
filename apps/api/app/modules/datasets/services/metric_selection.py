@@ -439,12 +439,12 @@ def build_metric_selection_profile(
                     exclusion_reason=f"Duplicates '{duplicate_of}'.",
                     reason=f"Duplicates '{duplicate_of}'.",
                 )
-            elif valid_count < 2:
+            elif valid_count < 1:
                 field.update(
                     role="technical",
                     status="excluded",
-                    exclusion_reason="Fewer than two usable observations.",
-                    reason="Fewer than two usable observations.",
+                    exclusion_reason="No usable observations.",
+                    reason="No usable observations.",
                 )
             elif completeness < 0.2:
                 field.update(
@@ -453,7 +453,9 @@ def build_metric_selection_profile(
                     exclusion_reason="Almost entirely empty.",
                     reason="Almost entirely empty.",
                 )
-            elif distinct_count <= 1:
+            elif distinct_count <= 1 and (
+                not definition or row_count > 1
+            ):
                 field.update(
                     role="dimension",
                     status="excluded",
