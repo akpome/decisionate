@@ -1584,7 +1584,10 @@ def build_dataset_details_response(
             str(column)
             for column in dataframe.columns
         ],
-        "metrics": generate_metrics(report_dataframe),
+        "metrics": generate_metrics(
+            report_dataframe,
+            selected_metric_columns,
+        ),
         "insights": generate_insights(report_dataframe),
         "chart": generate_chart_data(
             report_dataframe,

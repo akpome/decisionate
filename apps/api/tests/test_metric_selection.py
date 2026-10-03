@@ -92,6 +92,42 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             ],
         )
 
+    def test_default_metric_recommendations_are_limited_to_six(self):
+        dataframe = pd.DataFrame({
+            "date": [
+                f"2026-01-0{index}"
+                for index in range(1, 7)
+            ],
+            **{
+                f"metric_{index}": [
+                    index + offset
+                    for offset in range(6)
+                ]
+                for index in range(1, 9)
+            },
+        })
+        dataset = SimpleNamespace(
+            source_type="csv",
+            source_config=None,
+        )
+
+        profile = build_metric_selection_profile(
+            dataset,
+            dataframe,
+        )
+
+        self.assertEqual(
+            len(profile["recommended_metric_columns"]),
+            6,
+        )
+        self.assertEqual(
+            get_effective_dataset_metric_columns(
+                dataset,
+                dataframe,
+            ),
+            profile["recommended_metric_columns"],
+        )
+
     def test_connector_suffix_metric_is_filtered_like_other_numeric_columns(self):
         dataframe = pd.DataFrame({
             "date": ["2026-01-01", "2026-01-02"],
@@ -141,6 +177,18 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             [
                 metric["column"]
                 for metric in generate_metrics(dataframe)
+            ],
+            ["revenue"],
+        )
+
+    def test_generate_metrics_can_limit_output_to_selected_columns(self):
+        self.assertEqual(
+            [
+                metric["column"]
+                for metric in generate_metrics(
+                    self.dataframe,
+                    ["revenue"],
+                )
             ],
             ["revenue"],
         )

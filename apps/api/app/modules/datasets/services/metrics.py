@@ -11,7 +11,8 @@ from app.modules.datasets.services.serialization import (
 
 
 def generate_metrics(
-    dataframe: pd.DataFrame
+    dataframe: pd.DataFrame,
+    selected_columns=None,
 ):
     if not isinstance(
         dataframe,
@@ -20,6 +21,14 @@ def generate_metrics(
         return []
 
     metrics = []
+    selected_column_set = (
+        {
+            str(column)
+            for column in selected_columns
+        }
+        if selected_columns is not None
+        else None
+    )
 
     numeric_columns = dict(
         get_numeric_columns(dataframe)
@@ -38,6 +47,11 @@ def generate_metrics(
 
     for column, numeric_series in numeric_columns.items():
         column_label = str(column)
+        if (
+            selected_column_set is not None
+            and column_label not in selected_column_set
+        ):
+            continue
         if (
             is_identifier_column(column)
             or column_label in {

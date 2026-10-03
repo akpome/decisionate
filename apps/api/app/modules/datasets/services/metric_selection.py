@@ -25,6 +25,7 @@ DATASET_SELECTED_METRICS_KEY = "selected_metric_columns"
 DATASET_METRIC_DECISIONS_KEY = "metric_decisions"
 DATASET_METRIC_OBJECTIVE_KEY = "business_objective"
 DATASET_METRIC_PROFILE_VERSION = 1
+DEFAULT_RECOMMENDED_METRIC_LIMIT = 6
 
 _SUMMARY_STATISTICS = (
     "mean",
@@ -465,7 +466,10 @@ def build_metric_selection_profile(
     ]
     outcomes = sorted(outcomes, key=lambda field: (-field["score"], field["column"]))[:3]
     drivers = sorted(drivers, key=lambda field: (-field["score"], field["column"]))[:10]
-    recommended = outcomes + [field for field in drivers if field not in outcomes]
+    recommended = (
+        outcomes
+        + [field for field in drivers if field not in outcomes]
+    )[:DEFAULT_RECOMMENDED_METRIC_LIMIT]
     recommended_names = [field["column"] for field in recommended]
 
     return {

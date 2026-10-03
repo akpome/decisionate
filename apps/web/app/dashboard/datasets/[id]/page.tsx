@@ -620,7 +620,9 @@ export default function DatasetDetailsPage() {
     )
   const metrics =
     (dataset.metrics ?? []).filter(
-      metric => !isIdentifierColumn(metric.column)
+      metric =>
+        !isIdentifierColumn(metric.column) &&
+        selectedMetricColumnSet.has(metric.column)
     )
   const displayedMetrics =
     prioritizeDatasetMetrics(
@@ -1027,11 +1029,11 @@ export default function DatasetDetailsPage() {
         {displayedMetrics.length ? (
           <div className="grid gap-6 md:grid-cols-3">
             {displayedMetrics.map((metric) => (
-                <MetricCard
-                  key={metric.column}
-                  title={formatMetricLabel(metric.column)}
-                  value={metric.total}
-                description={`Average ${metric.average}`}
+              <MetricCard
+                key={metric.column}
+                title={formatMetricLabel(metric.column)}
+                value={metric.total}
+                description="Sum of values"
               />
             ))}
           </div>
