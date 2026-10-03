@@ -1848,7 +1848,10 @@ type ClerkSessionTokenProvider = (
 type AuthenticatedHeaders =
   Record<string, string>
 
-const clerkTokenTimeoutMs = 1500
+// Clerk may need a network round trip when the session token is first used.
+// Keep protected API requests from being sent without auth during that brief
+// startup or token-refresh window.
+const clerkTokenTimeoutMs = 5000
 const apiRequestTimeoutMs = 30000
 const connectorSyncRequestTimeoutMs = 120000
 const apiMutationTimeoutMs = 30000
@@ -1903,7 +1906,12 @@ async function getClerkSessionToken(
     return null
   }
 
-  if (!clerkBearerAuthEnabled && !clerkSessionTokenProvider) {
+  const hasClerkSession = Boolean(
+    clerkSessionTokenProvider ||
+    window.Clerk?.session
+  )
+
+  if (!hasClerkSession && !clerkBearerAuthEnabled) {
     return null
   }
 
