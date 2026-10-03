@@ -1852,6 +1852,7 @@ const clerkTokenTimeoutMs = 1500
 const apiRequestTimeoutMs = 30000
 const connectorSyncRequestTimeoutMs = 120000
 const apiMutationTimeoutMs = 30000
+const datasetMetricSelectionTimeoutMs = 60000
 const connectionRequestTimeoutMs = 30000
 const datasetDetailsRequestTimeoutMs = 60000
 const preferenceRequestTimeoutMs = 30000
@@ -5439,7 +5440,7 @@ export async function updateDatasetMetricSelection(
           : {}),
       }),
     },
-    apiMutationTimeoutMs
+    datasetMetricSelectionTimeoutMs
   )
 
   if (!response.ok) {

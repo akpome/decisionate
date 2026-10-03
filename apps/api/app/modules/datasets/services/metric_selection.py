@@ -149,11 +149,28 @@ def _is_low_cardinality_dimension(
     )
 
 
-def _duplicate_column(dataframe: pd.DataFrame, column, numeric_series: pd.Series):
+def _duplicate_column(
+    dataframe: pd.DataFrame,
+    column,
+    numeric_series: pd.Series,
+    numeric_lookup: dict[str, pd.Series] | None = None,
+):
+    """Find an earlier numeric column with identical values.
+
+    Numeric coercion is cached by the profiler. Re-coercing every earlier
+    column for every candidate made metric selection quadratic in both column
+    count and dataframe size.
+    """
     for other_column in dataframe.columns:
         if str(other_column) == str(column):
             break
-        other_numeric = _numeric_series(dataframe, other_column)
+        other_numeric = (
+            numeric_lookup.get(str(other_column))
+            if numeric_lookup is not None
+            else _numeric_series(dataframe, other_column)
+        )
+        if other_numeric is None:
+            continue
         if numeric_series.equals(other_numeric):
             return str(other_column)
     return None
@@ -288,7 +305,12 @@ def build_metric_selection_profile(
             else 0.0
         )
         duplicate_of = (
-            _duplicate_column(dataframe, column, numeric_series)
+            _duplicate_column(
+                dataframe,
+                column,
+                numeric_series,
+                numeric_lookup,
+            )
             if is_numeric and numeric_series is not None
             else None
         )
@@ -652,11 +674,13 @@ def normalize_selected_metric_columns(
     dataframe: pd.DataFrame,
     requested_columns: list[str],
     dataset=None,
+    available_metric_columns: list[str] | None = None,
 ) -> tuple[list[str], list[str]]:
-    available_metric_columns = get_selectable_numeric_columns(
-        dataframe,
-        dataset,
-    )
+    if available_metric_columns is None:
+        available_metric_columns = get_selectable_numeric_columns(
+            dataframe,
+            dataset,
+        )
     available_columns = [
         str(column)
         for column in dataframe.columns

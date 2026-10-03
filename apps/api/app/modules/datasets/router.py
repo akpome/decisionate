@@ -8679,10 +8679,9 @@ async def update_dataset_metric_selection(
     db = SessionLocal()
 
     try:
-        dataset, dataframe = load_dataframe(
+        dataset = load_dataset(
             db,
             dataset_id,
-            apply_metric_selection=False,
         )
 
         verify_dataset_owner(
@@ -8691,11 +8690,27 @@ async def update_dataset_metric_selection(
             workspace_id,
         )
 
+        # Dataset loading and profiling are blocking dataframe work. Keep it
+        # off the event loop so one large dataset cannot stall the API worker.
+        dataframe = await asyncio.to_thread(
+            load_dataframe_from_dataset,
+            dataset,
+            False,
+        )
+        profile = await asyncio.to_thread(
+            build_metric_selection_profile,
+            dataset,
+            dataframe,
+            payload.business_objective,
+        )
         numeric_columns, selected_columns = (
             normalize_selected_metric_columns(
                 dataframe,
                 payload.selected_metric_columns,
                 dataset,
+                available_metric_columns=profile[
+                    "available_metric_columns"
+                ],
             )
         )
         source_config = parse_source_connection_config(
@@ -8708,11 +8723,6 @@ async def update_dataset_metric_selection(
             source_config[DATASET_METRIC_OBJECTIVE_KEY] = (
                 payload.business_objective.strip().lower()
             )
-        profile = build_metric_selection_profile(
-            dataset,
-            dataframe,
-            objective=payload.business_objective,
-        )
         selected_set = set(selected_columns)
         source_config[DATASET_METRIC_DECISIONS_KEY] = {
             field["column"]: (
@@ -8734,20 +8744,44 @@ async def update_dataset_metric_selection(
         db.commit()
         db.refresh(dataset)
 
+        saved_profile = await asyncio.to_thread(
+            build_metric_selection_profile,
+            dataset,
+            dataframe,
+        )
         return {
             "dataset_id": dataset.id,
             "file_name": connector_dataset_display_name(dataset),
             "numeric_columns": numeric_columns,
             "selected_metric_columns": selected_columns,
-            "metric_profile": build_metric_selection_profile(
-                dataset,
-                dataframe,
-            ),
+            "metric_profile": saved_profile,
         }
     except ValueError as error:
+        db.rollback()
         raise HTTPException(
             status_code=400,
             detail=str(error),
+        ) from error
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as error:
+        db.rollback()
+        logger.exception(
+            "Dataset metric selection failed",
+            extra={
+                "dataset_id": dataset_id,
+                "user_id": user_id,
+                "workspace_id": workspace_id,
+                "error_type": type(error).__name__,
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Dataset metrics could not be updated because the dataset "
+                "is temporarily unavailable. Try again shortly."
+            ),
         ) from error
     finally:
         db.close()
