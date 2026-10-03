@@ -53,7 +53,13 @@ def generate_metrics(
         ):
             continue
         if (
-            is_identifier_column(column)
+            (
+                is_identifier_column(column)
+                and (
+                    selected_column_set is None
+                    or column_label not in selected_column_set
+                )
+            )
             or column_label in {
                 "__decisionate_summary__",
                 "__decisionate_summary_month__",

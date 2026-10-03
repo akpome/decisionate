@@ -200,42 +200,16 @@ function getPreviewNumericColumns(
   })
 }
 
-function isIdentifierColumn(
-  column: string
-) {
-  const words = column
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
-    .split(/[^a-z0-9]+/i)
-
-  return words.some(word => {
-    const normalizedWord = word.toLowerCase()
-    return normalizedWord === "id" ||
-      normalizedWord === "key" ||
-      normalizedWord === "code"
-  })
-}
-
-function excludeIdentifierColumns(
-  columns: string[]
-) {
-  return columns.filter(
-    column => !isIdentifierColumn(column)
-  )
-}
-
 function getSelectedMetricColumns(
   dataset: DatasetDetails
 ) {
-  return excludeIdentifierColumns(
-    dataset.selected_metric_columns ??
+  return dataset.selected_metric_columns ??
     dataset.metric_profile?.recommended_metric_columns ??
     dataset.numeric_columns ??
     dataset.metrics?.map(
       metric => metric.column
     ) ??
     []
-  )
 }
 
 export default function DatasetDetailsPage() {
@@ -250,8 +224,6 @@ export default function DatasetDetailsPage() {
     useState<string[]>([])
   const [metricObjective, setMetricObjective] =
     useState("general_business")
-  const [showAdvancedMetrics, setShowAdvancedMetrics] =
-    useState(false)
   const [columnSearch, setColumnSearch] =
     useState("")
   const [savingMetricSelection, setSavingMetricSelection] =
@@ -320,7 +292,6 @@ export default function DatasetDetailsPage() {
       setSelectedMetric(undefined)
       setSelectedMetricColumns([])
       setMetricObjective("general_business")
-      setShowAdvancedMetrics(false)
       setColumnSearch("")
       setMetricSelectionError("")
       setErrorMessage("")
@@ -420,12 +391,9 @@ export default function DatasetDetailsPage() {
 
   const datasetId =
     getDatasetRouteId(params.id)
-  const metricColumns =
-    excludeIdentifierColumns(
-      dataset?.metrics?.map(
-        metric => metric.column
-      ) ?? []
-    )
+  const metricColumns = dataset?.metrics?.map(
+    metric => metric.column
+  ) ?? []
   const previewColumns =
     dataset?.columns ??
     (dataset?.preview?.[0]
@@ -448,9 +416,7 @@ export default function DatasetDetailsPage() {
         previewColumns,
         dataset?.preview
       )
-  const numericMetricColumns = new Set(
-    excludeIdentifierColumns(profileMetricColumns)
-  )
+  const numericMetricColumns = new Set(profileMetricColumns)
   const metricFieldByColumn = new Map(
     (dataset?.metric_profile?.fields ?? []).map(field => [
       field.column,
@@ -462,8 +428,6 @@ export default function DatasetDetailsPage() {
     Array.from(numericMetricColumns)
   const ambiguousMetricColumns =
     dataset?.metric_profile?.ambiguous_metric_columns ?? []
-  const advancedMetricColumns =
-    dataset?.metric_profile?.advanced_metric_columns ?? []
   const selectedMetricColumnSet = new Set(
     selectedMetricColumns
   )
@@ -621,7 +585,6 @@ export default function DatasetDetailsPage() {
   const metrics =
     (dataset.metrics ?? []).filter(
       metric =>
-        !isIdentifierColumn(metric.column) &&
         selectedMetricColumnSet.has(metric.column)
     )
   const displayedMetrics =
@@ -1070,23 +1033,12 @@ export default function DatasetDetailsPage() {
               </label>
             </div>
             <p className="mt-1 max-w-2xl text-sm text-gray-500">
-              Decisionate recommends business metrics and keeps identifiers, time fields, and dimensions out of metric calculations.
+              Decisionate recommends business metrics automatically; use the table checkboxes to choose any columns for metric calculations.
             </p>
           </div>
 
           {canManageWorkspaceData && (
             <div className="flex shrink-0 flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAdvancedMetrics(current => !current)
-                }}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-              >
-                {showAdvancedMetrics
-                  ? "Hide advanced metrics"
-                  : `Advanced metrics${advancedMetricColumns.length ? ` (${advancedMetricColumns.length})` : ""}`}
-              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -1182,14 +1134,6 @@ export default function DatasetDetailsPage() {
                   Select these only when they represent a business measure.
                 </p>
               )}
-              {advancedMetricColumns.length > 0 && (
-                <p>
-                  <span className="font-semibold">
-                    Previously reviewed:
-                  </span>{" "}
-                  {advancedMetricColumns.join(", ")} remain available under Advanced metrics.
-                </p>
-              )}
               <p className="text-xs text-blue-800">
                 {dataset.metric_profile.dimension_columns.length} dimension(s),{" "}
                 {dataset.metric_profile.time_columns.length} time field(s), and{" "}
@@ -1262,17 +1206,8 @@ export default function DatasetDetailsPage() {
             <thead className="bg-gray-50">
               <tr>
                 {visiblePreviewColumns.map((column) => {
-                  const isNumericMetric =
-                    numericMetricColumns.has(column)
                   const metricField =
                     metricFieldByColumn.get(column)
-                  const isMetricCandidate =
-                    isNumericMetric &&
-                    (metricField?.role === "metric" ||
-                      metricField?.role === "derived_metric" ||
-                      !metricField) &&
-                    (metricField?.status !== "advanced" ||
-                      showAdvancedMetrics)
 
                   return (
                     <th
@@ -1282,14 +1217,10 @@ export default function DatasetDetailsPage() {
                       <label className="flex min-w-0 items-center gap-2">
                         <input
                           type="checkbox"
-                          checked={
-                            isMetricCandidate &&
-                            selectedMetricColumnSet.has(column)
-                          }
+                          checked={selectedMetricColumnSet.has(column)}
                           disabled={
                             !canManageWorkspaceData ||
-                            savingMetricSelection ||
-                            !isMetricCandidate
+                            savingMetricSelection
                           }
                           onChange={(event) => {
                             handleMetricColumnToggle(
@@ -1298,17 +1229,10 @@ export default function DatasetDetailsPage() {
                             )
                           }}
                           title={
-                            isMetricCandidate
-                              ? metricField?.reason ??
-                                "Include this column as a metric"
-                              : metricField?.reason ??
-                                "Keep this source column available for dashboard dimensions"
+                            metricField?.reason ??
+                            "Include this column as a metric"
                           }
-                          aria-label={
-                            isMetricCandidate
-                              ? `Use ${column} as a metric`
-                              : `Use ${column} as a dashboard dimension`
-                          }
+                          aria-label={`Use ${column} as a metric`}
                           className="h-4 w-4 shrink-0 accent-blue-600"
                         />
                         <span className="truncate">
@@ -1386,7 +1310,7 @@ export default function DatasetDetailsPage() {
           </p>
         ) : (
           <p className="mt-3 text-sm text-gray-500">
-            Recommended metrics are used by default. Review ambiguous columns with the table checkboxes; identifiers, time fields, and dimensions remain available for grouping.
+            Recommended metrics are used by default. Select or unselect any source column with the table checkboxes.
           </p>
         )}
       </div>

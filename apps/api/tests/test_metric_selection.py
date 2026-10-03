@@ -189,6 +189,39 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             ["revenue"],
         )
 
+    def test_explicit_selection_can_include_non_recommended_columns(self):
+        dataframe = pd.DataFrame({
+            "customer_id": [101, 102],
+            "revenue": [100, 125],
+            "category": ["a", "b"],
+        })
+        dataset = SimpleNamespace(
+            source_config=json.dumps({
+                "selected_metric_columns": [
+                    "customer_id",
+                    "category",
+                ],
+            })
+        )
+
+        self.assertEqual(
+            get_effective_dataset_metric_columns(
+                dataset,
+                dataframe,
+            ),
+            ["customer_id", "category"],
+        )
+        self.assertEqual(
+            [
+                metric["column"]
+                for metric in generate_metrics(
+                    dataframe,
+                    ["customer_id", "category"],
+                )
+            ],
+            ["customer_id"],
+        )
+
     def test_normalization_accepts_metric_and_dimension_columns(self):
         available_columns, selected_columns = normalize_selected_metric_columns(
             self.dataframe,

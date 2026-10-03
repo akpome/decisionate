@@ -648,12 +648,19 @@ def get_effective_dataset_metric_columns(
     dataframe: pd.DataFrame,
 ) -> list[str]:
     profile = build_metric_selection_profile(dataset, dataframe)
-    available_columns = list(profile.get("available_metric_columns", []))
     selected_columns = get_dataset_selected_metric_columns(dataset)
 
     if selected_columns is None:
         return list(profile.get("recommended_metric_columns", []))
 
+    # The profiler controls automatic defaults. Once a user explicitly saves
+    # a selection, every real source column is eligible, including dimensions
+    # and identifier-like numeric fields.
+    available_columns = [
+        str(column)
+        for column in dataframe.columns
+        if not _is_generated_metric_column(column, dataframe)
+    ]
     selected_set = set(selected_columns)
     return [
         column
