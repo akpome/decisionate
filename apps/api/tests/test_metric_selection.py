@@ -4,6 +4,9 @@ from types import SimpleNamespace
 
 import pandas as pd
 
+from app.modules.datasets.services.metric_registry import (
+    get_metric_definition,
+)
 from app.modules.datasets.services.metric_selection import (
     build_metric_selection_profile,
     filter_dataframe_to_selected_metrics,
@@ -228,6 +231,20 @@ class DatasetMetricSelectionTests(unittest.TestCase):
         self.assertIn("unit_price", profile["recommended_metric_columns"])
         self.assertIn("line_total", profile["recommended_metric_columns"])
         self.assertNotIn("sku", profile["recommended_metric_columns"])
+
+    def test_line_quantity_aliases_map_to_quantity(self):
+        for column in (
+            "linequantity",
+            "line-quantity",
+            "line_quantity",
+            "unit-quantity",
+        ):
+            definition = get_metric_definition(
+                column,
+                "lightspeed",
+            )
+            self.assertIsNotNone(definition)
+            self.assertEqual(definition.canonical_name, "quantity")
 
     def test_generate_metrics_can_limit_output_to_selected_columns(self):
         self.assertEqual(

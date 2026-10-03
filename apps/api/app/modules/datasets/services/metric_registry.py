@@ -111,7 +111,7 @@ _PROFIT = _definition(
 _QUANTITY = _definition(
     "quantity",
     (
-        r"(^|_)(quantity|unitquantity|qty|units|item_count|items_count|sold_count)(_|$)",
+        r"(^|_)(quantity|unitquantity|linequantity|qty|units|item_count|items_count|sold_count)(_|$)",
         r"(^|_)(clicks|impressions|visits|sessions|orders|transactions|leads|conversions)(_|$)",
     ),
     "Count of units, events, or business activities.",

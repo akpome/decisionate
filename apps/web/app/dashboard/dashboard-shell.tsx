@@ -1055,11 +1055,27 @@ export function DashboardShell({
         ========================= */}
 
         <div className="shrink-0 border-t p-4">
-          <div className="mb-3 flex justify-end gap-2">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2 xl:hidden">
+              <div className="shrink-0">
+                {clerkButtonMounted ? (
+                  <UserButton />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="h-8 w-8 rounded-full bg-gray-200"
+                  />
+                )}
+              </div>
+              <span className="truncate text-xs font-medium text-gray-600">
+                {user?.fullName ?? text("account")}
+              </span>
+            </div>
+
             <ThemeToggle />
           </div>
 
-          <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="hidden min-w-0 items-center justify-between gap-3 xl:flex">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-gray-800">
                 {user?.fullName ?? text("account")}
