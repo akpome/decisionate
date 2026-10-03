@@ -100,12 +100,8 @@ class DatasetMetricSelectionTests(unittest.TestCase):
         dataframe = pd.DataFrame({
             **{
                 f"metric_{index}": [
-                    index,
-                    index + 1,
-                    index,
-                    index + 1,
-                    index,
-                    index + 1,
+                    index + (row % 4)
+                    for row in range(16)
                 ]
                 for index in range(1, 9)
             },
@@ -130,6 +126,26 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 dataframe,
             ),
             profile["recommended_metric_columns"],
+        )
+
+    def test_semantic_metric_columns_are_not_truncated(self):
+        dataframe = pd.DataFrame({
+            f"amount_{index}": range(1, 17)
+            for index in range(1, 8)
+        })
+        dataset = SimpleNamespace(
+            source_type="csv",
+            source_config=None,
+        )
+
+        profile = build_metric_selection_profile(
+            dataset,
+            dataframe,
+        )
+
+        self.assertEqual(
+            profile["recommended_metric_columns"],
+            list(dataframe.columns),
         )
 
     def test_connector_suffix_metric_is_filtered_like_other_numeric_columns(self):
@@ -239,6 +255,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             "quantity": [2],
             "unit_price": [12.5],
             "line_total": [25.0],
+            "raw_metric": [7],
             "unclassified_number": [7],
         })
         dataset = SimpleNamespace(
@@ -275,6 +292,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
         self.assertEqual(fields["amount"]["status"], "recommended")
         self.assertEqual(fields["unit_price"]["status"], "recommended")
         self.assertEqual(fields["line_total"]["status"], "recommended")
+        self.assertEqual(fields["raw_metric"]["status"], "recommended")
         self.assertEqual(fields["order_id"]["role"], "identifier")
         self.assertEqual(fields["order_id"]["status"], "excluded")
         self.assertEqual(
@@ -389,7 +407,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
         self.assertEqual(fields["date"]["role"], "time")
         self.assertEqual(fields["customer_id"]["role"], "identifier")
         self.assertEqual(fields["row_sequence"]["role"], "identifier")
-        self.assertEqual(fields["constant_value"]["status"], "excluded")
+        self.assertEqual(fields["constant_value"]["status"], "recommended")
         self.assertEqual(fields["revenue_copy"]["status"], "excluded")
         self.assertEqual(fields["channel"]["role"], "dimension")
         self.assertNotIn("customer_id", profile["available_metric_columns"])

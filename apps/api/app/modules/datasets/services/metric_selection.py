@@ -26,6 +26,7 @@ DATASET_METRIC_DECISIONS_KEY = "metric_decisions"
 DATASET_METRIC_OBJECTIVE_KEY = "business_objective"
 DATASET_METRIC_PROFILE_VERSION = 1
 DEFAULT_RECOMMENDED_METRIC_LIMIT = 6
+SMALL_DATASET_MAX_ROWS = 15
 
 _SUMMARY_STATISTICS = (
     "mean",
@@ -273,6 +274,10 @@ def build_metric_selection_profile(
     source_type = _dataset_source_type(dataset)
     saved_decisions = _saved_metric_decisions(dataset)
     row_count = len(dataframe)
+    is_small_dataset = (
+        row_count > 0
+        and row_count <= SMALL_DATASET_MAX_ROWS
+    )
     time_columns = [
         str(column)
         for column in dataframe.columns
@@ -435,7 +440,11 @@ def build_metric_selection_profile(
             elif (
                 row_count >= 5
                 and unique_ratio >= 0.98
-                and not definition
+                and not is_small_dataset
+                and not _has_value_semantics(
+                    normalized_column,
+                    definition,
+                )
             ):
                 field.update(
                     role="identifier",
@@ -464,9 +473,21 @@ def build_metric_selection_profile(
                     exclusion_reason="Almost entirely empty.",
                     reason="Almost entirely empty.",
                 )
+            elif is_small_dataset:
+                field.update(
+                    role=(
+                        "derived_metric"
+                        if definition and definition.derived
+                        else "metric"
+                    ),
+                    status="recommended",
+                    reason=(
+                        "Selected because this small dataset has 15 or "
+                        "fewer rows."
+                    ),
+                )
             elif distinct_count <= 1 and (
-                row_count > 1
-                or not _has_value_semantics(
+                not _has_value_semantics(
                     normalized_column,
                     definition,
                 )
@@ -477,6 +498,20 @@ def build_metric_selection_profile(
                     exclusion_reason="Contains no meaningful variation.",
                     reason="Contains no meaningful variation.",
                 )
+            elif _has_value_semantics(
+                normalized_column,
+                definition,
+            ):
+                field.update(
+                    role="derived_metric" if definition and definition.derived else "metric",
+                    status="recommended",
+                    reason=_metric_reason(
+                        definition,
+                        completeness,
+                        score,
+                        "recommended",
+                    ),
+                )
             elif (
                 _is_low_cardinality_dimension(
                     column,
@@ -484,29 +519,11 @@ def build_metric_selection_profile(
                     valid_count,
                 )
                 and not definition
-                and not (
-                    row_count == 1
-                    and _has_value_semantics(
-                        normalized_column,
-                        definition,
-                    )
-                )
             ):
                 field.update(
                     role="dimension",
                     status="available",
                     reason="Low-cardinality code or category for grouping.",
-                )
-            elif definition:
-                field.update(
-                    role="derived_metric" if definition.derived else "metric",
-                    status="recommended" if score >= 0.55 else "ambiguous",
-                    reason=_metric_reason(
-                        definition,
-                        completeness,
-                        score,
-                        "recommended" if score >= 0.55 else "ambiguous",
-                    ),
                 )
             elif score >= 0.68:
                 field.update(
@@ -563,10 +580,37 @@ def build_metric_selection_profile(
     ]
     outcomes = sorted(outcomes, key=lambda field: (-field["score"], field["column"]))[:3]
     drivers = sorted(drivers, key=lambda field: (-field["score"], field["column"]))[:10]
-    recommended = (
+    ranked_candidates = (
         outcomes
         + [field for field in drivers if field not in outcomes]
-    )[:DEFAULT_RECOMMENDED_METRIC_LIMIT]
+    )
+    priority_candidates = [
+        field
+        for field in metric_candidates
+        if field["status"] == "recommended"
+        and (
+            is_small_dataset
+            or _has_value_semantics(
+                normalize_metric_column_name(field["column"]),
+                field.get("registry"),
+            )
+        )
+    ]
+    recommended = priority_candidates + [
+        field
+        for field in ranked_candidates
+        if field not in priority_candidates
+    ]
+    if not is_small_dataset:
+        priority_names = {
+            field["column"]
+            for field in priority_candidates
+        }
+        recommended = priority_candidates + [
+            field
+            for field in ranked_candidates
+            if field["column"] not in priority_names
+        ][:DEFAULT_RECOMMENDED_METRIC_LIMIT]
     recommended_names = [field["column"] for field in recommended]
     recommended_name_set = set(recommended_names)
     for field in fields:
@@ -577,8 +621,8 @@ def build_metric_selection_profile(
             field.update(
                 status="recommended",
                 reason=(
-                    "Selected as one of the six highest-ranked metric "
-                    "candidates by default; review if needed."
+                    "Selected as a high-ranked metric candidate by default; "
+                    "review if needed."
                 ),
             )
 
