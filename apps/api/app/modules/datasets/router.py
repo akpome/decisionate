@@ -104,6 +104,7 @@ from app.modules.datasets.services.metric_selection import (
     DATASET_SELECTED_METRICS_KEY,
     build_metric_selection_profile,
     filter_dataframe_to_selected_metrics,
+    get_dataset_selected_metric_columns,
     get_effective_dataset_metric_columns,
     get_selectable_numeric_columns,
     normalize_selected_metric_columns,
@@ -1549,6 +1550,10 @@ def build_dataset_details_response(
             dataframe,
         )
     )
+    metric_selection_configured = (
+        get_dataset_selected_metric_columns(dataset)
+        is not None
+    )
     report_dataframe = filter_dataframe_to_selected_metrics(
         dataset,
         dataframe,
@@ -1596,6 +1601,7 @@ def build_dataset_details_response(
         ),
         "numeric_columns": available_metric_columns,
         "selected_metric_columns": selected_metric_columns,
+        "metric_selection_configured": metric_selection_configured,
         "metric_profile": metric_profile,
     }
 

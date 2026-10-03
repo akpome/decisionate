@@ -111,6 +111,7 @@ type DatasetDetails = {
   columns?: string[]
   numeric_columns?: string[]
   selected_metric_columns?: string[]
+  metric_selection_configured?: boolean
   metric_profile?: MetricSelectionProfile
   metrics?: DatasetMetric[]
   ai_analysis?: AIAnalysis
@@ -203,6 +204,18 @@ function getPreviewNumericColumns(
 function getSelectedMetricColumns(
   dataset: DatasetDetails
 ) {
+  if (
+    dataset.metric_selection_configured === false
+  ) {
+    return dataset.metric_profile?.recommended_metric_columns ??
+      dataset.selected_metric_columns ??
+      dataset.numeric_columns ??
+      dataset.metrics?.map(
+        metric => metric.column
+      ) ??
+      []
+  }
+
   return dataset.selected_metric_columns ??
     dataset.metric_profile?.recommended_metric_columns ??
     dataset.numeric_columns ??
