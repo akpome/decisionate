@@ -2,6 +2,7 @@ from fastapi import Request
 
 from app.modules.auth_context import (
     get_auth_context,
+    is_client_workspace_role,
 )
 
 auth_context_cache_key = "_decisionate_auth_context"
@@ -97,7 +98,10 @@ def require_workspace_data_manager(
         request,
     )
 
-    if workspace_role not in {"owner", "client"}:
+    if (
+        workspace_role != "owner" and
+        not is_client_workspace_role(workspace_role)
+    ):
         from fastapi import HTTPException
 
         raise HTTPException(
@@ -134,7 +138,10 @@ def require_workspace_connection_viewer(
         request,
     )
 
-    if workspace_role not in {"owner", "client"}:
+    if (
+        workspace_role != "owner" and
+        not is_client_workspace_role(workspace_role)
+    ):
         from fastapi import HTTPException
 
         raise HTTPException(

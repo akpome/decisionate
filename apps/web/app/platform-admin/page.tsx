@@ -1225,7 +1225,11 @@ export default function PlatformAdminPage() {
         Object.fromEntries(
           data
             .filter(
-              member => member.role === "member" || member.role === "client"
+              member =>
+                member.role === "member" ||
+                member.role === "client" ||
+                member.role === "client_owner" ||
+                member.role === "client_user"
             )
             .map(member => [member.id, member.role])
         ) as Record<number, "member" | "client">

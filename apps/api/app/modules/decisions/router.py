@@ -114,6 +114,7 @@ from sqlalchemy import and_, extract, func, or_
 
 from app.modules.auth_context import (
     get_auth_context,
+    is_client_workspace_role,
 )
 from app.modules.identity.service import (
     resolve_user_reference,
@@ -141,7 +142,7 @@ router = APIRouter(
 def require_decision_manager(
     request: Request,
 ):
-    if get_auth_context(request).workspace_role == "client":
+    if is_client_workspace_role(get_auth_context(request).workspace_role):
         raise HTTPException(
             status_code=403,
             detail="Client users can review decisions but cannot modify them",
@@ -447,7 +448,7 @@ def is_workspace_owner(
     return bool(
         ":client:" in str(organization.owner_user_id or "")
         and membership
-        and membership.role == "client"
+        and membership.role in {"client", "client_owner", "client_user"}
     )
 
 
@@ -1518,10 +1519,11 @@ async def export_decisions(
         pattern=DECISION_LIST_SORT_PATTERN,
     ),
 ):
-    if get_auth_context(request).workspace_role not in {
-        "owner",
-        "client",
-    }:
+    workspace_role = get_auth_context(request).workspace_role
+    if (
+        workspace_role != "owner" and
+        not is_client_workspace_role(workspace_role)
+    ):
         raise HTTPException(
             status_code=403,
             detail="Only workspace owners can export decisions",

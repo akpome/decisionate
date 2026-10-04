@@ -18,6 +18,19 @@ from app.modules.identity.service import (
 )
 
 
+CLIENT_WORKSPACE_ROLES = frozenset(
+    {
+        "client",
+        "client_owner",
+        "client_user",
+    }
+)
+
+
+def is_client_workspace_role(role: str | None) -> bool:
+    return str(role or "").strip().lower() in CLIENT_WORKSPACE_ROLES
+
+
 @dataclass
 class AuthContext:
     user_id: str
@@ -253,7 +266,7 @@ def get_verified_workspace_access(
         ):
             # Client workspaces inherit agency settings and billing. Even
             # legacy owner memberships must remain client-scoped here.
-            workspace_role = "client"
+            workspace_role = "client_owner"
     else:
         workspace_role = "owner"
 
@@ -344,6 +357,12 @@ def verify_workspace_membership(
             and ":client:" not in organization.owner_user_id
         ):
             return "member"
+
+        if ":client:" in organization.owner_user_id:
+            if membership.role == "client":
+                return "client_owner"
+            if membership.role in {"client_owner", "client_user"}:
+                return membership.role
 
         return membership.role
 

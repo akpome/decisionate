@@ -39,6 +39,7 @@ from app.modules.alerts.schemas import (
 )
 from app.modules.auth_context import (
     get_auth_context,
+    is_client_workspace_role,
 )
 from app.modules.ai.service import (
     build_ai_status,
@@ -1453,7 +1454,11 @@ def require_alerts_scheduler_secret(
 def require_weekly_report_manager(
     workspace_role: str,
 ):
-    if workspace_role not in {"owner", "client", "managed_client"}:
+    if (
+        workspace_role != "owner" and
+        workspace_role != "managed_client" and
+        not is_client_workspace_role(workspace_role)
+    ):
         raise HTTPException(
             status_code=403,
             detail="Only workspace owners, client workspace owners, or approved agency owners can change alert analysis",

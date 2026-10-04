@@ -71,6 +71,14 @@ function getSettingsErrorMessage(
     : fallbackMessage
 }
 
+function isClientOwnerRole(role: string) {
+  return role === "client" || role === "client_owner"
+}
+
+function isClientUserRole(role: string) {
+  return role === "member" || role === "client_user"
+}
+
 /* =========================
    Settings Client Form For Workspace Branding And Access
 ========================= */
@@ -240,12 +248,15 @@ export function SettingsClient({
   const isClientPortalUser =
     !loadingOrganization &&
     isClientWorkspace &&
-    workspaceRole === "client" &&
+    (workspaceRole === "client" ||
+      workspaceRole === "client_owner" ||
+      workspaceRole === "client_user") &&
     !organizationLoadError &&
     sharedWorkspaceCount > 0
   const isClientWorkspaceOwner =
     isClientWorkspace &&
-    workspaceRole === "client" &&
+    (workspaceRole === "client" ||
+      workspaceRole === "client_owner") &&
     Boolean(activeWorkspace?.owner_user_id.includes(":client:"))
   const agencyWorkspaceMembers =
     organizationMembers.filter(
@@ -277,20 +288,20 @@ export function SettingsClient({
     selectedClientWorkspace?.owner_user_id ?? ""
   const selectedClientWorkspaceOwnerMembers =
     clientWorkspaceMembers.filter(
-      member => member.role === "client"
+      member => isClientOwnerRole(member.role)
     )
   const selectedClientWorkspaceOwnerInvite =
     clientWorkspaceInvites.find(
-      invite => invite.role === "client"
+      invite => isClientOwnerRole(invite.role)
     )
   const selectedClientWorkspaceMemberInvites =
     clientWorkspaceInvites.filter(
-      invite => invite.role !== "client"
+      invite => !isClientOwnerRole(invite.role)
     )
   const selectedClientWorkspaceMembers =
     clientWorkspaceMembers.filter(
       member =>
-        member.role === "member"
+        isClientUserRole(member.role)
     )
   const canManageClientWorkspaces =
     billingStatus?.billing_model === "agency" &&
@@ -1114,7 +1125,7 @@ export function SettingsClient({
       await addOrganizationInvite(
         {
           email: cleanEmail,
-          role: "member",
+          role: "client_user",
         },
         userId,
         selectedClientWorkspaceOwnerId
@@ -1175,7 +1186,7 @@ export function SettingsClient({
 
   async function handleUpdateClientMemberRole(
     member: OrganizationMemberRecord,
-    nextRole: "member" | "client"
+    nextRole: "client_owner" | "client_user"
   ) {
     if (
       !canManageClientWorkspaces ||
@@ -1447,11 +1458,16 @@ export function SettingsClient({
               </p>
             )}
           </section>
+        ) : isClientWorkspace ? (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            Only the client workspace owner can grant the agency owner access
+            to this workspace. Your client workspace data and analysis access
+            remain available.
+          </div>
         ) : (
           <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            {isClientWorkspace
-              ? "This workspace is managed by the agency owner."
-              : "Only the business owner can manage workspace settings, branding, members, and service configuration."}
+            Only the business owner can manage workspace settings, branding,
+            members, and service configuration.
           </div>
         )}
       </div>
@@ -2043,21 +2059,21 @@ export function SettingsClient({
 
                 <div className="rounded-xl border border-gray-100 bg-white p-4">
                 <h4 className="text-sm font-semibold text-gray-900">
-                  Client workspace members
+                  Client workspace user
                 </h4>
                 <p className="mt-1 text-xs text-gray-500">
-                  Invite additional members and manage their access.
+                  Each client workspace supports one client owner and one client user.
                 </p>
 
               <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
                 <input
-                  aria-label="Client member email"
+                  aria-label="Client user email"
                   type="email"
                   value={clientMemberInviteEmail}
                   onChange={(event) =>
                     setClientMemberInviteEmail(event.target.value)
                   }
-                  placeholder="client-member@example.com"
+                  placeholder="client-user@example.com"
                   disabled={Boolean(clientAccessAction)}
                   className="h-10 rounded-xl border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-100"
                 />
@@ -2072,7 +2088,7 @@ export function SettingsClient({
                 >
                   {clientAccessAction === "member-invite"
                     ? "Inviting..."
-                    : "Invite Client Member"}
+                    : "Invite Client User"}
                 </button>
               </div>
 
@@ -2113,27 +2129,27 @@ export function SettingsClient({
                               {member.email || "Email unavailable"}
                             </p>
                             <p className="text-xs capitalize text-gray-500">
-                              {member.role === "client"
-                                ? "Owner access"
-                                : "Member access"}
+                              {isClientOwnerRole(member.role)
+                                ? "Client owner access"
+                                : "Client user access"}
                             </p>
                           </div>
 
                           <div className="flex flex-wrap gap-2 sm:shrink-0">
                             <select
-                              aria-label={`Role for ${member.email || "client member"}`}
-                              value={member.role === "client" ? "client" : "member"}
+                              aria-label={`Role for ${member.email || "client user"}`}
+                              value={isClientOwnerRole(member.role) ? "client_owner" : "client_user"}
                               onChange={event =>
                                 handleUpdateClientMemberRole(
                                   member,
-                                  event.target.value as "member" | "client"
+                                  event.target.value as "client_owner" | "client_user"
                                 )
                               }
                               disabled={clientMemberActionId === member.id}
                               className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                             >
-                              <option value="member">Member</option>
-                              <option value="client">Owner</option>
+                              <option value="client_user">Client user</option>
+                              <option value="client_owner">Client owner</option>
                             </select>
                             <button
                               type="button"
@@ -2150,7 +2166,7 @@ export function SettingsClient({
                       ))
                     ) : (
                       <p className="px-3 py-3 text-sm text-gray-500">
-                        No client members have been added yet.
+                      No client user has been added yet.
                       </p>
                     )}
                   </div>

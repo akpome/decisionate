@@ -171,7 +171,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Workspace owners manage workspace configuration, members, branding, billing, connections, and data permissions available to the workspace.",
           "Workspace members can analyze permitted data and create or work with decisions according to the permissions assigned to them. Members do not see the Manage group or configuration links.",
           "Client workspace owners manage the client workspace and can grant approved agency-owner access where that workflow is enabled.",
-          "Client workspace members can use the client workspace features permitted to members. They cannot grant agency access or manage workspace configuration.",
+          "Client users have the same client-workspace data and analysis access as the client owner. Only the client owner can grant the agency owner access to client data.",
           "An agency owner may switch to an authorized client workspace. In that client context, the agency owner can use the permitted analysis and decision features but does not get the client Data group for adding datasets or connection parameters.",
         ],
       },
@@ -554,7 +554,7 @@ const referenceChapters: ReferenceChapter[] = [
         steps: [
           "Open Manage -> Settings as a workspace owner.",
           "Review workspace name, organization details, branding, logo, and report display name.",
-          "Manage agency members, client workspace access, client members, invitations, ownership assignments, and invitation revocation where those controls are available to your plan and role.",
+          "Manage agency members, client workspace access, one client owner and one client user per client workspace, invitations, ownership assignments, and invitation revocation where those controls are available to your plan and role.",
           "Configure workspace alert recipients and schedule in Analysis -> Alerts. The email provider is managed centrally by the platform.",
           "Save one section at a time and verify the resulting workspace name, branding, and access behavior in a fresh page load.",
         ],

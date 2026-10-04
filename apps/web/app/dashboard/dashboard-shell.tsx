@@ -80,14 +80,14 @@ type DashboardNavItem = {
   label: string
   icon: ReactNode
   ownerOnly?: boolean
-  roles?: Array<"owner" | "member" | "client" | "managed_client">
+  roles?: Array<"owner" | "member" | "client" | "client_owner" | "client_user" | "managed_client">
 }
 
 type DashboardNavGroup = {
   label: string
   items: DashboardNavItem[]
   collapsible?: boolean
-  roles?: Array<"owner" | "member" | "client" | "managed_client">
+  roles?: Array<"owner" | "member" | "client" | "client_owner" | "client_user" | "managed_client">
 }
 
 type OrganizationUpdatedEvent =
@@ -145,7 +145,7 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/dashboard/settings",
         label: "Workspace Access",
         icon: <Settings size={18} />,
-        roles: ["client"],
+        roles: ["client", "client_owner", "client_user"],
       },
     ],
   },
@@ -172,7 +172,7 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/dashboard/alerts",
         label: "Alerts",
         icon: <Bell size={18} />,
-        roles: ["owner", "client", "managed_client"],
+        roles: ["owner", "client", "client_owner", "client_user", "managed_client"],
       },
       {
         href: "/dashboard/relationships",
@@ -184,7 +184,7 @@ const dashboardNavGroups: DashboardNavGroup[] = [
   {
     label: "Data",
     collapsible: true,
-    roles: ["owner", "client"],
+    roles: ["owner", "client", "client_owner", "client_user"],
     items: [
       {
         href: "/dashboard/datasets",
@@ -200,7 +200,7 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/dashboard/connections",
         label: "Connections",
         icon: <Plug size={18} />,
-        roles: ["owner", "client"],
+        roles: ["owner", "client", "client_owner", "client_user"],
       },
     ],
   },
@@ -922,6 +922,8 @@ export function DashboardShell({
                     | "owner"
                     | "member"
                     | "client"
+                    | "client_owner"
+                    | "client_user"
                     | "managed_client"
                 )
               const agencyManageGroupVisible =
@@ -953,6 +955,8 @@ export function DashboardShell({
                         | "owner"
                         | "member"
                         | "client"
+                        | "client_owner"
+                        | "client_user"
                         | "managed_client"
                     )
                 )

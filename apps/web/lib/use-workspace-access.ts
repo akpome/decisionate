@@ -23,6 +23,8 @@ export type WorkspaceRole =
   | "owner"
   | "member"
   | "client"
+  | "client_owner"
+  | "client_user"
   | "managed_client"
   | "unknown"
 
@@ -175,6 +177,10 @@ export function useWorkspaceAccess(
     workspaceAccessReady
       ? workspaceRoleFromData
       : "unknown"
+  const isClientRole =
+    workspaceRole === "client" ||
+    workspaceRole === "client_owner" ||
+    workspaceRole === "client_user"
   const isAgencyWorkspace =
     Boolean(activeWorkspace) &&
     !activeWorkspace?.owner_user_id.includes(":client:")
@@ -197,23 +203,23 @@ export function useWorkspaceAccess(
       workspaceAccessReady &&
       !loadingWorkspaceAccess &&
       (workspaceRole === "owner" ||
-        workspaceRole === "client" ||
+        isClientRole ||
         workspaceRole === "managed_client"),
     canConfigureWorkspace,
     canDeleteDecisions:
       workspaceAccessReady &&
       !loadingWorkspaceAccess &&
-      (workspaceRole === "client" ||
+      (isClientRole ||
         verifiedOwnerWorkspace),
     canViewConnections:
       workspaceAccessReady &&
       !loadingWorkspaceAccess &&
-      (workspaceRole === "client" ||
+      (isClientRole ||
         verifiedOwnerWorkspace),
     canManageWorkspaceData:
       workspaceAccessReady &&
       !loadingWorkspaceAccess &&
-      (workspaceRole === "client" ||
+      (isClientRole ||
         verifiedOwnerWorkspace),
     canCreateDecisions:
       workspaceAccessReady &&
@@ -222,7 +228,7 @@ export function useWorkspaceAccess(
         workspaceRole === "member" ||
         workspaceRole === "managed_client"),
     isClientWorkspace:
-      workspaceRole === "client",
+      isClientRole,
     loadingWorkspaceAccess,
     workspaceAccessReady,
     workspaceRole,
@@ -240,6 +246,8 @@ function normalizeWorkspaceRole(
     cleanRole === "owner" ||
     cleanRole === "member" ||
     cleanRole === "client" ||
+    cleanRole === "client_owner" ||
+    cleanRole === "client_user" ||
     cleanRole === "managed_client"
   ) {
     return cleanRole

@@ -5,11 +5,13 @@ from unittest.mock import Mock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.db.models import OrganizationInvite, OrganizationMember
+from app.db.models import Organization, OrganizationInvite, OrganizationMember
 from app.modules.auth_context import AuthContext
 from app.modules.organizations.router import (
+    canonical_client_workspace_role,
     claim_pending_invites,
     get_managed_organization_or_404,
+    validate_client_workspace_role_capacity,
 )
 
 
@@ -39,11 +41,19 @@ class OrganizationInviteClaimTests(unittest.TestCase):
 
     def test_pending_invite_creates_membership_and_is_idempotent(self):
         engine = create_engine("sqlite:///:memory:")
+        Organization.__table__.create(engine)
         OrganizationMember.__table__.create(engine)
         OrganizationInvite.__table__.create(engine)
         session = sessionmaker(bind=engine)()
 
         try:
+            session.add(
+                Organization(
+                    id=42,
+                    name="Client workspace",
+                    owner_user_id="agency-1:client:workspace-1",
+                )
+            )
             session.add(
                 OrganizationInvite(
                     organization_id=42,
@@ -68,7 +78,7 @@ class OrganizationInviteClaimTests(unittest.TestCase):
             self.assertEqual(invite.status, "accepted")
             self.assertEqual(member.organization_id, 42)
             self.assertEqual(member.clerk_user_id, "user-42")
-            self.assertEqual(member.role, "client")
+            self.assertEqual(member.role, "client_owner")
             self.assertEqual(
                 claim_pending_invites(
                     session,
@@ -76,6 +86,65 @@ class OrganizationInviteClaimTests(unittest.TestCase):
                     "invitee@example.com",
                 ),
                 0,
+            )
+        finally:
+            session.close()
+            engine.dispose()
+
+    def test_client_role_capacity_counts_members_and_pending_invites(self):
+        engine = create_engine("sqlite:///:memory:")
+        Organization.__table__.create(engine)
+        OrganizationMember.__table__.create(engine)
+        OrganizationInvite.__table__.create(engine)
+        session = sessionmaker(bind=engine)()
+
+        try:
+            organization = Organization(
+                name="Client workspace",
+                owner_user_id="agency-1:client:workspace-1",
+            )
+            session.add(organization)
+            session.flush()
+            session.add(
+                OrganizationMember(
+                    organization_id=organization.id,
+                    clerk_user_id="client-owner",
+                    role="client_owner",
+                )
+            )
+            session.add(
+                OrganizationInvite(
+                    organization_id=organization.id,
+                    email="client-user@example.com",
+                    role="client_user",
+                    status="pending",
+                )
+            )
+            session.commit()
+
+            with self.assertRaisesRegex(
+                Exception,
+                "only one client owner",
+            ):
+                validate_client_workspace_role_capacity(
+                    session,
+                    organization,
+                    "client_owner",
+                )
+
+            with self.assertRaisesRegex(
+                Exception,
+                "only one client user",
+            ):
+                validate_client_workspace_role_capacity(
+                    session,
+                    organization,
+                    "client_user",
+                )
+
+            self.assertEqual(
+                canonical_client_workspace_role(organization, "client"),
+                "client_owner",
             )
         finally:
             session.close()

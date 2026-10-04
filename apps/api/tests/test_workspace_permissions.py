@@ -36,6 +36,16 @@ class WorkspacePermissionTests(unittest.TestCase):
             build_request("client")
         )
 
+    def test_client_owner_role_can_modify_workspace_data_setup(self):
+        require_workspace_data_manager(
+            build_request("client_owner")
+        )
+
+    def test_client_user_role_can_modify_workspace_data_setup(self):
+        require_workspace_data_manager(
+            build_request("client_user")
+        )
+
     def test_member_role_cannot_modify_workspace_data_setup(self):
         with self.assertRaises(HTTPException) as context:
             require_workspace_data_manager(

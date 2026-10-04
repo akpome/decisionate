@@ -98,7 +98,7 @@ class OrganizationInviteResponse(BaseModel):
 
 class OrganizationInviteCreate(BaseModel):
     email: str
-    role: str = "client"
+    role: str = "member"
 
 
 class OrganizationMemberCreate(BaseModel):

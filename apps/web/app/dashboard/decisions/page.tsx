@@ -229,7 +229,10 @@ export default function DecisionsPage() {
     } = useWorkspaceAccess(user?.id)
     const canExportDecisions =
         !loadingWorkspaceAccess &&
-        (workspaceRole === "owner" || workspaceRole === "client")
+        (workspaceRole === "owner" ||
+          workspaceRole === "client" ||
+          workspaceRole === "client_owner" ||
+          workspaceRole === "client_user")
     const portfolioLoadedOnce = useRef(false)
     const [decisions, setDecisions] = useState<DecisionListRecord[]>([])
     const [decisionSummary, setDecisionSummary] =

@@ -1059,6 +1059,15 @@ def claim_pending_invites(
     claimed_count = 0
 
     for invite in pending_invites:
+        organization = (
+            db.query(Organization)
+            .filter(Organization.id == invite.organization_id)
+            .first()
+        )
+        invite_role = canonical_client_workspace_role(
+            organization,
+            invite.role,
+        )
         existing_member = (
             db.query(OrganizationMember)
             .filter(
@@ -1072,7 +1081,7 @@ def claim_pending_invites(
                 OrganizationMember(
                     organization_id=invite.organization_id,
                     clerk_user_id=user_id,
-                    role=invite.role,
+                    role=invite_role,
                 )
             )
 
@@ -1080,6 +1089,86 @@ def claim_pending_invites(
         claimed_count += 1
 
     return claimed_count
+
+
+def is_client_workspace(organization: Organization) -> bool:
+    return ":client:" in str(organization.owner_user_id or "")
+
+
+def canonical_client_workspace_role(
+    organization: Organization | None,
+    role: str,
+) -> str:
+    if organization is not None and is_client_workspace(organization):
+        if role == "client":
+            return "client_owner"
+        if role == "member":
+            return "client_user"
+    return role
+
+
+def validate_client_workspace_role_capacity(
+    db,
+    organization: Organization,
+    role: str,
+    *,
+    exclude_member_id: int | None = None,
+    exclude_invite_id: int | None = None,
+):
+    if not is_client_workspace(organization):
+        return
+
+    canonical_role = canonical_client_workspace_role(
+        organization,
+        role,
+    )
+    if canonical_role not in {"client_owner", "client_user"}:
+        return
+
+    member_query = db.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == organization.id,
+    )
+    if exclude_member_id is not None:
+        member_query = member_query.filter(
+            OrganizationMember.id != exclude_member_id,
+        )
+
+    member_roles = [
+        canonical_client_workspace_role(organization, member.role)
+        for member in member_query.all()
+    ]
+
+    invite_query = db.query(OrganizationInvite).filter(
+        OrganizationInvite.organization_id == organization.id,
+        OrganizationInvite.status == "pending",
+    )
+    if exclude_invite_id is not None:
+        invite_query = invite_query.filter(
+            OrganizationInvite.id != exclude_invite_id,
+        )
+
+    invite_roles = [
+        canonical_client_workspace_role(organization, invite.role)
+        for invite in invite_query.all()
+    ]
+
+    if canonical_role == "client_owner" and (
+        "client_owner" in member_roles or
+        "client_owner" in invite_roles
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="A client workspace can have only one client owner",
+        )
+
+    if canonical_role == "client_user" and (
+        "client_user" in member_roles or
+        "client_user" in invite_roles
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="A client workspace can have only one client user",
+        )
 
 
 def get_owned_organization_or_404(
@@ -1245,6 +1334,8 @@ def clean_member_role(
     allowed_roles = {
         "member",
         "client",
+        "client_owner",
+        "client_user",
         "owner",
     }
 
@@ -1724,7 +1815,7 @@ async def create_client_workspace(
             OrganizationInvite(
                 organization_id=client_workspace.id,
                 email=client_email,
-                role="client",
+                role="client_owner",
                 status="pending",
             )
         )
@@ -1820,6 +1911,8 @@ async def get_my_organization(
         if auth_context.workspace_role not in {
             "owner",
             "client",
+            "client_owner",
+            "client_user",
             "managed_client",
         }:
             return None
@@ -1853,7 +1946,10 @@ async def update_agency_owner_access(
 ):
     auth_context = get_auth_context(request)
 
-    if auth_context.workspace_role != "client":
+    if auth_context.workspace_role not in {
+        "client",
+        "client_owner",
+    }:
         raise HTTPException(
             status_code=403,
             detail="Only the client workspace owner can grant agency access",
@@ -1881,7 +1977,7 @@ async def update_agency_owner_access(
             .filter(
                 OrganizationMember.organization_id == organization.id,
                 OrganizationMember.clerk_user_id == auth_context.user_id,
-                OrganizationMember.role == "client",
+                OrganizationMember.role.in_({"client", "client_owner"}),
             )
             .first()
         )
@@ -1996,13 +2092,31 @@ async def add_organization_member(
                 detail="Client workspace members cannot be agency owners",
             )
 
+        is_client_workspace_record = is_client_workspace(organization)
         if (
-            member_role == "client"
-            and ":client:" not in organization.owner_user_id
+            member_role in {"client", "client_owner", "client_user"}
+            and not is_client_workspace_record
         ):
             raise HTTPException(
                 status_code=400,
                 detail="Client members must belong to a client workspace",
+            )
+
+        if is_client_workspace_record:
+            if member_role == "client":
+                member_role = "client_owner"
+            elif member_role == "member":
+                member_role = "client_user"
+            elif member_role == "owner":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Client workspace members cannot be agency owners",
+                )
+
+        if is_client_workspace_record and member_user_id == user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="The agency owner cannot become a client workspace member",
             )
 
         if member_user_id == user_id:
@@ -2018,13 +2132,28 @@ async def add_organization_member(
         )
 
         if existing_member:
+            existing_member_role = canonical_client_workspace_role(
+                organization,
+                existing_member.role,
+            )
             if (
-                existing_member.role == "client"
-                and member_role in {"member", "owner"}
+                is_client_workspace_record and
+                member_role not in {"client_owner", "client_user"}
             ):
                 raise HTTPException(
                     status_code=400,
-                    detail="Client role cannot be changed to member or owner",
+                    detail="Client workspace members must use a client role",
+                )
+
+            if (
+                existing_member_role != member_role or
+                is_client_workspace_record
+            ):
+                validate_client_workspace_role_capacity(
+                    db,
+                    organization,
+                    member_role,
+                    exclude_member_id=existing_member.id,
                 )
 
             existing_member.role = member_role
@@ -2035,6 +2164,12 @@ async def add_organization_member(
                 db,
                 existing_member,
             )
+
+        validate_client_workspace_role_capacity(
+            db,
+            organization,
+            member_role,
+        )
 
         member = OrganizationMember(
             organization_id=organization.id,
@@ -2129,14 +2264,26 @@ async def add_organization_invite(
                 detail="Invite the user as a member, then assign ownership",
             )
 
+        is_client_workspace_record = is_client_workspace(organization)
         if (
-            invite_role == "client"
-            and ":client:" not in organization.owner_user_id
+            invite_role in {"client", "client_owner", "client_user"}
+            and not is_client_workspace_record
         ):
             raise HTTPException(
                 status_code=400,
                 detail="Client invitations must belong to a client workspace",
             )
+
+        if is_client_workspace_record:
+            if invite_role == "client":
+                invite_role = "client_owner"
+            elif invite_role == "member":
+                invite_role = "client_user"
+            elif invite_role == "owner":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Client workspace invitations cannot be agency owners",
+                )
 
         existing_invite = (
             db.query(OrganizationInvite)
@@ -2148,12 +2295,24 @@ async def add_organization_invite(
         )
 
         if existing_invite:
+            validate_client_workspace_role_capacity(
+                db,
+                organization,
+                invite_role,
+                exclude_invite_id=existing_invite.id,
+            )
             existing_invite.role = invite_role
             existing_invite.status = "pending"
             db.commit()
             db.refresh(existing_invite)
 
             return existing_invite
+
+        validate_client_workspace_role_capacity(
+            db,
+            organization,
+            invite_role,
+        )
 
         invite = OrganizationInvite(
             organization_id=organization.id,
@@ -2224,19 +2383,22 @@ async def update_organization_member_role(
         next_role = clean_member_role(
             payload.role,
         )
-        is_client_workspace = ":client:" in organization.owner_user_id
-        if is_client_workspace and next_role == "owner":
-            # Client workspace owners use the client role so they receive
-            # client-scoped access without inheriting agency ownership.
-            next_role = "client"
-        if (
-            is_client_workspace
-            and member.role == "client"
-            and next_role == "member"
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="Client owners cannot be changed to members",
+        is_client_workspace_record = is_client_workspace(organization)
+        if is_client_workspace_record:
+            if next_role == "client":
+                next_role = "client_owner"
+            elif next_role == "member":
+                next_role = "client_user"
+            elif next_role == "owner":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Client workspace members cannot be agency owners",
+                )
+            validate_client_workspace_role_capacity(
+                db,
+                organization,
+                next_role,
+                exclude_member_id=member.id,
             )
 
         member.role = next_role
