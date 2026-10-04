@@ -142,6 +142,47 @@ validate_production_security_configuration()
 Base.metadata.create_all(bind=engine)
 
 
+def ensure_data_ingestion_job_columns():
+    with engine.begin() as connection:
+        column_names = get_table_columns(
+            connection,
+            "data_ingestion_jobs",
+        )
+        if not column_names:
+            return
+        if "parent_job_id" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE data_ingestion_jobs "
+                    "ADD COLUMN parent_job_id INTEGER"
+                )
+            )
+        if "object_type" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE data_ingestion_jobs "
+                    "ADD COLUMN object_type VARCHAR"
+                )
+            )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS "
+                "ix_data_ingestion_jobs_parent_job_id "
+                "ON data_ingestion_jobs (parent_job_id)"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS "
+                "ix_data_ingestion_jobs_object_type "
+                "ON data_ingestion_jobs (object_type)"
+            )
+        )
+
+
+ensure_data_ingestion_job_columns()
+
+
 def ensure_dataset_relationship_columns():
     with engine.begin() as connection:
         column_names = get_table_columns(

@@ -221,6 +221,81 @@ class Dataset(Base):
     )
 
 
+class DatasetAnalysis(Base):
+    """Durable analysis generated after a connector's initial history load."""
+
+    __tablename__ = "dataset_analyses"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+    dataset_id = Column(
+        Integer,
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    connection_id = Column(
+        Integer,
+        nullable=True,
+        index=True,
+    )
+
+    user_id = Column(
+        String,
+        nullable=False,
+        index=True,
+    )
+
+    workspace_id = Column(
+        String,
+        nullable=True,
+        index=True,
+    )
+
+    status = Column(
+        String,
+        nullable=False,
+        default="pending",
+        index=True,
+    )
+
+    result_payload = Column(
+        Text,
+        nullable=True,
+    )
+
+    error_message = Column(
+        Text,
+        nullable=True,
+    )
+
+    created_at = Column(
+        DateTime,
+        default=utc_now,
+    )
+
+    started_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
+    completed_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
 class DatasetJoinCache(Base):
     __tablename__ = "dataset_join_caches"
     __table_args__ = (
@@ -594,6 +669,18 @@ class DataIngestionJob(Base):
     )
 
     workspace_id = Column(
+        String,
+        nullable=True,
+        index=True,
+    )
+
+    parent_job_id = Column(
+        Integer,
+        nullable=True,
+        index=True,
+    )
+
+    object_type = Column(
         String,
         nullable=True,
         index=True,

@@ -239,6 +239,9 @@ class DataSourceConnectionSync(BaseModel):
     advanced_date_range: bool = False
     start_date: date | None = None
     end_date: date | None = None
+    # Internal target used when a multi-object connector run is split into
+    # independent child jobs. It is intentionally absent from the UI flow.
+    resource_type: str | None = None
     dimensions: List[str] = Field(
         default_factory=lambda: ["date"]
     )
