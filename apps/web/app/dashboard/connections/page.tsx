@@ -275,6 +275,15 @@ function ConnectionsPageContent({
       (connection) =>
         connection.source_type
     )
+  const hasActiveIngestion =
+    sourceConnections.some((connection) =>
+      ["pending", "initial", "backfill"].includes(
+        connection.initial_sync_status ?? ""
+      ) ||
+      ["queued", "running"].includes(
+        connection.ingestion_job?.status ?? ""
+      )
+    )
   const configurableSources =
     sources.filter(
       (source) =>
@@ -859,44 +868,57 @@ function ConnectionsPageContent({
     if (
       !user?.id ||
       !canViewConnections ||
-      !sourceConnections.some((connection) =>
-        ["pending", "initial", "backfill"].includes(
-          connection.initial_sync_status ?? ""
-        ) ||
-        ["queued", "running"].includes(
-          connection.ingestion_job?.status ?? ""
-        )
-      )
+      !hasActiveIngestion
     ) {
       return
     }
 
     let ignoreResult = false
-    const intervalId = window.setInterval(() => {
-      void getDataSourceConnections(
-        user.id,
-        activeWorkspaceId
-      )
-        .then((data) => {
-          if (!ignoreResult) {
-            setSourceConnections(data)
-          }
-        })
-        .catch((error) => {
-          if (!ignoreResult) {
-            console.error(error)
-          }
-        })
-    }, 5000)
+    let timeoutId: number | null = null
+    const currentUserId = user.id
+
+    async function pollConnections() {
+      try {
+        const data = await getDataSourceConnections(
+          currentUserId,
+          activeWorkspaceId
+        )
+        if (!ignoreResult) {
+          setSourceConnections(data)
+        }
+      } catch (error) {
+        if (!ignoreResult) {
+          console.error(error)
+        }
+      } finally {
+        if (!ignoreResult) {
+          timeoutId = window.setTimeout(
+            () => {
+              void pollConnections()
+            },
+            5000
+          )
+        }
+      }
+    }
+
+    timeoutId = window.setTimeout(
+      () => {
+        void pollConnections()
+      },
+      5000
+    )
 
     return () => {
       ignoreResult = true
-      window.clearInterval(intervalId)
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+      }
     }
   }, [
     activeWorkspaceId,
     canViewConnections,
-    sourceConnections,
+    hasActiveIngestion,
     user?.id,
   ])
 

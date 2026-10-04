@@ -30,13 +30,14 @@ from fastapi import UploadFile
 from fastapi import Request
 from fastapi import Response
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from app.db.database import SessionLocal
 from app.db.models import CanonicalEntity
 from app.db.models import DataIngestionJob
+from app.db.models import DatasetAnalysis
 from app.db.models import DataSourceConnection
 from app.db.models import DashboardShare
 from app.db.models import Dataset
@@ -249,10 +250,10 @@ from app.modules.oauth.service import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-INITIAL_CONNECTOR_SYNC_DAYS = 30
-INITIAL_CONNECTOR_BACKFILL_MONTHS = 23
-SHOPIFY_INITIAL_SYNC_DAYS_DEFAULT = 30
-SHOPIFY_INITIAL_BACKFILL_ENABLED_DEFAULT = True
+INITIAL_CONNECTOR_SYNC_DAYS = 90
+INITIAL_CONNECTOR_BACKFILL_MONTHS = 21
+SHOPIFY_INITIAL_SYNC_DAYS_DEFAULT = 60
+SHOPIFY_INITIAL_BACKFILL_ENABLED_DEFAULT = False
 SHOPIFY_INITIAL_BACKFILL_DAYS_DEFAULT = 30
 SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS_DEFAULT = 60
 INITIAL_CONNECTOR_SYNC_COMPLETED_KEY = "_initial_connector_sync_completed"
@@ -270,6 +271,12 @@ INGESTION_JOB_NO_DATA = "no_data"
 INGESTION_JOB_FAILED = "failed"
 INITIAL_CONNECTOR_INITIAL_JOB_TYPE = "initial_connector_sync"
 INITIAL_CONNECTOR_BACKFILL_JOB_TYPE = "initial_connector_backfill"
+CONNECTOR_ANALYSIS_JOB_TYPE = "connector_analysis"
+CONNECTOR_ANALYSIS_STATUS_KEY = "_connector_analysis_status"
+CONNECTOR_ANALYSIS_PENDING = "pending"
+CONNECTOR_ANALYSIS_RUNNING = "running"
+CONNECTOR_ANALYSIS_COMPLETE = "complete"
+CONNECTOR_ANALYSIS_FAILED = "failed"
 ACTIVE_INGESTION_JOB_STATUSES = {
     INGESTION_JOB_QUEUED,
     INGESTION_JOB_RUNNING,
@@ -1564,6 +1571,7 @@ def build_dataset_details_response(
     aggregation: str | None = None,
     aggregation_type: str | None = None,
     include_ai_analysis: bool = True,
+    persisted_analysis=None,
 ):
     metric_profile = build_metric_selection_profile(
         dataset,
@@ -1572,11 +1580,13 @@ def build_dataset_details_response(
     available_metric_columns = get_selectable_numeric_columns(
         dataframe,
         dataset,
+        profile=metric_profile,
     )
     selected_metric_columns = (
         get_effective_dataset_metric_columns(
             dataset,
             dataframe,
+            profile=metric_profile,
         )
     )
     metric_selection_configured = (
@@ -1586,6 +1596,7 @@ def build_dataset_details_response(
     report_dataframe = filter_dataframe_to_selected_metrics(
         dataset,
         dataframe,
+        profile=metric_profile,
     )
     date_column, _ = identify_forecast_columns(
         dataframe
@@ -1632,18 +1643,63 @@ def build_dataset_details_response(
         "selected_metric_columns": selected_metric_columns,
         "metric_selection_configured": metric_selection_configured,
         "metric_profile": metric_profile,
+        "analysis_status": (
+            persisted_analysis.status
+            if persisted_analysis
+            else None
+        ),
+        "analysis_completed_at": (
+            persisted_analysis.completed_at
+            if persisted_analysis
+            else None
+        ),
     }
 
     if include_ai_analysis:
-        response["ai_analysis"] = generate_dataset_ai_analysis(
-            report_dataframe,
-            None,
-            learning_context,
-            workspace_id,
-            actor_user_id,
+        persisted_payload = (
+            parse_dataset_analysis_payload(
+                persisted_analysis,
+            )
+            if not any(
+                value is not None
+                for value in (
+                    start_date,
+                    period_filter,
+                    aggregation,
+                    aggregation_type,
+                )
+            )
+            else None
         )
+        if persisted_payload is not None:
+            response["ai_analysis"] = persisted_payload.get(
+                "ai_analysis"
+            )
+            response["insights"] = persisted_payload.get(
+                "insights",
+                response["insights"],
+            )
+            response["anomalies"] = persisted_payload.get(
+                "anomalies",
+            )
+        elif persisted_analysis and persisted_analysis.status in {
+            CONNECTOR_ANALYSIS_PENDING,
+            CONNECTOR_ANALYSIS_RUNNING,
+        }:
+            response["ai_analysis"] = None
+            response["anomalies"] = None
+        else:
+            response["ai_analysis"] = generate_dataset_ai_analysis(
+                report_dataframe,
+                None,
+                learning_context,
+                workspace_id,
+                actor_user_id,
+            )
+            response["anomalies"] = None
     else:
         response["ai_analysis"] = None
+        response["anomalies"] = None
 
     return response
 
@@ -1655,6 +1711,8 @@ def build_ingestion_job_response(job):
     return {
         "id": job.id,
         "connection_id": job.connection_id,
+        "parent_job_id": job.parent_job_id,
+        "object_type": job.object_type,
         "job_type": job.job_type,
         "status": job.status,
         "error_message": job.error_message,
@@ -1664,11 +1722,38 @@ def build_ingestion_job_response(job):
     }
 
 
+def build_dataset_analysis_job_response(job):
+    if not job:
+        return None
+
+    return build_ingestion_job_response(job)
+
+
+def get_dataset_analysis_record(db, dataset_id: int):
+    return (
+        db.query(DatasetAnalysis)
+        .filter(DatasetAnalysis.dataset_id == dataset_id)
+        .first()
+    )
+
+
+def parse_dataset_analysis_payload(record):
+    if not record or record.status != CONNECTOR_ANALYSIS_COMPLETE:
+        return None
+    try:
+        payload = json.loads(record.result_payload or "null")
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
 def build_source_connection_response(
     connection,
     dataset=None,
     datasets=None,
     ingestion_job=None,
+    analysis_job=None,
+    ingestion_children=None,
 ):
     source_type = normalize_dataset_source_type(
         connection.source_type
@@ -1879,6 +1964,9 @@ def build_source_connection_response(
         "advanced_sync_max_days": get_connector_max_custom_date_range_days(
             source_type
         ),
+        "analysis_status": parsed_config.get(
+            CONNECTOR_ANALYSIS_STATUS_KEY
+        ),
         "authorization_error": getattr(
             connection,
             "authorization_error",
@@ -1897,6 +1985,11 @@ def build_source_connection_response(
         "created_at": connection.created_at,
         "updated_at": connection.updated_at,
         "ingestion_job": build_ingestion_job_response(ingestion_job),
+        "ingestion_children": [
+            build_ingestion_job_response(job)
+            for job in (ingestion_children or [])
+        ],
+        "analysis_job": build_dataset_analysis_job_response(analysis_job),
     }
 
 
@@ -2600,11 +2693,154 @@ def get_active_ingestion_job(
     )
 
 
+def get_latest_connection_jobs(
+    db,
+    connection_ids: list[int],
+):
+    """Load only the job state needed by the connections screen.
+
+    Job history is intentionally retained for auditability, so loading every
+    historical job for every connection makes this endpoint slower after each
+    scheduled sync. The screen only needs the newest root job, its children,
+    and the newest analysis job.
+    """
+    if not connection_ids:
+        return {}, {}, {}
+
+    job_response_columns = (
+        DataIngestionJob.id,
+        DataIngestionJob.connection_id,
+        DataIngestionJob.parent_job_id,
+        DataIngestionJob.object_type,
+        DataIngestionJob.job_type,
+        DataIngestionJob.status,
+        DataIngestionJob.error_message,
+        DataIngestionJob.created_at,
+        DataIngestionJob.started_at,
+        DataIngestionJob.completed_at,
+    )
+
+    latest_root_ids = (
+        db.query(
+            func.max(DataIngestionJob.id).label("job_id"),
+        )
+        .filter(
+            DataIngestionJob.connection_id.in_(connection_ids),
+            DataIngestionJob.parent_job_id.is_(None),
+            DataIngestionJob.job_type != CONNECTOR_ANALYSIS_JOB_TYPE,
+        )
+        .group_by(DataIngestionJob.connection_id)
+        .subquery()
+    )
+    latest_root_jobs = (
+        db.query(DataIngestionJob)
+        .options(load_only(*job_response_columns))
+        .join(
+            latest_root_ids,
+            DataIngestionJob.id == latest_root_ids.c.job_id,
+        )
+        .all()
+    )
+
+    latest_analysis_ids = (
+        db.query(
+            func.max(DataIngestionJob.id).label("job_id"),
+        )
+        .filter(
+            DataIngestionJob.connection_id.in_(connection_ids),
+            DataIngestionJob.parent_job_id.is_(None),
+            DataIngestionJob.job_type == CONNECTOR_ANALYSIS_JOB_TYPE,
+        )
+        .group_by(DataIngestionJob.connection_id)
+        .subquery()
+    )
+    latest_analysis_jobs = (
+        db.query(DataIngestionJob)
+        .options(load_only(*job_response_columns))
+        .join(
+            latest_analysis_ids,
+            DataIngestionJob.id == latest_analysis_ids.c.job_id,
+        )
+        .all()
+    )
+
+    latest_root_job_ids = [job.id for job in latest_root_jobs]
+    children = (
+        db.query(DataIngestionJob)
+        .options(load_only(*job_response_columns))
+        .filter(
+            DataIngestionJob.parent_job_id.in_(latest_root_job_ids),
+        )
+        .order_by(DataIngestionJob.id.asc())
+        .all()
+        if latest_root_job_ids
+        else []
+    )
+    children_by_parent = {}
+    for child in children:
+        children_by_parent.setdefault(
+            child.parent_job_id,
+            [],
+        ).append(child)
+
+    return (
+        {job.connection_id: job for job in latest_root_jobs},
+        {job.connection_id: job for job in latest_analysis_jobs},
+        {
+            parent_id: children_by_parent.get(parent_id, [])
+            for parent_id in latest_root_job_ids
+        },
+    )
+
+
 def serialize_sync_payload(payload: DataSourceConnectionSync) -> str:
     return json.dumps(
         payload.model_dump(mode="json"),
         sort_keys=True,
     )
+
+
+def get_configured_connector_resource_types(connection) -> list[str]:
+    """Return configured object types that can be split into child jobs."""
+    source_type = normalize_dataset_source_type(connection.source_type)
+    normalizers = {
+        "quickbooks": normalize_quickbooks_resource_types,
+        "hubspot": normalize_hubspot_resource_types,
+        "freshbooks": normalize_freshbooks_resource_types,
+        "sage": normalize_sage_resource_types,
+        "zoho_books": normalize_zoho_books_resource_types,
+        "xero": normalize_xero_resource_types,
+        "salesforce": normalize_salesforce_resource_types,
+        "lightspeed_x": normalize_lightspeed_x_resource_types,
+        "lightspeed_k": normalize_lightspeed_k_resource_types,
+        "lightspeed_o": normalize_lightspeed_o_resource_types,
+    }
+    normalizer = normalizers.get(source_type)
+    if not normalizer:
+        return []
+    try:
+        return normalizer(
+            parse_source_connection_config(connection.connection_config)
+        )
+    except ConnectorUnavailable:
+        # The connection endpoint will report the configuration problem. A
+        # malformed config must not prevent its job record from being created.
+        return []
+
+
+def select_connector_resource_types(
+    resource_types: list[str],
+    payload: DataSourceConnectionSync,
+) -> list[str]:
+    """Limit a connector loader to the object assigned to one child job."""
+    selected_resource = str(payload.resource_type or "").strip().lower()
+    if not selected_resource:
+        return resource_types
+    if selected_resource not in resource_types:
+        raise ConnectorUnavailable(
+            "The selected connector object is no longer configured"
+        )
+    return [selected_resource]
 
 
 def launch_connector_ingestion_job(
@@ -2619,6 +2855,23 @@ def launch_connector_ingestion_job(
         return
     threading.Thread(
         target=run_connector_ingestion_job,
+        args=(job_id,),
+        daemon=True,
+    ).start()
+
+
+def launch_connector_analysis_job(
+    background_tasks: BackgroundTasks | None,
+    job_id: int,
+):
+    if background_tasks is not None:
+        background_tasks.add_task(
+            run_connector_analysis_job,
+            job_id,
+        )
+        return
+    threading.Thread(
+        target=run_connector_analysis_job,
         args=(job_id,),
         daemon=True,
     ).start()
@@ -2646,7 +2899,29 @@ def enqueue_connector_ingestion_job(
             )
         return active_job
 
-    job = DataIngestionJob(
+    configured_resource_types = []
+    if payload.resource_type is None:
+        configured_resource_types = get_configured_connector_resource_types(
+            connection
+        )
+
+    if len(configured_resource_types) <= 1:
+        job = DataIngestionJob(
+            connection_id=connection.id,
+            user_id=connection.user_id,
+            workspace_id=connection.workspace_id,
+            job_type=job_type,
+            status=INGESTION_JOB_QUEUED,
+            request_payload=serialize_sync_payload(payload),
+        )
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        if launch:
+            launch_connector_ingestion_job(background_tasks, job.id)
+        return job
+
+    parent = DataIngestionJob(
         connection_id=connection.id,
         user_id=connection.user_id,
         workspace_id=connection.workspace_id,
@@ -2654,12 +2929,28 @@ def enqueue_connector_ingestion_job(
         status=INGESTION_JOB_QUEUED,
         request_payload=serialize_sync_payload(payload),
     )
-    db.add(job)
+    db.add(parent)
+    db.flush()
+    for resource_type in configured_resource_types:
+        child_payload = payload.model_copy(
+            update={"resource_type": resource_type},
+        )
+        child = DataIngestionJob(
+            connection_id=connection.id,
+            user_id=connection.user_id,
+            workspace_id=connection.workspace_id,
+            parent_job_id=parent.id,
+            object_type=resource_type,
+            job_type="connector_object",
+            status=INGESTION_JOB_QUEUED,
+            request_payload=serialize_sync_payload(child_payload),
+        )
+        db.add(child)
     db.commit()
-    db.refresh(job)
+    db.refresh(parent)
     if launch:
-        launch_connector_ingestion_job(background_tasks, job.id)
-    return job
+        launch_connector_ingestion_job(background_tasks, parent.id)
+    return parent
 
 
 def enqueue_file_ingestion_job(
@@ -4577,29 +4868,61 @@ async def get_source_connections(
             .all()
         )
         connection_ids = [connection.id for connection in connections]
-        ingestion_jobs = (
-            db.query(DataIngestionJob)
-            .filter(DataIngestionJob.connection_id.in_(connection_ids))
+        (
+            latest_ingestion_jobs,
+            latest_analysis_jobs,
+            ingestion_children,
+        ) = get_latest_connection_jobs(
+            db,
+            connection_ids,
+        )
+
+        source_types = {
+            connection.source_type
+            for connection in connections
+        }
+        dataset_query = db.query(Dataset).filter(
+            Dataset.workspace_id == workspace_id,
+            Dataset.source_type.in_(source_types),
+        )
+        if workspace_id is None:
+            dataset_query = dataset_query.filter(
+                Dataset.user_id == user_id,
+            )
+        connector_datasets = (
+            dataset_query
             .order_by(
-                DataIngestionJob.created_at.desc(),
-                DataIngestionJob.id.desc(),
+                Dataset.created_at.desc(),
+                Dataset.id.desc(),
             )
             .all()
-            if connection_ids
+            if source_types
             else []
         )
-        latest_ingestion_jobs = {}
-        for job in ingestion_jobs:
-            latest_ingestion_jobs.setdefault(job.connection_id, job)
+        datasets_by_connection = (
+            find_connector_datasets_for_connections(
+                connections,
+                connector_datasets,
+            )
+            if connections
+            else {}
+        )
 
         return [
             build_source_connection_response(
                 connection,
-                datasets=find_connector_datasets(
-                    db,
-                    connection,
+                datasets=datasets_by_connection.get(
+                    connection.id,
+                    [],
                 ),
                 ingestion_job=latest_ingestion_jobs.get(connection.id),
+                analysis_job=latest_analysis_jobs.get(connection.id),
+                ingestion_children=ingestion_children.get(
+                    latest_ingestion_jobs.get(connection.id).id
+                    if latest_ingestion_jobs.get(connection.id)
+                    else None,
+                    [],
+                ),
             )
             for connection in connections
         ]
@@ -5054,6 +5377,35 @@ def set_initial_connector_sync_status(
     )
 
 
+def get_connector_analysis_status(connection) -> str | None:
+    connection_config = parse_schedule_config(
+        getattr(connection, "connection_config", None)
+    )
+    status = str(
+        connection_config.get(CONNECTOR_ANALYSIS_STATUS_KEY) or ""
+    ).strip().lower()
+    return status or None
+
+
+def set_connector_analysis_status(
+    connection,
+    status: str,
+    error: str | None = None,
+):
+    connection_config = parse_schedule_config(
+        getattr(connection, "connection_config", None)
+    )
+    connection_config[CONNECTOR_ANALYSIS_STATUS_KEY] = status
+    if error:
+        connection_config["_connector_analysis_error"] = str(error)[:500]
+    else:
+        connection_config.pop("_connector_analysis_error", None)
+    connection.connection_config = json.dumps(
+        connection_config,
+        sort_keys=True,
+    )
+
+
 def subtract_calendar_months(value: date, months: int) -> date:
     month_index = value.year * 12 + value.month - 1 - months
     year, month_index = divmod(month_index, 12)
@@ -5325,6 +5677,98 @@ def normalize_connector_dataset_resource(
     return resource
 
 
+def _canonicalize_connector_datasets(
+    connection,
+    matching_datasets,
+):
+    """Keep the newest dataset for each provider object."""
+    matching_datasets.sort(
+        key=lambda dataset: (
+            dataset.created_at or datetime.min,
+            dataset.id,
+        ),
+        reverse=True,
+    )
+    canonical_datasets = []
+    seen_resources = set()
+    for dataset in matching_datasets:
+        resource = normalize_connector_dataset_resource(
+            connection,
+            dataset,
+        )
+        if resource in seen_resources:
+            continue
+        seen_resources.add(resource)
+        canonical_datasets.append(dataset)
+
+    return canonical_datasets
+
+
+def find_connector_datasets_for_connections(
+    connections,
+    datasets,
+):
+    """Group connector datasets in one pass for a connections response."""
+    connections_by_id = {
+        str(connection.id): connection
+        for connection in connections
+    }
+    source_connection_counts = {}
+    for connection in connections:
+        source_connection_counts[connection.source_type] = (
+            source_connection_counts.get(connection.source_type, 0) + 1
+        )
+    known_source_types = set(source_connection_counts)
+
+    datasets_by_connection_id = {
+        connection.id: []
+        for connection in connections
+    }
+    legacy_datasets_by_source = {}
+    for dataset in datasets:
+        source_config = parse_source_connection_config(
+            dataset.source_config
+        )
+        connection_id = str(
+            source_config.get("connection_id") or ""
+        )
+        connection = connections_by_id.get(connection_id)
+        if (
+            connection
+            and dataset.source_type == connection.source_type
+        ):
+            datasets_by_connection_id[connection.id].append(dataset)
+        elif (
+            not source_config.get("connection_id")
+            and dataset.source_type in known_source_types
+        ):
+            legacy_datasets_by_source.setdefault(
+                dataset.source_type,
+                [],
+            ).append(dataset)
+
+    datasets_by_connection = {}
+    for connection in connections:
+        matching_datasets = list(
+            datasets_by_connection_id.get(connection.id, [])
+        )
+        if source_connection_counts.get(connection.source_type) == 1:
+            matching_datasets.extend(
+                legacy_datasets_by_source.get(
+                    connection.source_type,
+                    [],
+                )
+            )
+        datasets_by_connection[connection.id] = (
+            _canonicalize_connector_datasets(
+                connection,
+                matching_datasets,
+            )
+        )
+
+    return datasets_by_connection
+
+
 def find_connector_datasets(
     db,
     connection,
@@ -5379,26 +5823,10 @@ def find_connector_datasets(
         if connection_count == 1:
             matching_datasets.extend(legacy_datasets)
 
-    matching_datasets.sort(
-        key=lambda dataset: (
-            dataset.created_at or datetime.min,
-            dataset.id,
-        ),
-        reverse=True,
+    return _canonicalize_connector_datasets(
+        connection,
+        matching_datasets,
     )
-    canonical_datasets = []
-    seen_resources = set()
-    for dataset in matching_datasets:
-        resource = normalize_connector_dataset_resource(
-            connection,
-            dataset,
-        )
-        if resource in seen_resources:
-            continue
-        seen_resources.add(resource)
-        canonical_datasets.append(dataset)
-
-    return canonical_datasets
 
 
 def filter_canonical_connector_datasets(
@@ -5436,12 +5864,19 @@ def filter_canonical_connector_datasets(
             source_connection_counts.get(source_type, 0) + 1
         )
         known_connection_ids.add(str(connection.id))
+
+    canonical_datasets_by_connection = (
+        find_connector_datasets_for_connections(
+            connector_connections,
+            datasets,
+        )
+        if connector_connections
+        else {}
+    )
+    for connection_datasets in canonical_datasets_by_connection.values():
         canonical_dataset_ids.update(
             dataset.id
-            for dataset in find_connector_datasets(
-                db,
-                connection,
-            )
+            for dataset in connection_datasets
         )
 
     single_connection_sources = {
@@ -5495,7 +5930,8 @@ CONNECTOR_PARTITION_DATE_COLUMNS = (
     "updated_date",
     "timestamp",
 )
-CONNECTOR_HOT_MONTHS = 24
+# Keep raw connector partitions for the full analytical retention window.
+CONNECTOR_HOT_MONTHS = CONNECTOR_DATA_RETENTION_MONTHS
 CONNECTOR_HOT_DIRECTORY = "hot"
 CONNECTOR_HISTORICAL_DIRECTORY = "historical"
 CONNECTOR_HISTORICAL_LEGACY_FILENAME = "historical-summary.parquet"
@@ -6724,6 +7160,7 @@ def run_quickbooks_sync(
     resource_types = normalize_quickbooks_resource_types(
         connection_config
     )
+    resource_types = select_connector_resource_types(resource_types, payload)
     start_date, end_date = get_incremental_sync_window(
         connection,
         payload,
@@ -6759,6 +7196,7 @@ def run_hubspot_sync(
     resource_types = normalize_hubspot_resource_types(
         connection_config
     )
+    resource_types = select_connector_resource_types(resource_types, payload)
     start_date, end_date = get_incremental_sync_window(
         connection,
         payload,
@@ -6811,6 +7249,7 @@ def run_freshbooks_sync(
     resource_types = normalize_freshbooks_resource_types(
         connection_config
     )
+    resource_types = select_connector_resource_types(resource_types, payload)
     start_date, end_date = get_incremental_sync_window(
         connection,
         payload,
@@ -6846,6 +7285,7 @@ def run_sage_sync(
     resource_types = normalize_sage_resource_types(
         connection_config
     )
+    resource_types = select_connector_resource_types(resource_types, payload)
     start_date, end_date = get_incremental_sync_window(
         connection,
         payload,
@@ -6901,6 +7341,7 @@ def run_zoho_books_sync(
     resource_types = normalize_zoho_books_resource_types(
         connection_config
     )
+    resource_types = select_connector_resource_types(resource_types, payload)
     start_date, end_date = get_incremental_sync_window(
         connection,
         payload,
@@ -6936,6 +7377,7 @@ def run_xero_sync(
     resource_types = normalize_xero_resource_types(
         connection_config
     )
+    resource_types = select_connector_resource_types(resource_types, payload)
     start_date, end_date = get_incremental_sync_window(
         connection,
         payload,
@@ -6988,6 +7430,7 @@ def run_salesforce_sync(
     resource_types = normalize_salesforce_resource_types(
         connection_config
     )
+    resource_types = select_connector_resource_types(resource_types, payload)
     start_date, end_date = get_incremental_sync_window(
         connection,
         payload,
@@ -7043,6 +7486,7 @@ def run_lightspeed_x_sync(
     resource_types = normalize_lightspeed_x_resource_types(
         connection_config
     )
+    resource_types = select_connector_resource_types(resource_types, payload)
     start_date, end_date = get_incremental_sync_window(
         connection,
         payload,
@@ -7102,6 +7546,7 @@ def run_lightspeed_resource_sync(
     else:
         resource_types = normalize_lightspeed_o_resource_types(connection_config)
         resource_argument = "lightspeed_o_resource_type"
+    resource_types = select_connector_resource_types(resource_types, payload)
     start_date, end_date = get_incremental_sync_window(
         connection,
         payload,
@@ -7423,6 +7868,11 @@ def persist_connector_dataframe(
 
         if existing_dataset:
             dataset = existing_dataset
+            # Any later connector sync changes the analytical source. Do not
+            # serve an analysis generated from the previous snapshot.
+            db.query(DatasetAnalysis).filter(
+                DatasetAnalysis.dataset_id == dataset.id,
+            ).delete(synchronize_session=False)
             if (
                 dataset.file_path != stored_file_path
                 or dataset.storage_provider != storage_provider
@@ -7570,7 +8020,7 @@ def purge_expired_connector_dataset(
     db,
     connection,
 ):
-    """Rewrite a connector dataset only when its five-year boundary is crossed."""
+    """Rewrite a connector dataset when its three-year boundary is crossed."""
     dataset = find_connector_dataset(db, connection)
     if not dataset or not connector_dataset_requires_retention_cleanup(dataset):
         return None
@@ -7804,6 +8254,381 @@ def _persist_ingestion_job_failure(
             )
 
 
+def _fail_pending_connector_children(db, parent_job_id: int, error: Exception):
+    children = (
+        db.query(DataIngestionJob)
+        .filter(
+            DataIngestionJob.parent_job_id == parent_job_id,
+            DataIngestionJob.status.in_({
+                INGESTION_JOB_QUEUED,
+                INGESTION_JOB_RUNNING,
+            }),
+        )
+        .all()
+    )
+    for child in children:
+        child.status = INGESTION_JOB_FAILED
+        child.error_message = str(error)[:1000]
+        child.completed_at = utc_now()
+    db.commit()
+
+
+def _build_parent_connector_job_result(
+    connection,
+    children,
+):
+    datasets = []
+    child_summaries = []
+    failed_children = []
+    for child in children:
+        child_result = None
+        try:
+            parsed_result = json.loads(child.result_payload or "null")
+            if isinstance(parsed_result, dict):
+                child_result = parsed_result
+        except (TypeError, json.JSONDecodeError):
+            child_result = None
+
+        if child_result and isinstance(child_result.get("datasets"), list):
+            datasets.extend(child_result["datasets"])
+        if child.status == INGESTION_JOB_FAILED:
+            failed_children.append(child)
+        child_summaries.append({
+            "id": child.id,
+            "object_type": child.object_type,
+            "status": child.status,
+            "error_message": child.error_message,
+            "dataset_ids": [
+                item.get("dataset_id")
+                for item in (child_result or {}).get("datasets", [])
+                if isinstance(item, dict) and item.get("dataset_id") is not None
+            ],
+        })
+
+    return {
+        "connection_id": connection.id,
+        "datasets": datasets,
+        "child_jobs": child_summaries,
+        "failed_object_types": [
+            child.object_type
+            for child in failed_children
+        ],
+        "partial": bool(failed_children and datasets),
+    }, failed_children
+
+
+def run_connector_object_ingestion_job(job_id: int):
+    """Run one object from a multi-object connector parent independently."""
+    db = SessionLocal()
+    connection = None
+    try:
+        job = (
+            db.query(DataIngestionJob)
+            .filter(DataIngestionJob.id == job_id)
+            .first()
+        )
+        if not job or job.status != INGESTION_JOB_QUEUED:
+            return
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == job.connection_id)
+            .first()
+        )
+        if not connection:
+            raise ConnectorUnavailable(
+                "The connector connection no longer exists"
+            )
+
+        job.status = INGESTION_JOB_RUNNING
+        job.started_at = utc_now()
+        db.commit()
+
+        try:
+            payload_data = json.loads(job.request_payload or "{}")
+        except (TypeError, json.JSONDecodeError) as error:
+            raise ConnectorUnavailable(
+                "Connector object ingestion request is invalid"
+            ) from error
+        payload = DataSourceConnectionSync(**payload_data)
+
+        source = get_dataset_source(connection.source_type)
+        if source and source.get("connection_type") == "oauth":
+            refresh_oauth_access_token_if_due(db, connection)
+
+        sync_results = run_data_source_sync_with_oauth_retry(
+            db,
+            connection,
+            payload,
+        )
+        db.commit()
+        result = _build_connector_sync_job_result(
+            db,
+            connection,
+            sync_results,
+        )
+        _set_ingestion_job_result(
+            db,
+            job_id,
+            INGESTION_JOB_SUCCEEDED,
+            result=result,
+        )
+    except ConnectorNoData as error:
+        db.rollback()
+        _set_ingestion_job_result(
+            db,
+            job_id,
+            INGESTION_JOB_NO_DATA,
+            result={
+                "connection_id": getattr(connection, "id", None),
+                "object_type": getattr(
+                    locals().get("job"),
+                    "object_type",
+                    None,
+                ),
+                "status": INGESTION_JOB_NO_DATA,
+                "message": str(error),
+                "datasets": [],
+            },
+        )
+    except (
+        GoogleAnalyticsConnectorUnavailable,
+        ConnectorUnavailable,
+        OAuthProviderUnavailable,
+    ) as error:
+        mark_auth_failure = bool(
+            connection
+            and connector_requires_reauthorization(
+                connection.source_type,
+                error,
+            )
+            and not connection.authorization_error
+        )
+        _persist_ingestion_job_failure(
+            db,
+            job_id,
+            error,
+            mark_authorization_failure=mark_auth_failure,
+        )
+    except Exception as error:
+        logger.exception(
+            "Connector object ingestion job failed unexpectedly",
+            extra={"job_id": job_id},
+        )
+        _persist_ingestion_job_failure(
+            db,
+            job_id,
+            error,
+        )
+    finally:
+        db.close()
+
+
+def run_connector_parent_ingestion_job(job_id: int):
+    """Run and aggregate child object jobs without rolling back their data."""
+    db = SessionLocal()
+    connection = None
+    initial_sync_required = False
+    try:
+        job = (
+            db.query(DataIngestionJob)
+            .filter(DataIngestionJob.id == job_id)
+            .first()
+        )
+        if not job or job.status != INGESTION_JOB_QUEUED:
+            return
+        child_ids = [
+            child.id
+            for child in (
+                db.query(DataIngestionJob)
+                .filter(DataIngestionJob.parent_job_id == job.id)
+                .order_by(DataIngestionJob.id.asc())
+                .all()
+            )
+        ]
+        if not child_ids:
+            raise ConnectorUnavailable(
+                "Multi-object connector run has no object jobs"
+            )
+
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == job.connection_id)
+            .first()
+        )
+        if not connection:
+            raise ConnectorUnavailable(
+                "The connector connection no longer exists"
+            )
+
+        job.status = INGESTION_JOB_RUNNING
+        job.started_at = utc_now()
+        db.commit()
+
+        try:
+            payload_data = json.loads(job.request_payload or "{}")
+        except (TypeError, json.JSONDecodeError) as error:
+            raise ConnectorUnavailable(
+                "Connector ingestion request is invalid"
+            ) from error
+        payload = DataSourceConnectionSync(**payload_data)
+        initial_import_job = (
+            job.job_type == INITIAL_CONNECTOR_INITIAL_JOB_TYPE
+        )
+        initial_backfill_job = (
+            job.job_type == INITIAL_CONNECTOR_BACKFILL_JOB_TYPE
+        )
+        initial_sync_required = (
+            initial_import_job
+            or (
+                not payload.advanced_date_range
+                and payload.start_date is None
+                and payload.end_date is None
+                and (
+                    initial_connector_sync_is_required(db, connection)
+                    or initial_connector_backfill_is_required(connection)
+                )
+            )
+        )
+        if initial_backfill_job:
+            set_initial_connector_sync_status(
+                connection,
+                INITIAL_CONNECTOR_SYNC_BACKFILL,
+            )
+            db.commit()
+            initial_sync_required = False
+        elif initial_sync_required:
+            set_initial_connector_sync_status(
+                connection,
+                INITIAL_CONNECTOR_SYNC_INITIAL,
+            )
+            db.commit()
+
+        source = get_dataset_source(connection.source_type)
+        if source and source.get("connection_type") == "oauth":
+            refresh_oauth_access_token_if_due(db, connection)
+
+        try:
+            retention_result = purge_expired_connector_dataset(
+                db,
+                connection,
+            )
+            if retention_result:
+                db.commit()
+                remove_dataset_file(
+                    retention_result["replaced_file_path"]
+                )
+        except Exception:
+            db.rollback()
+            logger.exception(
+                "Connector retention cleanup failed before multi-object ingestion",
+                extra={"connection_id": connection.id},
+            )
+
+        for child_id in child_ids:
+            # Each child opens its own session and commits its dataset before
+            # the next object runs, so one provider failure cannot undo prior
+            # successful objects.
+            run_connector_object_ingestion_job(child_id)
+
+        db.expire_all()
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == job.connection_id)
+            .first()
+        )
+        children = (
+            db.query(DataIngestionJob)
+            .filter(DataIngestionJob.parent_job_id == job.id)
+            .order_by(DataIngestionJob.id.asc())
+            .all()
+        )
+        result, failed_children = _build_parent_connector_job_result(
+            connection,
+            children,
+        )
+        has_datasets = bool(result["datasets"])
+        if failed_children:
+            error_message = (
+                "One or more connector objects failed: "
+                + ", ".join(
+                    f"{child.object_type or 'object'}: "
+                    f"{child.error_message or 'unknown error'}"
+                    for child in failed_children
+                )
+            )
+            if initial_sync_required or initial_backfill_job:
+                set_initial_connector_sync_status(
+                    connection,
+                    INITIAL_CONNECTOR_SYNC_FAILED,
+                    error_message,
+                )
+                db.commit()
+            _set_ingestion_job_result(
+                db,
+                job_id,
+                INGESTION_JOB_FAILED,
+                result=result,
+                error_message=error_message,
+            )
+            return
+
+        status = (
+            INGESTION_JOB_SUCCEEDED
+            if has_datasets
+            else INGESTION_JOB_NO_DATA
+        )
+        _set_ingestion_job_result(
+            db,
+            job_id,
+            status,
+            result=result,
+        )
+        if initial_backfill_job:
+            set_initial_connector_sync_status(
+                connection,
+                INITIAL_CONNECTOR_SYNC_COMPLETE,
+            )
+            db.commit()
+            queue_connector_initial_analysis(None, connection.id)
+        elif initial_sync_required:
+            if initial_connector_backfill_enabled(connection.source_type):
+                queue_connector_initial_backfill(None, connection.id)
+            else:
+                set_initial_connector_sync_status(
+                    connection,
+                    INITIAL_CONNECTOR_SYNC_COMPLETE,
+                )
+                db.commit()
+                queue_connector_initial_analysis(None, connection.id)
+    except (
+        GoogleAnalyticsConnectorUnavailable,
+        ConnectorUnavailable,
+        OAuthProviderUnavailable,
+    ) as error:
+        _fail_pending_connector_children(db, job_id, error)
+        _persist_ingestion_job_failure(
+            db,
+            job_id,
+            error,
+            mark_authorization_failure=bool(
+                connection
+                and connector_requires_reauthorization(
+                    connection.source_type,
+                    error,
+                )
+            ),
+        )
+    except Exception as error:
+        logger.exception(
+            "Multi-object connector ingestion job failed unexpectedly",
+            extra={"job_id": job_id},
+        )
+        _fail_pending_connector_children(db, job_id, error)
+        _persist_ingestion_job_failure(db, job_id, error)
+    finally:
+        db.close()
+
+
 def run_connector_ingestion_job(job_id: int):
     """Run one connector sync outside the request and scheduler lifecycles."""
     db = SessionLocal()
@@ -7817,6 +8642,19 @@ def run_connector_ingestion_job(job_id: int):
             .first()
         )
         if not job or job.status != INGESTION_JOB_QUEUED:
+            return
+
+        if job.parent_job_id is not None:
+            db.close()
+            run_connector_object_ingestion_job(job_id)
+            return
+        if (
+            db.query(DataIngestionJob)
+            .filter(DataIngestionJob.parent_job_id == job.id)
+            .count()
+        ):
+            db.close()
+            run_connector_parent_ingestion_job(job_id)
             return
 
         connection = (
@@ -7926,6 +8764,7 @@ def run_connector_ingestion_job(job_id: int):
                 INGESTION_JOB_SUCCEEDED,
                 result=result,
             )
+            queue_connector_initial_analysis(None, connection.id)
         elif initial_sync_required:
             # Commit the first phase and its job before launching backfill so
             # the latest data is available and the UI can show progress for
@@ -7944,6 +8783,7 @@ def run_connector_ingestion_job(job_id: int):
                     INITIAL_CONNECTOR_SYNC_COMPLETE,
                 )
                 db.commit()
+                queue_connector_initial_analysis(None, connection.id)
         else:
             _set_ingestion_job_result(
                 db,
@@ -7979,6 +8819,7 @@ def run_connector_ingestion_job(job_id: int):
                         INITIAL_CONNECTOR_SYNC_COMPLETE,
                     )
                     db.commit()
+                queue_connector_initial_analysis(None, connection.id)
         elif initial_backfill_job and connection:
             db.rollback()
             current_connection = (
@@ -8003,6 +8844,7 @@ def run_connector_ingestion_job(job_id: int):
                     "datasets": [],
                 },
             )
+            queue_connector_initial_analysis(None, connection.id)
             return
         else:
             _set_ingestion_job_result(
@@ -8043,6 +8885,257 @@ def run_connector_ingestion_job(job_id: int):
             db,
             job_id,
             error,
+        )
+    finally:
+        db.close()
+
+
+def _set_dataset_analysis_record(
+    db,
+    record,
+    status: str,
+    result: dict | None = None,
+    error_message: str | None = None,
+):
+    record.status = status
+    record.result_payload = (
+        json.dumps(result, default=str, sort_keys=True)
+        if result is not None
+        else None
+    )
+    record.error_message = (
+        str(error_message)[:1000]
+        if error_message
+        else None
+    )
+    if status == CONNECTOR_ANALYSIS_RUNNING:
+        record.started_at = utc_now()
+    if status in {
+        CONNECTOR_ANALYSIS_COMPLETE,
+        CONNECTOR_ANALYSIS_FAILED,
+    }:
+        record.completed_at = utc_now()
+    record.updated_at = utc_now()
+
+
+def _build_connector_dataset_analysis(
+    db,
+    dataset,
+    connection,
+):
+    dataframe = load_dataframe_from_dataset(dataset)
+    learning_context = build_workspace_decision_learning_context(
+        db,
+        connection.user_id,
+        connection.workspace_id,
+        base_filter=build_dataset_decision_learning_filter(
+            dataset.id,
+        ),
+        learning_scope="dataset",
+    )
+    ai_analysis = generate_dataset_ai_analysis(
+        dataframe,
+        None,
+        learning_context,
+        connection.workspace_id,
+        connection.user_id,
+    )
+    anomalies = None
+    try:
+        date_column, _ = identify_forecast_columns(dataframe)
+        anomalies = detect_dataset_anomalies(
+            dataframe,
+            date_column=date_column,
+            period_filter="all",
+            aggregation="monthly",
+            aggregation_type="sum",
+            sensitivity="medium",
+            max_anomalies=100,
+        )
+    except (TypeError, ValueError, KeyError):
+        # A dataset without a usable time field can still receive metric and
+        # AI analysis. Anomaly detection is optional for that dataset.
+        anomalies = None
+
+    return {
+        "dataset_id": dataset.id,
+        "source_type": dataset.source_type,
+        "generated_at": utc_now().isoformat(),
+        "history_window": {
+            "initial_sync_days": get_initial_connector_sync_days(
+                connection.source_type,
+            ),
+            "backfill_months": get_initial_connector_backfill_months(
+                connection.source_type,
+            ),
+            "backfill_days": get_initial_connector_backfill_days(
+                connection.source_type,
+            ),
+        },
+        "ai_analysis": ai_analysis,
+        "insights": generate_insights(dataframe),
+        "anomalies": anomalies,
+    }
+
+
+def run_connector_analysis_job(job_id: int):
+    """Analyze connector datasets after their initial history is available."""
+    db = SessionLocal()
+    connection = None
+    records = []
+    try:
+        job = (
+            db.query(DataIngestionJob)
+            .filter(DataIngestionJob.id == job_id)
+            .first()
+        )
+        if not job or job.status != INGESTION_JOB_QUEUED:
+            return
+
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == job.connection_id)
+            .first()
+        )
+        if not connection:
+            raise ConnectorUnavailable(
+                "The connector connection no longer exists"
+            )
+
+        job.status = INGESTION_JOB_RUNNING
+        job.started_at = utc_now()
+        set_connector_analysis_status(
+            connection,
+            CONNECTOR_ANALYSIS_RUNNING,
+        )
+        db.commit()
+
+        try:
+            payload = json.loads(job.request_payload or "{}")
+        except (TypeError, json.JSONDecodeError) as error:
+            raise ConnectorUnavailable(
+                "Connector analysis request is invalid"
+            ) from error
+
+        dataset_ids = [
+            int(dataset_id)
+            for dataset_id in payload.get("dataset_ids", [])
+            if str(dataset_id).strip()
+        ]
+        datasets = (
+            db.query(Dataset)
+            .filter(Dataset.id.in_(dataset_ids))
+            .order_by(Dataset.id.asc())
+            .all()
+            if dataset_ids
+            else []
+        )
+        records = [
+            get_dataset_analysis_record(db, dataset.id)
+            for dataset in datasets
+        ]
+        for record in records:
+            if record:
+                _set_dataset_analysis_record(
+                    db,
+                    record,
+                    CONNECTOR_ANALYSIS_RUNNING,
+                )
+        db.commit()
+
+        successful_dataset_ids = []
+        failed_dataset_ids = []
+        for dataset, record in zip(datasets, records):
+            if record is None:
+                failed_dataset_ids.append(dataset.id)
+                continue
+            try:
+                result = _build_connector_dataset_analysis(
+                    db,
+                    dataset,
+                    connection,
+                )
+                _set_dataset_analysis_record(
+                    db,
+                    record,
+                    CONNECTOR_ANALYSIS_COMPLETE,
+                    result=result,
+                )
+                successful_dataset_ids.append(dataset.id)
+            except Exception as error:
+                logger.exception(
+                    "Connector dataset analysis failed",
+                    extra={
+                        "job_id": job_id,
+                        "dataset_id": dataset.id,
+                    },
+                )
+                _set_dataset_analysis_record(
+                    db,
+                    record,
+                    CONNECTOR_ANALYSIS_FAILED,
+                    error_message=error,
+                )
+                failed_dataset_ids.append(dataset.id)
+            db.commit()
+
+        if failed_dataset_ids:
+            error_message = (
+                "Analysis failed for connector dataset(s): "
+                + ", ".join(str(dataset_id) for dataset_id in failed_dataset_ids)
+            )
+            set_connector_analysis_status(
+                connection,
+                CONNECTOR_ANALYSIS_FAILED,
+                error_message,
+            )
+            db.commit()
+            _set_ingestion_job_result(
+                db,
+                job_id,
+                INGESTION_JOB_FAILED,
+                result={
+                    "connection_id": connection.id,
+                    "dataset_ids": successful_dataset_ids,
+                    "failed_dataset_ids": failed_dataset_ids,
+                },
+                error_message=error_message,
+            )
+            return
+
+        set_connector_analysis_status(
+            connection,
+            CONNECTOR_ANALYSIS_COMPLETE,
+        )
+        db.commit()
+        _set_ingestion_job_result(
+            db,
+            job_id,
+            INGESTION_JOB_SUCCEEDED,
+            result={
+                "connection_id": connection.id,
+                "dataset_ids": successful_dataset_ids,
+                "status": CONNECTOR_ANALYSIS_COMPLETE,
+            },
+        )
+    except Exception as error:
+        logger.exception(
+            "Connector analysis job failed unexpectedly",
+            extra={"job_id": job_id},
+        )
+        db.rollback()
+        if connection:
+            set_connector_analysis_status(
+                connection,
+                CONNECTOR_ANALYSIS_FAILED,
+                error,
+            )
+            db.commit()
+        _set_ingestion_job_result(
+            db,
+            job_id,
+            INGESTION_JOB_FAILED,
+            error_message=error,
         )
     finally:
         db.close()
@@ -8233,6 +9326,100 @@ def queue_connector_initial_backfill(
         )
         db.commit()
         launch_connector_ingestion_job(background_tasks, job.id)
+        return True
+    finally:
+        db.close()
+
+
+def queue_connector_initial_analysis(
+    background_tasks: BackgroundTasks | None,
+    connection_id: int,
+):
+    """Queue analysis once the initial connector history is complete."""
+    db = SessionLocal()
+    try:
+        connection = (
+            db.query(DataSourceConnection)
+            .filter(DataSourceConnection.id == connection_id)
+            .first()
+        )
+        if not connection:
+            return False
+        if get_initial_connector_sync_status(connection) != (
+            INITIAL_CONNECTOR_SYNC_COMPLETE
+        ):
+            return False
+
+        analysis_status = get_connector_analysis_status(connection)
+        if analysis_status in {
+            CONNECTOR_ANALYSIS_PENDING,
+            CONNECTOR_ANALYSIS_RUNNING,
+            CONNECTOR_ANALYSIS_COMPLETE,
+        }:
+            return False
+
+        active_analysis_job = (
+            db.query(DataIngestionJob)
+            .filter(
+                DataIngestionJob.connection_id == connection.id,
+                DataIngestionJob.job_type == CONNECTOR_ANALYSIS_JOB_TYPE,
+                DataIngestionJob.status.in_(ACTIVE_INGESTION_JOB_STATUSES),
+            )
+            .order_by(DataIngestionJob.id.desc())
+            .first()
+        )
+        if active_analysis_job:
+            return False
+
+        datasets = find_connector_datasets(db, connection)
+        if not datasets:
+            set_connector_analysis_status(
+                connection,
+                CONNECTOR_ANALYSIS_COMPLETE,
+            )
+            db.commit()
+            return False
+
+        dataset_ids = [dataset.id for dataset in datasets]
+        for dataset in datasets:
+            record = get_dataset_analysis_record(db, dataset.id)
+            if record is None:
+                record = DatasetAnalysis(
+                    dataset_id=dataset.id,
+                    connection_id=connection.id,
+                    user_id=connection.user_id,
+                    workspace_id=connection.workspace_id,
+                )
+                db.add(record)
+            else:
+                record.connection_id = connection.id
+                record.user_id = connection.user_id
+                record.workspace_id = connection.workspace_id
+            _set_dataset_analysis_record(
+                db,
+                record,
+                CONNECTOR_ANALYSIS_PENDING,
+            )
+
+        set_connector_analysis_status(
+            connection,
+            CONNECTOR_ANALYSIS_PENDING,
+        )
+        job = DataIngestionJob(
+            connection_id=connection.id,
+            user_id=connection.user_id,
+            workspace_id=connection.workspace_id,
+            job_type=CONNECTOR_ANALYSIS_JOB_TYPE,
+            status=INGESTION_JOB_QUEUED,
+            request_payload=json.dumps(
+                {"dataset_ids": dataset_ids},
+                sort_keys=True,
+            ),
+        )
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        launch_connector_analysis_job(background_tasks, job.id)
         return True
     finally:
         db.close()
@@ -8613,6 +9800,22 @@ async def sync_due_source_connections(
                     "status": "initial_backfill_queued",
                 })
                 continue
+
+            if (
+                get_initial_connector_sync_status(connection)
+                == INITIAL_CONNECTOR_SYNC_COMPLETE
+                and get_connector_analysis_status(connection)
+                in {None, CONNECTOR_ANALYSIS_FAILED}
+            ):
+                if queue_connector_initial_analysis(
+                    background_tasks,
+                    connection.id,
+                ):
+                    results.append({
+                        "connection_id": connection.id,
+                        "status": "initial_analysis_queued",
+                    })
+                    continue
 
             (
                 enabled,
@@ -9322,6 +10525,10 @@ async def dataset_details(
                     learning_scope="dataset",
                 )
             )
+        persisted_analysis = get_dataset_analysis_record(
+            db,
+            dataset.id,
+        )
         return await asyncio.to_thread(
             build_dataset_details_response,
             dataset,
@@ -9335,6 +10542,7 @@ async def dataset_details(
             aggregation=aggregation,
             aggregation_type=aggregation_type,
             include_ai_analysis=include_ai_analysis,
+            persisted_analysis=persisted_analysis,
         )
 
     finally:

@@ -1058,31 +1058,55 @@ def claim_pending_invites(
     )
     claimed_count = 0
 
-    for invite in pending_invites:
-        organization = (
+    organization_ids = {
+        invite.organization_id
+        for invite in pending_invites
+    }
+    organizations_by_id = {
+        organization.id: organization
+        for organization in (
             db.query(Organization)
-            .filter(Organization.id == invite.organization_id)
-            .first()
+            .filter(Organization.id.in_(organization_ids))
+            .all()
+            if organization_ids
+            else []
+        )
+    }
+    existing_members_by_organization = {
+        member.organization_id: member
+        for member in (
+            db.query(OrganizationMember)
+            .filter(
+                OrganizationMember.organization_id.in_(organization_ids),
+                OrganizationMember.clerk_user_id == user_id,
+            )
+            .all()
+            if organization_ids
+            else []
+        )
+    }
+
+    for invite in pending_invites:
+        organization = organizations_by_id.get(
+            invite.organization_id
         )
         invite_role = canonical_client_workspace_role(
             organization,
             invite.role,
         )
-        existing_member = (
-            db.query(OrganizationMember)
-            .filter(
-                OrganizationMember.organization_id == invite.organization_id,
-                OrganizationMember.clerk_user_id == user_id,
-            )
-            .first()
+        existing_member = existing_members_by_organization.get(
+            invite.organization_id
         )
         if not existing_member:
-            db.add(
+            existing_members_by_organization[invite.organization_id] = (
                 OrganizationMember(
                     organization_id=invite.organization_id,
                     clerk_user_id=user_id,
                     role=invite_role,
                 )
+            )
+            db.add(
+                existing_members_by_organization[invite.organization_id]
             )
 
         invite.status = "accepted"

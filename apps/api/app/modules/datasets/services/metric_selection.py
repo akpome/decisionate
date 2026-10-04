@@ -176,6 +176,19 @@ def _duplicate_column(
     return None
 
 
+def _numeric_series_signature(series: pd.Series):
+    """Build a cheap pre-check key before comparing full numeric columns."""
+    hashed_values = pd.util.hash_pandas_object(
+        series,
+        index=True,
+    )
+    return (
+        str(series.dtype),
+        len(series),
+        int(hashed_values.sum()),
+    )
+
+
 def _objective_from_dataset(dataset) -> str:
     config = parse_dataset_source_config(dataset)
     objective = str(
@@ -292,6 +305,7 @@ def build_metric_selection_profile(
     ambiguous_candidates = []
     advanced_candidates = []
     available_metric_columns = []
+    duplicate_candidates = {}
     for column in dataframe.columns:
         column_name = str(column)
         series = dataframe[column]
@@ -319,16 +333,24 @@ def build_metric_selection_profile(
             if valid_count
             else 0.0
         )
-        duplicate_of = (
-            _duplicate_column(
-                dataframe,
-                column,
-                numeric_series,
-                numeric_lookup,
+        duplicate_of = None
+        if is_numeric and numeric_series is not None:
+            signature = _numeric_series_signature(
+                numeric_series
             )
-            if is_numeric and numeric_series is not None
-            else None
-        )
+            for candidate_column in duplicate_candidates.get(
+                signature,
+                [],
+            ):
+                if numeric_series.equals(
+                    numeric_lookup[candidate_column]
+                ):
+                    duplicate_of = candidate_column
+                    break
+            duplicate_candidates.setdefault(
+                signature,
+                [],
+            ).append(column_name)
         if duplicate_of and definition:
             duplicate_definition = get_metric_definition(
                 duplicate_of,
@@ -686,12 +708,20 @@ def _is_generated_metric_column(
 def get_selectable_numeric_columns(
     dataframe: pd.DataFrame,
     dataset=None,
+    profile: dict | None = None,
 ) -> list[str]:
     if not isinstance(dataframe, pd.DataFrame):
         return []
 
-    profile = build_metric_selection_profile(dataset, dataframe)
-    return list(profile.get("available_metric_columns", []))
+    resolved_profile = (
+        profile
+        if profile is not None
+        else build_metric_selection_profile(
+            dataset,
+            dataframe,
+        )
+    )
+    return list(resolved_profile.get("available_metric_columns", []))
 
 
 def get_dataset_selected_metric_columns(dataset) -> list[str] | None:
@@ -759,12 +789,25 @@ def normalize_selected_metric_columns(
 def get_effective_dataset_metric_columns(
     dataset,
     dataframe: pd.DataFrame,
+    profile: dict | None = None,
 ) -> list[str]:
-    profile = build_metric_selection_profile(dataset, dataframe)
+    resolved_profile = (
+        profile
+        if profile is not None
+        else build_metric_selection_profile(
+            dataset,
+            dataframe,
+        )
+    )
     selected_columns = get_dataset_selected_metric_columns(dataset)
 
     if selected_columns is None:
-        return list(profile.get("recommended_metric_columns", []))
+        return list(
+            resolved_profile.get(
+                "recommended_metric_columns",
+                [],
+            )
+        )
 
     # The profiler controls automatic defaults. Once a user explicitly saves
     # a selection, every real source column is eligible, including dimensions
@@ -785,14 +828,22 @@ def get_effective_dataset_metric_columns(
 def filter_dataframe_to_selected_metrics(
     dataset,
     dataframe: pd.DataFrame,
+    profile: dict | None = None,
 ) -> pd.DataFrame:
     if not isinstance(dataframe, pd.DataFrame):
         return dataframe
 
     selected_columns = get_dataset_selected_metric_columns(dataset)
-    profile = build_metric_selection_profile(dataset, dataframe)
+    resolved_profile = (
+        profile
+        if profile is not None
+        else build_metric_selection_profile(
+            dataset,
+            dataframe,
+        )
+    )
     automatic_metric_columns = set(
-        profile.get("available_metric_columns", [])
+        resolved_profile.get("available_metric_columns", [])
     )
 
     metric_like_columns = {
@@ -810,7 +861,13 @@ def filter_dataframe_to_selected_metrics(
             )
         )
     }
-    selected_set = set(get_effective_dataset_metric_columns(dataset, dataframe))
+    selected_set = set(
+        get_effective_dataset_metric_columns(
+            dataset,
+            dataframe,
+            profile=resolved_profile,
+        )
+    )
     keep_columns = [
         column
         for column in dataframe.columns
