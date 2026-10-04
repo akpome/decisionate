@@ -22,6 +22,7 @@ from app.modules.oauth.service import (
     is_oauth_provider_configured,
     read_token_response,
     revoke_oauth_token,
+    validate_meta_ads_token,
     validate_shopify_token_scopes,
     verify_shopify_oauth_callback,
 )
@@ -354,6 +355,100 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         query = parse_qs(urlparse(url).query)
         self.assertEqual(query["scope"], ["ORDERS_READ"])
         self.assertEqual(query["session"], ["false"])
+
+    def test_meta_ads_authorization_rerequests_ads_read(self):
+        with patch.dict(
+            os.environ,
+            {
+                "META_ADS_APP_ID": "app-id",
+                "META_ADS_APP_SECRET": "app-secret",
+                "META_ADS_OAUTH_AUTHORIZATION_URL": (
+                    "https://www.facebook.com/v26.0/dialog/oauth"
+                ),
+                "META_ADS_OAUTH_TOKEN_URL": (
+                    "https://graph.facebook.com/v26.0/oauth/access_token"
+                ),
+                "META_ADS_OAUTH_SCOPES": "ads_read",
+                "OAUTH_CALLBACK_URL": (
+                    "https://api.example.com/oauth/callback"
+                ),
+            },
+            clear=False,
+        ):
+            url = build_authorization_url("meta_ads", "state-1")
+
+        query = parse_qs(urlparse(url).query)
+        self.assertEqual(query["scope"], ["ads_read"])
+        self.assertEqual(query["auth_type"], ["rerequest"])
+
+    def test_meta_ads_business_login_uses_configuration_id(self):
+        with patch.dict(
+            os.environ,
+            {
+                "META_ADS_APP_ID": "app-id",
+                "META_ADS_APP_SECRET": "app-secret",
+                "META_ADS_OAUTH_AUTHORIZATION_URL": (
+                    "https://www.facebook.com/v26.0/dialog/oauth"
+                ),
+                "META_ADS_OAUTH_TOKEN_URL": (
+                    "https://graph.facebook.com/v26.0/oauth/access_token"
+                ),
+                "META_ADS_OAUTH_CONFIG_ID": "configuration-id",
+                "META_ADS_OAUTH_SCOPES": "ads_read",
+                "OAUTH_CALLBACK_URL": (
+                    "https://api.example.com/oauth/callback"
+                ),
+            },
+            clear=False,
+        ):
+            url = build_authorization_url("meta_ads", "state-1")
+
+        query = parse_qs(urlparse(url).query)
+        self.assertEqual(query["config_id"], ["configuration-id"])
+        self.assertNotIn("scope", query)
+        self.assertNotIn("auth_type", query)
+
+    def test_meta_ads_token_requires_granted_ads_read(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {
+                        "data": [
+                            {"permission": "public_profile", "status": "granted"},
+                            {"permission": "ads_read", "status": "declined"},
+                        ]
+                    }
+                ).encode("utf-8")
+
+        with patch.dict(
+            os.environ,
+            {
+                "META_ADS_API_BASE_URL": "https://graph.facebook.com",
+                "META_ADS_GRAPH_VERSION": "v26.0",
+            },
+            clear=False,
+        ), patch(
+            "app.modules.oauth.service.urlopen",
+            return_value=FakeResponse(),
+        ) as mocked_urlopen:
+            with self.assertRaisesRegex(
+                OAuthTokenExchangeError,
+                "did not grant ads_read",
+            ):
+                validate_meta_ads_token({"access_token": "token"})
+
+        request = mocked_urlopen.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "https://graph.facebook.com/v26.0/me/permissions",
+        )
+        self.assertTrue(request.headers["Authorization"].endswith(" token"))
 
     def test_lightspeed_r_series_authorization_url_uses_read_only_pkce(self):
         with patch.dict(

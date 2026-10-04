@@ -179,6 +179,69 @@ def validate_shopify_token_scopes(payload: dict) -> None:
         )
 
 
+def validate_meta_ads_token(payload: dict) -> None:
+    """Verify that Meta granted the permission required by Insights calls."""
+    access_token = str(payload.get("access_token") or "").strip()
+    if not access_token:
+        raise OAuthTokenExchangeError(
+            "Meta Ads authorization did not return an access token"
+        )
+
+    graph_base_url = get_provider_setting("META_ADS_API_BASE_URL").rstrip("/")
+    graph_version = get_provider_setting("META_ADS_GRAPH_VERSION").strip()
+    if not graph_base_url or not graph_version:
+        raise OAuthProviderUnavailable(
+            "META_ADS_API_BASE_URL and META_ADS_GRAPH_VERSION are required "
+            "to verify Meta Ads authorization"
+        )
+
+    request = Request(
+        f"{graph_base_url}/{graph_version}/me/permissions",
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        },
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            body = response.read().decode("utf-8")
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise OAuthTokenExchangeError(
+            "Meta Ads permission verification failed with HTTP "
+            f"{error.code}: {detail[:240]}"
+        ) from error
+    except (URLError, TimeoutError, OSError) as error:
+        raise OAuthTokenExchangeError(
+            "Meta Ads permission verification could not reach Meta"
+        ) from error
+
+    try:
+        response_payload = json.loads(body)
+    except json.JSONDecodeError as error:
+        raise OAuthTokenExchangeError(
+            "Meta Ads permission verification returned an invalid response"
+        ) from error
+    if not isinstance(response_payload, dict):
+        raise OAuthTokenExchangeError(
+            "Meta Ads permission verification returned an invalid response"
+        )
+
+    permissions = response_payload.get("data")
+    granted_scopes = {
+        str(permission.get("permission") or "").strip()
+        for permission in permissions
+        if isinstance(permission, dict)
+        and str(permission.get("status") or "").strip().lower() == "granted"
+    } if isinstance(permissions, list) else set()
+    if "ads_read" not in granted_scopes:
+        raise OAuthTokenExchangeError(
+            "Meta Ads authorization did not grant ads_read. Reconnect Meta "
+            "and approve Ads Read access before syncing."
+        )
+
+
 @dataclass(frozen=True)
 class OAuthProvider:
     source_type: str
@@ -822,6 +885,18 @@ def build_authorization_url(
         # Ensure production sellers can choose the intended Square account
         # when their identity has access to more than one account.
         params["session"] = "false"
+    elif provider.source_type == "meta_ads":
+        # Facebook Login for Business configurations own the granted assets
+        # and permissions; Meta ignores the legacy scope-only shape when a
+        # configuration is used.
+        config_id = get_provider_setting("META_ADS_OAUTH_CONFIG_ID")
+        if config_id:
+            params["config_id"] = config_id
+            params.pop("scope", None)
+        else:
+            # Meta can otherwise reuse a previous decision that omitted
+            # ads_read during the legacy scope-based flow.
+            params["auth_type"] = "rerequest"
     elif provider.source_type in {
         "google_analytics",
         "google_search_console",

@@ -51,6 +51,7 @@ from app.modules.oauth.service import (
     get_sage_businesses,
     normalize_lightspeed_x_domain_prefix,
     normalize_sage_country,
+    validate_meta_ads_token,
     validate_shopify_token_scopes,
     verify_shopify_oauth_callback,
     get_zoho_books_organizations,
@@ -798,6 +799,8 @@ def process_oauth_callback(
         )
         if state_source_type == "shopify":
             validate_shopify_token_scopes(payload)
+        if state_source_type == "meta_ads":
+            validate_meta_ads_token(payload)
         if state_source_type == "freshbooks":
             access_token = str(payload.get("access_token") or "").strip()
             businesses = get_freshbooks_businesses(access_token)

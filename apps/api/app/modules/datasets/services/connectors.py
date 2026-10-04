@@ -7765,6 +7765,11 @@ def connector_requires_reauthorization(
     """Identify OAuth failures that need a fresh provider authorization."""
     normalized_source_type = str(source_type or "").strip().lower()
     normalized_message = str(error or "").lower()
+    if normalized_source_type == "meta_ads" and (
+        "did not grant ads_read" in normalized_message
+        or "permission verification" in normalized_message
+    ):
+        return True
     if is_shopify_protected_customer_data_error(
         normalized_source_type,
         error,
