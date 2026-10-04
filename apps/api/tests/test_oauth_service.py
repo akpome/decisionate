@@ -19,6 +19,7 @@ from app.modules.oauth.service import (
     decrypt_token,
     encrypt_token,
     exchange_code,
+    get_meta_ads_ad_accounts,
     is_oauth_provider_configured,
     read_token_response,
     revoke_oauth_token,
@@ -447,6 +448,65 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         self.assertEqual(
             request.full_url,
             "https://graph.facebook.com/v26.0/me/permissions",
+        )
+        self.assertTrue(request.headers["Authorization"].endswith(" token"))
+
+    def test_meta_ads_discovers_authorized_accounts(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {
+                        "data": [
+                            {
+                                "id": "act_123",
+                                "name": "Primary account",
+                            },
+                            {
+                                "account_id": "456",
+                                "name": "Secondary account",
+                            },
+                        ]
+                    }
+                ).encode("utf-8")
+
+        with patch.dict(
+            os.environ,
+            {
+                "META_ADS_API_BASE_URL": "https://graph.facebook.com",
+                "META_ADS_GRAPH_VERSION": "v26.0",
+            },
+            clear=False,
+        ), patch(
+            "app.modules.oauth.service.urlopen",
+            return_value=FakeResponse(),
+        ) as mocked_urlopen:
+            accounts = get_meta_ads_ad_accounts("token")
+
+        self.assertEqual(
+            accounts,
+            [
+                {
+                    "ad_account_id": "act_123",
+                    "name": "Primary account",
+                    "account_status": None,
+                },
+                {
+                    "ad_account_id": "act_456",
+                    "name": "Secondary account",
+                    "account_status": None,
+                },
+            ],
+        )
+        request = mocked_urlopen.call_args.args[0]
+        self.assertIn(
+            "/v26.0/me/adaccounts?",
+            request.full_url,
         )
         self.assertTrue(request.headers["Authorization"].endswith(" token"))
 
@@ -1001,8 +1061,11 @@ class OAuthAndSchedulingTests(unittest.TestCase):
                 "meta_ads",
                 {},
             ),
-            "Enter and save the Meta Ads account ID before connecting with OAuth",
+            None,
         )
+        meta_source = get_dataset_source("meta_ads")
+        self.assertEqual(meta_source["oauth_account_key"], "ad_account_id")
+        self.assertNotIn("ad_account_id", meta_source["required_config_keys"])
         self.assertEqual(
             get_oauth_config_requirement_error(
                 "google_ads",

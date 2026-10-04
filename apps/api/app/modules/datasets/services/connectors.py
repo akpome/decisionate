@@ -7768,6 +7768,9 @@ def connector_requires_reauthorization(
     if normalized_source_type == "meta_ads" and (
         "did not grant ads_read" in normalized_message
         or "permission verification" in normalized_message
+        or "ad account owner has not grant" in normalized_message
+        or "ads_management or ads_read permission" in normalized_message
+        or "account discovery failed" in normalized_message
     ):
         return True
     if is_shopify_protected_customer_data_error(

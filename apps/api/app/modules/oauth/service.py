@@ -242,6 +242,114 @@ def validate_meta_ads_token(payload: dict) -> None:
         )
 
 
+def normalize_meta_ads_account_id(value: str | None) -> str:
+    """Return a Meta ad account ID in the form accepted by Insights."""
+    account_id = str(value or "").strip()
+    if account_id.startswith("act_"):
+        account_id = account_id[4:]
+    if not account_id or not re.fullmatch(r"\d+", account_id):
+        return ""
+    return f"act_{account_id}"
+
+
+def get_meta_ads_ad_accounts(access_token: str) -> list[dict]:
+    """Discover ad accounts granted by the current Meta authorization."""
+    token = str(access_token or "").strip()
+    if not token:
+        raise OAuthTokenExchangeError(
+            "Meta Ads authorization did not return an access token"
+        )
+
+    graph_base_url = get_provider_setting("META_ADS_API_BASE_URL").rstrip("/")
+    graph_version = get_provider_setting("META_ADS_GRAPH_VERSION").strip()
+    if not graph_base_url or not graph_version:
+        raise OAuthProviderUnavailable(
+            "META_ADS_API_BASE_URL and META_ADS_GRAPH_VERSION are required "
+            "to discover Meta Ads accounts"
+        )
+
+    next_url = (
+        f"{graph_base_url}/{graph_version}/me/adaccounts?"
+        f"{urlencode({'fields': 'id,account_id,name,account_status', 'limit': '100'})}"
+    )
+    accounts = []
+    seen_urls = set()
+    while next_url and next_url not in seen_urls:
+        seen_urls.add(next_url)
+        request = Request(
+            next_url,
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+            method="GET",
+        )
+        try:
+            with urlopen(request, timeout=20) as response:
+                body = response.read().decode("utf-8")
+        except HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")
+            raise OAuthTokenExchangeError(
+                "Meta Ads account discovery failed with HTTP "
+                f"{error.code}: {detail[:240]}"
+            ) from error
+        except (URLError, TimeoutError, OSError) as error:
+            raise OAuthTokenExchangeError(
+                "Meta Ads account discovery could not reach Meta"
+            ) from error
+
+        try:
+            response_payload = json.loads(body)
+        except json.JSONDecodeError as error:
+            raise OAuthTokenExchangeError(
+                "Meta Ads account discovery returned an invalid response"
+            ) from error
+        if not isinstance(response_payload, dict):
+            raise OAuthTokenExchangeError(
+                "Meta Ads account discovery returned an invalid response"
+            )
+
+        records = response_payload.get("data")
+        if not isinstance(records, list):
+            raise OAuthTokenExchangeError(
+                "Meta Ads account discovery returned an invalid account list"
+            )
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            account_id = normalize_meta_ads_account_id(
+                record.get("account_id") or record.get("id")
+            )
+            if not account_id or any(
+                account["ad_account_id"] == account_id
+                for account in accounts
+            ):
+                continue
+            accounts.append(
+                {
+                    "ad_account_id": account_id,
+                    "name": str(
+                        record.get("name") or account_id
+                    ).strip(),
+                    "account_status": record.get("account_status"),
+                }
+            )
+
+        paging = response_payload.get("paging")
+        next_url = (
+            paging.get("next")
+            if isinstance(paging, dict)
+            else None
+        )
+
+    if not accounts:
+        raise OAuthTokenExchangeError(
+            "Meta did not return an accessible ad account. Reconnect and "
+            "choose the business and ad account in Meta before confirming."
+        )
+    return accounts
+
+
 @dataclass(frozen=True)
 class OAuthProvider:
     source_type: str

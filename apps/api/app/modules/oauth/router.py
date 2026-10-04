@@ -47,6 +47,7 @@ from app.modules.oauth.service import (
     encrypt_token,
     exchange_code,
     get_freshbooks_businesses,
+    get_meta_ads_ad_accounts,
     get_provider,
     get_sage_businesses,
     normalize_lightspeed_x_domain_prefix,
@@ -801,6 +802,21 @@ def process_oauth_callback(
             validate_shopify_token_scopes(payload)
         if state_source_type == "meta_ads":
             validate_meta_ads_token(payload)
+            access_token = str(payload.get("access_token") or "").strip()
+            meta_ad_accounts = get_meta_ads_ad_accounts(access_token)
+            connection_config = apply_oauth_account_selection(
+                connection_config,
+                meta_ad_accounts,
+                "ad_account_id",
+                ("name",),
+                missing_accounts_error=(
+                    "Meta did not return an accessible ad account"
+                ),
+            )
+            connection.connection_config = json.dumps(
+                connection_config,
+                sort_keys=True,
+            )
         if state_source_type == "freshbooks":
             access_token = str(payload.get("access_token") or "").strip()
             businesses = get_freshbooks_businesses(access_token)

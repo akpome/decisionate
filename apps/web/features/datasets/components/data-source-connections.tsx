@@ -39,7 +39,6 @@ export const REQUIRED_CONNECTION_CONFIG_KEYS: Record<
   lightspeed_x: ["domain_prefix", "resource_types"],
   lightspeed_k: ["business_location_id", "resource_types"],
   lightspeed_o: ["company_id", "resource_types"],
-  meta_ads: ["ad_account_id"],
   sage: ["country", "resource_types"],
 }
 
@@ -1636,7 +1635,7 @@ function DataSourceConnectionRow({
 
                   {connection.source_type === "meta_ads" && (
                     <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]">
-                      A Meta Ads account ID is required to create a usable connection and sync data.
+                      Meta will ask you to choose the business and ad account during authorization.
                     </p>
                   )}
 
@@ -2368,7 +2367,7 @@ const CONNECTION_FIELD_GUIDES: Record<
   },
   meta_ads: {
     ad_account_id: {
-      description: "Required to create a usable Meta Ads connection and sync data. The act_ prefix is accepted or added.",
+      description: "Meta supplies this account after OAuth authorization. Only choose it manually when more than one account is returned.",
       example: "act_123456789012345",
     },
   },
@@ -2463,6 +2462,8 @@ export function ConnectionSetupGuide({
               ? `${t("Use Connect with OAuth to authorize the provider account, then select the")} ${source.label} ${t("objects to ingest.")}`
               : source.type === "woocommerce"
                 ? t("Save the client store URL first, then use Connect with OAuth to authorize that WooCommerce store.")
+                : source.type === "meta_ads"
+                  ? t("Use Connect with OAuth to choose the Meta business and ad account for this connection.")
                 : t("Save the connection fields first, then use Connect with OAuth to authorize the provider account.")}
           </p>
         )}

@@ -52,6 +52,7 @@ OAUTH_ACCOUNT_OPTIONS_CONFIG_KEY = "_oauth_account_options"
 OAUTH_ACCOUNT_IDENTIFIER_KEYS = {
     "salesforce": "instance_url",
     "hubspot": "portal_id",
+    "meta_ads": "ad_account_id",
     "zoho_books": "organization_id",
     "xero": "tenant_id",
     "freshbooks": "account_id",
@@ -458,11 +459,12 @@ DATASET_SOURCES = [
         "category": "business_apps",
         "status": "planned",
         "connection_type": "oauth",
+        "oauth_account_key": "ad_account_id",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["ad_account_id"],
-        "required_config_keys": ["ad_account_id"],
         "description": (
-            "Connect Facebook and Instagram campaign performance data."
+            "Authorize Meta and choose the business and ad account to "
+            "connect campaign performance data."
         ),
     },
 ]
