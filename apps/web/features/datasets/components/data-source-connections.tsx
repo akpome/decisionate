@@ -126,14 +126,26 @@ function getAdvancedSyncDateBounds(
   const today = new Date()
   const defaultStart = new Date(today)
   defaultStart.setDate(today.getDate() - 1)
+  const initialSyncDays = connection.initial_sync_days ?? 30
   const initialStart = new Date(today)
-  initialStart.setDate(today.getDate() - 89)
+  initialStart.setDate(today.getDate() - initialSyncDays + 1)
   const backfillEnd = new Date(initialStart)
   backfillEnd.setDate(initialStart.getDate() - 1)
-  const fallbackEarliest = subtractCalendarMonths(
-    backfillEnd,
-    21
-  )
+  const fallbackEarliest = connection.initial_backfill_months
+    ? subtractCalendarMonths(
+        backfillEnd,
+        connection.initial_backfill_months
+      )
+    : connection.initial_backfill_days
+      ? new Date(
+          backfillEnd.getTime() -
+            (connection.initial_backfill_days - 1) *
+              24 *
+              60 *
+              60 *
+              1000
+        )
+      : subtractCalendarMonths(backfillEnd, 23)
   const configuredEarliest = connection.initial_sync_earliest_date
     ? new Date(`${connection.initial_sync_earliest_date}T00:00:00`)
     : fallbackEarliest
@@ -659,11 +671,14 @@ function DataSourceConnectionRow({
   )
   const hasMultipleOAuthAccounts =
     oauthAccountOptions.length > 1
-  const initialSyncInProgress = [
+  const initialImportInProgress = [
     "pending",
     "initial",
-    "backfill",
   ].includes(connection.initial_sync_status ?? "")
+  const historicalImportInProgress =
+    connection.initial_sync_status === "backfill"
+  const initialSyncInProgress =
+    initialImportInProgress || historicalImportInProgress
   const initialSyncCompleted =
     connection.initial_sync_status === "complete" ||
     (!connection.initial_sync_status &&
@@ -996,13 +1011,13 @@ function DataSourceConnectionRow({
           )}
         </p>
 
-        {initialSyncInProgress && (
+        {initialImportInProgress && (
           <p
             className="mt-2 break-words text-xs text-blue-700"
             role="status"
           >
             {t(
-              "Initial import is running. The most recent 90 days will appear first, followed by the preceding 21 months in the background."
+              `Initial import is running. The most recent ${connection.initial_sync_days ?? 30} days will appear first, followed by historical data in the background.`
             )}
           </p>
         )}
@@ -1012,9 +1027,14 @@ function DataSourceConnectionRow({
             className="mt-2 break-words text-xs text-blue-700"
             role="status"
           >
-            {connection.ingestion_job?.status === "queued"
-              ? t("Data ingestion is queued and will run in the background.")
-              : t("Data ingestion is running in the background.")}
+            {connection.ingestion_job?.job_type ===
+              "initial_connector_backfill"
+              ? t(
+                  "Initial import is complete. Additional historical data is being imported in the background."
+                )
+              : connection.ingestion_job?.status === "queued"
+                ? t("Data ingestion is queued and will run in the background.")
+                : t("Data ingestion is running in the background.")}
           </p>
         )}
 

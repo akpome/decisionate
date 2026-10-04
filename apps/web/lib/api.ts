@@ -583,6 +583,9 @@ export type DataSourceConnection = {
     | "failed"
     | null
   initial_sync_earliest_date?: string | null
+  initial_sync_days?: number | null
+  initial_backfill_days?: number | null
+  initial_backfill_months?: number | null
   advanced_sync_max_days?: number | null
   authorization_error?: string | null
   authorization_error_at?: string | null

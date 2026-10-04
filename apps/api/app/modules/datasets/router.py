@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import shutil
+import threading
 import uuid
 from datetime import date
 from datetime import datetime
@@ -248,10 +249,11 @@ from app.modules.oauth.service import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-INITIAL_CONNECTOR_SYNC_DAYS = 90
-INITIAL_CONNECTOR_BACKFILL_MONTHS = 21
-SHOPIFY_INITIAL_SYNC_DAYS_DEFAULT = 60
-SHOPIFY_INITIAL_BACKFILL_ENABLED_DEFAULT = False
+INITIAL_CONNECTOR_SYNC_DAYS = 30
+INITIAL_CONNECTOR_BACKFILL_MONTHS = 23
+SHOPIFY_INITIAL_SYNC_DAYS_DEFAULT = 30
+SHOPIFY_INITIAL_BACKFILL_ENABLED_DEFAULT = True
+SHOPIFY_INITIAL_BACKFILL_DAYS_DEFAULT = 30
 SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS_DEFAULT = 60
 INITIAL_CONNECTOR_SYNC_COMPLETED_KEY = "_initial_connector_sync_completed"
 INITIAL_CONNECTOR_SYNC_STATUS_KEY = "_initial_connector_sync_status"
@@ -266,6 +268,8 @@ INGESTION_JOB_RUNNING = "running"
 INGESTION_JOB_SUCCEEDED = "succeeded"
 INGESTION_JOB_NO_DATA = "no_data"
 INGESTION_JOB_FAILED = "failed"
+INITIAL_CONNECTOR_INITIAL_JOB_TYPE = "initial_connector_sync"
+INITIAL_CONNECTOR_BACKFILL_JOB_TYPE = "initial_connector_backfill"
 ACTIVE_INGESTION_JOB_STATUSES = {
     INGESTION_JOB_QUEUED,
     INGESTION_JOB_RUNNING,
@@ -323,6 +327,31 @@ def initial_connector_backfill_enabled(source_type: str | None = None) -> bool:
             SHOPIFY_INITIAL_BACKFILL_ENABLED_DEFAULT,
         )
     return True
+
+
+def get_initial_connector_backfill_days(
+    source_type: str | None = None,
+) -> int | None:
+    if source_type != "shopify":
+        return None
+    return (
+        _read_positive_integer_environment_value(
+            "SHOPIFY_INITIAL_BACKFILL_DAYS",
+            SHOPIFY_INITIAL_BACKFILL_DAYS_DEFAULT,
+        )
+        or SHOPIFY_INITIAL_BACKFILL_DAYS_DEFAULT
+    )
+
+
+def get_initial_connector_backfill_months(
+    source_type: str | None = None,
+) -> int | None:
+    if source_type == "shopify":
+        return _read_positive_integer_environment_value(
+            "SHOPIFY_INITIAL_BACKFILL_MONTHS",
+            None,
+        )
+    return INITIAL_CONNECTOR_BACKFILL_MONTHS
 
 
 def get_connector_max_custom_date_range_days(
@@ -1840,6 +1869,13 @@ def build_source_connection_response(
         "initial_sync_earliest_date": get_initial_connector_earliest_date(
             connection
         ).isoformat(),
+        "initial_sync_days": get_initial_connector_sync_days(source_type),
+        "initial_backfill_days": get_initial_connector_backfill_days(
+            source_type
+        ),
+        "initial_backfill_months": get_initial_connector_backfill_months(
+            source_type
+        ),
         "advanced_sync_max_days": get_connector_max_custom_date_range_days(
             source_type
         ),
@@ -2571,13 +2607,31 @@ def serialize_sync_payload(payload: DataSourceConnectionSync) -> str:
     )
 
 
+def launch_connector_ingestion_job(
+    background_tasks: BackgroundTasks | None,
+    job_id: int,
+):
+    if background_tasks is not None:
+        background_tasks.add_task(
+            run_connector_ingestion_job,
+            job_id,
+        )
+        return
+    threading.Thread(
+        target=run_connector_ingestion_job,
+        args=(job_id,),
+        daemon=True,
+    ).start()
+
+
 def enqueue_connector_ingestion_job(
     db,
     connection,
     payload: DataSourceConnectionSync,
-    background_tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks | None,
     job_type: str = "connector_sync",
     reject_if_active: bool = True,
+    launch: bool = True,
 ):
     """Persist and enqueue connector work without doing provider I/O inline."""
     active_job = get_active_ingestion_job(db, connection.id)
@@ -2603,10 +2657,8 @@ def enqueue_connector_ingestion_job(
     db.add(job)
     db.commit()
     db.refresh(job)
-    background_tasks.add_task(
-        run_connector_ingestion_job,
-        job.id,
-    )
+    if launch:
+        launch_connector_ingestion_job(background_tasks, job.id)
     return job
 
 
@@ -5019,10 +5071,17 @@ def get_initial_connector_backfill_window(
         days=get_initial_connector_sync_days(source_type) - 1
     )
     backfill_end_date = initial_start_date - timedelta(days=1)
-    backfill_start_date = subtract_calendar_months(
-        backfill_end_date,
-        INITIAL_CONNECTOR_BACKFILL_MONTHS,
-    )
+    backfill_months = get_initial_connector_backfill_months(source_type)
+    if backfill_months is not None:
+        backfill_start_date = subtract_calendar_months(
+            backfill_end_date,
+            backfill_months,
+        )
+    else:
+        backfill_days = get_initial_connector_backfill_days(source_type)
+        backfill_start_date = backfill_end_date - timedelta(
+            days=(backfill_days or 1) - 1
+        )
     return backfill_start_date, backfill_end_date
 
 
@@ -7717,6 +7776,15 @@ def _persist_ingestion_job_failure(
     )
     if connection and mark_authorization_failure:
         mark_connection_authorization_failed(connection, error)
+    if connection and job.job_type in {
+        INITIAL_CONNECTOR_INITIAL_JOB_TYPE,
+        INITIAL_CONNECTOR_BACKFILL_JOB_TYPE,
+    }:
+        set_initial_connector_sync_status(
+            connection,
+            INITIAL_CONNECTOR_SYNC_FAILED,
+            error,
+        )
 
     job.status = INGESTION_JOB_FAILED
     job.error_message = str(error)[:1000]
@@ -7741,6 +7809,7 @@ def run_connector_ingestion_job(job_id: int):
     db = SessionLocal()
     connection = None
     initial_sync_required = False
+    initial_backfill_job = False
     try:
         job = (
             db.query(DataIngestionJob)
@@ -7771,22 +7840,43 @@ def run_connector_ingestion_job(job_id: int):
                 "Connector ingestion request is invalid"
             ) from error
         payload = DataSourceConnectionSync(**payload_data)
+        initial_import_job = (
+            job.job_type == INITIAL_CONNECTOR_INITIAL_JOB_TYPE
+        )
+        initial_backfill_job = (
+            job.job_type == INITIAL_CONNECTOR_BACKFILL_JOB_TYPE
+        )
 
         initial_sync_required = (
-            not payload.advanced_date_range
-            and payload.start_date is None
-            and payload.end_date is None
-            and (
-                initial_connector_sync_is_required(db, connection)
-                or initial_connector_backfill_is_required(connection)
+            initial_import_job
+            or (
+                not payload.advanced_date_range
+                and payload.start_date is None
+                and payload.end_date is None
+                and (
+                    initial_connector_sync_is_required(db, connection)
+                    or initial_connector_backfill_is_required(connection)
+                )
             )
         )
-        if initial_sync_required:
+        if initial_backfill_job:
+            set_initial_connector_sync_status(
+                connection,
+                INITIAL_CONNECTOR_SYNC_BACKFILL,
+            )
+            db.commit()
+        elif initial_sync_required:
             set_initial_connector_sync_status(
                 connection,
                 INITIAL_CONNECTOR_SYNC_INITIAL,
             )
             db.commit()
+
+        # Explicit initial jobs own their phase. A normal scheduled job can
+        # still discover an uninitialized connection, so it uses the same
+        # transition logic below.
+        if initial_backfill_job:
+            initial_sync_required = False
 
         source = get_dataset_source(connection.source_type)
         if source and source.get("connection_type") == "oauth":
@@ -7824,52 +7914,37 @@ def run_connector_ingestion_job(job_id: int):
             sync_results,
         )
 
-        # The first phase is committed before the historical phase starts so
-        # the newest data is available while the backfill continues in this
-        # already-detached background job.
-        if initial_sync_required:
+        if initial_backfill_job:
+            set_initial_connector_sync_status(
+                connection,
+                INITIAL_CONNECTOR_SYNC_COMPLETE,
+            )
+            db.commit()
+            _set_ingestion_job_result(
+                db,
+                job_id,
+                INGESTION_JOB_SUCCEEDED,
+                result=result,
+            )
+        elif initial_sync_required:
+            # Commit the first phase and its job before launching backfill so
+            # the latest data is available and the UI can show progress for
+            # the separate historical job.
+            _set_ingestion_job_result(
+                db,
+                job_id,
+                INGESTION_JOB_SUCCEEDED,
+                result=result,
+            )
             if initial_connector_backfill_enabled(connection.source_type):
-                set_initial_connector_sync_status(
-                    connection,
-                    INITIAL_CONNECTOR_SYNC_BACKFILL,
-                )
-                db.commit()
-                run_connector_initial_backfill(connection.id)
+                queue_connector_initial_backfill(None, connection.id)
             else:
                 set_initial_connector_sync_status(
                     connection,
                     INITIAL_CONNECTOR_SYNC_COMPLETE,
                 )
                 db.commit()
-
-        db.expire_all()
-        refreshed_job = (
-            db.query(DataIngestionJob)
-            .filter(DataIngestionJob.id == job_id)
-            .first()
-        )
-        refreshed_connection = (
-            db.query(DataSourceConnection)
-            .filter(DataSourceConnection.id == connection.id)
-            .first()
-        )
-        if (
-            refreshed_connection
-            and initial_sync_required
-            and get_initial_connector_sync_status(refreshed_connection)
-            == INITIAL_CONNECTOR_SYNC_FAILED
-        ):
-            _set_ingestion_job_result(
-                db,
-                job_id,
-                INGESTION_JOB_FAILED,
-                result=result,
-                error_message=(
-                    "Initial connector backfill failed after the first "
-                    "dataset was stored."
-                ),
-            )
-        elif refreshed_job:
+        else:
             _set_ingestion_job_result(
                 db,
                 job_id,
@@ -7879,6 +7954,33 @@ def run_connector_ingestion_job(job_id: int):
     except ConnectorNoData as error:
         if initial_sync_required and connection:
             db.rollback()
+            _set_ingestion_job_result(
+                db,
+                job_id,
+                INGESTION_JOB_NO_DATA,
+                result={
+                    "connection_id": getattr(connection, "id", None),
+                    "status": INGESTION_JOB_NO_DATA,
+                    "message": str(error),
+                    "datasets": [],
+                },
+            )
+            if initial_connector_backfill_enabled(connection.source_type):
+                queue_connector_initial_backfill(None, connection.id)
+            else:
+                current_connection = (
+                    db.query(DataSourceConnection)
+                    .filter(DataSourceConnection.id == connection.id)
+                    .first()
+                )
+                if current_connection:
+                    set_initial_connector_sync_status(
+                        current_connection,
+                        INITIAL_CONNECTOR_SYNC_COMPLETE,
+                    )
+                    db.commit()
+        elif initial_backfill_job and connection:
+            db.rollback()
             current_connection = (
                 db.query(DataSourceConnection)
                 .filter(DataSourceConnection.id == connection.id)
@@ -7887,26 +7989,34 @@ def run_connector_ingestion_job(job_id: int):
             if current_connection:
                 set_initial_connector_sync_status(
                     current_connection,
-                    (
-                        INITIAL_CONNECTOR_SYNC_BACKFILL
-                        if initial_connector_backfill_enabled(
-                            current_connection.source_type
-                        )
-                        else INITIAL_CONNECTOR_SYNC_COMPLETE
-                    ),
+                    INITIAL_CONNECTOR_SYNC_COMPLETE,
                 )
                 db.commit()
-        _set_ingestion_job_result(
-            db,
-            job_id,
-            INGESTION_JOB_NO_DATA,
-            result={
-                "connection_id": getattr(connection, "id", None),
-                "status": INGESTION_JOB_NO_DATA,
-                "message": str(error),
-                "datasets": [],
-            },
-        )
+            _set_ingestion_job_result(
+                db,
+                job_id,
+                INGESTION_JOB_NO_DATA,
+                result={
+                    "connection_id": getattr(connection, "id", None),
+                    "status": INGESTION_JOB_NO_DATA,
+                    "message": str(error),
+                    "datasets": [],
+                },
+            )
+            return
+        else:
+            _set_ingestion_job_result(
+                db,
+                job_id,
+                INGESTION_JOB_NO_DATA,
+                result={
+                    "connection_id": getattr(connection, "id", None),
+                    "status": INGESTION_JOB_NO_DATA,
+                    "message": str(error),
+                    "datasets": [],
+                },
+            )
+        return
     except (
         GoogleAnalyticsConnectorUnavailable,
         ConnectorUnavailable,
@@ -8051,9 +8161,6 @@ def queue_connector_initial_backfill(
     connection_id: int,
 ):
     """Queue the historical phase after the first dataset is committed."""
-    if background_tasks is None:
-        return False
-
     db = SessionLocal()
     try:
         connection = (
@@ -8077,17 +8184,16 @@ def queue_connector_initial_backfill(
 
         status = get_initial_connector_sync_status(connection)
         if status in {
-            INITIAL_CONNECTOR_SYNC_INITIAL,
             INITIAL_CONNECTOR_SYNC_BACKFILL,
             INITIAL_CONNECTOR_SYNC_COMPLETE,
         }:
             return False
+        if get_active_ingestion_job(db, connection.id):
+            return False
         connection_config = parse_schedule_config(
             connection.connection_config
         )
-        if not connection_config.get(
-            "_initial_connector_backfill_start_date"
-        ):
+        if not connection_config.get("_initial_connector_backfill_start_date"):
             backfill_start, backfill_end = (
                 get_initial_connector_backfill_window(
                     source_type=connection.source_type,
@@ -8103,15 +8209,30 @@ def queue_connector_initial_backfill(
                 connection_config,
                 sort_keys=True,
             )
+        start_date = date.fromisoformat(
+            str(connection_config["_initial_connector_backfill_start_date"])
+        )
+        end_date = date.fromisoformat(
+            str(connection_config["_initial_connector_backfill_end_date"])
+        )
+        job = enqueue_connector_ingestion_job(
+            db,
+            connection,
+            DataSourceConnectionSync(
+                advanced_date_range=True,
+                start_date=start_date,
+                end_date=end_date,
+            ),
+            background_tasks=None,
+            job_type=INITIAL_CONNECTOR_BACKFILL_JOB_TYPE,
+            launch=False,
+        )
         set_initial_connector_sync_status(
             connection,
             INITIAL_CONNECTOR_SYNC_BACKFILL,
         )
         db.commit()
-        background_tasks.add_task(
-            run_connector_initial_backfill,
-            connection.id,
-        )
+        launch_connector_ingestion_job(background_tasks, job.id)
         return True
     finally:
         db.close()
@@ -8122,9 +8243,6 @@ def queue_connector_initial_import(
     connection_id: int,
 ):
     """Start the two-phase import after an OAuth grant is stored."""
-    if background_tasks is None:
-        return False
-
     db = SessionLocal()
     try:
         connection = (
@@ -8152,11 +8270,16 @@ def queue_connector_initial_import(
             connection,
             INITIAL_CONNECTOR_SYNC_PENDING,
         )
-        db.commit()
-        background_tasks.add_task(
-            run_connector_initial_import,
-            connection.id,
+        job = enqueue_connector_ingestion_job(
+            db,
+            connection,
+            DataSourceConnectionSync(),
+            background_tasks=None,
+            job_type=INITIAL_CONNECTOR_INITIAL_JOB_TYPE,
+            launch=False,
         )
+        db.commit()
+        launch_connector_ingestion_job(background_tasks, job.id)
         return True
     finally:
         db.close()
@@ -8645,7 +8768,8 @@ async def sync_source_connection(
                 status_code=409,
                 detail=(
                     "The connector's initial import is still running. "
-                    "The latest 90 days will be available first, followed "
+                    f"The latest {get_initial_connector_sync_days(connection.source_type)} "
+                    "days will be available first, followed "
                     "by the historical import."
                 ),
             )
