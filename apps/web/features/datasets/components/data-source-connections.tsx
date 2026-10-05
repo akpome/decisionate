@@ -771,7 +771,8 @@ function DataSourceConnectionRow({
     source?.connection_type === "oauth" &&
     source.status === "available" &&
     (connection.status !== "connected" ||
-      connection.source_type === "sage") &&
+      connection.source_type === "sage" ||
+      connection.source_type === "meta_ads") &&
     hasRequiredConnectionSettings &&
     Boolean(onStartOAuthConnection)
   const canCancelOAuth =
