@@ -1038,6 +1038,16 @@ function DataSourceConnectionRow({
           </p>
         )}
 
+        {connection.ingestion_job?.status === "no_data" && (
+          <p
+            className="mt-2 break-words text-xs text-amber-700"
+            role="status"
+          >
+            {connection.ingestion_job.error_message ||
+              `No ${connection.source_label} data was found for the selected period.`}
+          </p>
+        )}
+
         {connection.ingestion_job?.status === "failed" &&
           connection.ingestion_job.error_message && (
             <p

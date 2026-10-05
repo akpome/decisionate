@@ -8193,13 +8193,22 @@ def _set_ingestion_job_result(
     )
     if not job:
         return
+    result_message = (
+        str(result.get("message") or "").strip()
+        if status == INGESTION_JOB_NO_DATA and isinstance(result, dict)
+        else ""
+    )
     job.status = status
     job.result_payload = (
         json.dumps(result, default=str, sort_keys=True)
         if result is not None
         else None
     )
-    job.error_message = str(error_message)[:1000] if error_message else None
+    job.error_message = (
+        str(error_message or result_message)[:1000]
+        if error_message or result_message
+        else None
+    )
     job.completed_at = utc_now()
     db.commit()
 
