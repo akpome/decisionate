@@ -773,9 +773,18 @@ function DataSourceConnectionRow({
     (!showOAuthAccountSelection ||
       hasSelectedOAuthAccount)
   const canSyncConnector =
-    canUseAdvancedDateRange &&
-    !initialSyncInProgress &&
-    !ingestionInProgress
+    advancedDateRangeSupported &&
+    !sourceIsPlanned &&
+    source?.status === "available" &&
+    stripeKeyConfigured &&
+    hasRequiredConnectionConfig &&
+    (source?.connection_type !== "oauth" ||
+      connection.status === "connected") &&
+    (!hasResourceSelection ||
+      selectedResourceTypes.length > 0) &&
+    (!showOAuthAccountSelection ||
+      hasSelectedOAuthAccount) &&
+    Boolean(onSyncConnection)
   const canStartOAuth =
     source?.connection_type === "oauth" &&
     source.status === "available" &&
@@ -1182,7 +1191,9 @@ function DataSourceConnectionRow({
                     syncingConnectionId ===
                       connection.id ||
                     updatingConnectionId ===
-                      connection.id
+                      connection.id ||
+                    initialSyncInProgress ||
+                    ingestionInProgress
                   }
                   className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
