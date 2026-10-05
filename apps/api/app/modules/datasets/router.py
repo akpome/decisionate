@@ -258,6 +258,7 @@ SHOPIFY_INITIAL_BACKFILL_DAYS_DEFAULT = 30
 SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS_DEFAULT = 60
 INITIAL_CONNECTOR_SYNC_COMPLETED_KEY = "_initial_connector_sync_completed"
 INITIAL_CONNECTOR_SYNC_STATUS_KEY = "_initial_connector_sync_status"
+INITIAL_CONNECTOR_SYNC_MESSAGE_KEY = "_initial_connector_sync_message"
 INITIAL_CONNECTOR_SYNC_PENDING = "pending"
 INITIAL_CONNECTOR_SYNC_INITIAL = "initial"
 INITIAL_CONNECTOR_SYNC_BACKFILL = "backfill"
@@ -1950,6 +1951,12 @@ def build_source_connection_response(
         "last_synced_at": connection.last_synced_at,
         "initial_sync_status": parsed_config.get(
             INITIAL_CONNECTOR_SYNC_STATUS_KEY
+        ),
+        "initial_sync_error": parsed_config.get(
+            "_initial_connector_sync_error"
+        ),
+        "initial_sync_message": parsed_config.get(
+            INITIAL_CONNECTOR_SYNC_MESSAGE_KEY
         ),
         "initial_sync_earliest_date": get_initial_connector_earliest_date(
             connection
@@ -5066,6 +5073,7 @@ async def update_source_connection(
         source = get_dataset_source(
             connection.source_type
         )
+        oauth_account_selection_update = False
 
         if payload.display_name is not None:
             connection.display_name = sanitize_source_connection_display_name(
@@ -5200,6 +5208,41 @@ async def update_source_connection(
                     ],
                     None,
                 )
+            oauth_account_key = source.get("oauth_account_key") if source else None
+            oauth_account_selection_update = bool(
+                source
+                and source.get("connection_type") == "oauth"
+                and oauth_account_key
+                and oauth_account_key in next_config
+                and has_config_value(next_config.get(oauth_account_key))
+            )
+            if oauth_account_selection_update:
+                connection.authorization_error = None
+                connection.authorization_error_at = None
+                connection.authorization_notification_error = None
+                connection.authorization_notification_sent_at = None
+                if not get_active_ingestion_job(db, connection.id):
+                    initial_status = get_initial_connector_sync_status(
+                        connection
+                    )
+                    if initial_status in {
+                        INITIAL_CONNECTOR_SYNC_PENDING,
+                        INITIAL_CONNECTOR_SYNC_INITIAL,
+                        INITIAL_CONNECTOR_SYNC_BACKFILL,
+                        INITIAL_CONNECTOR_SYNC_FAILED,
+                    }:
+                        next_config.pop(
+                            INITIAL_CONNECTOR_SYNC_STATUS_KEY,
+                            None,
+                        )
+                        next_config.pop(
+                            "_initial_connector_sync_error",
+                            None,
+                        )
+                        next_config.pop(
+                            INITIAL_CONNECTOR_SYNC_MESSAGE_KEY,
+                            None,
+                        )
             previous_sage_country = normalize_sage_country(
                 existing_config.get("country")
             )
@@ -5371,6 +5414,23 @@ def set_initial_connector_sync_status(
         connection_config["_initial_connector_sync_error"] = str(error)[:500]
     else:
         connection_config.pop("_initial_connector_sync_error", None)
+    connection.connection_config = json.dumps(
+        connection_config,
+        sort_keys=True,
+    )
+
+
+def set_initial_connector_sync_message(
+    connection,
+    message: str | None = None,
+):
+    connection_config = parse_schedule_config(
+        getattr(connection, "connection_config", None)
+    )
+    if message:
+        connection_config[INITIAL_CONNECTOR_SYNC_MESSAGE_KEY] = str(message)[:500]
+    else:
+        connection_config.pop(INITIAL_CONNECTOR_SYNC_MESSAGE_KEY, None)
     connection.connection_config = json.dumps(
         connection_config,
         sort_keys=True,
@@ -8814,6 +8874,11 @@ def run_connector_ingestion_job(job_id: int):
                     "datasets": [],
                 },
             )
+            set_initial_connector_sync_message(
+                connection,
+                str(error),
+            )
+            db.commit()
             if initial_connector_backfill_enabled(connection.source_type):
                 queue_connector_initial_backfill(None, connection.id)
             else:
@@ -8826,6 +8891,10 @@ def run_connector_ingestion_job(job_id: int):
                     set_initial_connector_sync_status(
                         current_connection,
                         INITIAL_CONNECTOR_SYNC_COMPLETE,
+                    )
+                    set_initial_connector_sync_message(
+                        current_connection,
+                        str(error),
                     )
                     db.commit()
                 queue_connector_initial_analysis(None, connection.id)
@@ -8840,6 +8909,10 @@ def run_connector_ingestion_job(job_id: int):
                 set_initial_connector_sync_status(
                     current_connection,
                     INITIAL_CONNECTOR_SYNC_COMPLETE,
+                )
+                set_initial_connector_sync_message(
+                    current_connection,
+                    str(error),
                 )
                 db.commit()
             _set_ingestion_job_result(

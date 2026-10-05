@@ -670,12 +670,21 @@ function DataSourceConnectionRow({
   )
   const hasOAuthAccountOptions =
     oauthAccountOptions.length > 0
-  const initialImportInProgress = [
+  const initialImportPhase = [
     "pending",
     "initial",
   ].includes(connection.initial_sync_status ?? "")
   const historicalImportInProgress =
     connection.initial_sync_status === "backfill"
+  const ingestionJobIsActive = [
+    "queued",
+    "running",
+  ].includes(connection.ingestion_job?.status ?? "")
+  const initialImportInProgress =
+    initialImportPhase &&
+    ingestionJobIsActive &&
+    !connection.authorization_error &&
+    !connection.initial_sync_message
   const initialSyncInProgress =
     initialImportInProgress || historicalImportInProgress
   const initialSyncCompleted =
@@ -1021,6 +1030,25 @@ function DataSourceConnectionRow({
             )}
           </p>
         )}
+
+        {connection.initial_sync_message && (
+          <p
+            className="mt-2 break-words text-xs text-amber-700"
+            role="status"
+          >
+            {connection.initial_sync_message}
+          </p>
+        )}
+
+        {connection.initial_sync_status === "failed" &&
+          connection.initial_sync_error && (
+            <p
+              className="mt-2 break-words text-xs text-red-700"
+              role="alert"
+            >
+              {connection.initial_sync_error}
+            </p>
+          )}
 
         {ingestionInProgress && (
           <p
