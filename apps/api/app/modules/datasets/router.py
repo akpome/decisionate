@@ -1532,6 +1532,20 @@ def build_dataset_summary_response(
     }
 
 
+def normalize_dataset_details_dataframe(dataframe):
+    """Ensure legacy duplicate headers remain addressable as Series."""
+    if not isinstance(dataframe, pd.DataFrame):
+        return dataframe
+    if not dataframe.columns.has_duplicates:
+        return dataframe
+
+    normalized = dataframe.copy()
+    normalized.columns = _unique_connector_column_names(
+        normalized.columns
+    )
+    return normalized
+
+
 def build_dataset_list_response(datasets):
     responses = [
         build_dataset_summary_response(dataset)
@@ -1575,6 +1589,9 @@ def build_dataset_details_response(
     include_ai_analysis: bool = True,
     persisted_analysis=None,
 ):
+    dataframe = normalize_dataset_details_dataframe(
+        dataframe,
+    )
     metric_profile = build_metric_selection_profile(
         dataset,
         dataframe,

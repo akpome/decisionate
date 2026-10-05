@@ -24,6 +24,7 @@ from app.modules.datasets.router import (
     build_dataset_details_response,
     build_dataset_summary_response,
     get_dataset_analysis_for_details,
+    normalize_dataset_details_dataframe,
     build_source_connection_response,
     build_source_connection_status,
     cleanup_deleted_dataset_preferences,
@@ -179,6 +180,40 @@ class DatasetSharingTests(unittest.TestCase):
             )
 
         get_analysis.assert_not_called()
+
+    def test_dataset_details_normalizes_duplicate_columns(self):
+        dataframe = pd.DataFrame(
+            [[1, 2], [3, 4]],
+            columns=["value", "value"],
+        )
+
+        normalized = normalize_dataset_details_dataframe(
+            dataframe,
+        )
+
+        self.assertEqual(
+            list(normalized.columns),
+            ["value", "value__duplicate_2"],
+        )
+        response = build_dataset_details_response(
+            SimpleNamespace(
+                id=4,
+                user_id="user-1",
+                workspace_id="workspace-1",
+                source_type="csv",
+                source_config=None,
+                file_name="duplicate.csv",
+                row_count=2,
+                column_count=2,
+                created_at=None,
+            ),
+            dataframe,
+            include_ai_analysis=False,
+        )
+        self.assertEqual(
+            response["columns"],
+            ["value", "value__duplicate_2"],
+        )
 
     def build_memory_source_connection_session_factory(self):
         engine = create_engine(
