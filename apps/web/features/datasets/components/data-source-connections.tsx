@@ -755,23 +755,6 @@ function DataSourceConnectionRow({
     "mysql",
     "sql_server",
   ].includes(connection.source_type)
-  const canShowAdvancedDateRange =
-    advancedDateRangeSupported &&
-    initialSyncCompleted &&
-    !sourceIsPlanned &&
-    !ingestionInProgress &&
-    Boolean(onSyncConnection)
-  const canUseAdvancedDateRange =
-    canShowAdvancedDateRange &&
-    source?.status === "available" &&
-    stripeKeyConfigured &&
-    hasRequiredConnectionConfig &&
-    (source?.connection_type !== "oauth" ||
-      connection.status === "connected") &&
-    (!hasResourceSelection ||
-      selectedResourceTypes.length > 0) &&
-    (!showOAuthAccountSelection ||
-      hasSelectedOAuthAccount)
   const canSyncConnector =
     advancedDateRangeSupported &&
     !sourceIsPlanned &&
@@ -785,6 +768,21 @@ function DataSourceConnectionRow({
     (!showOAuthAccountSelection ||
       hasSelectedOAuthAccount) &&
     Boolean(onSyncConnection)
+  const canShowAdvancedDateRange =
+    canSyncConnector &&
+    initialSyncCompleted &&
+    !ingestionInProgress
+  const canUseAdvancedDateRange =
+    canShowAdvancedDateRange &&
+    source?.status === "available" &&
+    stripeKeyConfigured &&
+    hasRequiredConnectionConfig &&
+    (source?.connection_type !== "oauth" ||
+      connection.status === "connected") &&
+    (!hasResourceSelection ||
+      selectedResourceTypes.length > 0) &&
+    (!showOAuthAccountSelection ||
+      hasSelectedOAuthAccount)
   const canStartOAuth =
     source?.connection_type === "oauth" &&
     source.status === "available" &&
