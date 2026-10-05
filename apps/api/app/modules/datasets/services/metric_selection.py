@@ -92,11 +92,14 @@ def _looks_like_time_column(column, series: pd.Series) -> bool:
         return True
 
     if not pd.api.types.is_numeric_dtype(series):
-        parsed = pd.to_datetime(
-            series,
-            errors="coerce",
-            format="mixed",
-        )
+        try:
+            parsed = pd.to_datetime(
+                series,
+                errors="coerce",
+                format="mixed",
+            )
+        except (TypeError, ValueError):
+            return False
         return parsed.notna().sum() >= max(2, int(series.notna().sum() * 0.8))
 
     if not words.intersection({"epoch", "unix", "timestamp", "time"}):
@@ -122,6 +125,24 @@ def _completeness(series: pd.Series, numeric_series: pd.Series | None) -> float:
         else series.notna()
     )
     return float(valid.sum() / len(series))
+
+
+def _distinct_value_count(series: pd.Series) -> int:
+    """Count dimension values even when legacy rows contain lists or dicts."""
+    values = series.dropna()
+    try:
+        return int(values.nunique())
+    except (TypeError, ValueError):
+        normalized_values = values.map(
+            lambda value: json.dumps(
+                value,
+                sort_keys=True,
+                default=str,
+            )
+            if isinstance(value, (dict, list, tuple, set))
+            else str(value)
+        )
+        return int(normalized_values.nunique())
 
 
 def _variation(numeric_series: pd.Series, valid_count: int) -> float:
@@ -327,7 +348,7 @@ def build_metric_selection_profile(
             if is_numeric and numeric_series is not None
             else series.notna().sum()
         )
-        distinct_count = int(series.dropna().nunique())
+        distinct_count = _distinct_value_count(series)
         unique_ratio = (
             distinct_count / valid_count
             if valid_count

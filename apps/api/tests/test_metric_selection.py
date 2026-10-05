@@ -96,6 +96,31 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             ],
         )
 
+    def test_profile_handles_legacy_list_valued_dimensions(self):
+        dataframe = pd.DataFrame({
+            "date": ["2026-01-01", "2026-01-02"],
+            "actions": [
+                [{"action_type": "lead", "value": 1}],
+                [{"action_type": "purchase", "value": 2}],
+            ],
+            "spend": [10.0, 20.0],
+        })
+
+        profile = build_metric_selection_profile(
+            SimpleNamespace(
+                source_type="meta_ads",
+                source_config=None,
+            ),
+            dataframe,
+        )
+
+        fields = {
+            field["column"]: field
+            for field in profile["fields"]
+        }
+        self.assertIn("actions", fields)
+        self.assertIn("spend", profile["available_metric_columns"])
+
     def test_unrecognized_numeric_columns_require_confirmation(self):
         dataframe = pd.DataFrame({
             **{
