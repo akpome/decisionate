@@ -728,6 +728,13 @@ class DatasetSharingTests(unittest.TestCase):
             source["config_keys"],
             ["country", "business_id", "resource_types"],
         )
+        self.assertEqual(
+            [
+                option["value"]
+                for option in source["config_options"]["country"]
+            ],
+            ["CA", "US", "DE", "ES", "FR", "GB", "IE"],
+        )
 
     def test_freshbooks_exposes_resource_selector(self):
         source = get_dataset_source("freshbooks")

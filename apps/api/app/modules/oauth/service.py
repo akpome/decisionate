@@ -729,6 +729,16 @@ def get_zoho_books_organizations(
     ]
 
 
+SAGE_SUPPORTED_COUNTRIES = (
+    ("CA", "Canada"),
+    ("US", "United States"),
+    ("DE", "Germany"),
+    ("ES", "Spain"),
+    ("FR", "France"),
+    ("GB", "United Kingdom"),
+    ("IE", "Ireland"),
+)
+
 SAGE_COUNTRY_ALIASES = {
     "CA": "CA",
     "CAN": "CA",

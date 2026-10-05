@@ -14,6 +14,7 @@ from app.modules.oauth.service import (
     get_callback_url,
     get_fernet,
     is_oauth_provider_configured,
+    SAGE_SUPPORTED_COUNTRIES,
 )
 
 
@@ -389,6 +390,12 @@ DATASET_SOURCES = [
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["country", "business_id", "resource_types"],
         "required_config_keys": ["country", "resource_types"],
+        "config_options": {
+            "country": [
+                {"value": code, "label": label}
+                for code, label in SAGE_SUPPORTED_COUNTRIES
+            ],
+        },
         "description": (
             "Choose one or more Sage Cloud Accounting objects to ingest through "
             "OAuth: sales invoices, purchase invoices, sales credit notes, "
@@ -711,6 +718,13 @@ def clone_dataset_source(source):
         "required_config_keys": [
             *source.get("required_config_keys", []),
         ],
+        "config_options": {
+            key: [*options]
+            for key, options in source.get(
+                "config_options",
+                {},
+            ).items()
+        },
     }
     env_keys = DATASET_SOURCE_ENV_KEYS.get(
         source["type"],

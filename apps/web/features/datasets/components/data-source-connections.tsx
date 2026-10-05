@@ -1473,6 +1473,7 @@ function DataSourceConnectionRow({
                     configKey !== "resource_types"
                 )}
                 sourceType={connection.source_type}
+                source={source}
                 editingConnectionConfig={
                   editingConnectionConfig
                 }
@@ -1654,6 +1655,7 @@ function DataSourceConnectionRow({
                     title="Connection settings"
                     configKeys={connectionSettingsConfigKeys}
                     sourceType={connection.source_type}
+                    source={source}
                     editingConnectionConfig={
                       editingConnectionConfig
                     }
@@ -2521,6 +2523,7 @@ function ConnectionConfigFieldGroup({
   title,
   configKeys,
   sourceType,
+  source,
   editingConnectionConfig,
   hasSavedConfig,
   setEditingConnectionConfig,
@@ -2531,6 +2534,7 @@ function ConnectionConfigFieldGroup({
   title: string
   configKeys: string[]
   sourceType?: string
+  source?: DatasetSourceOption
   editingConnectionConfig: Record<string, string>
   hasSavedConfig: boolean
   setEditingConnectionConfig: (
@@ -2554,6 +2558,7 @@ function ConnectionConfigFieldGroup({
             key={configKey}
             configKey={configKey}
             sourceType={sourceType}
+            source={source}
             value={
               editingConnectionConfig[
                 configKey
@@ -2579,6 +2584,7 @@ function ConnectionConfigFieldGroup({
 function ConnectionConfigField({
   configKey,
   sourceType,
+  source,
   value,
   hasSavedConfig,
   secret,
@@ -2587,6 +2593,7 @@ function ConnectionConfigField({
 }: {
   configKey: string
   sourceType?: string
+  source?: DatasetSourceOption
   value: string
   hasSavedConfig: boolean
   secret?: boolean
@@ -2622,6 +2629,10 @@ function ConnectionConfigField({
     : `Show ${label.toLowerCase()}`
 
   if (sourceType === "sage" && configKey === "country") {
+    const countryOptions =
+      source?.config_options?.country ??
+      SAGE_COUNTRY_OPTIONS
+
     return (
       <label className="block min-w-0 text-xs font-medium uppercase tracking-wide text-gray-500">
         <span>{label}</span>
@@ -2631,7 +2642,7 @@ function ConnectionConfigField({
           className={`${sharedClassName} h-9`}
         >
           <option value="">Select a region</option>
-          {SAGE_COUNTRY_OPTIONS.map((option) => (
+          {countryOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>

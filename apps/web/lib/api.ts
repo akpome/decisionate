@@ -528,6 +528,13 @@ export type DatasetSourceOption = {
   sync_modes?: string[]
   config_keys?: string[]
   required_config_keys?: string[]
+  config_options?: Record<
+    string,
+    Array<{
+      value: string
+      label: string
+    }>
+  >
   status: DatasetSourceStatus
   description: string
   availability_note?: string | null
