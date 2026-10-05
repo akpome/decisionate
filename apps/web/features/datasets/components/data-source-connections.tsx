@@ -1638,7 +1638,7 @@ function DataSourceConnectionRow({
             Syncs follow this local time in {scheduleTimezone || "your local timezone"}.
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            Connector data is kept raw for 24 months, then summarized for permanent historical analysis.
+            Connector data is retained for 3 years, then deleted.
           </p>
         </div>
       )}
