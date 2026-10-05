@@ -1764,6 +1764,16 @@ def get_dataset_analysis_record(db, dataset_id: int):
     )
 
 
+def get_dataset_analysis_for_details(
+    db,
+    dataset_id: int,
+    include_ai_analysis: bool,
+):
+    if not include_ai_analysis:
+        return None
+    return get_dataset_analysis_record(db, dataset_id)
+
+
 def parse_dataset_analysis_payload(record):
     if not record or record.status != CONNECTOR_ANALYSIS_COMPLETE:
         return None
@@ -10692,9 +10702,10 @@ async def dataset_details(
                     learning_scope="dataset",
                 )
             )
-        persisted_analysis = get_dataset_analysis_record(
+        persisted_analysis = get_dataset_analysis_for_details(
             db,
             dataset.id,
+            include_ai_analysis,
         )
         return await asyncio.to_thread(
             build_dataset_details_response,

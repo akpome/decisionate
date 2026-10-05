@@ -23,6 +23,7 @@ from app.modules.datasets.router import (
     build_dataset_share_status,
     build_dataset_details_response,
     build_dataset_summary_response,
+    get_dataset_analysis_for_details,
     build_source_connection_response,
     build_source_connection_status,
     cleanup_deleted_dataset_preferences,
@@ -165,6 +166,20 @@ class FakeFailingUploadDb:
 
 
 class DatasetSharingTests(unittest.TestCase):
+    def test_dataset_details_skips_analysis_lookup_when_disabled(self):
+        with patch(
+            "app.modules.datasets.router.get_dataset_analysis_record",
+        ) as get_analysis:
+            self.assertIsNone(
+                get_dataset_analysis_for_details(
+                    object(),
+                    56,
+                    False,
+                ),
+            )
+
+        get_analysis.assert_not_called()
+
     def build_memory_source_connection_session_factory(self):
         engine = create_engine(
             "sqlite:///:memory:",
