@@ -2800,6 +2800,62 @@ def get_latest_connection_jobs(
     )
 
 
+def recover_orphaned_oauth_initial_import(db, connection) -> bool:
+    """Restart an initial OAuth import left in a phase without a job."""
+    source = get_dataset_source(connection.source_type)
+    oauth_account_key = source.get("oauth_account_key") if source else None
+    if not (
+        source
+        and source.get("connection_type") == "oauth"
+        and oauth_account_key
+    ):
+        return False
+
+    connection_config = parse_schedule_config(
+        connection.connection_config
+    )
+    if not has_config_value(connection_config.get(oauth_account_key)):
+        return False
+
+    changed = False
+    if connection.authorization_error:
+        connection.authorization_error = None
+        connection.authorization_error_at = None
+        connection.authorization_notification_error = None
+        connection.authorization_notification_sent_at = None
+        changed = True
+
+    if get_active_ingestion_job(db, connection.id):
+        if changed:
+            db.commit()
+        return False
+
+    initial_status = get_initial_connector_sync_status(connection)
+    if initial_status not in {
+        INITIAL_CONNECTOR_SYNC_PENDING,
+        INITIAL_CONNECTOR_SYNC_INITIAL,
+    }:
+        if changed:
+            db.commit()
+        return False
+
+    for key in (
+        INITIAL_CONNECTOR_SYNC_STATUS_KEY,
+        "_initial_connector_sync_error",
+        INITIAL_CONNECTOR_SYNC_MESSAGE_KEY,
+    ):
+        if key in connection_config:
+            connection_config.pop(key, None)
+            changed = True
+    connection.connection_config = json.dumps(
+        connection_config,
+        sort_keys=True,
+    )
+    db.commit()
+    queue_connector_initial_import(None, connection.id)
+    return True
+
+
 def serialize_sync_payload(payload: DataSourceConnectionSync) -> str:
     return json.dumps(
         payload.model_dump(mode="json"),
@@ -4874,6 +4930,9 @@ async def get_source_connections(
             )
             .all()
         )
+        for connection in connections:
+            recover_orphaned_oauth_initial_import(db, connection)
+        db.expire_all()
         connection_ids = [connection.id for connection in connections]
         (
             latest_ingestion_jobs,
