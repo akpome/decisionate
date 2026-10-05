@@ -1,7 +1,11 @@
 from datetime import date
 from datetime import datetime
+from decimal import Decimal
 import math
+from numbers import Integral
+from numbers import Real
 
+import numpy as np
 import pandas as pd
 
 
@@ -53,6 +57,9 @@ def dataframe_to_json_records(
 
 
 def to_json_value(value):
+    if value is None:
+        return None
+
     if isinstance(
         value,
         pd.Timestamp,
@@ -70,5 +77,52 @@ def to_json_value(value):
         date,
     ):
         return value.isoformat()
+
+    if isinstance(value, dict):
+        return {
+            str(key): to_json_value(child)
+            for key, child in value.items()
+        }
+
+    if isinstance(value, (list, tuple, set)):
+        return [
+            to_json_value(child)
+            for child in value
+        ]
+
+    if isinstance(value, np.ndarray):
+        return to_json_value(value.tolist())
+
+    if isinstance(value, np.generic):
+        return to_json_value(value.item())
+
+    if isinstance(value, Decimal):
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return str(value)
+        return (
+            numeric_value
+            if math.isfinite(numeric_value)
+            else None
+        )
+
+    if isinstance(value, Integral):
+        return int(value)
+
+    if isinstance(value, Real):
+        numeric_value = float(value)
+        return (
+            numeric_value
+            if math.isfinite(numeric_value)
+            else None
+        )
+
+    try:
+        missing = pd.isna(value)
+    except (TypeError, ValueError):
+        missing = False
+    if isinstance(missing, (bool, np.bool_)) and bool(missing):
+        return None
 
     return value

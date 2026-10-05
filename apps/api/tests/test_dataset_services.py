@@ -1,6 +1,8 @@
 import unittest
 from datetime import date
 from datetime import datetime
+from decimal import Decimal
+import json
 
 import pandas as pd
 
@@ -160,6 +162,41 @@ class DatasetServiceSerializationTests(unittest.TestCase):
                 },
             ],
         )
+
+    def test_dataframe_to_json_records_sanitizes_non_json_values(self):
+        records = dataframe_to_json_records(
+            pd.DataFrame({
+                "infinite": [
+                    float("inf"),
+                    float("-inf"),
+                ],
+                "decimal": [
+                    Decimal("1.25"),
+                    Decimal("2.50"),
+                ],
+                "nested": [
+                    {"value": float("inf")},
+                    [Decimal("3.75")],
+                ],
+            })
+        )
+
+        self.assertEqual(
+            records,
+            [
+                {
+                    "infinite": None,
+                    "decimal": 1.25,
+                    "nested": {"value": None},
+                },
+                {
+                    "infinite": None,
+                    "decimal": 2.5,
+                    "nested": [3.75],
+                },
+            ],
+        )
+        json.dumps(records, allow_nan=False)
 
     def test_to_json_number_returns_float_for_missing_values(self):
         self.assertEqual(
