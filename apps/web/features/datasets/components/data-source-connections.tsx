@@ -668,8 +668,8 @@ function DataSourceConnectionRow({
   const hasSelectedOAuthAccount = Boolean(
     connection.oauth_account_value
   )
-  const hasMultipleOAuthAccounts =
-    oauthAccountOptions.length > 1
+  const hasOAuthAccountOptions =
+    oauthAccountOptions.length > 0
   const initialImportInProgress = [
     "pending",
     "initial",
@@ -690,8 +690,8 @@ function DataSourceConnectionRow({
     connection.source_type === "sage"
   const requiresOAuthAccountSelection =
     isOAuthAuthorized &&
-    hasMultipleOAuthAccounts &&
-    Boolean(connection.oauth_account_key) &&
+    hasOAuthAccountOptions &&
+    Boolean(oauthAccountKey) &&
     !hasSelectedOAuthAccount
   const showSageBusinessSelection =
     isSageConnector &&
@@ -1719,7 +1719,7 @@ function DataSourceConnectionRow({
               onConfigureConnection?.(
                 connection,
                 {
-                  [connection.oauth_account_key ?? ""]: value,
+                  [oauthAccountKey ?? ""]: value,
                 }
               )
             }
