@@ -78,6 +78,9 @@ def to_json_value(value):
     ):
         return value.isoformat()
 
+    if isinstance(value, (pd.Period, pd.Timedelta)):
+        return str(value)
+
     if isinstance(value, dict):
         return {
             str(key): to_json_value(child)
@@ -125,4 +128,10 @@ def to_json_value(value):
     if isinstance(missing, (bool, np.bool_)) and bool(missing):
         return None
 
-    return value
+    if isinstance(value, (str, bool)):
+        return value
+
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+
+    return str(value)

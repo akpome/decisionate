@@ -278,6 +278,7 @@ CONNECTOR_ANALYSIS_PENDING = "pending"
 CONNECTOR_ANALYSIS_RUNNING = "running"
 CONNECTOR_ANALYSIS_COMPLETE = "complete"
 CONNECTOR_ANALYSIS_FAILED = "failed"
+DATASET_DETAILS_FULL_CHART_MAX_ROWS = 10000
 ACTIVE_INGESTION_JOB_STATUSES = {
     INGESTION_JOB_QUEUED,
     INGESTION_JOB_RUNNING,
@@ -1621,6 +1622,35 @@ def build_dataset_details_response(
             aggregation_type,
         )
 
+    chart = None
+    try:
+        chart = generate_chart_data(
+            report_dataframe,
+            limit=chart_limit,
+            date_column=date_column,
+        )
+    except Exception:
+        logger.exception(
+            "Dataset chart generation failed; using a bounded fallback",
+            extra={
+                "dataset_id": getattr(dataset, "id", None),
+                "chart_limit": chart_limit,
+            },
+        )
+        try:
+            chart = generate_chart_data(
+                report_dataframe,
+                limit=50,
+                date_column=date_column,
+            )
+        except Exception:
+            logger.exception(
+                "Bounded dataset chart generation also failed",
+                extra={
+                    "dataset_id": getattr(dataset, "id", None),
+                },
+            )
+
     response = {
         **build_dataset_summary_response(
             dataset
@@ -1635,11 +1665,7 @@ def build_dataset_details_response(
             selected_metric_columns,
         ),
         "insights": generate_insights(report_dataframe),
-        "chart": generate_chart_data(
-            report_dataframe,
-            limit=chart_limit,
-            date_column=date_column,
-        ),
+        "chart": chart,
         "numeric_columns": available_metric_columns,
         "selected_metric_columns": selected_metric_columns,
         "metric_selection_configured": metric_selection_configured,
@@ -10675,7 +10701,11 @@ async def dataset_details(
             dataset,
             dataframe,
             learning_context,
-            chart_limit=None if include_all_rows else 50,
+            chart_limit=(
+                DATASET_DETAILS_FULL_CHART_MAX_ROWS
+                if include_all_rows
+                else 50
+            ),
             workspace_id=workspace_id,
             actor_user_id=user_id,
             start_date=start_date,

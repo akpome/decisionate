@@ -178,6 +178,10 @@ class DatasetServiceSerializationTests(unittest.TestCase):
                     {"value": float("inf")},
                     [Decimal("3.75")],
                 ],
+                "period": [
+                    pd.Period("2026-01", freq="M"),
+                    pd.Period("2026-02", freq="M"),
+                ],
             })
         )
 
@@ -188,11 +192,13 @@ class DatasetServiceSerializationTests(unittest.TestCase):
                     "infinite": None,
                     "decimal": 1.25,
                     "nested": {"value": None},
+                    "period": "2026-01",
                 },
                 {
                     "infinite": None,
                     "decimal": 2.5,
                     "nested": [3.75],
+                    "period": "2026-02",
                 },
             ],
         )
