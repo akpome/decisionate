@@ -29,6 +29,7 @@ from fastapi import Query
 from fastapi import UploadFile
 from fastapi import Request
 from fastapi import Response
+from fastapi.encoders import jsonable_encoder
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -10724,7 +10725,7 @@ async def dataset_details(
             dataset.id,
             include_ai_analysis,
         )
-        return await asyncio.to_thread(
+        details_response = await asyncio.to_thread(
             build_dataset_details_response,
             dataset,
             dataframe,
@@ -10743,6 +10744,23 @@ async def dataset_details(
             include_ai_analysis=include_ai_analysis,
             persisted_analysis=persisted_analysis,
         )
+        return jsonable_encoder(details_response)
+
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.exception(
+            "Dataset details response failed",
+            extra={
+                "dataset_id": dataset_id,
+                "include_all_rows": include_all_rows,
+                "include_ai_analysis": include_ai_analysis,
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Dataset details are temporarily unavailable. Try again shortly.",
+        ) from error
 
     finally:
         db.close()
