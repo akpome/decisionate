@@ -485,6 +485,31 @@ class AnalyticsEngineTests(unittest.TestCase):
             "Dataset storage is temporarily unavailable. Try again shortly.",
         )
 
+    def test_dataset_loader_maps_unexpected_read_failure_to_service_error(self):
+        dataset = SimpleNamespace(
+            id=31,
+        )
+
+        with patch(
+            "app.modules.datasets.services.dataset_loader.load_dataset_dataframe",
+            side_effect=RuntimeError("remote provider failed"),
+        ):
+            with self.assertRaises(
+                HTTPException,
+            ) as context:
+                load_dataframe_from_dataset(
+                    dataset,
+                )
+
+        self.assertEqual(
+            context.exception.status_code,
+            503,
+        )
+        self.assertEqual(
+            context.exception.detail,
+            "Dataset data is temporarily unavailable. Try again shortly.",
+        )
+
     def test_analytics_identifier_is_bigquery_safe(self):
         self.assertEqual(
             normalize_analytics_identifier(

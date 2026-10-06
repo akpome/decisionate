@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import HTTPException
 
 from app.infrastructure.object_storage import (
@@ -19,6 +21,9 @@ from app.modules.datasets.services.connectors import (
 from app.modules.datasets.services.sources import (
     IMPLEMENTED_CONNECTOR_TYPES,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def load_dataset(
@@ -76,6 +81,17 @@ def load_dataframe_from_dataset(
         raise HTTPException(
             status_code=503,
             detail="Dataset storage is temporarily unavailable. Try again shortly.",
+        ) from error
+    except Exception as error:
+        logger.exception(
+            "Dataset dataframe loading failed",
+            extra={
+                "dataset_id": getattr(dataset, "id", None),
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Dataset data is temporarily unavailable. Try again shortly.",
         ) from error
 
 
