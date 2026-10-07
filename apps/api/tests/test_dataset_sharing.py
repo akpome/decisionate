@@ -215,6 +215,42 @@ class DatasetSharingTests(unittest.TestCase):
             ["value", "value__duplicate_2"],
         )
 
+    def test_dataset_details_keeps_response_when_metric_profile_fails(self):
+        dataset = SimpleNamespace(
+            id=56,
+            user_id="user-1",
+            workspace_id="workspace-1",
+            source_type="csv",
+            source_config="{}",
+            file_name="sales.csv",
+            row_count=2,
+            column_count=2,
+            created_at=None,
+        )
+        dataframe = pd.DataFrame({
+            "date": ["2026-01-01", "2026-01-02"],
+            "revenue": [10, 20],
+        })
+
+        with patch(
+            "app.modules.datasets.router.build_metric_selection_profile",
+            side_effect=RuntimeError("legacy metric field"),
+        ):
+            response = build_dataset_details_response(
+                dataset,
+                dataframe,
+                include_ai_analysis=False,
+            )
+
+        self.assertEqual(
+            response["detail_warnings"],
+            ["metric_profile"],
+        )
+        self.assertEqual(
+            response["preview"][0]["revenue"],
+            10,
+        )
+
     def build_memory_source_connection_session_factory(self):
         engine = create_engine(
             "sqlite:///:memory:",

@@ -139,6 +139,9 @@ from app.modules.organizations.router import (
 from app.modules.datasets.services.analytics_storage import (
     build_dataset_analytics_manifest,
 )
+from app.modules.datasets.services.serialization import (
+    to_json_value,
+)
 from app.modules.datasets.services.joins import (
     JOIN_RESULT_VERSION,
     build_join_dataset_metadata,
@@ -1547,6 +1550,28 @@ def normalize_dataset_details_dataframe(dataframe):
     return normalized
 
 
+def _safe_dataset_detail_section(
+    section_name,
+    builder,
+    fallback,
+    dataset,
+    warnings,
+):
+    """Keep one malformed analytical section from breaking dataset details."""
+    try:
+        return builder()
+    except Exception:
+        logger.exception(
+            "Dataset detail section failed",
+            extra={
+                "dataset_id": getattr(dataset, "id", None),
+                "section": section_name,
+            },
+        )
+        warnings.append(section_name)
+        return fallback
+
+
 def build_dataset_list_response(datasets):
     responses = [
         build_dataset_summary_response(dataset)
@@ -1593,33 +1618,78 @@ def build_dataset_details_response(
     dataframe = normalize_dataset_details_dataframe(
         dataframe,
     )
-    metric_profile = build_metric_selection_profile(
+    detail_warnings = []
+    metric_profile = _safe_dataset_detail_section(
+        "metric_profile",
+        lambda: build_metric_selection_profile(
+            dataset,
+            dataframe,
+        ),
+        {
+            "version": 1,
+            "source_type": str(getattr(dataset, "source_type", "") or ""),
+            "objective": "general_business",
+            "recommended_metric_columns": [],
+            "ambiguous_metric_columns": [],
+            "advanced_metric_columns": [],
+            "available_metric_columns": [],
+            "time_columns": [],
+            "dimension_columns": [],
+            "excluded_columns": [],
+            "fields": [],
+        },
         dataset,
-        dataframe,
+        detail_warnings,
     )
-    available_metric_columns = get_selectable_numeric_columns(
-        dataframe,
+    available_metric_columns = _safe_dataset_detail_section(
+        "available_metrics",
+        lambda: get_selectable_numeric_columns(
+            dataframe,
+            dataset,
+            profile=metric_profile,
+        ),
+        [],
         dataset,
-        profile=metric_profile,
+        detail_warnings,
     )
-    selected_metric_columns = (
-        get_effective_dataset_metric_columns(
+    selected_metric_columns = _safe_dataset_detail_section(
+        "selected_metrics",
+        lambda: get_effective_dataset_metric_columns(
             dataset,
             dataframe,
             profile=metric_profile,
-        )
+        ),
+        [],
+        dataset,
+        detail_warnings,
     )
     metric_selection_configured = (
-        get_dataset_selected_metric_columns(dataset)
+        _safe_dataset_detail_section(
+            "metric_selection_config",
+            lambda: get_dataset_selected_metric_columns(dataset),
+            None,
+            dataset,
+            detail_warnings,
+        )
         is not None
     )
-    report_dataframe = filter_dataframe_to_selected_metrics(
-        dataset,
+    report_dataframe = _safe_dataset_detail_section(
+        "metric_filter",
+        lambda: filter_dataframe_to_selected_metrics(
+            dataset,
+            dataframe,
+            profile=metric_profile,
+        ),
         dataframe,
-        profile=metric_profile,
+        dataset,
+        detail_warnings,
     )
-    date_column, _ = identify_forecast_columns(
-        dataframe
+    date_column, _ = _safe_dataset_detail_section(
+        "forecast_columns",
+        lambda: identify_forecast_columns(dataframe),
+        (None, None),
+        dataset,
+        detail_warnings,
     )
 
     if any(
@@ -1631,13 +1701,19 @@ def build_dataset_details_response(
             aggregation_type,
         )
     ):
-        report_dataframe = prepare_forecast_dataframe(
+        report_dataframe = _safe_dataset_detail_section(
+            "date_filter",
+            lambda: prepare_forecast_dataframe(
+                report_dataframe,
+                date_column,
+                start_date,
+                period_filter,
+                aggregation,
+                aggregation_type,
+            ),
             report_dataframe,
-            date_column,
-            start_date,
-            period_filter,
-            aggregation,
-            aggregation_type,
+            dataset,
+            detail_warnings,
         )
 
     chart = None
@@ -1668,26 +1744,57 @@ def build_dataset_details_response(
                     "dataset_id": getattr(dataset, "id", None),
                 },
             )
+            detail_warnings.append("chart")
 
     response = {
-        **build_dataset_summary_response(
-            dataset
+        **_safe_dataset_detail_section(
+            "summary",
+            lambda: build_dataset_summary_response(dataset),
+            {
+                "id": getattr(dataset, "id", None),
+                "user_id": getattr(dataset, "user_id", None),
+                "workspace_id": getattr(dataset, "workspace_id", None),
+                "file_name": getattr(dataset, "file_name", None),
+                "row_count": getattr(dataset, "row_count", None),
+                "column_count": getattr(dataset, "column_count", None),
+            },
+            dataset,
+            detail_warnings,
         ),
-        "preview": generate_preview(dataframe),
+        "preview": _safe_dataset_detail_section(
+            "preview",
+            lambda: generate_preview(dataframe),
+            [],
+            dataset,
+            detail_warnings,
+        ),
         "columns": [
             str(column)
             for column in dataframe.columns
         ],
-        "metrics": generate_metrics(
-            report_dataframe,
-            selected_metric_columns,
+        "metrics": _safe_dataset_detail_section(
+            "metrics",
+            lambda: generate_metrics(
+                report_dataframe,
+                selected_metric_columns,
+            ),
+            [],
+            dataset,
+            detail_warnings,
         ),
-        "insights": generate_insights(report_dataframe),
+        "insights": _safe_dataset_detail_section(
+            "insights",
+            lambda: generate_insights(report_dataframe),
+            [],
+            dataset,
+            detail_warnings,
+        ),
         "chart": chart,
         "numeric_columns": available_metric_columns,
         "selected_metric_columns": selected_metric_columns,
         "metric_selection_configured": metric_selection_configured,
         "metric_profile": metric_profile,
+        "detail_warnings": detail_warnings,
         "analysis_status": (
             persisted_analysis.status
             if persisted_analysis
@@ -1701,46 +1808,57 @@ def build_dataset_details_response(
     }
 
     if include_ai_analysis:
-        persisted_payload = (
-            parse_dataset_analysis_payload(
-                persisted_analysis,
-            )
-            if not any(
-                value is not None
-                for value in (
-                    start_date,
-                    period_filter,
-                    aggregation,
-                    aggregation_type,
+        try:
+            persisted_payload = (
+                parse_dataset_analysis_payload(
+                    persisted_analysis,
                 )
+                if not any(
+                    value is not None
+                    for value in (
+                        start_date,
+                        period_filter,
+                        aggregation,
+                        aggregation_type,
+                    )
+                )
+                else None
             )
-            else None
-        )
-        if persisted_payload is not None:
-            response["ai_analysis"] = persisted_payload.get(
-                "ai_analysis"
+            if persisted_payload is not None:
+                response["ai_analysis"] = persisted_payload.get(
+                    "ai_analysis"
+                )
+                response["insights"] = persisted_payload.get(
+                    "insights",
+                    response["insights"],
+                )
+                response["anomalies"] = persisted_payload.get(
+                    "anomalies",
+                )
+            elif persisted_analysis and persisted_analysis.status in {
+                CONNECTOR_ANALYSIS_PENDING,
+                CONNECTOR_ANALYSIS_RUNNING,
+            }:
+                response["ai_analysis"] = None
+                response["anomalies"] = None
+            else:
+                response["ai_analysis"] = generate_dataset_ai_analysis(
+                    report_dataframe,
+                    None,
+                    learning_context,
+                    workspace_id,
+                    actor_user_id,
+                )
+                response["anomalies"] = None
+        except Exception:
+            logger.exception(
+                "Dataset AI analysis section failed",
+                extra={
+                    "dataset_id": getattr(dataset, "id", None),
+                },
             )
-            response["insights"] = persisted_payload.get(
-                "insights",
-                response["insights"],
-            )
-            response["anomalies"] = persisted_payload.get(
-                "anomalies",
-            )
-        elif persisted_analysis and persisted_analysis.status in {
-            CONNECTOR_ANALYSIS_PENDING,
-            CONNECTOR_ANALYSIS_RUNNING,
-        }:
+            detail_warnings.append("ai_analysis")
             response["ai_analysis"] = None
-            response["anomalies"] = None
-        else:
-            response["ai_analysis"] = generate_dataset_ai_analysis(
-                report_dataframe,
-                None,
-                learning_context,
-                workspace_id,
-                actor_user_id,
-            )
             response["anomalies"] = None
     else:
         response["ai_analysis"] = None
@@ -10744,7 +10862,17 @@ async def dataset_details(
             include_ai_analysis=include_ai_analysis,
             persisted_analysis=persisted_analysis,
         )
-        return jsonable_encoder(details_response)
+        try:
+            return jsonable_encoder(details_response)
+        except Exception:
+            # A legacy connector payload can still contain an object type that
+            # FastAPI's encoder does not know. The dataframe serializer has a
+            # conservative string/null fallback for those values.
+            logger.exception(
+                "Dataset details JSON encoding failed; using safe fallback",
+                extra={"dataset_id": dataset_id},
+            )
+            return to_json_value(details_response)
 
     except HTTPException:
         raise
