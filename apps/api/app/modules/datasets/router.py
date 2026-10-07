@@ -10722,7 +10722,12 @@ async def dataset_anomalies(
         dataset, dataframe = load_dataframe(
             db,
             dataset_id,
+            apply_metric_selection=False,
         )
+
+        # Anomaly detection owns metric selection. Keep legacy duplicate
+        # headers addressable before it resolves the date and metric series.
+        dataframe = normalize_dataset_details_dataframe(dataframe)
 
         verify_dataset_owner(
             dataset,
@@ -10748,6 +10753,37 @@ async def dataset_anomalies(
                 status_code=400,
                 detail=str(error),
             ) from error
+        except Exception:
+            logger.exception(
+                "Dataset anomaly detection failed",
+                extra={"dataset_id": dataset_id},
+            )
+            result = {
+                "status": "unavailable",
+                "message": (
+                    "Anomaly detection could not be evaluated for this "
+                    "dataset selection."
+                ),
+                "date_column": date_column,
+                "metric": metric,
+                "available_metrics": [],
+                "period_filter": period_filter,
+                "start_date": start_date,
+                "aggregation": aggregation,
+                "aggregation_type": aggregation_type,
+                "sensitivity": sensitivity,
+                "minimum_observations": 5,
+                "method_description": (
+                    "Anomaly detection compares valid time periods with a "
+                    "robust statistical baseline."
+                ),
+                "data_notes": [
+                    "The selected dataset could not be evaluated for this "
+                    "anomaly request.",
+                ],
+                "total_anomaly_count": 0,
+                "metrics": [],
+            }
 
         return {
             "dataset_id": dataset.id,
