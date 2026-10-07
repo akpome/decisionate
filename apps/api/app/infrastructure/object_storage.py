@@ -338,8 +338,26 @@ class ObjectStorage:
         clean_value = str(value or "").strip()
         if not clean_value or self.is_reference(clean_value):
             return clean_value
-        if provider and str(provider).strip().lower() != "local":
-            return self.reference_for_key(clean_value, provider)
+        clean_provider = str(provider or "").strip().lower()
+        if clean_provider and clean_provider != "local":
+            return self.reference_for_key(clean_value, clean_provider)
+
+        # Dataset rows created before storage_provider was introduced contain
+        # a provider-neutral relative key. In a remote deployment, treating
+        # that key as a local filesystem path makes every legacy dataset
+        # unreadable even though its object still exists in the active bucket.
+        # Keep real local files and explicit local paths unchanged.
+        if (
+            not clean_provider
+            and self.is_remote
+            and clean_value != "manual_upload"
+            and not Path(clean_value).is_absolute()
+            and not Path(clean_value).exists()
+        ):
+            return self.reference_for_key(
+                clean_value,
+                self.config.provider,
+            )
         return clean_value
 
     def _storage_for_reference(self, reference: str) -> "ObjectStorage":

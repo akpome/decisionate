@@ -86,6 +86,16 @@ class ObjectStorageReferenceTests(unittest.TestCase):
                 "r2://old-r2-bucket/datasets/workspace=abc/dataset-1.parquet",
             )
 
+    def test_legacy_neutral_key_resolves_using_active_remote_provider(self):
+        storage = ObjectStorage(storage_config("r2"))
+
+        self.assertEqual(
+            storage.reference_for_stored_value(
+                "datasets/workspace=abc/dataset-4.parquet",
+            ),
+            "r2://active-bucket/datasets/workspace=abc/dataset-4.parquet",
+        )
+
     def test_legacy_full_reference_remains_unchanged(self):
         storage = ObjectStorage(storage_config("gcs"))
         reference = "r2://old-r2-bucket/datasets/1/data.parquet"
