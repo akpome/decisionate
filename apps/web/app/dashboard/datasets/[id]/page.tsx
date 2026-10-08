@@ -16,7 +16,6 @@ import {
 import {
   ArrowLeft,
   BarChart3,
-  ClipboardList,
   FileText,
   LineChart,
   Sparkles,
@@ -24,6 +23,8 @@ import {
 import { MetricCard } from "@/features/dashboard/components/metric-card"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
+import { CreateDecisionLink } from "@/features/decisions/components/create-decision-action"
+import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
 import {
   MetricSelector,
   formatMetricLabel,
@@ -278,6 +279,7 @@ export default function DatasetDetailsPage() {
   } = useActiveWorkspace(userId ?? undefined)
   const {
     canManageWorkspaceData,
+    canCreateDecisions,
   } = useWorkspaceAccess(userId ?? undefined)
 
   useEffect(() => {
@@ -735,7 +737,7 @@ export default function DatasetDetailsPage() {
       !analysis ||
       !aiRecommendationMetric ||
       !recommendation ||
-      !canManageWorkspaceData ||
+      !canCreateDecisions ||
       creatingDecisionKey
     ) {
       return
@@ -855,14 +857,16 @@ export default function DatasetDetailsPage() {
               Report
             </Link>
 
-            {canManageWorkspaceData && (
-              <Link
-                href={`/dashboard/decisions/new?dataset=${datasetId ?? ""}&returnTo=${encodeURIComponent(`/dashboard/datasets/${datasetId ?? ""}`)}`}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
-              >
-                <ClipboardList size={16} />
-                New Decision
-              </Link>
+            {canCreateDecisions && datasetId && (
+              <CreateDecisionLink
+                href={buildCreateDecisionHref({
+                  datasetId,
+                  metric: effectiveSelectedMetric,
+                  returnTo: `/dashboard/datasets/${datasetId}`,
+                })}
+                title="Create a decision from this dataset and selected metric"
+                className="w-full sm:w-auto"
+              />
             )}
           </div>
         }
@@ -936,7 +940,7 @@ export default function DatasetDetailsPage() {
           metric={effectiveSelectedMetric}
           className="rounded-2xl p-5 shadow-sm sm:p-6"
           onCreateDecision={
-            canManageWorkspaceData &&
+            canCreateDecisions &&
             aiRecommendationMetric &&
             dataset.ai_analysis.recommendations.length > 0
               ? () => {

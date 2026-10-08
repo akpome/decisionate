@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 
 import { useDecisionateText } from "@/app/use-decisionate-language"
+import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 
 import {
   formatMetricLabel,
@@ -335,18 +336,17 @@ function MetricAnomalyGroup({
                 </div>
 
                 {onCreateDecision && (
-                  <button
-                    type="button"
+                  <CreateDecisionButton
                     disabled={Boolean(creatingDecisionKey)}
+                    creating={isCreating}
                     onClick={() =>
                       onCreateDecision(metric.metric, anomaly)
                     }
-                    className="inline-flex w-fit items-center justify-center rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-2 text-xs font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isCreating
-                      ? t("Creating decision...")
-                      : t("Create decision")}
-                  </button>
+                    size="sm"
+                    variant="secondary"
+                    title={`Create a decision from the ${metric.metric} anomaly`}
+                    className="w-full sm:w-auto"
+                  />
                 )}
               </div>
             )

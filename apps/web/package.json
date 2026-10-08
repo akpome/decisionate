@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:decisions": "node --test tests/create-decision-actions.test.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.4.1",

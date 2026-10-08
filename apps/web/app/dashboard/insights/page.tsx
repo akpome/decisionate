@@ -165,6 +165,7 @@ export default function InsightsPage() {
     useActiveWorkspace(user?.id)
   const {
     canManageWorkspaceData,
+    canCreateDecisions,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
 
@@ -476,7 +477,7 @@ export default function InsightsPage() {
     if (
       !user?.id ||
       !selectedDatasetId ||
-      !canManageWorkspaceData ||
+      !canCreateDecisions ||
       creatingDecisionKey
     ) {
       return
@@ -523,7 +524,7 @@ export default function InsightsPage() {
       !dataset?.ai_analysis ||
       !aiRecommendationMetric ||
       !recommendation ||
-      !canManageWorkspaceData ||
+      !canCreateDecisions ||
       creatingDecisionKey
     ) {
       return
@@ -574,7 +575,7 @@ export default function InsightsPage() {
     if (
       !user?.id ||
       !selectedDatasetId ||
-      !canManageWorkspaceData ||
+      !canCreateDecisions ||
       creatingDecisionKey
     ) {
       return
@@ -1135,7 +1136,7 @@ export default function InsightsPage() {
             )
           }
           onCreateDecision={
-            canManageWorkspaceData
+            canCreateDecisions
               ? handleCreateAnomalyDecision
               : undefined
           }
@@ -1170,7 +1171,7 @@ export default function InsightsPage() {
           metric={effectiveSelectedMetric}
           className="rounded-2xl p-4"
           onCreateDecision={
-            canManageWorkspaceData &&
+            canCreateDecisions &&
             aiRecommendationMetric &&
             dataset.ai_analysis.recommendations.length > 0
               ? () => {
@@ -1240,7 +1241,7 @@ export default function InsightsPage() {
                 insight={insight}
                 label={insight.type || "Insight"}
                 onCreateDecision={
-                  canManageWorkspaceData
+                  canCreateDecisions
                     ? () => {
                       void handleCreateDecision(
                         insight,

@@ -15,6 +15,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import { DatasetJoinPanel } from "@/features/dashboard/components/dataset-join-panel"
+import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
+import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
 import {
   formatMetricLabel,
   MetricSelector,
@@ -113,7 +115,6 @@ import {
   GitMerge,
   LineChart as LineChartIcon,
   Maximize2,
-  Plus,
   Settings2,
   Share2,
   Unlink,
@@ -3287,17 +3288,12 @@ export default function DashboardPage() {
       )
         ? currentMetricMapping.primary
         : autoMetricMapping.primary
-    const params = new URLSearchParams({
-      dataset: String(selectedDatasetId),
-      returnTo: "/dashboard",
-    })
-
-    if (dashboardMetric) {
-      params.set("metric", dashboardMetric)
-    }
-
     router.push(
-      `/dashboard/decisions/new?${params.toString()}`
+      buildCreateDecisionHref({
+        datasetId: selectedDatasetId,
+        metric: dashboardMetric,
+        returnTo: "/dashboard",
+      })
     )
   }
 
@@ -3311,32 +3307,13 @@ export default function DashboardPage() {
             : "flex flex-wrap items-center justify-end gap-2"
       }
     >
-      {showIndustryManagementToggles &&
-        canCreateDecisions &&
-        selectedDatasetId && (
-        <button
-          type="button"
+      {canCreateDecisions && selectedDatasetId && (
+        <CreateDecisionButton
           onClick={handleOpenDashboardDecision}
-          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 text-xs font-semibold text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
-          title="Create a decision from this dashboard's selected dataset and metric."
-        >
-          <Plus size={14} />
-          Create decision
-        </button>
-      )}
-
-      {!isCustomSelectedDashboard &&
-        canCreateDecisions &&
-        selectedDatasetId && (
-        <button
-          type="button"
-          onClick={handleOpenDashboardDecision}
-          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 text-xs font-semibold text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
-          title="Create a decision from this dashboard's selected dataset and metric."
-        >
-          <Plus size={14} />
-          Create decision
-        </button>
+          size="sm"
+          title="Create a decision from this dashboard's selected dataset and metric"
+          className="w-full sm:w-auto"
+        />
       )}
 
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
@@ -3564,7 +3541,7 @@ export default function DashboardPage() {
           periodFilter={periodFilter}
           aggregation={aggregation}
           aggregationType={aggregationType}
-          canManageWorkspaceData={canManageWorkspaceData}
+          canCreateDecisions={canCreateDecisions}
           onJoinResult={handleJoinedDatasetResult}
           persistedResult={joinedDatasetResult}
         />
@@ -3907,7 +3884,7 @@ export default function DashboardPage() {
             periodFilter={periodFilter}
             aggregation={aggregation}
             aggregationType={aggregationType}
-            canManageWorkspaceData={canManageWorkspaceData}
+            canCreateDecisions={canCreateDecisions}
             onJoinResult={handleJoinedDatasetResult}
             persistedResult={joinedDatasetResult}
           />
@@ -3997,11 +3974,6 @@ export default function DashboardPage() {
           managementActions={dashboardManagementActions}
           managementPanels={dashboardManagementPanels}
           showAnalysisPanel={showAnalysisPanel}
-          onCreateDecision={
-            canCreateDecisions && selectedDatasetId
-              ? handleOpenDashboardDecision
-              : undefined
-          }
           onCreateRecommendation={
             usesDatasetMetricMapping &&
             canCreateDecisions &&
@@ -4406,19 +4378,6 @@ export default function DashboardPage() {
         </button>
       )}
 
-      {showIndustryManagementToggles &&
-        canCreateDecisions &&
-        selectedDatasetId && (
-        <button
-          type="button"
-          onClick={handleOpenDashboardDecision}
-          className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 text-xs font-semibold text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
-          title="Create a decision from this dashboard's selected dataset and metric."
-        >
-          <Plus size={14} />
-          Create decision
-        </button>
-      )}
     </div>
       )}
 

@@ -23,7 +23,6 @@ import {
   YAxis,
 } from "recharts"
 import {
-  LockKeyhole,
   Maximize2,
   X,
 } from "lucide-react"
@@ -1000,11 +999,6 @@ function SharedDashboardContent({
     setDemoJoinDataset("")
     setDemoNotice("")
   }
-  const handleDemoCreateDecision = () => {
-    setDemoNotice(
-      "This is a live demo. Decisions cannot be created here because the demo is read-only."
-    )
-  }
   const demoPrimaryControls = sharedDemo ? (
     <DemoPrimaryControls
       datasets={demoDatasets}
@@ -1017,7 +1011,6 @@ function SharedDashboardContent({
       onJoinChange={handleDemoJoinChange}
       onResetJoin={handleDemoResetJoin}
       onDashboardChange={value => updateDemoQuery("dashboard", value)}
-      onCreateDecision={handleDemoCreateDecision}
     />
   ) : null
   const demoStatusLine = sharedDemo ? (
@@ -1885,7 +1878,6 @@ function DemoPrimaryControls({
   onJoinChange,
   onResetJoin,
   onDashboardChange,
-  onCreateDecision,
 }: {
   datasets: PublicDemoDatasetOption[]
   selectedDataset: string
@@ -1895,7 +1887,6 @@ function DemoPrimaryControls({
   onJoinChange: (value: string) => void
   onResetJoin: () => void
   onDashboardChange: (value: string) => void
-  onCreateDecision: () => void
 }) {
   return (
     <div className="flex min-w-0 flex-wrap items-end justify-start gap-2 sm:justify-end xl:flex-nowrap">
@@ -1962,17 +1953,6 @@ function DemoPrimaryControls({
         </button>
       )}
 
-      <div className="flex shrink-0 flex-nowrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onCreateDecision}
-          className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-blue-300 bg-white px-2.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
-        >
-          <LockKeyhole size={13} aria-hidden="true" />
-          Create decision
-        </button>
-
-      </div>
     </div>
   )
 }

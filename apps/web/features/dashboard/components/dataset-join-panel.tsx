@@ -7,7 +7,6 @@ import {
 } from "react"
 import { useRouter } from "next/navigation"
 import {
-  Check,
   GitMerge,
   Play,
   RotateCcw,
@@ -28,6 +27,7 @@ import {
   type ForecastPeriodFilter,
 } from "@/lib/api"
 import { useDecisionateText } from "@/app/use-decisionate-language"
+import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 
 type DatasetJoinPanelProps = {
   datasets: DatasetSummary[]
@@ -39,7 +39,7 @@ type DatasetJoinPanelProps = {
   periodFilter: ForecastPeriodFilter
   aggregation: DashboardAggregation
   aggregationType: DashboardValueAggregation
-  canManageWorkspaceData?: boolean
+  canCreateDecisions?: boolean
   onJoinResult?: (
     result: DatasetJoinResult | null
   ) => void
@@ -88,7 +88,7 @@ export function DatasetJoinPanel({
   periodFilter,
   aggregation,
   aggregationType,
-  canManageWorkspaceData = false,
+  canCreateDecisions = false,
   onJoinResult,
   persistedResult,
 }: DatasetJoinPanelProps) {
@@ -481,6 +481,8 @@ export function DatasetJoinPanel({
       !userId ||
       !selectedDatasetId ||
       !activeResult ||
+      !canCreateDecisions ||
+      activeResult.matched_period_count < 1 ||
       creatingDecision
     ) {
       return
@@ -782,18 +784,14 @@ export function DatasetJoinPanel({
                 {activeResult.matched_period_count} {t("shared periods from")} {activeResult.dataset_ids.length} {t("datasets and")} {activeResult.datasets.length} {t("joined columns, with")} {activeResult.coverage_percent}% {t("period coverage.")}
               </p>
             </div>
-            {canManageWorkspaceData && (
-              <button
-                type="button"
+            {canCreateDecisions && activeResult.matched_period_count > 0 && (
+              <CreateDecisionButton
                 onClick={() => void handleCreateDecision()}
-                disabled={creatingDecision}
-                className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-[var(--decisionate-brand-primary)] px-3 text-xs font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Check size={14} />
-                {creatingDecision
-                  ? t("Creating decision...")
-                  : t("Create decision from evidence")}
-              </button>
+                creating={creatingDecision}
+                size="sm"
+                title="Create decision from evidence"
+                className="w-full sm:w-auto"
+              />
             )}
             <button
               type="button"

@@ -1,7 +1,7 @@
 import {
   Lightbulb,
-  PlusCircle,
 } from "lucide-react"
+import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 
 import {
   formatMetricLabel,
@@ -171,17 +171,13 @@ export function AIAnalysisPanel({
         (onApplyRecommendation && analysis.recommendations[0])) && (
         <div className={`mt-auto flex flex-wrap items-center justify-start gap-2 ${compact ? "pt-3" : "pt-4"}`}>
           {onCreateDecision && (
-            <button
-              type="button"
+            <CreateDecisionButton
               onClick={onCreateDecision}
-              disabled={creatingDecision}
-              className={`inline-flex items-center gap-2 rounded-xl bg-[var(--decisionate-brand-primary)] px-3 ${compact ? "py-1.5 text-xs" : "py-2 text-sm"} font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 ${actionClassName}`}
-            >
-              <PlusCircle size={16} />
-              {creatingDecision
-                ? "Creating decision..."
-                : "Create decision"}
-            </button>
+              creating={creatingDecision}
+              size={compact ? "sm" : "md"}
+              title="Create a decision from this analysis"
+              className={`w-full sm:w-auto ${actionClassName}`}
+            />
           )}
 
           {onApplyRecommendation && analysis.recommendations[0] && (

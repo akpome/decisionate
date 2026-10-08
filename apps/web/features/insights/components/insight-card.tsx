@@ -1,5 +1,5 @@
 import { Insight } from "../utils/generate-insights"
-import { ArrowRight } from "lucide-react"
+import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 
 interface InsightCardProps {
   insight: Insight
@@ -17,8 +17,8 @@ export function InsightCard({
   actionDisabled = false,
 }: InsightCardProps) {
   return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
-      <div className="space-y-3">
+    <div className="flex h-full min-w-0 flex-col rounded-lg border bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex flex-1 flex-col gap-3">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-gray-400">
             {label}
@@ -34,20 +34,15 @@ export function InsightCard({
         </p>
 
         {onCreateDecision && (
-          <button
-            type="button"
-            onClick={onCreateDecision}
-            disabled={
-              actionDisabled ||
-              creatingDecision
-            }
-            className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 print:hidden"
-          >
-            <ArrowRight size={15} />
-            {creatingDecision
-              ? "Creating..."
-              : "Create decision"}
-          </button>
+          <div className="mt-auto pt-2">
+            <CreateDecisionButton
+              onClick={onCreateDecision}
+              disabled={actionDisabled}
+              creating={creatingDecision}
+              title={`Create a decision from ${insight.title}`}
+              className="w-full sm:w-auto"
+            />
+          </div>
         )}
       </div>
     </div>

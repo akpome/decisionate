@@ -215,6 +215,7 @@ export default function ReportsPage() {
   } = useActiveWorkspace(user?.id)
   const {
     canManageWorkspaceData,
+    canCreateDecisions,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
   const [datasets, setDatasets] =
@@ -741,7 +742,7 @@ export default function ReportsPage() {
     if (
       !user?.id ||
       !selectedDatasetId ||
-      !canManageWorkspaceData ||
+      !canCreateDecisions ||
       creatingDecisionKey
     ) {
       return
@@ -788,7 +789,7 @@ export default function ReportsPage() {
       !dataset?.ai_analysis ||
       !aiRecommendationMetric ||
       !recommendation ||
-      !canManageWorkspaceData ||
+      !canCreateDecisions ||
       creatingDecisionKey
     ) {
       return
@@ -1144,7 +1145,7 @@ export default function ReportsPage() {
               )
             }
             onCreateRecommendation={
-              canManageWorkspaceData &&
+              canCreateDecisions &&
               aiRecommendationMetric &&
               dataset.ai_analysis?.recommendations.length
                 ? () => {
@@ -1171,14 +1172,14 @@ export default function ReportsPage() {
             insights={topInsights}
             selectedMetric={effectiveSelectedMetric}
             onCreateDecision={(insight, insightKey) => {
-              if (canManageWorkspaceData) {
+              if (canCreateDecisions) {
                 void handleCreateDecision(
                   insight,
                   insightKey
                 )
               }
             }}
-            allowDecisionCreation={canManageWorkspaceData}
+            allowDecisionCreation={canCreateDecisions}
             creatingDecisionKey={creatingDecisionKey}
           />
 

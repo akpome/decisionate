@@ -51,6 +51,8 @@ import {
     WorkspaceAccessNotice,
 } from "@/features/dashboard/components/workspace-access-notice"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { CreateDecisionLink } from "@/features/decisions/components/create-decision-action"
+import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
 import { AIAnalysisPanel } from "@/features/ai/components/analysis-panel"
 import { getAIRecommendationSource } from "@/features/decisions/lib/ai-recommendation-source"
 import {
@@ -91,7 +93,6 @@ import {
     BriefcaseBusiness,
     Search,
     RefreshCw,
-    Plus,
     Link2,
     X,
     Download,
@@ -223,7 +224,7 @@ export default function DecisionsPage() {
     } =
         useActiveWorkspace(user?.id)
     const {
-        canManageWorkspaceData,
+        canCreateDecisions,
         loadingWorkspaceAccess,
         workspaceRole,
     } = useWorkspaceAccess(user?.id)
@@ -1415,20 +1416,17 @@ export default function DecisionsPage() {
             <DashboardPageHeader
                 title="Decisions"
                 description="Track decisions, review outcomes, and learn what works."
-                actions={canManageWorkspaceData ? (
-                    <Link
-                        href="/dashboard/decisions/new?returnTo=%2Fdashboard%2Fdecisions"
-                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 sm:w-auto"
-                    >
-                        <Plus size={16} />
-                        New Decision
-                    </Link>
+                actions={canCreateDecisions ? (
+                    <CreateDecisionLink
+                        href={buildCreateDecisionHref()}
+                        className="w-full sm:w-auto"
+                    />
                 ) : undefined}
             />
 
             <WorkspaceAccessNotice
                 loading={loadingWorkspaceAccess}
-                canManageWorkspaceData={canManageWorkspaceData}
+                canManageWorkspaceData={canCreateDecisions}
                 message="This client workspace is read-only. You can review decisions and their activity here."
                 className="rounded-xl"
             />
@@ -1599,16 +1597,6 @@ export default function DecisionsPage() {
                     </div>
 
                     <div className="flex shrink-0 items-center gap-3">
-                        {canManageWorkspaceData && (
-                            <Link
-                                href="/dashboard/decisions/new?returnTo=%2Fdashboard%2Fdecisions"
-                                className="hidden h-10 items-center justify-center gap-2 rounded-lg border border-[var(--decisionate-brand-primary-ring)] px-3 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)] sm:inline-flex"
-                            >
-                                <Plus size={16} />
-                                New Decision
-                            </Link>
-                        )}
-
                         {canExportDecisions && (
                             <div className="flex items-center gap-2">
                                 <button
@@ -2062,20 +2050,11 @@ export default function DecisionsPage() {
                     </h3>
 
                     <p className="mt-2 text-sm text-gray-500">
-                        {canManageWorkspaceData
+                        {canCreateDecisions
                             ? "Create your first decision to start tracking outcomes and learning what works."
                             : "No decisions have been shared with this client workspace yet."}
                     </p>
 
-                    {canManageWorkspaceData && (
-                        <Link
-                            href="/dashboard/decisions/new?returnTo=%2Fdashboard%2Fdecisions"
-                            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 sm:w-auto"
-                        >
-                            <Plus size={16} />
-                            Create Decision
-                        </Link>
-                    )}
                 </DashboardCard>
             ) : decisions.length === 0 ? (
                 <DashboardCard className="border-dashed text-center">

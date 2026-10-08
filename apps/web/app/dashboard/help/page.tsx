@@ -26,6 +26,9 @@ import {
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { submitSupportRequest } from "@/lib/api"
 import { useActiveWorkspace } from "@/lib/use-active-workspace"
+import { useWorkspaceAccess } from "@/lib/use-workspace-access"
+import { CreateDecisionLink } from "@/features/decisions/components/create-decision-action"
+import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
 
 type SupportRequestType = "support" | "bug" | "feature"
 
@@ -672,6 +675,7 @@ const referenceChapters: ReferenceChapter[] = [
 export default function HelpSupportPage() {
   const { user } = useUser()
   const { activeWorkspaceId } = useActiveWorkspace(user?.id)
+  const { canCreateDecisions } = useWorkspaceAccess(user?.id)
   const [completedItems, setCompletedItems] =
     useState<Record<string, boolean>>({})
   const [supportFormOpen, setSupportFormOpen] =
@@ -869,14 +873,24 @@ export default function HelpSupportPage() {
                   {item.description}
                 </p>
 
-                <Link
-                  href={item.href}
-                  title={item.description}
-                  className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--decisionate-brand-primary-text)] hover:underline"
-                >
-                  {item.action}
-                  <ArrowRight size={13} aria-hidden="true" />
-                </Link>
+                {item.id === "decision" && canCreateDecisions ? (
+                  <CreateDecisionLink
+                    href={buildCreateDecisionHref({ returnTo: "/dashboard/help" })}
+                    title={item.description}
+                    variant="secondary"
+                    size="sm"
+                    className="mt-3 w-full"
+                  />
+                ) : (
+                  <Link
+                    href={item.id === "decision" ? "/dashboard/decisions" : item.href}
+                    title={item.description}
+                    className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--decisionate-brand-primary-text)] hover:underline"
+                  >
+                    {item.id === "decision" ? "View decisions" : item.action}
+                    <ArrowRight size={13} aria-hidden="true" />
+                  </Link>
+                )}
               </div>
             )
           })}

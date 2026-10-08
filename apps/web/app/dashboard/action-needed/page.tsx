@@ -7,7 +7,6 @@ import {
   AlertCircle,
   Calendar,
   LineChart,
-  Plus,
   RefreshCw,
   Target,
 } from "lucide-react"
@@ -279,15 +278,6 @@ export default function ActionNeededPage() {
               {t("View decisions")}
             </Link>
 
-            {canManageWorkspaceData && (
-              <Link
-                href="/dashboard/decisions/new?returnTo=%2Fdashboard%2Faction-needed"
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 sm:w-auto"
-              >
-                <Plus size={16} />
-                {t("New Decision")}
-              </Link>
-            )}
           </div>
         </div>
       ) : (

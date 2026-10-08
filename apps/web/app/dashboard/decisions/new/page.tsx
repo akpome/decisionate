@@ -14,7 +14,6 @@ import {
 import { useUser } from "@clerk/nextjs"
 import {
     ArrowLeft,
-    Plus,
     X,
 } from "lucide-react"
 
@@ -50,6 +49,7 @@ import {
     formatMetricLabel,
 } from "@/features/dashboard/components/metric-selector"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 
 type DecisionDatasetOption = Pick<
     DatasetSummary,
@@ -166,7 +166,7 @@ function NewDecisionContent() {
     } =
         useActiveWorkspace(user?.id)
     const {
-        canManageWorkspaceData,
+        canCreateDecisions,
         loadingWorkspaceAccess,
     } = useWorkspaceAccess(user?.id)
 
@@ -255,7 +255,7 @@ function NewDecisionContent() {
         Boolean(createDecisionExpectedOutcome.trim()) &&
         Boolean(createDatasetId) &&
         !creatingDecision &&
-        canManageWorkspaceData
+        canCreateDecisions
 
     const applyDecisionTemplate = useCallback(
         (
@@ -318,14 +318,14 @@ function NewDecisionContent() {
         if (
             !user?.id ||
             loadingWorkspaceAccess ||
-            canManageWorkspaceData
+            canCreateDecisions
         ) {
             return
         }
 
         router.replace(returnPath)
     }, [
-        canManageWorkspaceData,
+        canCreateDecisions,
         loadingWorkspaceAccess,
         returnPath,
         router,
@@ -333,7 +333,7 @@ function NewDecisionContent() {
     ])
 
     useEffect(() => {
-        if (!user?.id) return
+        if (!user?.id || loadingWorkspaceAccess || !canCreateDecisions) return
         const userId = user.id
         let ignoreResult = false
 
@@ -447,11 +447,13 @@ function NewDecisionContent() {
         }
     }, [
         activeWorkspaceId,
+        canCreateDecisions,
         datasetLoadRetryKey,
         initialDatasetId,
         initialMetric,
         initialTemplateSlug,
         applyDecisionTemplate,
+        loadingWorkspaceAccess,
         user?.id,
         user?.primaryEmailAddress?.emailAddress,
         workspaceVersion,
@@ -636,7 +638,7 @@ function NewDecisionContent() {
     ) {
         event.preventDefault()
 
-        if (!user?.id || creatingDecision) return
+        if (!user?.id || !canCreateDecisions || creatingDecision) return
 
         const cleanTitle =
             createDecisionTitle.trim()
@@ -710,7 +712,7 @@ function NewDecisionContent() {
                         Back
                     </Link>
                 }
-                title="New Decision"
+                title="Create decision"
                 description="Create a focused decision record from a dataset, then return to where you started."
                 actions={
                     <button
@@ -1137,21 +1139,17 @@ function NewDecisionContent() {
                         )}
 
                         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:col-span-3">
-                            <button
+                            <CreateDecisionButton
                                 type="submit"
                                 disabled={!canCreateDecision}
-                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 sm:w-auto"
-                            >
-                                <Plus size={16} />
-                                {creatingDecision
-                                    ? "Creating..."
-                                    : "Create Decision"}
-                            </button>
+                                creating={creatingDecision}
+                                className="w-full sm:w-auto"
+                            />
 
                             <button
                                 type="button"
                                 onClick={handleClose}
-                                className="inline-flex h-11 w-full items-center justify-center rounded-xl border px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
+                                className="inline-flex h-10 w-full items-center justify-center rounded-lg border px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
                             >
                                 Cancel
                             </button>
@@ -1189,7 +1187,7 @@ function NewDecisionContent() {
                                 href="/dashboard/datasets"
                                 className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-[var(--decisionate-brand-primary-ring)] px-3 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)] sm:w-auto"
                             >
-                                Upload Dataset
+                                View datasets
                             </Link>
 
                             <button

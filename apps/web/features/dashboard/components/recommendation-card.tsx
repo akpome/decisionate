@@ -1,8 +1,6 @@
 "use client"
 
-import {
-    PlusCircle,
-} from "lucide-react"
+import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 
 interface RecommendationCardProps {
@@ -40,8 +38,8 @@ export function RecommendationCard({
     const { t } = useDecisionateText()
 
     return (
-        <div className="rounded-2xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-5">
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="h-full min-w-0 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-5 sm:p-6">
+            <div className="flex h-full flex-col gap-4">
                 <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
@@ -53,7 +51,7 @@ export function RecommendationCard({
                         </span>
                     </div>
 
-                    <h2 className="mt-2 break-words text-2xl font-semibold text-gray-950">
+                    <h2 className="mt-2 break-words text-xl font-semibold text-gray-950">
                         {title}
                     </h2>
 
@@ -83,20 +81,13 @@ export function RecommendationCard({
                 </div>
 
                 {onCreateDecision && (
-                    <div className="lg:justify-self-end">
-                        <button
-                            type="button"
+                    <div className="mt-auto">
+                        <CreateDecisionButton
                             onClick={onCreateDecision}
-                            disabled={creatingDecision}
-                            className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 sm:w-auto"
-                        >
-                            <PlusCircle size={16} />
-                            {
-                                creatingDecision
-                                    ? t("Creating...")
-                                    : t("Create Decision")
-                            }
-                        </button>
+                            creating={creatingDecision}
+                            title="Create a decision from this recommendation"
+                            className="w-full sm:w-auto"
+                        />
                     </div>
                 )}
             </div>

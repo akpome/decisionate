@@ -270,6 +270,7 @@ export default function ForecastsPage() {
     useActiveWorkspace(user?.id)
   const {
     canManageWorkspaceData,
+    canCreateDecisions,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
 
@@ -953,7 +954,7 @@ export default function ForecastsPage() {
   async function handleCreateDecision() {
     if (
       creatingDecision ||
-      !canManageWorkspaceData
+      !canCreateDecisions
     ) {
       return
     }
@@ -1500,7 +1501,7 @@ export default function ForecastsPage() {
                 source={recommendationSource}
                 learningContext={learningContextCopy}
                 onCreateDecision={
-                  canManageWorkspaceData
+                  canCreateDecisions
                     ? handleCreateDecision
                     : undefined
                 }

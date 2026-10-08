@@ -63,6 +63,7 @@ import type {
 import {
   AIAnalysisPanel,
 } from "@/features/ai/components/analysis-panel"
+import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 import {
   AnalysisStatus,
 } from "@/features/ai/components/analysis-status"
@@ -99,7 +100,6 @@ type DashboardPlaceholderProps = {
   brand?: WorkspaceBrand
   canManageWorkspaceData?: boolean
   canCreateDecisions?: boolean
-  onCreateDecision?: () => void
   onDownloadPdf?: () => void
   onShare?: () => void
   onStopSharing?: () => void
@@ -1739,7 +1739,6 @@ function SalesDecisionateAnalysis({
   analysisError = false,
   onRetryAnalysis,
   onCreateRecommendation,
-  onCreateDecision,
   creatingRecommendation = false,
 }: {
   dashboard: IndustryDashboardConfig
@@ -1748,7 +1747,6 @@ function SalesDecisionateAnalysis({
   analysisError?: boolean
   onRetryAnalysis?: () => void
   onCreateRecommendation?: () => void
-  onCreateDecision?: () => void
   creatingRecommendation?: boolean
 }) {
   const trendData = dashboard.trendData
@@ -1824,24 +1822,15 @@ function SalesDecisionateAnalysis({
         </div>
       </div>
 
-      {(onCreateRecommendation && analysis?.recommendations.length) ||
-        onCreateDecision ? (
+      {onCreateRecommendation && analysis?.recommendations.length && !analysisLoading ? (
         <div className="mt-auto flex items-center justify-start pt-4">
-          <button
-            type="button"
-            onClick={
-              analysis?.recommendations.length &&
-              onCreateRecommendation
-                ? onCreateRecommendation
-                : onCreateDecision
-            }
-            disabled={creatingRecommendation}
-            className="inline-flex items-center rounded-md bg-[var(--decisionate-brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {creatingRecommendation
-              ? "Creating decision..."
-              : "Create decision"}
-          </button>
+          <CreateDecisionButton
+            onClick={onCreateRecommendation}
+            creating={creatingRecommendation}
+            size="sm"
+            title="Create a decision from this sales recommendation"
+            className="w-full sm:w-auto"
+          />
         </div>
       ) : null}
     </section>
@@ -1870,7 +1859,6 @@ function IndustryDashboard({
   onDownloadPdf,
   onShare,
   onStopSharing,
-  onCreateDecision,
   onCreateRecommendation,
   creatingRecommendation,
   pdfDisabled,
@@ -1936,7 +1924,6 @@ function IndustryDashboard({
           analysisError={analysisError}
           onRetryAnalysis={onRetryAnalysis}
           onCreateRecommendation={onCreateRecommendation}
-          onCreateDecision={onCreateDecision}
           creatingRecommendation={creatingRecommendation}
         />
       ) : (
@@ -1962,7 +1949,7 @@ function IndustryDashboard({
               metric={analysisMetric}
               className="h-full print:hidden !p-3"
               onCreateDecision={
-                onCreateRecommendation ?? onCreateDecision
+                onCreateRecommendation
               }
               creatingDecision={creatingRecommendation}
             />
@@ -2366,10 +2353,10 @@ function DecisionPerformanceDashboard({
   name,
   description,
   controls,
+  managementActions,
   status,
   brand,
   canCreateDecisions = false,
-  onCreateDecision,
   datasetName,
   chartTitles,
   onDownloadPdf,
@@ -2666,6 +2653,12 @@ function DecisionPerformanceDashboard({
         exportMode={exportMode}
       />
 
+      {managementActions && (
+        <div className="dashboard-management-toolbar print:hidden">
+          {managementActions}
+        </div>
+      )}
+
       {summaryLoading && !displayedSummary && (
         <div
           role="status"
@@ -2901,12 +2894,11 @@ function DecisionPerformanceDashboard({
                 title="Decisionate Analysis"
                 className="h-full print:hidden"
                 onCreateDecision={
-                  canCreateDecisions && Boolean(datasetId)
-                    ? displayedSummary.ai_analysis.recommendations.length > 0
-                      ? () => {
+                  canCreateDecisions && Boolean(datasetId) &&
+                  displayedSummary.ai_analysis.recommendations.length > 0
+                    ? () => {
                         void handleCreateRecommendation()
                       }
-                      : onCreateDecision
                     : undefined
                 }
                 creatingDecision={creatingRecommendation}
@@ -2919,17 +2911,6 @@ function DecisionPerformanceDashboard({
                 <p className="mt-1">
                   Decision analysis will appear when decision history is available.
                 </p>
-                {onCreateDecision && (
-                  <div className="mt-auto flex items-center justify-start pt-4">
-                    <button
-                      type="button"
-                      onClick={onCreateDecision}
-                      className="inline-flex items-center rounded-xl bg-[var(--decisionate-brand-primary)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
-                    >
-                      Create decision
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </div>

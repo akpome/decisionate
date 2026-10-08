@@ -6,7 +6,6 @@ import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import {
   Bell,
-  PlusCircle,
   Save,
   Send,
   X,
@@ -36,6 +35,7 @@ import {
   WorkspaceAccessNotice,
 } from "@/features/dashboard/components/workspace-access-notice"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 import {
   buildAIRecommendationDecisionPayload,
 } from "@/features/decisions/lib/ai-decision-handoff"
@@ -90,7 +90,7 @@ export default function AlertsPage() {
   const { user } = useUser()
   const {
     canManageAlerts,
-    canManageWorkspaceData,
+    canCreateDecisions,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
 
@@ -128,7 +128,7 @@ export default function AlertsPage() {
   return (
     <AlertsPageContent
       canManageAlertAnalysis={canManageAlerts}
-      canManageWorkspaceData={canManageWorkspaceData}
+      canCreateDecisions={canCreateDecisions}
       loadingWorkspaceAccess={loadingWorkspaceAccess}
     />
   )
@@ -136,11 +136,11 @@ export default function AlertsPage() {
 
 function AlertsPageContent({
   canManageAlertAnalysis,
-  canManageWorkspaceData,
+  canCreateDecisions,
   loadingWorkspaceAccess,
 }: {
   canManageAlertAnalysis: boolean
-  canManageWorkspaceData: boolean
+  canCreateDecisions: boolean
   loadingWorkspaceAccess: boolean
 }) {
   const {
@@ -282,7 +282,7 @@ function AlertsPageContent({
 
     if (
       !user?.id ||
-      !canManageWorkspaceData ||
+      !canCreateDecisions ||
       (!metric && !relationship) ||
       !recommendation ||
       !digest?.ai_analysis ||
@@ -1401,11 +1401,12 @@ function AlertsPageContent({
             unavailable={supportingDataUnavailable}
             selectedMetricLabels={selectedMetricLabels}
             onCreateDecision={
-              canManageWorkspaceData &&
+              canCreateDecisions && !aiAnalysisLoading &&
               Boolean(
                 (selectedDecisionMetric || selectedDecisionRelationship) &&
                 (weeklyReportDigest?.metrics.length ||
-                  weeklyReportDigest?.relationships.length)
+                  weeklyReportDigest?.relationships.length) &&
+                weeklyReportDigest?.ai_analysis?.recommendations.length
               )
                 ? () => {
                   void handleCreateDigestDecision()
@@ -1668,23 +1669,16 @@ function WeeklyReportDigestPreview({
       )}
 
       {onCreateDecision && (
-        <button
-          type="button"
+        <CreateDecisionButton
           onClick={onCreateDecision}
+          creating={creatingDecision}
           disabled={
-            creatingDecision ||
             aiAnalysisLoading ||
             !digest.ai_analysis?.recommendations.length
           }
-          className="mt-4 inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--decisionate-brand-primary)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <PlusCircle size={16} />
-          {creatingDecision
-            ? "Creating decision..."
-            : aiAnalysisLoading
-              ? "Preparing recommendation..."
-              : "Create decision from analysis"}
-        </button>
+          title="Create a decision from the selected alert metric and analysis"
+          className="mt-4 w-full sm:w-auto"
+        />
       )}
 
       {digest.unavailable_datasets.length > 0 && (
