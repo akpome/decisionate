@@ -10,6 +10,7 @@ import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import {
   FileDown,
+  LoaderCircle,
   Maximize2,
   Share2,
   Unlink,
@@ -2931,6 +2932,7 @@ export function DashboardActionButton({
   label,
   onClick,
   disabled,
+  busy = false,
   title,
   ariaLabel,
   tone = "default",
@@ -2940,6 +2942,7 @@ export function DashboardActionButton({
   label: string
   onClick: () => void
   disabled?: boolean
+  busy?: boolean
   title?: string
   ariaLabel?: string
   tone?: "default" | "danger"
@@ -2949,17 +2952,18 @@ export function DashboardActionButton({
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-label={ariaLabel}
-      className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border bg-white px-4 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 print:hidden ${
+      disabled={disabled || busy}
+      aria-busy={busy}
+      title={title ?? label}
+      aria-label={ariaLabel ?? label}
+      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-white text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 print:hidden ${
         tone === "danger"
           ? "border-red-200 text-red-700 hover:bg-red-50"
           : "border-gray-200 text-gray-700 hover:bg-gray-50"
       } ${className ?? ""}`}
     >
-      {icon}
-      {label}
+      {busy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : icon}
+      <span className="sr-only">{label}</span>
     </button>
   )
 }
@@ -3058,7 +3062,7 @@ function DashboardHeader({
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className={!showActions || exportMode ? "hidden" : "print:hidden"}>
-          <h1 className="text-3xl font-bold leading-tight print:text-xl">
+          <h1 className="break-words text-2xl font-semibold leading-8 print:text-xl">
             {name}
           </h1>
 

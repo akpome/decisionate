@@ -77,16 +77,13 @@ export function ConnectionPullWidget({
   }
 
   return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
+    <div>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">
+          <h2 className="text-base font-semibold">
             {t("Saved Connection Status")}
           </h2>
 
-          <p className="mt-2 text-sm text-gray-500">
-            {t("Review saved external connections and their dataset sync status.")}
-          </p>
         </div>
 
         <Link
@@ -98,10 +95,10 @@ export function ConnectionPullWidget({
       </div>
 
       {connections.length === 0 ? (
-        <div className="rounded-xl border border-dashed bg-gray-50 p-5 text-sm text-gray-600">
+        <div className="border-y border-dashed py-8 text-center text-sm text-gray-600">
           {loadError
             ? t("Saved connections are unavailable. Retry the data services above.")
-            : t("No external connections have been added yet. Open Connections to add a provider, or upload a file from Datasets.")}
+            : t("No saved connections")}
         </div>
       ) : (
         <div className="space-y-5">

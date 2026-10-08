@@ -32,6 +32,8 @@ from app.modules.datasets.services.sources import (
 from app.infrastructure.cache import build_cache_status
 from app.infrastructure.object_storage import build_storage_status
 from app.security.config import build_security_configuration_status
+from app.modules.billing.lifecycle import billing_enforcement_enabled
+from app.infrastructure.readiness import check_service_readiness
 
 
 def build_readiness() -> dict[str, Any]:
@@ -65,6 +67,7 @@ def build_readiness() -> dict[str, Any]:
         }
 
     return {
+        "runtime": check_service_readiness(),
         "security": build_security_configuration_status(),
         "ai": {
             "ready": bool(ai_status["configured"]),
@@ -101,6 +104,7 @@ def build_readiness() -> dict[str, Any]:
             ),
         },
         "billing": {
+            "enabled": billing_enforcement_enabled(),
             "ready": is_billing_configured(),
             "provider": get_billing_config()["provider"],
             "webhook_ready": bool(
@@ -122,8 +126,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Exit with status 1 unless AI, analytics, email, and scheduler are ready.",
+        help="Exit with status 1 unless the core production services and enabled integrations are ready.",
     )
+    parser.add_argument("--with-ai", action="store_true", help="Require the AI provider to be configured.")
+    parser.add_argument("--with-billing", action="store_true", help="Require billing and its webhook to be configured.")
     return parser
 
 
@@ -135,6 +141,11 @@ def main() -> int:
         print(json.dumps(readiness, sort_keys=True))
     else:
         print("Decisionate MVP readiness")
+        print(
+            "Runtime: "
+            f"{'ready' if readiness['runtime']['ready'] else 'not ready'} "
+            f"({json.dumps(readiness['runtime'], sort_keys=True)})"
+        )
         print(
             f"AI: {'ready' if readiness['ai']['ready'] else 'fallback'} "
             f"({readiness['ai']['detail']})"
@@ -156,6 +167,7 @@ def main() -> int:
         )
         print(
             "Billing: "
+            f"{'enabled' if readiness['billing']['enabled'] else 'disabled'}, "
             f"checkout {'ready' if readiness['billing']['ready'] else 'missing'}, "
             f"webhook {'ready' if readiness['billing']['webhook_ready'] else 'missing'}"
         )
@@ -173,13 +185,16 @@ def main() -> int:
         )
 
     strict_checks = (
-        readiness["ai"]["ready"]
+        (not args.with_ai or readiness["ai"]["ready"])
+        and readiness["runtime"]["ready"]
         and readiness["analytics"]["ready"]
         and readiness["storage"]["configured"]
         and readiness["alerts"]["server_email_ready"]
         and readiness["alerts"]["scheduler_ready"]
-        and readiness["billing"]["ready"]
-        and readiness["billing"]["webhook_ready"]
+        and (
+            not (args.with_billing or readiness["billing"]["enabled"])
+            or (readiness["billing"]["ready"] and readiness["billing"]["webhook_ready"])
+        )
         and readiness["connectors"]["scheduler_ready"]
         and readiness["security"]["production_guard_enabled"]
         and readiness["security"]["production_ready"]

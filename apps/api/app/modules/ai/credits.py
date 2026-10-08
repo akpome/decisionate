@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 from math import ceil
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app.db.database import SessionLocal
 from app.db.models import AIUsageEvent
@@ -33,6 +35,13 @@ AI_TRIAL_PERIOD_DAYS = 30
 AI_CREDIT_LOW_BALANCE_RATIO = 0.20
 
 logger = logging.getLogger(__name__)
+
+
+def _begin_credit_transaction(db):
+    # SQLite has no SELECT FOR UPDATE; reserve its writer before reading a
+    # balance. PostgreSQL uses the row locks on subscriptions and events.
+    if db.get_bind().dialect.name == "sqlite":
+        db.execute(text("BEGIN IMMEDIATE"))
 
 
 class AICreditLimitExceeded(RuntimeError):
@@ -70,6 +79,7 @@ def _get_or_create_subscription(
         .filter(
             WorkspaceSubscription.workspace_id == workspace_id,
         )
+        .with_for_update()
         .first()
     )
 
@@ -84,8 +94,14 @@ def _get_or_create_subscription(
                 now + timedelta(days=AI_TRIAL_PERIOD_DAYS)
             ),
         )
-        db.add(subscription)
-        db.flush()
+        try:
+            with db.begin_nested():
+                db.add(subscription)
+                db.flush()
+        except IntegrityError:
+            subscription = db.query(WorkspaceSubscription).filter(
+                WorkspaceSubscription.workspace_id == workspace_id,
+            ).with_for_update().one()
         return subscription
 
     if not subscription.current_period_start:
@@ -295,6 +311,7 @@ def reserve_ai_credits(
     db = SessionLocal()
 
     try:
+        _begin_credit_transaction(db)
         billing_workspace_id = resolve_billing_workspace_id(
             clean_workspace_id,
         )
@@ -394,9 +411,11 @@ def settle_ai_credits(
     db = SessionLocal()
 
     try:
+        _begin_credit_transaction(db)
         usage_event = (
             db.query(AIUsageEvent)
             .filter(AIUsageEvent.id == reservation_id)
+            .with_for_update()
             .first()
         )
         if not usage_event or usage_event.status != "reserved":
@@ -430,6 +449,7 @@ def settle_ai_credits(
                 WorkspaceSubscription.workspace_id
                 == resolve_billing_workspace_id(usage_event.workspace_id),
             )
+            .with_for_update()
             .first()
         )
         if subscription:
@@ -502,9 +522,11 @@ def release_ai_credits(
     db = SessionLocal()
 
     try:
+        _begin_credit_transaction(db)
         usage_event = (
             db.query(AIUsageEvent)
             .filter(AIUsageEvent.id == reservation_id)
+            .with_for_update()
             .first()
         )
         if not usage_event or usage_event.status != "reserved":
@@ -516,6 +538,7 @@ def release_ai_credits(
                 WorkspaceSubscription.workspace_id
                 == resolve_billing_workspace_id(usage_event.workspace_id),
             )
+            .with_for_update()
             .first()
         )
         if subscription:

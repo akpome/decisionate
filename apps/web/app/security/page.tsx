@@ -165,6 +165,13 @@ const securityCards: SecurityCard[] = [
           with the provider’s secret-management facilities.
         </p>
         <p>
+          Raw connector analytical data is retained in live storage for three
+          years. Connector maintenance removes raw partitions and derived
+          summaries older than that window. Provider backups, replicas, and
+          versioned storage may have separate retention periods and can outlast
+          deletion from live application storage.
+        </p>
+        <p>
           Production traffic should be served over HTTPS at the deployment
           edge. Local development uses local configuration and may use HTTP;
           local development behavior is not a production security guarantee.
@@ -296,7 +303,7 @@ export default function SecurityPage() {
                 verified.
               </p>
               <p className="mt-7 text-sm font-semibold text-cyan-200">
-                Last reviewed: August 12, 2026
+                Last reviewed: October 4, 2026
               </p>
             </div>
           </div>

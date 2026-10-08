@@ -108,14 +108,12 @@ export function DatasetSelector({
   const emptyStateMessage =
     emptyMessage ?? (
       <>
-        {t("Upload a supported CSV, Excel, JSON, or Parquet file on")}{" "}
         <Link
           href="/dashboard/datasets"
           className="font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-80"
         >
-          {t("Datasets")}
-        </Link>{" "}
-        {t("to start building dashboards, forecasts, reports, and decisions.")}
+          {t("Add a dataset")}
+        </Link>
       </>
     )
 
@@ -207,7 +205,7 @@ export function DatasetSelector({
 
           onChange(datasetId)
         }}
-        className="block h-11 w-full max-w-full truncate rounded-xl border px-3 py-2 pr-9 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+        className="block h-10 w-full max-w-full truncate rounded-lg border border-gray-200 bg-white px-3 py-2 pr-9 text-sm text-gray-800 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
       >
         <option value="">
           {!authLoaded

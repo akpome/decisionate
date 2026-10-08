@@ -68,6 +68,7 @@ class OrganizationInviteClaimTests(unittest.TestCase):
                 session,
                 "user-42",
                 " Invitee@Example.com ",
+                email_verified=True,
             )
             session.commit()
 
@@ -84,6 +85,7 @@ class OrganizationInviteClaimTests(unittest.TestCase):
                     session,
                     "user-42",
                     "invitee@example.com",
+                    email_verified=True,
                 ),
                 0,
             )

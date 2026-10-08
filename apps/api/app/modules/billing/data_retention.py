@@ -8,6 +8,7 @@ from sqlalchemy import and_, or_
 
 from app.db.models import DashboardShare
 from app.db.models import Dataset
+from app.db.models import DatasetAnalysis
 from app.db.models import DatasetJoinCache
 from app.db.models import DatasetRelationship
 from app.db.models import UserPreference
@@ -15,6 +16,7 @@ from app.infrastructure.object_storage import (
     get_dataset_storage_reference,
     get_object_storage,
 )
+from app.infrastructure.ingestion_jobs import ensure_workspace_jobs_idle, delete_workspace_ingestion_jobs
 
 
 SUBSCRIPTION_EXPIRY_DATA_PURGE_DAYS = 89
@@ -93,6 +95,8 @@ def purge_workspace_data_after_expiry(
         ),
     )
     datasets = db.query(Dataset).filter(dataset_scope).all()
+    ensure_workspace_jobs_idle(db, clean_workspace_ids)
+    delete_workspace_ingestion_jobs(db, clean_workspace_ids)
     storage = get_object_storage()
     file_references = {
         get_dataset_storage_reference(dataset)
@@ -104,6 +108,9 @@ def purge_workspace_data_after_expiry(
 
     dataset_ids = {dataset.id for dataset in datasets}
     if dataset_ids:
+        db.query(DatasetAnalysis).filter(
+            DatasetAnalysis.dataset_id.in_(dataset_ids),
+        ).delete(synchronize_session=False)
         db.query(DashboardShare).filter(
             DashboardShare.dataset_id.in_(dataset_ids),
         ).delete(synchronize_session=False)

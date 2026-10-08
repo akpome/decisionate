@@ -116,6 +116,14 @@ type DatasetDetails = {
   metric_profile?: MetricSelectionProfile
   metrics?: DatasetMetric[]
   ai_analysis?: AIAnalysis
+  analysis_status?:
+    | "pending"
+    | "running"
+    | "complete"
+    | "failed"
+    | null
+  analysis_completed_at?: string | null
+  anomalies?: Record<string, unknown> | null
   preview?: DatasetRow[]
 }
 
@@ -928,6 +936,20 @@ export default function DatasetDetailsPage() {
             )
           }
         />
+      )}
+
+      {dataset.analysis_status &&
+        ["pending", "running"].includes(
+          dataset.analysis_status
+        ) && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-2xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-4 py-3 text-xs text-[var(--decisionate-brand-primary-text)] shadow-sm"
+        >
+          Historical data is ready. Dataset analysis is running in the
+          background.
+        </div>
       )}
 
       {!metricAnalysisLoading &&

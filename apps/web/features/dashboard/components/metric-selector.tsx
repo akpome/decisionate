@@ -77,7 +77,7 @@ export function MetricSelector({
             formatMetricLabel(value)
           : effectivePlaceholder
       }
-      className="h-11 w-full min-w-0 truncate rounded-xl border px-3 py-2 pr-9 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+      className="h-10 w-full min-w-0 truncate rounded-lg border border-gray-200 bg-white px-3 py-2 pr-9 text-sm text-gray-800 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
     >
       <option value="">
         {effectivePlaceholder}

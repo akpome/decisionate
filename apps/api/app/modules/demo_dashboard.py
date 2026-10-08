@@ -790,7 +790,7 @@ def _available_datasets() -> list[dict]:
 
 
 @router.get("/demo")
-async def get_demo_dashboard(
+def get_demo_dashboard(
     response: Response,
     dataset: str = Query(DEFAULT_DEMO_DATASET),
     dashboard: str | None = None,

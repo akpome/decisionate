@@ -1,6 +1,7 @@
 import importlib.util
 import ntpath
 import os
+import zipfile
 from pathlib import Path
 
 import pandas as pd
@@ -27,7 +28,7 @@ DATASET_FILE_TYPES = {
     ".csv": {
         "source_type": "csv",
         "label": "CSV",
-        "reader": pd.read_csv,
+        "reader": lambda path: pd.read_csv(path, nrows=1_000_001),
     },
     ".json": {
         "source_type": "json",
@@ -55,12 +56,12 @@ DATASET_FILE_TYPES = {
     ".xls": {
         "source_type": "excel",
         "label": "Excel",
-        "reader": pd.read_excel,
+        "reader": lambda path: pd.read_excel(path, nrows=1_000_001),
     },
     ".xlsx": {
         "source_type": "excel",
         "label": "Excel",
-        "reader": pd.read_excel,
+        "reader": lambda path: pd.read_excel(path, nrows=1_000_001),
     },
 }
 
@@ -280,6 +281,11 @@ def validate_dataset_dataframe(
             ),
         )
 
+    if len(dataframe) > 1_000_000 or len(dataframe.columns) > 500:
+        raise HTTPException(413, "Dataset exceeds the 1,000,000 row or 500 column limit.")
+    if dataframe.memory_usage(index=True, deep=True).sum() > 512 * 1024 * 1024:
+        raise HTTPException(413, "Dataset exceeds the 512 MB in-memory limit.")
+
 
 def load_dataset_file(
     file_path: str,
@@ -300,6 +306,16 @@ def load_dataset_file(
 
     try:
         with get_object_storage().materialize(file_path) as materialized_path:
+            if str(filename or file_path).lower().endswith(".xlsx"):
+                with zipfile.ZipFile(materialized_path) as archive:
+                    if sum(item.file_size for item in archive.infolist()) > 512 * 1024 * 1024:
+                        raise HTTPException(413, "Expanded spreadsheet exceeds the import limit.")
+            if file_type["source_type"] == "parquet" and not os.path.isdir(materialized_path):
+                import pyarrow.parquet as parquet
+                metadata = parquet.read_metadata(materialized_path)
+                expanded_size = sum(metadata.row_group(index).total_byte_size for index in range(metadata.num_row_groups))
+                if metadata.num_rows > 1_000_000 or metadata.num_columns > 500 or expanded_size > 512 * 1024 * 1024:
+                    raise HTTPException(413, "Parquet dataset exceeds the row or column limit.")
             if (
                 file_type["source_type"] == "parquet"
                 and os.path.isdir(materialized_path)
@@ -309,6 +325,21 @@ def load_dataset_file(
                 )
                 if not parquet_files:
                     raise FileNotFoundError(file_path)
+
+                import pyarrow.parquet as parquet
+                row_count = 0
+                expanded_size = 0
+                columns = set()
+                for path in parquet_files:
+                    metadata = parquet.read_metadata(path)
+                    row_count += metadata.num_rows
+                    columns.update(metadata.schema.names)
+                    expanded_size += sum(
+                        metadata.row_group(index).total_byte_size
+                        for index in range(metadata.num_row_groups)
+                    )
+                    if row_count > 1_000_000 or len(columns) > 500 or expanded_size > 512 * 1024 * 1024:
+                        raise HTTPException(413, "Partitioned dataset exceeds the import limit.")
 
                 dataframes = [
                     pd.read_parquet(path)
@@ -323,6 +354,8 @@ def load_dataset_file(
                 dataframe = file_type["reader"](
                     materialized_path
                 )
+    except HTTPException:
+        raise
     except FileNotFoundError as error:
         raise HTTPException(
             status_code=404,

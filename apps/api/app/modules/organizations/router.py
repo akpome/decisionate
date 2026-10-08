@@ -1043,9 +1043,11 @@ def claim_pending_invites(
     db,
     user_id: str,
     user_email: str | None,
+    *,
+    email_verified: bool = False,
 ):
     clean_email = str(user_email or "").strip().lower()
-    if not clean_email:
+    if not clean_email or not email_verified:
         return 0
 
     pending_invites = (
@@ -1054,6 +1056,7 @@ def claim_pending_invites(
             OrganizationInvite.email == clean_email,
             OrganizationInvite.status == "pending",
         )
+        .with_for_update()
         .all()
     )
     claimed_count = 0
@@ -1399,7 +1402,8 @@ async def get_accessible_workspaces(
         claimed_invite_count = claim_pending_invites(
             db,
             user_id,
-            auth_context.email,
+            auth_context.email if auth_context.email_verified else None,
+            email_verified=auth_context.email_verified,
         )
         if claimed_invite_count:
             db.commit()

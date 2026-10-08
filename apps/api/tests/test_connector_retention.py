@@ -11,15 +11,15 @@ from app.modules.datasets.services.retention import (
 
 
 class ConnectorRetentionTests(unittest.TestCase):
-    def test_five_year_window_removes_months_older_than_cutoff(self):
+    def test_three_year_window_removes_months_older_than_cutoff(self):
         as_of = date(2026, 8, 14)
         self.assertEqual(
             connector_retention_cutoff_month(as_of),
-            "2021-09",
+            "2023-09",
         )
 
         dataframe = pd.DataFrame({
-            "source_date": ["2021-08-31", "2021-09-01", "2026-08-14"],
+            "source_date": ["2023-08-31", "2023-09-01", "2026-08-14"],
             "revenue": [1, 2, 3],
         })
         retained = filter_connector_dataframe_by_retention(
@@ -31,7 +31,7 @@ class ConnectorRetentionTests(unittest.TestCase):
 
     def test_summary_months_use_the_same_cutoff(self):
         dataframe = pd.DataFrame({
-            "__decisionate_summary_month__": ["2021-08", "2021-09"],
+            "__decisionate_summary_month__": ["2023-08", "2023-09"],
             "revenue": [1, 2],
         })
         retained = filter_connector_summary_by_retention(

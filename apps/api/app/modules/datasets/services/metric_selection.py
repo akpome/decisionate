@@ -363,7 +363,16 @@ def build_metric_selection_profile(
                 signature,
                 [],
             ):
-                if numeric_series.equals(
+                candidate_definition = get_metric_definition(candidate_column, source_type)
+                same_metric = (
+                    definition is not None
+                    and candidate_definition is not None
+                    and candidate_definition.canonical_name == definition.canonical_name
+                )
+                same_metric = same_metric or normalized_column == (
+                    normalize_metric_column_name(candidate_column) + "_copy"
+                )
+                if same_metric and numeric_series.equals(
                     numeric_lookup[candidate_column]
                 ):
                     duplicate_of = candidate_column

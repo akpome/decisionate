@@ -12,9 +12,9 @@ import {
   useUser,
 } from "@clerk/nextjs"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
-import { DatasetJoinPanel } from "@/features/dashboard/components/dataset-join-panel"
 import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
 import {
@@ -136,6 +136,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+
+const DatasetJoinPanel = dynamic(() =>
+  import("@/features/dashboard/components/dataset-join-panel")
+    .then(module => module.DatasetJoinPanel)
+)
 
 /* =========================
    Types
@@ -712,6 +717,16 @@ export default function DashboardPage() {
     let cancelled = false
 
     async function loadDashboardPreference() {
+      // Share these reads with loadDefaultDataset while the view preference loads.
+      void Promise.allSettled([
+        getDatasets(
+          cleanUserId,
+          activeWorkspaceId,
+          user?.primaryEmailAddress?.emailAddress,
+        ),
+        getDatasetPreference(cleanUserId, activeWorkspaceId),
+      ])
+
       try {
         const preference =
           await getDashboardPreference(
@@ -758,6 +773,7 @@ export default function DashboardPage() {
     dashboardPreferenceRetryKey,
     dashboardPreferenceContextKey,
     userId,
+    user?.primaryEmailAddress?.emailAddress,
     workspaceVersion,
   ])
 
@@ -2285,7 +2301,7 @@ export default function DashboardPage() {
       selectedDashboard !== defaultDashboardKey ||
       !userId ||
       !selectedDatasetId ||
-      !dataset ||
+      dataset?.id !== selectedDatasetId ||
       loading ||
       joinedDatasetResult
     ) {
@@ -2346,7 +2362,8 @@ export default function DashboardPage() {
     activeWorkspaceId,
     aggregation,
     aggregationType,
-    dataset,
+    dataset?.id,
+    dataset?.chart?.data,
     joinedDatasetResult,
     loading,
     periodFilter,
@@ -3326,6 +3343,7 @@ export default function DashboardPage() {
               : "Stop sharing"
           }
           onClick={handleStopSharing}
+          busy={shareAction === "stop"}
           disabled={stopSharingDisabled}
           title={`Turn off public access for this ${dashboardShareTitle.toLowerCase()}.`}
           ariaLabel={`Stop sharing ${dashboardShareTitle.toLowerCase()}`}
@@ -3355,10 +3373,8 @@ export default function DashboardPage() {
           aria-controls="general-dashboard-decisionate-panel"
           title="Show the Decisionate analysis and intelligence for this dashboard."
         >
-          <LineChartIcon size={14} />
-          {showGeneralDecisionatePanel
-            ? "Hide Decisionate Analysis & Intelligence"
-            : "Decisionate Analysis & Intelligence"}
+          <LineChartIcon size={14} aria-hidden="true" />
+          Analysis
         </button>
       )}
 
@@ -4082,73 +4098,72 @@ export default function DashboardPage() {
           Page Header
       ========================= */}
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 lg:shrink-0">
-          <label
-            htmlFor="dashboard-title"
-            className="sr-only"
-          >
-            Dashboard title
-          </label>
+      <header className="space-y-4 border-b border-gray-200 pb-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            {!dashboardEditMode && <>
+              <h1 className="break-words text-2xl font-semibold leading-8 text-gray-950">{effectiveDashboardTitle}</h1>
+              <p className="mt-1 break-words text-sm leading-6 text-gray-500">{effectiveDashboardSubtitle}</p>
+            </>}
+            <div hidden={!dashboardEditMode}>
+              <label
+                htmlFor="dashboard-title"
+                className="sr-only"
+              >
+                Dashboard title
+              </label>
 
-          <input
-            id="dashboard-title"
-            value={dashboardTitle}
-            maxLength={maxDashboardTitleLength}
-            disabled={
-              !dashboardEditMode ||
-              !selectedDatasetId ||
-              !dataset ||
-              loading
-            }
-            onChange={(event) =>
-              setDashboardTitle(
-                event.target.value
-              )
-            }
-            placeholder={defaultDashboardTitle}
-            className="block w-full min-w-0 rounded-lg bg-transparent px-0 py-0 text-3xl font-bold text-gray-950 outline-none transition placeholder:text-gray-400 focus:bg-white focus:px-3 focus:py-2 focus:shadow-sm disabled:cursor-not-allowed disabled:text-gray-400"
-          />
+              <input
+                id="dashboard-title"
+                value={dashboardTitle}
+                maxLength={maxDashboardTitleLength}
+                disabled={
+                  !dashboardEditMode ||
+                  !selectedDatasetId ||
+                  !dataset ||
+                  loading
+                }
+                onChange={(event) =>
+                  setDashboardTitle(
+                    event.target.value
+                  )
+                }
+                placeholder={defaultDashboardTitle}
+                className="block h-11 w-full min-w-0 rounded-lg border bg-white px-3 text-xl font-semibold text-gray-950 disabled:cursor-not-allowed disabled:text-gray-500"
+              />
 
-          <label
-            htmlFor="dashboard-subtitle"
-            className="sr-only"
-          >
-            Dashboard subtitle
-          </label>
+              <label
+                htmlFor="dashboard-subtitle"
+                className="sr-only"
+              >
+                Dashboard subtitle
+              </label>
 
-          <input
-            id="dashboard-subtitle"
-            value={dashboardSubtitle}
-            maxLength={maxDashboardSubtitleLength}
-            disabled={
-              !dashboardEditMode ||
-              !selectedDatasetId ||
-              !dataset ||
-              loading
-            }
-            onChange={(event) =>
-              setDashboardSubtitle(
-                event.target.value
-              )
-            }
-            placeholder={
-              defaultDashboardSubtitle
-            }
-            className="mt-1 block w-full min-w-0 rounded-lg bg-transparent px-0 py-0 text-sm text-gray-500 outline-none transition placeholder:text-gray-400 focus:bg-white focus:px-3 focus:py-2 focus:shadow-sm disabled:cursor-not-allowed disabled:text-gray-400"
-          />
-
-          <p className="mt-1 text-xs text-gray-400">
-            {selectedDatasetId
-              ? "Title and subtitle auto-save for this dataset."
-              : "Select a dataset to customize this dashboard title."}
-          </p>
-        </div>
-
-        <div className="flex min-w-0 flex-wrap items-start gap-3 lg:flex-1 lg:justify-end">
+              <input
+                id="dashboard-subtitle"
+                value={dashboardSubtitle}
+                maxLength={maxDashboardSubtitleLength}
+                disabled={
+                  !dashboardEditMode ||
+                  !selectedDatasetId ||
+                  !dataset ||
+                  loading
+                }
+                onChange={(event) =>
+                  setDashboardSubtitle(
+                    event.target.value
+                  )
+                }
+                placeholder={
+                  defaultDashboardSubtitle
+                }
+                className="mt-2 block h-10 w-full min-w-0 rounded-lg border bg-white px-3 text-sm text-gray-600 disabled:cursor-not-allowed disabled:text-gray-500"
+              />
+            </div>
+          </div>
           <div
             data-dashboard-export-control
-            className="flex w-full items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1 sm:w-auto"
+            className="flex shrink-0 items-center gap-2"
             role="group"
             aria-label="Share and export dashboard"
           >
@@ -4160,61 +4175,68 @@ export default function DashboardPage() {
                   : "Save PDF"
               }
               onClick={handleDownloadDashboardPdf}
+              busy={pdfExporting}
               disabled={
                 !selectedDatasetId ||
                 !dataset ||
                 loading ||
                 pdfExporting
               }
-              className="h-9 flex-1 rounded-lg px-2.5 text-xs shadow-none sm:flex-none"
+              className="shadow-none"
             />
 
             {canConfigureWorkspace && (
               <>
-              <DashboardActionButton
-                icon={<Share2 size={15} />}
-                label={shareButtonLabel}
-                onClick={handleShareDashboard}
-                disabled={shareControlsDisabled}
-                title={shareButtonTitle}
-                ariaLabel={shareButtonAriaLabel}
-                className="h-9 flex-1 rounded-lg px-2.5 text-xs shadow-none sm:flex-none"
-              />
+                <DashboardActionButton
+                  icon={<Share2 size={15} />}
+                  label={shareButtonLabel}
+                  onClick={handleShareDashboard}
+                  busy={shareAction === "share"}
+                  disabled={shareControlsDisabled}
+                  title={shareButtonTitle}
+                  ariaLabel={shareButtonAriaLabel}
+                  className="shadow-none"
+                />
 
               </>
             )}
           </div>
+        </div>
 
-          <div
-            className="grid h-11 w-full shrink-0 grid-cols-3 rounded-xl border border-gray-200 bg-white p-1 sm:w-auto sm:flex sm:items-center"
-            role="group"
-            aria-label="Dashboard template"
-          >
-            {([
-              ["executive", "Executive"],
-              ["performance", "Performance"],
-              ["comparison", "Comparison"],
-            ] as const).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={dashboardTemplate === value}
-                onClick={() =>
-                  setDashboardTemplate(value)
-                }
-                className={`h-full rounded-lg px-2 text-sm font-medium transition sm:px-3 ${
-                  dashboardTemplate === value
-                    ? "bg-[var(--decisionate-brand-primary)] text-[var(--decisionate-brand-primary-surface-text)]"
+        <div className="flex min-w-0 flex-wrap items-start gap-4">
+          <div className="w-full min-w-0 sm:w-auto">
+            <p className="mb-1 text-xs font-medium text-gray-500">View</p>
+            <div
+              className="grid h-10 w-full grid-cols-3 rounded-lg border border-gray-200 bg-gray-100 p-1 sm:w-auto"
+              role="group"
+              aria-label="Dashboard template"
+            >
+              {([
+                ["executive", "Executive"],
+                ["performance", "Performance"],
+                ["comparison", "Comparison"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={dashboardTemplate === value}
+                  onClick={() =>
+                    setDashboardTemplate(value)
+                  }
+                  className={`h-full rounded-md px-2 text-xs font-medium transition sm:px-3 ${dashboardTemplate === value
+                    ? "bg-white text-gray-950 shadow-sm"
                     : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+                    }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="grid w-full min-w-0 max-w-full gap-2 sm:w-96 sm:flex-none sm:grid-cols-2 lg:w-[26rem] xl:w-[28rem]">
+          <div className="grid w-full min-w-0 flex-1 gap-3 sm:min-w-80 sm:grid-cols-2">
             <div className="min-w-0">
+              <p className="mb-1 text-xs font-medium text-gray-500">Dataset</p>
               <DatasetSelector
                 ariaLabel="Select dashboard dataset"
                 datasets={datasets}
@@ -4256,6 +4278,7 @@ export default function DashboardPage() {
 
             {dataset && availableMetricColumns.length > 0 && (
               <div className="min-w-0 space-y-1">
+                <p className="text-xs font-medium text-gray-500">Target metric</p>
                 <MetricSelector
                   ariaLabel="Select target metric"
                   metrics={availableMetricColumns}
@@ -4263,15 +4286,12 @@ export default function DashboardPage() {
                   onChange={handlePrimaryMetricChange}
                   disabled={loading}
                 />
-                <p className="truncate text-xs text-gray-500">
-                  Target metric
-                </p>
               </div>
             )}
           </div>
 
         </div>
-      </div>
+      </header>
 
       <WorkspaceAccessNotice
         loading={loadingWorkspaceAccess}
@@ -4444,11 +4464,10 @@ export default function DashboardPage() {
       ========================= */}
 
       {loading && (
-        <DashboardCard>
-          <p className="text-sm text-gray-500">
-            Loading dashboard...
-          </p>
-        </DashboardCard>
+        <div role="status" aria-busy="true" className="space-y-4">
+          <span className="sr-only">Loading dashboard...</span>
+          <div aria-hidden="true" className="h-72 animate-pulse rounded-lg bg-gray-200/60" />
+        </div>
       )}
 
       {/* =========================
@@ -6149,7 +6168,7 @@ function DashboardCard({
   return (
     <div
       id={id}
-      className={`rounded-2xl border border-gray-200 bg-white p-5 shadow-sm ${className}`}
+      className={`rounded-lg border border-gray-200 bg-white p-4 sm:p-5 ${className}`}
     >
       {children}
     </div>
@@ -6284,7 +6303,7 @@ function CardHeader({
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">
+        <h2 className="text-base font-semibold">
           {title}
         </h2>
 
@@ -6416,7 +6435,7 @@ function KpiCard({
   signal?: DashboardKpiSignal
 }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="min-w-0 rounded-lg border border-gray-200 bg-white p-4">
       <p className="truncate text-sm text-gray-500">
         {label}
       </p>

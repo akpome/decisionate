@@ -60,6 +60,11 @@ def to_json_value(value):
     if value is None:
         return None
 
+    if type(value) in (str, bool, int):
+        return value
+    if type(value) is float:
+        return value if math.isfinite(value) else None
+
     if isinstance(
         value,
         pd.Timestamp,

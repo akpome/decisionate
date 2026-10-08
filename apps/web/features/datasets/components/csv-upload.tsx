@@ -10,6 +10,7 @@ import {
   uploadDataset,
 } from "@/lib/api"
 import { useUser } from "@clerk/nextjs"
+import { Upload } from "lucide-react"
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -156,10 +157,11 @@ export function CsvUpload({
       {/* Upload Area */}
       <label
         htmlFor="dataset-file-upload"
-        className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-10 text-center transition hover:bg-gray-100 focus-within:border-[var(--decisionate-brand-primary)] focus-within:outline-none focus-within:ring-2 focus-within:ring-[var(--decisionate-brand-primary-ring)] sm:px-6 sm:py-12"
+        className={`flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-8 text-center transition focus-within:border-[var(--decisionate-brand-primary)] focus-within:ring-2 focus-within:ring-[var(--decisionate-brand-primary-ring)] ${loading ? "cursor-wait opacity-60" : "cursor-pointer hover:bg-gray-50"}`}
       >
         <div className="space-y-2">
-          <p className="text-lg font-medium">
+          <Upload size={24} className="mx-auto text-gray-400" aria-hidden="true" />
+          <p className="text-sm font-medium">
             {t("Upload Data File")}
           </p>
 
@@ -175,6 +177,7 @@ export function CsvUpload({
           id="dataset-file-upload"
           ref={fileInputRef}
           type="file"
+          disabled={loading}
           accept={acceptedExtensions.join(
             ","
           )}

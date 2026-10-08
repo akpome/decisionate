@@ -15,6 +15,12 @@ from app.modules.billing.service import (
 DEFAULT_GRACE_PERIOD_DAYS = 7
 
 
+def billing_enforcement_enabled() -> bool:
+    return os.getenv("BILLING_ENFORCEMENT_ENABLED", "true").strip().lower() not in {
+        "false", "0", "off",
+    }
+
+
 @dataclass(frozen=True)
 class SubscriptionAccessState:
     plan: str
@@ -72,6 +78,19 @@ def build_subscription_access_state(
     now: datetime | None = None,
 ) -> SubscriptionAccessState:
     current_time = now or utc_now()
+
+    if not billing_enforcement_enabled():
+        return SubscriptionAccessState(
+            plan=normalize_billing_plan(subscription.plan) if subscription else FREE_PLAN,
+            raw_status="disabled",
+            status="disabled",
+            access_allowed=True,
+            requires_billing_action=False,
+            current_period_end=None,
+            grace_period_end=None,
+            days_remaining=None,
+            reason="Billing is not enabled for this deployment.",
+        )
 
     if subscription is None:
         return SubscriptionAccessState(
@@ -229,4 +248,3 @@ def is_subscription_exempt_path(path: str) -> bool:
             "/admin",
         )
     )
-

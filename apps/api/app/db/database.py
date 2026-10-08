@@ -1,3 +1,4 @@
+import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
 
@@ -16,6 +17,14 @@ connect_args = (
     if DATABASE_URL.startswith("sqlite")
     else {}
 )
+if DATABASE_URL.startswith("postgresql"):
+    connect_args = {
+        "connect_timeout": 5,
+        "options": (
+            f"-c statement_timeout={max(1000, int(os.getenv('DATABASE_STATEMENT_TIMEOUT_MS', '30000')))} "
+            f"-c lock_timeout={max(1000, int(os.getenv('DATABASE_LOCK_TIMEOUT_MS', '10000')))}"
+        ),
+    }
 
 engine = create_engine(
     DATABASE_URL,

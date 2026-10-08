@@ -1,11 +1,14 @@
 import asyncio
 import calendar
 import hashlib
+import http.client
+import ipaddress
 import json
 import logging
 import math
 import os
 import shutil
+import socket
 import threading
 import uuid
 from datetime import date
@@ -19,6 +22,7 @@ from urllib.error import URLError
 from urllib.parse import urlparse
 from urllib.request import Request as UrlRequest
 from urllib.request import urlopen
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, build_opener
 
 import pandas as pd
 from fastapi import APIRouter
@@ -30,6 +34,7 @@ from fastapi import UploadFile
 from fastapi import Request
 from fastapi import Response
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -54,6 +59,15 @@ from app.infrastructure.object_storage import (
     ObjectStorageUnavailable,
     get_dataset_storage_reference,
     get_object_storage,
+)
+from app.security.request_limits import UPLOAD_MAX_BYTES
+from app.infrastructure.ingestion_jobs import (
+    claim_ingestion_job,
+    durable_ingestion_enabled,
+    ensure_workspace_jobs_idle,
+    ensure_workspace_queue_capacity,
+    lock_connection_for_enqueue,
+    lock_workspace_queue,
 )
 
 from app.modules.datasets.schemas import DataSourceConnectionCreate
@@ -472,6 +486,13 @@ def validate_signed_file_url(value: str):
             detail="Signed file URLs must not contain embedded credentials.",
         )
 
+    try:
+        port = parsed_url.port
+    except ValueError as error:
+        raise HTTPException(422, "Invalid signed file URL port.") from error
+    if port not in (None, 443):
+        raise HTTPException(422, "Signed file URLs must use the HTTPS port.")
+
     if not any(
         hostname == suffix
         or hostname.endswith(f".{suffix}")
@@ -485,6 +506,55 @@ def validate_signed_file_url(value: str):
         )
 
     return parsed_url
+
+
+def validate_signed_file_destination(url: str):
+    parsed = validate_signed_file_url(url)
+    addresses = socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)
+    if not addresses or any(
+        not ipaddress.ip_address(address[4][0]).is_global
+        for address in addresses
+    ):
+        raise HTTPException(422, "Signed file URL resolves to a non-public address.")
+
+
+class SignedFileRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        # Validate BEFORE urllib sends a request to a redirect destination.
+        validate_signed_file_destination(newurl)
+        return super().redirect_request(request, fp, code, msg, headers, newurl)
+
+
+def create_public_file_connection(address, timeout, source_address=None):
+    host, port = address
+    addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    if not addresses or any(not ipaddress.ip_address(item[4][0]).is_global for item in addresses):
+        raise HTTPException(422, "Signed file URL resolves to a non-public address.")
+    last_error = None
+    for family, socktype, protocol, _, destination in addresses:
+        sock = socket.socket(family, socktype, protocol)
+        try:
+            sock.settimeout(timeout)
+            if source_address:
+                sock.bind(source_address)
+            # Connect to the checked IP itself, without a second DNS lookup.
+            sock.connect(destination)
+            return sock
+        except OSError as error:
+            last_error = error
+            sock.close()
+    raise last_error or OSError("Signed file destination is unavailable")
+
+
+class SignedFileHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = create_public_file_connection
+
+
+class SignedFileHTTPSHandler(HTTPSHandler):
+    def https_open(self, request):
+        return self.do_open(SignedFileHTTPSConnection, request, context=self._context)
 
 
 def infer_signed_file_name(
@@ -526,7 +596,7 @@ def download_signed_file(
     url: str,
     file_path: str,
 ):
-    validate_signed_file_url(url)
+    validate_signed_file_destination(url)
     request = UrlRequest(
         url,
         headers={"User-Agent": "Decisionate signed file importer"},
@@ -534,7 +604,8 @@ def download_signed_file(
     )
 
     try:
-        with urlopen(request, timeout=60) as response:
+        opener = build_opener(ProxyHandler({}), SignedFileRedirectHandler(), SignedFileHTTPSHandler())
+        with opener.open(request, timeout=60) as response:
             validate_signed_file_url(response.geturl())
             content_length = response.headers.get("Content-Length")
             if content_length and int(content_length) > SIGNED_FILE_URL_MAX_BYTES:
@@ -1548,6 +1619,22 @@ def normalize_dataset_details_dataframe(dataframe):
         normalized.columns
     )
     return normalized
+
+
+def _load_owned_dataset_dataframe(
+    db,
+    dataset_id,
+    user_id,
+    workspace_id,
+    apply_metric_selection=True,
+):
+    dataset = load_dataset(db, dataset_id)
+    verify_dataset_owner(dataset, user_id, workspace_id)
+    dataframe = load_dataframe_from_dataset(
+        dataset,
+        apply_metric_selection=apply_metric_selection,
+    )
+    return dataset, dataframe
 
 
 def _safe_dataset_detail_section(
@@ -3082,6 +3169,8 @@ def launch_connector_ingestion_job(
     background_tasks: BackgroundTasks | None,
     job_id: int,
 ):
+    if durable_ingestion_enabled():
+        return
     if background_tasks is not None:
         background_tasks.add_task(
             run_connector_ingestion_job,
@@ -3099,6 +3188,8 @@ def launch_connector_analysis_job(
     background_tasks: BackgroundTasks | None,
     job_id: int,
 ):
+    if durable_ingestion_enabled():
+        return
     if background_tasks is not None:
         background_tasks.add_task(
             run_connector_analysis_job,
@@ -3122,6 +3213,8 @@ def enqueue_connector_ingestion_job(
     launch: bool = True,
 ):
     """Persist and enqueue connector work without doing provider I/O inline."""
+    lock_workspace_queue(db, connection.workspace_id or connection.user_id)
+    lock_connection_for_enqueue(db, connection)
     active_job = get_active_ingestion_job(db, connection.id)
     if active_job:
         if reject_if_active:
@@ -3133,6 +3226,8 @@ def enqueue_connector_ingestion_job(
                 ),
             )
         return active_job
+
+    ensure_workspace_queue_capacity(db, connection.workspace_id or connection.user_id)
 
     configured_resource_types = []
     if payload.resource_type is None:
@@ -3196,6 +3291,7 @@ def enqueue_file_ingestion_job(
     payload: dict,
     background_tasks: BackgroundTasks,
 ):
+    ensure_workspace_queue_capacity(db, workspace_id)
     job = DataIngestionJob(
         connection_id=None,
         user_id=user_id,
@@ -3207,10 +3303,8 @@ def enqueue_file_ingestion_job(
     db.add(job)
     db.commit()
     db.refresh(job)
-    background_tasks.add_task(
-        run_file_ingestion_job,
-        job.id,
-    )
+    if not durable_ingestion_enabled():
+        background_tasks.add_task(run_file_ingestion_job, job.id)
     return job
 
 
@@ -3434,7 +3528,7 @@ async def create_dataset(
 
 
 @router.post("/upload", status_code=202)
-async def upload_dataset(
+def upload_dataset(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -3457,11 +3551,32 @@ async def upload_dataset(
         upload_filename,
     )
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    if not get_dataset_file_type(upload_filename):
+        raise HTTPException(400, "Unsupported dataset file type.")
+    if file.size is not None and file.size > UPLOAD_MAX_BYTES:
+        raise HTTPException(413, "Uploaded file exceeds the 100 MB import limit.")
 
+    try:
+        bytes_written = 0
+        with open(file_path, "wb") as buffer:
+            while chunk := file.file.read(1024 * 1024):
+                bytes_written += len(chunk)
+                if bytes_written > UPLOAD_MAX_BYTES:
+                    raise HTTPException(413, "Uploaded file exceeds the 100 MB import limit.")
+                buffer.write(chunk)
+    except BaseException:
+        remove_dataset_file(file_path)
+        raise
+
+    staged_reference = None
     db = SessionLocal()
     try:
+        storage = get_object_storage()
+        if durable_ingestion_enabled() and storage.is_remote:
+            staged_reference = storage.put_file(
+                file_path,
+                key=f"ingestion/{normalize_analytics_identifier(workspace_id, 'workspace')}/{uuid.uuid4().hex}-{upload_filename}",
+            )
         job = enqueue_file_ingestion_job(
             db,
             user_id,
@@ -3469,6 +3584,7 @@ async def upload_dataset(
             "file_upload",
             {
                 "file_path": file_path,
+                "staged_file_reference": staged_reference,
                 "upload_filename": upload_filename,
                 "source_config": build_upload_source_config(
                     upload_filename
@@ -3476,6 +3592,8 @@ async def upload_dataset(
             },
             background_tasks,
         )
+        if staged_reference:
+            remove_dataset_file(file_path)
         return {
             "status": INGESTION_JOB_QUEUED,
             "job_id": job.id,
@@ -3483,6 +3601,7 @@ async def upload_dataset(
         }
     except Exception:
         remove_dataset_file(file_path)
+        remove_dataset_file(staged_reference)
         raise
     finally:
         db.close()
@@ -4282,7 +4401,7 @@ async def get_canonical_entities(
 
 
 @router.get("/join/cache")
-async def get_dataset_join_cache(
+def get_dataset_join_cache(
     request: Request,
     dataset_id: int = Query(..., ge=1),
     dashboard: str | None = Query(None),
@@ -4319,9 +4438,9 @@ async def get_dataset_join_cache(
         if dataset_id not in cached_dataset_ids:
             return None
 
-        dataset_frames = []
+        source_datasets = []
         for selection in selections:
-            dataset, dataframe = load_dataframe(
+            dataset = load_dataset(
                 db,
                 int(selection["dataset_id"]),
             )
@@ -4330,19 +4449,10 @@ async def get_dataset_join_cache(
                 user_id,
                 workspace_id,
             )
-            dataset_frames.append(
-                (
-                    dataset,
-                    dataframe,
-                    build_join_dataset_metadata(
-                        dataset,
-                        dataframe,
-                    ),
-                )
-            )
+            source_datasets.append(dataset)
 
         source_fingerprint = build_dataset_source_fingerprint(
-            [frame[0] for frame in dataset_frames]
+            source_datasets
         )
         try:
             cached_result = json.loads(cache.result or "{}")
@@ -4379,8 +4489,15 @@ async def get_dataset_join_cache(
             or cached_result.get("join_version") != JOIN_RESULT_VERSION
         )
         if source_changed:
-            result = await asyncio.to_thread(
-                build_joined_dataset,
+            dataset_frames = []
+            for dataset in source_datasets:
+                dataframe = load_dataframe_from_dataset(dataset)
+                dataset_frames.append((
+                    dataset,
+                    dataframe,
+                    build_join_dataset_metadata(dataset, dataframe),
+                ))
+            result = build_joined_dataset(
                 dataset_frames,
                 selections,
                 definition.get("start_date"),
@@ -5556,6 +5673,16 @@ async def delete_source_connection(
             workspace_id,
         )
 
+        ensure_workspace_jobs_idle(db, [workspace_id])
+        db.query(DataIngestionJob).filter(
+            DataIngestionJob.connection_id == connection.id,
+        ).delete(synchronize_session=False)
+        db.query(OAuthConnectionState).filter(
+            OAuthConnectionState.connection_id == connection.id,
+        ).delete(synchronize_session=False)
+        db.query(OAuthCredential).filter(
+            OAuthCredential.connection_id == connection.id,
+        ).delete(synchronize_session=False)
         db.delete(connection)
         db.commit()
 
@@ -8108,7 +8235,7 @@ def persist_connector_dataframe(
                 )
             ),
             "stored_file_format": "parquet",
-            "partitioned_storage": "monthly_hot_with_yearly_historical_summary",
+            "partitioned_storage": "monthly_raw",
             "partition_directory": storage_key,
             "partition_date_column": storage_result["date_column"],
             "hot_months": CONNECTOR_HOT_MONTHS,
@@ -8310,13 +8437,23 @@ def connector_dataset_requires_retention_cleanup(
 def purge_expired_connector_dataset(
     db,
     connection,
+    dataset=None,
 ):
     """Rewrite a connector dataset when its three-year boundary is crossed."""
-    dataset = find_connector_dataset(db, connection)
+    dataset = dataset if dataset is not None else find_connector_dataset(db, connection)
     if not dataset or not connector_dataset_requires_retention_cleanup(dataset):
         return None
 
-    previous_last_synced_at = connection.last_synced_at
+    previous_connection_state = {
+        field: getattr(connection, field)
+        for field in (
+            "status", "last_synced_at", "connection_config", "authorization_error",
+            "authorization_error_at", "authorization_notification_error",
+            "authorization_notification_sent_at",
+        )
+        if hasattr(connection, field)
+    }
+    derived_references = cleanup_deleted_dataset_join_caches(db, dataset)
     source_config = parse_source_connection_config(
         dataset.source_config
     )
@@ -8330,7 +8467,8 @@ def purge_expired_connector_dataset(
     )
     # Retention maintenance is not a source sync and must not move the
     # connector's next scheduled sync window.
-    connection.last_synced_at = previous_last_synced_at
+    for field, value in previous_connection_state.items():
+        setattr(connection, field, value)
     db.flush()
     return {
         "dataset_id": dataset.id,
@@ -8339,7 +8477,50 @@ def purge_expired_connector_dataset(
             connector_retention_cutoff_month(),
         ),
         "replaced_file_path": replaced_file_path,
+        "derived_file_references": derived_references,
     }
+
+
+def remove_retention_replaced_files(result):
+    """Remove old storage only after its database references are committed."""
+    remove_dataset_file(result["replaced_file_path"])
+    for reference in result.get("derived_file_references", []):
+        remove_dataset_file(reference)
+
+
+def sweep_connector_retention(heartbeat=None):
+    """Apply retention to every connector object, independent of sync settings."""
+    cleaned = 0
+    with SessionLocal() as db:
+        connection_ids = [row.id for row in db.query(DataSourceConnection.id).all()]
+    for connection_id in connection_ids:
+        if heartbeat:
+            heartbeat()
+        with SessionLocal() as db:
+            connection = db.get(DataSourceConnection, connection_id)
+            if connection is None or get_active_ingestion_job(db, connection_id):
+                continue
+            try:
+                lock_workspace_queue(db, connection.workspace_id or connection.user_id)
+                lock_connection_for_enqueue(db, connection)
+                db.refresh(connection)
+                if get_active_ingestion_job(db, connection_id):
+                    continue
+                results = []
+                for dataset in find_connector_datasets(db, connection):
+                    if heartbeat:
+                        heartbeat()
+                    result = purge_expired_connector_dataset(db, connection, dataset)
+                    if result:
+                        results.append(result)
+                db.commit()
+                for result in results:
+                    remove_retention_replaced_files(result)
+                    cleaned += 1
+            except Exception:
+                db.rollback()
+                logger.exception("Independent connector retention sweep failed", extra={"connection_id": connection_id})
+    return cleaned
 
 
 def run_data_source_sync(
@@ -8639,9 +8820,8 @@ def run_connector_object_ingestion_job(job_id: int):
                 "The connector connection no longer exists"
             )
 
-        job.status = INGESTION_JOB_RUNNING
-        job.started_at = utc_now()
-        db.commit()
+        if not claim_ingestion_job(db, job):
+            return
 
         try:
             payload_data = json.loads(job.request_payload or "{}")
@@ -8760,9 +8940,8 @@ def run_connector_parent_ingestion_job(job_id: int):
                 "The connector connection no longer exists"
             )
 
-        job.status = INGESTION_JOB_RUNNING
-        job.started_at = utc_now()
-        db.commit()
+        if not claim_ingestion_job(db, job):
+            return
 
         try:
             payload_data = json.loads(job.request_payload or "{}")
@@ -8814,9 +8993,7 @@ def run_connector_parent_ingestion_job(job_id: int):
             )
             if retention_result:
                 db.commit()
-                remove_dataset_file(
-                    retention_result["replaced_file_path"]
-                )
+                remove_retention_replaced_files(retention_result)
         except Exception:
             db.rollback()
             logger.exception(
@@ -8967,9 +9144,8 @@ def run_connector_ingestion_job(job_id: int):
                 "The connector connection no longer exists"
             )
 
-        job.status = INGESTION_JOB_RUNNING
-        job.started_at = utc_now()
-        db.commit()
+        if not claim_ingestion_job(db, job):
+            return
 
         try:
             payload_data = json.loads(job.request_payload or "{}")
@@ -9030,9 +9206,7 @@ def run_connector_ingestion_job(job_id: int):
             )
             if retention_result:
                 db.commit()
-                remove_dataset_file(
-                    retention_result["replaced_file_path"]
-                )
+                remove_retention_replaced_files(retention_result)
         except Exception:
             db.rollback()
             logger.exception(
@@ -9315,8 +9489,8 @@ def run_connector_analysis_job(job_id: int):
                 "The connector connection no longer exists"
             )
 
-        job.status = INGESTION_JOB_RUNNING
-        job.started_at = utc_now()
+        if not claim_ingestion_job(db, job):
+            return
         set_connector_analysis_status(
             connection,
             CONNECTOR_ANALYSIS_RUNNING,
@@ -9459,6 +9633,7 @@ def run_file_ingestion_job(job_id: int):
     db = SessionLocal()
     file_path = None
     temporary_path = None
+    staged_reference = None
     try:
         job = (
             db.query(DataIngestionJob)
@@ -9468,9 +9643,8 @@ def run_file_ingestion_job(job_id: int):
         if not job or job.status != INGESTION_JOB_QUEUED:
             return
 
-        job.status = INGESTION_JOB_RUNNING
-        job.started_at = utc_now()
-        db.commit()
+        if not claim_ingestion_job(db, job):
+            return
 
         try:
             payload = json.loads(job.request_payload or "{}")
@@ -9480,12 +9654,18 @@ def run_file_ingestion_job(job_id: int):
         job_type = str(job.job_type or "")
         if job_type == "file_upload":
             file_path = str(payload.get("file_path") or "").strip()
+            staged_reference = payload.get("staged_file_reference")
             upload_filename = str(
                 payload.get("upload_filename") or ""
             ).strip()
             source_config = payload.get("source_config") or {}
             if not file_path or not upload_filename:
                 raise ValueError("Uploaded file details are missing")
+            if staged_reference:
+                file_path = build_dataset_upload_path(upload_filename)
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                with get_object_storage().materialize(staged_reference) as source_path:
+                    shutil.copyfile(source_path, file_path)
         elif job_type == "signed_url_import":
             encrypted_url = str(
                 payload.get("encrypted_url") or ""
@@ -9559,6 +9739,7 @@ def run_file_ingestion_job(job_id: int):
     finally:
         remove_dataset_file(temporary_path)
         remove_dataset_file(file_path)
+        remove_dataset_file(staged_reference)
         db.close()
 
 
@@ -9576,6 +9757,9 @@ def queue_connector_initial_backfill(
         )
         if not connection:
             return False
+        lock_workspace_queue(db, connection.workspace_id or connection.user_id)
+        lock_connection_for_enqueue(db, connection)
+        db.refresh(connection)
 
         if not initial_connector_backfill_enabled(connection.source_type):
             if get_initial_connector_sync_status(connection) != (
@@ -9658,6 +9842,9 @@ def queue_connector_initial_analysis(
         )
         if not connection:
             return False
+        lock_workspace_queue(db, connection.workspace_id or connection.user_id)
+        lock_connection_for_enqueue(db, connection)
+        db.refresh(connection)
         if get_initial_connector_sync_status(connection) != (
             INITIAL_CONNECTOR_SYNC_COMPLETE
         ):
@@ -9750,7 +9937,12 @@ def queue_connector_initial_import(
             .filter(DataSourceConnection.id == connection_id)
             .first()
         )
-        if not connection or connection.status != "connected":
+        if not connection:
+            return False
+        lock_workspace_queue(db, connection.workspace_id or connection.user_id)
+        lock_connection_for_enqueue(db, connection)
+        db.refresh(connection)
+        if connection.status != "connected":
             return False
         if initial_connector_backfill_is_required(connection):
             return queue_connector_initial_backfill(
@@ -10061,7 +10253,7 @@ def require_connectors_scheduler_secret(request: Request):
 
 
 @router.post("/source-connections/sync-due")
-async def sync_due_source_connections(
+def sync_due_source_connections(
     request: Request,
     background_tasks: BackgroundTasks,
 ):
@@ -10508,7 +10700,7 @@ async def get_dataset_analytics(
 
 
 @router.get("/{dataset_id}/preview")
-async def dataset_preview(
+def dataset_preview(
     request: Request,
     dataset_id: int,
 ):
@@ -10521,16 +10713,12 @@ async def dataset_preview(
     db = SessionLocal()
 
     try:
-        dataset, dataframe = load_dataframe(
+        dataset, dataframe = _load_owned_dataset_dataframe(
             db,
             dataset_id,
-            apply_metric_selection=False,
-        )
-
-        verify_dataset_owner(
-            dataset,
             user_id,
             workspace_id,
+            apply_metric_selection=False,
         )
 
         return {
@@ -10544,7 +10732,7 @@ async def dataset_preview(
 
 
 @router.get("/{dataset_id}/metrics")
-async def dataset_metrics(
+def dataset_metrics(
     request: Request,
     dataset_id: int,
 ):
@@ -10557,13 +10745,9 @@ async def dataset_metrics(
     db = SessionLocal()
 
     try:
-        dataset, dataframe = load_dataframe(
+        dataset, dataframe = _load_owned_dataset_dataframe(
             db,
             dataset_id,
-        )
-
-        verify_dataset_owner(
-            dataset,
             user_id,
             workspace_id,
         )
@@ -10579,7 +10763,7 @@ async def dataset_metrics(
 
 
 @router.get("/{dataset_id}/insights")
-async def dataset_insights(
+def dataset_insights(
     request: Request,
     dataset_id: int,
 ):
@@ -10592,13 +10776,9 @@ async def dataset_insights(
     db = SessionLocal()
 
     try:
-        dataset, dataframe = load_dataframe(
+        dataset, dataframe = _load_owned_dataset_dataframe(
             db,
             dataset_id,
-        )
-
-        verify_dataset_owner(
-            dataset,
             user_id,
             workspace_id,
         )
@@ -10614,8 +10794,7 @@ async def dataset_insights(
                 learning_scope="dataset",
             )
         )
-        ai_analysis = await asyncio.to_thread(
-            generate_dataset_ai_analysis,
+        ai_analysis = generate_dataset_ai_analysis(
             dataframe,
             None,
             learning_context,
@@ -10635,7 +10814,7 @@ async def dataset_insights(
 
 
 @router.get("/{dataset_id}/chart-data")
-async def dataset_chart_data(
+def dataset_chart_data(
     request: Request,
     dataset_id: int,
 ):
@@ -10648,13 +10827,9 @@ async def dataset_chart_data(
     db = SessionLocal()
 
     try:
-        dataset, dataframe = load_dataframe(
+        dataset, dataframe = _load_owned_dataset_dataframe(
             db,
             dataset_id,
-        )
-
-        verify_dataset_owner(
-            dataset,
             user_id,
             workspace_id,
         )
@@ -10670,7 +10845,7 @@ async def dataset_chart_data(
 
 
 @router.get("/{dataset_id}/anomalies")
-async def dataset_anomalies(
+def dataset_anomalies(
     request: Request,
     dataset_id: int,
     metric: str | None = Query(None, max_length=120),
@@ -10719,9 +10894,11 @@ async def dataset_anomalies(
     db = SessionLocal()
 
     try:
-        dataset, dataframe = load_dataframe(
+        dataset, dataframe = _load_owned_dataset_dataframe(
             db,
             dataset_id,
+            user_id,
+            workspace_id,
             apply_metric_selection=False,
         )
 
@@ -10729,15 +10906,8 @@ async def dataset_anomalies(
         # headers addressable before it resolves the date and metric series.
         dataframe = normalize_dataset_details_dataframe(dataframe)
 
-        verify_dataset_owner(
-            dataset,
-            user_id,
-            workspace_id,
-        )
-
         try:
-            result = await asyncio.to_thread(
-                detect_dataset_anomalies,
+            result = detect_dataset_anomalies(
                 dataframe,
                 metric=metric,
                 date_column=date_column,
@@ -10796,7 +10966,7 @@ async def dataset_anomalies(
 
 
 @router.get("/{dataset_id}/details")
-async def dataset_details(
+def dataset_details(
     request: Request,
     dataset_id: int,
     include_all_rows: bool = Query(
@@ -10841,23 +11011,11 @@ async def dataset_details(
     db = SessionLocal()
 
     try:
-        dataset = load_dataset(
+        dataset, dataframe = _load_owned_dataset_dataframe(
             db,
             dataset_id,
-        )
-
-        verify_dataset_owner(
-            dataset,
             user_id,
             workspace_id,
-        )
-
-        # Materializing a Parquet object from remote storage is blocking I/O
-        # and dataframe work. Keep it off the Uvicorn event loop so the API
-        # can continue serving the dashboard's parallel preference requests.
-        dataframe = await asyncio.to_thread(
-            load_dataframe_from_dataset,
-            dataset,
             apply_metric_selection=False,
         )
 
@@ -10879,8 +11037,7 @@ async def dataset_details(
             dataset.id,
             include_ai_analysis,
         )
-        details_response = await asyncio.to_thread(
-            build_dataset_details_response,
+        details_response = build_dataset_details_response(
             dataset,
             dataframe,
             learning_context,
@@ -10899,7 +11056,7 @@ async def dataset_details(
             persisted_analysis=persisted_analysis,
         )
         try:
-            return jsonable_encoder(details_response)
+            return JSONResponse(content=jsonable_encoder(details_response))
         except Exception:
             # A legacy connector payload can still contain an object type that
             # FastAPI's encoder does not know. The dataframe serializer has a
@@ -10908,7 +11065,7 @@ async def dataset_details(
                 "Dataset details JSON encoding failed; using safe fallback",
                 extra={"dataset_id": dataset_id},
             )
-            return to_json_value(details_response)
+            return JSONResponse(content=to_json_value(details_response))
 
     except HTTPException:
         raise
@@ -10931,7 +11088,7 @@ async def dataset_details(
 
 
 @router.get("/{dataset_id}/ai-analysis")
-async def dataset_ai_analysis(
+def dataset_ai_analysis(
     request: Request,
     dataset_id: int,
     metric: str | None = None,
@@ -10969,16 +11126,12 @@ async def dataset_ai_analysis(
     db = SessionLocal()
 
     try:
-        dataset, dataframe = load_dataframe(
+        dataset, dataframe = _load_owned_dataset_dataframe(
             db,
             dataset_id,
-            apply_metric_selection=False,
-        )
-
-        verify_dataset_owner(
-            dataset,
             user_id,
             workspace_id,
+            apply_metric_selection=False,
         )
 
         if any(
@@ -11038,8 +11191,7 @@ async def dataset_ai_analysis(
                 ),
             )
         )
-        ai_analysis = await asyncio.to_thread(
-            generate_dataset_ai_analysis,
+        ai_analysis = generate_dataset_ai_analysis(
             dataframe,
             clean_metric or None,
             learning_context,
@@ -11368,6 +11520,7 @@ async def delete_dataset(
     db = SessionLocal()
 
     try:
+        ensure_workspace_jobs_idle(db, [workspace_id], include_queued=True)
         dataset = load_dataset(
             db,
             dataset_id,
@@ -11399,6 +11552,9 @@ async def delete_dataset(
             dataset,
         )
 
+        db.query(DatasetAnalysis).filter(
+            DatasetAnalysis.dataset_id == dataset.id,
+        ).delete(synchronize_session=False)
         db.delete(dataset)
         db.commit()
         remove_dataset_file(dataset_reference)

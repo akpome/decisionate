@@ -22,6 +22,7 @@ import {
   LifeBuoy,
   Menu,
   Plug,
+  RefreshCw,
   Settings,
   Target,
   UsersRound,
@@ -30,6 +31,7 @@ import {
 } from "lucide-react"
 import {
   useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -96,6 +98,15 @@ type OrganizationUpdatedEvent =
 const subscribeToClientMount = () => () => {}
 const getClientMountSnapshot = () => true
 const getServerMountSnapshot = () => false
+const mobileNavigationQuery = "(max-width: 1279px)"
+const getMobileNavigationSnapshot = () => window.matchMedia(mobileNavigationQuery).matches
+const getServerMobileNavigationSnapshot = () => true
+
+function subscribeToMobileNavigation(onChange: () => void) {
+  const media = window.matchMedia(mobileNavigationQuery)
+  media.addEventListener("change", onChange)
+  return () => media.removeEventListener("change", onChange)
+}
 
 function subscribeToDecisionateLanguage(
   onLanguageChange: () => void
@@ -301,6 +312,12 @@ export function DashboardShell({
   // change and still closes the drawer before the new page renders on mobile.
   const [mobileNavOpen, setMobileNavOpen] =
     useState(false)
+  const navigationRef = useRef<HTMLElement>(null)
+  const isMobileNavigation = useSyncExternalStore(
+    subscribeToMobileNavigation,
+    getMobileNavigationSnapshot,
+    getServerMobileNavigationSnapshot,
+  )
   const [apiUnavailableMessage, setApiUnavailableMessage] =
     useState(() => {
       const initialDetail =
@@ -341,6 +358,47 @@ export function DashboardShell({
         )
     )?.label
 
+  const activeNavItem = dashboardNavGroups.flatMap(group => group.items).find(
+    item => isActiveDashboardPath(pathname, item.href)
+  )
+
+  useEffect(() => {
+    if (!mobileNavOpen || !isMobileNavigation) return
+    const navigation = navigationRef.current
+    if (!navigation) return
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const getFocusable = () => Array.from(navigation.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), select:not([disabled]), [tabindex="0"]'
+    )).filter(element => element.getClientRects().length > 0)
+
+    ;(getFocusable()[0] ?? navigation).focus()
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault()
+        setMobileNavOpen(false)
+      }
+      if (event.key !== "Tab") return
+      const elements = getFocusable()
+      const first = elements[0]
+      const last = elements[elements.length - 1]
+      if (!first || !last) {
+        event.preventDefault()
+        navigation?.focus()
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === navigation)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown)
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown)
+      if (previouslyFocused?.isConnected) previouslyFocused.focus()
+    }
+  }, [mobileNavOpen, isMobileNavigation])
+
   useEffect(() => {
     if (!user?.id) {
       return
@@ -374,7 +432,7 @@ export function DashboardShell({
   useEffect(() => {
     if (
       !user?.id ||
-      pathname === "/dashboard/billing"
+      (pathname === "/dashboard/billing" && subscriptionAccess?.billing_enabled !== false)
     ) {
       return
     }
@@ -501,6 +559,7 @@ export function DashboardShell({
     }
   }, [
     pathname,
+    subscriptionAccess?.billing_enabled,
     user?.id,
     user?.primaryEmailAddress?.emailAddress,
   ])
@@ -508,7 +567,6 @@ export function DashboardShell({
   useEffect(() => {
     if (
       !user?.id ||
-      pathname === "/dashboard/billing" ||
       pathname === "/dashboard/help"
     ) {
       return
@@ -779,34 +837,9 @@ export function DashboardShell({
 
   return (
     <div className="dashboard-shell-layout flex h-dvh overflow-hidden bg-gray-50">
-      {apiUnavailableMessage && (
-        <div
-          role="alert"
-          aria-live="assertive"
-          className="dashboard-print-hidden fixed inset-x-4 top-4 z-50 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-lg md:left-auto md:max-w-xl"
-        >
-          <span className="min-w-0 break-words">
-            {apiUnavailableMessage}
-          </span>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100"
-            >
-              {text("reload")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setApiUnavailableMessage("")}
-              className="rounded-lg px-2 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100"
-            >
-              {text("dismiss")}
-            </button>
-          </div>
-        </div>
-      )}
+      <a href="#workspace-content" className="workspace-skip-link dashboard-print-hidden rounded-lg bg-white px-4 py-3 text-sm font-medium shadow-lg">
+        Skip to content
+      </a>
       {/* =========================
           Dashboard Sidebar Brand Workspace And Primary Navigation
       ========================= */}
@@ -822,18 +855,23 @@ export function DashboardShell({
 
       <aside
         id="dashboard-sidebar"
+        ref={navigationRef}
+        role={isMobileNavigation && mobileNavOpen ? "dialog" : undefined}
+        aria-modal={isMobileNavigation && mobileNavOpen ? true : undefined}
+        inert={isMobileNavigation && !mobileNavOpen}
+        tabIndex={-1}
         aria-label={text("dashboardNavigation")}
-        className={`dashboard-print-hidden fixed inset-y-0 left-0 z-40 flex h-dvh w-72 shrink-0 flex-col border-r bg-white shadow-xl transition-transform duration-200 xl:static xl:z-auto xl:w-64 xl:translate-x-0 xl:shadow-none ${
+        className={`dashboard-print-hidden fixed inset-y-0 left-0 z-40 flex h-dvh w-[min(18rem,calc(100vw-2rem))] shrink-0 flex-col border-r bg-white shadow-xl transition-transform duration-200 xl:static xl:z-auto xl:w-60 xl:translate-x-0 xl:shadow-none ${
           mobileNavOpen
             ? "translate-x-0"
             : "-translate-x-full"
         }`}
       >
-        <div className="shrink-0 border-b p-6">
+        <div className="shrink-0 border-b px-4 py-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
             <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl text-sm font-bold text-white"
+              className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg text-sm font-bold text-white"
               style={{
                 backgroundColor:
                   displayBrand.primaryColor,
@@ -854,14 +892,15 @@ export function DashboardShell({
             </div>
 
             <div className="min-w-0">
-              <h1
-                className="truncate text-xl font-bold"
+              <p
+                title={displayBrand.name}
+                className="truncate text-base font-semibold"
                 style={{
-                  color: displayBrand.primaryColor,
+                  color: "var(--decisionate-brand-primary-text)",
                 }}
               >
                 {displayBrand.name}
-              </h1>
+              </p>
 
               <p className="truncate text-xs text-gray-400">
                 {activeSharedWorkspace
@@ -886,12 +925,9 @@ export function DashboardShell({
             </button>
           </div>
 
-          <p className="mt-1 truncate text-sm text-gray-500">
-            {displayWorkspaceName}
-          </p>
-
           {canSwitchWorkspaces && workspaceOptions.length > 1 && (
             <select
+              aria-label={text("workspace")}
               value={activeWorkspaceId || user?.id || ""}
               onChange={(event) =>
                 handleWorkspaceChange(
@@ -912,8 +948,8 @@ export function DashboardShell({
           )}
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto p-4">
-          <div className="space-y-5">
+        <nav aria-label={text("dashboardNavigation")} className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+          <div className="space-y-4">
             {dashboardNavGroups.map((group) => {
               const groupRoleVisible =
                 !group.roles ||
@@ -944,6 +980,8 @@ export function DashboardShell({
 
               const visibleItems =
                 group.items.filter(
+                  item => item.href !== "/dashboard/billing" || subscriptionAccess?.billing_enabled !== false
+                ).filter(
                   item =>
                     !item.ownerOnly ||
                     canConfigureWorkspace
@@ -969,7 +1007,7 @@ export function DashboardShell({
                 !group.collapsible ||
                 (
                   expandedNavGroups[group.label] ??
-                  group.label === activeCollapsibleGroupLabel
+                  (group.label !== "Manage" || group.label === activeCollapsibleGroupLabel)
                 )
 
               return (
@@ -980,26 +1018,12 @@ export function DashboardShell({
                       aria-expanded={isExpanded}
                       aria-controls={`dashboard-nav-${group.label.toLowerCase()}`}
                       onClick={() =>
-                        setExpandedNavGroups(() => {
-                          const nextExpandedNavGroups: Record<
-                            string,
-                            boolean
-                          > = {}
-
-                          dashboardNavGroups.forEach(navGroup => {
-                            if (navGroup.collapsible) {
-                              nextExpandedNavGroups[navGroup.label] =
-                                false
-                            }
-                          })
-
-                          nextExpandedNavGroups[group.label] =
-                            !isExpanded
-
-                          return nextExpandedNavGroups
-                        })
+                        setExpandedNavGroups(current => ({
+                          ...current,
+                          [group.label]: !isExpanded,
+                        }))
                       }
-                      className="flex w-full items-center justify-between rounded-lg px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                      className="flex min-h-9 w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs font-semibold text-gray-500 transition hover:bg-gray-50 hover:text-gray-800"
                     >
                       <span>
                         {getDashboardNavigationLabel(
@@ -1014,7 +1038,7 @@ export function DashboardShell({
                       )}
                     </button>
                   ) : (
-                    <p className="mb-2 px-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    <p className="mb-2 px-3 text-xs font-semibold text-gray-500">
                       {getDashboardNavigationLabel(
                         language,
                         group.label
@@ -1031,6 +1055,7 @@ export function DashboardShell({
                         <Link
                           key={item.href}
                           href={item.href}
+                          aria-current={isActiveDashboardPath(pathname, item.href) ? "page" : undefined}
                           onClick={() => setMobileNavOpen(false)}
                           className={getNavLinkClass(
                             isActiveDashboardPath(
@@ -1108,8 +1133,8 @@ export function DashboardShell({
           Dashboard Main Content Area For Nested Product Pages
       ========================= */}
 
-      <main className="dashboard-print-main h-dvh flex-1 overflow-y-auto p-8">
-        <div className="dashboard-print-hidden mb-4 xl:hidden">
+      <div className="flex min-w-0 flex-1 flex-col" inert={isMobileNavigation && mobileNavOpen}>
+        <div className="dashboard-print-hidden flex shrink-0 items-center gap-3 border-b bg-white px-4 py-3 xl:hidden">
           <button
             type="button"
             aria-expanded={mobileNavOpen}
@@ -1121,7 +1146,28 @@ export function DashboardShell({
           >
             <Menu size={20} aria-hidden="true" />
           </button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-gray-900">{displayWorkspaceName}</p>
+            <p className="truncate text-xs text-gray-500">
+              {getDashboardNavigationLabel(language, activeNavItem?.label ?? "Workspace")}
+            </p>
+          </div>
+          <ThemeToggle />
         </div>
+
+      <main id="workspace-content" tabIndex={-1} className="dashboard-print-main min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 xl:p-8">
+        {apiUnavailableMessage && (
+          <div role="alert" className="dashboard-print-hidden mb-5 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <AlertCircle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 flex-1 break-words">{apiUnavailableMessage}</span>
+            <button type="button" onClick={() => window.location.reload()} title={text("reload")} aria-label={text("reload")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-red-200 bg-white hover:bg-red-100">
+              <RefreshCw size={16} aria-hidden="true" />
+            </button>
+            <button type="button" onClick={() => setApiUnavailableMessage("")} title={text("dismiss")} aria-label={text("dismiss")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-red-100">
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
+        )}
 
         {maintenanceNotice && (
           <MaintenanceBanner notice={maintenanceNotice} />
@@ -1137,6 +1183,7 @@ export function DashboardShell({
           children
         )}
       </main>
+      </div>
     </div>
   )
 }
@@ -1404,9 +1451,9 @@ function isActiveDashboardPath(
 function getNavLinkClass(
   active: boolean
 ) {
-  return `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
+  return `flex min-h-10 items-center gap-3 rounded-md border-l-2 px-3 py-2 text-sm font-medium transition ${
     active
-      ? "bg-blue-50 text-blue-700"
-      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+      ? "border-[var(--decisionate-brand-primary)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
+      : "border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900"
   }`
 }

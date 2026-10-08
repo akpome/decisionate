@@ -24,12 +24,16 @@ def build_security_configuration_status() -> dict:
     if app_environment == "production":
         if not auth_jwks_configured:
             issues.append("AUTH_JWKS_URL or CLERK_JWKS_URL is required")
+        elif not _is_https_url(runtime.auth_jwks_url):
+            issues.append("AUTH_JWKS_URL must use HTTPS")
         if not secret_encryption_is_configured():
             issues.append("OAUTH_TOKEN_ENCRYPTION_KEY is required")
         if not runtime.sentry_dsn:
             issues.append("SENTRY_DSN is required")
         if not database_url or database_url.startswith("sqlite"):
             issues.append("a non-SQLite DATABASE_URL is required")
+        elif not database_url.startswith("postgresql"):
+            issues.append("PostgreSQL DATABASE_URL is required for the ingestion worker")
         if storage_provider not in {"r2", "s3"}:
             issues.append("remote object storage (r2 or s3) is required")
         if not _is_https_url(web_url):

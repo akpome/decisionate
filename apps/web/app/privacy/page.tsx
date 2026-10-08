@@ -62,7 +62,7 @@ export default function PrivacyPage() {
       eyebrow="Privacy"
       title="Privacy Policy"
       description="This page explains what Decisionate handles, why it handles it, which processors may receive it, and how a workspace owner can request access, export, or deletion."
-      updated="August 14, 2026"
+      updated="October 4, 2026"
     >
       <PolicySection title="1. What this policy covers">
         <p>
@@ -187,16 +187,17 @@ export default function PrivacyPage() {
 
       <PolicySection title="8. Retention, deletion, and export">
         <p>
-          Connector-ingested data is subject to a fixed five-year retention
-          rule. Decisionate retains the current month and the preceding 59
-          calendar months of connector data. When a connector dataset is
-          synchronized or the connector maintenance job runs, monthly hot
+          Raw connector analytical data is subject to a fixed three-year
+          retention rule. Decisionate retains the current month and the
+          preceding 35 calendar months of connector data. When a connector
+          dataset is synchronized or the connector maintenance job runs, monthly hot
           partitions and historical yearly or statistical summary partitions
           older than that window are removed from live storage. This is an
           application policy, not a customer-selectable setting, and it applies
-          to connector data and its derived Parquet summaries. Records without
-          a source date are retained and aged by their connector ingestion
-          partition month.
+          to raw connector data and its derived Parquet summaries. Raw records
+          older than three years are deleted from live analytical storage.
+          Records without a source date are retained and aged by their
+          connector ingestion partition month.
         </p>
         <p>
           This automatic rule does not delete the connector configuration,

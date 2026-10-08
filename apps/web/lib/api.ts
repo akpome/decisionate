@@ -2,6 +2,7 @@ import {
   getActiveWorkspaceId,
   notifyWorkspaceAccessChanged,
 } from "@/lib/workspace-context"
+import { ApiReadCache } from "@/lib/api-read-cache"
 import {
   dashboardUsesDatasetMetricMapping,
   defaultDashboardKey,
@@ -596,6 +597,12 @@ export type DataSourceConnection = {
   initial_backfill_days?: number | null
   initial_backfill_months?: number | null
   advanced_sync_max_days?: number | null
+  analysis_status?:
+    | "pending"
+    | "running"
+    | "complete"
+    | "failed"
+    | null
   authorization_error?: string | null
   authorization_error_at?: string | null
   sync_enabled?: boolean
@@ -604,6 +611,8 @@ export type DataSourceConnection = {
   sync_timezone?: string | null
   sync_day_of_week?: number | null
   ingestion_job?: DataIngestionJob | null
+  ingestion_children?: DataIngestionJob[]
+  analysis_job?: DataIngestionJob | null
   created_at?: string
   updated_at?: string
 }
@@ -611,6 +620,8 @@ export type DataSourceConnection = {
 export type DataIngestionJob = {
   id: number
   connection_id?: number | null
+  parent_job_id?: number | null
+  object_type?: string | null
   job_type: string
   status: "queued" | "running" | "succeeded" | "no_data" | "failed"
   error_message?: string | null
@@ -669,6 +680,7 @@ export type DataSourceConnectionSyncPayload = {
 }
 
 export type BillingStatus = {
+  billing_enabled?: boolean
   configured: boolean
   provider: string
   workspace_id: string
@@ -714,6 +726,7 @@ export type BillingStatus = {
 }
 
 export type BillingAccessStatus = {
+  billing_enabled?: boolean
   workspace_id: string
   billing_workspace_id: string
   plan: string
@@ -1789,7 +1802,7 @@ export type OrganizationWorkspaceRecord = {
   id: number
   name: string
   owner_user_id: string
-  role: "owner" | "member" | "client" | "managed_client" | string
+  role: "owner" | "member" | "client" | "client_owner" | "client_user" | "managed_client" | string
   logo_url?: string | null
   primary_color?: string | null
   accent_color?: string | null
@@ -1875,11 +1888,6 @@ const apiReadCacheTtlMs = 15000
 const clerkBearerAuthEnabled =
   process.env.NEXT_PUBLIC_ENABLE_API_BEARER_AUTH === "true"
 
-type ApiReadCacheEntry<T> = {
-  expiresAt: number
-  promise: Promise<T>
-}
-
 export type ApiAvailabilityEventDetail = {
   available: boolean
   message?: string
@@ -1893,8 +1901,7 @@ export function getApiAvailabilitySnapshot() {
   return apiAvailabilitySnapshot
 }
 
-const apiReadCache =
-  new Map<string, ApiReadCacheEntry<unknown>>()
+const apiReadCache = new ApiReadCache()
 
 let clerkSessionTokenProvider:
   ClerkSessionTokenProvider | null = null
@@ -1909,6 +1916,9 @@ export function setClerkSessionTokenProvider(
   provider: ClerkSessionTokenProvider | null
 ) {
   clerkSessionTokenProvider = provider
+  if (!provider) {
+    apiReadCache.clear()
+  }
 }
 
 async function getClerkSessionToken(
@@ -2372,40 +2382,7 @@ function getCachedRead<T>(
     return loader()
   }
 
-  const now = Date.now()
-  const cachedEntry =
-    apiReadCache.get(cacheKey) as
-      | ApiReadCacheEntry<T>
-      | undefined
-
-  if (
-    cachedEntry &&
-    cachedEntry.expiresAt > now
-  ) {
-    return cachedEntry.promise
-  }
-
-  const promise =
-    loader().catch((error) => {
-      const currentEntry =
-        apiReadCache.get(cacheKey)
-
-      if (currentEntry?.promise === promise) {
-        apiReadCache.delete(cacheKey)
-      }
-
-      throw error
-    })
-
-  apiReadCache.set(
-    cacheKey,
-    {
-      expiresAt: now + ttlMs,
-      promise,
-    }
-  )
-
-  return promise
+  return apiReadCache.get(cacheKey, loader, ttlMs)
 }
 
 function enqueueDatasetPreferenceWrite<T>(
@@ -2445,15 +2422,7 @@ function invalidateApiReadCache(
     return
   }
 
-  for (const cacheKey of apiReadCache.keys()) {
-    if (
-      prefixes.some((prefix) =>
-        cacheKey.startsWith(prefix)
-      )
-    ) {
-      apiReadCache.delete(cacheKey)
-    }
-  }
+  apiReadCache.invalidate(prefixes)
 
   if (
     prefixes.some((prefix) =>

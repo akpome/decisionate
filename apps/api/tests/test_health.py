@@ -76,6 +76,7 @@ class HealthEndpointTests(unittest.TestCase):
                 "provider": "",
                 "configured": False,
                 "lifecycle_scheduler_configured": False,
+                "enabled": True,
             },
         )
 

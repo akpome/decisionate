@@ -1,6 +1,7 @@
 "use client"
 
 import {
+    useMemo,
     useState,
 } from "react"
 import {
@@ -9,17 +10,21 @@ import {
 import Link from "next/link"
 import {
     Database,
-    ExternalLink,
+    ArrowRight,
+    ChevronLeft,
+    ChevronRight,
     FileText,
+    LoaderCircle,
+    Search,
     Table2,
     Trash2,
+    X,
 } from "lucide-react"
 import { useUser } from "@clerk/nextjs"
 import {
     useActiveWorkspace,
 } from "@/lib/use-active-workspace"
 import {
-    formatSourceValue,
     getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
 import { useDecisionateText } from "@/app/use-decisionate-language"
@@ -64,10 +69,43 @@ export function DatasetList({
         deletingDatasetId,
         setDeletingDatasetId,
     ] = useState<number | null>(null)
+    const [query, setQuery] = useState("")
+    const [source, setSource] = useState("")
+    const [sort, setSort] = useState("newest")
+    const [page, setPage] = useState(1)
+    const entries = useMemo(() => datasets.map(dataset => ({
+        dataset,
+        source: getDatasetSourceDetails(dataset.source_type, dataset.source_config, dataset.source_label),
+    })), [datasets])
+    const sourceLabels = [...new Set(entries.map(entry => entry.source.label))].sort()
+    const filteredDatasets = useMemo(() => {
+        const search = query.trim().toLocaleLowerCase()
+        return entries.filter(entry =>
+            (!source || entry.source.label === source) &&
+            (!search || [entry.dataset.file_name, entry.source.label, entry.source.originalFileName]
+                .some(value => value?.toLocaleLowerCase().includes(search)))
+        ).map(entry => entry.dataset).sort((left, right) => {
+            if (sort === "name") return left.file_name.localeCompare(right.file_name)
+            if (sort === "rows") return right.row_count - left.row_count
+            const order = (Date.parse(right.created_at ?? "") || 0) - (Date.parse(left.created_at ?? "") || 0) || right.id - left.id
+            return sort === "oldest" ? -order : order
+        })
+    }, [entries, query, source, sort])
+    const pageSize = 20
+    const pageCount = Math.max(1, Math.ceil(filteredDatasets.length / pageSize))
+    const currentPage = Math.min(page, pageCount)
+    const start = (currentPage - 1) * pageSize
+
+    function resetFilters() {
+        setQuery("")
+        setSource("")
+        setPage(1)
+    }
 
     async function handleDelete(
         datasetId: number
     ) {
+        if (!canDelete || deletingDatasetId !== null) return
         if (!user?.id) {
             setErrorMessage(
                 t("Sign in before deleting a dataset.")
@@ -77,7 +115,7 @@ export function DatasetList({
 
         const confirmed =
             window.confirm(
-                t("Delete this dataset?")
+                `${t("Delete dataset")}: ${datasets.find(dataset => dataset.id === datasetId)?.file_name ?? datasetId}?\n${t("This cannot be undone.")}`
             )
 
         if (!confirmed) return
@@ -112,12 +150,12 @@ export function DatasetList({
 
     if (!datasets.length) {
         return (
-            <div className={`rounded-lg border border-dashed p-6 text-sm ${loadError ? "border-red-200 bg-red-50 text-red-700" : "bg-gray-50 text-gray-500"}`}>
-                {loadError
-                    ? t("The saved dataset list is unavailable. Retry the data services above.")
-                    : canManage
-                        ? t("No saved datasets yet. Upload a file above or pull from a configured connection so dashboards, forecasts, reports, alerts, and decisions can use real metrics.")
-                        : t("No datasets have been shared with this workspace yet. Ask the workspace team to share one so dashboards, forecasts, reports, alerts, and decisions can use real metrics.")}
+            <div className="flex min-h-52 flex-col items-center justify-center gap-3 border-y border-dashed py-10 text-center">
+                <Database size={28} className="text-gray-400" aria-hidden="true" />
+                <p className={`text-sm font-medium ${loadError ? "text-red-700" : "text-gray-700"}`}>
+                    {t(loadError ? "Datasets unavailable" : canManage ? "No saved datasets" : "No shared datasets")}
+                </p>
+                {!canManage && !loadError && <p className="text-sm text-gray-500">{t("No datasets have been shared with this workspace yet.")}</p>}
             </div>
         )
     }
@@ -157,7 +195,7 @@ export function DatasetList({
                 </div>
             )}
 
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-3 gap-3 border-b pb-5">
                 <DatasetStat
                     icon={Database}
                     label={t("Datasets")}
@@ -176,8 +214,30 @@ export function DatasetList({
                 />
             </div>
 
-            <div className="divide-y rounded-lg border">
-                {datasets.map((dataset) => (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-[minmax(0,1fr)_11rem_11rem]">
+                <label className="relative col-span-2 min-w-0 lg:col-span-1">
+                    <span className="sr-only">{t("Search datasets")}</span>
+                    <Search size={16} className="pointer-events-none absolute left-3 top-3 text-gray-400" aria-hidden="true" />
+                    <input type="search" value={query} onChange={event => { setQuery(event.target.value); setPage(1) }} placeholder={t("Search datasets")} className="h-10 w-full rounded-lg border bg-white pl-9 pr-10 text-sm" />
+                    {query && <button type="button" title={t("Clear search")} aria-label={t("Clear search")} onClick={() => { setQuery(""); setPage(1) }} className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"><X size={15} aria-hidden="true" /></button>}
+                </label>
+                <select aria-label={t("Filter by source")} value={source} onChange={event => { setSource(event.target.value); setPage(1) }} className="h-10 w-full min-w-0 truncate rounded-lg border bg-white px-3 text-sm">
+                    <option value="">{t("All sources")}</option>
+                    {sourceLabels.map(label => <option key={label} value={label}>{label}</option>)}
+                </select>
+                <select aria-label={t("Sort datasets")} value={sort} onChange={event => { setSort(event.target.value); setPage(1) }} className="h-10 w-full min-w-0 truncate rounded-lg border bg-white px-3 text-sm">
+                    <option value="newest">{t("Newest first")}</option>
+                    <option value="oldest">{t("Oldest first")}</option>
+                    <option value="name">{t("Name A to Z")}</option>
+                    <option value="rows">{t("Most rows")}</option>
+                </select>
+            </div>
+            <div className="flex min-h-6 flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                <p role="status" aria-live="polite">{filteredDatasets.length.toLocaleString()} {t(filteredDatasets.length === 1 ? "dataset" : "datasets")}</p>
+                {(query || source) && <button type="button" onClick={resetFilters} className="font-medium text-[var(--decisionate-brand-primary-text)] hover:underline">{t("Clear filters")}</button>}
+            </div>
+            <div className="divide-y overflow-hidden rounded-lg border bg-white">
+                {filteredDatasets.slice(start, start + pageSize).map((dataset) => (
                     <DatasetListItem
                         key={dataset.id}
                         dataset={dataset}
@@ -188,7 +248,16 @@ export function DatasetList({
                         onDelete={handleDelete}
                     />
                 ))}
+                {!filteredDatasets.length && <div className="flex min-h-44 flex-col items-center justify-center gap-3 px-4 py-8 text-center"><Search size={24} className="text-gray-400" aria-hidden="true" /><p className="text-sm font-medium text-gray-700">{t("No matching datasets")}</p><button type="button" onClick={resetFilters} className="text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:underline">{t("Clear filters")}</button></div>}
             </div>
+            {pageCount > 1 && <nav aria-label={t("Dataset pages")} className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500">
+                <span>{start + 1}-{Math.min(start + pageSize, filteredDatasets.length)} {t("of")} {filteredDatasets.length.toLocaleString()}</span>
+                <div className="flex items-center gap-3">
+                    <button type="button" aria-label={t("Previous page")} title={t("Previous page")} disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} className="flex h-9 w-9 items-center justify-center rounded-md border bg-white text-gray-600 disabled:opacity-40"><ChevronLeft size={16} aria-hidden="true" /></button>
+                    <span>{currentPage} / {pageCount}</span>
+                    <button type="button" aria-label={t("Next page")} title={t("Next page")} disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)} className="flex h-9 w-9 items-center justify-center rounded-md border bg-white text-gray-600 disabled:opacity-40"><ChevronRight size={16} aria-hidden="true" /></button>
+                </div>
+            </nav>}
         </div>
     )
 }
@@ -205,14 +274,14 @@ function DatasetStat({
     detail?: string
 }) {
     return (
-        <div className="rounded-lg border bg-gray-50 p-4">
-            <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-gray-700">
-                    <Icon size={18} />
+        <div className="min-w-0 border-l-2 border-gray-200 pl-3">
+            <div className="flex items-center gap-2">
+                <div className="hidden shrink-0 text-gray-500 sm:block">
+                    <Icon size={16} aria-hidden="true" />
                 </div>
 
                 <div>
-                    <p className="text-2xl font-semibold">
+                    <p className="break-words text-lg font-semibold text-gray-900 sm:text-xl">
                         {value.toLocaleString()}
                     </p>
 
@@ -223,7 +292,7 @@ function DatasetStat({
             </div>
 
             {detail && (
-                <p className="mt-3 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-gray-500">
                     {detail}
                 </p>
             )}
@@ -255,18 +324,18 @@ function DatasetListItem({
         )
 
     return (
-        <div className="flex flex-col gap-4 bg-white p-4 first:rounded-t-lg last:rounded-b-lg md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3 px-4 py-3 transition hover:bg-gray-50" aria-busy={deletingDatasetId === dataset.id}>
             <Link
                 href={`/dashboard/datasets/${dataset.id}`}
-                className="min-w-0 flex-1"
+                className="min-w-0 flex-1 rounded-md"
             >
                 <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-700">
-                        <FileText size={18} />
+                    <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-500 sm:flex">
+                        <FileText size={17} aria-hidden="true" />
                     </div>
 
                     <div className="min-w-0">
-                        <div className="truncate font-medium">
+                        <div title={dataset.file_name} className="truncate text-sm font-medium text-gray-900">
                             {dataset.file_name}
                         </div>
 
@@ -277,8 +346,9 @@ function DatasetListItem({
                             <span>
                                 {dataset.column_count.toLocaleString()} {t("columns")}
                             </span>
+                            <span>{sourceDetails.label}</span>
                             {createdAt && (
-                                <span>
+                                <span className="hidden sm:inline">
                                     {t("Added")} {createdAt}
                                 </span>
                             )}
@@ -286,34 +356,16 @@ function DatasetListItem({
                     </div>
                 </div>
 
-                <div className="mt-3 flex min-w-0 flex-wrap gap-2">
-                    <span className="rounded-full bg-[var(--decisionate-brand-primary-soft)] px-2.5 py-1 text-xs font-medium text-[var(--decisionate-brand-primary-text)]">
-                        {sourceDetails.label}
-                    </span>
-                    {sourceDetails.storedFileFormat && (
-                        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-                            {t("Stored as")} {formatSourceValue(sourceDetails.storedFileFormat)}
-                        </span>
-                    )}
-
-                </div>
-
-                {sourceDetails.originalFileName && (
-                    <div className="mt-2 break-all text-xs text-gray-400">
-                        {t("Original file:")} {" "}
-                        {sourceDetails.originalFileName}
-                    </div>
-                )}
-
             </Link>
 
-            <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:justify-end">
+            <div className="flex shrink-0 items-center gap-1">
                 <Link
                     href={`/dashboard/datasets/${dataset.id}`}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
+                    aria-label={`${t("View dataset")}: ${dataset.file_name}`}
+                    title={t("View dataset")}
+                    className="flex h-9 w-9 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"
                 >
-                    <ExternalLink size={15} />
-                    {t("View")}
+                    <ArrowRight size={17} aria-hidden="true" />
                 </Link>
 
                 {canDelete && (
@@ -325,17 +377,16 @@ function DatasetListItem({
                             )
                         }
                         disabled={
-                            deletingDatasetId ===
-                            dataset.id
+                            deletingDatasetId !== null
                         }
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        className="flex h-9 w-9 items-center justify-center rounded-md text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                         title={t("Delete dataset")}
+                        aria-label={`${t("Delete dataset")}: ${dataset.file_name}`}
                     >
-                        <Trash2 size={15} />
                         {deletingDatasetId ===
                         dataset.id
-                            ? t("Deleting")
-                            : t("Delete")}
+                            ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+                            : <Trash2 size={16} aria-hidden="true" />}
                     </button>
                 )}
             </div>

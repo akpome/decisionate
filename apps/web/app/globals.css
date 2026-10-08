@@ -22,24 +22,24 @@
 }
 
 :root[data-theme="dark"] {
-  --background: #020617;
+  --background: #111214;
   --foreground: #e5e7eb;
-  --decisionate-app-surface: #0f172a;
-  --decisionate-app-surface-muted: #111827;
-  --decisionate-app-border: #1f2937;
-  --decisionate-app-input: #111827;
+  --decisionate-app-surface: #191b20;
+  --decisionate-app-surface-muted: #15171b;
+  --decisionate-app-border: #30343b;
+  --decisionate-app-input: #191b20;
   --decisionate-brand-primary-text: #93c5fd;
   --decisionate-brand-accent-text: #5eead4;
-  --color-gray-50: #111827;
-  --color-gray-100: #1f2937;
-  --color-gray-200: #334155;
-  --color-gray-300: #475569;
-  --color-gray-400: #64748b;
-  --color-gray-500: #94a3b8;
-  --color-gray-600: #cbd5e1;
-  --color-gray-700: #e2e8f0;
-  --color-gray-800: #f1f5f9;
-  --color-gray-900: #f8fafc;
+  --color-gray-50: #15171b;
+  --color-gray-100: #24272c;
+  --color-gray-200: #35393f;
+  --color-gray-300: #50555d;
+  --color-gray-400: #8a919b;
+  --color-gray-500: #a6adb6;
+  --color-gray-600: #c8cdd4;
+  --color-gray-700: #dde0e5;
+  --color-gray-800: #eef0f2;
+  --color-gray-900: #f5f6f8;
   --color-gray-950: #ffffff;
   color-scheme: dark;
 }
@@ -64,7 +64,43 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Arial, Helvetica, system-ui, sans-serif;
+}
+
+.dashboard-shell-layout {
+  letter-spacing: 0;
+}
+
+.dashboard-shell-layout :is(h1, h2, h3, p, span, button, label) {
+  letter-spacing: 0;
+}
+
+.dashboard-shell-layout :is(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--decisionate-brand-primary);
+  outline-offset: 3px;
+}
+
+.workspace-skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  z-index: 100;
+  transform: translateY(-200%);
+}
+
+.workspace-skip-link:focus {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-shell-layout *,
+  .dashboard-shell-layout *::before,
+  .dashboard-shell-layout *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .dataset-preview-horizontal-scroll {
@@ -81,11 +117,11 @@ body {
 }
 
 :root[data-theme="dark"] .bg-white\/70 {
-  background-color: rgb(15 23 42 / 0.7);
+  background-color: rgb(25 27 32 / 0.7);
 }
 
 :root[data-theme="dark"] .bg-white\/95 {
-  background-color: rgb(15 23 42 / 0.95);
+  background-color: rgb(25 27 32 / 0.95);
 }
 
 :root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
@@ -97,7 +133,7 @@ body {
 
 :root[data-theme="dark"] input::placeholder,
 :root[data-theme="dark"] textarea::placeholder {
-  color: #64748b;
+  color: #8a919b;
 }
 
 :root[data-theme="dark"] option {

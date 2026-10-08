@@ -14,7 +14,6 @@ from app.modules.identity.service import (
     DEFAULT_AUTH_PROVIDER,
     resolve_external_identity,
     resolve_workspace_reference,
-    sync_external_identity_email,
 )
 
 
@@ -39,6 +38,7 @@ class AuthContext:
     email: str | None = None
     external_user_id: str | None = None
     auth_provider: str = DEFAULT_AUTH_PROVIDER
+    email_verified: bool = False
 
 
 _jwks_client: PyJWKClient | None = None
@@ -88,6 +88,9 @@ def get_auth_context(
     request: Request,
     allow_managed_client_workspace: bool = False,
 ) -> AuthContext:
+    cached = getattr(getattr(request, "state", None), "auth_context", None)
+    if isinstance(cached, AuthContext) and not allow_managed_client_workspace:
+        return cached
     (
         external_user_id,
         user_email,
@@ -95,16 +98,9 @@ def get_auth_context(
     ) = get_verified_user_identity(request)
     user_id = resolve_external_identity(
         external_user_id,
-        email=user_email,
+        email=user_email if email_is_verified else None,
         provider=DEFAULT_AUTH_PROVIDER,
     )
-    if user_email and not email_is_verified:
-        sync_external_identity_email(
-            external_user_id,
-            user_id,
-            user_email,
-            provider=DEFAULT_AUTH_PROVIDER,
-        )
     clerk_jwks_url = get_auth_jwks_url()
     requested_user_id = request.headers.get(
         "X-User-Id",
@@ -137,6 +133,7 @@ def get_auth_context(
         email=user_email,
         external_user_id=external_user_id,
         auth_provider=DEFAULT_AUTH_PROVIDER,
+        email_verified=email_is_verified,
     )
 
 
@@ -158,19 +155,7 @@ def get_verified_user_identity(
         user_id, user_email = verify_clerk_bearer_token_identity(
             authorization,
         )
-        header_email = clean_auth_value(
-            request.headers.get("X-User-Email")
-        ) or None
-
-        # Some Clerk session tokens omit email claims. The client obtains the
-        # email from the authenticated Clerk session and sends it separately;
-        # keep the provider identity authoritative while allowing pending
-        # workspace invites to be claimed by that email.
-        return (
-            user_id,
-            user_email or header_email,
-            bool(user_email),
-        )
+        return user_id, user_email, bool(user_email)
 
     if clerk_jwks_url:
         raise HTTPException(
@@ -421,6 +406,7 @@ def verify_clerk_bearer_token_identity(
             audience=jwt_audience,
             issuer=jwt_issuer,
             options={
+                "require": ["exp", "sub"],
                 "verify_aud": jwt_audience is not None,
                 "verify_iss": jwt_issuer is not None,
             },
@@ -446,6 +432,10 @@ def verify_clerk_bearer_token_identity(
         or claims.get("email_address")
         or claims.get("primary_email_address")
     ) or None
+    # A signed address is not proof of ownership unless the issuer also
+    # attests verification. Never use a browser-supplied email for linking.
+    if claims.get("email_verified") is not True:
+        user_email = None
 
     return user_id, user_email
 

@@ -7,7 +7,7 @@ from datetime import date
 import pandas as pd
 
 
-CONNECTOR_DATA_RETENTION_YEARS = 5
+CONNECTOR_DATA_RETENTION_YEARS = 3
 CONNECTOR_DATA_RETENTION_MONTHS = CONNECTOR_DATA_RETENTION_YEARS * 12
 
 
@@ -24,9 +24,9 @@ def month_key_from_index(index: int) -> str:
 def connector_retention_cutoff_month(
     as_of: date | None = None,
 ) -> str:
-    """Return the first month still retained by the five-year rule.
+    """Return the first month still retained by the three-year rule.
 
-    The current month and the preceding 59 calendar months remain available;
+    The current month and the preceding 35 calendar months remain available;
     older months are eligible for deletion.
     """
     reference = as_of or date.today()

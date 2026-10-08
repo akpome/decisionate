@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from starlette.middleware.gzip import GZipMiddleware
+from starlette.concurrency import run_in_threadpool
 
 from app.modules.datasets.router import (
     router as datasets_router,
@@ -35,6 +36,7 @@ from app.modules.billing.service import (
     is_billing_configured,
 )
 from app.modules.billing.lifecycle import (
+    billing_enforcement_enabled,
     build_subscription_access_state,
     get_subscription_for_workspace,
     is_subscription_exempt_path,
@@ -108,36 +110,24 @@ from app.security.config import (
     build_security_configuration_status,
     validate_production_security_configuration,
 )
+from app.security.request_limits import RequestBodyLimitMiddleware
+from app.security.rate_limits import consume_workspace_request
+from app.infrastructure.monitoring import configure_error_monitoring
 
 
 logger = logging.getLogger(__name__)
 
 
-def configure_error_monitoring():
-    runtime = get_runtime_configuration()
-    dsn = runtime.sentry_dsn
-    if not dsn:
-        return
-    try:
-        import sentry_sdk
-
-        sentry_sdk.init(
-            dsn=dsn,
-            environment=runtime.app_env,
-            traces_sample_rate=float(
-                runtime.sentry_traces_sample_rate or 0
-            ),
-        )
-    except ModuleNotFoundError:
-        logger.warning(
-            "SENTRY_DSN is set but sentry-sdk is not installed"
-        )
-    except (TypeError, ValueError) as error:
-        logger.warning("Sentry configuration is invalid: %s", error)
-
-
 configure_error_monitoring()
 validate_production_security_configuration()
+
+# Serialize existing bootstrap migrations when the API and worker deploy
+# together. The connection owns the session lock until initialization ends.
+_schema_lock_connection = None
+if engine.dialect.name == "postgresql":
+    _schema_lock_connection = engine.connect()
+    _schema_lock_connection.execute(text("SELECT pg_advisory_lock(59831, 2)"))
+    _schema_lock_connection.commit()
 
 Base.metadata.create_all(bind=engine)
 
@@ -1540,6 +1530,11 @@ def ensure_organization_owner_memberships():
 
 ensure_organization_owner_memberships()
 
+if _schema_lock_connection is not None:
+    _schema_lock_connection.execute(text("SELECT pg_advisory_unlock(59831, 2)"))
+    _schema_lock_connection.commit()
+    _schema_lock_connection.close()
+
 app = FastAPI(
     title="Decisionate API"
 )
@@ -1590,6 +1585,15 @@ def get_allowed_origins():
 # API Authentication Boundary For Protected Product Routes
 # =========================
 
+def _load_subscription_access_state(workspace_id):
+    db = SessionLocal()
+    try:
+        subscription = get_subscription_for_workspace(db, workspace_id)
+        return build_subscription_access_state(subscription)
+    finally:
+        db.close()
+
+
 @app.middleware("http")
 async def enforce_product_route_auth(
     request,
@@ -1612,10 +1616,12 @@ async def enforce_product_route_auth(
             "/datasets/source-connections/sync-due",
             "/alerts/weekly-report/send-due",
             "/billing/lifecycle/send-due",
+            "/billing/webhook",
         }
     ):
         try:
-            request.state.auth_context = get_auth_context(
+            request.state.auth_context = await run_in_threadpool(
+                get_auth_context,
                 request,
             )
         except HTTPException as error:
@@ -1626,39 +1632,45 @@ async def enforce_product_route_auth(
                 },
             )
 
+        if get_runtime_configuration().app_env == "production":
+            allowed = await run_in_threadpool(
+                consume_workspace_request, request.state.auth_context.workspace_id,
+            )
+            if not allowed:
+                return JSONResponse(
+                    status_code=429, content={"detail": "Workspace request limit reached. Please wait a minute."},
+                    headers={"Retry-After": "60"},
+                )
+
         if not is_subscription_exempt_path(request.url.path):
-            db = SessionLocal()
-            try:
-                subscription = get_subscription_for_workspace(
-                    db,
-                    request.state.auth_context.workspace_id,
+            access_state = await run_in_threadpool(
+                _load_subscription_access_state,
+                request.state.auth_context.workspace_id,
+            )
+            if not access_state.access_allowed:
+                return JSONResponse(
+                    status_code=402,
+                    content={
+                        "detail": subscription_access_error(access_state),
+                        "subscription_required": True,
+                        "subscription_status": access_state.status,
+                        "current_period_end": (
+                            access_state.current_period_end.isoformat()
+                            if access_state.current_period_end
+                            else None
+                        ),
+                        "grace_period_end": (
+                            access_state.grace_period_end.isoformat()
+                            if access_state.grace_period_end
+                            else None
+                        ),
+                    },
                 )
-                access_state = build_subscription_access_state(
-                    subscription,
-                )
-                if not access_state.access_allowed:
-                    return JSONResponse(
-                        status_code=402,
-                        content={
-                            "detail": subscription_access_error(
-                                access_state,
-                            ),
-                            "subscription_required": True,
-                            "subscription_status": access_state.status,
-                            "current_period_end": (
-                                access_state.current_period_end.isoformat()
-                                if access_state.current_period_end
-                                else None
-                            ),
-                            "grace_period_end": (
-                                access_state.grace_period_end.isoformat()
-                                if access_state.grace_period_end
-                                else None
-                            ),
-                        },
-                    )
-            finally:
-                db.close()
+
+    if not billing_enforcement_enabled() and request.url.path in {
+        "/billing/checkout", "/billing/portal", "/billing/ai-credits/topup",
+    }:
+        return JSONResponse(status_code=503, content={"detail": "Billing is not enabled."})
 
     return await call_next(
         request,
@@ -1674,6 +1686,8 @@ async def collect_product_usage_activity(
         request,
         call_next,
     )
+
+app.add_middleware(RequestBodyLimitMiddleware)
 
 app.include_router(
     datasets_router,
@@ -1800,6 +1814,7 @@ def health():
                     ),
                 },
                 "billing": {
+                    "enabled": billing_enforcement_enabled(),
                     "provider": get_billing_config()["provider"],
                     "configured": is_billing_configured(),
                     "lifecycle_scheduler_configured": bool(
@@ -1810,6 +1825,17 @@ def health():
             "configuration": build_runtime_configuration_status(),
             },
         },
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/ready")
+def readiness():
+    from app.infrastructure.readiness import check_service_readiness
+    status = check_service_readiness()
+    return JSONResponse(
+        status_code=200 if status["ready"] else 503,
+        content=status,
         headers={"Cache-Control": "no-store"},
     )
 

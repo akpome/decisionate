@@ -241,7 +241,7 @@ class AuthContextTests(unittest.TestCase):
 
         self.assertEqual(
             context.workspace_role,
-            "client",
+            "client_owner",
         )
 
     def test_managed_client_workspace_accepts_external_owner_reference(self):
@@ -320,6 +320,7 @@ class AuthContextTests(unittest.TestCase):
             audience=None,
             issuer="https://issuer.example",
             options={
+                "require": ["exp", "sub"],
                 "verify_aud": False,
                 "verify_iss": True,
             },
@@ -355,6 +356,7 @@ class AuthContextTests(unittest.TestCase):
             return_value={
                 "sub": "user-1",
                 "email": "invitee@example.com",
+                "email_verified": True,
             },
         ):
             self.assertEqual(

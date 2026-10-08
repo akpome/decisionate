@@ -21,6 +21,7 @@ from app.modules.billing.schemas import AICreditTopupResponse
 from app.modules.ai.credits import get_ai_credit_low_balance_threshold
 from app.modules.ai.credits import get_ai_credit_remaining
 from app.modules.billing.lifecycle import (
+    billing_enforcement_enabled,
     build_subscription_access_state,
     get_subscription_for_workspace,
     resolve_billing_workspace_id,
@@ -132,6 +133,7 @@ async def get_billing_access(
         )
         state = build_subscription_access_state(subscription)
         return BillingAccessResponse(
+            billing_enabled=billing_enforcement_enabled(),
             workspace_id=auth_context.workspace_id,
             billing_workspace_id=resolve_billing_workspace_id(
                 auth_context.workspace_id,
@@ -247,7 +249,8 @@ async def get_billing_status(
             get_ai_credit_low_balance_threshold(total_ai_credit_limit)
         )
         return BillingStatusResponse(
-            configured=is_billing_configured(),
+            configured=billing_enforcement_enabled() and is_billing_configured(),
+            billing_enabled=billing_enforcement_enabled(),
             provider=config["provider"],
             workspace_id=auth_context.workspace_id,
             plan=plan,

@@ -5,7 +5,7 @@ import { useDecisionateText } from "@/app/use-decisionate-language"
 
 type DashboardPageHeaderProps = {
   title: ReactNode
-  description: ReactNode
+  description?: ReactNode
   actions?: ReactNode
   eyebrow?: ReactNode
   leading?: ReactNode
@@ -26,7 +26,7 @@ export function DashboardPageHeader({
 
   return (
     <header
-      className={`flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between ${className}`.trim()}
+      className={`flex flex-col gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:items-start sm:justify-between ${className}`.trim()}
     >
       <div className="min-w-0">
         {leading && (
@@ -36,22 +36,24 @@ export function DashboardPageHeader({
         )}
 
         {eyebrow && (
-          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--decisionate-brand-primary-text)]">
+          <p className="mb-1 text-xs font-semibold text-[var(--decisionate-brand-primary-text)]">
             {translateNode(eyebrow)}
           </p>
         )}
 
-        <h1 className="break-words text-3xl font-bold tracking-tight text-gray-950">
+        <h1 className="break-words text-2xl font-semibold leading-8 text-gray-950">
           {translateNode(title)}
         </h1>
 
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-500">
-          {translateNode(description)}
-        </p>
+        {description && (
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
+            {translateNode(description)}
+          </p>
+        )}
       </div>
 
       {actions && (
-        <div className="flex min-w-0 flex-wrap items-start gap-3 lg:justify-end">
+        <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 sm:justify-end">
           {actions}
         </div>
       )}

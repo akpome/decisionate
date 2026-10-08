@@ -125,7 +125,7 @@ function getAdvancedSyncDateBounds(
   const today = new Date()
   const defaultStart = new Date(today)
   defaultStart.setDate(today.getDate() - 1)
-  const initialSyncDays = connection.initial_sync_days ?? 30
+  const initialSyncDays = connection.initial_sync_days ?? 90
   const initialStart = new Date(today)
   initialStart.setDate(today.getDate() - initialSyncDays + 1)
   const backfillEnd = new Date(initialStart)
@@ -144,7 +144,7 @@ function getAdvancedSyncDateBounds(
               60 *
               1000
         )
-      : subtractCalendarMonths(backfillEnd, 23)
+      : subtractCalendarMonths(backfillEnd, 21)
   const configuredEarliest = connection.initial_sync_earliest_date
     ? new Date(`${connection.initial_sync_earliest_date}T00:00:00`)
     : fallbackEarliest
@@ -694,7 +694,13 @@ function DataSourceConnectionRow({
   const ingestionInProgress = [
     "queued",
     "running",
-  ].includes(connection.ingestion_job?.status ?? "")
+  ].includes(connection.ingestion_job?.status ?? "") &&
+    connection.ingestion_job?.job_type !==
+      "connector_analysis"
+  const analysisInProgress = [
+    "pending",
+    "running",
+  ].includes(connection.analysis_status ?? "")
   const isSageConnector =
     connection.source_type === "sage"
   const requiresOAuthAccountSelection =
@@ -1033,7 +1039,7 @@ function DataSourceConnectionRow({
             role="status"
           >
             {t(
-              `Initial import is running. The most recent ${connection.initial_sync_days ?? 30} days will appear first, followed by historical data in the background.`
+              `Initial import is running. The most recent ${connection.initial_sync_days ?? 90} days will appear first, followed by historical data in the background.`
             )}
           </p>
         )}
@@ -1070,6 +1076,17 @@ function DataSourceConnectionRow({
               : connection.ingestion_job?.status === "queued"
                 ? t("Data ingestion is queued and will run in the background.")
                 : t("Data ingestion is running in the background.")}
+          </p>
+        )}
+
+        {analysisInProgress && (
+          <p
+            className="mt-2 break-words text-xs text-blue-700"
+            role="status"
+          >
+            {t(
+              "Historical data is ready. Dataset analysis is running in the background."
+            )}
           </p>
         )}
 

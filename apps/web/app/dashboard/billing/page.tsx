@@ -209,6 +209,15 @@ function BillingPageContent() {
     )
   }
 
+  if (billing?.billing_enabled === false) {
+    return (
+      <div className="space-y-6">
+        <DashboardPageHeader title="Billing" />
+        <p role="status" className="text-sm text-gray-600">{t("Billing is not enabled. No payment is required.")}</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <DashboardPageHeader

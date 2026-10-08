@@ -386,12 +386,10 @@ class PublicDashboardTests(unittest.TestCase):
             "app.modules.public_dashboard.get_public_join_cache_result",
             return_value=None,
         ):
-            result = asyncio.run(
-                get_public_shared_dashboard(
+            result = get_public_shared_dashboard(
                     7,
                     response,
                     "token",
-                )
             )
 
         self.assertEqual(
@@ -433,12 +431,10 @@ class PublicDashboardTests(unittest.TestCase):
             with self.assertRaises(
                 HTTPException,
             ) as context:
-                asyncio.run(
-                    get_public_shared_dashboard(
+                get_public_shared_dashboard(
                         7,
                         response,
                         "token",
-                    )
                 )
 
         self.assertEqual(

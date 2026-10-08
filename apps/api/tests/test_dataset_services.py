@@ -21,10 +21,28 @@ from app.modules.datasets.services.preview import (
 from app.modules.datasets.services.serialization import (
     dataframe_to_json_records,
     to_json_number,
+    to_json_value,
 )
 
 
 class DatasetServiceSerializationTests(unittest.TestCase):
+    def test_native_json_values_preserve_types_and_sanitize_nonfinite_numbers(self):
+        values = [True, False, 42, "text", 1.25, None]
+        for value in values:
+            with self.subTest(value=value):
+                result = to_json_value(value)
+                self.assertEqual(result, value)
+                self.assertIs(type(result), type(value))
+        for value in [float("nan"), float("inf"), float("-inf")]:
+            self.assertIsNone(to_json_value(value))
+
+    def test_chart_sampling_handles_duplicate_row_indexes_without_mutation(self):
+        dataframe = pd.DataFrame({"date": ["2026-01-01", "2026-01-02", "2026-01-03"], "revenue": [10, 20, 30]}, index=[0, 0, 0])
+        original = dataframe.copy(deep=True)
+        chart = generate_chart_data(dataframe, limit=2)
+        self.assertEqual([row["revenue"] for row in chart["data"]], [20, 30])
+        pd.testing.assert_frame_equal(dataframe, original)
+
     def setUp(self):
         self.dataframe = pd.DataFrame({
             "month": [

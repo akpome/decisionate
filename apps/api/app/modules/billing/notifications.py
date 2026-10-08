@@ -197,6 +197,12 @@ def send_due_billing_lifecycle_notifications(
     db,
     now: datetime | None = None,
 ) -> dict:
+    from app.modules.billing.lifecycle import billing_enforcement_enabled
+    if not billing_enforcement_enabled():
+        return {
+            "processed": 0, "notified": 0, "skipped": 0, "failed": 0,
+            "data_purged": 0, "data_purge_failed": 0, "results": [],
+        }
     current_time = now or utc_now()
     subscriptions = (
         db.query(WorkspaceSubscription)

@@ -13,7 +13,7 @@ cp .env.example .env
 Install the base API dependencies:
 
 ```bash
-.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -r requirements.lock
 ```
 
 From the repository root, use an explicit app directory so reload mode can
@@ -103,11 +103,13 @@ Run `docs/backup-restore-verification.md` after every provider restore drill.
 The application can verify an isolated restored database, but provider
 snapshot creation and object-storage restoration remain deployment operations.
 
-`CLERK_JWKS_URL`, `CLERK_JWT_AUDIENCE`, and `CLERK_JWT_ISSUER` enable Clerk JWT verification for protected product routes. If `CLERK_JWKS_URL` is not set, local development can use the existing header-based auth flow. For production invitation claiming, configure the verified Clerk session token to include the signed user email claim; the API does not trust a client-supplied email header when bearer verification is enabled.
+`CLERK_JWKS_URL`, `CLERK_JWT_AUDIENCE`, and `CLERK_JWT_ISSUER` enable Clerk JWT verification for protected product routes. If `CLERK_JWKS_URL` is not set, local development can use the existing header-based auth flow. For identity linking and invitation claiming, configure the issuer to include a signed `email` and boolean `email_verified: true` only for verified addresses. A token without those claims can authenticate by subject but cannot claim email invitations or link accounts by email. Browser-supplied `X-User-Email` is never trusted for those operations.
 
 ## AI Analysis And Forecasting
 
-AI-assisted analysis is part of the MVP. Configure the API server with:
+AI-assisted analysis is optional for the core launch. Leave `AI_PROVIDER` blank
+until integration is ready; deterministic analytics remain available and are
+labelled as fallback output. To enable provider-generated analysis, configure:
 
 - `AI_PROVIDER` (the configured provider identifier)
 - `AI_API_KEY`, `AI_MODEL`, and `AI_API_URL`
@@ -191,8 +193,10 @@ Example weekday cron entry:
 Before deployment, run `apps/api/scripts/check_mvp_readiness.py`. It reports AI,
 analytics, portable storage, server email, billing, connector scheduling and
 production security readiness without printing credentials. Add `--strict` in
-CI or a release check; it fails until the required MVP services and production
-security guard are configured. Individual connector provider credentials are
+CI or a release check; it requires the core services, a live ingestion worker,
+and the production security guard. AI is optional unless `--with-ai` is used.
+Billing is required only when enabled, or when `--with-billing` is used.
+Individual connector provider credentials are
 still verified through staging acceptance tests because availability alone
 cannot prove that a provider account, OAuth flow or sync works.
 
@@ -204,8 +208,9 @@ For a single Railway Cron service, use the combined runner instead:
 python scripts/run_scheduled_jobs.py
 ```
 
-Set `DECISIONATE_API_URL`, `CONNECTORS_SCHEDULER_SECRET`,
-`ALERTS_SCHEDULER_SECRET`, and `BILLING_SCHEDULER_SECRET` on that service.
+Set `DECISIONATE_API_URL` and the secrets for selected jobs, such as
+`CONNECTORS_SCHEDULER_SECRET` and `ALERTS_SCHEDULER_SECRET`, on that service.
+Add `BILLING_SCHEDULER_SECRET` only when billing is enabled.
 If `SCHEDULED_JOBS` is omitted, the runner executes only jobs whose matching
 secret is configured. Set it to an explicit comma-separated subset when a
 deployment should control the selected jobs, for example
@@ -217,6 +222,14 @@ into a failed run. It does not require `DATABASE_URL` because the protected API
 performs the database work.
 
 ## Billing
+
+For a launch without billing, set `BILLING_ENFORCEMENT_ENABLED=false` on both
+the API and worker, leave `BILLING_PROVIDER` blank, and omit `billing` from
+`SCHEDULED_JOBS`. This disables payment controls, subscription lockouts,
+lifecycle emails, and billing-driven data deletion. It does not disable the
+three-year connector retention policy. Enabling billing later requires an
+explicit switch to `BILLING_ENFORCEMENT_ENABLED=true` and configured Stripe
+credentials and webhook.
 
 Billing uses Stripe Checkout and the Stripe customer portal. Configure these
 server-side values before enabling paid plans:
@@ -302,9 +315,9 @@ Shopify imports order-level sales and line items through the versioned GraphQL A
 Configure `SHOPIFY_API_VERSION` and either
 `SHOPIFY_GRAPHQL_API_URL_TEMPLATE` or the compatible
 `SHOPIFY_API_BASE_URL_TEMPLATE`. The adapter requests only order and line-item fields,
-does not request customer email or address fields, and defaults to a 30-day initial
-sync followed by a separate 30-day backfill. Manual Shopify date-range syncs are
-limited to 60 days. These windows remain configurable through
+does not request customer email or address fields, and defaults to a 60-day initial
+sync with no historical backfill. Manual Shopify date-range syncs are limited to
+60 days. These windows remain configurable through
 `SHOPIFY_INITIAL_SYNC_DAYS`, `SHOPIFY_INITIAL_BACKFILL_ENABLED`,
 `SHOPIFY_INITIAL_BACKFILL_DAYS`, and `SHOPIFY_INITIAL_BACKFILL_MONTHS`.
 The default OAuth request uses `read_orders` only, so all-orders access and its
@@ -432,10 +445,87 @@ Do not store production connector secrets directly in `.env` long term. These na
 
 ## Deployment Shape
 
-The recommended initial deployment is a Vercel web app, Railway API and
-Postgres, Cloudflare R2 for Parquet, OpenAI for model calls, Stripe for billing,
-Resend for system email, Railway cron for the scheduler, Upstash Redis for
-distributed cache/rate limiting, and Sentry for error monitoring. Provider
-selection lives in environment variables and adapters rather than in product
-routes. Clerk remains the current authentication adapter while the internal
-Decisionate identity records preserve a future migration path.
+The core deployment uses the web app, API, PostgreSQL, remote object storage
+(R2 or S3), Clerk authentication, system email, Sentry, a persistent ingestion
+worker, and a scheduler. AI and billing are optional integrations, not prerequisites
+for launching the core product. Clerk remains the current authentication adapter
+while internal Decisionate identity records preserve a future migration path.
+
+## Core Production Release
+
+This release supports a core launch without AI or billing. Configuration and
+automated tests do not replace acceptance testing against the deployed services.
+
+### API and Worker
+
+1. Back up PostgreSQL and object storage, and verify a restore into a separate
+   environment before deployment. Database bootstrap changes run at startup
+   under a PostgreSQL lock; they are not a substitute for a backup.
+2. Configure `APP_ENV=production`, a PostgreSQL `DATABASE_URL`, HTTPS web/API
+   URLs, explicit `CORS_ALLOWED_ORIGINS`, Clerk JWKS verification, encrypted OAuth
+   token storage, R2/S3 credentials, email delivery, and `SENTRY_DSN`. The API
+   refuses to start when its production security guard fails.
+3. Set `BILLING_ENFORCEMENT_ENABLED=false` on both API and worker. This disables
+   billing access restrictions, payment commands, lifecycle emails, and
+   subscription-expiry data deletion. Leave `AI_PROVIDER` unset while AI is
+   deferred. Any rules-based analysis remains a fallback, not provider AI.
+4. Deploy a separate persistent service using the API image and start command
+   `python scripts/run_ingestion_worker.py`. Give it the API's database, object
+   storage, connector, authentication, encryption, and monitoring configuration.
+   Enable automatic restart. Run exactly one worker; a PostgreSQL advisory lock
+   rejects a second consumer. Production ingestion is always queued to this worker.
+5. Allow at least 2 GiB of job address space plus supervisor/container overhead.
+   Tune `INGESTION_JOB_MEMORY_MB` and `INGESTION_JOB_TIMEOUT_SECONDS` for the
+   deployment. Each job runs in an isolated process with a deadline. A restart
+   marks interrupted work failed with a retry message; partial imports are not
+   automatically replayed. Queued uploads are staged in shared object storage.
+6. Stop old in-process ingestion before the rollout. Start the API and worker
+   from the same revision. The worker applies three-year connector retention
+   hourly, including disconnected and auto-sync-disabled connections. No
+   historical summarization is performed.
+7. Configure the scheduler with `SCHEDULED_JOBS=connectors,alerts`. Follow
+   [Railway scheduling](../../docs/railway-scheduling.md); omit the billing job
+   while billing is disabled.
+
+For email-based invitations and account linking, the signed Clerk JWT must
+include `email` and boolean `email_verified=true` only for a verified address.
+Subject-based authentication still works without these claims, but email-based
+invitation acceptance does not. Never substitute browser-supplied email headers.
+
+### Release Gates
+
+Run these from the deployed API environment after the worker starts:
+
+```bash
+python scripts/check_mvp_readiness.py --strict --json
+```
+
+`GET /health` is liveness/configuration; `GET /ready` checks the database and a
+worker heartbeat no older than 30 seconds. Monitor readiness, API 5xx responses,
+failed/stale ingestion jobs, scheduler results, storage errors, and Sentry.
+The strict command does not require AI or billing when deferred. Add `--with-ai`
+or `--with-billing` when activating those integrations.
+
+Before allowing customers onto a release, verify:
+
+- Two independent workspaces cannot read or change each other's data; verified
+  invitations, role restrictions, and revoked sharing work as intended.
+- A real upload survives API/worker separation, produces a readable dataset,
+  and its staged object is removed. Verify reporting against real connector
+  data, including multiple objects, empty results, and provider failures.
+- A worker restart reports failure instead of leaving an import running forever;
+  customers can retry. Test the configured timeout and memory budget.
+- Dataset/workspace deletion removes analysis records, ingestion payloads, and
+  relevant storage. Deletion during a running import must return a conflict.
+- Three-year retention removes expired connector data and derived join caches
+  even when synchronization is disabled or provider authorization is revoked.
+- System emails arrive, scheduler secrets are enforced, and monitoring alerts
+  reach the operator. Confirm provider app approval for customers outside app
+  roles before offering a restricted OAuth connector publicly.
+- The edge proxy/WAF limits anonymous/public traffic and slow or oversized
+  requests. The API limits authenticated workspace requests and request bodies;
+  it does not provide an anonymous edge rate limiter.
+
+Keep a known-good application image and documented rollback procedure. If a
+rollback changes database expectations, test it against a restored copy first.
+Do not overwrite live customer data with an old backup as an automatic rollback.

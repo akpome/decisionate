@@ -18,6 +18,7 @@ class BillingPlanOption(BaseModel):
 
 
 class BillingStatusResponse(BaseModel):
+    billing_enabled: bool = True
     configured: bool
     provider: str
     workspace_id: str
@@ -63,6 +64,7 @@ class BillingStatusResponse(BaseModel):
 
 
 class BillingAccessResponse(BaseModel):
+    billing_enabled: bool = True
     workspace_id: str
     billing_workspace_id: str
     plan: str

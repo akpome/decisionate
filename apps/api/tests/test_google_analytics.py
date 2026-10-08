@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import sys
 import tempfile
@@ -13,6 +14,9 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.models import DataSourceConnection
 from app.db.models import Dataset
+from app.db.models import DataIngestionJob, DatasetAnalysis, OAuthCredential
+from fastapi import BackgroundTasks
+from app.modules.datasets.router import run_connector_ingestion_job
 from app.modules.datasets.router import sync_source_connection
 from app.modules.datasets.schemas import DataSourceConnectionSync
 from app.modules.datasets.services.google_analytics import (
@@ -25,6 +29,17 @@ from app.modules.datasets.services.connectors import ConnectorUnavailable
 
 
 class GoogleAnalyticsConnectorTests(unittest.TestCase):
+    async def run_queued_sync(self, session_factory, *args):
+        with patch("app.modules.datasets.router.durable_ingestion_enabled", return_value=True):
+            response = await sync_source_connection(*args, background_tasks=BackgroundTasks())
+        self.assertEqual(response["status"], "queued")
+        run_connector_ingestion_job(response["job_id"])
+        with session_factory() as db:
+            job = db.get(DataIngestionJob, response["job_id"])
+            if job.result_payload:
+                return json.loads(job.result_payload)
+            return {"connection_id": 1, "status": job.status, "message": job.error_message, "datasets": []}
+
     def test_report_request_normalizes_fields_and_dates(self):
         result = validate_report_request(
             property_id="123456",
@@ -234,6 +249,9 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
         engine = create_engine("sqlite:///:memory:")
         DataSourceConnection.__table__.create(engine)
         Dataset.__table__.create(engine)
+        DataIngestionJob.__table__.create(engine)
+        DatasetAnalysis.__table__.create(engine)
+        OAuthCredential.__table__.create(engine)
         Session = sessionmaker(bind=engine)
         db = Session()
         db.add(
@@ -285,7 +303,8 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
                 ),
             ):
                 response = asyncio.run(
-                    sync_source_connection(
+                    self.run_queued_sync(
+                        Session,
                         types.SimpleNamespace(),
                         1,
                         DataSourceConnectionSync(
@@ -315,6 +334,8 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
         engine = create_engine("sqlite:///:memory:")
         DataSourceConnection.__table__.create(engine)
         Dataset.__table__.create(engine)
+        DataIngestionJob.__table__.create(engine)
+        OAuthCredential.__table__.create(engine)
         Session = sessionmaker(bind=engine)
         db = Session()
         db.add(
@@ -349,7 +370,8 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             side_effect=ConnectorNoData(message),
         ):
             response = asyncio.run(
-                sync_source_connection(
+                self.run_queued_sync(
+                    Session,
                     types.SimpleNamespace(),
                     1,
                     DataSourceConnectionSync(
@@ -379,6 +401,8 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
         engine = create_engine("sqlite:///:memory:")
         DataSourceConnection.__table__.create(engine)
         Dataset.__table__.create(engine)
+        DataIngestionJob.__table__.create(engine)
+        OAuthCredential.__table__.create(engine)
         Session = sessionmaker(bind=engine)
         db = Session()
         db.add(
@@ -413,7 +437,8 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             return_value=False,
         ):
             response = asyncio.run(
-                sync_source_connection(
+                self.run_queued_sync(
+                    Session,
                     types.SimpleNamespace(),
                     1,
                     DataSourceConnectionSync(
@@ -427,7 +452,7 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             response,
             {
                 "connection_id": 1,
-                "status": "error",
+                "status": "failed",
                 "message": message,
                 "datasets": [],
             },
@@ -447,6 +472,8 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
         engine = create_engine("sqlite:///:memory:")
         DataSourceConnection.__table__.create(engine)
         Dataset.__table__.create(engine)
+        DataIngestionJob.__table__.create(engine)
+        OAuthCredential.__table__.create(engine)
         Session = sessionmaker(bind=engine)
         db = Session()
         db.add(
@@ -477,7 +504,8 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             side_effect=RuntimeError("storage connection dropped"),
         ):
             response = asyncio.run(
-                sync_source_connection(
+                self.run_queued_sync(
+                    Session,
                     types.SimpleNamespace(),
                     1,
                     DataSourceConnectionSync(
@@ -491,8 +519,8 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
             response,
             {
                 "connection_id": 1,
-                "status": "error",
-                "message": "Connector sync failed: storage connection dropped",
+                "status": "failed",
+                "message": "storage connection dropped",
                 "datasets": [],
             },
         )

@@ -37,6 +37,7 @@ from app.db.models import (
     AuthIdentity,
     DashboardShare,
     DataSourceConnection,
+    DatasetAnalysis,
     Dataset,
     DatasetJoinCache,
     DatasetRelationship,
@@ -54,6 +55,7 @@ from app.db.models import (
     WeeklyReportPreference,
     UsageActivityEvent,
     WorkspaceSubscription,
+    WorkspaceRequestBudget,
     utc_now,
 )
 from app.modules.ai.service import build_ai_status
@@ -63,6 +65,7 @@ from app.modules.alerts.email_delivery import (
     send_platform_system_email,
 )
 from app.modules.auth_context import get_auth_context
+from app.infrastructure.ingestion_jobs import ensure_workspace_jobs_idle, delete_workspace_ingestion_jobs
 from app.modules.billing.notifications import get_workspace_owner_email
 from app.modules.billing.lifecycle import (
     build_subscription_access_state,
@@ -3334,6 +3337,8 @@ def delete_workspace_records(
     organization_id: int | None = None,
 ) -> dict[str, int]:
     clean_workspace_id = str(workspace_id or "").strip()
+    ensure_workspace_jobs_idle(db, [clean_workspace_id])
+    delete_workspace_ingestion_jobs(db, [clean_workspace_id])
     summary = {
         "workspaces": 1 if organization_id is not None else 0,
         "users": 0,
@@ -3380,6 +3385,9 @@ def delete_workspace_records(
         )
 
     if dataset_ids:
+        db.query(DatasetAnalysis).filter(
+            DatasetAnalysis.dataset_id.in_(dataset_ids)
+        ).delete(synchronize_session=False)
         db.query(DashboardShare).filter(
             DashboardShare.dataset_id.in_(dataset_ids)
         ).delete(synchronize_session=False)
@@ -3486,6 +3494,8 @@ def delete_workspace_records(
         UsageActivityEvent,
         WeeklyReportPreference,
         WeeklyReportDeliveryLog,
+        DatasetAnalysis,
+        WorkspaceRequestBudget,
     ):
         if model in (OAuthConnectionState, OAuthCredential):
             db.query(model).filter(

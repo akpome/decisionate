@@ -645,6 +645,22 @@ class DataSourceConnection(Base):
     )
 
 
+class WorkspaceRequestBudget(Base):
+    __tablename__ = "workspace_request_budgets"
+
+    workspace_id = Column(String, primary_key=True)
+    window_started_at = Column(DateTime, nullable=False)
+    request_count = Column(Integer, nullable=False, default=0)
+
+
+class IngestionWorkerHeartbeat(Base):
+    __tablename__ = "ingestion_worker_heartbeats"
+
+    name = Column(String, primary_key=True)
+    last_seen_at = Column(DateTime, nullable=False, default=utc_now)
+    job_id = Column(Integer, nullable=True)
+
+
 class DataIngestionJob(Base):
     """Durable state for connector ingestion performed after the API response."""
 

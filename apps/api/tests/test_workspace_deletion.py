@@ -6,7 +6,9 @@ from sqlalchemy.orm import sessionmaker
 from app.db.database import Base
 from app.db.models import (
     DataSourceConnection,
+    DataIngestionJob,
     Dataset,
+    DatasetAnalysis,
     DatasetJoinCache,
     DatasetRelationship,
     Organization,
@@ -49,6 +51,14 @@ class WorkspaceDeletionTests(unittest.TestCase):
             )
             db.add(dataset)
             db.flush()
+            db.add(DatasetAnalysis(
+                dataset_id=dataset.id, user_id="owner-user", workspace_id="owner-user",
+                status="complete", result_payload='{"revenue": 100}',
+            ))
+            db.add(DataIngestionJob(
+                user_id="owner-user", workspace_id="owner-user", job_type="signed_url_import",
+                status="queued", request_payload='{"encrypted_url": "sensitive"}',
+            ))
             db.add(
                 Decision(
                     clerk_user_id="owner-user",
@@ -98,6 +108,9 @@ class WorkspaceDeletionTests(unittest.TestCase):
                 organization_id,
             )
             db.commit()
+
+            self.assertEqual(db.query(DatasetAnalysis).count(), 0)
+            self.assertEqual(db.query(DataIngestionJob).count(), 0)
 
             self.assertEqual(summary["datasets"], 1)
             self.assertEqual(summary["decisions"], 1)

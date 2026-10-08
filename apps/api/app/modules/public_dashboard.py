@@ -510,7 +510,7 @@ def get_public_dashboard_brand(
 
 
 @router.get("/dashboard/{dataset_id}")
-async def get_public_shared_dashboard(
+def get_public_shared_dashboard(
     dataset_id: int,
     response: Response,
     token: str | None = None,

@@ -167,6 +167,11 @@ class FakeFailingUploadDb:
 
 
 class DatasetSharingTests(unittest.TestCase):
+    def setUp(self):
+        worker_mode = patch("app.modules.datasets.router.durable_ingestion_enabled", return_value=True)
+        worker_mode.start()
+        self.addCleanup(worker_mode.stop)
+
     def test_dataset_details_skips_analysis_lookup_when_disabled(self):
         with patch(
             "app.modules.datasets.router.get_dataset_analysis_record",
@@ -267,6 +272,8 @@ class DatasetSharingTests(unittest.TestCase):
         OAuthCredential.__table__.create(
             engine,
         )
+        from app.db.models import DataIngestionJob
+        DataIngestionJob.__table__.create(engine)
 
         return sessionmaker(
             bind=engine,
@@ -1442,6 +1449,7 @@ class DatasetSharingTests(unittest.TestCase):
             self.assertEqual(
                 json.loads(connection.connection_config),
                 {
+                    "_initial_connector_sync_status": "pending",
                     "_oauth_account_options": [{"id": "business-1"}],
                     "business_id": "business-1",
                     "country": "CA",
@@ -1612,6 +1620,7 @@ class DatasetSharingTests(unittest.TestCase):
         )
 
     def test_upload_dataset_removes_uploaded_file_when_database_write_fails(self):
+        from fastapi import BackgroundTasks, UploadFile
         upload_path = Path(
             "/tmp/decisionate-upload-cleanup.csv"
         )
@@ -1643,20 +1652,21 @@ class DatasetSharingTests(unittest.TestCase):
             ), patch(
                 "app.modules.datasets.router.SessionLocal",
                 return_value=fake_db,
+            ), patch(
+                "app.modules.datasets.router.ensure_workspace_queue_capacity",
             ):
                 with self.assertRaises(
                     RuntimeError,
                 ):
-                    asyncio.run(
-                        upload_dataset(
+                    upload_dataset(
                             SimpleNamespace(),
-                            SimpleNamespace(
+                            BackgroundTasks(),
+                            UploadFile(
                                 filename=r"..\sales.csv",
                                 file=BytesIO(
                                     b"revenue\n10\n"
                                 ),
                             ),
-                        )
                     )
 
             self.assertFalse(
@@ -1670,7 +1680,7 @@ class DatasetSharingTests(unittest.TestCase):
                 1,
             )
             self.assertEqual(
-                fake_db.added[0].file_name,
+                json.loads(fake_db.added[0].request_payload)["upload_filename"],
                 "sales.csv",
             )
 
