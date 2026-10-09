@@ -1,4 +1,5 @@
 export const refreshedLandingFrench: Record<string, string> = {
+  "Explore live demo": "Explorer la démo",
   Annual: "Annuel",
   Review: "Réviser",
   "For businesses and agencies": "Pour les entreprises et agences",
@@ -73,8 +74,8 @@ export const refreshedLandingFrench: Record<string, string> = {
     "Travaillez avec les systèmes que vous utilisez déjà.",
   "Accounting, commerce, marketing and CRM data, alongside databases and files. Choose the source that fits the question.":
     "Données comptables, commerciales, marketing et CRM, avec bases de données et fichiers. Choisissez la source adaptée à votre question.",
-  "Provider authorization and any required approvals apply. Connector data is kept for three years, then deleted. No permanent summaries.":
-    "L'autorisation du fournisseur et les approbations requises s'appliquent. Les données des connecteurs sont conservées trois ans, puis supprimées. Aucun résumé permanent.",
+  "Provider authorization and any required approvals apply. Connector data is kept for three years, then deleted.":
+    "L'autorisation du fournisseur et les approbations requises s'appliquent. Les données des connecteurs sont conservées trois ans, puis supprimées.",
   "Start with 30 days to make it yours.": "Prenez 30 jours pour l'adopter.",
   "No credit card required. Choose your plan during workspace setup.":
     "Aucune carte de crédit requise. Choisissez votre forfait lors de la configuration de l'espace.",
@@ -115,8 +116,8 @@ export const refreshedLandingFrench: Record<string, string> = {
     "Commencez un essai de 30 jours Professional ou Agency sans carte de crédit. Professional offre un espace d'entreprise ; Agency comprend un espace d'agence et jusqu'à 10 espaces clients. Choisissez le forfait à la configuration. Les outils IA nécessitent des services IA activés.",
   "Yes. Agency owners manage separate client workspaces, branding and access. Client users see the data and actions allowed by their role within their own workspace.":
     "Oui. Les propriétaires d'agence gèrent les espaces clients distincts, la marque et les accès. Les clients voient les données et actions permises par leur rôle dans leur propre espace.",
-  "Connector data is kept for three years, then deleted. It is not summarized for permanent storage. See the Privacy Policy for other retention and deletion commitments.":
-    "Les données des connecteurs sont conservées trois ans, puis supprimées. Elles ne sont pas résumées pour un stockage permanent. Consultez la politique de confidentialité pour les autres engagements de conservation et suppression.",
+  "Connector data is kept for three years, then deleted. See the Privacy Policy for other retention and deletion commitments.":
+    "Les données des connecteurs sont conservées trois ans, puis supprimées. Consultez la politique de confidentialité pour les autres engagements de conservation et suppression.",
   "Yes. Explore the dashboards without signing in using prepared sample datasets. The public demo is read-only; it does not allow uploads, deletions or creating decisions.":
     "Oui. Explorez les tableaux de bord sans connexion avec des données de démonstration. La démo publique est en lecture seule : aucun import, suppression ou création de décision.",
   "Contact support@decisionate.ca or use Help & Support in the application. You can report an issue, request a feature or review the product guide.":

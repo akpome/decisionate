@@ -97,7 +97,7 @@ export const faqs = [
   {
     question: "How long is connector data kept?",
     answer:
-      "Connector data is kept for three years, then deleted. It is not summarized for permanent storage. See the Privacy Policy for other retention and deletion commitments.",
+      "Connector data is kept for three years, then deleted. See the Privacy Policy for other retention and deletion commitments.",
     link: { href: "/privacy", label: "Privacy Policy" }
   },
   {

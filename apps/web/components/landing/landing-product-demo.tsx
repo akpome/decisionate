@@ -109,7 +109,7 @@ export function LandingProductDemo() {
         {productDemoChapters.map((item, index) => (
           <div
             key={item.label}
-            className={`border-t-2 pt-3 ${chapter === index ? "border-teal-700" : "border-neutral-200"}`}
+            className={`border-t-2 pt-3 ${chapter === index ? "landing-brand-chapter" : "border-neutral-200"}`}
           >
             <button
               type="button"
@@ -137,7 +137,7 @@ export function LandingProductDemo() {
         </p>
         <Link
           href="/demo"
-          className="inline-flex items-center gap-2 font-medium text-teal-800"
+          className="landing-brand-link inline-flex items-center gap-2 font-medium"
         >
           {t("Explore the live demo")}
           <ArrowRight size={15} aria-hidden="true" />

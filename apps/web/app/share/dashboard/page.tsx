@@ -506,18 +506,29 @@ function SharedDashboardContent({
           return
         }
 
-        const response = effectDemo
-          ? await getPublicDemoDashboard(
+        const responseRequest = effectDemo
+          ? getPublicDemoDashboard(
               effectDemoDataset ?? "google-analytics",
               effectSelectedDashboard,
               abortController.signal
             )
-          : await getPublicSharedDashboard(
+          : getPublicSharedDashboard(
               effectDatasetId as number,
               effectToken as string,
               effectSelectedDashboard,
               abortController.signal
             )
+
+        const [response, joinedResponse] = await Promise.all([
+          responseRequest,
+          effectDemoJoinDataset
+            ? getPublicDemoDashboard(
+                effectDemoJoinDataset,
+                effectSelectedDashboard,
+                abortController.signal
+              )
+            : null,
+        ])
 
         if (!response) {
           clearSharedDashboardState()
@@ -531,15 +542,6 @@ function SharedDashboardContent({
           response.dataset
         const preference =
           response.preference
-        const joinedResponse =
-          effectDemoJoinDataset
-            ? await getPublicDemoDashboard(
-                effectDemoJoinDataset,
-                effectSelectedDashboard,
-                abortController.signal
-              )
-            : null
-
         const datasetKey = effectDemo
           ? effectDemoDataset ?? "google-analytics"
           : String(effectDatasetId)
@@ -1015,7 +1017,7 @@ function SharedDashboardContent({
   ) : null
   const demoStatusLine = sharedDemo ? (
     <div className="flex min-w-0 flex-1 flex-col items-start gap-2 sm:flex-row sm:items-center">
-      <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
+      <p className="min-w-0 max-w-full break-words text-xs font-semibold text-blue-700 sm:truncate">
         {sharedDashboardTitle} · Live demo · Read-only sample data · Decisions disabled
       </p>
       <div className="w-full min-w-0 sm:flex-1">
@@ -1298,6 +1300,7 @@ function SharedDashboardContent({
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
               <MainChartCard
+                demoMode={sharedDemo}
                 chartType={chartType}
                 chartRows={chartRows}
                 xKey={xKey}
@@ -1330,6 +1333,7 @@ function SharedDashboardContent({
               />
 
               <MainChartCard
+                demoMode={sharedDemo}
                 chartType={chartType}
                 chartRows={chartRows}
                 xKey={xKey}
@@ -1354,6 +1358,7 @@ function SharedDashboardContent({
 
         {effectiveDashboardTemplate === "comparison" && (
           <MainChartCard
+            demoMode={sharedDemo}
             key={`shared-comparison-${chartType}-${scaleMode}-${selectedMetrics.join(
               "|"
             )}-${chartRows.length}`}
@@ -1624,6 +1629,7 @@ function KpiGrid({
 }
 
 function MainChartCard({
+  demoMode,
   chartType,
   chartRows,
   xKey,
@@ -1637,6 +1643,7 @@ function MainChartCard({
   className = "xl:h-[640px]",
   chartAreaClassName = "mt-4 h-[360px] flex-none xl:h-auto xl:min-h-[360px] xl:flex-1",
 }: {
+  demoMode?: boolean
   chartType: ChartType
   chartRows: DashboardRow[]
   xKey: string
@@ -1705,6 +1712,7 @@ function MainChartCard({
       initialDimension={{ width: 1, height: 1 }}
     >
       <MainChart
+        demoMode={demoMode}
         chartType={chartType}
         rows={chartRows}
         xKey={xKey}
@@ -2637,6 +2645,7 @@ function KpiCard({
 }
 
 function MainChart({
+  demoMode,
   chartType,
   rows,
   xKey,
@@ -2646,6 +2655,7 @@ function MainChart({
   showTarget,
   colorPalette,
 }: {
+  demoMode?: boolean
   chartType: ChartType
   rows: DashboardRow[]
   xKey: string
@@ -2717,6 +2727,7 @@ function MainChart({
         {metrics.map((metric) => (
           <Bar
             key={metric}
+            isAnimationActive={!demoMode}
             dataKey={metric}
             name={formatMetricName(metric)}
             fill={getMetricColor(
@@ -2738,6 +2749,7 @@ function MainChart({
         {metrics.map((metric, index) => (
           <Area
             key={metric}
+            isAnimationActive={!demoMode}
             type="monotone"
             dataKey={metric}
             name={formatMetricName(metric)}
@@ -2769,6 +2781,7 @@ function MainChart({
       {metrics.map((metric, index) => (
         <Line
           key={metric}
+          isAnimationActive={!demoMode}
           type="monotone"
           dataKey={metric}
           name={formatMetricName(metric)}

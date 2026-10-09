@@ -2074,7 +2074,7 @@ function IndustryDashboard({
                   stroke={dashboardChartPalette[0]}
                   strokeWidth={3}
                   dot={false}
-                  isAnimationActive={!exportMode}
+                  isAnimationActive={!exportMode && !demoMode}
                 />
                 {dashboardConfig.secondaryTrendLabel && (
                   <Line
@@ -2084,7 +2084,7 @@ function IndustryDashboard({
                     stroke={dashboardChartPalette[1]}
                     strokeWidth={3}
                     dot={false}
-                    isAnimationActive={!exportMode}
+                    isAnimationActive={!exportMode && !demoMode}
                   />
                 )}
               </LineChart>
@@ -2107,6 +2107,7 @@ function IndustryDashboard({
               <div className="h-full min-h-0 overflow-hidden">
                 <DashboardCategoricalChart
                   items={dashboardMixData}
+                  demoMode={demoMode}
                   barLabel="Share"
                   barOrientation="vertical"
                 />
@@ -2118,6 +2119,7 @@ function IndustryDashboard({
             <div className="h-full min-h-0 overflow-hidden">
               <DashboardCategoricalChart
                 items={dashboardMixData}
+                demoMode={demoMode}
                 barLabel="Share"
                 exportMode={exportMode}
               />
@@ -2176,7 +2178,7 @@ function IndustryDashboard({
                   name={dashboardConfig.operationsLabel}
                   fill={dashboardChartPalette[1]}
                   radius={[6, 6, 0, 0]}
-                  isAnimationActive={!exportMode}
+                  isAnimationActive={!exportMode && !demoMode}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -2282,7 +2284,7 @@ function IndustryKpiGrid({
 
   const demoStatusLine = demoMode ? (
     <div className="flex min-w-0 flex-1 flex-col items-start gap-2 sm:flex-row sm:items-center">
-      <p className="min-w-0 truncate text-xs font-semibold text-blue-700">
+      <p className="min-w-0 max-w-full break-words text-xs font-semibold text-blue-700 sm:truncate">
         {dashboardName} · Live demo · Read-only sample data · Decisions disabled
       </p>
       {headerControls && (
@@ -3322,12 +3324,14 @@ function DashboardChartEmptyState({
 }
 
 function DashboardCategoricalChart({
+  demoMode,
   items,
   barLabel,
   exportMode,
   chartType,
   barOrientation,
 }: {
+  demoMode?: boolean
   items: IndustryMixPoint[]
   barLabel: string
   exportMode?: boolean
@@ -3433,7 +3437,7 @@ function DashboardCategoricalChart({
             dataKey="value"
             name={barLabel}
             radius={useVerticalBars ? [6, 6, 0, 0] : [0, 6, 6, 0]}
-            isAnimationActive={!exportMode}
+            isAnimationActive={!exportMode && !demoMode}
           >
             <LabelList
               dataKey="displayLabel"
@@ -3459,7 +3463,7 @@ function DashboardCategoricalChart({
               innerRadius="44%"
               outerRadius="72%"
               paddingAngle={3}
-              isAnimationActive={!exportMode}
+              isAnimationActive={!exportMode && !demoMode}
               animationDuration={700}
               animationEasing="ease-out"
               labelLine={false}

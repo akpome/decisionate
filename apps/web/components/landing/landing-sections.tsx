@@ -73,7 +73,7 @@ export function FeaturesSection() {
             <div key={item.title} className="border-t border-neutral-300 pt-5">
               <item.icon
                 size={22}
-                className="text-teal-800"
+                className="landing-brand-text"
                 aria-hidden="true"
               />
               <h3 className="mt-5 text-lg font-semibold">{t(item.title)}</h3>
@@ -110,7 +110,7 @@ export function IndustryDashboardsSection() {
                 type="button"
                 aria-pressed={audience === option}
                 onClick={() => setAudience(option)}
-                className={`rounded px-3 py-2 text-sm font-medium ${audience === option ? "bg-teal-800 text-white" : "text-neutral-600 hover:bg-neutral-100"}`}
+                className={`rounded px-3 py-2 text-sm font-medium ${audience === option ? "landing-brand-selected" : "text-neutral-600 hover:bg-neutral-100"}`}
               >
                 {t(
                   option === "business"
@@ -129,7 +129,7 @@ export function IndustryDashboardsSection() {
           </p>
           <Link
             href="/sign-up"
-            className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-teal-800"
+            className="landing-brand-link mt-5 inline-flex items-center gap-2 text-sm font-semibold"
           >
             {t("Start trial")}
             <ArrowRight size={16} aria-hidden="true" />
@@ -146,12 +146,12 @@ export function IndustryDashboardsSection() {
                 <Link
                   key={item.key}
                   href={`/demo?dashboard=${item.key}`}
-                  className="group flex min-w-0 items-start justify-between gap-2 border-t border-neutral-200 py-3 text-sm leading-5 text-neutral-700 hover:text-teal-800"
+                  className="group flex min-w-0 items-start justify-between gap-2 border-t border-neutral-200 py-3 text-sm leading-5 text-neutral-700 hover:text-blue-700"
                 >
                   <span>{t(item.name.replace(" Performance", ""))}</span>
                   <ArrowRight
                     size={14}
-                    className="mt-0.5 shrink-0 text-neutral-400 group-hover:text-teal-800"
+                    className="mt-0.5 shrink-0 text-neutral-400 group-hover:text-blue-700"
                     aria-hidden="true"
                   />
                 </Link>
@@ -200,7 +200,7 @@ export function IntegrationsSection() {
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-neutral-950">
                   <Icon
                     size={16}
-                    className="text-teal-800"
+                    className="landing-brand-text"
                     aria-hidden="true"
                   />
                   {t(group.name)}
@@ -234,7 +234,7 @@ export function IntegrationsSection() {
         </div>
         <p className="mt-8 border-t border-neutral-200 pt-5 text-xs leading-6 text-neutral-500">
           {t(
-            "Provider authorization and any required approvals apply. Connector data is kept for three years, then deleted. No permanent summaries."
+            "Provider authorization and any required approvals apply. Connector data is kept for three years, then deleted."
           )}
         </p>
       </div>
@@ -299,7 +299,7 @@ export function PricingSection() {
                 type="button"
                 aria-pressed={annual === value}
                 onClick={() => setAnnual(value)}
-                className={`rounded px-4 py-2 text-sm font-medium ${annual === value ? "bg-neutral-950 text-white" : "text-neutral-600"}`}
+                className={`rounded px-4 py-2 text-sm font-medium ${annual === value ? "landing-brand-selected" : "text-neutral-600"}`}
               >
                 {t(value ? "Annual" : "Monthly")}
               </button>
@@ -327,7 +327,7 @@ export function PricingSection() {
                   {t(annual ? "CAD / year" : "CAD / month")}
                 </span>
               </div>
-              <p className="mt-2 min-h-5 text-xs text-teal-800">
+              <p className="landing-brand-text mt-2 min-h-5 text-xs">
                 {annual
                   ? t("Two months less than monthly billing.")
                   : t("Billed monthly.")}
@@ -340,7 +340,7 @@ export function PricingSection() {
                   >
                     <Check
                       size={16}
-                      className="mt-1 shrink-0 text-teal-800"
+                      className="landing-brand-text mt-1 shrink-0"
                       aria-hidden="true"
                     />
                     <span>{t(item)}</span>
@@ -386,7 +386,7 @@ export function FAQSection() {
           <h2 className="landing-heading">{t("A few practical questions.")}</h2>
           <a
             href="mailto:support@decisionate.ca"
-            className="mt-4 inline-block text-sm text-teal-800"
+            className="landing-brand-link mt-4 inline-block text-sm"
           >
             support@decisionate.ca
           </a>
@@ -409,7 +409,7 @@ export function FAQSection() {
                     {" "}
                     <Link
                       href={faq.link.href}
-                      className="font-medium text-teal-800 underline underline-offset-4"
+                      className="landing-brand-link font-medium underline underline-offset-4"
                     >
                       {t(faq.link.label)}
                     </Link>
@@ -428,13 +428,13 @@ export function FAQSection() {
 export function FinalCTASection() {
   const { t } = useLandingText()
   return (
-    <section className="border-t border-neutral-200 bg-teal-800 py-12 text-white sm:py-16">
+    <section className="landing-brand-strip py-12 text-white sm:py-16">
       <div className="landing-container flex flex-col justify-between gap-7 md:flex-row md:items-center">
         <div>
           <h2 className="text-2xl font-semibold sm:text-3xl">
             {t("Bring your next decision into focus.")}
           </h2>
-          <p className="mt-3 text-sm leading-6 text-teal-100">
+          <p className="landing-brand-strip-copy mt-3 text-sm leading-6">
             {t("Start with a file or connection. Build from there.")}
           </p>
         </div>

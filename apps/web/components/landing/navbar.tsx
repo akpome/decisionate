@@ -44,8 +44,13 @@ export function LandingNavbar() {
             width={32}
             height={32}
           />
-          <span className="text-lg font-semibold text-neutral-950">
-            Decisionate
+          <span className="flex flex-col gap-0.5">
+            <span className="text-lg font-semibold leading-6 text-neutral-950">
+              Decisionate
+            </span>
+            <span className="max-w-48 text-[11px] font-medium leading-4 text-neutral-500">
+              {t("Decisions from Data.")}
+            </span>
           </span>
         </Link>
         <nav
@@ -107,7 +112,7 @@ export function LandingNavbar() {
           <Link
             href="/demo"
             onClick={() => setMenuOpen(false)}
-            className="py-3 text-sm font-medium text-teal-800"
+            className="landing-brand-link py-3 text-sm font-medium"
           >
             {t("Open Live Demo")}
           </Link>

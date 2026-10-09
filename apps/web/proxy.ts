@@ -8,6 +8,9 @@ import {
 const isPublicDemoRoute = createRouteMatcher([
   "/",
   "/demo(.*)",
+  "/privacy",
+  "/terms",
+  "/security",
 ])
 const isPublicAuthRoute = createRouteMatcher([
   "/sign-in(.*)",
@@ -73,7 +76,7 @@ export default function proxy(
 
 export const config = {
   matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpg|jpeg|gif|png|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpg|jpeg|gif|png|webp|avif|svg|webm|mp4|vtt|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api|trpc)(.*)",
   ],
 }

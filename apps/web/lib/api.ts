@@ -5812,70 +5812,8 @@ export async function getPublicDemoDashboard(
   dashboard?: string,
   signal?: AbortSignal
 ): Promise<PublicDemoDashboardResponse | null> {
-  const cleanDatasetKey = datasetKey.trim()
-  if (!cleanDatasetKey) {
-    return null
-  }
-
-  const params = new URLSearchParams({
-    dataset: cleanDatasetKey,
-  })
-  if (dashboard?.trim()) {
-    params.set("dashboard", dashboard.trim())
-  }
-
-  const requestController = new AbortController()
-  let timedOut = false
-  const timeoutId = setTimeout(() => {
-    timedOut = true
-    requestController.abort()
-  }, apiRequestTimeoutMs)
-  const abortRequest = () => requestController.abort()
-
-  if (signal) {
-    if (signal.aborted) {
-      requestController.abort()
-    } else {
-      signal.addEventListener("abort", abortRequest, { once: true })
-    }
-  }
-
-  try {
-    const response = await fetch(
-      `${API_URL}/public/demo?${params.toString()}`,
-      {
-        cache: "no-store",
-        signal: requestController.signal,
-      }
-    )
-
-    if (response.status === 404) {
-      return null
-    }
-    if (!response.ok) {
-      await throwApiError(response, "Failed to load the live demo")
-    }
-    return await response.json()
-  } catch (error) {
-    if (
-      error instanceof DOMException &&
-      error.name === "AbortError"
-    ) {
-      if (signal?.aborted && !timedOut) {
-        throw error
-      }
-      throw new Error("Live demo request timed out.")
-    }
-    if (error instanceof TypeError) {
-      throw new Error(
-        "The service is temporarily unavailable. Please try again shortly."
-      )
-    }
-    throw error
-  } finally {
-    clearTimeout(timeoutId)
-    signal?.removeEventListener("abort", abortRequest)
-  }
+  const { loadPublicDemoDashboard } = await import("@/features/demo/lib/demo-data")
+  return loadPublicDemoDashboard(datasetKey, dashboard, signal)
 }
 
 function buildDashboardShareQuery(

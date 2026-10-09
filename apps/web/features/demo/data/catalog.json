@@ -1,0 +1,50 @@
+[
+  {
+    "key": "google-analytics",
+    "asset": "/demo-data/google-analytics.7931dd9629a4.json"
+  },
+  {
+    "key": "google-ads",
+    "asset": "/demo-data/google-ads.a13cfdd74ce3.json"
+  },
+  {
+    "key": "stripe",
+    "asset": "/demo-data/stripe.3956c3916f07.json"
+  },
+  {
+    "key": "shopify",
+    "asset": "/demo-data/shopify.5908a1aad3f2.json"
+  },
+  {
+    "key": "quickbooks",
+    "asset": "/demo-data/quickbooks.c789d6b11523.json"
+  },
+  {
+    "key": "freshbooks",
+    "asset": "/demo-data/freshbooks.b2d0c6a77f6a.json"
+  },
+  {
+    "key": "sage",
+    "asset": "/demo-data/sage.b2494cccffd3.json"
+  },
+  {
+    "key": "xero",
+    "asset": "/demo-data/xero.26a04351739e.json"
+  },
+  {
+    "key": "zoho-books",
+    "asset": "/demo-data/zoho-books.09e13f1713ff.json"
+  },
+  {
+    "key": "hubspot",
+    "asset": "/demo-data/hubspot.b3ca95309021.json"
+  },
+  {
+    "key": "salesforce",
+    "asset": "/demo-data/salesforce.b6eafb7a97d6.json"
+  },
+  {
+    "key": "meta-ads",
+    "asset": "/demo-data/meta-ads.d169decd2289.json"
+  }
+]

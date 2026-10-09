@@ -89,6 +89,16 @@ test("sign-in and trial actions use the actual authentication routes", () => {
   )
 })
 
+test("the hero restores the tagline and exposes the live demo without a static chart", () => {
+  const hero = read("../components/landing/hero.tsx")
+  assert.match(hero, /Decisions from Data\./)
+  assert.match(read("../components/landing/navbar.tsx"), /Decisions from Data\./)
+  assert.match(hero, /href="\/demo"/)
+  assert.match(hero, /Explore live demo/)
+  assert.match(hero, /onFocus=\{prefetchPublicDemo\}/)
+  assert.doesNotMatch(hero, /decisionate-overview|landing-hero-caption|next\/image/)
+})
+
 test("walkthrough is a deferred video with captions, real chapters and a fallback", () => {
   const demo = read("../components/landing/landing-product-demo.tsx")
   assert.match(demo, /preload="none"/)
