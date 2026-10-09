@@ -1,0 +1,135 @@
+import assert from "node:assert/strict"
+import { readFileSync, statSync } from "node:fs"
+import { createRequire } from "node:module"
+import test from "node:test"
+import vm from "node:vm"
+
+const require = createRequire(import.meta.url)
+const ts = require("typescript")
+const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8")
+function load(path) {
+  const { outputText } = ts.transpileModule(read(path), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020
+    }
+  })
+  const loaded = { exports: {} }
+  vm.runInNewContext(outputText, { module: loaded, exports: loaded.exports })
+  return loaded.exports
+}
+const { integrationGroups, faqs } = load(
+  "../components/landing/landing-content.ts"
+)
+const connectors = integrationGroups.flatMap((group) => group.items)
+const { refreshedLandingFrench } = load("../lib/landing-translations.ts")
+
+test("pricing and review controls have French labels", () => {
+  assert.equal(refreshedLandingFrench.Annual, "Annuel")
+  assert.equal(refreshedLandingFrench.Review, "Réviser")
+})
+
+test("landing catalog includes every source except all Lightspeed variants", () => {
+  const backend = read("../../api/app/modules/datasets/services/sources.py")
+    .split("DATASET_SOURCES = [")[1]
+    .split("\ndef ")[0]
+  const sources = [
+    ...backend.matchAll(/"type": "([^"]+)"[\s\S]*?"label": "([^"]+)"/g)
+  ].map((match) => ({ type: match[1], name: match[2] }))
+  assert.ok(sources.length > 20)
+  const expected = sources.filter((item) => !item.type.startsWith("lightspeed"))
+  assert.deepEqual(
+    Array.from(connectors, (item) => item.type).sort(),
+    expected.map((item) => item.type).sort()
+  )
+  assert.equal(
+    new Set(connectors.map((item) => item.type)).size,
+    connectors.length
+  )
+  for (const source of expected)
+    assert.equal(
+      connectors.find((item) => item.type === source.type)?.name,
+      source.name
+    )
+  assert.equal(
+    connectors.some((item) => item.type.startsWith("lightspeed")),
+    false
+  )
+})
+
+test("Sage and Zoho Books are supported, provider approval is still disclosed", () => {
+  for (const type of ["sage", "zoho_books"])
+    assert.equal(connectors.find((item) => item.type === type)?.note, undefined)
+  assert.match(
+    connectors.find((item) => item.type === "google_business_profile").note,
+    /provider approval/i
+  )
+  assert.doesNotMatch(
+    read("../components/landing/landing-content.ts"),
+    /Upcoming/
+  )
+  const faq = faqs.find(
+    (item) => item.question === "How long is connector data kept?"
+  )
+  assert.match(faq.answer, /three years, then deleted/)
+})
+
+test("sign-in and trial actions use the actual authentication routes", () => {
+  const nav = read("../components/landing/navbar.tsx")
+  assert.match(nav, /href="\/sign-in"/)
+  assert.match(nav, /href="\/sign-up"/)
+  assert.doesNotMatch(
+    nav.match(/className="landing-nav-actions[^\"]*"/)?.[0] ?? "",
+    /hidden/
+  )
+  assert.match(read("../components/landing/hero.tsx"), /href="\/sign-up"/)
+  assert.match(
+    read("../components/landing/landing-sections.tsx"),
+    /href="\/sign-up"/
+  )
+})
+
+test("walkthrough is a deferred video with captions, real chapters and a fallback", () => {
+  const demo = read("../components/landing/landing-product-demo.tsx")
+  assert.match(demo, /preload="none"/)
+  assert.match(demo, /controls/)
+  assert.match(demo, /playsInline/)
+  assert.match(demo, /kind="captions"/)
+  assert.match(demo, /currentTime = time/)
+  assert.match(demo, /onLoadedMetadata/)
+  assert.match(demo, /pendingSeek\.current = time/)
+  assert.match(demo, /scrollIntoView/)
+  assert.match(demo, /error\.name === "AbortError"/)
+  assert.doesNotMatch(demo, /autoPlay|setInterval|AI recommendation/)
+  for (const name of [
+    "decisionate-overview.webp",
+    "decisionate-overview-mobile.webp",
+    "decisionate-demo-poster.webp",
+    "decisionate-workflow.webm",
+    "decisionate-workflow.en.vtt",
+    "decisionate-workflow.fr.vtt"
+  ]) {
+    assert.ok(
+      statSync(new URL(`../public/media/${name}`, import.meta.url)).size > 100
+    )
+  }
+  assert.ok(
+    statSync(
+      new URL("../public/media/decisionate-workflow.webm", import.meta.url)
+    ).size <
+      8 * 1024 * 1024
+  )
+  for (const locale of ["en", "fr"]) {
+    const captions = read(`../public/media/decisionate-workflow.${locale}.vtt`)
+    assert.match(captions, /^WEBVTT/)
+    assert.match(captions, /00:24\.000/)
+    assert.match(captions, /00:38\.000/)
+  }
+})
+
+test("industry links select the corresponding real demo dashboard", () => {
+  const sections = read("../components/landing/landing-sections.tsx")
+  assert.match(sections, /dashboardDefinitions/)
+  assert.match(sections, /\/demo\?dashboard=\$\{item.key\}/)
+  assert.doesNotMatch(sections, /Most popular|Trusted by|Upcoming/)
+})

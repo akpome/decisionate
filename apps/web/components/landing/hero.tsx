@@ -1,106 +1,80 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
-import {
-  ArrowRight,
-  Play,
-  X,
-} from "lucide-react"
-import {
-  useState,
-} from "react"
-
-import { LandingDashboardPreview } from "@/components/landing/landing-dashboard-preview"
-import { LandingProductDemo } from "@/components/landing/landing-product-demo"
+import { ArrowRight, Play } from "lucide-react"
 import { useLandingText } from "@/app/use-decisionate-language"
 
 export function LandingHero() {
-  const [demoOpen, setDemoOpen] = useState(false)
   const { t } = useLandingText()
-
   return (
-    <section className="overflow-hidden bg-slate-950 text-white">
-      <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[0.86fr_1.14fr] lg:items-center lg:gap-10 lg:py-24">
-        <div className="max-w-xl">
-          <p className="whitespace-nowrap text-[13px] font-bold uppercase text-slate-400 sm:text-[15px]">
-            {t("Decision intelligence for growing businesses & agencies")}
-          </p>
-          <h1 className="mt-5 text-4xl font-bold leading-[1.04] tracking-tight sm:text-6xl">
-            {t("Turn your business data into better decisions.")}
-          </h1>
-          <p className="mt-6 max-w-lg text-base leading-7 text-slate-300 sm:text-lg">
-            {t("Decisionate is a decision intelligence platform powered by your business data. Connect your data, generate AI-powered insights and recommendations, make better decisions and measure outcomes.")}
-          </p>
-          <p className="mt-3 max-w-lg text-sm leading-6 text-slate-400">
-            {t("Business intelligence dashboards give your team a clear view of performance before the next decision.")}
-          </p>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => setDemoOpen(true)}
-              title={t("Open the Decisionate product walkthrough")}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-5 py-3 text-sm font-bold text-white transition hover:border-slate-500 hover:bg-slate-900"
-            >
-              <Play size={15} fill="currentColor" aria-hidden="true" />
-              {t("Watch Demo")}
-            </button>
-            <Link
-              href="/demo"
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-300/60 px-5 py-3 text-sm font-bold text-cyan-200 transition hover:border-cyan-200 hover:bg-slate-900"
-            >
-              {t("Open Live Demo")}
-              <ArrowRight size={16} aria-hidden="true" />
-            </Link>
-          </div>
-
-          <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-400">
-            <span>{t("Start with your existing data")}</span>
-            <span className="h-1 w-1 rounded-full bg-slate-600" aria-hidden="true" />
-            <span>{t("Built for growing teams")}</span>
-          </div>
-        </div>
-
-        <LandingDashboardPreview />
-      </div>
-
-      {demoOpen && (
-        <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 p-3 sm:p-5"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="demo-title"
-          onClick={() => setDemoOpen(false)}
-        >
-          <div
-            className="mx-auto flex min-h-full w-full max-w-5xl items-start justify-center py-1 sm:items-center sm:py-0"
-            onClick={event => event.stopPropagation()}
+    <section className="landing-hero relative isolate overflow-hidden border-b border-neutral-200 bg-white">
+      <Image
+        src="/media/decisionate-overview.webp"
+        alt=""
+        fill
+        preload
+        sizes="100vw"
+        className="landing-hero-image -z-10 object-contain object-bottom"
+      />
+      <div className="landing-container relative pt-12 sm:pt-16">
+        <p className="mb-3 text-sm font-medium text-teal-800">
+          {t("For businesses and agencies")}
+        </p>
+        <h1 className="landing-hero-title font-semibold text-neutral-950">
+          Decisionate
+        </h1>
+        <p className="mt-4 max-w-2xl text-xl leading-8 text-neutral-800 sm:text-2xl">
+          <span className="sm:hidden">
+            {t("Your data. Your next decision.")}
+          </span>
+          <span className="hidden sm:inline">
+            {t("Your business data. A clearer next decision.")}
+          </span>
+        </p>
+        <p className="landing-hero-copy mt-4 hidden max-w-xl text-base leading-7 text-neutral-600 sm:block">
+          {t(
+            "Bring your numbers together, see what changed, and keep the action and its outcome in one workspace."
+          )}
+        </p>
+        <div className="mt-5 flex flex-wrap items-center gap-3 sm:mt-7">
+          <Link
+            href="/sign-up"
+            className="landing-button landing-button-primary"
           >
-            <div className="w-full">
-              <div className="sticky top-0 z-20 mb-3 flex items-center justify-between bg-slate-950/95 px-1 py-2 text-white backdrop-blur sm:bg-transparent sm:py-0">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-300">
-                  {t("Product demo")}
-                </p>
-                <h2 id="demo-title" className="mt-1 text-lg font-bold tracking-tight sm:text-xl">
-                  {t("From signal to learning")}
-                </h2>
-              </div>
-                <button
-                  type="button"
-                  onClick={() => setDemoOpen(false)}
-                  title={t("Close product demo")}
-                  aria-label={t("Close product demo")}
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800"
-                >
-                  <X size={17} aria-hidden="true" />
-                </button>
-              </div>
-              <LandingProductDemo />
-            </div>
-          </div>
+            <span className="sm:hidden">{t("Start trial")}</span>
+            <span className="hidden sm:inline">
+              {t("Start your 30-day trial")}
+            </span>
+            <ArrowRight
+              size={16}
+              aria-hidden="true"
+              className="hidden sm:block"
+            />
+          </Link>
+          <a
+            href="#product"
+            className="landing-button landing-button-secondary"
+          >
+            <Play size={15} aria-hidden="true" />
+            <span className="sm:hidden">{t("Demo")}</span>
+            <span className="hidden sm:inline">{t("Watch the workflow")}</span>
+          </a>
         </div>
-      )}
+        <p className="mt-3 text-xs text-neutral-500">
+          {t("No credit card required.")}
+        </p>
+      </div>
+      <div className="landing-hero-caption landing-container absolute inset-x-0 bottom-5 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
+        <span>{t("Marketing Performance · demonstration data")}</span>
+        <Link
+          href="/demo"
+          className="inline-flex items-center gap-2 font-medium text-teal-800"
+        >
+          {t("Explore the live demo")}
+          <ArrowRight size={14} aria-hidden="true" />
+        </Link>
+      </div>
     </section>
   )
 }

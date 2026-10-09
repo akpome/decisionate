@@ -1,41 +1,41 @@
 "use client"
 
-import Link from "next/link"
 import Image from "next/image"
-import {
-  Menu,
-  X,
-} from "lucide-react"
-import {
-  useState,
-} from "react"
-
-import { ThemeToggle } from "@/app/theme-toggle"
+import Link from "next/link"
+import { Menu, X } from "lucide-react"
+import { useEffect, useState } from "react"
 import { useLandingText } from "@/app/use-decisionate-language"
 
 const navLinks = [
   { label: "Product", href: "#product" },
-  { label: "Solutions", href: "#solutions" },
-  { label: "Industry Dashboards", href: "#industries" },
+  { label: "Integrations", href: "#integrations" },
   { label: "Pricing", href: "#pricing" },
-  { label: "Resources", href: "#resources" },
-  { label: "Company", href: "#company" },
+  { label: "Questions", href: "#questions" }
 ] as const
 
 export function LandingNavbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const { t } = useLandingText()
-
-  function closeMenu() {
-    setMenuOpen(false)
-  }
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [])
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+    <header className="landing-nav sticky top-0 z-40 border-b border-neutral-200 bg-white">
+      <a
+        href="#main-content"
+        className="workspace-skip-link rounded-md bg-white px-4 py-2 text-sm font-semibold text-neutral-950"
+      >
+        {t("Skip to content")}
+      </a>
+      <div className="landing-container landing-nav-inner flex min-h-18 items-center justify-between gap-3">
         <Link
           href="/"
-          className="flex items-center gap-2.5"
+          className="flex shrink-0 items-center gap-2.5"
           aria-label={t("Decisionate home")}
         >
           <Image
@@ -43,79 +43,75 @@ export function LandingNavbar() {
             alt=""
             width={32}
             height={32}
-            className="h-8 w-8"
           />
-          <span className="flex flex-col leading-none">
-            <span className="text-[17px] font-bold tracking-tight text-slate-950">
-              Decisionate
-            </span>
-            <span className="mt-1 whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-              {t("Decisions from Data.")}
-            </span>
+          <span className="text-lg font-semibold text-neutral-950">
+            Decisionate
           </span>
         </Link>
-
-        <nav className="hidden items-center gap-6 lg:flex" aria-label={t("Main navigation")}>
-          {navLinks.map(link => (
+        <nav
+          className="hidden items-center gap-7 xl:flex"
+          aria-label={t("Main navigation")}
+        >
+          {navLinks.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-slate-600 transition hover:text-slate-950"
+              className="text-sm text-neutral-600 hover:text-neutral-950"
             >
               {t(link.label)}
             </a>
           ))}
         </nav>
-
-        <div className="hidden items-center gap-3 lg:flex">
-          <ThemeToggle />
+        <div className="landing-nav-actions flex items-center gap-2 sm:gap-4">
           <Link
-            href="/demo"
-            className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+            href="/sign-in"
+            className="landing-sign-in text-sm font-medium text-neutral-700 hover:text-neutral-950"
           >
-            {t("Open Live Demo")}
+            {t("Sign in")}
           </Link>
-        </div>
-
-        <div className="flex items-center gap-2 lg:hidden">
-          <ThemeToggle />
+          <Link
+            href="/sign-up"
+            className="landing-button landing-button-primary text-sm"
+          >
+            {t("Start trial")}
+          </Link>
           <button
             type="button"
-            onClick={() => setMenuOpen(value => !value)}
-            title={menuOpen ? t("Close navigation") : t("Open navigation")}
-            aria-label={menuOpen ? t("Close navigation") : t("Open navigation")}
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-label={t(menuOpen ? "Close navigation" : "Open navigation")}
+            title={t(menuOpen ? "Close navigation" : "Open navigation")}
             aria-expanded={menuOpen}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-700"
+            aria-controls="landing-mobile-navigation"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-700 xl:hidden"
           >
-            {menuOpen ? <X size={18} /> : <Menu size={18} />}
+            {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </div>
-
       {menuOpen && (
-        <div className="border-t border-slate-200 bg-white px-5 py-4 lg:hidden">
-          <nav className="flex flex-col gap-1" aria-label={t("Mobile navigation")}>
-            {navLinks.map(link => (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={closeMenu}
-                className="rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                {t(link.label)}
-              </a>
-            ))}
-            <div className="mt-3 border-t border-slate-100 pt-4">
-              <Link
-                href="/demo"
-                onClick={closeMenu}
-                className="block rounded-lg bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white"
-              >
-                {t("Open Live Demo")}
-              </Link>
-            </div>
-          </nav>
-        </div>
+        <nav
+          id="landing-mobile-navigation"
+          aria-label={t("Mobile navigation")}
+          className="landing-container grid gap-1 border-t border-neutral-200 py-3 xl:hidden"
+        >
+          {navLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              onClick={() => setMenuOpen(false)}
+              className="py-3 text-sm text-neutral-700"
+            >
+              {t(link.label)}
+            </a>
+          ))}
+          <Link
+            href="/demo"
+            onClick={() => setMenuOpen(false)}
+            className="py-3 text-sm font-medium text-teal-800"
+          >
+            {t("Open Live Demo")}
+          </Link>
+        </nav>
       )}
     </header>
   )

@@ -1,3 +1,5 @@
+import { refreshedLandingFrench } from "./landing-translations"
+
 export const decisionateLanguageStorageKey =
   "decisionate:language"
 export const decisionateLanguageChangedEvent =
@@ -93,6 +95,7 @@ const translations = {
 } as const
 
 const frenchLandingTranslations: Record<string, string> = {
+  ...refreshedLandingFrench,
   "Decisions from Data.": "Des décisions fondées sur les données.",
   "Decisionate home": "Accueil de Decisionate",
   Product: "Produit",

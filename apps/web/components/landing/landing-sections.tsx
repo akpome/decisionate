@@ -2,127 +2,84 @@
 
 import Link from "next/link"
 import {
-  Activity,
+  ArrowRight,
   BarChart3,
-  BrainCircuit,
   Check,
   Database,
-  Gauge,
-  Layers3,
-  LineChart,
-  LockKeyhole,
-  PlugZap,
-  Scale,
-  Sparkles,
+  Plus,
   Target,
-  TrendingUp,
+  Users
 } from "lucide-react"
-
-import {
-  benefits,
-  faqs,
-  featureCards,
-  industryDashboards,
-  integrations,
-  workflowSteps,
-} from "@/components/landing/landing-content"
+import { useState } from "react"
 import { useLandingText } from "@/app/use-decisionate-language"
+import { dashboardDefinitions } from "@/features/dashboards/dashboard-definitions"
+import { faqs, integrationGroups } from "./landing-content"
+import { LandingProductDemo } from "./landing-product-demo"
 
-function SectionIntro({
-  eyebrow,
-  title,
-  description,
-  align = "center",
-}: {
-  eyebrow: string
-  title: string
-  description: string
-  align?: "center" | "left"
-}) {
+export function ProductWorkflowSection() {
   const { t } = useLandingText()
-
   return (
-    <div className={`${align === "center" ? "mx-auto text-center" : ""} max-w-2xl`}>
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
-        {t(eyebrow)}
-      </p>
-      <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-        {t(title)}
-      </h2>
-      <p className="mt-4 text-base leading-7 text-slate-600">
-        {t(description)}
-      </p>
-    </div>
-  )
-}
-
-export function TrustedBySection() {
-  const { t } = useLandingText()
-
-  return (
-    <section className="border-b border-slate-200 bg-white py-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 sm:px-8 md:flex-row md:items-center md:justify-between">
-        <p className="text-sm font-semibold text-slate-500">
-          {t("Built for growing businesses, agencies and agency client teams")}
-        </p>
-        <div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-wide text-slate-400">
-          {[
-            "Owner-led teams",
-            "Agency workspaces",
-            "Client portals",
-            "Evidence-led decisions",
-          ].map(item => (
-            <span key={item} className="border-l border-slate-300 pl-3 first:border-l-0 first:pl-0">
-              {t(item)}
-            </span>
-          ))}
+    <section id="product" className="landing-section bg-white">
+      <div className="landing-container">
+        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+          <div className="max-w-2xl">
+            <p className="landing-eyebrow">{t("The product, in practice")}</p>
+            <h2 className="landing-heading mt-3">
+              {t("From the first sync to the next review.")}
+            </h2>
+          </div>
+          <p className="max-w-sm text-sm leading-6 text-neutral-600">
+            {t(
+              "A short walkthrough of the same screens your team will use. Connect, compare, decide, then check what happened."
+            )}
+          </p>
         </div>
+        <LandingProductDemo />
       </div>
     </section>
   )
 }
 
-export function ProductWorkflowSection() {
+export function FeaturesSection() {
   const { t } = useLandingText()
-
+  const features = [
+    {
+      icon: Database,
+      title: "One place for the numbers",
+      description:
+        "Sync your business systems or upload a file. Keep datasets, dates and metrics together instead of rebuilding a report every week."
+    },
+    {
+      icon: BarChart3,
+      title: "A view you can question",
+      description:
+        "Compare metrics, change the period, group the data and switch between actual and indexed values. Follow the evidence before choosing an action."
+    },
+    {
+      icon: Target,
+      title: "A decision you can follow up",
+      description:
+        "Link the action to its dataset. Record the expected result, set a review date, and capture the outcome and lesson."
+    }
+  ]
   return (
-    <section id="product" className="bg-white py-20 sm:py-24">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <SectionIntro
-          eyebrow="The product workflow"
-          title="The path from business data to better judgment"
-          description="Decisionate follows the same order your team does: understand the situation, choose an action, see what happened and carry the lesson forward."
-        />
-
-        <div className="relative mt-14 grid gap-8 md:grid-cols-3 lg:grid-cols-6">
-          <div className="absolute left-[8%] right-[8%] top-6 hidden h-px bg-slate-200 lg:block" aria-hidden="true" />
-          {workflowSteps.map(step => (
-            <div key={step.number} className="relative text-center">
-              <div className="relative mx-auto flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-slate-950 text-xs font-bold text-white shadow-sm">
-                {step.number}
-              </div>
-              <h3 className="mt-4 text-sm font-bold text-slate-950">{t(step.label)}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-500">{t(step.description)}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-16 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-center lg:p-6">
-          {[
-            ["CSV / Excel / Systems", "Data inputs"],
-            ["Analytics engine", "Evidence"],
-            ["Recommendations", "Action"],
-            ["Decisions / Outcomes / Lessons", "Learning"],
-          ].map(([title, label], index) => (
-            <div key={title} className="flex items-center gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-blue-600 shadow-sm">
-                {index === 0 ? <Database size={17} /> : index === 1 ? <BarChart3 size={17} /> : index === 2 ? <Sparkles size={17} /> : <Target size={17} />}
-              </span>
-              <div>
-                <p className="text-sm font-bold text-slate-900">{t(title)}</p>
-                <p className="text-xs text-slate-500">{t(label)}</p>
-              </div>
-              {index < 3 && <span className="ml-auto hidden text-slate-300 lg:block">-&gt;</span>}
+    <section className="landing-section border-y border-neutral-200 bg-neutral-50">
+      <div className="landing-container">
+        <h2 className="landing-heading max-w-2xl">
+          {t("Keep the evidence close to the action.")}
+        </h2>
+        <div className="mt-10 grid gap-8 md:grid-cols-3">
+          {features.map((item) => (
+            <div key={item.title} className="border-t border-neutral-300 pt-5">
+              <item.icon
+                size={22}
+                className="text-teal-800"
+                aria-hidden="true"
+              />
+              <h3 className="mt-5 text-lg font-semibold">{t(item.title)}</h3>
+              <p className="mt-3 text-sm leading-7 text-neutral-600">
+                {t(item.description)}
+              </p>
             </div>
           ))}
         </div>
@@ -133,177 +90,72 @@ export function ProductWorkflowSection() {
 
 export function IndustryDashboardsSection() {
   const { t } = useLandingText()
-
+  const [audience, setAudience] = useState<"business" | "agency">("business")
   return (
-    <section id="industries" className="border-y border-slate-200 bg-slate-50 py-20 sm:py-24">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <SectionIntro
-          eyebrow="Industry dashboards"
-          title="Start with a view that understands your business"
-          description="Use a general view or choose an industry dashboard with measures, comparisons and decision questions shaped for the work you do."
-        />
-
-        <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {industryDashboards.map(dashboard => (
-            <Link
-              key={dashboard.name}
-              href="/demo"
-              title={`${t("Open live demo")}: ${t(dashboard.name)}`}
-              className="group overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg"
-            >
-              <div className="h-28 border-b border-slate-100 bg-slate-50 p-4">
-                <div className="flex h-full items-end gap-2">
-                  {dashboard.values.map((value, index) => (
-                    <span
-                      key={`${dashboard.name}-${index}`}
-                      className="flex-1 rounded-t-sm opacity-90 transition group-hover:opacity-100"
-                      style={{ height: `${value}%`, backgroundColor: dashboard.accent }}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-bold text-slate-950">{t(dashboard.name)}</h3>
-                  <span className="text-slate-300 transition group-hover:text-blue-600">-&gt;</span>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">{t(dashboard.description)}</p>
-                <span className="mt-4 inline-block text-xs font-bold uppercase tracking-wide text-blue-600">{t("Open live demo")}</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-const featureIcons = {
-  database: Database,
-  chart: BarChart3,
-  forecast: TrendingUp,
-  sparkles: Sparkles,
-  target: Target,
-  layers: Layers3,
-} as const
-
-export function FeaturesSection() {
-  const { t } = useLandingText()
-
-  return (
-    <section id="solutions" className="bg-white py-20 sm:py-24">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <SectionIntro
-          eyebrow="Core capabilities"
-          title="Everything needed to move from signal to action"
-          description="Use the parts you need today, then connect them into a repeatable decision practice as your business grows."
-        />
-
-        <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {featureCards.map(feature => {
-            const Icon = featureIcons[feature.icon]
-
-            return (
-              <article key={feature.title} className="rounded-lg border border-slate-200 bg-white p-5 transition hover:border-blue-200 hover:shadow-md">
-                <span title={t(feature.title)} className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                  <Icon size={19} aria-hidden="true" />
-                </span>
-                <h3 className="mt-5 text-base font-bold text-slate-950">{t(feature.title)}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-500">{t(feature.description)}</p>
-              </article>
-            )
-          })}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-export function AIDecisionEngineSection() {
-  const { t } = useLandingText()
-
-  return (
-    <section className="bg-slate-950 py-20 text-white sm:py-24">
-      <div className="mx-auto grid max-w-7xl gap-12 px-5 sm:px-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
+    <section id="industries" className="landing-section bg-white">
+      <div className="landing-container grid gap-10 lg:grid-cols-2">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">{t("The AI decision engine")}</p>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">{t("Charts are the beginning, not the destination.")}</h2>
-          <p className="mt-5 text-base leading-7 text-slate-300">
-            {t("Decisionate helps teams move from a business signal to a recommendation, then keeps the outcome and lesson attached to the original decision.")}
+          <p className="landing-eyebrow">{t("Your workspace, your context")}</p>
+          <h2 className="landing-heading mt-3">
+            {t("Built around the work you do.")}
+          </h2>
+          <div
+            role="group"
+            aria-label={t("Workspace type")}
+            className="mt-7 inline-flex max-w-full gap-1 rounded-md border border-neutral-200 p-1"
+          >
+            {(["business", "agency"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={audience === option}
+                onClick={() => setAudience(option)}
+                className={`rounded px-3 py-2 text-sm font-medium ${audience === option ? "bg-teal-800 text-white" : "text-neutral-600 hover:bg-neutral-100"}`}
+              >
+                {t(
+                  option === "business"
+                    ? "For your business"
+                    : "For your agency"
+                )}
+              </button>
+            ))}
+          </div>
+          <p className="mt-5 max-w-lg text-base leading-7 text-neutral-600">
+            {t(
+              audience === "business"
+                ? "Bring your team into one workspace, choose the dashboards that fit your business, and keep important decisions visible."
+                : "Manage your agency and client workspaces separately. Give clients their own view, with your branding and role-based access."
+            )}
           </p>
-          <div className="mt-7 flex items-center gap-3 text-sm font-semibold text-cyan-300">
-            <BrainCircuit size={18} aria-hidden="true" />
-            {t("Human judgment, strengthened by evidence")}
-          </div>
+          <Link
+            href="/sign-up"
+            className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-teal-800"
+          >
+            {t("Start trial")}
+            <ArrowRight size={16} aria-hidden="true" />
+          </Link>
         </div>
-
-        <div className="grid gap-3 sm:grid-cols-5 sm:items-center">
-          {[
-            ["Business data", Database],
-            ["AI analysis", BrainCircuit],
-            ["Recommendation", Sparkles],
-            ["Decision", Target],
-            ["Learning", Gauge],
-          ].map(([label, Icon], index) => {
-            const FeatureIcon = Icon as typeof Database
-
-            return (
-              <div key={label as string} className="flex items-center gap-3 sm:block sm:text-center">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-cyan-300 sm:mx-auto">
-                  <FeatureIcon size={20} aria-hidden="true" />
-                </div>
-                <p className="text-sm font-bold text-white sm:mt-3">{t(label as string)}</p>
-                {index < 4 && <span className="ml-auto text-slate-600 sm:hidden">-&gt;</span>}
-                <span
-                  className={`mx-auto mt-4 hidden text-slate-600 sm:block ${index === 4 ? "invisible" : ""}`}
-                  aria-hidden="true"
+        <div>
+          <p className="mb-4 text-xs font-semibold text-neutral-500">
+            {t("Explore a dashboard")}
+          </p>
+          <div className="grid gap-x-6 sm:grid-cols-2">
+            {dashboardDefinitions
+              .filter((item) => item.key !== "decision-performance")
+              .map((item) => (
+                <Link
+                  key={item.key}
+                  href={`/demo?dashboard=${item.key}`}
+                  className="group flex min-w-0 items-start justify-between gap-2 border-t border-neutral-200 py-3 text-sm leading-5 text-neutral-700 hover:text-teal-800"
                 >
-                  -&gt;
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-export function DecisionLifecycleSection() {
-  const { t } = useLandingText()
-
-  return (
-    <section className="border-b border-slate-200 bg-white py-20 sm:py-24">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <div className="grid gap-12 lg:grid-cols-[0.76fr_1.24fr] lg:items-center">
-          <SectionIntro
-            align="left"
-            eyebrow="Decision lifecycle"
-            title="Keep the decision connected to the result"
-            description="Traditional BI tools often stop at the chart. Decisionate continues through the action, review, outcome and lesson learned."
-          />
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              ["Recommendation", "A signal worth considering", Sparkles],
-              ["Decision", "A choice with an owner", Target],
-              ["Action plan", "The work that makes it real", Activity],
-              ["Review date", "A moment to look again", LineChart],
-              ["Outcome", "What actually happened", Check],
-              ["Lesson learned", "What to repeat or avoid", LightbulbIcon],
-            ].map(([title, description, Icon]) => {
-              const LifecycleIcon = Icon as typeof Target
-
-              return (
-                <div key={title as string} className="flex items-start gap-3 rounded-lg border border-slate-200 p-4">
-                  <LifecycleIcon size={18} className="mt-0.5 text-blue-600" aria-hidden="true" />
-                  <div>
-                    <p className="text-sm font-bold text-slate-950">{t(title as string)}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{t(description as string)}</p>
-                  </div>
-                </div>
-              )
-            })}
+                  <span>{t(item.name.replace(" Performance", ""))}</span>
+                  <ArrowRight
+                    size={14}
+                    className="mt-0.5 shrink-0 text-neutral-400 group-hover:text-teal-800"
+                    aria-hidden="true"
+                  />
+                </Link>
+              ))}
           </div>
         </div>
       </div>
@@ -311,67 +163,80 @@ export function DecisionLifecycleSection() {
   )
 }
 
-function LightbulbIcon(props: { size?: number; className?: string; "aria-hidden"?: boolean }) {
-  return <Sparkles {...props} />
-}
+const integrationIcons = [
+  BarChart3,
+  Database,
+  Database,
+  Users,
+  Database,
+  Database
+]
 
 export function IntegrationsSection() {
   const { t } = useLandingText()
-
   return (
-    <section id="resources" className="border-b border-slate-200 bg-slate-50 py-20 sm:py-24">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <SectionIntro
-          eyebrow="Integrations"
-          title="Start with the data you already have"
-          description="Connect quickly with available sources today, then expand into the systems your operating model depends on."
-        />
-
-        <div className="mx-auto mt-12 grid max-w-4xl gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {integrations.map(integration => {
-            const available = integration.status === "Available"
-
+    <section
+      id="integrations"
+      className="landing-section border-y border-neutral-200 bg-neutral-50"
+    >
+      <div className="landing-container">
+        <p className="landing-eyebrow">{t("Connections")}</p>
+        <h2 className="landing-heading mt-3">
+          {t("Work with the systems you already use.")}
+        </h2>
+        <p className="mt-4 max-w-2xl text-base leading-7 text-neutral-600">
+          {t(
+            "Accounting, commerce, marketing and CRM data, alongside databases and files. Choose the source that fits the question."
+          )}
+        </p>
+        <div className="mt-9 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+          {integrationGroups.map((group, index) => {
+            const Icon = integrationIcons[index]
             return (
-              <div key={integration.name} className="flex min-h-24 flex-col justify-between rounded-lg border border-slate-200 bg-white p-4">
-                <div className="flex items-center gap-2">
-                  {available ? <PlugZap size={16} className="text-blue-600" aria-hidden="true" /> : <LockKeyhole size={15} className="text-slate-400" aria-hidden="true" />}
-                  <p className="text-sm font-bold text-slate-900">{integration.name}</p>
-                </div>
-                <p className={`mt-4 text-[10px] font-bold uppercase tracking-wide ${available ? "text-emerald-600" : "text-slate-400"}`}>
-                  {t(integration.status)}
-                </p>
+              <div
+                key={group.name}
+                className="border-t border-neutral-300 pt-4"
+              >
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-neutral-950">
+                  <Icon
+                    size={16}
+                    className="text-teal-800"
+                    aria-hidden="true"
+                  />
+                  {t(group.name)}
+                </h3>
+                <ul className="mt-4 space-y-3">
+                  {group.items.map((item) => (
+                    <li
+                      key={item.type}
+                      data-connector={item.type}
+                      className="text-sm text-neutral-600"
+                    >
+                      {item.name}
+                      {"note" in item && (
+                        <span className="mt-1 block text-xs text-amber-800">
+                          {t(item.note)}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {group.name === "Files" && (
+                  <p className="mt-4 text-xs leading-6 text-neutral-500">
+                    {t(
+                      "Import signed file links from Google Drive or OneDrive."
+                    )}
+                  </p>
+                )}
               </div>
             )
           })}
         </div>
-      </div>
-    </section>
-  )
-}
-
-export function BenefitsSection() {
-  const { t } = useLandingText()
-
-  return (
-    <section className="bg-white py-20 sm:py-24">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <SectionIntro
-          eyebrow="Why Decisionate"
-          title="A better operating habit, not another reporting tab"
-          description="Give growing teams a shared way to turn business evidence into action and organizational learning."
-        />
-
-        <div className="mt-12 grid gap-x-8 gap-y-8 md:grid-cols-2 lg:grid-cols-3">
-          {benefits.map((benefit, index) => (
-            <div key={benefit.title} className="flex gap-4 border-t border-slate-200 pt-4">
-              <span className="text-sm font-bold text-blue-600">0{index + 1}</span>
-              <div>
-                <h3 className="text-base font-bold text-slate-950">{t(benefit.title)}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-500">{t(benefit.description)}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <p className="mt-8 border-t border-neutral-200 pt-5 text-xs leading-6 text-neutral-500">
+          {t(
+            "Provider authorization and any required approvals apply. Connector data is kept for three years, then deleted. No permanent summaries."
+          )}
+        </p>
       </div>
     </section>
   )
@@ -379,137 +244,129 @@ export function BenefitsSection() {
 
 export function PricingSection() {
   const { t } = useLandingText()
-
+  const [annual, setAnnual] = useState(false)
   const plans = [
     {
-      name: "Free",
-      price: "$0",
-      annualPrice: "$0 CAD/year",
-      priceDetail: "CAD / month",
-      description: "Start with one workspace and a practical monthly AI allowance.",
-      action: "Explore Live Demo",
-      href: "/demo",
-      featured: false,
-      items: [
-        "1 workspace",
-        "1,000 AI credits/month; annual allocation: N/A",
-        "Full access for 30 days",
-      ],
-    },
-    {
       name: "Professional",
-      price: "$79",
-      annualPrice: "$790 CAD/year",
-      priceDetail: "CAD / month",
-      description: "Decision intelligence for a business managing its own workspace.",
-      action: "Explore Live Demo",
-      href: "/demo",
-      featured: true,
+      description: "For a business managing its own workspace.",
+      monthly: 79,
+      yearly: 790,
       items: [
-        "1 workspace during the trial",
+        "1 business workspace",
         "Unlimited datasets",
         "All industry dashboards",
-        "AI-powered recommendations",
-        "Decision management",
-        "Outcome tracking",
-        "5,000 AI credits/month or 60,000/year",
-      ],
+        "Decision management and outcome tracking",
+        "5,000 AI credits/month or 60,000/year"
+      ]
     },
     {
       name: "Agency",
-      price: "$199",
-      annualPrice: "$1,990 CAD/year",
-      priceDetail: "CAD / month",
-      description: "Manage an agency workspace and up to 10 client workspaces.",
-      action: "Explore Live Demo",
-      href: "/demo",
-      featured: false,
+      description: "For an agency working across client businesses.",
+      monthly: 199,
+      yearly: 1990,
       items: [
-        "10 client workspaces during the trial",
-        "White-label client portal",
-        "Agency branding",
-        "Industry dashboards",
-        "25,000 AI credits/month or 300,000/year",
-      ],
-    },
-  ] as const
-
+        "Agency workspace and 10 client workspaces",
+        "Separate client access",
+        "Agency branding and client portal",
+        "All Professional features",
+        "25,000 AI credits/month or 300,000/year"
+      ]
+    }
+  ]
   return (
-    <section id="pricing" className="border-y border-slate-200 bg-slate-50 py-20 sm:py-24">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <SectionIntro
-          eyebrow="Plans for businesses and agencies"
-          title="Choose the way you manage decisions"
-          description="Start with full access for 30 days. Choose Professional for one business workspace, or scale with agency plans based on client workspaces rather than employee seats."
-        />
-
-        <div className="mx-auto mt-12 grid max-w-7xl gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {plans.map(plan => (
-            <article key={plan.name} className={`relative flex h-full flex-col rounded-lg border p-6 ${plan.featured ? "border-blue-600 bg-slate-950 text-white shadow-xl" : "border-slate-200 bg-white"}`}>
-              {plan.featured && <span className="absolute right-5 top-5 rounded-full bg-cyan-300 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-950">{t("Most popular")}</span>}
-              <h3 className="text-lg font-bold">{t(plan.name)}</h3>
-              <div className="mt-5 flex items-end gap-2">
-                <span className="text-4xl font-bold tracking-tight">{plan.price}</span>
-                <span className={`pb-1 text-sm ${plan.featured ? "text-slate-300" : "text-slate-500"}`}>{t(plan.priceDetail)}</span>
-              </div>
-              <p className={`mt-2 text-xs ${plan.featured ? "text-slate-300" : "text-slate-500"}`}>
-                {t("Annual billing")}: {t(plan.annualPrice ?? "$0/year")}
+    <section id="pricing" className="landing-section bg-white">
+      <div className="landing-container">
+        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+          <div>
+            <p className="landing-eyebrow">{t("Pricing")}</p>
+            <h2 className="landing-heading mt-3">
+              {t("Start with 30 days to make it yours.")}
+            </h2>
+            <p className="mt-4 text-sm text-neutral-600">
+              {t(
+                "No credit card required. Choose your plan during workspace setup."
+              )}
+            </p>
+          </div>
+          <div
+            role="group"
+            aria-label={t("Billing frequency")}
+            className="inline-flex w-fit max-w-full gap-1 rounded-md border border-neutral-200 p-1"
+          >
+            {[false, true].map((value) => (
+              <button
+                key={String(value)}
+                type="button"
+                aria-pressed={annual === value}
+                onClick={() => setAnnual(value)}
+                className={`rounded px-4 py-2 text-sm font-medium ${annual === value ? "bg-neutral-950 text-white" : "text-neutral-600"}`}
+              >
+                {t(value ? "Annual" : "Monthly")}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-9 grid gap-5 md:grid-cols-2">
+          {plans.map((plan) => (
+            <article
+              key={plan.name}
+              className="flex min-w-0 flex-col rounded-lg border border-neutral-200 p-6 sm:p-8"
+            >
+              <h3 className="text-xl font-semibold">{t(plan.name)}</h3>
+              <p className="mt-3 text-sm leading-6 text-neutral-600">
+                {t(plan.description)}
               </p>
-              <p className={`mt-2 min-h-12 text-sm leading-6 ${plan.featured ? "text-slate-300" : "text-slate-500"}`}>{t(plan.description)}</p>
-              <ul className="mt-6 space-y-3">
-                {plan.items.map(item => (
-                  <li key={item} className={`flex gap-2 text-sm ${plan.featured ? "text-slate-200" : "text-slate-600"}`}>
-                    <Check size={16} className={plan.featured ? "text-cyan-300" : "text-blue-600"} aria-hidden="true" />
-                    {t(item)}
+              <div className="mt-6 flex flex-wrap items-baseline gap-2">
+                <span className="text-4xl font-semibold tabular-nums">
+                  $
+                  {(annual ? plan.yearly : plan.monthly).toLocaleString(
+                    "en-CA"
+                  )}
+                </span>
+                <span className="text-sm text-neutral-500">
+                  {t(annual ? "CAD / year" : "CAD / month")}
+                </span>
+              </div>
+              <p className="mt-2 min-h-5 text-xs text-teal-800">
+                {annual
+                  ? t("Two months less than monthly billing.")
+                  : t("Billed monthly.")}
+              </p>
+              <ul className="my-7 space-y-3">
+                {plan.items.map((item) => (
+                  <li
+                    key={item}
+                    className="flex gap-2 text-sm leading-6 text-neutral-700"
+                  >
+                    <Check
+                      size={16}
+                      className="mt-1 shrink-0 text-teal-800"
+                      aria-hidden="true"
+                    />
+                    <span>{t(item)}</span>
                   </li>
                 ))}
               </ul>
-              <div className="mt-auto flex justify-center pt-4">
-                <a href={plan.href} className={`h-8 w-full max-w-[13rem] inline-flex items-center justify-center rounded-lg px-3 py-1 text-xs font-bold ${plan.featured ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200" : "border border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
-                  {t(plan.action)}
-                </a>
-              </div>
+              <Link
+                href="/sign-up"
+                className="landing-button landing-button-primary mt-auto w-fit"
+              >
+                {t("Start trial")}
+                <ArrowRight size={16} aria-hidden="true" />
+              </Link>
             </article>
           ))}
         </div>
-
-        <div className="mt-10 overflow-x-auto rounded-lg border border-slate-200 bg-white">
-          <table className="min-w-[40rem] w-full text-left text-sm">
-            <caption className="sr-only">{t("Decisionate pricing and AI credit allocation")}</caption>
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-3 font-bold">{t("Plan")}</th>
-                <th className="px-4 py-3 text-right font-bold">{t("Price (CAD)")}</th>
-                <th className="px-4 py-3 text-right font-bold">{t("Annual (CAD)")}</th>
-                <th className="px-4 py-3 text-right font-bold">{t("Client workspaces")}</th>
-                <th className="px-4 py-3 text-right font-bold">{t("AI credits (monthly / annual)")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {[
-                ["Free", "$0 CAD", "$0 CAD", "1", "1,000 / N/A"],
-                ["Professional", "$79 CAD", "$790 CAD", "1", "5,000 / 60,000"],
-                ["Agency", "$199 CAD", "$1,990 CAD", "10", "25,000 / 300,000"],
-                ["Additional client workspace", "+$20 CAD", "+$200 CAD", "+1", "2,500 / 30,000"],
-              ].map(([name, price, annual, workspaces, credits]) => (
-                <tr key={name}>
-                  <th className="px-4 py-3 font-semibold text-slate-900">{t(name)}</th>
-                  <td className="px-4 py-3 text-right text-slate-700">{price}</td>
-                  <td className="px-4 py-3 text-right text-slate-700">{annual}</td>
-                  <td className="px-4 py-3 text-right text-slate-700">{workspaces}</td>
-                  <td className="px-4 py-3 text-right text-slate-700">{credits}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mx-auto mt-6 grid max-w-4xl gap-3 text-center text-sm text-slate-600 sm:grid-cols-2">
-          <p className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            {t("Need more capacity? Add client workspaces for $20 CAD/month each or $200 CAD/year each. Each additional client workspace includes 2,500 AI credits/month or 30,000/year.")}
+        <div className="mt-6 grid gap-4 border-t border-neutral-200 pt-5 text-xs leading-6 text-neutral-500 sm:grid-cols-2">
+          <p>
+            {t(
+              "Additional client workspaces: $20 CAD/month or $200 CAD/year each, including 2,500 AI credits/month or 30,000/year."
+            )}
           </p>
-          <p className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            {t("Additional AI credit packs are available when your usage grows.")}
+          <p>
+            {t(
+              "AI tools and credit purchases require enabled AI services. Paid subscriptions and purchases are available when billing is enabled."
+            )}
           </p>
         </div>
       </div>
@@ -519,31 +376,40 @@ export function PricingSection() {
 
 export function FAQSection() {
   const { t } = useLandingText()
-
   return (
-    <section className="bg-white py-20 sm:py-24">
-      <div className="mx-auto max-w-3xl px-5 sm:px-8">
-        <SectionIntro
-          eyebrow="Questions"
-          title="Frequently asked"
-          description="A few useful answers before you start."
-        />
-
-        <div className="mt-10 divide-y divide-slate-200 border-y border-slate-200">
-          {faqs.map(faq => (
+    <section
+      id="questions"
+      className="landing-section border-t border-neutral-200 bg-neutral-50"
+    >
+      <div className="landing-container grid gap-8 lg:grid-cols-[1fr_2fr]">
+        <div>
+          <h2 className="landing-heading">{t("A few practical questions.")}</h2>
+          <a
+            href="mailto:support@decisionate.ca"
+            className="mt-4 inline-block text-sm text-teal-800"
+          >
+            support@decisionate.ca
+          </a>
+        </div>
+        <div className="divide-y divide-neutral-200 border-t border-neutral-200">
+          {faqs.map((faq) => (
             <details key={faq.question} className="group py-5">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-base font-bold text-slate-950 marker:hidden">
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-5 text-base font-medium marker:hidden">
                 {t(faq.question)}
-                <span className="text-xl font-normal text-slate-400 transition group-open:rotate-45">+</span>
+                <Plus
+                  size={18}
+                  className="mt-1 shrink-0 text-neutral-500 group-open:rotate-45"
+                  aria-hidden="true"
+                />
               </summary>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+              <p className="mt-3 text-sm leading-7 text-neutral-600">
                 {t(faq.answer)}
                 {"link" in faq && (
                   <>
                     {" "}
                     <Link
                       href={faq.link.href}
-                      className="font-semibold text-blue-600 underline decoration-blue-200 underline-offset-4 hover:text-blue-700"
+                      className="font-medium text-teal-800 underline underline-offset-4"
                     >
                       {t(faq.link.label)}
                     </Link>
@@ -561,17 +427,32 @@ export function FAQSection() {
 
 export function FinalCTASection() {
   const { t } = useLandingText()
-
   return (
-    <section id="company" className="bg-blue-600 py-16 text-white sm:py-20">
-      <div className="mx-auto flex max-w-4xl flex-col items-center px-5 text-center sm:px-8">
-        <Scale size={26} className="text-cyan-200" aria-hidden="true" />
-        <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-5xl">{t("Ready to make better decisions?")}</h2>
-        <p className="mt-4 max-w-xl text-base leading-7 text-blue-100">{t("Start with your data, create your first decision and build the habit of learning from what happens next.")}</p>
-        <Link href="/demo" className="mt-8 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-50">
-          {t("Open Live Demo")}
-          <TrendingUp size={16} aria-hidden="true" />
-        </Link>
+    <section className="border-t border-neutral-200 bg-teal-800 py-12 text-white sm:py-16">
+      <div className="landing-container flex flex-col justify-between gap-7 md:flex-row md:items-center">
+        <div>
+          <h2 className="text-2xl font-semibold sm:text-3xl">
+            {t("Bring your next decision into focus.")}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-teal-100">
+            {t("Start with a file or connection. Build from there.")}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <Link
+            href="/sign-up"
+            className="landing-button border border-white bg-white text-neutral-950 hover:bg-neutral-100"
+          >
+            {t("Start trial")}
+            <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+          <Link
+            href="/sign-in"
+            className="text-sm font-medium text-white underline underline-offset-4"
+          >
+            {t("Sign in")}
+          </Link>
+        </div>
       </div>
     </section>
   )
