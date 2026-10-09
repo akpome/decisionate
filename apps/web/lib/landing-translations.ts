@@ -1,8 +1,8 @@
 export const refreshedLandingFrench: Record<string, string> = {
   "Explore live demo": "Explorer la démo",
   "Play product walkthrough": "Lire la présentation du produit",
-  "See performance. Follow through.":
-    "Analysez la performance. Suivez les résultats.",
+  "Find insights in your existing business data.":
+    "Tirez des enseignements de vos données d'entreprise.",
   Annual: "Annuel",
   Review: "Réviser",
   "For businesses and agencies": "Pour les entreprises et agences",
@@ -27,22 +27,12 @@ export const refreshedLandingFrench: Record<string, string> = {
   "A short walkthrough of the same screens your team will use. Connect, compare, decide, then check what happened.":
     "Un aperçu des écrans que votre équipe utilisera. Connectez, comparez, décidez, puis examinez le résultat.",
   "Decisionate product walkthrough": "Présentation du parcours Decisionate",
-  "Authorize a source, choose an account and sync its data.":
-    "Autorisez une source, choisissez un compte et synchronisez ses données.",
-  "Choose a dashboard, compare metrics and adjust the chart view.":
-    "Choisissez un tableau de bord, comparez les mesures et ajustez le graphique.",
-  "Link a decision to its dataset, action, expected outcome and review date.":
-    "Liez une décision à ses données, son action, son résultat attendu et sa date de révision.",
-  "Record the result and lesson, keeping the evidence with the original decision.":
-    "Enregistrez le résultat et l'apprentissage avec les données probantes de la décision d'origine.",
   "Open the live demo to explore Decisionate.":
     "Ouvrez la démo en direct pour explorer Decisionate.",
   "The video could not play. You can still explore the live demo below.":
     "Impossible de lire la vidéo. Vous pouvez explorer la démo en direct ci-dessous.",
   "Walkthrough chapters": "Chapitres de la présentation",
   "Play chapter": "Lire le chapitre",
-  "Recorded in Decisionate with sample data. No live customer information.":
-    "Enregistré dans Decisionate avec des données de démonstration. Aucune donnée réelle de client.",
   "Keep the evidence close to the action.":
     "Gardez les données probantes près de l'action.",
   "One place for the numbers": "Un seul endroit pour les chiffres",

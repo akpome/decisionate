@@ -89,11 +89,12 @@ test("sign-in and trial actions use the actual authentication routes", () => {
   )
 })
 
-test("the tagline stays in brand lockups while the hero describes the workflow", () => {
+test("the tagline stays in brand lockups while the hero describes business-data insights", () => {
   const hero = read("../components/landing/hero.tsx")
   assert.doesNotMatch(hero, /Decisions from Data\./)
-  assert.match(hero, /See performance\. Follow through\./)
-  assert.equal(refreshedLandingFrench["See performance. Follow through."], "Analysez la performance. Suivez les résultats.")
+  assert.match(hero, /Find insights in your existing business data\./)
+  assert.doesNotMatch(hero, /See performance\. Follow through\./)
+  assert.equal(refreshedLandingFrench["Find insights in your existing business data."], "Tirez des enseignements de vos données d'entreprise.")
   for (const file of ["navbar", "footer"])
     assert.match(read(`../components/landing/${file}.tsx`), /Decisions from Data\./)
   assert.match(hero, /href="\/demo"/)
@@ -122,8 +123,24 @@ test("the video stage fits the first viewport without cropping the product", () 
   assert.match(read("../components/landing/landing-product-demo.tsx"), /object-contain/)
   assert.equal(values(".landing-page svg.lucide").color, "var(--landing-brand-accent)")
   assert.notEqual(values(".landing-button-accent").background, "var(--landing-brand-accent)")
-  assert.equal(values(".landing-video-play").background, "var(--landing-brand-primary)")
-  assert.equal(values(".landing-nav-actions > button").background, "var(--landing-brand-primary)")
+  assert.equal(values(".landing-video-play").background, "#fff")
+  assert.equal(values(".landing-video-play").color, "var(--landing-brand-primary)")
+  assert.equal(values(".landing-nav-actions > button").background, undefined)
+  assert.equal(values(".landing-page .landing-nav-actions > button svg.lucide,\n.landing-page .landing-video-play svg.lucide").color, "inherit")
+})
+
+test("all four chapters stay in one row without the removed explanatory copy", () => {
+  const demo = read("../components/landing/landing-product-demo.tsx")
+  assert.doesNotMatch(demo, /Authorize a source|Recorded in Decisionate|\.description|grid-cols-2/)
+  assert.match(demo, /landing-demo-chapters/)
+  const css = require("postcss").parse(read("../components/landing/landing.css"))
+  const grids = []
+  css.walkRules(".landing-demo-chapters", rule => {
+    grids.push(...rule.nodes.filter(node => node.prop === "grid-template-columns").map(node => node.value))
+  })
+  assert.deepEqual(grids, ["repeat(4, minmax(0, 1fr))"])
+  const narrow = css.nodes.find(node => node.type === "atrule" && node.name === "container" && node.params === "(max-width: 360px)")
+  assert.ok(narrow.nodes.some(node => node.selector === ".landing-demo-chapters button"))
 })
 
 test("desktop copy is vertically centered beside the video with chapters only beneath it", () => {

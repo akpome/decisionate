@@ -69,12 +69,6 @@
 .landing-nav {
   border-bottom: 2px solid var(--landing-brand-accent);
 }
-.landing-nav-actions > button {
-  background: var(--landing-brand-primary);
-}
-.landing-nav-actions > button:hover {
-  background: var(--landing-brand-hover);
-}
 .landing-brand-lockup {
   display: inline-flex;
   align-items: center;
@@ -155,6 +149,10 @@
 .landing-page svg.lucide {
   color: var(--landing-brand-accent);
 }
+.landing-page .landing-nav-actions > button svg.lucide,
+.landing-page .landing-video-play svg.lucide {
+  color: inherit;
+}
 .landing-hero {
   padding-block: 32px 40px;
   scroll-margin-top: var(--landing-nav-height);
@@ -174,9 +172,25 @@
   max-height: calc(100svh - var(--landing-nav-height) - 56px);
 }
 .landing-demo-details {
+  container-type: inline-size;
   min-width: 0;
   width: 100%;
   justify-self: center;
+}
+.landing-demo-chapters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@container (max-width: 360px) {
+  .landing-demo-chapters {
+    gap: 4px;
+  }
+  .landing-demo-chapters button {
+    font-size: 12px;
+    line-height: 18px;
+  }
 }
 .landing-demo-frame {
   position: relative;
@@ -197,12 +211,12 @@
   transform: translate(-50%, -50%);
   border: 2px solid var(--landing-brand-accent);
   border-radius: 50%;
-  background: var(--landing-brand-primary);
-  color: var(--landing-brand-accent);
+  background: #fff;
+  color: var(--landing-brand-primary);
   cursor: pointer;
 }
 .landing-video-play:hover {
-  background: var(--landing-brand-hover);
+  background: var(--landing-brand-tint);
 }
 .landing-product-video {
   display: block;

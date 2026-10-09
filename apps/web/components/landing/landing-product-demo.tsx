@@ -9,26 +9,19 @@ import { useLandingText } from "@/app/use-decisionate-language"
 export const productDemoChapters = [
   {
     time: 0,
-    label: "Connect",
-    description: "Authorize a source, choose an account and sync its data."
+    label: "Connect"
   },
   {
     time: 10,
-    label: "Analyze",
-    description:
-      "Choose a dashboard, compare metrics and adjust the chart view."
+    label: "Analyze"
   },
   {
     time: 24,
-    label: "Decide",
-    description:
-      "Link a decision to its dataset, action, expected outcome and review date."
+    label: "Decide"
   },
   {
     time: 38,
-    label: "Review",
-    description:
-      "Record the result and lesson, keeping the evidence with the original decision."
+    label: "Review"
   }
 ] as const
 
@@ -139,7 +132,7 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
           </p>
         )}
         <div
-          className="landing-demo-chapters grid grid-cols-2 gap-3 lg:grid-cols-4"
+          className="landing-demo-chapters"
           aria-label={t("Walkthrough chapters")}
         >
           {productDemoChapters.map((item, index) => (
@@ -149,24 +142,16 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
               onClick={() => seek(item.time, index)}
               aria-label={`${t("Play chapter")}: ${t(item.label)}`}
               aria-current={chapter === index ? "step" : undefined}
-              className={`min-w-0 border-t-2 pt-3 text-left text-sm font-semibold text-neutral-950 ${chapter === index ? "landing-brand-chapter" : "border-neutral-200"}`}
+              className={`min-h-14 min-w-0 border-t-2 pt-3 text-left text-sm font-semibold text-neutral-950 ${chapter === index ? "landing-brand-chapter" : "border-neutral-200"}`}
             >
               <span className="mb-1 block text-xs font-normal tabular-nums text-neutral-500">
                 0:{String(item.time).padStart(2, "0")}
               </span>
-              {t(item.label)}
+              <span className="block whitespace-nowrap">{t(item.label)}</span>
             </button>
           ))}
         </div>
-        <p className="mt-3 min-h-12 text-sm leading-6 text-neutral-600">
-          {t(productDemoChapters[chapter]?.description ?? productDemoChapters[0].description)}
-        </p>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs leading-5">
-          <p className="max-w-sm text-neutral-500">
-            {t(
-              "Recorded in Decisionate with sample data. No live customer information."
-            )}
-          </p>
+        <div className="mt-4 flex justify-end text-xs leading-5">
           <Link
             href="/demo"
             className="landing-brand-link inline-flex items-center gap-2 font-medium"
