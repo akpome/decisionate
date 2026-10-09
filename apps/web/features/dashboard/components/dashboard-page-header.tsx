@@ -26,9 +26,9 @@ export function DashboardPageHeader({
 
   return (
     <header
-      className={`flex flex-col gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:items-start sm:justify-between ${className}`.trim()}
+      className={`flex flex-col gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between ${className}`.trim()}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 sm:flex-1 sm:basis-64">
         {leading && (
           <div className="mb-3">
             {leading}
@@ -53,7 +53,7 @@ export function DashboardPageHeader({
       </div>
 
       {actions && (
-        <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 sm:justify-end">
           {actions}
         </div>
       )}

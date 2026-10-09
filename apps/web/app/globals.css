@@ -59,12 +59,21 @@
   ::file-selector-button {
     border-color: var(--decisionate-app-border);
   }
+
+  fieldset {
+    min-inline-size: 0;
+  }
+
+  legend {
+    max-inline-size: 100%;
+  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, system-ui, sans-serif;
+  overflow-wrap: anywhere;
 }
 
 .dashboard-shell-layout {
@@ -209,6 +218,32 @@ body {
   }
 }
 
+@media (max-width: 767px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+  select,
+  textarea {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  button,
+  a[role="button"] {
+    min-height: 44px;
+  }
+
+  button:has(> svg),
+  a[aria-label]:has(> svg) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  main footer {
+    flex-wrap: wrap;
+  }
+}
+
 .dashboard-kpi-scroll {
   scrollbar-color: var(--decisionate-app-border) transparent;
   scrollbar-width: thin;
@@ -220,7 +255,7 @@ body {
 }
 
 .dashboard-kpi-strip-card.industry-kpi-strip-card {
-  flex-basis: min(34rem, 164vw);
+  flex-basis: min(34rem, 100%);
 }
 
 @media (min-width: 640px) {

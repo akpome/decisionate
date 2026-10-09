@@ -95,7 +95,7 @@ export function SignedUrlImport({
 
       <form
         onSubmit={handleSubmit}
-        className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px_auto] sm:items-end"
+        className="mt-4 grid min-w-0 gap-3 sm:grid-cols-2 sm:items-end lg:grid-cols-[minmax(0,1fr)_220px_auto]"
       >
         <label className="min-w-0 text-sm font-medium text-gray-700">
           {t("Signed file URL")}
@@ -122,7 +122,7 @@ export function SignedUrlImport({
         <button
           type="submit"
           disabled={loading}
-          className="h-10 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-10 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2 lg:col-span-1"
         >
           {loading ? t("Importing...") : t("Import file")}
         </button>

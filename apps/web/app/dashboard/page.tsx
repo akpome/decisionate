@@ -3723,7 +3723,7 @@ export default function DashboardPage() {
               </Link>
             )}
           </div>
-        <div className="col-span-full grid min-w-0 gap-2 rounded-lg border border-gray-200 bg-gray-50 px-0 py-2 sm:grid-cols-[repeat(4,minmax(0,1fr))_auto] sm:items-end">
+        <div className="col-span-full grid min-w-0 gap-2 rounded-lg border border-gray-200 bg-gray-50 px-0 py-2 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
           <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
             <span className="block">Start date</span>
             <input
@@ -4807,7 +4807,7 @@ function PerformanceTemplate(
 
   return (
     <>
-      <div className="dashboard-print-target-grid dashboard-print-target-grid-left grid gap-5 md:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="dashboard-print-target-grid dashboard-print-target-grid-left grid min-w-0 gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
         <DashboardCard className="dashboard-print-target-card flex min-w-0 flex-col xl:h-[660px]">
           <CardHeader
             title="Performance Target"
@@ -5232,7 +5232,7 @@ function ReportSection({
       />
 
       {/* Main Executive Grid */}
-      <div className="dashboard-print-target-grid dashboard-print-target-grid-right grid items-stretch gap-5 md:h-[660px] md:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="dashboard-print-target-grid dashboard-print-target-grid-right grid min-w-0 items-stretch gap-5 lg:h-[660px] lg:grid-cols-[minmax(0,1fr)_340px]">
         {/* Executive Chart Card */}
         <DashboardCard
           id="dashboard-evidence"

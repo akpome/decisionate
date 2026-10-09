@@ -346,7 +346,7 @@ export default function EntityMatchingPage() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-[220px_1fr]">
+        <div className="mt-5 grid min-w-0 gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
           <label className="space-y-2">
             <span className="text-sm font-medium text-gray-700">{t("Entity type")}</span>
             <select
@@ -400,9 +400,9 @@ export default function EntityMatchingPage() {
                 const selectedColumns = selectedKeyColumns[String(dataset.id)] ?? []
                 const selectedMetrics = selectedMetricColumns[String(dataset.id)] ?? []
                 return (
-                  <fieldset key={dataset.id} className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <fieldset key={dataset.id} className="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-3">
                     <legend className="max-w-full px-1 text-sm font-medium text-gray-800">
-                      <span className="block max-w-[28rem] truncate">{dataset.file_name}</span>
+                      <span className="block break-words">{dataset.file_name}</span>
                     </legend>
                     {!metadata ? (
                       <p className="text-xs text-gray-500">{columnMetadataLoading ? t("Loading available columns...") : t("No columns available.")}</p>
@@ -435,7 +435,7 @@ export default function EntityMatchingPage() {
                       <div className="mt-3 border-t border-gray-200 pt-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-xs font-semibold text-gray-700">{t("Metrics or columns to include")}</p>
-                          <span className="flex items-center gap-2 text-[11px]">
+                          <span className="flex flex-wrap items-center gap-2 text-[11px]">
                             <button
                               type="button"
                               onClick={() => clearMetricColumns(dataset.id)}

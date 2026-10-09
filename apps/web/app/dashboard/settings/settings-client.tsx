@@ -2430,7 +2430,7 @@ export function SettingsClient({
               event.preventDefault()
               void handleDeleteClientWorkspace()
             }}
-            className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex min-w-0 items-start gap-3">
@@ -2538,7 +2538,7 @@ function BrandColorField({
   const errorId = `${fieldId}-error`
 
   return (
-    <div>
+    <div className="min-w-0">
       <label
         htmlFor={fieldId}
         className="mb-2 block text-sm font-medium text-gray-600"
@@ -2546,7 +2546,7 @@ function BrandColorField({
         {label}
       </label>
 
-      <div className="flex gap-2">
+      <div className="flex min-w-0 gap-2">
         <input
           type="color"
           value={valid ? value : fallbackColor}

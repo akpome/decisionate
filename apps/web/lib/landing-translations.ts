@@ -97,8 +97,8 @@ export const refreshedLandingFrench: Record<string, string> = {
   "Billed monthly.": "Facturation mensuelle.",
   "Additional client workspaces: $20 CAD/month or $200 CAD/year each, including 2,500 AI credits/month or 30,000/year.":
     "Espaces clients supplémentaires : 20 $ CAD/mois ou 200 $ CAD/an chacun, avec 2 500 crédits IA/mois ou 30 000/an.",
-  "AI tools and credit purchases require enabled AI services. Paid subscriptions and purchases are available when billing is enabled.":
-    "Les outils IA et achats de crédits nécessitent des services IA activés. Les abonnements payants et achats sont disponibles lorsque la facturation est activée.",
+  "Subscriptions are billed monthly or annually. Purchase additional AI credits from Billing.":
+    "Les abonnements sont facturés mensuellement ou annuellement. Achetez des crédits IA supplémentaires dans Facturation.",
   "A few practical questions.": "Quelques questions pratiques.",
   "How long is connector data kept?":
     "Combien de temps les données des connecteurs sont-elles conservées ?",
@@ -110,10 +110,10 @@ export const refreshedLandingFrench: Record<string, string> = {
     "Oui. Importez des fichiers CSV, Excel, JSON ou Parquet, puis choisissez les colonnes de dates et les mesures à analyser. Aucun service externe n'est nécessaire pour commencer.",
   "Yes. Join datasets on normalized time periods and compare related metrics in the same workspace. Relationships show associations, not proof that one metric causes another.":
     "Oui. Joignez les données sur des périodes normalisées et comparez les mesures liées dans le même espace. Les relations montrent des associations, pas une preuve de causalité.",
-  "Forecasts use your selected time series and aggregation settings. AI-assisted recommendations are available when AI services are enabled for your workspace and use analytical summaries and relevant decision history. Neither forecasts nor recommendations guarantee an outcome.":
-    "Les prévisions utilisent la série temporelle et l'agrégation choisies. Les recommandations assistées par IA nécessitent des services IA activés et utilisent les résumés analytiques et l'historique pertinent. Aucun résultat n'est garanti.",
-  "Start a 30-day Professional or Agency trial without a credit card. Professional supports one business workspace; Agency includes an agency workspace and up to 10 client workspaces. Choose your plan during workspace setup. AI tools require enabled AI services.":
-    "Commencez un essai de 30 jours Professional ou Agency sans carte de crédit. Professional offre un espace d'entreprise ; Agency comprend un espace d'agence et jusqu'à 10 espaces clients. Choisissez le forfait à la configuration. Les outils IA nécessitent des services IA activés.",
+  "Forecasts use your selected time series and aggregation settings. AI-assisted recommendations use analytical summaries and relevant decision history. Neither forecasts nor recommendations guarantee an outcome.":
+    "Les prévisions utilisent la série temporelle et l'agrégation choisies. Les recommandations assistées par IA utilisent les résumés analytiques et l'historique pertinent des décisions. Aucun résultat n'est garanti.",
+  "Start a 30-day Professional or Agency trial without a credit card. Professional supports one business workspace; Agency includes an agency workspace and up to 10 client workspaces. Choose your plan during workspace setup.":
+    "Commencez un essai de 30 jours Professional ou Agency sans carte de crédit. Professional offre un espace d'entreprise ; Agency comprend un espace d'agence et jusqu'à 10 espaces clients. Choisissez le forfait à la configuration.",
   "Yes. Agency owners manage separate client workspaces, branding and access. Client users see the data and actions allowed by their role within their own workspace.":
     "Oui. Les propriétaires d'agence gèrent les espaces clients distincts, la marque et les accès. Les clients voient les données et actions permises par leur rôle dans leur propre espace.",
   "Connector data is kept for three years, then deleted. See the Privacy Policy for other retention and deletion commitments.":

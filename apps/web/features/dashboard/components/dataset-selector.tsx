@@ -189,7 +189,7 @@ export function DatasetSelector({
   ])
 
   return (
-    <div className="w-full max-w-full space-y-2">
+    <div className="w-full min-w-0 max-w-full space-y-2">
       <select
         aria-label={t(ariaLabel)}
         value={value ?? ""}
@@ -205,7 +205,7 @@ export function DatasetSelector({
 
           onChange(datasetId)
         }}
-        className="block h-10 w-full max-w-full truncate rounded-lg border border-gray-200 bg-white px-3 py-2 pr-9 text-sm text-gray-800 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+        className="block h-10 w-full min-w-0 max-w-full truncate rounded-lg border border-gray-200 bg-white px-3 py-2 pr-9 text-sm text-gray-800 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
       >
         <option value="">
           {!authLoaded

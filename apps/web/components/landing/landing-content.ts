@@ -82,12 +82,12 @@ export const faqs = [
   {
     question: "How do AI recommendations and forecasts work?",
     answer:
-      "Forecasts use your selected time series and aggregation settings. AI-assisted recommendations are available when AI services are enabled for your workspace and use analytical summaries and relevant decision history. Neither forecasts nor recommendations guarantee an outcome."
+      "Forecasts use your selected time series and aggregation settings. AI-assisted recommendations use analytical summaries and relevant decision history. Neither forecasts nor recommendations guarantee an outcome."
   },
   {
     question: "What does the free trial include?",
     answer:
-      "Start a 30-day Professional or Agency trial without a credit card. Professional supports one business workspace; Agency includes an agency workspace and up to 10 client workspaces. Choose your plan during workspace setup. AI tools require enabled AI services."
+      "Start a 30-day Professional or Agency trial without a credit card. Professional supports one business workspace; Agency includes an agency workspace and up to 10 client workspaces. Choose your plan during workspace setup."
   },
   {
     question: "Can an agency manage client workspaces?",

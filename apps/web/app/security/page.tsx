@@ -81,16 +81,16 @@ export default function SecurityPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="5. Optional AI and payments">
+      <PolicySection title="5. AI and payments">
         <p>
-          AI services run only when configured and enabled. Analysis sends bounded
+          AI analysis sends bounded
           aggregate facts, selected context, and relevant user-authored decision
           learning to the configured provider. Such text can contain personal
           information, so avoid secrets and unnecessary sensitive details.
           Outputs require human review and do not automatically execute business actions.
         </p>
         <p>
-          Payments and credit purchases are optional enabled services. Stripe
+          Stripe
           handles supported checkout and payment-card information; full card numbers
           are not stored in Decisionate. Payment and subscription updates use
           verified provider events rather than trusting a browser success message.

@@ -365,7 +365,7 @@ export function PricingSection() {
           </p>
           <p>
             {t(
-              "AI tools and credit purchases require enabled AI services. Paid subscriptions and purchases are available when billing is enabled."
+              "Subscriptions are billed monthly or annually. Purchase additional AI credits from Billing."
             )}
           </p>
         </div>

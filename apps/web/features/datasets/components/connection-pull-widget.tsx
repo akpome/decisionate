@@ -134,7 +134,7 @@ export function ConnectionPullWidget({
 
           {selectedConnection && (
             <>
-              <div className="grid min-w-0 gap-3 rounded-xl border bg-gray-50 p-4 text-sm sm:grid-cols-4">
+              <div className="grid min-w-0 gap-3 rounded-xl border bg-gray-50 p-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
                 <div className="min-w-0">
                   <p className="text-xs uppercase tracking-wide text-gray-400">
                     {t("Source")}

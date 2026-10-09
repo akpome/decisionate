@@ -85,11 +85,19 @@ test("product export permissions do not restrict individual privacy rights", () 
   }
 })
 
-test("optional services and security claims are conditional and bounded", () => {
-  assert.match(policies[0].source, /available only when the AI service is configured and enabled/)
-  assert.match(policies[0].source, /Stripe, when billing is enabled/)
+test("AI and billing descriptions are direct while security claims remain bounded", () => {
+  for (const source of [
+    ...policies.map((policy) => policy.source),
+    read("../components/landing/landing-content.ts"),
+    read("../components/landing/landing-sections.tsx"),
+    read("../lib/landing-translations.ts"),
+  ]) {
+    assert.doesNotMatch(source, /optional AI|Optional AI|optional paid|optional enabled|when (?:AI|billing) is enabled|enabled AI services|services IA activés|facturation est activée|available only when|Where purchases are enabled|where billing is enabled/)
+  }
+  assert.match(policies[0].source, /For a requested AI analysis/)
+  assert.match(policies[0].source, /\["Stripe",/)
   assert.match(policies[0].source, /not an upload of the raw dataset file or every source row/)
-  assert.match(policies[1].source, /available only when billing and the relevant services are enabled/)
+  assert.match(policies[1].source, /Paid subscriptions and AI-credit purchases are managed in Billing/)
   assert.match(policies[1].source, /renews automatically each month or year/)
   assert.match(policies[1].source, /Starting a trial without a payment method does not authorize a charge/)
   assert.match(policies[2].source, /In production mode, stored OAuth/)

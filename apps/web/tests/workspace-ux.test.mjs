@@ -68,6 +68,47 @@ test("page titles and descriptions retain translation", () => {
   assert.match(html, />translated:Workspace data<\/p>/)
 })
 
+test("page header actions wrap within the viewport instead of forcing the title off screen", () => {
+  const html = render(DashboardPageHeader, { title: "Marketing performance", actions: React.createElement("button", {}, "Create decision") })
+  assert.match(html, /sm:flex-wrap/)
+  assert.match(html, /sm:flex-1 sm:basis-64/)
+  assert.match(html, /max-w-full flex-wrap items-center/)
+  assert.doesNotMatch(html, /shrink-0/)
+})
+
+test("mobile form controls avoid automatic zoom and keep touch targets usable", () => {
+  const css = require("postcss").parse(readFileSync(path.join(webRoot, "app/globals.css"), "utf8"))
+  const rules = []
+  css.walkAtRules("media", media => {
+    if (!media.params.includes("pointer: coarse")) return
+    media.walkRules(rule => rules.push(rule))
+  })
+  const fields = rules.find(rule => rule.selector.includes("textarea"))
+  const values = Object.fromEntries(fields.nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value]))
+  assert.equal(values["font-size"], "16px")
+  assert.equal(values["min-height"], "44px")
+  assert.equal(values["min-width"], "0")
+  const buttons = rules.find(rule => rule.selector.includes('a[role="button"]'))
+  assert.ok(buttons.nodes.some(node => node.prop === "min-height" && node.value === "44px"))
+})
+
+test("native fieldsets and industry KPI cards can shrink to phone widths", () => {
+  const css = require("postcss").parse(readFileSync(path.join(webRoot, "app/globals.css"), "utf8"))
+  let fieldsetMinimum, cardBasis
+  css.walkRules(rule => {
+    if (rule.selector === "fieldset") fieldsetMinimum = rule.nodes.find(node => node.prop === "min-inline-size")?.value
+    if (rule.selector === ".dashboard-kpi-strip-card.industry-kpi-strip-card" && rule.parent.type === "root") cardBasis = rule.nodes.find(node => node.prop === "flex-basis")?.value
+  })
+  assert.equal(fieldsetMinimum, "0")
+  assert.equal(cardBasis, "min(34rem, 100%)")
+})
+
+test("short-screen confirmation dialogs remain scrollable", () => {
+  for (const file of ["app/dashboard/settings/settings-client.tsx", "app/platform-admin/page.tsx"]) {
+    assert.match(readFileSync(path.join(webRoot, file), "utf8"), /max-h-\[calc\(100dvh-2rem\)\][^"\n]+overflow-y-auto/)
+  }
+})
+
 test("tool buttons keep accessible labels, tooltips, and fixed dimensions", () => {
   const html = render(DashboardActionButton, { icon: React.createElement("span", {}, "icon"), label: "Save PDF", onClick: () => {}, disabled: true })
   assert.match(html, /aria-label="Save PDF"/)

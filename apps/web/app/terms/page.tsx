@@ -3,7 +3,7 @@ import { PolicyPage, PolicySection } from "@/components/landing/policy-page"
 
 export const metadata = {
   title: "Terms of Service",
-  description: "Terms for Decisionate workspaces, connectors, trials, optional AI and billing, renewal, and deletion."
+  description: "Terms for Decisionate workspaces, connectors, trials, AI and billing, renewal, and deletion."
 }
 
 export default function TermsPage() {
@@ -11,7 +11,7 @@ export default function TermsPage() {
     <PolicyPage
       eyebrow="Legal"
       title="Terms of Service"
-      description="The rules for using Decisionate, including your data, workspace permissions, optional paid services, and retention."
+      description="The rules for using Decisionate, including your data, workspace permissions, paid services, and retention."
       updated="October 8, 2026"
     >
       <PolicySection title="1. Using Decisionate">
@@ -71,7 +71,7 @@ export default function TermsPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="4. Analysis and optional AI">
+      <PolicySection title="4. Analysis and AI">
         <p>
           Dashboards, forecasts, relationships, recommendations, and alerts are
           decision-support tools, not guarantees. Results can be incomplete,
@@ -80,8 +80,7 @@ export default function TermsPage() {
           assumptions, and consequences before acting.
         </p>
         <p>
-          AI-assisted analysis is available only when AI services are configured
-          and enabled. It may process aggregate facts and relevant, bounded
+          AI-assisted analysis processes aggregate facts and relevant, bounded
           decision-learning context through an external provider as explained in
           the Privacy Policy. AI output does not automatically execute business
           actions. Do not include secrets or unnecessary sensitive information.
@@ -89,16 +88,16 @@ export default function TermsPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="5. Trials and optional paid subscriptions">
+      <PolicySection title="5. Trials and paid subscriptions">
         <p>
           Decisionate offers a 30-day trial with the workspace limits shown during
           setup. Starting a trial without a payment method does not authorize a
           charge or automatically create a paid subscription. After expiry, a
-          workspace may need a paid plan to continue where billing is enabled.
+          workspace needs a paid plan to continue using paid features.
         </p>
         <p>
-          Paid subscriptions and AI-credit purchases are available only when
-          billing and the relevant services are enabled. Pricing, billing currency,
+          Paid subscriptions and AI-credit purchases are managed in Billing.
+          Pricing, billing currency,
           interval, limits, taxes, and the amount you authorize are shown in the
           application and checkout. Do not complete checkout if those details
           are incorrect. Stripe processes supported online payments; do not send
@@ -124,9 +123,9 @@ export default function TermsPage() {
         </p>
         <p>
           AI credits are service-usage units, not cash or a transferable currency.
-          Where purchases are enabled, Billing shows the pack size, price, and
+          Billing shows the pack size, price, and
           balance. A credit purchase is separate from a subscription payment and
-          does not enable otherwise unavailable services. Contact support about
+          does not replace a subscription. Contact support about
           billing errors or refund requests; applicable legal rights are not limited
           by these terms.
         </p>

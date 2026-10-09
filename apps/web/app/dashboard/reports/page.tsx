@@ -1303,7 +1303,7 @@ function ExecutiveSummary({
   creatingRecommendation: boolean
 }) {
   return (
-    <section className="grid gap-5 py-6 lg:grid-cols-[1fr_18rem]">
+    <section className="grid min-w-0 gap-5 py-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <div className="rounded-2xl bg-gray-50 p-5">
         <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
           <Sparkles size={16} />

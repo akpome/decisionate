@@ -4518,7 +4518,7 @@ export default function PlatformAdminPage() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="delete-workspace-title"
-              className="w-full max-w-lg rounded-xl border border-red-200 bg-white p-6 shadow-2xl"
+              className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-xl border border-red-200 bg-white p-6 shadow-2xl"
             >
               <h2
                 id="delete-workspace-title"
@@ -4542,7 +4542,7 @@ export default function PlatformAdminPage() {
                   {destructiveError}
                 </p>
               )}
-              <div className="mt-6 flex justify-end gap-3">
+              <div className="mt-6 flex flex-wrap justify-end gap-3">
                 <button
                   type="button"
                   disabled={destructiveActionId !== null}

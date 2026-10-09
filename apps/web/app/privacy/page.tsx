@@ -3,14 +3,14 @@ import { PolicyPage, PolicySection } from "@/components/landing/policy-page"
 
 export const metadata = {
   title: "Privacy Policy",
-  description: "How Decisionate handles accounts, workspaces, connected data, optional AI, retention, and privacy requests."
+  description: "How Decisionate handles accounts, workspaces, connected data, AI, retention, and privacy requests."
 }
 
 const processors = [
   ["Clerk", "Account authentication, identity information, and sign-in sessions. Decisionate does not store your sign-in password."],
   ["Hosting and storage providers", "Application delivery, databases, files, service logs, and backups. Supported infrastructure includes Railway, Vercel, PostgreSQL, and Cloudflare R2 or Amazon S3; the providers and locations used depend on the deployment."],
-  ["OpenAI, when AI is enabled", "The selected analysis context, aggregate metrics and trends, and bounded decision outcomes or learning notes. User-authored text and category labels can contain personal information."],
-  ["Stripe, when billing is enabled", "Subscription identifiers, checkout, payments, invoices, and billing events. Stripe collects payment-card details through its services; Decisionate does not store full card numbers."],
+  ["OpenAI", "The selected analysis context, aggregate metrics and trends, and bounded decision outcomes or learning notes. User-authored text and category labels can contain personal information."],
+  ["Stripe", "Subscription identifiers, checkout, payments, invoices, and billing events. Stripe collects payment-card details through its services; Decisionate does not store full card numbers."],
   ["Resend or the configured email provider", "Recipient details and the contents of requested reports, alerts, invitations, support correspondence, and service emails when email delivery is enabled."],
   ["Sentry, when diagnostics are configured", "Error context and service request metadata. The API disables default personal-information collection, local-variable capture, and request-body capture in its monitoring configuration."],
   ["Optional cache and analytics providers", "Upstash Redis may process temporary cache values and operational counters; BigQuery may process configured analytical data. These providers receive data only when the corresponding service is configured."],
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
           <li>Workspace information: business and onboarding details, members and roles, invitations, agency-client relationships, branding, preferences, and access records.</li>
           <li>Business information: uploaded files, authorized connector records, dataset columns and metrics, dashboards, forecasts, relationships, alerts, reports, decisions, notes, outcomes, and lessons.</li>
           <li>Connection information: provider and account identifiers, configuration, authorization scopes, and credentials needed to import authorized data.</li>
-          <li>Service information: request metadata, usage and AI-credit records, billing identifiers when enabled, delivery status, activity history, errors, and support messages.</li>
+          <li>Service information: request metadata, usage and AI-credit records, billing identifiers, delivery status, activity history, errors, and support messages.</li>
         </ul>
       </PolicySection>
 
@@ -56,7 +56,7 @@ export default function PrivacyPage() {
           We use information to authenticate accounts, enforce permissions, import
           and analyze authorized data, display dashboards, track decisions and
           outcomes, deliver requested reports and alerts, and provide support.
-          We also use relevant service records to operate billing and optional AI,
+          We also use relevant service records to operate billing and AI,
           prevent abuse, investigate failures, and maintain reliability.
           We do not use a connection as authorization to access unrelated accounts
           or to publish a workspace&apos;s data.
@@ -100,10 +100,9 @@ export default function PrivacyPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="6. Optional AI processing">
+      <PolicySection title="6. AI processing">
         <p>
-          AI analysis is available only when the AI service is configured and
-          enabled. For a requested analysis, Decisionate prepares bounded facts,
+          For a requested AI analysis, Decisionate prepares bounded facts,
           selected metric or relationship context, aggregate values and trends,
           and relevant decision outcomes or learning notes from the same workspace.
           This context is sent to the configured AI provider. The analysis request
@@ -121,8 +120,7 @@ export default function PrivacyPage() {
       <PolicySection title="7. Service providers and transfers">
         <p>
           The following providers or categories can receive information for the
-          stated purposes. Optional services do not receive data simply because
-          they are supported by the product. Contact our privacy team for the
+          stated purposes. Contact our privacy team for the
           active provider and processing-location details relevant to your workspace.
         </p>
         <div className="overflow-x-auto border border-neutral-200">
