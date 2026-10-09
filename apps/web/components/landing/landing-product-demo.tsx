@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { ArrowRight, Play } from "lucide-react"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { useLandingText } from "@/app/use-decisionate-language"
 
@@ -38,7 +38,19 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
   const [chapter, setChapter] = useState(0)
   const [hasStarted, setHasStarted] = useState(false)
   const [playbackError, setPlaybackError] = useState(false)
+  const [videoWidth, setVideoWidth] = useState<number>()
   const { t, language } = useLandingText()
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    // Viewport height can constrain the video to less than its column width.
+    const observer = new ResizeObserver(([entry]) => {
+      setVideoWidth(entry.contentRect.width)
+    })
+    observer.observe(video)
+    return () => observer.disconnect()
+  }, [])
 
   function play() {
     const video = videoRef.current
@@ -65,7 +77,7 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div>
+    <div className="landing-product-demo">
       <div className="landing-hero-stage">
         {children}
         <div className="landing-demo-frame">
@@ -118,53 +130,51 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
           )}
         </div>
       </div>
-      {playbackError && (
-        <p role="alert" className="mt-3 text-sm text-red-700">
-          {t(
-            "The video could not play. You can still explore the live demo below."
-          )}
-        </p>
-      )}
-      <div
-        className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
-        aria-label={t("Walkthrough chapters")}
-      >
-        {productDemoChapters.map((item, index) => (
-          <div
-            key={item.label}
-            className={`border-t-2 pt-3 ${chapter === index ? "landing-brand-chapter" : "border-neutral-200"}`}
-          >
+      <div className="landing-demo-details" style={{ maxWidth: videoWidth }}>
+        {playbackError && (
+          <p role="alert" className="mb-3 text-sm text-red-700">
+            {t(
+              "The video could not play. You can still explore the live demo below."
+            )}
+          </p>
+        )}
+        <div
+          className="landing-demo-chapters grid grid-cols-2 gap-3 lg:grid-cols-4"
+          aria-label={t("Walkthrough chapters")}
+        >
+          {productDemoChapters.map((item, index) => (
             <button
+              key={item.label}
               type="button"
               onClick={() => seek(item.time, index)}
               aria-label={`${t("Play chapter")}: ${t(item.label)}`}
               aria-current={chapter === index ? "step" : undefined}
-              className="inline-flex items-baseline gap-3 text-left font-semibold text-neutral-950"
+              className={`min-w-0 border-t-2 pt-3 text-left text-sm font-semibold text-neutral-950 ${chapter === index ? "landing-brand-chapter" : "border-neutral-200"}`}
             >
-              <span className="text-xs font-normal tabular-nums text-neutral-500">
+              <span className="mb-1 block text-xs font-normal tabular-nums text-neutral-500">
                 0:{String(item.time).padStart(2, "0")}
               </span>
               {t(item.label)}
             </button>
-            <p className="mt-2 text-sm leading-6 text-neutral-600">
-              {t(item.description)}
-            </p>
-          </div>
-        ))}
-      </div>
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm">
-        <p className="text-neutral-500">
-          {t(
-            "Recorded in Decisionate with sample data. No live customer information."
-          )}
+          ))}
+        </div>
+        <p className="mt-3 min-h-12 text-sm leading-6 text-neutral-600">
+          {t(productDemoChapters[chapter]?.description ?? productDemoChapters[0].description)}
         </p>
-        <Link
-          href="/demo"
-          className="landing-brand-link inline-flex items-center gap-2 font-medium"
-        >
-          {t("Explore the live demo")}
-          <ArrowRight size={15} aria-hidden="true" />
-        </Link>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs leading-5">
+          <p className="max-w-sm text-neutral-500">
+            {t(
+              "Recorded in Decisionate with sample data. No live customer information."
+            )}
+          </p>
+          <Link
+            href="/demo"
+            className="landing-brand-link inline-flex items-center gap-2 font-medium"
+          >
+            {t("Explore the live demo")}
+            <ArrowRight size={15} aria-hidden="true" />
+          </Link>
+        </div>
       </div>
     </div>
   )

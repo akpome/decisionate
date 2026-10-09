@@ -13,12 +13,12 @@ export function LandingHero() {
       <div className="landing-container">
         <LandingProductDemo>
           <div className="landing-hero-intro min-w-0">
-            <div className="space-y-2">
+            <div className="landing-hero-heading flex flex-col gap-2">
               <h1 className="landing-hero-title font-semibold text-neutral-950">
                 Decisionate
               </h1>
-              <p className="landing-hero-tagline text-xl leading-7 text-neutral-800 sm:text-2xl sm:leading-8">
-                {t("Decisions from Data.")}
+              <p className="landing-hero-subtitle text-xl leading-7 text-neutral-800 sm:text-2xl sm:leading-8">
+                {t("See performance. Follow through.")}
               </p>
             </div>
             <p className="landing-hero-copy mt-4 max-w-lg text-base leading-7 text-neutral-600">
@@ -53,7 +53,7 @@ export function LandingHero() {
                 <ArrowRight size={16} aria-hidden="true" className="hidden sm:block" />
               </Link>
             </div>
-            <p className="mt-2 text-xs leading-4 text-neutral-500">
+            <p className="landing-hero-note mt-2 text-xs leading-4 text-neutral-500">
               {t("No credit card required.")}
             </p>
           </div>

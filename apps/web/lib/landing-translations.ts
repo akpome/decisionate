@@ -1,6 +1,8 @@
 export const refreshedLandingFrench: Record<string, string> = {
   "Explore live demo": "Explorer la démo",
   "Play product walkthrough": "Lire la présentation du produit",
+  "See performance. Follow through.":
+    "Analysez la performance. Suivez les résultats.",
   Annual: "Annuel",
   Review: "Réviser",
   "For businesses and agencies": "Pour les entreprises et agences",
