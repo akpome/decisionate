@@ -92,9 +92,10 @@ test("sign-in and trial actions use the actual authentication routes", () => {
 test("the tagline stays in brand lockups while the hero describes business-data insights", () => {
   const hero = read("../components/landing/hero.tsx")
   assert.doesNotMatch(hero, /Decisions from Data\./)
-  assert.match(hero, /Find insights in your existing business data\./)
+  assert.match(hero, /Insights from existing business data\./)
+  assert.doesNotMatch(hero, /Find insights in your existing business data\./)
   assert.doesNotMatch(hero, /See performance\. Follow through\./)
-  assert.equal(refreshedLandingFrench["Find insights in your existing business data."], "Tirez des enseignements de vos données d'entreprise.")
+  assert.equal(refreshedLandingFrench["Insights from existing business data."], "Enseignements issus des données d'entreprise existantes.")
   for (const file of ["navbar", "footer"])
     assert.match(read(`../components/landing/${file}.tsx`), /Decisions from Data\./)
   assert.match(hero, /href="\/demo"/)

@@ -18,7 +18,7 @@ export function LandingHero() {
                 Decisionate
               </h1>
               <p className="landing-hero-subtitle text-xl leading-7 text-neutral-800 sm:text-2xl sm:leading-8">
-                {t("Find insights in your existing business data.")}
+                {t("Insights from existing business data.")}
               </p>
             </div>
             <p className="landing-hero-copy mt-4 max-w-lg text-base leading-7 text-neutral-600">
