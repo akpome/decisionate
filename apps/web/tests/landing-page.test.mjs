@@ -97,12 +97,52 @@ test("the hero restores the tagline and exposes the live demo without a static c
   assert.match(hero, /Explore live demo/)
   assert.match(hero, /onFocus=\{prefetchPublicDemo\}/)
   assert.doesNotMatch(hero, /decisionate-overview|landing-hero-caption|next\/image/)
+  assert.doesNotMatch(hero, /Watch the workflow|href="#product"/)
+  assert.match(hero, /<LandingProductDemo>/)
+  assert.match(hero, /landing-button-accent/)
+  assert.doesNotMatch(read("../app/page.tsx"), /ProductWorkflowSection/)
+})
+
+test("the video stage fits the first viewport without cropping the product", () => {
+  const css = require("postcss").parse(read("../components/landing/landing.css"))
+  const values = (selector) => {
+    const rules = []
+    css.walkRules(selector, rule => {
+      if (rule.parent.type === "root") rules.push(rule)
+    })
+    return Object.fromEntries(rules.flatMap(rule => rule.nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value])))
+  }
+  assert.equal(values(".landing-hero-stage")["grid-template-rows"], "auto minmax(0, 1fr)")
+  assert.match(values(".landing-hero-stage")["max-height"], /100svh - var\(--landing-nav-height\)/)
+  assert.equal(values(".landing-product-video")["max-height"], "100%")
+  assert.equal(values(".landing-product-video")["aspect-ratio"], "8 / 5")
+  assert.match(read("../components/landing/landing-product-demo.tsx"), /object-contain/)
+  assert.equal(values(".landing-button-accent").background, "var(--landing-brand-accent)")
+})
+
+test("public brand marks match the combined name and tagline height", () => {
+  const css = require("postcss").parse(read("../components/landing/landing.css"))
+  const declarations = {}
+  css.walkRules(rule => {
+    if (rule.parent.type !== "root") return
+    declarations[rule.selector] = Object.fromEntries(rule.nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value]))
+  })
+  assert.equal(declarations[".landing-brand-mark"].height, "42px")
+  const textHeight = parseInt(declarations[".landing-brand-name"]["line-height"]) + parseInt(declarations[".landing-brand-tagline"]["line-height"]) + parseInt(declarations[".landing-brand-copy"].gap)
+  assert.equal(textHeight, 42)
+  for (const file of ["navbar", "footer", "policy-page"]) {
+    const source = read(`../components/landing/${file}.tsx`)
+    assert.match(source, /landing-brand-mark/)
+    assert.match(source, /landing-brand-copy/)
+  }
 })
 
 test("walkthrough is a deferred video with captions, real chapters and a fallback", () => {
   const demo = read("../components/landing/landing-product-demo.tsx")
   assert.match(demo, /preload="none"/)
   assert.match(demo, /controls/)
+  assert.match(demo, /controls=\{hasStarted\}/)
+  assert.match(demo, /aria-label=\{t\("Play product walkthrough"\)\}/)
   assert.match(demo, /playsInline/)
   assert.match(demo, /kind="captions"/)
   assert.match(demo, /currentTime = time/)

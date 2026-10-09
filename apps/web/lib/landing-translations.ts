@@ -1,5 +1,6 @@
 export const refreshedLandingFrench: Record<string, string> = {
   "Explore live demo": "Explorer la démo",
+  "Play product walkthrough": "Lire la présentation du produit",
   Annual: "Annuel",
   Review: "Réviser",
   "For businesses and agencies": "Pour les entreprises et agences",
@@ -14,7 +15,6 @@ export const refreshedLandingFrench: Record<string, string> = {
   "Bring your numbers together, see what changed, and keep the action and its outcome in one workspace.":
     "Rassemblez vos chiffres, voyez ce qui a changé et conservez l'action et son résultat dans un même espace de travail.",
   "Start your 30-day trial": "Commencer votre essai de 30 jours",
-  "Watch the workflow": "Voir le parcours",
   "No credit card required.": "Aucune carte de crédit requise.",
   "Marketing Performance · demonstration data":
     "Performance marketing · données de démonstration",

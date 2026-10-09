@@ -13,17 +13,21 @@ export function LandingFooter() {
           <div>
             <Link
               href="/"
-              className="flex items-center gap-2.5 text-lg font-semibold text-white"
+              className="landing-brand-lockup text-white"
             >
-              <Image
-                src="/icons/decisionate-logo.png"
-                alt=""
-                width={28}
-                height={28}
-              />
-              Decisionate
+              <span className="landing-brand-mark">
+                <Image
+                  src="/icons/decisionate-logo.png"
+                  alt=""
+                  width={42}
+                  height={42}
+                />
+              </span>
+              <span className="landing-brand-copy">
+                <span className="landing-brand-name">Decisionate</span>
+                <span className="landing-brand-tagline text-neutral-400">{t("Decisions from Data.")}</span>
+              </span>
             </Link>
-            <p className="mt-3 text-sm">{t("Decisions from Data.")}</p>
           </div>
           <nav
             aria-label={t("Footer navigation")}

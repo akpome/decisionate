@@ -35,20 +35,22 @@ export function LandingNavbar() {
       <div className="landing-container landing-nav-inner flex min-h-18 items-center justify-between gap-3">
         <Link
           href="/"
-          className="flex shrink-0 items-center gap-2.5"
+          className="landing-brand-lockup min-w-0"
           aria-label={t("Decisionate home")}
         >
-          <Image
-            src="/icons/decisionate-logo.png"
-            alt=""
-            width={32}
-            height={32}
-          />
-          <span className="flex flex-col gap-0.5">
-            <span className="text-lg font-semibold leading-6 text-neutral-950">
+          <span className="landing-brand-mark">
+            <Image
+              src="/icons/decisionate-logo.png"
+              alt=""
+              width={42}
+              height={42}
+            />
+          </span>
+          <span className="landing-brand-copy">
+            <span className="landing-brand-name text-neutral-950">
               Decisionate
             </span>
-            <span className="max-w-48 text-[11px] font-medium leading-4 text-neutral-500">
+            <span className="landing-brand-tagline text-neutral-500">
               {t("Decisions from Data.")}
             </span>
           </span>

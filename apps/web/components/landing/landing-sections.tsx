@@ -14,31 +14,6 @@ import { useState } from "react"
 import { useLandingText } from "@/app/use-decisionate-language"
 import { dashboardDefinitions } from "@/features/dashboards/dashboard-definitions"
 import { faqs, integrationGroups } from "./landing-content"
-import { LandingProductDemo } from "./landing-product-demo"
-
-export function ProductWorkflowSection() {
-  const { t } = useLandingText()
-  return (
-    <section id="product" className="landing-section bg-white">
-      <div className="landing-container">
-        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
-          <div className="max-w-2xl">
-            <p className="landing-eyebrow">{t("The product, in practice")}</p>
-            <h2 className="landing-heading mt-3">
-              {t("From the first sync to the next review.")}
-            </h2>
-          </div>
-          <p className="max-w-sm text-sm leading-6 text-neutral-600">
-            {t(
-              "A short walkthrough of the same screens your team will use. Connect, compare, decide, then check what happened."
-            )}
-          </p>
-        </div>
-        <LandingProductDemo />
-      </div>
-    </section>
-  )
-}
 
 export function FeaturesSection() {
   const { t } = useLandingText()

@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Play } from "lucide-react"
 import { useRef, useState } from "react"
+import type { ReactNode } from "react"
 import { useLandingText } from "@/app/use-decisionate-language"
 
 export const productDemoChapters = [
@@ -31,12 +32,23 @@ export const productDemoChapters = [
   }
 ] as const
 
-export function LandingProductDemo() {
+export function LandingProductDemo({ children }: { children: ReactNode }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const pendingSeek = useRef<number | null>(null)
   const [chapter, setChapter] = useState(0)
+  const [hasStarted, setHasStarted] = useState(false)
   const [playbackError, setPlaybackError] = useState(false)
   const { t, language } = useLandingText()
+
+  function play() {
+    const video = videoRef.current
+    if (!video) return
+    setHasStarted(true)
+    void video.play().catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") return
+      setPlaybackError(true)
+    })
+  }
 
   function seek(time: number, index: number) {
     const video = videoRef.current
@@ -49,51 +61,62 @@ export function LandingProductDemo() {
     }
     setChapter(index)
     video.scrollIntoView({ block: "start" })
-    void video.play().catch((error: unknown) => {
-      if (error instanceof DOMException && error.name === "AbortError") return
-      setPlaybackError(true)
-    })
+    play()
   }
 
   return (
-    <div className="mt-8">
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-neutral-100">
-        <video
-          ref={videoRef}
-          controls
-          playsInline
-          preload="none"
-          poster="/media/decisionate-demo-poster.webp"
-          width={1440}
-          height={900}
-          aria-label={t("Decisionate product walkthrough")}
-          className="landing-product-video aspect-[8/5] max-h-[calc(100svh-160px)] w-full scroll-mt-32 bg-white object-contain sm:scroll-mt-24"
-          onLoadedMetadata={(event) => {
-            if (pendingSeek.current !== null) {
-              event.currentTarget.currentTime = pendingSeek.current
-              pendingSeek.current = null
-            }
-          }}
-          onError={() => setPlaybackError(true)}
-          onPlaying={() => setPlaybackError(false)}
-          onTimeUpdate={(event) => {
-            const time = event.currentTarget.currentTime
-            setChapter(
-              productDemoChapters.findLastIndex((item) => item.time <= time)
-            )
-          }}
-        >
-          <source src="/media/decisionate-workflow.webm" type="video/webm" />
-          <track
-            key={language}
-            kind="captions"
-            src={`/media/decisionate-workflow.${language}.vtt`}
-            srcLang={language}
-            label={language === "fr" ? "Français" : "English"}
-            default
-          />
-          {t("Open the live demo to explore Decisionate.")}
-        </video>
+    <div>
+      <div className="landing-hero-stage">
+        {children}
+        <div className="landing-demo-frame">
+          <video
+            ref={videoRef}
+            controls={hasStarted}
+            playsInline
+            preload="none"
+            poster="/media/decisionate-demo-poster.webp"
+            width={1440}
+            height={900}
+            aria-label={t("Decisionate product walkthrough")}
+            className="landing-product-video scroll-mt-32 bg-white object-contain sm:scroll-mt-24"
+            onLoadedMetadata={(event) => {
+              if (pendingSeek.current !== null) {
+                event.currentTarget.currentTime = pendingSeek.current
+                pendingSeek.current = null
+              }
+            }}
+            onError={() => setPlaybackError(true)}
+            onPlaying={() => setPlaybackError(false)}
+            onTimeUpdate={(event) => {
+              const time = event.currentTarget.currentTime
+              setChapter(
+                productDemoChapters.findLastIndex((item) => item.time <= time)
+              )
+            }}
+          >
+            <source src="/media/decisionate-workflow.webm" type="video/webm" />
+            <track
+              key={language}
+              kind="captions"
+              src={`/media/decisionate-workflow.${language}.vtt`}
+              srcLang={language}
+              label={language === "fr" ? "Français" : "English"}
+              default
+            />
+            {t("Open the live demo to explore Decisionate.")}
+          </video>
+          {!hasStarted && (
+            <button
+              type="button"
+              onClick={play}
+              aria-label={t("Play product walkthrough")}
+              title={t("Play product walkthrough")}
+              className="landing-video-play"
+            >
+              <Play size={28} fill="currentColor" aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
       {playbackError && (
         <p role="alert" className="mt-3 text-sm text-red-700">

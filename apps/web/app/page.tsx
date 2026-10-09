@@ -8,8 +8,7 @@ import {
   FinalCTASection,
   IndustryDashboardsSection,
   IntegrationsSection,
-  PricingSection,
-  ProductWorkflowSection
+  PricingSection
 } from "@/components/landing/landing-sections"
 
 export default function HomePage() {
@@ -18,7 +17,6 @@ export default function HomePage() {
       <LandingNavbar />
       <main id="main-content">
         <LandingHero />
-        <ProductWorkflowSection />
         <FeaturesSection />
         <IndustryDashboardsSection />
         <IntegrationsSection />
