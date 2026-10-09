@@ -146,7 +146,7 @@
   flex-shrink: 0;
 }
 .landing-hero {
-  padding-block: 20px 40px;
+  padding-block: 32px 40px;
   scroll-margin-top: var(--landing-nav-height);
 }
 .landing-hero-title {
@@ -157,7 +157,7 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 20px;
-  max-height: calc(100svh - var(--landing-nav-height) - 80px);
+  max-height: calc(100svh - var(--landing-nav-height) - 56px);
 }
 .landing-demo-frame {
   position: relative;
@@ -199,6 +199,19 @@
   font-size: 16px;
 }
 
+@media (min-width: 1024px) {
+  .landing-hero-stage {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 40px;
+    align-items: start;
+    max-height: calc(100svh - var(--landing-nav-height) - 96px);
+  }
+  .landing-demo-frame {
+    justify-content: flex-end;
+  }
+}
+
 /* Keep the public site consistent when a signed-in user has a dark workspace. */
 :root[data-theme="dark"] .landing-page .bg-white {
   background-color: #fff;
@@ -225,9 +238,21 @@
     font-size: 40px;
     line-height: 44px;
   }
+  .landing-hero-copy {
+    margin-top: 12px;
+    font-size: 14px;
+    line-height: 22px;
+  }
+  .landing-hero-actions {
+    margin-top: 16px;
+  }
+  .landing-hero-stage {
+    gap: 16px;
+    max-height: calc(100svh - var(--landing-nav-height) - 40px);
+  }
 }
 
-@media (max-width: 540px) {
+@media (max-width: 639px) {
   .landing-page {
     --landing-nav-height: 118px;
   }
@@ -281,10 +306,37 @@
     line-height: 24px;
   }
   .landing-hero-copy {
-    display: none;
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 18px;
   }
   .landing-hero-stage {
-    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+    max-height: none;
+  }
+  .landing-demo-frame {
+    justify-content: flex-end;
+  }
+  .landing-hero-actions {
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .landing-hero-actions .landing-button {
+    padding-inline: 12px;
+    font-size: 13px;
+  }
+  .landing-hero-actions svg,
+  .landing-trial-full {
+    display: none;
+  }
+  .landing-trial-short {
+    display: inline;
+  }
+  .landing-product-video {
+    max-height: calc(100svh - var(--landing-nav-height) - 32px);
   }
 }
 

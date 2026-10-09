@@ -120,6 +120,30 @@ test("the video stage fits the first viewport without cropping the product", () 
   assert.equal(values(".landing-button-accent").background, "var(--landing-brand-accent)")
 })
 
+test("desktop hero places left-aligned copy beside the top-right video", () => {
+  const hero = read("../components/landing/hero.tsx")
+  assert.doesNotMatch(hero, /text-center|justify-center|items-baseline/)
+  const copyClass = hero.match(/className="landing-hero-copy ([^"]+)"/)[1]
+  assert.doesNotMatch(copyClass, /hidden|mx-auto/)
+  const css = require("postcss").parse(read("../components/landing/landing.css"))
+  const desktop = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1024px)")
+  const stage = desktop.nodes.find(node => node.selector === ".landing-hero-stage")
+  const values = Object.fromEntries(stage.nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value]))
+  assert.equal(values["grid-template-columns"], "minmax(0, 0.8fr) minmax(0, 1.2fr)")
+  assert.equal(values["align-items"], "start")
+  const frame = desktop.nodes.find(node => node.selector === ".landing-demo-frame")
+  assert.ok(frame.nodes.some(node => node.prop === "justify-content" && node.value === "flex-end"))
+})
+
+test("short landscape screens constrain the video while letting text and chapters flow", () => {
+  const css = require("postcss").parse(read("../components/landing/landing.css"))
+  const landscape = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 600px) and (min-width: 541px)")
+  const stage = landscape.nodes.find(node => node.selector === ".landing-hero-stage")
+  assert.ok(stage.nodes.some(node => node.prop === "max-height" && node.value === "none"))
+  const video = landscape.nodes.find(node => node.selector === ".landing-product-video")
+  assert.ok(video.nodes.some(node => node.prop === "max-height" && node.value.includes("100svh")))
+})
+
 test("public brand marks match the combined name and tagline height", () => {
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const declarations = {}

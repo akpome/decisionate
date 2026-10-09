@@ -12,8 +12,8 @@ export function LandingHero() {
     <section id="product" className="landing-hero border-b border-neutral-200 bg-white">
       <div className="landing-container">
         <LandingProductDemo>
-          <div className="landing-hero-intro text-center">
-            <div className="flex flex-wrap items-baseline justify-center gap-x-6 gap-y-2">
+          <div className="landing-hero-intro min-w-0">
+            <div className="space-y-2">
               <h1 className="landing-hero-title font-semibold text-neutral-950">
                 Decisionate
               </h1>
@@ -21,18 +21,18 @@ export function LandingHero() {
                 {t("Decisions from Data.")}
               </p>
             </div>
-            <p className="landing-hero-copy mx-auto mt-3 hidden max-w-4xl text-sm leading-6 text-neutral-600 sm:block">
+            <p className="landing-hero-copy mt-4 max-w-lg text-base leading-7 text-neutral-600">
               {t(
                 "Bring your numbers together, see what changed, and keep the action and its outcome in one workspace."
               )}
             </p>
-            <div className="landing-hero-actions mt-4 flex flex-wrap items-center justify-center gap-3">
+            <div className="landing-hero-actions mt-6 flex flex-wrap items-center gap-3">
               <Link
                 href="/sign-up"
                 className="landing-button landing-button-primary"
               >
-                <span className="sm:hidden">{t("Start trial")}</span>
-                <span className="hidden sm:inline">
+                <span className="landing-trial-short sm:hidden">{t("Start trial")}</span>
+                <span className="landing-trial-full hidden sm:inline">
                   {t("Start your 30-day trial")}
                 </span>
                 <ArrowRight
