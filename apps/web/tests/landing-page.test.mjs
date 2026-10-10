@@ -168,7 +168,7 @@ test("all four chapters stay in one row without the removed explanatory copy", (
   assert.ok(narrow.nodes.some(node => node.selector === ".landing-demo-chapters button"))
 })
 
-test("desktop copy is vertically centered beside the video with chapters only beneath it", () => {
+test("desktop buttons align with the video bottom while copy stays balanced and chapters stay beneath it", () => {
   const hero = read("../components/landing/hero.tsx")
   assert.doesNotMatch(hero, /text-center|justify-center|items-baseline/)
   const copyClass = hero.match(/className="landing-hero-copy ([^"]+)"/)[1]
@@ -178,7 +178,15 @@ test("desktop copy is vertically centered beside the video with chapters only be
   const declarations = selector => Object.fromEntries(desktop.nodes.find(node => node.selector === selector).nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value]))
   assert.equal(declarations(".landing-product-demo,\n  .landing-hero-stage")["grid-template-columns"], "minmax(0, 0.8fr) minmax(0, 1.2fr)")
   assert.equal(declarations(".landing-hero-stage")["align-items"], "center")
-  assert.equal(declarations(".landing-hero-intro")["align-self"], "center")
+  assert.equal(declarations(".landing-hero-intro")["align-self"], "stretch")
+  assert.equal(declarations(".landing-hero-intro").display, "flex")
+  assert.equal(declarations(".landing-hero-intro")["flex-direction"], "column")
+  assert.equal(declarations(".landing-hero-heading")["margin-top"], "auto")
+  assert.equal(declarations(".landing-hero-copy")["margin-bottom"], "24px")
+  assert.equal(declarations(".landing-hero-actions")["margin-top"], "auto")
+  assert.equal(declarations(".landing-hero-actions")["flex-wrap"], "nowrap")
+  assert.equal(declarations(".landing-hero-note").position, "absolute")
+  assert.equal(declarations(".landing-hero-note").top, "100%")
   assert.equal(declarations(".landing-demo-details")["grid-column"], "2")
   assert.equal(declarations(".landing-demo-details")["justify-self"], "end")
   const demo = read("../components/landing/landing-product-demo.tsx")
@@ -189,6 +197,20 @@ test("desktop copy is vertically centered beside the video with chapters only be
   assert.match(demo, /observer\.disconnect\(\)/)
   const frame = desktop.nodes.find(node => node.selector === ".landing-demo-frame")
   assert.ok(frame.nodes.some(node => node.prop === "justify-content" && node.value === "flex-end"))
+})
+
+test("compact desktop actions fit beside the video without changing the mobile flow", () => {
+  const css = require("postcss").parse(read("../components/landing/landing.css"))
+  const compact = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1024px) and (max-width: 1199px)")
+  const shortLabel = compact.nodes.find(node => node.selector === ".landing-trial-short")
+  assert.ok(shortLabel.nodes.some(node => node.prop === "display" && node.value === "inline"))
+  const landscape = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 600px) and (min-width: 541px)")
+  for (const selector of [".landing-hero-intro", ".landing-hero-note"]) {
+    const rule = landscape.nodes.find(node => node.selector === selector)
+    assert.ok(rule.nodes.some(node => node.prop === "position" && node.value === "static"))
+  }
+  const actions = landscape.nodes.find(node => node.selector === ".landing-hero-actions")
+  assert.ok(actions.nodes.some(node => node.prop === "flex-wrap" && node.value === "wrap"))
 })
 
 test("short landscape screens constrain the video while letting text and chapters flow", () => {
