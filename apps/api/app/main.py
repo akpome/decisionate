@@ -361,6 +361,10 @@ def ensure_billing_subscription_columns():
             ("provider_addon_subscription_item_id", "VARCHAR", "NULL"),
             ("billing_interval", "VARCHAR", "'month'"),
             ("current_period_start", "TIMESTAMP", "NULL"),
+            ("payment_due_at", "TIMESTAMP", "NULL"),
+            ("ai_credit_period_start", "TIMESTAMP", "NULL"),
+            ("ai_grace_credit_limit", "INTEGER", "NULL"),
+            ("provider_checked_at", "TIMESTAMP", "NULL"),
             ("ai_credits_used", "INTEGER", "0"),
             ("ai_recurring_credits_used", "INTEGER", "0"),
             ("additional_ai_credit_packs", "INTEGER", "0"),
@@ -391,6 +395,14 @@ def ensure_billing_subscription_columns():
                 text(
                     "UPDATE workspace_subscriptions "
                     "SET ai_recurring_credits_used = ai_credits_used"
+                )
+            )
+
+        if "ai_credit_period_start" in added_columns:
+            connection.execute(
+                text(
+                    "UPDATE workspace_subscriptions "
+                    "SET ai_credit_period_start = current_period_start"
                 )
             )
 
@@ -1586,9 +1598,12 @@ def get_allowed_origins():
 # =========================
 
 def _load_subscription_access_state(workspace_id):
+    from app.modules.billing.renewals import reconcile_subscription_if_needed
+
     db = SessionLocal()
     try:
         subscription = get_subscription_for_workspace(db, workspace_id)
+        reconcile_subscription_if_needed(db, subscription)
         return build_subscription_access_state(subscription)
     finally:
         db.close()
@@ -1643,10 +1658,18 @@ async def enforce_product_route_auth(
                 )
 
         if not is_subscription_exempt_path(request.url.path):
-            access_state = await run_in_threadpool(
-                _load_subscription_access_state,
-                request.state.auth_context.workspace_id,
-            )
+            from app.modules.billing.service import BillingProviderUnavailable
+            try:
+                access_state = await run_in_threadpool(
+                    _load_subscription_access_state,
+                    request.state.auth_context.workspace_id,
+                )
+            except BillingProviderUnavailable:
+                return JSONResponse(
+                    status_code=503,
+                    content={"detail": "Subscription status could not be verified. Please retry shortly."},
+                    headers={"Retry-After": "60"},
+                )
             if not access_state.access_allowed:
                 return JSONResponse(
                     status_code=402,

@@ -94,7 +94,6 @@ ACTIVE_SUBSCRIPTION_STATUSES = {
     "active",
     "trialing",
     "past_due",
-    "checkout_completed",
 }
 
 BILLING_PLAN_DEFINITIONS = {
@@ -130,6 +129,10 @@ BILLING_PLAN_DEFINITIONS = {
 
 
 class BillingProviderUnavailable(RuntimeError):
+    pass
+
+
+class BillingQuoteChanged(BillingProviderUnavailable):
     pass
 
 
@@ -411,6 +414,7 @@ def create_checkout_session(
     additional_client_workspaces: int = 0,
     additional_ai_credit_packs: int = 0,
     trial_period_days: int | None = TRIAL_PERIOD_DAYS,
+    trial_end: int | None = None,
 ) -> dict:
     config = require_billing_config()
     normalized_plan = normalize_billing_plan(plan)
@@ -465,9 +469,12 @@ def create_checkout_session(
         "line_items[0][quantity]": "1",
         "success_url": (
             f"{config['web_app_url']}/dashboard/billing?checkout=success"
+            f"&workspace_id={quote(workspace_id, safe='')}"
+            "&session_id={CHECKOUT_SESSION_ID}"
         ),
         "cancel_url": (
             f"{config['web_app_url']}/dashboard/billing?checkout=cancelled"
+            f"&workspace_id={quote(workspace_id, safe='')}"
         ),
         "client_reference_id": workspace_id,
         "subscription_data[metadata][workspace_id]": workspace_id,
@@ -511,13 +518,22 @@ def create_checkout_session(
     if organization_name:
         params["metadata[organization_name]"] = organization_name[:500]
 
-    if trial_period_days is not None:
+    if trial_end is not None:
+        # Checkout trial_end requires 48 hours; a free initial period preserves
+        # shorter remaining trials without charging early or extending them.
+        if trial_end - int(time.time()) < 48 * 60 * 60:
+            params["subscription_data[billing_cycle_anchor]"] = str(trial_end)
+            params["subscription_data[proration_behavior]"] = "none"
+        else:
+            params["subscription_data[trial_end]"] = str(trial_end)
+        params["payment_method_collection"] = "always"
+    elif trial_period_days is not None:
         clean_trial_period_days = max(int(trial_period_days), 0)
         if clean_trial_period_days:
             params["subscription_data[trial_period_days]"] = str(
                 clean_trial_period_days
             )
-            params["payment_method_collection"] = "if_required"
+            params["payment_method_collection"] = "always"
 
     response = stripe_request(
         "/checkout/sessions",
@@ -544,6 +560,8 @@ def create_ai_credit_topup_session(
     organization_name: str | None,
     customer_id: str | None = None,
     credit_packs: int,
+    expected_pack_size: int | None = None,
+    expected_price_cents: int | None = None,
 ) -> dict:
     """Create a one-time checkout for any positive number of credit packs."""
     config = require_billing_config()
@@ -552,6 +570,16 @@ def create_ai_credit_topup_session(
         raise BillingProviderUnavailable(
             "The AI credit top-up price is not configured"
         )
+    current_price = get_billing_pricing()["ai_credit_topup_price_cents"]
+    price = stripe_request(
+        f"/prices/{quote(topup_price_id, safe='')}",
+        {}, config["secret_key"], method="GET",
+    )
+    if (
+        not price.get("active") or price.get("type") != "one_time"
+        or price.get("currency") != "cad" or price.get("unit_amount") != current_price
+    ):
+        raise BillingProviderUnavailable("AI credit checkout pricing is unavailable. Please contact support.")
 
     clean_credit_packs = int(credit_packs or 0)
     if clean_credit_packs < 1:
@@ -560,13 +588,24 @@ def create_ai_credit_topup_session(
         )
 
     credit_pack_size = get_ai_credit_pack_size()
+    if credit_pack_size < 1:
+        raise BillingProviderUnavailable("AI credit packs are not configured. Please contact support.")
+    if (
+        (expected_pack_size is not None and expected_pack_size != credit_pack_size)
+        or (expected_price_cents is not None and expected_price_cents != current_price)
+    ):
+        raise BillingQuoteChanged("AI credit pricing has changed. Refresh billing before purchasing.")
     credits = clean_credit_packs * credit_pack_size
+    if credits > 2_147_483_647:
+        raise BillingProviderUnavailable("AI credit quantity is too large")
     metadata = {
         "purchase_type": "ai_credit_topup",
         "workspace_id": workspace_id,
         "owner_user_id": owner_user_id,
         "credit_packs": str(clean_credit_packs),
         "credits": str(credits),
+        "credit_pack_size": str(credit_pack_size),
+        "topup_price_id": topup_price_id,
     }
     params = {
         "mode": "payment",
@@ -574,9 +613,11 @@ def create_ai_credit_topup_session(
         "line_items[0][quantity]": str(clean_credit_packs),
         "success_url": (
             f"{config['web_app_url']}/dashboard/billing?topup=success"
+            f"&workspace_id={quote(workspace_id, safe='')}&session_id={{CHECKOUT_SESSION_ID}}"
         ),
         "cancel_url": (
             f"{config['web_app_url']}/dashboard/billing?topup=cancelled"
+            f"&workspace_id={quote(workspace_id, safe='')}"
         ),
         "client_reference_id": workspace_id,
     }
@@ -770,13 +811,17 @@ def normalize_billing_interval(value: str | None) -> str:
 def create_customer_portal_session(
     *,
     customer_id: str,
+    workspace_id: str | None = None,
 ) -> str:
     config = require_billing_config()
     response = stripe_request(
         "/billing_portal/sessions",
         {
             "customer": customer_id,
-            "return_url": f"{config['web_app_url']}/dashboard/billing",
+            "return_url": (
+                f"{config['web_app_url']}/dashboard/billing?portal=returned"
+                f"&workspace_id={quote(workspace_id or '', safe='')}"
+            ),
         },
         config["secret_key"],
     )
@@ -786,6 +831,22 @@ def create_customer_portal_session(
             "Stripe returned an incomplete customer portal session"
         )
     return portal_url
+
+
+def retrieve_stripe_subscription(subscription_id: str) -> dict:
+    config = require_billing_config()
+    return stripe_request(
+        f"/subscriptions/{quote(subscription_id, safe='')}",
+        {"expand[0]": "latest_invoice"}, config["secret_key"], method="GET",
+    )
+
+
+def retrieve_stripe_checkout(session_id: str) -> dict:
+    config = require_billing_config()
+    return stripe_request(
+        f"/checkout/sessions/{quote(session_id, safe='')}",
+        {"expand[0]": "line_items", "expand[1]": "payment_intent"}, config["secret_key"], method="GET",
+    )
 
 
 def require_billing_config() -> dict[str, str]:

@@ -1,25 +1,36 @@
 from __future__ import annotations
 
+from datetime import UTC
+
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import Request
 from sqlalchemy.exc import IntegrityError
+from starlette.concurrency import run_in_threadpool
 
 from app.db.database import SessionLocal
 from app.db.models import BillingWebhookEvent
 from app.db.models import Organization
 from app.db.models import WorkspaceSubscription
+from app.db.models import utc_now
 from app.modules.auth_context import get_auth_context
 from app.modules.billing.schemas import BillingCheckoutResponse
 from app.modules.billing.schemas import BillingCheckoutRequest
+from app.modules.billing.schemas import BillingCheckoutConfirmationRequest
+from app.modules.billing.schemas import BillingCheckoutConfirmationResponse
 from app.modules.billing.schemas import BillingPortalResponse
 from app.modules.billing.schemas import BillingStatusResponse
 from app.modules.billing.schemas import BillingAccessResponse
 from app.modules.billing.schemas import BillingLifecycleSchedulerResponse
 from app.modules.billing.schemas import AICreditTopupRequest
 from app.modules.billing.schemas import AICreditTopupResponse
+from app.modules.billing.schemas import AICreditTopupConfirmationResponse
+from app.modules.billing.ai_credit_purchases import credit_purchase_blocker, fulfill_credit_purchase
+from app.modules.billing.renewals import apply_renewal_period, reconcile_subscription_if_needed
+from app.modules.ai.service import build_ai_status
 from app.modules.ai.credits import get_ai_credit_low_balance_threshold
 from app.modules.ai.credits import get_ai_credit_remaining
+from app.modules.ai.credits import get_recurring_ai_credit_limit
 from app.modules.billing.lifecycle import (
     billing_enforcement_enabled,
     build_subscription_access_state,
@@ -32,6 +43,7 @@ from app.modules.billing.notifications import (
 )
 from app.modules.billing.service import (
     BillingProviderUnavailable,
+    BillingQuoteChanged,
     BillingWebhookSignatureError,
     create_ai_credit_topup_session,
     create_checkout_session,
@@ -53,8 +65,9 @@ from app.modules.billing.service import (
     get_billing_plan_options,
     get_client_workspace_limit,
     normalize_billing_interval,
-    timestamp_to_datetime,
     verify_stripe_webhook,
+    retrieve_stripe_checkout,
+    retrieve_stripe_subscription,
 )
 
 
@@ -74,6 +87,18 @@ def require_billing_owner(request: Request):
             detail="Agency billing must be managed from the agency workspace",
         )
     return auth_context
+
+
+def require_payments_enabled():
+    if not billing_enforcement_enabled():
+        raise HTTPException(status_code=409, detail="Billing is not enabled. No payment is required.")
+
+
+def subscription_requires_management(subscription) -> bool:
+    return bool(
+        subscription and subscription.provider_subscription_id
+        and subscription.status not in {"canceled", "incomplete_expired"}
+    )
 
 
 def count_client_workspaces(db, workspace_id: str) -> int:
@@ -131,6 +156,7 @@ async def get_billing_access(
             db,
             auth_context.workspace_id,
         )
+        await run_in_threadpool(reconcile_subscription_if_needed, db, subscription)
         state = build_subscription_access_state(subscription)
         return BillingAccessResponse(
             billing_enabled=billing_enforcement_enabled(),
@@ -140,6 +166,7 @@ async def get_billing_access(
             ),
             plan=state.plan,
             status=state.status,
+            raw_status=state.raw_status,
             access_allowed=state.access_allowed,
             requires_billing_action=state.requires_billing_action,
             current_period_end=state.current_period_end,
@@ -147,6 +174,9 @@ async def get_billing_access(
             days_remaining=state.days_remaining,
             reason=state.reason,
         )
+    except BillingProviderUnavailable as error:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="Subscription status could not be verified. Please retry shortly.") from error
     finally:
         db.close()
 
@@ -166,6 +196,7 @@ async def get_billing_status(
             db,
             auth_context.workspace_id,
         )
+        await run_in_threadpool(reconcile_subscription_if_needed, db, subscription)
         access_state = build_subscription_access_state(subscription)
         plan = normalize_billing_plan(
             subscription.plan if subscription else FREE_PLAN
@@ -241,12 +272,17 @@ async def get_billing_status(
             + max(ai_credit_topup_credits, 0)
         )
         ai_credits_remaining = (
-            get_ai_credit_remaining(subscription)
+            get_ai_credit_remaining(subscription, db)
             if subscription
             else max(total_ai_credit_limit - ai_credits_used, 0)
         )
         ai_credit_low_balance_threshold = (
             get_ai_credit_low_balance_threshold(total_ai_credit_limit)
+        )
+        ai_configured = build_ai_status()["configured"]
+        purchase_reason = credit_purchase_blocker(
+            subscription, config,
+            ai_configured=ai_configured, pack_size=get_ai_credit_pack_size(db),
         )
         return BillingStatusResponse(
             configured=billing_enforcement_enabled() and is_billing_configured(),
@@ -255,6 +291,12 @@ async def get_billing_status(
             workspace_id=auth_context.workspace_id,
             plan=plan,
             status=access_state.status,
+            raw_status=access_state.raw_status,
+            trial_started=bool(subscription and (
+                subscription.current_period_start or subscription.current_period_end
+                or subscription.provider_subscription_id
+            )),
+            subscription_management_required=subscription_requires_management(subscription),
             price_id=subscription.price_id if subscription else None,
             current_period_end=(
                 subscription.current_period_end
@@ -299,7 +341,7 @@ async def get_billing_status(
                 "ai_credit_topup_price_cents"
             ],
             ai_credit_pack_configured=bool(
-                config.get("ai_credit_pack_price_id")
+                config.get("ai_credit_pack_price_id") and get_ai_credit_pack_size(db) > 0
             ),
             additional_client_workspace_ai_credits=(
                 effective_additional_client_workspace_ai_credits
@@ -323,6 +365,9 @@ async def get_billing_status(
             ai_credit_topup_configured=bool(
                 config.get("ai_credit_topup_price_id")
             ),
+            ai_configured=ai_configured,
+            ai_credit_purchase_allowed=not purchase_reason,
+            ai_credit_purchase_reason=purchase_reason,
             access_status=access_state.status,
             access_allowed=access_state.access_allowed,
             requires_billing_action=access_state.requires_billing_action,
@@ -331,6 +376,9 @@ async def get_billing_status(
             access_reason=access_state.reason,
             plan_options=get_billing_plan_options(db),
         )
+    except BillingProviderUnavailable as error:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="Subscription status could not be verified. Please retry shortly.") from error
     finally:
         db.close()
 
@@ -344,6 +392,7 @@ async def create_ai_credit_topup(
     request: Request,
 ):
     auth_context = require_billing_owner(request)
+    require_payments_enabled()
     if payload.credit_packs < 1:
         raise HTTPException(
             status_code=400,
@@ -356,20 +405,21 @@ async def create_ai_credit_topup(
             db,
             auth_context.workspace_id,
         )
-        if not subscription:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    "Choose a Professional or Agency plan before "
-                    "purchasing AI credits"
-                ),
-            )
-        access_state = build_subscription_access_state(subscription)
-        if not access_state.access_allowed:
-            raise HTTPException(
-                status_code=402,
-                detail=access_state.reason,
-            )
+        config = get_billing_config(db)
+        ai_configured = build_ai_status()["configured"]
+        if ai_configured and config.get("secret_key") and config.get("ai_credit_topup_price_id") and subscription and subscription.provider_subscription_id:
+            try:
+                remote = await run_in_threadpool(retrieve_stripe_subscription, subscription.provider_subscription_id)
+                apply_stripe_billing_event(db, "customer.subscription.updated", remote)
+                db.commit()
+            except BillingProviderUnavailable as error:
+                raise HTTPException(status_code=503, detail=str(error)) from error
+        reason = credit_purchase_blocker(
+            subscription, config,
+            ai_configured=ai_configured, pack_size=get_ai_credit_pack_size(db),
+        )
+        if reason:
+            raise HTTPException(status_code=409, detail=reason)
 
         organization = (
             db.query(Organization)
@@ -380,7 +430,8 @@ async def create_ai_credit_topup(
             .first()
         )
         try:
-            result = create_ai_credit_topup_session(
+            result = await run_in_threadpool(
+                create_ai_credit_topup_session,
                 workspace_id=resolve_billing_workspace_id(
                     auth_context.workspace_id,
                 ),
@@ -391,13 +442,65 @@ async def create_ai_credit_topup(
                 ),
                 customer_id=subscription.provider_customer_id,
                 credit_packs=payload.credit_packs,
+                expected_pack_size=payload.expected_pack_size,
+                expected_price_cents=payload.expected_price_cents,
             )
+        except BillingQuoteChanged as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
         except BillingProviderUnavailable as error:
             raise HTTPException(
                 status_code=503,
                 detail=str(error),
             ) from error
         return AICreditTopupResponse(**result)
+    finally:
+        db.close()
+
+
+@router.post("/ai-credits/topup/confirm", response_model=AICreditTopupConfirmationResponse)
+async def confirm_ai_credit_topup(
+    payload: BillingCheckoutConfirmationRequest,
+    request: Request,
+):
+    auth_context = require_billing_owner(request)
+    require_payments_enabled()
+    session_id = payload.session_id.strip()
+    if not session_id.startswith("cs_") or len(session_id) > 255:
+        raise HTTPException(status_code=400, detail="Invalid checkout session")
+    db = SessionLocal()
+    try:
+        checkout = await run_in_threadpool(retrieve_stripe_checkout, session_id)
+        metadata = checkout.get("metadata") or {}
+        if (
+            checkout.get("id") != session_id
+            or resolve_billing_workspace_id(metadata.get("workspace_id")) != auth_context.workspace_id
+            or checkout.get("mode") != "payment"
+            or metadata.get("purchase_type") != "ai_credit_topup"
+        ):
+            raise HTTPException(status_code=403, detail="This AI credit checkout does not belong to this workspace")
+        purchase = fulfill_credit_purchase(db, checkout)
+        db.commit()
+        if purchase:
+            subscription = get_subscription_for_workspace(db, auth_context.workspace_id)
+            return AICreditTopupConfirmationResponse(
+                status="confirmed",
+                credits=purchase.credits,
+                credits_remaining=get_ai_credit_remaining(subscription, db),
+                purchased_credits_remaining=max(0, int(subscription.ai_credit_topup_credits or 0)),
+            )
+        intent = checkout.get("payment_intent")
+        failed = isinstance(intent, dict) and intent.get("status") in {
+            "canceled", "requires_payment_method",
+        }
+        status = (
+            "expired" if checkout.get("status") == "expired"
+            else "failed" if failed and checkout.get("status") == "complete"
+            else "pending"
+        )
+        return AICreditTopupConfirmationResponse(status=status)
+    except BillingProviderUnavailable as error:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=str(error)) from error
     finally:
         db.close()
 
@@ -410,6 +513,10 @@ async def send_due_billing_lifecycle_notifications_route(
     request: Request,
 ):
     require_billing_scheduler_secret(request)
+    return await run_in_threadpool(_send_due_billing_notifications)
+
+
+def _send_due_billing_notifications():
     db = SessionLocal()
     try:
         return send_due_billing_lifecycle_notifications(db)
@@ -426,6 +533,9 @@ async def create_billing_checkout(
     request: Request,
 ):
     auth_context = require_billing_owner(request)
+    require_payments_enabled()
+    if payload.billing_interval not in {"month", "year"}:
+        raise HTTPException(status_code=400, detail="Choose monthly or annual billing")
     plan = normalize_billing_plan(payload.plan)
     billing_interval = normalize_billing_interval(
         payload.billing_interval
@@ -458,6 +568,10 @@ async def create_billing_checkout(
             status_code=400,
             detail="Additional AI credit packs cannot be negative",
         )
+    if payload.additional_ai_credit_packs and not build_ai_status()["configured"]:
+        raise HTTPException(status_code=409, detail="AI is not available yet. Credit purchases are disabled.")
+    if payload.additional_ai_credit_packs and get_ai_credit_pack_size() < 1:
+        raise HTTPException(status_code=409, detail="AI credit payments are not available. Please contact support.")
     if (
         billing_interval == "year"
         and payload.additional_ai_credit_packs
@@ -476,16 +590,17 @@ async def create_billing_checkout(
             )
             .first()
         )
-        access_state = build_subscription_access_state(subscription)
-        if (
-            subscription
-            and subscription.plan != FREE_PLAN
-            and access_state.access_allowed
-            and subscription.provider_subscription_id
-        ):
+        if subscription and subscription.provider_subscription_id:
+            try:
+                remote = await run_in_threadpool(retrieve_stripe_subscription, subscription.provider_subscription_id)
+                apply_stripe_billing_event(db, "customer.subscription.updated", remote)
+                db.commit()
+            except BillingProviderUnavailable as error:
+                raise HTTPException(status_code=503, detail=str(error)) from error
+        if subscription_requires_management(subscription):
             raise HTTPException(
                 status_code=409,
-                detail="This workspace already has a billing subscription",
+                detail="This workspace already has a subscription. Manage billing to update or recover payment.",
             )
 
         organization = (
@@ -501,6 +616,7 @@ async def create_billing_checkout(
             and (
                 subscription.current_period_start
                 or subscription.current_period_end
+                or subscription.provider_subscription_id
             )
         )
         try:
@@ -529,6 +645,13 @@ async def create_billing_checkout(
                     if trial_already_started
                     else TRIAL_PERIOD_DAYS
                 ),
+                trial_end=(
+                    int(subscription.current_period_end.replace(tzinfo=UTC).timestamp())
+                    if subscription and subscription.status == "trialing"
+                    and subscription.current_period_end
+                    and subscription.current_period_end > utc_now()
+                    else None
+                ),
             )
         except BillingProviderUnavailable as error:
             raise HTTPException(
@@ -551,6 +674,7 @@ async def create_billing_portal(
     request: Request,
 ):
     auth_context = require_billing_owner(request)
+    require_payments_enabled()
     db = SessionLocal()
     try:
         subscription = (
@@ -574,6 +698,7 @@ async def create_billing_portal(
         try:
             portal_url = create_customer_portal_session(
                 customer_id=customer_id,
+                workspace_id=auth_context.workspace_id,
             )
         except BillingProviderUnavailable as error:
             raise HTTPException(
@@ -583,6 +708,62 @@ async def create_billing_portal(
         return BillingPortalResponse(
             portal_url=portal_url,
         )
+    finally:
+        db.close()
+
+
+@router.post("/refresh", response_model=BillingStatusResponse)
+async def refresh_billing_subscription(request: Request):
+    auth_context = require_billing_owner(request)
+    require_payments_enabled()
+    db = SessionLocal()
+    try:
+        subscription = get_subscription_for_workspace(db, auth_context.workspace_id)
+        if subscription and subscription.provider_subscription_id:
+            remote = await run_in_threadpool(retrieve_stripe_subscription, subscription.provider_subscription_id)
+            apply_stripe_billing_event(db, "customer.subscription.updated", remote)
+            db.commit()
+    except BillingProviderUnavailable as error:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    finally:
+        db.close()
+    return await get_billing_status(request)
+
+
+@router.post("/checkout/confirm", response_model=BillingCheckoutConfirmationResponse)
+async def confirm_billing_checkout(payload: BillingCheckoutConfirmationRequest, request: Request):
+    auth_context = require_billing_owner(request)
+    require_payments_enabled()
+    session_id = payload.session_id.strip()
+    if not session_id.startswith("cs_") or len(session_id) > 255:
+        raise HTTPException(status_code=400, detail="Invalid checkout session")
+    db = SessionLocal()
+    try:
+        checkout = retrieve_stripe_checkout(session_id)
+        metadata = checkout.get("metadata") or {}
+        if metadata.get("workspace_id") != auth_context.workspace_id or checkout.get("mode") != "subscription":
+            raise HTTPException(status_code=403, detail="This checkout does not belong to this workspace")
+        if checkout.get("status") == "expired":
+            return BillingCheckoutConfirmationResponse(status="expired")
+        if checkout.get("status") != "complete" or checkout.get("payment_status") not in {"paid", "no_payment_required"}:
+            return BillingCheckoutConfirmationResponse(status="pending")
+        apply_stripe_billing_event(db, "checkout.session.completed", checkout)
+        db.commit()
+        subscription = get_subscription_for_workspace(db, auth_context.workspace_id)
+        state = build_subscription_access_state(subscription)
+        matches = subscription and subscription.provider_subscription_id == checkout.get("subscription")
+        confirmed = bool(matches and state.access_allowed and state.raw_status in {"active", "trialing"})
+        needs_attention = bool(matches and state.raw_status in {
+            "incomplete", "past_due", "unpaid", "paused", "canceled", "incomplete_expired",
+        })
+        return BillingCheckoutConfirmationResponse(
+            status="confirmed" if confirmed else "requires_action" if needs_attention else "pending",
+            access_allowed=confirmed,
+        )
+    except BillingProviderUnavailable as error:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=str(error)) from error
     finally:
         db.close()
 
@@ -639,16 +820,29 @@ async def billing_webhook(
             if isinstance(event.get("data"), dict)
             else {}
         )
-        apply_stripe_billing_event(
-            db,
-            event_type,
-            event_object,
-        )
+        # Stripe may deliver old events after new ones; use its current state.
+        if event_type.startswith("customer.subscription.") and event_object.get("id"):
+            event_object = await run_in_threadpool(retrieve_stripe_subscription, event_object["id"])
+            event_type = "customer.subscription.updated"
+        elif event_type in {
+            "invoice.payment_failed", "invoice.paid", "invoice.payment_action_required",
+            "invoice.finalization_failed", "invoice.updated",
+        }:
+            subscription_id = event_object.get("subscription") or (
+                ((event_object.get("parent") or {}).get("subscription_details") or {}).get("subscription")
+            )
+            if subscription_id:
+                event_object = await run_in_threadpool(retrieve_stripe_subscription, subscription_id)
+                event_type = "customer.subscription.updated"
+        apply_stripe_billing_event(db, event_type, event_object)
         db.commit()
         return {
             "received": True,
             "duplicate": False,
         }
+    except BillingProviderUnavailable as error:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=str(error)) from error
     except IntegrityError:
         db.rollback()
         return {
@@ -670,38 +864,13 @@ def apply_stripe_billing_event(
     }:
         metadata = event_object.get("metadata") or {}
         if metadata.get("purchase_type") == "ai_credit_topup":
-            payment_status = str(
-                event_object.get("payment_status") or ""
-            ).strip().lower()
-            if (
-                event_type == "checkout.session.completed"
-                and payment_status
-                and payment_status not in {"paid", "no_payment_required"}
-            ):
-                return
-
-            workspace_id = resolve_billing_workspace_id(
-                str(metadata.get("workspace_id") or "").strip(),
-            )
-            if not workspace_id:
-                return
-            subscription = (
-                db.query(WorkspaceSubscription)
-                .filter(
-                    WorkspaceSubscription.workspace_id == workspace_id,
-                )
-                .first()
-            )
-            if not subscription:
-                return
-            credits = parse_nonnegative_int(metadata.get("credits"))
-            if not credits:
-                return
-            subscription.ai_credit_topup_credits = max(
-                int(subscription.ai_credit_topup_credits or 0),
-                0,
-            ) + credits
-            subscription.ai_credit_low_notice_key = None
+            session_id = str(event_object.get("id") or "")
+            if not session_id.startswith("cs_"):
+                raise BillingProviderUnavailable("Invalid AI credit checkout session")
+            checkout = retrieve_stripe_checkout(session_id)
+            if checkout.get("id") != session_id:
+                raise BillingProviderUnavailable("AI credit checkout session does not match")
+            fulfill_credit_purchase(db, checkout)
             return
 
         workspace_id = str(
@@ -712,67 +881,36 @@ def apply_stripe_billing_event(
         subscription_id = str(
             event_object.get("subscription") or ""
         ).strip() or None
+        if not subscription_id or event_object.get("payment_status") not in {"paid", "no_payment_required"}:
+            return
         customer_id = str(
             event_object.get("customer") or ""
         ).strip() or None
-        subscription = get_or_create_subscription(
-            db,
-            workspace_id,
-        )
-        subscription.provider_customer_id = customer_id
-        subscription.provider_subscription_id = subscription_id
-        subscription.plan = normalize_billing_plan(
-            metadata.get("plan") or PROFESSIONAL_PLAN
-        )
-        subscription.billing_interval = normalize_billing_interval(
-            metadata.get("billing_interval")
-        )
-        subscription.additional_client_workspaces = parse_nonnegative_int(
-            metadata.get("additional_client_workspaces")
-        )
-        subscription.additional_ai_credit_packs = parse_nonnegative_int(
-            metadata.get("additional_ai_credit_packs")
-        )
-        subscription.status = "checkout_completed"
-        subscription.current_period_start = None
-        subscription.current_period_end = None
-        subscription.lifecycle_notice_key = None
-        subscription.lifecycle_notice_at = None
-        subscription.data_purged_at = None
-        subscription.canceled_at = None
+        remote = retrieve_stripe_subscription(subscription_id)
+        if (remote.get("metadata") or {}).get("workspace_id") != workspace_id or remote.get("customer") != customer_id:
+            raise BillingProviderUnavailable("Stripe subscription does not match checkout")
+        apply_stripe_billing_event(db, "customer.subscription.updated", remote)
         return
 
     if event_type in {
-        "invoice.payment_failed",
-        "invoice.paid",
+        "invoice.payment_failed", "invoice.paid", "invoice.payment_action_required",
+        "invoice.finalization_failed", "invoice.updated",
     }:
-        subscription_id = str(
-            event_object.get("subscription") or ""
-        ).strip()
-        if not subscription_id:
-            return
-        subscription = (
-            db.query(WorkspaceSubscription)
-            .filter(
-                WorkspaceSubscription.provider_subscription_id
-                == subscription_id,
-            )
-            .first()
+        subscription_id = event_object.get("subscription") or (
+            ((event_object.get("parent") or {}).get("subscription_details") or {}).get("subscription")
         )
-        if not subscription:
-            return
-        if event_type == "invoice.payment_failed":
-            subscription.status = "past_due"
-        elif subscription.status == "past_due":
-            subscription.status = "active"
-            subscription.lifecycle_notice_key = None
-            subscription.lifecycle_notice_at = None
-            subscription.data_purged_at = None
-            subscription.canceled_at = None
+        if subscription_id:
+            remote = retrieve_stripe_subscription(subscription_id)
+            apply_stripe_billing_event(db, "customer.subscription.updated", remote)
         return
 
     if not event_type.startswith("customer.subscription."):
         return
+
+    if db.get_bind().dialect.name == "sqlite":
+        connection = db.connection()
+        if not connection.connection.driver_connection.in_transaction:
+            connection.exec_driver_sql("BEGIN IMMEDIATE")
 
     metadata = event_object.get("metadata") or {}
     subscription_id = str(
@@ -801,6 +939,8 @@ def apply_stripe_billing_event(
                 WorkspaceSubscription.provider_customer_id
                 == customer_id,
             )
+            .populate_existing()
+            .with_for_update()
             .first()
         )
     if not subscription and workspace_id:
@@ -811,9 +951,23 @@ def apply_stripe_billing_event(
     if not subscription:
         return
 
+    subscription = db.query(WorkspaceSubscription).filter(
+        WorkspaceSubscription.id == subscription.id,
+    ).populate_existing().with_for_update().one()
+
+    if (
+        subscription.provider_subscription_id
+        and subscription.provider_subscription_id != subscription_id
+        and (
+            subscription_requires_management(subscription)
+            or event_object.get("status") in {"canceled", "incomplete_expired"}
+        )
+    ):
+        return
+
     items = event_object.get("items") or {}
-    item_data = items.get("data") if isinstance(items, dict) else []
-    configured = get_billing_config()
+    item_data = (items.get("data") or []) if isinstance(items, dict) else []
+    configured = get_billing_config(db)
     addon_price_ids = {
         value
         for value in (
@@ -822,6 +976,7 @@ def apply_stripe_billing_event(
         )
         if value
     }
+    supplementary_price_ids = addon_price_ids | {configured.get("ai_credit_pack_price_id")}
     base_item = next(
         (
             item
@@ -830,21 +985,29 @@ def apply_stripe_billing_event(
             and str(
                 (item.get("price") or {}).get("id") or ""
             ).strip()
-            not in addon_price_ids
+            not in supplementary_price_ids
         ),
         {},
     )
     first_item = base_item or (item_data[0] if item_data else {})
     price = first_item.get("price") or {}
+    previous_credit_limit = get_recurring_ai_credit_limit(subscription, db)
     subscription.provider_customer_id = customer_id
     subscription.provider_subscription_id = subscription_id
     subscription.price_id = str(price.get("id") or "").strip() or None
     subscription.billing_interval = normalize_billing_interval(
-        metadata.get("billing_interval")
-        or (price.get("recurring") or {}).get("interval")
+        (price.get("recurring") or {}).get("interval")
+        or metadata.get("billing_interval")
+    )
+    configured_plan = next(
+        (plan for plan in (PROFESSIONAL_PLAN, AGENCY_PLAN)
+         if subscription.price_id and subscription.price_id in {
+             configured.get(f"{plan}_price_id"), configured.get(f"{plan}_annual_price_id"),
+         }),
+        None,
     )
     subscription.plan = normalize_billing_plan(
-        metadata.get("plan") or subscription.plan or PROFESSIONAL_PLAN
+        configured_plan or metadata.get("plan") or subscription.plan or PROFESSIONAL_PLAN
     )
     addon_item = next(
         (
@@ -873,52 +1036,11 @@ def apply_stripe_billing_event(
     subscription.additional_ai_credit_packs = parse_nonnegative_int(
         metadata.get("additional_ai_credit_packs")
     )
-    incoming_period_start = timestamp_to_datetime(
-        event_object.get("current_period_start")
+    apply_renewal_period(
+        subscription, event_object, first_item,
+        deleted=event_type == "customer.subscription.deleted",
+        previous_credit_limit=previous_credit_limit,
     )
-    if (
-        incoming_period_start
-        and subscription.current_period_start
-        and incoming_period_start != subscription.current_period_start
-    ):
-        subscription.ai_credits_used = 0
-        subscription.ai_recurring_credits_used = 0
-        subscription.lifecycle_notice_key = None
-        subscription.lifecycle_notice_at = None
-
-    incoming_period_end = timestamp_to_datetime(
-        event_object.get("current_period_end")
-    )
-    if incoming_period_end != subscription.current_period_end:
-        subscription.data_purged_at = None
-
-    subscription.current_period_start = incoming_period_start
-    subscription.status = (
-        "canceled"
-        if event_type == "customer.subscription.deleted"
-        else str(event_object.get("status") or "unknown")
-    )
-    subscription.current_period_end = incoming_period_end
-    subscription.cancel_at_period_end = int(
-        bool(event_object.get("cancel_at_period_end"))
-    )
-    is_canceled = (
-        event_type == "customer.subscription.deleted"
-        or subscription.status == "canceled"
-    )
-    incoming_canceled_at = (
-        timestamp_to_datetime(
-            event_object.get("canceled_at")
-            or event_object.get("ended_at")
-        )
-        if is_canceled
-        else None
-    )
-    if is_canceled and incoming_canceled_at is None:
-        incoming_canceled_at = subscription.canceled_at or utc_now()
-    if incoming_canceled_at != subscription.canceled_at:
-        subscription.data_purged_at = None
-    subscription.canceled_at = incoming_canceled_at
 
 
 def get_or_create_subscription(

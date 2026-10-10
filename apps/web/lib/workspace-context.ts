@@ -10,6 +10,7 @@ export const activeWorkspaceChangedEvent =
   "decisionate:active-workspace-changed"
 export const workspaceAccessChangedEvent =
   "decisionate:workspace-access-changed"
+const sessionWorkspaceIds = new Map<string, string>()
 
 export function notifyWorkspaceAccessChanged() {
   if (typeof window === "undefined") {
@@ -44,12 +45,14 @@ export function getActiveWorkspaceId(
     return cleanUserId
   }
 
-  return cleanWorkspaceId(
-    window.localStorage.getItem(
-      getActiveWorkspaceStorageKey(cleanUserId)
-    ),
-    cleanUserId
-  )
+  try {
+    return cleanWorkspaceId(
+      window.localStorage.getItem(getActiveWorkspaceStorageKey(cleanUserId)),
+      sessionWorkspaceIds.get(cleanUserId) ?? cleanUserId,
+    )
+  } catch {
+    return sessionWorkspaceIds.get(cleanUserId) ?? cleanUserId
+  }
 }
 
 export function setActiveWorkspaceId(
@@ -65,10 +68,12 @@ export function setActiveWorkspaceId(
     return
   }
 
-  window.localStorage.setItem(
-    getActiveWorkspaceStorageKey(cleanUserId),
-    cleanWorkspaceId
-  )
+  sessionWorkspaceIds.set(cleanUserId, cleanWorkspaceId)
+  try {
+    window.localStorage.setItem(getActiveWorkspaceStorageKey(cleanUserId), cleanWorkspaceId)
+  } catch {
+    // Workspace selection remains usable for this session without persistence.
+  }
 
   window.dispatchEvent(
     new CustomEvent<ActiveWorkspaceChange>(

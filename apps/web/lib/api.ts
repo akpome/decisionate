@@ -686,6 +686,9 @@ export type BillingStatus = {
   workspace_id: string
   plan: string
   status: string
+  raw_status?: string
+  trial_started?: boolean
+  subscription_management_required?: boolean
   price_id?: string | null
   current_period_end?: string | null
   cancel_at_period_end: boolean
@@ -716,6 +719,9 @@ export type BillingStatus = {
   ai_credit_low_balance: boolean
   ai_credit_low_balance_threshold: number
   ai_credit_topup_configured: boolean
+  ai_configured: boolean
+  ai_credit_purchase_allowed: boolean
+  ai_credit_purchase_reason: string
   access_status: string
   access_allowed: boolean
   requires_billing_action: boolean
@@ -731,6 +737,7 @@ export type BillingAccessStatus = {
   billing_workspace_id: string
   plan: string
   status: string
+  raw_status?: string
   access_allowed: boolean
   requires_billing_action: boolean
   current_period_end?: string | null
@@ -770,6 +777,13 @@ export type AICreditTopupResponse = {
   session_id: string
   credit_packs: number
   credits: number
+}
+
+export type AICreditPurchaseConfirmation = {
+  status: "confirmed" | "pending" | "expired" | "failed"
+  credits: number
+  credits_remaining: number
+  purchased_credits_remaining: number
 }
 
 export type BillingPortalResponse = {
@@ -4233,7 +4247,8 @@ export async function getPlatformAdminAccess(
     )
 
   if (!response.ok) {
-    return false
+    if (response.status === 403 || response.status === 404) return false
+    await throwApiError(response, "Unable to check account access")
   }
 
   const payload = await response.json() as {
@@ -5161,7 +5176,8 @@ export async function getBillingStatus(
 
 export async function getBillingAccessStatus(
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  fresh = false
 ): Promise<BillingAccessStatus> {
   const cacheKey =
     `billing-access:${getWorkspaceCacheIdentity(
@@ -5169,6 +5185,7 @@ export async function getBillingAccessStatus(
       workspaceId
     )}`
 
+  if (fresh) invalidateApiReadCache([cacheKey])
   return getCachedRead(
     cacheKey,
     async () => {
@@ -5221,10 +5238,38 @@ export async function createBillingCheckout(
   return response.json()
 }
 
+export async function confirmBillingCheckout(
+  userId: string,
+  workspaceId: string,
+  sessionId: string
+): Promise<{ status: "confirmed" | "pending" | "expired" | "requires_action"; access_allowed: boolean }> {
+  const response = await apiFetch(`${API_URL}/billing/checkout/confirm`, {
+    method: "POST",
+    headers: await workspaceJsonHeaders(userId, workspaceId),
+    body: JSON.stringify({ session_id: sessionId }),
+  })
+  if (!response.ok) await throwApiError(response, "Unable to confirm payment. Please check again.")
+  const result = await response.json()
+  if (result.status === "confirmed") invalidateApiReadCache(["billing-access:"])
+  return result
+}
+
+export async function refreshBillingSubscription(userId: string, workspaceId: string): Promise<BillingStatus> {
+  const response = await apiFetch(`${API_URL}/billing/refresh`, {
+    method: "POST", headers: await workspaceHeaders(userId, workspaceId),
+  })
+  if (!response.ok) await throwApiError(response, "Unable to refresh your subscription. Please try again.")
+  const result = await response.json()
+  invalidateApiReadCache(["billing-access:"])
+  window.dispatchEvent(new Event("decisionate:billing-updated"))
+  return result
+}
+
 export async function createAICreditTopup(
   userId: string,
   workspaceId: string | undefined,
-  creditPacks: number
+  creditPacks: number,
+  quote?: { packSize: number; priceCents: number }
 ): Promise<AICreditTopupResponse> {
   const response = await apiFetch(
     `${API_URL}/billing/ai-credits/topup`,
@@ -5236,6 +5281,7 @@ export async function createAICreditTopup(
       ),
       body: JSON.stringify({
         credit_packs: creditPacks,
+        ...(quote ? { expected_pack_size: quote.packSize, expected_price_cents: quote.priceCents } : {}),
       }),
     }
   )
@@ -5247,6 +5293,18 @@ export async function createAICreditTopup(
     )
   }
 
+  return response.json()
+}
+
+export async function confirmAICreditTopup(
+  userId: string, workspaceId: string, sessionId: string
+): Promise<AICreditPurchaseConfirmation> {
+  const response = await apiFetch(`${API_URL}/billing/ai-credits/topup/confirm`, {
+    method: "POST",
+    headers: await workspaceJsonHeaders(userId, workspaceId),
+    body: JSON.stringify({ session_id: sessionId }),
+  })
+  if (!response.ok) await throwApiError(response, "Unable to confirm your AI credit purchase. Please check again.")
   return response.json()
 }
 

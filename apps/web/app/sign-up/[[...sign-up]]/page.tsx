@@ -1,58 +1,16 @@
-import Link from "next/link"
-import type { ReactNode } from "react"
-
 import { AuthCard } from "@/app/auth-card"
-import { ThemeToggle } from "@/app/theme-toggle"
-import { AuthPageCopy } from "@/app/auth-page-copy"
+import { headers } from "next/headers"
+import { AuthLayout } from "@/features/auth/components/auth-layout"
+import { getAuthRequestOrigin, getSafeReturnTo } from "@/features/auth/lib/auth-redirects"
 
-export default function SignUpPage() {
-  return (
-    <AuthShell
-      title="Create your Decisionate workspace"
-      description="Create your account with a work email, then tell us about your business or agency so Decisionate can set up the right workspace. No credit card is required."
-    >
-      <AuthCard mode="sign-up" />
-    </AuthShell>
-  )
-}
-
-function AuthShell({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description: string
-  children: ReactNode
+export default async function SignUpPage({ searchParams }: {
+  searchParams: Promise<{ redirect_url?: string | string[] }>
 }) {
+  const { redirect_url } = await searchParams
+  const returnTo = getSafeReturnTo(redirect_url, getAuthRequestOrigin(await headers()))
   return (
-    <main className="min-h-screen overflow-x-hidden bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-6xl justify-end gap-2">
-        <ThemeToggle />
-      </div>
-
-      <div className="mx-auto grid min-h-[calc(100vh-4rem)] min-w-0 max-w-6xl items-start gap-8 lg:items-center lg:grid-cols-[minmax(0,1fr)_auto]">
-        <section className="order-last min-w-0 max-w-2xl lg:order-first">
-          <Link
-            href="/"
-            className="text-sm font-semibold text-[var(--decisionate-brand-primary-text)]"
-          >
-            Decisionate
-          </Link>
-
-          <AuthPageCopy
-            title={title}
-            description={description}
-          />
-        </section>
-
-        <section
-          aria-label="Sign up"
-          className="order-first flex min-w-0 justify-center lg:order-last"
-        >
-          {children}
-        </section>
-      </div>
-    </main>
+    <AuthLayout mode="sign-up" title="Create your account" description="Use your work email to join Decisionate." returnTo={returnTo}>
+      <AuthCard mode="sign-up" returnTo={returnTo} />
+    </AuthLayout>
   )
 }

@@ -13,6 +13,14 @@ from app.db.models import DataIngestionJob, utc_now
 from app.infrastructure.object_storage import get_object_storage
 
 
+class WorkspaceIngestionQueueFull(HTTPException):
+    def __init__(self):
+        super().__init__(
+            status_code=429,
+            detail="Five imports are already queued for this workspace. Please wait.",
+        )
+
+
 def durable_ingestion_enabled() -> bool:
     mode = os.getenv("INGESTION_EXECUTION_MODE", "").strip().lower()
     return mode == "worker" or get_runtime_configuration().app_env == "production"
@@ -57,7 +65,7 @@ def ensure_workspace_queue_capacity(db, workspace_id: str):
         DataIngestionJob.status.in_({"queued", "running"}),
     ).count()
     if count >= 5:
-        raise HTTPException(429, "Five imports are already queued for this workspace. Please wait.")
+        raise WorkspaceIngestionQueueFull()
 
 
 def workspace_job_scope(workspace_ids):

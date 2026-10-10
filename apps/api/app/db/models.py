@@ -1116,6 +1116,11 @@ class WorkspaceSubscription(Base):
         nullable=True,
     )
 
+    payment_due_at = Column(DateTime, nullable=True)
+    ai_credit_period_start = Column(DateTime, nullable=True)
+    ai_grace_credit_limit = Column(Integer, nullable=True)
+    provider_checked_at = Column(DateTime, nullable=True)
+
     canceled_at = Column(
         DateTime,
         nullable=True,
@@ -1639,6 +1644,19 @@ class PlatformBillingSettings(Base):
         default=utc_now,
         onupdate=utc_now,
     )
+
+
+class AICreditPurchase(Base):
+    __tablename__ = "ai_credit_purchases"
+
+    id = Column(Integer, primary_key=True)
+    provider_session_id = Column(String, nullable=False, unique=True, index=True)
+    workspace_id = Column(String, nullable=False, index=True)
+    credit_packs = Column(Integer, nullable=False)
+    credits = Column(Integer, nullable=False)
+    amount_total = Column(Integer, nullable=True)
+    currency = Column(String, nullable=True)
+    fulfilled_at = Column(DateTime, default=utc_now, nullable=False)
 
 
 class BillingWebhookEvent(Base):

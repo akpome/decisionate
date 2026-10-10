@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+from urllib.parse import quote
 
 from app.db.models import (
     AppUser,
@@ -15,6 +16,7 @@ from app.modules.alerts.email_delivery import send_platform_system_email
 from app.modules.billing.lifecycle import (
     build_subscription_access_state,
 )
+from app.modules.billing.renewals import reconcile_subscription_if_needed
 from app.modules.billing.service import (
     get_billing_plan_definition,
     normalize_billing_plan,
@@ -140,18 +142,20 @@ def build_lifecycle_notice(
     ):
         return None
 
+    deadline = state.grace_period_end or subscription.current_period_end
     period_key = (
-        subscription.current_period_end.isoformat()
-        if subscription.current_period_end
+        deadline.isoformat()
+        if deadline
         else "unknown"
     )
     if state.status == "expired":
         stage = "expired"
-        subject = "Your Decisionate subscription has expired"
-        message = (
-            "Your Decisionate subscription has expired and workspace analysis "
-            "is paused. Renew your plan to restore access."
-        )
+        if state.raw_status == "trialing":
+            subject = "Your Decisionate trial has ended"
+            message = "Your trial has ended and workspace access is paused. Choose a paid plan to resume using your workspace."
+        else:
+            subject = "Your Decisionate subscription needs attention"
+            message = "Workspace access is paused. Review your subscription and payment details to restore access."
     elif state.status == "grace_period":
         stage = "past_due"
         subject = "Action required: update your Decisionate billing"
@@ -160,33 +164,57 @@ def build_lifecycle_notice(
             "Your workspace is temporarily available during the billing grace "
             "period. Update your billing details before the grace period ends."
         )
+        message += f" Grace period ends: {state.grace_period_end.isoformat()} UTC."
+    elif state.raw_status != "trialing" and not subscription.cancel_at_period_end:
+        # Annual customers get advance notice, not a false expiry warning.
+        if subscription.billing_interval != "year" or state.days_remaining is None or state.days_remaining > 30:
+            return None
+        stage = "annual_renewal"
+        subject = "Your annual Decisionate subscription renews soon"
+        message = (
+            "Your annual subscription is scheduled to renew automatically on "
+            f"{subscription.current_period_end.isoformat()} UTC. "
+            "Review your plan, invoices and payment method in billing. "
+            "You can turn off auto-renewal before this date to avoid the next renewal charge."
+        )
     elif state.days_remaining is not None and state.days_remaining <= 1:
         stage = "ending_1"
         subject = "Your Decisionate subscription ends soon"
         message = (
             "Your Decisionate subscription period ends within one day. "
-            "Renew or update your billing details to keep the workspace active."
+            "Auto-renewal is off. Resume your subscription in billing before it ends to keep the workspace active."
         )
     elif state.days_remaining is not None and state.days_remaining <= 7:
         stage = "ending_7"
-        subject = "Your Decisionate subscription ends in seven days"
+        subject = "Your Decisionate subscription ends soon"
         message = (
             "Your Decisionate subscription period ends within seven days. "
-            "Review billing before access is paused."
+            "Auto-renewal is off. Resume your subscription in billing before access is paused."
         )
     else:
         return None
+
+    if state.raw_status == "trialing" and state.status != "expired":
+        subject = "Your Decisionate trial ends soon"
+        message = (
+            "Your trial ends soon. Auto-renewal is off and access will end with the trial. Resume your subscription in billing to keep access."
+            if subscription.cancel_at_period_end else
+            "Your trial ends soon. Your subscription will start billing automatically at the end of the trial. Review billing to manage your subscription."
+            if subscription.provider_subscription_id else
+            "Your trial ends soon. Choose a paid plan to keep workspace access. Your remaining trial time is preserved when you add payment details."
+        )
 
     notice_key = f"{stage}:{period_key}"
 
     billing_url = (
         get_runtime_configuration().web_url.rstrip("/")
         + "/dashboard/billing"
+        + "?workspace_id=" + quote(subscription.workspace_id, safe="")
     )
     body = (
         f"Hello,\n\n{message}\n\n"
-        "Current period end: "
-        f"{subscription.current_period_end.isoformat() if subscription.current_period_end else 'Not provided'}\n"
+        f"{'Renewal date' if stage == 'annual_renewal' else 'Access deadline'}: "
+        f"{deadline.isoformat() + ' UTC' if deadline else 'Not provided'}\n"
         f"Open billing: {billing_url}\n\n"
         "Decisionate"
     )
@@ -219,6 +247,25 @@ def send_due_billing_lifecycle_notifications(
     data_purge_failed = 0
 
     for subscription in subscriptions:
+        local_state = build_subscription_access_state(subscription, current_time)
+        local_notice = build_lifecycle_notice(subscription, local_state)
+        needs_verification = (
+            not local_state.access_allowed or local_state.status == "grace_period"
+            or (local_notice and local_notice[0] != subscription.lifecycle_notice_key)
+        )
+        try:
+            if needs_verification:
+                reconcile_subscription_if_needed(db, subscription, now=current_time, force=True)
+        except Exception:
+            db.rollback()
+            failed += 1
+            results.append({
+                "workspace_id": subscription.workspace_id,
+                "status": "verification_failed",
+                "detail": "Provider verification failed; notices and data deletion were skipped.",
+            })
+            continue
+        state = build_subscription_access_state(subscription, current_time)
         organization = (
             db.query(Organization)
             .filter(
@@ -248,11 +295,11 @@ def send_due_billing_lifecycle_notifications(
             purge_result = purge_workspace_data_after_expiry(
                 db,
                 workspace_ids,
-                subscription.current_period_end,
+                state.grace_period_end or subscription.current_period_end,
                 current_time,
                 subscription.data_purged_at,
                 subscription.canceled_at,
-            )
+            ) if not state.access_allowed else None
             if purge_result:
                 subscription.data_purged_at = purge_result["purged_at"]
                 db.commit()

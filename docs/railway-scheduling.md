@@ -101,6 +101,13 @@ The runner continues if one job fails, prints a JSON result for each job, and
 returns exit code `1` when any selected job fails. Railway should mark that run
 failed so it is visible in deployment logs.
 
+Billing verification, notification and deletion failures also fail the billing
+job even when the API returns HTTP 200 with per-workspace results. Successful
+workspaces are not retried destructively: renewal state and notice keys are
+persisted, and already-purged data is marked. Connector item failures continue
+to be logged as warnings so one disconnected provider does not fail the whole
+connector scheduling request.
+
 The worker checks OAuth credentials when executing a queued connector import.
 It refreshes tokens when due and a refresh token is available. This is not a
 proactive token-refresh heartbeat for every connection: connections with sync
@@ -108,6 +115,45 @@ disabled are not refreshed merely because cron runs. Inspect failed ingestion
 jobs and connection authorization notices rather than treating cron success as
 proof of provider access. A revoked or expired refresh token requires the
 customer to authorize the connection again.
+
+## Queue saturation and worker failures
+
+Railway cron services are meant to finish and exit after each run, as described
+in the [Railway cron documentation](https://docs.railway.com/cron-jobs). Normal
+completion is not a crash. The persistent ingestion worker is different: it
+must remain running between cron invocations.
+
+The five-import limit applies per workspace and counts queued or running root
+jobs. A full queue is temporary backpressure, not a connector failure: the
+connector endpoint returns HTTP `200`, a `deferred_count`, and per-connection
+results with `status: deferred` and `reason: workspace_queue_full`. It continues
+processing other workspaces. Deferred connections remain due and are retried
+on the next cron run once capacity is available. Manual imports still return
+HTTP `429` when their workspace queue is full; the limit is not bypassed.
+
+The connector scheduler checks the persistent worker heartbeat before queuing
+work. If it is missing or stale, the endpoint returns HTTP `503` with an
+ingestion-worker-unavailable message. The cron runner reports this as a failure
+but still runs the selected alerts and billing jobs. It does not disguise a
+missing worker or other API errors as successful scheduling.
+
+If repeated restarts show a full import queue:
+
+1. Check the API's `/ready` response. If `database_ready` is true but
+   `ingestion_worker_ready` is false, the database is reachable but no recent
+   worker heartbeat is available.
+2. Start or restore the separate **persistent ingestion worker** described
+   above. Its start command is `python scripts/run_ingestion_worker.py`; do
+   not give this service a cron schedule or the HTTP-only scheduler command.
+3. Inspect that worker's logs for startup, configuration, database, or import
+   errors. It must use the same database and object storage as the API.
+4. Confirm `/ready` returns `200` and existing imports reach terminal states,
+   then run the scheduler again. Restarting cron does not consume queued jobs.
+
+Deploy the API changes as well as the scheduler service's image when updating
+the application. Redeploying only the scheduler cannot fix an API endpoint
+that still aborts on a full workspace queue. Do not delete queued imports or
+raise the capacity limit to hide an unhealthy worker.
 
 ## Verify the setup
 

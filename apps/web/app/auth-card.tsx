@@ -4,17 +4,17 @@ import { ClerkAuthCard } from "./clerk-auth-card"
 
 type AuthCardProps = {
   mode: "sign-in" | "sign-up"
-  redirectUrl?: string
+  returnTo?: string | null
 }
 
 export function AuthCard({
   mode,
-  redirectUrl,
+  returnTo,
 }: AuthCardProps) {
   return (
     <ClerkAuthCard
       mode={mode}
-      redirectUrl={redirectUrl}
+      returnTo={returnTo}
     />
   )
 }

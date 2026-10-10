@@ -4,6 +4,12 @@ import {
   NextRequest,
   NextResponse,
 } from "next/server"
+import {
+  getAuthRedirectUrl,
+  getAuthRequestOrigin,
+  getSafeReturnTo,
+  getSignInUrl,
+} from "./features/auth/lib/auth-redirects"
 
 const isPublicDemoRoute = createRouteMatcher([
   "/",
@@ -12,15 +18,10 @@ const isPublicDemoRoute = createRouteMatcher([
   "/terms",
   "/security",
 ])
-const isPublicAuthRoute = createRouteMatcher([
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/auth/redirect(.*)",
-])
-
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
   "/onboarding(.*)",
+  "/platform-admin(.*)",
 ])
 const isSignInRoute = createRouteMatcher([
   "/sign-in(.*)",
@@ -33,15 +34,11 @@ const clerkProxy = clerkMiddleware(async (auth, req) => {
   if (isSignInRoute(req) || isSignUpRoute(req)) {
     const { userId } = await auth()
 
-    if (userId && isSignInRoute(req)) {
+    if (userId) {
+      const origin = getAuthRequestOrigin(req.headers, req.url)
+      const returnTo = getSafeReturnTo(req.nextUrl.searchParams.get("redirect_url"), origin)
       return NextResponse.redirect(
-        new URL("/auth/redirect", req.url)
-      )
-    }
-
-    if (userId && isSignUpRoute(req)) {
-      return NextResponse.redirect(
-        new URL("/onboarding", req.url)
+        new URL(getAuthRedirectUrl(returnTo), origin)
       )
     }
   }
@@ -50,28 +47,30 @@ const clerkProxy = clerkMiddleware(async (auth, req) => {
     const { userId } = await auth()
 
     if (!userId) {
-      const signInUrl = new URL(
-        "/sign-in",
-        req.url,
-      )
-      signInUrl.searchParams.set(
-        "redirect_url",
-        `${req.nextUrl.pathname}${req.nextUrl.search}`,
-      )
-      return NextResponse.redirect(signInUrl)
+      return NextResponse.redirect(new URL(
+        getSignInUrl(`${req.nextUrl.pathname}${req.nextUrl.search}`), getAuthRequestOrigin(req.headers, req.url),
+      ))
     }
   }
 })
 
-export default function proxy(
+export default async function proxy(
   request: NextRequest,
   event: NextFetchEvent,
 ) {
-  if (isPublicDemoRoute(request) || isPublicAuthRoute(request)) {
+  if (isPublicDemoRoute(request)) {
     return NextResponse.next()
   }
 
-  return clerkProxy(request, event)
+  const response = await clerkProxy(request, event)
+  // Clerk stamps its verified request headers through a rewrite to the
+  // current URL. Treat that as a continuation so Next does not proxy back
+  // into itself when internal and public hostnames differ.
+  if (response?.headers?.get("x-middleware-rewrite") === request.url) {
+    response.headers.delete("x-middleware-rewrite")
+    response.headers.set("x-middleware-next", "1")
+  }
+  return response
 }
 
 export const config = {

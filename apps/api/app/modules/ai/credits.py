@@ -136,6 +136,10 @@ def _rollover_period_if_needed(
             "Your 30-day AI trial has ended. Choose a paid plan to continue using AI analysis."
         )
 
+    # Only verified billing events renew provider periods; using AI cannot renew a trial.
+    if subscription.provider_subscription_id or subscription.status != "active":
+        return
+
     period_length = period_end - period_start
     if period_length <= timedelta(0):
         period_length = timedelta(days=30)
@@ -153,10 +157,13 @@ def _rollover_period_if_needed(
 
 def _get_recurring_credit_limit(
     subscription,
+    db=None,
 ) -> int | None:
+    if subscription.status == "past_due" and subscription.ai_grace_credit_limit is not None:
+        return max(int(subscription.ai_grace_credit_limit), 0)
     plan = normalize_billing_plan(subscription.plan)
     monthly_plan_limit = int(
-        get_billing_plan_definition(plan)["ai_credit_limit"]
+        get_billing_plan_definition(plan, db)["ai_credit_limit"]
     )
     plan_limit = get_billing_period_ai_credit_limit(
         monthly_plan_limit,
@@ -170,7 +177,7 @@ def _get_recurring_credit_limit(
         int(subscription.additional_client_workspaces or 0),
         0,
     )
-    monthly_additional_workspace_credits = get_ai_credit_allocations().get(
+    monthly_additional_workspace_credits = get_ai_credit_allocations(db).get(
         "additional_client_workspace",
         0,
     )
@@ -181,14 +188,15 @@ def _get_recurring_credit_limit(
     return (
         plan_limit
         + additional_workspaces * additional_workspace_credits
-        + additional_packs * get_ai_credit_pack_size()
+        + additional_packs * get_ai_credit_pack_size(db)
     )
 
 
 def _get_credit_limit(
     subscription,
+    db=None,
 ) -> int | None:
-    recurring_limit = _get_recurring_credit_limit(subscription)
+    recurring_limit = _get_recurring_credit_limit(subscription, db)
     purchased_credits = max(
         int(subscription.ai_credit_topup_credits or 0),
         0,
@@ -198,15 +206,17 @@ def _get_credit_limit(
 
 def get_recurring_ai_credit_limit(
     subscription,
+    db=None,
 ) -> int | None:
-    return _get_recurring_credit_limit(subscription)
+    return _get_recurring_credit_limit(subscription, db)
 
 
 def get_ai_credit_remaining(
     subscription,
+    db=None,
 ) -> int:
     recurring_remaining = max(
-        int(_get_recurring_credit_limit(subscription) or 0)
+        int(_get_recurring_credit_limit(subscription, db) or 0)
         - max(int(subscription.ai_recurring_credits_used or 0), 0),
         0,
     )
@@ -237,9 +247,10 @@ def _maybe_notify_low_balance(
     if not threshold or remaining_credits > threshold:
         return
 
+    credit_start = _credit_period_start(subscription)
     period_key = (
-        subscription.current_period_start.isoformat()
-        if subscription.current_period_start
+        credit_start.isoformat()
+        if credit_start
         else "current"
     )
     notice_key = f"{period_key}:{clean_limit}"
@@ -265,13 +276,20 @@ def _maybe_notify_low_balance(
         )
 
 
+def _credit_period_start(subscription):
+    if subscription.provider_subscription_id:
+        return subscription.ai_credit_period_start or subscription.current_period_start
+    return subscription.current_period_start
+
+
 def _usage_event_matches_current_period(
     subscription,
     usage_event,
 ) -> bool:
-    if not subscription.current_period_start or not usage_event.period_start:
+    credit_start = _credit_period_start(subscription)
+    if not credit_start or not usage_event.period_start:
         return True
-    return subscription.current_period_start == usage_event.period_start
+    return credit_start == usage_event.period_start
 
 
 def _ensure_usable_subscription(
@@ -319,7 +337,7 @@ def reserve_ai_credits(
             db,
             billing_workspace_id,
         )
-        recurring_credit_limit = _get_recurring_credit_limit(subscription)
+        recurring_credit_limit = _get_recurring_credit_limit(subscription, db)
         current_recurring_usage = max(
             int(subscription.ai_recurring_credits_used or 0),
             0,
@@ -373,7 +391,7 @@ def reserve_ai_credits(
             operation=str(operation or "analysis").strip()[:120],
             provider=get_runtime_configuration().ai_provider,
             status="reserved",
-            period_start=subscription.current_period_start,
+            period_start=_credit_period_start(subscription),
             estimated_tokens=max(int(estimated_tokens or 0), 0),
             estimated_credits=estimated_credits,
             topup_credits_reserved=topup_reserved,
@@ -386,7 +404,7 @@ def reserve_ai_credits(
         _maybe_notify_low_balance(
             db,
             subscription,
-            get_ai_credit_remaining(subscription),
+            get_ai_credit_remaining(subscription, db),
             credit_limit,
         )
 
@@ -499,8 +517,8 @@ def settle_ai_credits(
             _maybe_notify_low_balance(
                 db,
                 subscription,
-                get_ai_credit_remaining(subscription),
-                _get_credit_limit(subscription),
+                get_ai_credit_remaining(subscription, db),
+                _get_credit_limit(subscription, db),
             )
 
         usage_event.status = "completed"

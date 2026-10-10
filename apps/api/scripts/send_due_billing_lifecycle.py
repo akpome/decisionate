@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         f"skipped: {result.get('skipped', 0)}; "
         f"failed: {result.get('failed', 0)}."
     )
-    return 0
+    return 1 if int(result.get("failed", 0) or 0) > 0 else 0
 
 
 if __name__ == "__main__":

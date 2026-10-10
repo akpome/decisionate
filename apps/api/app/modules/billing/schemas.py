@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class BillingPlanOption(BaseModel):
@@ -24,6 +24,9 @@ class BillingStatusResponse(BaseModel):
     workspace_id: str
     plan: str
     status: str
+    raw_status: str = "untracked"
+    trial_started: bool = False
+    subscription_management_required: bool = False
     price_id: str | None = None
     current_period_end: datetime | None = None
     cancel_at_period_end: bool = False
@@ -54,6 +57,9 @@ class BillingStatusResponse(BaseModel):
     ai_credit_low_balance: bool = False
     ai_credit_low_balance_threshold: int = 0
     ai_credit_topup_configured: bool = False
+    ai_configured: bool = False
+    ai_credit_purchase_allowed: bool = False
+    ai_credit_purchase_reason: str = ""
     access_status: str = "untracked"
     access_allowed: bool = True
     requires_billing_action: bool = False
@@ -69,6 +75,7 @@ class BillingAccessResponse(BaseModel):
     billing_workspace_id: str
     plan: str
     status: str
+    raw_status: str = "untracked"
     access_allowed: bool
     requires_billing_action: bool
     current_period_end: datetime | None = None
@@ -99,12 +106,23 @@ class BillingCheckoutResponse(BaseModel):
     session_id: str
 
 
+class BillingCheckoutConfirmationRequest(BaseModel):
+    session_id: str
+
+
+class BillingCheckoutConfirmationResponse(BaseModel):
+    status: str
+    access_allowed: bool = False
+
+
 class BillingPortalResponse(BaseModel):
     portal_url: str
 
 
 class AICreditTopupRequest(BaseModel):
-    credit_packs: int
+    credit_packs: int = Field(strict=True, ge=1)
+    expected_pack_size: int | None = Field(default=None, strict=True, ge=1)
+    expected_price_cents: int | None = Field(default=None, strict=True, ge=0)
 
 
 class AICreditTopupResponse(BaseModel):
@@ -112,3 +130,10 @@ class AICreditTopupResponse(BaseModel):
     session_id: str
     credit_packs: int
     credits: int
+
+
+class AICreditTopupConfirmationResponse(BaseModel):
+    status: str
+    credits: int = 0
+    credits_remaining: int = 0
+    purchased_credits_remaining: int = 0

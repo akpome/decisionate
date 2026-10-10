@@ -4,6 +4,7 @@ import { ClerkProvider, useAuth } from "@clerk/nextjs"
 import { useEffect } from "react"
 import type { ReactNode } from "react"
 import { setClerkSessionTokenProvider } from "@/lib/api"
+import { AUTH_REDIRECTS } from "@/features/auth/lib/auth-redirects"
 
 type AppClerkProviderProps = {
   children: ReactNode
@@ -28,10 +29,10 @@ export function AppClerkProvider({
 }: AppClerkProviderProps) {
   return (
     <ClerkProvider
-      signInFallbackRedirectUrl="/auth/redirect"
-      signInForceRedirectUrl="/auth/redirect"
-      signUpFallbackRedirectUrl="/onboarding"
-      signUpForceRedirectUrl="/onboarding"
+      signInFallbackRedirectUrl={AUTH_REDIRECTS.afterLogin}
+      signInForceRedirectUrl={AUTH_REDIRECTS.afterLogin}
+      signUpFallbackRedirectUrl={AUTH_REDIRECTS.afterSignup}
+      signUpForceRedirectUrl={AUTH_REDIRECTS.afterSignup}
     >
       <ClerkTokenBridge />
       {children}

@@ -96,10 +96,13 @@ def selected_jobs() -> list[ScheduledJob]:
 def reported_failure_count(result: dict[str, Any]) -> int:
     if not isinstance(result, dict):
         return 0
-    try:
-        return max(int(result.get("failed_count", 0) or 0), 0)
-    except (TypeError, ValueError):
-        return 0
+    counts = [0]
+    for key in ("failed_count", "failed", "data_purge_failed"):
+        try:
+            counts.append(int(result.get(key, 0) or 0))
+        except (TypeError, ValueError):
+            continue
+    return max(counts)
 
 
 def run_job(
@@ -137,7 +140,7 @@ def run_job(
         if has_failed_work:
             return {
                 "job": job.name,
-                "status": "succeeded",
+                "status": "failed" if job.name == "billing" else "succeeded",
                 "detail": (
                     "The API completed the scheduler request but reported "
                     f"{failed_count} failed item(s)."

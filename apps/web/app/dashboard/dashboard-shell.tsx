@@ -64,6 +64,7 @@ import {
   getWorkspaceBrand,
 } from "@/lib/workspace-brand"
 import { ThemeToggle } from "@/app/theme-toggle"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 import {
   decisionateLanguageChangedEvent,
   getCurrentDecisionateLanguage,
@@ -430,10 +431,7 @@ export function DashboardShell({
   }, [user?.id])
 
   useEffect(() => {
-    if (
-      !user?.id ||
-      (pathname === "/dashboard/billing" && subscriptionAccess?.billing_enabled !== false)
-    ) {
+    if (!user?.id) {
       return
     }
 
@@ -559,7 +557,6 @@ export function DashboardShell({
     }
   }, [
     pathname,
-    subscriptionAccess?.billing_enabled,
     user?.id,
     user?.primaryEmailAddress?.emailAddress,
   ])
@@ -574,30 +571,47 @@ export function DashboardShell({
 
     let ignoreResult = false
     const userId = user.id
+    let expiryTimer: ReturnType<typeof setTimeout> | undefined
+    let requestSequence = 0
 
-    async function loadSubscriptionAccess() {
+    async function loadSubscriptionAccess(fresh = false) {
+      const sequence = ++requestSequence
       try {
         const access = await getBillingAccessStatus(
           userId,
           activeWorkspaceId,
+          fresh,
         )
-        if (!ignoreResult) {
+        if (!ignoreResult && sequence === requestSequence) {
           setSubscriptionAccess(access)
           setSubscriptionAccessKey(
             `${userId}:${activeWorkspaceId || ""}`
           )
+          clearTimeout(expiryTimer)
+          const deadline = access.grace_period_end || access.current_period_end
+          if (access.billing_enabled !== false && access.access_allowed && deadline) {
+            const timestamp = Date.parse(/(Z|[+-]\d{2}:\d{2})$/.test(deadline) ? deadline : `${deadline}Z`)
+            const delay = timestamp - Date.now() + 1000
+            if (delay > 0) expiryTimer = setTimeout(() => void loadSubscriptionAccess(true), Math.min(delay, 2147483647))
+          }
         }
       } catch {
-        if (!ignoreResult) {
+        if (!ignoreResult && sequence === requestSequence) {
           setSubscriptionAccess(null)
         }
       }
     }
 
     void loadSubscriptionAccess()
+    const refreshAccess = () => void loadSubscriptionAccess(true)
+    window.addEventListener("decisionate:billing-updated", refreshAccess)
+    window.addEventListener("focus", refreshAccess)
 
     return () => {
       ignoreResult = true
+      clearTimeout(expiryTimer)
+      window.removeEventListener("decisionate:billing-updated", refreshAccess)
+      window.removeEventListener("focus", refreshAccess)
     }
   }, [
     activeWorkspaceId,
@@ -1238,6 +1252,7 @@ function SubscriptionRequiredPanel({
   canManageBilling: boolean
   isClientWorkspaceContext: boolean
 }) {
+  const { t } = useDecisionateText()
   const isClientSubscriptionExpired =
     isClientWorkspaceContext &&
     access.status === "expired"
@@ -1246,77 +1261,60 @@ function SubscriptionRequiredPanel({
       ? "Contact your agency"
       : access.status === "grace_period"
       ? "Payment needs attention"
+      : access.raw_status === "trialing"
+      ? "Your trial has ended"
       : "Subscription required"
   const description =
     isClientSubscriptionExpired
       ? "This client workspace is managed by an agency whose subscription has expired. Contact the agency to restore access."
       : access.status === "grace_period"
       ? "Your workspace remains available during the billing grace period, but billing details must be updated to keep access."
+      : access.raw_status === "trialing"
+      ? "Your trial has ended. Choose a paid plan to resume using this workspace."
       : access.status === "expired"
-      ? "Your subscription has expired. Choose a monthly or annual plan to restore access."
+      ? "Workspace access is paused. Review billing to restore access."
       : access.reason || "Renew your plan to continue using this workspace."
 
   return (
-    <section className="mx-auto mt-8 max-w-2xl rounded-2xl border border-amber-200 bg-white p-6 shadow-sm sm:p-8">
+    <section className="mx-auto mt-8 max-w-2xl border-l-4 border-amber-500 bg-white p-6 sm:p-8">
       <div className="flex items-start gap-3">
         <div className="rounded-lg bg-amber-100 p-2 text-amber-700">
           <CreditCard size={20} aria-hidden="true" />
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
-            Billing action required
+            {t("Billing action required")}
           </p>
           <h2 className="mt-1 text-xl font-semibold text-gray-900">
-            {title}
+            {t(title)}
           </h2>
           <p className="mt-3 text-sm leading-6 text-gray-600">
-            {description}
+            {t(description)}
           </p>
         </div>
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         {canManageBilling && !isClientWorkspaceContext ? (
-          access.status === "expired" ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-1 text-sm font-medium text-gray-700">
-                Renew with:
-              </span>
-              <Link
-                href="/dashboard/billing?billing_interval=month"
-                className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-              >
-                <CreditCard size={16} aria-hidden="true" />
-                Monthly
-              </Link>
-              <Link
-                href="/dashboard/billing?billing_interval=year"
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)]"
-              >
-                Annual
-              </Link>
-            </div>
-          ) : (
             <Link
               href="/dashboard/billing"
               className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
               <CreditCard size={16} aria-hidden="true" />
-              Open billing
+              {t(access.raw_status === "trialing" ? "Choose a plan" : "Open billing")}
             </Link>
-          )
         ) : (
           <p className="text-sm font-medium text-gray-700">
-            {isClientWorkspaceContext
+            {t(isClientWorkspaceContext
               ? "Contact the agency that manages this workspace to renew the subscription."
-              : "Ask the workspace owner to update billing."}
+              : "Ask the workspace owner to update billing.")}
           </p>
         )}
         <Link
           href="/dashboard/help"
           className="text-sm font-medium text-gray-600 underline underline-offset-4 hover:text-gray-900"
         >
-          Contact support
+          {t("Contact support")}
         </Link>
       </div>
     </section>

@@ -259,19 +259,41 @@ page uses the saved amounts without requiring a frontend code change.
 Professional includes one direct workspace and a 30-day full-access trial. Agency
 includes up to 10 client workspaces, and additional client workspaces are
 priced separately rather than charging per seat. The owner starts
-Checkout from `/dashboard/billing`, while subscription state is updated only from
-signed Stripe webhooks at `/billing/webhook`. Configure the webhook
-for `checkout.session.completed` and `customer.subscription.created`,
-`customer.subscription.updated`, and `customer.subscription.deleted`. The
-webhook endpoint consumes the raw request body and rejects duplicate event IDs.
+Checkout from `/dashboard/billing`. Subscription state is verified against Stripe
+after checkout, on portal return, during expiry recovery and by signed webhooks
+at `/billing/webhook`. Configure the webhook for `checkout.session.completed`,
+`checkout.session.async_payment_succeeded`, `customer.subscription.created`,
+`customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`,
+`invoice.payment_failed`, `invoice.payment_action_required`,
+`invoice.finalization_failed` and `invoice.updated`. The endpoint consumes the
+raw request body and rejects duplicate event IDs. Configure the Stripe customer
+portal to allow payment updates, invoices and cancellation at period end; allow
+customers to resume scheduled cancellations and switch supported monthly/annual
+prices. Use Stripe test mode to verify these settings before enabling payments.
+
+Monthly and annual periods use Stripe's calendar dates, not fixed 30/365-day
+calculations. Both renew automatically unless canceled. Scheduled cancellation
+keeps access until period end; an already canceled subscription requires a new
+checkout without another trial. Failed renewals have a seven-day grace period
+(`BILLING_GRACE_PERIOD_DAYS`), anchored to the unpaid invoice rather than the next
+period end. Retries do not extend that deadline or grant another credit allowance.
+Successful payment restores access and resets recurring credits once per paid
+period. Purchased credits carry over unchanged. Expired records are reconciled
+before denying access; provider outages produce a retryable verification error.
+
+Enable the `billing` scheduler job and system email delivery for trial/cancellation
+reminders, payment-recovery notices and an annual renewal reminder within 30 days.
+The scheduler reconciles provider subscriptions before notices or expiry-driven
+deletion, skips destructive work during provider failures and never deletes an
+accessible workspace merely because its old local renewal date has elapsed.
 
 Agency client workspaces use the agency owner's subscription AI credit pool;
 their usage remains attributed to the client workspace for reporting. Low
 balances trigger one owner email per billing period. Professional owners receive
 the same low-balance notification for their direct workspace. One-time top-ups
-are granted only after the signed Stripe checkout webhook is received and remain
+are granted only after verified payment confirmation or a signed webhook and remain
 available until consumed; they do not renew or expire. Optional monthly AI credit
-packs reset with each billing period.
+packs reset with each paid billing period.
 
 ## OAuth Connectors And Automated Sync
 

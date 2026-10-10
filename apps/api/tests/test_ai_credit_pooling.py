@@ -6,7 +6,7 @@ from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.db.models import AIUsageEvent
+from app.db.models import AIUsageEvent, AICreditPurchase
 from app.db.models import WorkspaceSubscription
 from app.db.models import utc_now
 from app.modules.ai import credits
@@ -24,6 +24,7 @@ class AICreditPoolingTests(unittest.TestCase):
         self.engine = create_engine("sqlite:///:memory:")
         WorkspaceSubscription.__table__.create(self.engine)
         AIUsageEvent.__table__.create(self.engine)
+        AICreditPurchase.__table__.create(self.engine)
         self.session_factory = sessionmaker(bind=self.engine)
         self.session_patch = patch.object(
             credits,
@@ -230,18 +231,19 @@ class AICreditPoolingTests(unittest.TestCase):
         )
         session.commit()
 
-        apply_stripe_billing_event(
+        checkout = {
+            "id": "cs_agency", "mode": "payment", "status": "complete",
+            "payment_status": "paid", "metadata": {
+                "purchase_type": "ai_credit_topup", "workspace_id": "agency-1:client:first",
+                "credit_packs": "2", "credits": "10000",
+            },
+        }
+        with patch("app.modules.billing.router.retrieve_stripe_checkout", return_value=checkout):
+            apply_stripe_billing_event(
             session,
             "checkout.session.completed",
-            {
-                "payment_status": "paid",
-                "metadata": {
-                    "purchase_type": "ai_credit_topup",
-                    "workspace_id": "agency-1:client:first",
-                    "credits": "10000",
-                },
-            },
-        )
+            checkout,
+            )
         session.commit()
 
         subscription = session.query(WorkspaceSubscription).one()
@@ -264,10 +266,10 @@ class AICreditPoolingTests(unittest.TestCase):
         ), patch.object(
             billing_service,
             "stripe_request",
-            return_value={
-                "id": "cs_topup",
-                "url": "https://checkout.test/topup",
-            },
+            side_effect=[
+                {"active": True, "type": "one_time", "currency": "cad", "unit_amount": 1000},
+                {"id": "cs_topup", "url": "https://checkout.test/topup"},
+            ],
         ) as stripe_request:
             result = billing_service.create_ai_credit_topup_session(
                 workspace_id="agency-1",

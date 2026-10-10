@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useCallback,
   useMemo,
   useState,
 } from "react"
@@ -47,6 +48,10 @@ export function useWorkspaceAccess(
     useState("")
   const [accessRefreshKey, setAccessRefreshKey] =
     useState(0)
+  const [workspaceAccessError, setWorkspaceAccessError] = useState("")
+  const retryWorkspaceAccess = useCallback(() => {
+    setAccessRefreshKey(value => value + 1)
+  }, [])
 
   useEffect(() => {
     const handleWorkspaceAccessChanged = () => {
@@ -83,6 +88,7 @@ export function useWorkspaceAccess(
       }
 
       setLoadingWorkspaceAccess(true)
+      setWorkspaceAccessError("")
 
       try {
         const workspaceData =
@@ -126,6 +132,7 @@ export function useWorkspaceAccess(
 
         if (!ignoreResult) {
           setWorkspaces([])
+          setWorkspaceAccessError(error instanceof Error ? error.message : "Unable to check workspace access.")
           setLoadedWorkspaceAccessKey(workspaceAccessKey)
         }
       } finally {
@@ -197,6 +204,9 @@ export function useWorkspaceAccess(
     hasOwnerWorkspaceMembership
 
   return {
+    workspaces,
+    workspaceAccessError,
+    retryWorkspaceAccess,
     activeWorkspace,
     activeWorkspaceId,
     canManageAlerts:

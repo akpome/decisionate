@@ -115,6 +115,15 @@ def build_subscription_access_state(
         seconds_remaining = (period_end - current_time).total_seconds()
         days_remaining = max(0, ceil(seconds_remaining / 86400))
 
+    if raw_status == "checkout_completed" or (
+        subscription.provider_subscription_id
+        and raw_status in {"active", "trialing"} and not period_end
+    ):
+        return _expired_state(
+            plan, raw_status, period_end,
+            "Payment confirmation is pending. Check billing before continuing.",
+        )
+
     if plan == FREE_PLAN and raw_status == "trialing":
         if period_end and current_time >= period_end:
             return SubscriptionAccessState(
@@ -154,13 +163,14 @@ def build_subscription_access_state(
             reason="The free plan is active.",
         )
 
-    if raw_status in {"active", "trialing", "checkout_completed"}:
+    if raw_status in {"active", "trialing"}:
         if period_end and current_time >= period_end:
             return _expired_state(
                 plan,
                 raw_status,
                 period_end,
-                "The subscription period has ended.",
+                "The free trial has ended." if raw_status == "trialing"
+                else "The subscription period has ended.",
             )
 
         status = "canceling" if subscription.cancel_at_period_end else raw_status
@@ -169,7 +179,7 @@ def build_subscription_access_state(
             raw_status=raw_status,
             status=status,
             access_allowed=True,
-            requires_billing_action=bool(subscription.cancel_at_period_end),
+            requires_billing_action=False,
             current_period_end=period_end,
             grace_period_end=None,
             days_remaining=days_remaining,
@@ -180,11 +190,17 @@ def build_subscription_access_state(
             ),
         )
 
-    if raw_status == "past_due" and period_end:
-        grace_period_end = period_end + timedelta(
-            days=get_billing_grace_period_days(),
+    if raw_status == "past_due":
+        # Stripe advances the period even if renewal collection fails.
+        due_at = subscription.payment_due_at or next(
+            (date for date in (subscription.current_period_start, period_end)
+             if date and date <= current_time),
+            None,
         )
-        if current_time < grace_period_end:
+        grace_period_end = due_at + timedelta(
+            days=get_billing_grace_period_days(),
+        ) if due_at else None
+        if grace_period_end and current_time < grace_period_end:
             return SubscriptionAccessState(
                 plan=plan,
                 raw_status=raw_status,
@@ -199,6 +215,13 @@ def build_subscription_access_state(
                 ),
                 reason="Payment needs attention during the billing grace period.",
             )
+        return SubscriptionAccessState(
+            plan=plan, raw_status=raw_status, status="expired",
+            access_allowed=False, requires_billing_action=True,
+            current_period_end=period_end, grace_period_end=grace_period_end,
+            days_remaining=0,
+            reason="The payment grace period has ended. Update billing to restore access.",
+        )
 
     return _expired_state(
         plan,
@@ -233,7 +256,7 @@ def subscription_access_error(state: SubscriptionAccessState) -> str:
             "Payment needs attention. Update your billing details to keep this "
             "workspace active."
         )
-    if state.plan == FREE_PLAN and state.raw_status == "trialing":
+    if state.raw_status == "trialing":
         return "Your free trial has ended. Choose a plan to continue."
     return "Your subscription has expired. Renew your plan to continue."
 

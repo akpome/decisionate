@@ -210,7 +210,7 @@ class BillingServiceTests(unittest.TestCase):
         self.assertIn("client_reference_id=workspace_1", body)
         self.assertIn("subscription_data%5Bmetadata%5D%5Bworkspace_id%5D=workspace_1", body)
         self.assertIn("subscription_data%5Btrial_period_days%5D=30", body)
-        self.assertIn("payment_method_collection=if_required", body)
+        self.assertIn("payment_method_collection=always", body)
 
     def test_monthly_and_annual_checkout_use_same_trial_period(self):
         response = {"id": "cs_test", "url": "https://checkout.test"}
@@ -244,7 +244,7 @@ class BillingServiceTests(unittest.TestCase):
                     body,
                 )
                 self.assertIn(
-                    "payment_method_collection=if_required",
+                    "payment_method_collection=always",
                     body,
                 )
 

@@ -1,9 +1,13 @@
+import io
 import json
 import os
 import unittest
+from urllib.error import HTTPError
 from unittest.mock import patch
 
+from scripts import run_scheduled_jobs
 from scripts.run_scheduled_jobs import (
+    JOBS,
     ScheduledJob,
     run_job,
     selected_jobs,
@@ -144,6 +148,61 @@ class ScheduledJobsRunnerTests(unittest.TestCase):
             clear=True,
         ):
             self.assertEqual(run_scheduled_jobs.main(), 0)
+
+    def test_queue_deferrals_are_logged_without_failing_or_skipping_other_jobs(self):
+        responses = [
+            FakeResponse({
+                "queued_count": 1, "deferred_count": 2, "failed_count": 0,
+                "results": [{"connection_id": 26, "status": "deferred"}],
+            }),
+            FakeResponse({"failed_count": 0}),
+            FakeResponse({"failed": 0}),
+        ]
+        with patch.dict(os.environ, {
+            "DECISIONATE_API_URL": "https://api.example.com",
+            "SCHEDULED_JOBS": "connectors,alerts,billing",
+            "CONNECTORS_SCHEDULER_SECRET": "test-only",
+            "ALERTS_SCHEDULER_SECRET": "test-only",
+            "BILLING_SCHEDULER_SECRET": "test-only",
+        }, clear=True), patch("urllib.request.urlopen", side_effect=responses) as requests, patch(
+            "sys.stdout", new_callable=io.StringIO,
+        ) as output:
+            self.assertEqual(run_scheduled_jobs.main(), 0)
+        result = json.loads(output.getvalue())
+        self.assertEqual(requests.call_count, 3)
+        self.assertEqual(result["failed_count"], 0)
+        self.assertEqual(result["jobs"][0]["result"]["deferred_count"], 2)
+        self.assertTrue(all(job["status"] == "succeeded" for job in result["jobs"]))
+
+    def test_worker_unavailability_fails_connectors_but_still_runs_alerts_and_billing(self):
+        error = HTTPError("https://api.example.com", 503, "Unavailable", {}, io.BytesIO(
+            b'{"detail":"The ingestion worker is unavailable."}',
+        ))
+        with patch.dict(os.environ, {
+            "DECISIONATE_API_URL": "https://api.example.com",
+            "SCHEDULED_JOBS": "connectors,alerts,billing",
+            "CONNECTORS_SCHEDULER_SECRET": "test-only",
+            "ALERTS_SCHEDULER_SECRET": "test-only",
+            "BILLING_SCHEDULER_SECRET": "test-only",
+        }, clear=True), patch("urllib.request.urlopen", side_effect=[
+            error, FakeResponse({"failed_count": 0}), FakeResponse({"failed": 0}),
+        ]) as requests, patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(run_scheduled_jobs.main(), 1)
+        result = json.loads(output.getvalue())
+        self.assertEqual(requests.call_count, 3)
+        self.assertEqual(result["failed_count"], 1)
+        self.assertIn("ingestion worker", result["jobs"][0]["detail"])
+        self.assertEqual([job["status"] for job in result["jobs"]], ["failed", "succeeded", "succeeded"])
+
+    def test_http_errors_are_not_silently_treated_as_success(self):
+        for code in (401, 429, 500):
+            error = HTTPError("https://api.example.com", code, "Failure", {}, io.BytesIO(b'{}'))
+            with self.subTest(code=code), patch.dict(os.environ, {
+                "CONNECTORS_SCHEDULER_SECRET": "test-only",
+            }, clear=True), patch("urllib.request.urlopen", side_effect=error):
+                result = run_job("https://api.example.com", JOBS["connectors"], 60)
+                self.assertEqual(result["status"], "failed")
+                self.assertIn(f"HTTP {code}", result["detail"])
 
 
 if __name__ == "__main__":

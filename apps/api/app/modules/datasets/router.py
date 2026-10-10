@@ -62,6 +62,7 @@ from app.infrastructure.object_storage import (
 )
 from app.security.request_limits import UPLOAD_MAX_BYTES
 from app.infrastructure.ingestion_jobs import (
+    WorkspaceIngestionQueueFull,
     claim_ingestion_job,
     durable_ingestion_enabled,
     ensure_workspace_jobs_idle,
@@ -69,6 +70,7 @@ from app.infrastructure.ingestion_jobs import (
     lock_connection_for_enqueue,
     lock_workspace_queue,
 )
+from app.infrastructure.ingestion_worker import ingestion_worker_ready
 
 from app.modules.datasets.schemas import DataSourceConnectionCreate
 from app.modules.datasets.schemas import DataSourceConnectionUpdate
@@ -10252,6 +10254,118 @@ def require_connectors_scheduler_secret(request: Request):
         )
 
 
+def queue_due_source_connection(
+    db,
+    connection,
+    background_tasks: BackgroundTasks,
+    now: datetime,
+):
+    source = get_dataset_source(connection.source_type)
+    if (
+        source
+        and source.get("connection_type") == "oauth"
+        and connection.status != "connected"
+    ):
+        if getattr(connection, "authorization_error", None):
+            notify_workspace_owner_of_authorization_failure(db, connection)
+        return None
+    if (
+        connection.status != "connected"
+        and not (
+            has_source_connection_config(connection.connection_config)
+            or has_source_connection_credentials(source, connection.connection_config)
+        )
+    ):
+        return None
+
+    if initial_connector_backfill_is_required(connection):
+        if queue_connector_initial_backfill(background_tasks, connection.id):
+            return {
+                "connection_id": connection.id,
+                "status": "initial_backfill_queued",
+            }
+        return None
+
+    if (
+        get_initial_connector_sync_status(connection) == INITIAL_CONNECTOR_SYNC_COMPLETE
+        and get_connector_analysis_status(connection) in {None, CONNECTOR_ANALYSIS_FAILED}
+    ):
+        if queue_connector_initial_analysis(background_tasks, connection.id):
+            return {
+                "connection_id": connection.id,
+                "status": "initial_analysis_queued",
+            }
+
+    (
+        enabled,
+        interval_hours,
+        time_of_day,
+        timezone_name,
+        anchor_date,
+        day_of_week,
+    ) = read_connection_schedule_details(connection.connection_config)
+    if not enabled:
+        return None
+
+    if not connection_sync_is_due(
+        connection.last_synced_at,
+        now,
+        interval_hours,
+        time_of_day,
+        timezone_name,
+        anchor_date,
+        day_of_week,
+    ):
+        return None
+
+    initial_sync_status = get_initial_connector_sync_status(connection)
+    if initial_sync_status in {
+        INITIAL_CONNECTOR_SYNC_PENDING,
+        INITIAL_CONNECTOR_SYNC_INITIAL,
+        INITIAL_CONNECTOR_SYNC_BACKFILL,
+    }:
+        return {
+            "connection_id": connection.id,
+            "status": "initial_sync_in_progress",
+            "initial_sync_status": initial_sync_status,
+        }
+
+    initial_sync_required = initial_connector_sync_is_required(db, connection)
+
+    if connection.source_type not in {"google_analytics", *IMPLEMENTED_CONNECTOR_TYPES}:
+        return {
+            "connection_id": connection.id,
+            "status": "unsupported",
+            "detail": (
+                "Scheduled sync is enabled, but this connector has "
+                "no dataset adapter is enabled for this source"
+            ),
+        }
+
+    active_job = get_active_ingestion_job(db, connection.id)
+    if active_job:
+        return {
+            "connection_id": connection.id,
+            "status": "ingestion_in_progress",
+            "job_id": active_job.id,
+        }
+
+    job = enqueue_connector_ingestion_job(
+        db,
+        connection,
+        DataSourceConnectionSync(),
+        background_tasks,
+        job_type="scheduled_connector_sync",
+        reject_if_active=False,
+    )
+    return {
+        "connection_id": connection.id,
+        "status": "ingestion_queued",
+        "job_id": job.id,
+        "initial_sync": initial_sync_required,
+    }
+
+
 @router.post("/source-connections/sync-due")
 def sync_due_source_connections(
     request: Request,
@@ -10262,6 +10376,17 @@ def sync_due_source_connections(
     db = SessionLocal()
     results = []
     try:
+        if durable_ingestion_enabled() and not ingestion_worker_ready(db):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "The ingestion worker is unavailable. Start or restore the "
+                    "persistent service running python scripts/run_ingestion_worker.py "
+                    "and confirm /ready returns 200. Restarting the scheduler "
+                    "does not process queued imports."
+                ),
+            )
+
         connections = (
             db.query(DataSourceConnection)
             .filter(DataSourceConnection.status != "planned")
@@ -10269,140 +10394,23 @@ def sync_due_source_connections(
             .all()
         )
         for connection in connections:
-            source = get_dataset_source(connection.source_type)
-            if (
-                source
-                and source.get("connection_type") == "oauth"
-                and connection.status != "connected"
-            ):
-                if getattr(connection, "authorization_error", None):
-                    notify_workspace_owner_of_authorization_failure(
-                        db,
-                        connection,
-                    )
-                continue
-            if (
-                connection.status != "connected"
-                and not (
-                    has_source_connection_config(
-                        connection.connection_config,
-                    )
-                    or has_source_connection_credentials(
-                        source,
-                        connection.connection_config,
-                    )
-                )
-            ):
-                continue
-
-            if initial_connector_backfill_is_required(connection):
-                queue_connector_initial_backfill(
-                    background_tasks,
-                    connection.id,
-                )
-                results.append({
-                    "connection_id": connection.id,
-                    "status": "initial_backfill_queued",
-                })
-                continue
-
-            if (
-                get_initial_connector_sync_status(connection)
-                == INITIAL_CONNECTOR_SYNC_COMPLETE
-                and get_connector_analysis_status(connection)
-                in {None, CONNECTOR_ANALYSIS_FAILED}
-            ):
-                if queue_connector_initial_analysis(
-                    background_tasks,
-                    connection.id,
-                ):
-                    results.append({
-                        "connection_id": connection.id,
-                        "status": "initial_analysis_queued",
-                    })
-                    continue
-
-            (
-                enabled,
-                interval_hours,
-                time_of_day,
-                timezone_name,
-                anchor_date,
-                day_of_week,
-            ) = read_connection_schedule_details(
-                connection.connection_config
-            )
-            if not enabled:
-                continue
-
-            if not connection_sync_is_due(
-                connection.last_synced_at,
-                now,
-                interval_hours,
-                time_of_day,
-                timezone_name,
-                anchor_date,
-                day_of_week,
-            ):
-                continue
-
-            initial_sync_status = get_initial_connector_sync_status(
-                connection
-            )
-            if initial_sync_status in {
-                INITIAL_CONNECTOR_SYNC_PENDING,
-                INITIAL_CONNECTOR_SYNC_INITIAL,
-                INITIAL_CONNECTOR_SYNC_BACKFILL,
-            }:
-                results.append({
-                    "connection_id": connection.id,
-                    "status": "initial_sync_in_progress",
-                    "initial_sync_status": initial_sync_status,
-                })
-                continue
-
-            initial_sync_required = initial_connector_sync_is_required(
-                db,
-                connection,
-            )
-
-            if connection.source_type not in {
-                "google_analytics",
-                *IMPLEMENTED_CONNECTOR_TYPES,
-            }:
-                results.append({
-                    "connection_id": connection.id,
-                    "status": "unsupported",
+            connection_id = connection.id
+            try:
+                result = queue_due_source_connection(db, connection, background_tasks, now)
+            except WorkspaceIngestionQueueFull as error:
+                # Release enqueue locks, retaining jobs committed earlier in the run.
+                db.rollback()
+                result = {
+                    "connection_id": connection_id,
+                    "status": "deferred",
+                    "reason": "workspace_queue_full",
                     "detail": (
-                        "Scheduled sync is enabled, but this connector has "
-                        "no dataset adapter is enabled for this source"
+                        f"{error.detail} This connection will be retried "
+                        "on the next scheduled run."
                     ),
-                })
-                continue
-
-            active_job = get_active_ingestion_job(db, connection.id)
-            if active_job:
-                results.append({
-                    "connection_id": connection.id,
-                    "status": "ingestion_in_progress",
-                    "job_id": active_job.id,
-                })
-                continue
-
-            job = enqueue_connector_ingestion_job(
-                db,
-                connection,
-                DataSourceConnectionSync(),
-                background_tasks,
-                job_type="scheduled_connector_sync",
-                reject_if_active=False,
-            )
-            results.append({
-                "connection_id": connection.id,
-                "status": "ingestion_queued",
-                "job_id": job.id,
-                "initial_sync": initial_sync_required,
-            })
+                }
+            if result is not None:
+                results.append(result)
 
         return {
             "processed_count": len(results),
@@ -10412,6 +10420,10 @@ def sync_due_source_connections(
             ),
             "in_progress_count": sum(
                 result["status"] == "ingestion_in_progress"
+                for result in results
+            ),
+            "deferred_count": sum(
+                result["status"] == "deferred"
                 for result in results
             ),
             # The scheduler now only accepts work. Keep the legacy counters

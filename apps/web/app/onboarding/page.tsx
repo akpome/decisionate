@@ -7,11 +7,12 @@ import {
 } from "react"
 import { useRouter } from "next/navigation"
 import { useClerk, useUser } from "@clerk/nextjs"
-import { LogOut } from "lucide-react"
+import Image from "next/image"
+import Link from "next/link"
+import { ArrowLeft, ArrowRight, LoaderCircle, LogOut, RefreshCw } from "lucide-react"
 
 import {
   createOrganization,
-  getMyOrganization,
   getOrganizationWorkspaces,
   type OrganizationCreatePayload,
 } from "@/lib/api"
@@ -19,25 +20,20 @@ import {
   ThemeToggle,
 } from "@/app/theme-toggle"
 import { useDecisionateText } from "@/app/use-decisionate-language"
-
-const onboardingUseCases = [
-  "Direct company workspace",
-  "Agency client portfolio",
-  "Shared client reporting portal",
-]
+import { getSafeReturnTo, getSignInUrl, getWorkspaceReturnTo } from "@/features/auth/lib/auth-redirects"
+import { chooseAuthWorkspace } from "@/features/auth/lib/auth-workspaces"
+import { getActiveWorkspaceId, setActiveWorkspaceId } from "@/lib/workspace-context"
 
 const workspaceTypes = [
   {
     value: "business",
     name: "Business",
     description: "For your own business workspace.",
-    detail: "Professional trial · 5,000 Decisionate AI credits/month",
   },
   {
     value: "agency",
     name: "Agency",
     description: "For an agency managing client workspaces.",
-    detail: "Agency trial · Up to 10 client workspaces · 25,000 credits/month",
   },
 ] as const
 
@@ -116,7 +112,7 @@ function getOnboardingErrorMessage(
 
 export default function OnboardingPage() {
   const { t } = useDecisionateText()
-  const { user } = useUser()
+  const { isLoaded, isSignedIn, user } = useUser()
   const { signOut } = useClerk()
   const userEmail =
     user?.primaryEmailAddress?.emailAddress ??
@@ -126,8 +122,8 @@ export default function OnboardingPage() {
 
   const [organizationName, setOrganizationName] =
     useState("")
-  const [firstName, setFirstName] = useState("")
-  const [lastName, setLastName] = useState("")
+  const [firstName, setFirstName] = useState<string | null>(null)
+  const [lastName, setLastName] = useState<string | null>(null)
   const [businessType, setBusinessType] =
     useState<BusinessType>("business")
   const [country, setCountry] = useState("")
@@ -148,9 +144,11 @@ export default function OnboardingPage() {
     useState(false)
   const [errorMessage, setErrorMessage] =
     useState("")
+  const [workspaceCheckFailed, setWorkspaceCheckFailed] = useState(false)
+  const [checkAttempt, setCheckAttempt] = useState(0)
 
-  const resolvedFirstName = firstName.trim() || user?.firstName || ""
-  const resolvedLastName = lastName.trim() || user?.lastName || ""
+  const resolvedFirstName = (firstName ?? user?.firstName ?? "").trim()
+  const resolvedLastName = (lastName ?? user?.lastName ?? "").trim()
   const canContinue =
     Boolean(
       resolvedFirstName &&
@@ -161,7 +159,9 @@ export default function OnboardingPage() {
       country
     ) &&
     !loading &&
-    !checkingOrganization
+    !checkingOrganization &&
+    !workspaceCheckFailed &&
+    !existingWorkspaceFound
   const canCreateOrganization =
     canContinue &&
     Boolean(
@@ -220,9 +220,9 @@ export default function OnboardingPage() {
           user.emailAddresses?.[0]?.emailAddress
       )
 
-      router.push(
-        "/dashboard"
-      )
+      setActiveWorkspaceId(user.id, user.id)
+      setExistingWorkspaceFound(true)
+      router.replace(getWorkspaceReturnTo(new URLSearchParams(window.location.search).get("redirect_url"), window.location.origin))
     } catch (error) {
       console.error(error)
       setErrorMessage(
@@ -237,88 +237,98 @@ export default function OnboardingPage() {
   }
 
   useEffect(() => {
-    if (!user?.id) return
+    if (!isLoaded) return
+    if (!isSignedIn || !user?.id) {
+      router.replace(getSignInUrl(getSafeReturnTo(new URLSearchParams(window.location.search).get("redirect_url"), window.location.origin) ?? "/onboarding"))
+      return
+    }
 
     const userId =
       user.id
+    let cancelled = false
 
     async function checkOrganization() {
       try {
         setCheckingOrganization(true)
-        const [organization, workspaces] =
-          await Promise.all([
-            getMyOrganization(
-              userId
-            ),
-            getOrganizationWorkspaces(
-              userId,
-              userEmail
-            ),
-          ])
+        setWorkspaceCheckFailed(false)
+        setErrorMessage("")
+        const workspaces = await getOrganizationWorkspaces(userId, userEmail)
+        if (cancelled) return
+        const workspace = chooseAuthWorkspace(workspaces, userId, getActiveWorkspaceId(userId))
 
-        if (organization || workspaces.length > 0) {
+        if (workspace) {
+          setActiveWorkspaceId(userId, workspace.owner_user_id)
           setExistingWorkspaceFound(true)
-          router.push(
-            "/dashboard"
-          )
+          router.replace(getWorkspaceReturnTo(new URLSearchParams(window.location.search).get("redirect_url"), window.location.origin))
         }
       } catch (error) {
-        console.error(error)
+        if (cancelled) return
+        setWorkspaceCheckFailed(true)
         setErrorMessage(
           getOnboardingErrorMessage(
             error,
-            "Unable to check organization setup."
+            "Unable to check workspace setup. Please try again."
           )
         )
       } finally {
-        setCheckingOrganization(false)
+        if (!cancelled) setCheckingOrganization(false)
       }
     }
 
     void checkOrganization()
-  }, [router, user?.id, userEmail])
+    return () => { cancelled = true }
+  }, [isLoaded, isSignedIn, router, user?.id, userEmail, checkAttempt])
 
   return (
     <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
-      <div className="mx-auto flex max-w-5xl justify-end gap-2">
-        <ThemeToggle />
-        <button
-          type="button"
-          onClick={() => void signOut({ redirectUrl: "/sign-in" })}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
-        >
-          <LogOut size={16} aria-hidden="true" />
-          {t("Switch account")}
-        </button>
-      </div>
+      <header className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
+        <Link href="/" className="inline-flex items-center gap-2 text-lg font-semibold text-gray-950">
+          <Image src="/icons/decisionate-logo.png" alt="" width={32} height={32} priority />Decisionate
+        </Link>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            type="button"
+            onClick={() => void signOut({ redirectUrl: getSignInUrl(getSafeReturnTo(new URLSearchParams(window.location.search).get("redirect_url"), window.location.origin)) })}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+          >
+            <LogOut size={16} aria-hidden="true" />
+            {t("Switch account")}
+          </button>
+        </div>
+      </header>
 
-      <div className="mx-auto mt-6 grid w-full max-w-5xl gap-5 lg:min-h-[calc(100vh-6.5rem)] lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-center">
-        <section className="rounded-2xl bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
-            {t("Workspace setup")}
-          </p>
-
-          <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
-            {t("Welcome to Decisionate")}
+      <div className="mx-auto mt-10 w-full max-w-2xl">
+        <section>
+          <h1 className="text-2xl font-semibold text-gray-950">
+            {t("Create your workspace")}
           </h1>
 
-          <p className="mt-3 max-w-2xl text-gray-600">
-            {t("Create the workspace that will hold your datasets, dashboards, reports, alerts, and decisions. You can use it for your own business or for agency-managed client work.")}
+          <p className="mt-2 text-sm text-gray-600">
+            {t("Tell us about your company or agency.")}
           </p>
 
           {checkingOrganization || existingWorkspaceFound ? (
             <p
               role="status"
               aria-live="polite"
-              className="mt-8 rounded-xl border bg-gray-50 px-4 py-3 text-sm text-gray-600"
+              className="mt-8 flex items-center gap-2 text-sm text-gray-600"
             >
+              <LoaderCircle size={18} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
               {existingWorkspaceFound
                 ? t("Opening your workspace...")
                 : t("Checking existing workspace...")}
             </p>
+          ) : workspaceCheckFailed ? (
+            <div role="alert" className="mt-8 space-y-4">
+              <p className="text-sm text-red-600">{errorMessage}</p>
+              <button type="button" onClick={() => setCheckAttempt(value => value + 1)} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900">
+                <RefreshCw size={16} aria-hidden="true" />{t("Try again")}
+              </button>
+            </div>
           ) : (
             <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <p className="text-xs font-semibold text-gray-500">
                 {t("Step")} {step} {t("of")} 2
               </p>
 
@@ -333,9 +343,9 @@ export default function OnboardingPage() {
                         {t("First name")}
                         <input
                           type="text"
-                          value={firstName || user?.firstName || ""}
+                          value={firstName ?? user?.firstName ?? ""}
                           onChange={(event) => setFirstName(event.target.value)}
-                          className="mt-2 w-full rounded-xl border p-3 font-normal text-gray-900"
+                          className="mt-2 w-full rounded-lg border p-3 font-normal text-gray-900"
                           autoComplete="given-name"
                           required
                         />
@@ -344,15 +354,15 @@ export default function OnboardingPage() {
                         {t("Last name")}
                         <input
                           type="text"
-                          value={lastName || user?.lastName || ""}
+                          value={lastName ?? user?.lastName ?? ""}
                           onChange={(event) => setLastName(event.target.value)}
-                          className="mt-2 w-full rounded-xl border p-3 font-normal text-gray-900"
+                          className="mt-2 w-full rounded-lg border p-3 font-normal text-gray-900"
                           autoComplete="family-name"
                           required
                         />
                       </label>
                     </div>
-                    <p className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                    <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
                       {t("Work email:")} <span className="font-medium text-gray-900">{userEmail || t("Not available")}</span>
                     </p>
                   </fieldset>
@@ -371,7 +381,7 @@ export default function OnboardingPage() {
                           setErrorMessage("")
                         }}
                         placeholder={t("Acme Inc")}
-                        className="mt-2 w-full rounded-xl border p-3 font-normal text-gray-900"
+                        className="mt-2 w-full rounded-lg border p-3 font-normal text-gray-900"
                         autoComplete="organization"
                         required
                       />
@@ -385,7 +395,7 @@ export default function OnboardingPage() {
                           return (
                             <label
                               key={type.value}
-                              className={`cursor-pointer rounded-xl border p-4 transition ${
+                              className={`cursor-pointer rounded-lg border p-4 transition ${
                                 selected
                                   ? "border-[var(--decisionate-brand-primary)] bg-blue-50 ring-2 ring-blue-100"
                                   : "border-gray-200 bg-white hover:border-gray-300"
@@ -397,21 +407,12 @@ export default function OnboardingPage() {
                                 value={type.value}
                                 checked={selected}
                                 onChange={() => setBusinessType(type.value)}
-                                className="sr-only"
+                                className="mr-2 h-4 w-4 accent-[var(--decisionate-brand-primary)]"
                               />
-                              <span className="flex items-center justify-between gap-3">
+                              <span>
                                 <span className="font-semibold text-gray-900">{t(type.name)}</span>
-                                <span
-                                  aria-hidden="true"
-                                  className={`h-4 w-4 rounded-full border-4 ${
-                                    selected
-                                      ? "border-[var(--decisionate-brand-primary)]"
-                                      : "border-gray-300"
-                                  }`}
-                                />
                               </span>
                               <span className="mt-2 block text-sm text-gray-600">{t(type.description)}</span>
-                              <span className="mt-2 block text-xs font-medium text-gray-500">{t(type.detail)}</span>
                             </label>
                           )
                         })}
@@ -421,9 +422,10 @@ export default function OnboardingPage() {
                     <label className="block text-sm font-medium text-gray-700">
                       {t("Country")}
                       <select
+                        aria-label={t("Country")}
                         value={country}
                         onChange={(event) => setCountry(event.target.value)}
-                        className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900"
+                        className="mt-2 w-full rounded-lg border bg-white p-3 font-normal text-gray-900"
                         required
                       >
                         <option value="">{t("Select a country")}</option>
@@ -437,9 +439,10 @@ export default function OnboardingPage() {
                   <button
                     type="submit"
                     disabled={!canContinue}
-                    className="w-full rounded-xl bg-[var(--decisionate-brand-primary)] px-6 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 sm:w-auto"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-6 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 sm:w-auto"
                   >
                     {t("Continue")}
+                    <ArrowRight size={16} aria-hidden="true" />
                   </button>
                 </>
               ) : (
@@ -451,14 +454,14 @@ export default function OnboardingPage() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <label className="text-sm font-medium text-gray-700">
                         {t("Industry")}
-                        <select value={industry} onChange={(event) => setIndustry(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900" required>
+                        <select aria-label={t("Industry")} value={industry} onChange={(event) => setIndustry(event.target.value)} className="mt-2 w-full rounded-lg border bg-white p-3 font-normal text-gray-900" required>
                           <option value="">{t("Select an industry")}</option>
                           {industryOptions.map((option) => <option key={option} value={option}>{t(option)}</option>)}
                         </select>
                       </label>
                       <label className="text-sm font-medium text-gray-700">
                         {t("Company size")}
-                        <select value={companySize} onChange={(event) => setCompanySize(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900" required>
+                        <select aria-label={t("Company size")} value={companySize} onChange={(event) => setCompanySize(event.target.value)} className="mt-2 w-full rounded-lg border bg-white p-3 font-normal text-gray-900" required>
                           <option value="">{t("Select company size")}</option>
                           {companySizeOptions.map((option) => <option key={option} value={option}>{option} {t("people")}</option>)}
                         </select>
@@ -466,7 +469,7 @@ export default function OnboardingPage() {
                       {businessType === "agency" && (
                         <label className="text-sm font-medium text-gray-700">
                           {t("Clients currently managed")}
-                          <select value={agencyClientCount} onChange={(event) => setAgencyClientCount(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900" required>
+                          <select aria-label={t("Clients currently managed")} value={agencyClientCount} onChange={(event) => setAgencyClientCount(event.target.value)} className="mt-2 w-full rounded-lg border bg-white p-3 font-normal text-gray-900" required>
                             <option value="">{t("Select client count")}</option>
                             {agencyClientCountOptions.map((option) => <option key={option} value={option}>{option} {t("clients")}</option>)}
                           </select>
@@ -474,7 +477,7 @@ export default function OnboardingPage() {
                       )}
                       <label className="text-sm font-medium text-gray-700">
                         {t("Role or job function")}
-                        <select value={role} onChange={(event) => setRole(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900" required>
+                        <select aria-label={t("Role or job function")} value={role} onChange={(event) => setRole(event.target.value)} className="mt-2 w-full rounded-lg border bg-white p-3 font-normal text-gray-900" required>
                           <option value="">{t("Select your role")}</option>
                           {roleOptions.map((option) => <option key={option} value={option}>{t(option)}</option>)}
                         </select>
@@ -482,16 +485,12 @@ export default function OnboardingPage() {
                     </div>
                     <label className="block text-sm font-medium text-gray-700">
                       {t("Primary goal with Decisionate")}
-                      <select value={primaryGoal} onChange={(event) => setPrimaryGoal(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3 font-normal text-gray-900" required>
+                      <select aria-label={t("Primary goal with Decisionate")} value={primaryGoal} onChange={(event) => setPrimaryGoal(event.target.value)} className="mt-2 w-full rounded-lg border bg-white p-3 font-normal text-gray-900" required>
                         <option value="">{t("Select your primary goal")}</option>
                         {primaryGoalOptions.map((option) => <option key={option} value={option}>{t(option)}</option>)}
                       </select>
                     </label>
                   </fieldset>
-
-                  <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
-                    {t(businessType === "agency" ? "Your Agency trial includes full plan access for one month. No credit card is required." : "Your Professional trial includes full plan access for one month. No credit card is required.")}
-                  </p>
 
                   {errorMessage && <p role="alert" className="text-sm font-medium text-red-600">{errorMessage}</p>}
 
@@ -499,16 +498,19 @@ export default function OnboardingPage() {
                     <button
                       type="button"
                       onClick={() => setStep(1)}
-                      className="rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                      disabled={loading}
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
                     >
+                      <ArrowLeft size={16} aria-hidden="true" />
                       {t("Back")}
                     </button>
                     <button
                       type="submit"
                       disabled={!canCreateOrganization || loading}
-                      className="rounded-xl bg-[var(--decisionate-brand-primary)] px-6 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                      className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-6 py-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                     >
                       {loading ? t("Creating workspace...") : t("Create workspace")}
+                      {loading && <LoaderCircle size={16} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                     </button>
                   </div>
                 </>
@@ -517,26 +519,6 @@ export default function OnboardingPage() {
           )}
         </section>
 
-        <aside className="rounded-2xl border bg-white p-6 shadow-sm sm:p-8">
-          <h2 className="text-lg font-semibold">
-            {t("Built for mixed customers")}
-          </h2>
-
-          <p className="mt-2 text-sm leading-6 text-gray-600">
-            {t("Start simple now. Later, settings lets you brand the workspace, add teammates, and share client access when needed.")}
-          </p>
-
-          <ul className="mt-5 space-y-3 text-sm text-gray-700">
-            {onboardingUseCases.map((useCase) => (
-              <li
-                key={useCase}
-                className="rounded-xl border bg-gray-50 px-3 py-2"
-              >
-                {t(useCase)}
-              </li>
-            ))}
-          </ul>
-        </aside>
       </div>
     </main>
   )
