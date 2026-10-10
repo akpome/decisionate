@@ -8,30 +8,39 @@ import { LandingProductDemo } from "./landing-product-demo"
 
 export function LandingHero() {
   const { t } = useLandingText()
+  const productSummary = t(
+    "Connect accounting, sales and marketing tools, or upload spreadsheets. Spot trends and explore AI-assisted insights. Build reports, record decisions, assign actions and track outcomes in one workspace. Spend less time gathering data and more time acting on it."
+  )
   const automationSummary = t(
     "Automatic daily syncing keeps connected data current. Weekly performance reports and KPI alerts arrive by email."
+  )
+  const teamSummary = t(
+    "Work together in one business workspace, or manage separate client workspaces with your agency's branding and role-based access."
   )
   return (
     <section id="product" className="landing-hero border-b border-neutral-200 bg-white">
       <div className="landing-container">
         <LandingProductDemo>
           <div className="landing-hero-intro min-w-0">
-            <div className="landing-hero-heading flex flex-col gap-2">
-              <h1 className="landing-hero-title font-semibold text-neutral-950">
-                Decisionate
-              </h1>
-              <p className="landing-hero-subtitle text-xl leading-7 text-neutral-800 sm:text-2xl sm:leading-8">
-                {t("Insights from existing business data.")}
+            <div className="landing-hero-message">
+              <div className="landing-hero-heading flex flex-col gap-2">
+                <h1 className="landing-hero-title font-semibold text-neutral-950">
+                  Decisionate
+                </h1>
+                <p className="landing-hero-subtitle text-xl leading-7 text-neutral-800 sm:text-2xl sm:leading-8">
+                  {t("Insights from existing business data.")}
+                </p>
+              </div>
+              <p className="landing-hero-copy max-w-lg text-base leading-7 text-neutral-600">
+                {productSummary}
+              </p>
+              <p className="landing-hero-automation max-w-lg text-sm leading-[22px] text-neutral-600">
+                {automationSummary}
+              </p>
+              <p className="landing-hero-team max-w-lg text-sm leading-[22px] text-neutral-600">
+                {teamSummary}
               </p>
             </div>
-            <p className="landing-hero-copy mt-4 max-w-lg text-base leading-7 text-neutral-600">
-              {t(
-                "Connect accounting, sales and marketing tools, or upload spreadsheets. Spot trends and explore AI-assisted insights. Build reports, record decisions, assign actions and track outcomes in one workspace. Spend less time gathering data and more time acting on it."
-              )}
-            </p>
-            <p className="landing-hero-automation hidden max-w-lg text-sm leading-[22px] text-neutral-600 lg:block">
-              {automationSummary}
-            </p>
             <div className="landing-hero-actions mt-6 flex flex-wrap items-center gap-3">
               <Link
                 href="/sign-up"
@@ -64,9 +73,17 @@ export function LandingHero() {
             </p>
           </div>
         </LandingProductDemo>
-        <p className="landing-hero-automation-mobile mt-5 max-w-lg text-sm leading-6 text-neutral-600 lg:hidden">
-          {automationSummary}
-        </p>
+        <div className="landing-hero-more">
+          <p className="landing-hero-copy-mobile max-w-lg text-sm leading-[22px] text-neutral-600">
+            {productSummary}
+          </p>
+          <p className="landing-hero-automation-mobile max-w-lg text-sm leading-[22px] text-neutral-600">
+            {automationSummary}
+          </p>
+          <p className="landing-hero-team-mobile max-w-lg text-sm leading-[22px] text-neutral-600">
+            {teamSummary}
+          </p>
+        </div>
       </div>
     </section>
   )

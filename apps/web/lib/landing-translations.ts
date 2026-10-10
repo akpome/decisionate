@@ -18,6 +18,8 @@ export const refreshedLandingFrench: Record<string, string> = {
     "Connectez vos outils ou importez des tableurs. Tendances, analyses IA, rapports, décisions, actions attribuées et résultats dans un seul espace. Moins de collecte, plus d'action.",
   "Automatic daily syncing keeps connected data current. Weekly performance reports and KPI alerts arrive by email.":
     "Synchronisation quotidienne automatique, rapports de performance hebdomadaires et alertes KPI par courriel pour garder votre équipe à jour.",
+  "Work together in one business workspace, or manage separate client workspaces with your agency's branding and role-based access.":
+    "Travaillez ensemble dans un espace d'entreprise, ou gérez des espaces clients distincts avec l'image de votre agence et des accès par rôle.",
   "Start your 30-day trial": "Commencer votre essai de 30 jours",
   "No credit card required.": "Aucune carte de crédit requise.",
   "Marketing Performance · demonstration data":

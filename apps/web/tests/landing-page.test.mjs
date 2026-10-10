@@ -110,7 +110,7 @@ test("the tagline stays in brand lockups while the hero describes business-data 
 
 test("the first-screen message explains the inputs, insights and follow-through in both languages", () => {
   const hero = read("../components/landing/hero.tsx")
-  const copy = hero.match(/className="landing-hero-copy[^\"]*">\s*\{t\(\s*"([^\"]+)"/)[1]
+  const copy = hero.match(/const productSummary = t\(\s*"([^\"]+)"/)[1]
   for (const benefit of [
     "accounting, sales and marketing",
     "upload spreadsheets",
@@ -143,11 +143,26 @@ test("automation benefits fill the desktop hero gap and remain available below t
   for (const benefit of ["quotidienne automatique", "hebdomadaires", "KPI", "courriel"])
     assert.ok(french.includes(benefit), `Missing French automation benefit: ${benefit}`)
   assert.ok(french.split(/\s+/).length <= 25)
-  assert.match(hero, /className="landing-hero-automation hidden[^\"]*lg:block"/)
-  assert.match(hero, /className="landing-hero-automation-mobile[^\"]*lg:hidden"/)
+  assert.match(hero, /className="landing-hero-automation /)
+  assert.match(hero, /className="landing-hero-automation-mobile /)
   assert.equal((hero.match(/\{automationSummary\}/g) ?? []).length, 2)
-  assert.ok(hero.indexOf('className="landing-hero-automation hidden') < hero.indexOf('className="landing-hero-actions'))
+  assert.ok(hero.indexOf('className="landing-hero-automation ') < hero.indexOf('className="landing-hero-actions'))
   assert.ok(hero.indexOf('className="landing-hero-automation-mobile') > hero.indexOf("</LandingProductDemo>"))
+})
+
+test("team and agency benefits stay concise, translated and available on smaller screens", () => {
+  const hero = read("../components/landing/hero.tsx")
+  const summary = hero.match(/const teamSummary = t\(\s*"([^"]+)"/)[1]
+  for (const benefit of ["Work together", "business workspace", "client workspaces", "agency's branding", "role-based access"])
+    assert.ok(summary.includes(benefit), `Missing team benefit: ${benefit}`)
+  assert.ok(summary.split(/\s+/).length <= 25)
+  const french = refreshedLandingFrench[summary]
+  assert.ok(french, "The team summary needs a French translation")
+  assert.ok(french.split(/\s+/).length <= 30)
+  assert.equal((hero.match(/\{teamSummary\}/g) ?? []).length, 2)
+  assert.equal((hero.match(/\{productSummary\}/g) ?? []).length, 2)
+  assert.ok(hero.indexOf('className="landing-hero-team ') < hero.indexOf('className="landing-hero-actions'))
+  assert.ok(hero.indexOf('className="landing-hero-team-mobile') > hero.indexOf("</LandingProductDemo>"))
 })
 
 test("the video stage fits the first viewport without cropping the product", () => {
@@ -194,17 +209,25 @@ test("desktop buttons align with the video bottom while copy stays balanced and 
   assert.doesNotMatch(copyClass, /hidden|mx-auto/)
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const desktop = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1024px)")
-  const declarations = selector => Object.fromEntries(desktop.nodes.find(node => node.selector === selector).nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value]))
-  assert.equal(declarations(".landing-product-demo,\n  .landing-hero-stage")["grid-template-columns"], "minmax(0, 0.8fr) minmax(0, 1.2fr)")
-  assert.equal(declarations(".landing-hero-stage")["align-items"], "center")
+  const aligned = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1024px), (max-height: 600px) and (min-width: 541px)")
+  const declarations = selector => Object.fromEntries(aligned.nodes.find(node => node.selector === selector).nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value]))
+  const grid = desktop.nodes.find(node => node.selector === ".landing-product-demo,\n  .landing-hero-stage")
+  assert.ok(grid.nodes.some(node => node.prop === "grid-template-columns" && node.value === "minmax(0, 0.8fr) minmax(0, 1.2fr)"))
+  assert.equal(declarations(".landing-hero-stage")["align-items"], "end")
+  assert.equal(declarations(".landing-hero-stage")["grid-template-rows"], "auto")
+  assert.equal(declarations(".landing-hero-stage")["max-height"], "none")
   assert.equal(declarations(".landing-hero-intro")["align-self"], "stretch")
   assert.equal(declarations(".landing-hero-intro").display, "flex")
   assert.equal(declarations(".landing-hero-intro")["flex-direction"], "column")
-  assert.equal(declarations(".landing-hero-heading")["margin-top"], "auto")
-  assert.equal(declarations(".landing-hero-copy")["margin-bottom"], "16px")
-  assert.equal(declarations(".landing-hero-automation")["margin-top"], "auto")
-  assert.equal(declarations(".landing-hero-automation")["margin-bottom"], "16px")
+  assert.equal(declarations(".landing-hero-message")["margin-block"], "auto")
+  assert.equal(declarations(".landing-hero-intro").gap, "16px")
+  const message = css.nodes.find(node => node.selector === ".landing-hero-message,\n.landing-hero-more")
+  assert.ok(message.nodes.some(node => node.prop === "gap" && node.value === "16px"))
+  for (const selector of [".landing-hero-copy", ".landing-hero-automation", ".landing-hero-team"]) {
+    css.walkRules(selector, rule => assert.ok(!rule.nodes.some(node => node.prop?.startsWith("margin")), `${selector} must not introduce inconsistent paragraph spacing`))
+  }
   assert.equal(declarations(".landing-hero-actions")["margin-top"], "0")
+  assert.equal(declarations(".landing-hero-actions")["align-items"], "flex-end")
   assert.equal(declarations(".landing-hero-actions")["flex-wrap"], "nowrap")
   assert.equal(declarations(".landing-hero-note").position, "absolute")
   assert.equal(declarations(".landing-hero-note").top, "100%")
@@ -216,31 +239,31 @@ test("desktop buttons align with the video bottom while copy stays balanced and 
   assert.match(demo, /setVideoWidth\(entry\.contentRect\.width\)/)
   assert.match(demo, /maxWidth: videoWidth/)
   assert.match(demo, /observer\.disconnect\(\)/)
-  const frame = desktop.nodes.find(node => node.selector === ".landing-demo-frame")
+  const frame = aligned.nodes.find(node => node.selector === ".landing-demo-frame")
   assert.ok(frame.nodes.some(node => node.prop === "justify-content" && node.value === "flex-end"))
 })
 
-test("compact desktop actions fit beside the video without changing the mobile flow", () => {
+test("compact desktop and landscape actions retain the shared video baseline", () => {
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const compact = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1024px) and (max-width: 1199px)")
   const shortLabel = compact.nodes.find(node => node.selector === ".landing-trial-short")
   assert.ok(shortLabel.nodes.some(node => node.prop === "display" && node.value === "inline"))
   const landscape = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 600px) and (min-width: 541px)")
-  for (const selector of [".landing-hero-intro", ".landing-hero-note"]) {
-    const rule = landscape.nodes.find(node => node.selector === selector)
-    assert.ok(rule.nodes.some(node => node.prop === "position" && node.value === "static"))
-  }
+  assert.ok(!landscape.nodes.some(node => node.selector === ".landing-hero-intro" || node.selector === ".landing-hero-note"))
   const actions = landscape.nodes.find(node => node.selector === ".landing-hero-actions")
-  assert.ok(actions.nodes.some(node => node.prop === "flex-wrap" && node.value === "wrap"))
+  assert.ok(actions.nodes.some(node => node.prop === "margin-top" && node.value === "0"))
+  assert.ok(!actions.nodes.some(node => node.prop === "flex-wrap" && node.value === "wrap"))
 })
 
 test("short landscape screens constrain the video while letting text and chapters flow", () => {
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const landscape = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 600px) and (min-width: 541px)")
-  const stage = landscape.nodes.find(node => node.selector === ".landing-hero-stage")
-  assert.ok(stage.nodes.some(node => node.prop === "max-height" && node.value === "none"))
   const video = landscape.nodes.find(node => node.selector === ".landing-product-video")
   assert.ok(video.nodes.some(node => node.prop === "max-height" && node.value.includes("100svh")))
+  const benefits = landscape.nodes.find(node => node.selector === ".landing-hero-automation,\n  .landing-hero-team")
+  assert.ok(benefits.nodes.some(node => node.prop === "display" && node.value === "none"))
+  const narrow = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 600px) and (min-width: 541px) and (max-width: 767px), (max-height: 360px) and (min-width: 541px) and (max-width: 1023px)")
+  assert.ok(narrow.nodes.find(node => node.selector === ".landing-hero-copy-mobile").nodes.some(node => node.prop === "display" && node.value === "block"))
 })
 
 test("public brand marks match the combined name and tagline height", () => {
