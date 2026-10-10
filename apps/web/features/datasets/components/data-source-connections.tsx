@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import Link from "next/link"
 import {
   CalendarDays,
@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  X,
 } from "lucide-react"
 
 import {
@@ -822,6 +823,7 @@ function DataSourceConnectionRow({
     useState(String(connection.sync_day_of_week ?? 0))
   const [showAdvancedDateRange, setShowAdvancedDateRange] =
     useState(false)
+  const advancedDateRangeButtonRef = useRef<HTMLButtonElement>(null)
   const [advancedStartDate, setAdvancedStartDate] =
     useState(() => {
       const bounds = getAdvancedSyncDateBounds(connection)
@@ -831,6 +833,12 @@ function DataSourceConnectionRow({
     useState(() => getAdvancedSyncDateBounds(connection).max)
   const [advancedDateError, setAdvancedDateError] =
     useState<string | null>(null)
+
+  function closeAdvancedDateRange() {
+    setShowAdvancedDateRange(false)
+    setAdvancedDateError(null)
+    advancedDateRangeButtonRef.current?.focus()
+  }
 
   function syncConnection(advancedDateRange = false) {
     if (advancedDateRange) {
@@ -856,7 +864,7 @@ function DataSourceConnectionRow({
         )
         return
       }
-      setAdvancedDateError(null)
+      closeAdvancedDateRange()
     }
 
     onSyncConnection?.(
@@ -1223,6 +1231,7 @@ function DataSourceConnectionRow({
                 <div className="w-full min-w-0 sm:w-auto">
                   <button
                     type="button"
+                    ref={advancedDateRangeButtonRef}
                     onClick={() => {
                       setShowAdvancedDateRange(
                         (visible) => !visible
@@ -1230,6 +1239,7 @@ function DataSourceConnectionRow({
                       setAdvancedDateError(null)
                     }}
                     aria-expanded={showAdvancedDateRange}
+                    aria-controls={`connection-date-range-${connection.id}`}
                     className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
                     <CalendarDays size={14} />
@@ -1239,7 +1249,35 @@ function DataSourceConnectionRow({
                   </button>
 
                   {showAdvancedDateRange && (
-                    <div className="mt-2 w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-left sm:min-w-[21rem]">
+                    <div
+                      id={`connection-date-range-${connection.id}`}
+                      role="group"
+                      aria-labelledby={`connection-date-range-title-${connection.id}`}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          event.stopPropagation()
+                          closeAdvancedDateRange()
+                        }
+                      }}
+                      className="mt-2 w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-left sm:min-w-[21rem]"
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <h4
+                          id={`connection-date-range-title-${connection.id}`}
+                          className="text-xs font-semibold text-gray-700"
+                        >
+                          {t("Advanced date range")}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={closeAdvancedDateRange}
+                          aria-label={t("Close advanced date range")}
+                          title={t("Close advanced date range")}
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500"
+                        >
+                          <X size={16} aria-hidden="true" />
+                        </button>
+                      </div>
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <label className="min-w-0 text-xs font-medium text-gray-700">
                           {t("From")}
