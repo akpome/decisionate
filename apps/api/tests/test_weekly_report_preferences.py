@@ -94,6 +94,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             branding["brand_name"],
             "ABC Marketing",
         )
+        self.assertEqual(branding["agency_name"], "ABC Marketing")
         self.assertEqual(
             branding["workspace_name"],
             "Smith Dental",
@@ -143,6 +144,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             "Acme Retail",
         )
         self.assertFalse(branding["is_managed_client"])
+        self.assertEqual(branding["agency_name"], "")
         self.assertTrue(
             branding["brand_logo_url"].endswith(
                 "/icons/decisionate-icon.svg"
@@ -188,8 +190,9 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
 
         self.assertEqual(
             digest.subject,
-            "Weekly Performance Alert — Smith Dental",
+            "ABC Marketing: Weekly Performance Alert — Smith Dental",
         )
+        self.assertEqual(digest.agency_name, "ABC Marketing")
         self.assertTrue(digest.is_managed_client)
 
     def test_managed_client_email_is_branded_and_uses_platform_sender(self):
@@ -206,7 +209,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             brand_accent_color="#654321",
             is_managed_client=True,
             review_url="https://app.example.com/dashboard",
-            subject="Weekly Performance Alert — Smith Dental",
+            subject="ABC Marketing: Weekly Performance Alert — Smith Dental",
             preview_text="1 dataset KPI metric ready for review.",
             dataset_count=1,
             metrics=[

@@ -41,6 +41,7 @@ from app.modules.auth_context import (
     get_auth_context,
     is_client_workspace_role,
 )
+from app.modules.organizations.branding import get_managing_agency
 from app.modules.ai.service import (
     build_ai_status,
     generate_structured_analysis,
@@ -85,9 +86,7 @@ decisionate_logo_path = "/icons/decisionate-icon.svg"
 def clean_weekly_report_brand_name(
     value: str | None,
 ) -> str:
-    clean_value = str(
-        value or "",
-    ).strip()
+    clean_value = " ".join(str(value or "").split())
 
     return (
         clean_value
@@ -548,6 +547,7 @@ def get_weekly_report_branding(
     if not organization:
         return {
             "brand_name": default_weekly_report_brand_name,
+            "agency_name": "",
             "workspace_name": "",
             "brand_logo_url": build_decisionate_logo_url(),
             "brand_primary_color": default_weekly_report_primary_color,
@@ -559,22 +559,13 @@ def get_weekly_report_branding(
     is_managed_client = ":client:" in str(
         organization.owner_user_id or "",
     )
-    brand_organization = None
-    if is_managed_client:
-        agency_user_id = str(
-            organization.owner_user_id,
-        ).split(":client:", 1)[0]
-        brand_organization = (
-            db.query(Organization)
-            .filter(
-                Organization.owner_user_id == agency_user_id,
-            )
-            .first()
-        )
+    brand_organization = get_managing_agency(db, organization)
+    agency_name = ""
 
     if is_managed_client and brand_organization:
+        agency_name = clean_weekly_report_brand_name(brand_organization.name)
         brand_name = clean_weekly_report_brand_name(
-            brand_organization.report_display_name
+            str(brand_organization.report_display_name or "").strip()
             or brand_organization.name,
         )
         brand_logo_url = brand_organization.logo_url
@@ -594,6 +585,7 @@ def get_weekly_report_branding(
 
     return {
         "brand_name": brand_name,
+        "agency_name": agency_name,
         "workspace_name": clean_weekly_report_brand_name(
             organization.name,
         ),
@@ -655,6 +647,10 @@ def build_weekly_report_digest(
     ) if branding.get("workspace_name") else ""
     is_managed_client = bool(
         branding.get("is_managed_client", False)
+    )
+    agency_name = (
+        clean_weekly_report_brand_name(branding.get("agency_name") or clean_brand_name)
+        if is_managed_client else ""
     )
     relationship_results = relationships or []
     focus_keys = {
@@ -750,9 +746,9 @@ def build_weekly_report_digest(
         digest_metrics
     )
     subject_base = (
-        f"Weekly Performance Alert — {workspace_name}"
+        f"{agency_name}: Weekly Performance Alert — {workspace_name}"
         if is_managed_client and workspace_name
-        else f"{clean_brand_name} KPI digest — {generated_date}"
+        else f"{agency_name or clean_brand_name} KPI digest — {generated_date}"
     )
     subject_prefix = clean_optional_text(
         preference.subject_prefix,
@@ -844,6 +840,7 @@ def build_weekly_report_digest(
         reply_to_email="",
         subject_prefix=subject_prefix,
         brand_name=clean_brand_name,
+        agency_name=agency_name,
         workspace_name=workspace_name,
         brand_logo_url=branding.get("brand_logo_url"),
         brand_primary_color=clean_weekly_report_brand_color(
@@ -1346,12 +1343,16 @@ def build_weekly_report_test_digest(
     clean_brand_name = clean_weekly_report_brand_name(
         brand_name
     )
+    agency_name = (
+        clean_weekly_report_brand_name(branding.get("agency_name") or clean_brand_name)
+        if branding.get("is_managed_client") else ""
+    )
     subject = (
         (
-            f"Weekly Performance Alert — {branding['workspace_name']}"
+            f"{agency_name}: Weekly Performance Alert — {branding['workspace_name']}"
             if branding.get("is_managed_client")
             and branding.get("workspace_name")
-            else f"{clean_brand_name} KPI email test — {generated_date}"
+            else f"{agency_name or clean_brand_name} KPI email test — {generated_date}"
         )
     )
 
@@ -1366,6 +1367,7 @@ def build_weekly_report_test_digest(
         reply_to_email="",
         subject_prefix="",
         brand_name=clean_brand_name,
+        agency_name=agency_name,
         workspace_name=branding.get("workspace_name", ""),
         brand_logo_url=branding.get("brand_logo_url"),
         brand_primary_color=clean_weekly_report_brand_color(

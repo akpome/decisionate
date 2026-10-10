@@ -42,6 +42,23 @@ def get_workspace_owner_email(db, organization: Organization) -> str | None:
     if not owner_id:
         return None
 
+    if ":client:" in owner_id:
+        # Client workspace owner keys are synthetic, not account identifiers.
+        member = (
+            db.query(OrganizationMember)
+            .filter(
+                OrganizationMember.organization_id == organization.id,
+                OrganizationMember.role.in_(["client_owner", "client"]),
+            )
+            .order_by(OrganizationMember.id.asc())
+            .first()
+        )
+        if not member:
+            return None
+        owner_id = str(member.clerk_user_id or "").strip()
+        if not owner_id:
+            return None
+
     user = db.query(AppUser).filter(AppUser.id == owner_id).first()
     if user and user.email:
         return str(user.email).strip() or None

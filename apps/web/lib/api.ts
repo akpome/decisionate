@@ -1038,6 +1038,7 @@ export type WeeklyReportDigest = {
   reply_to_email: string
   subject_prefix: string
   brand_name: string
+  agency_name?: string
   workspace_name?: string
   brand_logo_url?: string | null
   brand_primary_color?: string

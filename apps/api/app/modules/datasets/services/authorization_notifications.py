@@ -8,6 +8,7 @@ from app.db.models import utc_now
 from app.modules.billing.notifications import get_workspace_owner_email
 from app.modules.alerts.email_delivery import send_platform_system_email
 from app.modules.datasets.services.connectors import connector_display_name
+from app.modules.organizations.branding import get_managing_agency
 
 
 logger = logging.getLogger(__name__)
@@ -78,6 +79,8 @@ def notify_workspace_owner_of_authorization_failure(
             getattr(connection, "display_name", source_label) or source_label
         ).strip()
         subject = f"Action required: reauthorize {source_label} in Decisionate"
+        agency = get_managing_agency(db, organization)
+        agency_name = " ".join(str(agency.name or "").split()) if agency else ""
         body = (
             f"Hello,\n\n"
             f"Decisionate could no longer access the {source_label} connection "
@@ -88,6 +91,12 @@ def notify_workspace_owner_of_authorization_failure(
             f"Reason: {authorization_error}\n\n"
             "After reauthorization, scheduled ingestion will resume.\n"
         )
+        if agency_name:
+            subject = f"{agency_name}: {subject}"
+            body += (
+                f"\n{organization.name} is managed by {agency_name}.\n"
+                "Powered by Decisionate\n"
+            )
     except Exception:
         logger.warning(
             "Connector authorization notification could not resolve its recipient",
@@ -100,10 +109,15 @@ def notify_workspace_owner_of_authorization_failure(
         return False
 
     try:
+        sender_options = (
+            {"sender_name": f"{agency_name} via Decisionate"}
+            if agency_name else {}
+        )
         send_platform_system_email(
             recipient,
             subject,
             body,
+            **sender_options,
         )
     except Exception:
         logger.warning(
