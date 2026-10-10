@@ -11,9 +11,6 @@ export function LandingHero() {
   const productSummary = t(
     "Connect accounting, sales and marketing tools, or upload spreadsheets. Spot trends with AI-assisted insights. Build reports, record decisions, assign actions and track outcomes in one workspace."
   )
-  const compactSummary = t(
-    "Connect business tools or spreadsheets. Explore insights, decide what to do next and track the results."
-  )
   const automationSummary = t(
     "Automatic daily syncing keeps connected data current. Weekly performance reports and KPI alerts arrive by email."
   )
@@ -37,13 +34,18 @@ export function LandingHero() {
               <p className="landing-hero-copy max-w-lg text-neutral-600">
                 {productSummary}
               </p>
-              <p className="landing-hero-copy-compact max-w-lg text-neutral-600">
-                {compactSummary}
-              </p>
               <p className="landing-hero-automation max-w-lg text-neutral-600">
                 {automationSummary}
               </p>
               <p className="landing-hero-team max-w-lg text-neutral-600">
+                {teamSummary}
+              </p>
+            </div>
+            <div className="landing-hero-more">
+              <p className="landing-hero-automation-mobile max-w-lg text-neutral-600">
+                {automationSummary}
+              </p>
+              <p className="landing-hero-team-mobile max-w-lg text-neutral-600">
                 {teamSummary}
               </p>
             </div>
@@ -81,17 +83,6 @@ export function LandingHero() {
             </div>
           </div>
         </LandingProductDemo>
-        <div className="landing-hero-more">
-          <p className="landing-hero-copy-mobile max-w-lg text-neutral-600">
-            {productSummary}
-          </p>
-          <p className="landing-hero-automation-mobile max-w-lg text-neutral-600">
-            {automationSummary}
-          </p>
-          <p className="landing-hero-team-mobile max-w-lg text-neutral-600">
-            {teamSummary}
-          </p>
-        </div>
       </div>
     </section>
   )

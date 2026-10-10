@@ -140,7 +140,7 @@ test("hero copy steps down by purpose and the credit-card note follows the butto
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const declarations = (parent, selector) => Object.fromEntries(parent.nodes.find(node => node.selector === selector).nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value]))
   const sizes = [
-    ".landing-hero-copy,\n.landing-hero-copy-mobile,\n.landing-hero-copy-compact",
+    ".landing-hero-copy",
     ".landing-hero-automation,\n.landing-hero-automation-mobile",
     ".landing-hero-team,\n.landing-hero-team-mobile"
   ].map(selector => parseInt(declarations(css, selector)["font-size"]))
@@ -158,20 +158,22 @@ test("hero copy steps down by purpose and the credit-card note follows the butto
   assert.equal(note["line-height"], "18px")
 })
 
-test("small portrait screens get a compact overview without losing the fuller workflow details", () => {
+test("mobile benefits remain inside the hero introduction before its actions and demo", () => {
   const hero = read("../components/landing/hero.tsx")
-  const compact = hero.match(/const compactSummary = t\(\s*"([^"]+)"/)[1]
-  assert.ok(compact.split(/\s+/).length <= 20)
-  assert.ok(refreshedLandingFrench[compact])
-  assert.match(hero, /className="landing-hero-copy-compact /)
-  assert.ok(hero.indexOf('className="landing-hero-copy-mobile') > hero.indexOf("</LandingProductDemo>"))
+  assert.doesNotMatch(hero, /compactSummary|landing-hero-copy-mobile|landing-hero-copy-compact/)
+  const intro = hero.indexOf('className="landing-hero-intro')
+  const benefits = hero.indexOf('className="landing-hero-more"')
+  const actions = hero.indexOf('className="landing-hero-cta"')
+  assert.ok(intro < benefits && benefits < actions)
+  assert.ok(actions < hero.indexOf("</LandingProductDemo>"))
+  assert.doesNotMatch(hero.slice(hero.indexOf("</LandingProductDemo>")), /landing-hero-more|automationSummary|teamSummary/)
   const css = require("postcss").parse(read("../components/landing/landing.css"))
-  const tiny = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 600px) and (max-width: 360px)")
-  assert.ok(tiny.nodes.find(node => node.selector === ".landing-hero-copy").nodes.some(node => node.prop === "display" && node.value === "none"))
-  assert.ok(tiny.nodes.find(node => node.selector === ".landing-hero-copy-compact,\n  .landing-hero-copy-mobile").nodes.some(node => node.prop === "display" && node.value === "block"))
+  const benefitsRule = css.nodes.find(node => node.selector === ".landing-hero-more")
+  assert.ok(benefitsRule.nodes.some(node => node.prop === "margin-top" && node.value === "16px"))
+  css.walkRules(".landing-hero-copy", rule => assert.ok(!rule.nodes.some(node => node.prop === "display" && node.value === "none")))
 })
 
-test("automation benefits fill the desktop hero gap and remain available below the mobile demo", () => {
+test("automation benefits fill the desktop hero gap and stay with the mobile introduction", () => {
   const hero = read("../components/landing/hero.tsx")
   const summary = hero.match(/const automationSummary = t\(\s*"([^"]+)"/)[1]
   for (const benefit of ["Automatic daily syncing", "Weekly performance reports", "KPI alerts", "email"])
@@ -186,7 +188,7 @@ test("automation benefits fill the desktop hero gap and remain available below t
   assert.match(hero, /className="landing-hero-automation-mobile /)
   assert.equal((hero.match(/\{automationSummary\}/g) ?? []).length, 2)
   assert.ok(hero.indexOf('className="landing-hero-automation ') < hero.indexOf('className="landing-hero-actions'))
-  assert.ok(hero.indexOf('className="landing-hero-automation-mobile') > hero.indexOf("</LandingProductDemo>"))
+  assert.ok(hero.indexOf('className="landing-hero-automation-mobile') < hero.indexOf('className="landing-hero-actions'))
 })
 
 test("team and agency benefits stay concise, translated and available on smaller screens", () => {
@@ -199,12 +201,12 @@ test("team and agency benefits stay concise, translated and available on smaller
   assert.ok(french, "The team summary needs a French translation")
   assert.ok(french.split(/\s+/).length <= 30)
   assert.equal((hero.match(/\{teamSummary\}/g) ?? []).length, 2)
-  assert.equal((hero.match(/\{productSummary\}/g) ?? []).length, 2)
+  assert.equal((hero.match(/\{productSummary\}/g) ?? []).length, 1)
   assert.ok(hero.indexOf('className="landing-hero-team ') < hero.indexOf('className="landing-hero-actions'))
-  assert.ok(hero.indexOf('className="landing-hero-team-mobile') > hero.indexOf("</LandingProductDemo>"))
+  assert.ok(hero.indexOf('className="landing-hero-team-mobile') < hero.indexOf('className="landing-hero-actions'))
 })
 
-test("the video stage fits the first viewport without cropping the product", () => {
+test("mobile stages flow after the full introduction without shrinking or cropping the video", () => {
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const values = (selector) => {
     const rules = []
@@ -213,8 +215,8 @@ test("the video stage fits the first viewport without cropping the product", () 
     })
     return Object.fromEntries(rules.flatMap(rule => rule.nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value])))
   }
-  assert.equal(values(".landing-hero-stage")["grid-template-rows"], "auto minmax(0, 1fr)")
-  assert.match(values(".landing-hero-stage")["max-height"], /100svh - var\(--landing-nav-height\)/)
+  assert.equal(values(".landing-hero-stage")["grid-template-rows"], "auto auto")
+  css.walkRules(".landing-hero-stage", rule => assert.ok(!rule.nodes.some(node => node.prop === "max-height")))
   assert.equal(values(".landing-product-video")["max-height"], "100%")
   assert.equal(values(".landing-product-video")["aspect-ratio"], "8 / 5")
   assert.equal(values(".landing-product-video")["object-position"], "center bottom")
@@ -248,11 +250,11 @@ test("desktop heading anchors to the video top and button bottoms anchor to the 
   assert.doesNotMatch(copyClass, /hidden|mx-auto/)
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const desktop = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1024px)")
-  const aligned = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1024px), (max-height: 600px) and (min-width: 541px)")
+  const aligned = desktop
   const declarations = selector => Object.fromEntries(aligned.nodes.find(node => node.selector?.split(",").map(value => value.trim()).includes(selector)).nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value]))
   const grid = desktop.nodes.find(node => node.selector === ".landing-product-demo,\n  .landing-hero-stage")
   assert.ok(grid.nodes.some(node => node.prop === "grid-template-columns" && node.value === "minmax(0, 0.8fr) minmax(0, 1.2fr)"))
-  assert.equal(declarations(".landing-product-demo")["grid-template-rows"], "minmax(0, 1fr) auto auto")
+  assert.equal(declarations(".landing-product-demo")["grid-template-rows"], "minmax(0, 1fr) auto auto auto")
   assert.equal(declarations(".landing-product-demo")["row-gap"], "0")
   for (const selector of [".landing-hero-stage", ".landing-hero-intro", ".landing-hero-cta"])
     assert.equal(declarations(selector).display, "contents")
@@ -283,6 +285,8 @@ test("desktop heading anchors to the video top and button bottoms anchor to the 
   assert.equal(declarations(".landing-demo-details")["grid-row"], "3")
   assert.equal(declarations(".landing-demo-details")["justify-self"], "end")
   assert.equal(declarations(".landing-demo-details")["margin-top"], undefined)
+  assert.equal(declarations(".landing-hero-more")["grid-column"], "1 / -1")
+  assert.equal(declarations(".landing-hero-more")["grid-row"], "4")
   const demo = read("../components/landing/landing-product-demo.tsx")
   assert.ok(demo.indexOf('className="landing-demo-details"') < demo.indexOf('className="landing-demo-chapters'))
   assert.match(demo, /new ResizeObserver/)
@@ -293,7 +297,7 @@ test("desktop heading anchors to the video top and button bottoms anchor to the 
   assert.ok(frame.nodes.some(node => node.prop === "justify-content" && node.value === "flex-end"))
 })
 
-test("compact desktop and landscape actions retain the shared chapter-rule baseline", () => {
+test("compact desktop actions retain the shared chapter-rule baseline", () => {
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const compact = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1024px) and (max-width: 1199px)")
   const shortLabel = compact.nodes.find(node => node.selector === ".landing-trial-short")
@@ -305,15 +309,16 @@ test("compact desktop and landscape actions retain the shared chapter-rule basel
   assert.ok(!actions.nodes.some(node => node.prop === "flex-wrap" && node.value === "wrap"))
 })
 
-test("short landscape screens constrain the video while letting text and chapters flow", () => {
+test("phone landscape layouts keep the full copy together and reserve two columns for desktop", () => {
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const landscape = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 600px) and (min-width: 541px)")
   const video = landscape.nodes.find(node => node.selector === ".landing-product-video")
   assert.ok(video.nodes.some(node => node.prop === "max-height" && node.value.includes("100svh")))
   const benefits = landscape.nodes.find(node => node.selector === ".landing-hero-automation,\n  .landing-hero-team")
   assert.ok(benefits.nodes.some(node => node.prop === "display" && node.value === "none"))
-  const narrow = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 600px) and (min-width: 541px) and (max-width: 819px), (max-height: 360px) and (min-width: 541px) and (max-width: 1023px)")
-  assert.ok(narrow.nodes.find(node => node.selector === ".landing-hero-copy-mobile").nodes.some(node => node.prop === "display" && node.value === "block"))
+  assert.ok(!landscape.nodes.some(node => node.selector === ".landing-product-demo,\n  .landing-hero-stage"))
+  const shortDesktop = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1024px) and (max-height: 600px)")
+  assert.ok(shortDesktop.nodes.find(node => node.selector === ".landing-product-demo,\n  .landing-hero-stage").nodes.some(node => node.prop === "grid-template-columns" && node.value === "repeat(2, minmax(0, 1fr))"))
   const shortPhone = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 360px) and (min-width: 541px) and (max-width: 639px)")
   assert.ok(shortPhone.nodes.find(node => node.selector === ".landing-hero-title").nodes.some(node => node.prop === "font-size" && node.value === "28px"))
   assert.ok(shortPhone.nodes.find(node => node.selector === ".landing-hero-subtitle").nodes.some(node => node.prop === "font-size" && node.value === "16px"))
