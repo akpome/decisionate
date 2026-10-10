@@ -474,15 +474,16 @@ export default function DatasetDetailsPage() {
     const frame = window.requestAnimationFrame(
       updateTableWidth
     )
-    const observer = new ResizeObserver(
-      updateTableWidth
-    )
-
-    observer.observe(table)
+    const observer = typeof ResizeObserver === "function"
+      ? new ResizeObserver(updateTableWidth)
+      : null
+    observer?.observe(table)
+    window.addEventListener("resize", updateTableWidth)
 
     return () => {
       window.cancelAnimationFrame(frame)
-      observer.disconnect()
+      window.removeEventListener("resize", updateTableWidth)
+      observer?.disconnect()
     }
   }, [
     dataset?.file_name,

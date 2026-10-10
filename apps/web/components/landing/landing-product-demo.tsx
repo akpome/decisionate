@@ -38,11 +38,20 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
     const video = videoRef.current
     if (!video) return
     // Viewport height can constrain the video to less than its column width.
-    const observer = new ResizeObserver(([entry]) => {
-      setVideoWidth(entry.contentRect.width)
-    })
-    observer.observe(video)
-    return () => observer.disconnect()
+    const updateVideoWidth = () => {
+      setVideoWidth(video.getBoundingClientRect().width)
+    }
+    const frame = window.requestAnimationFrame(updateVideoWidth)
+    const observer = typeof ResizeObserver === "function"
+      ? new ResizeObserver(updateVideoWidth)
+      : null
+    observer?.observe(video)
+    window.addEventListener("resize", updateVideoWidth)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener("resize", updateVideoWidth)
+      observer?.disconnect()
+    }
   }, [])
 
   function play() {
@@ -95,7 +104,10 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
             onTimeUpdate={(event) => {
               const time = event.currentTarget.currentTime
               setChapter(
-                productDemoChapters.findLastIndex((item) => item.time <= time)
+                productDemoChapters.reduce(
+                  (active, item, index) => item.time <= time ? index : active,
+                  -1
+                )
               )
             }}
           >
