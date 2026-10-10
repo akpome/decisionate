@@ -14,8 +14,8 @@ export const refreshedLandingFrench: Record<string, string> = {
     "Pour les entreprises et les agences qui les accompagnent",
   "Your business data. A clearer next decision.":
     "Vos données d'entreprise. Une prochaine décision plus claire.",
-  "Bring your numbers together, see what changed, and keep the action and its outcome in one workspace.":
-    "Rassemblez vos chiffres, voyez ce qui a changé et conservez l'action et son résultat dans un même espace de travail.",
+  "Connect accounting, sales and marketing tools, or upload spreadsheets. Spot trends and explore AI-assisted insights. Build reports, record decisions, assign actions and track outcomes in one workspace. Spend less time gathering data and more time acting on it.":
+    "Connectez vos outils ou importez des tableurs. Tendances, analyses IA, rapports, décisions, actions attribuées et résultats dans un seul espace. Moins de collecte, plus d'action.",
   "Start your 30-day trial": "Commencer votre essai de 30 jours",
   "No credit card required.": "Aucune carte de crédit requise.",
   "Marketing Performance · demonstration data":

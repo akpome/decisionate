@@ -108,6 +108,30 @@ test("the tagline stays in brand lockups while the hero describes business-data 
   assert.doesNotMatch(read("../app/page.tsx"), /ProductWorkflowSection/)
 })
 
+test("the first-screen message explains the inputs, insights and follow-through in both languages", () => {
+  const hero = read("../components/landing/hero.tsx")
+  const copy = hero.match(/className="landing-hero-copy[^\"]*">\s*\{t\(\s*"([^\"]+)"/)[1]
+  for (const benefit of [
+    "accounting, sales and marketing",
+    "upload spreadsheets",
+    "Spot trends",
+    "AI-assisted insights",
+    "Build reports",
+    "record decisions",
+    "assign actions",
+    "track outcomes",
+    "less time gathering data"
+  ]) assert.ok(copy.includes(benefit), `Missing first-screen benefit: ${benefit}`)
+  assert.ok(copy.split(/\s+/).length <= 50, "Keep the hero message concise")
+  const french = refreshedLandingFrench[copy]
+  assert.ok(french, "The updated hero needs a French translation")
+  assert.ok(french.split(/\s+/).length <= 50, "Keep the French hero message concise too")
+  for (const benefit of ["tableurs", "IA", "rapports", "décisions", "actions attribuées", "résultats"])
+    assert.ok(french.includes(benefit), `Missing French benefit: ${benefit}`)
+  assert.match(hero, /Start your 30-day trial/)
+  assert.match(hero, /No credit card required\./)
+})
+
 test("the video stage fits the first viewport without cropping the product", () => {
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const values = (selector) => {

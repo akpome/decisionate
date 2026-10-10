@@ -23,7 +23,7 @@ export function LandingHero() {
             </div>
             <p className="landing-hero-copy mt-4 max-w-lg text-base leading-7 text-neutral-600">
               {t(
-                "Bring your numbers together, see what changed, and keep the action and its outcome in one workspace."
+                "Connect accounting, sales and marketing tools, or upload spreadsheets. Spot trends and explore AI-assisted insights. Build reports, record decisions, assign actions and track outcomes in one workspace. Spend less time gathering data and more time acting on it."
               )}
             </p>
             <div className="landing-hero-actions mt-6 flex flex-wrap items-center gap-3">
