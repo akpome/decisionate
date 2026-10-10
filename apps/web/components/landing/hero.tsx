@@ -48,9 +48,6 @@ export function LandingHero() {
               </p>
             </div>
             <div className="landing-hero-cta">
-              <p className="landing-hero-note text-xs leading-4 text-neutral-500">
-                {t("No credit card required.")}
-              </p>
               <div className="landing-hero-actions flex flex-wrap items-end gap-3">
                 <Link
                   href="/sign-up"
@@ -78,6 +75,9 @@ export function LandingHero() {
                   <ArrowRight size={16} aria-hidden="true" className="hidden sm:block" />
                 </Link>
               </div>
+              <p className="landing-hero-note text-xs leading-4 text-neutral-500">
+                {t("No credit card required.")}
+              </p>
             </div>
           </div>
         </LandingProductDemo>

@@ -263,7 +263,6 @@
   max-width: 100%;
   max-height: 100%;
   aspect-ratio: 8 / 5;
-  /* The shorter poster must share the video's bottom edge, not its center. */
   object-position: center bottom;
 }
 .landing-product-video::cue {
@@ -286,7 +285,7 @@
     align-self: stretch;
   }
   .landing-hero-message {
-    margin-block: auto;
+    margin-block: 0;
   }
   .landing-hero-actions {
     align-items: flex-end;
@@ -294,7 +293,15 @@
     flex-shrink: 0;
   }
   .landing-hero-cta {
-    margin-top: 0;
+    position: relative;
+    margin-top: auto;
+  }
+  /* Leave the reassurance below the shared button/video baseline. */
+  .landing-hero-note {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: 100%;
   }
   .landing-demo-frame {
     justify-content: flex-end;
@@ -337,6 +344,9 @@
     font-size: 16px;
     line-height: 24px;
   }
+}
+
+@media (min-width: 1280px) {
   .landing-hero-team {
     display: block;
   }
@@ -484,7 +494,7 @@
     gap: 8px;
   }
   .landing-hero-cta {
-    margin-top: 0;
+    margin-top: auto;
   }
   .landing-hero-actions .landing-button {
     padding-inline: 12px;
@@ -503,7 +513,7 @@
 }
 
 /* Keep the whole video visible on narrow landscape screens. */
-@media (max-height: 600px) and (min-width: 541px) and (max-width: 767px), (max-height: 360px) and (min-width: 541px) and (max-width: 1023px) {
+@media (max-height: 600px) and (min-width: 541px) and (max-width: 819px), (max-height: 360px) and (min-width: 541px) and (max-width: 1023px) {
   .landing-hero-copy {
     display: none;
   }
@@ -540,7 +550,7 @@
   }
 }
 
-@media (min-width: 1200px) and (min-height: 450px) and (max-height: 600px) {
+@media (min-width: 1280px) and (min-height: 450px) and (max-height: 600px) {
   .landing-hero-team {
     display: block;
   }
