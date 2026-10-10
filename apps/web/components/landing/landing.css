@@ -170,9 +170,33 @@
 .landing-hero-more {
   margin-top: 20px;
 }
+.landing-hero-copy,
+.landing-hero-copy-mobile,
+.landing-hero-copy-compact {
+  font-size: 16px;
+  line-height: 24px;
+}
+.landing-hero-automation,
+.landing-hero-automation-mobile {
+  font-size: 15px;
+  line-height: 22px;
+}
+.landing-hero-team,
+.landing-hero-team-mobile {
+  font-size: 14px;
+  line-height: 22px;
+}
+.landing-hero-cta {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 8px;
+  margin-top: 20px;
+}
 .landing-hero-automation,
 .landing-hero-team,
-.landing-hero-copy-mobile {
+.landing-hero-copy-mobile,
+.landing-hero-copy-compact {
   display: none;
 }
 .landing-product-demo {
@@ -256,7 +280,6 @@
     max-height: none;
   }
   .landing-hero-intro {
-    position: relative;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -269,11 +292,9 @@
     align-items: flex-end;
     flex-wrap: nowrap;
     flex-shrink: 0;
-    margin-top: 0;
   }
-  .landing-hero-note {
-    position: absolute;
-    top: 100%;
+  .landing-hero-cta {
+    margin-top: 0;
   }
   .landing-demo-frame {
     justify-content: flex-end;
@@ -308,6 +329,14 @@
 }
 
 @media (min-width: 1200px) {
+  .landing-hero-copy {
+    font-size: 18px;
+    line-height: 28px;
+  }
+  .landing-hero-automation {
+    font-size: 16px;
+    line-height: 24px;
+  }
   .landing-hero-team {
     display: block;
   }
@@ -324,10 +353,6 @@
   .landing-hero-subtitle {
     font-size: 20px;
     line-height: 28px;
-  }
-  .landing-hero-copy {
-    font-size: 14px;
-    line-height: 22px;
   }
   .landing-hero-actions svg,
   .landing-trial-full {
@@ -364,11 +389,7 @@
     font-size: 40px;
     line-height: 44px;
   }
-  .landing-hero-copy {
-    font-size: 14px;
-    line-height: 22px;
-  }
-  .landing-hero-actions {
+  .landing-hero-cta {
     margin-top: 16px;
   }
   .landing-hero-stage {
@@ -430,9 +451,21 @@
     font-size: 18px;
     line-height: 24px;
   }
-  .landing-hero-copy {
+  .landing-hero-copy,
+  .landing-hero-copy-mobile,
+  .landing-hero-copy-compact {
+    font-size: 15px;
+    line-height: 22px;
+  }
+  .landing-hero-automation,
+  .landing-hero-automation-mobile {
+    font-size: 14px;
+    line-height: 22px;
+  }
+  .landing-hero-team,
+  .landing-hero-team-mobile {
     font-size: 13px;
-    line-height: 18px;
+    line-height: 20px;
   }
   .landing-product-demo,
   .landing-hero-stage {
@@ -449,6 +482,8 @@
   }
   .landing-hero-actions {
     gap: 8px;
+  }
+  .landing-hero-cta {
     margin-top: 0;
   }
   .landing-hero-actions .landing-button {
@@ -485,6 +520,17 @@
   }
 }
 
+@media (max-height: 360px) and (min-width: 541px) and (max-width: 639px) {
+  .landing-hero-title {
+    font-size: 28px;
+    line-height: 32px;
+  }
+  .landing-hero-subtitle {
+    font-size: 16px;
+    line-height: 22px;
+  }
+}
+
 @media (min-width: 1024px) and (min-height: 450px) and (max-height: 600px) {
   .landing-hero-automation {
     display: block;
@@ -515,15 +561,29 @@
     font-size: 16px;
     line-height: 22px;
   }
-  .landing-hero-copy {
+  .landing-hero-copy,
+  .landing-hero-copy-mobile,
+  .landing-hero-copy-compact {
+    font-size: 14px;
+    line-height: 20px;
+  }
+  .landing-hero-automation-mobile {
     font-size: 13px;
+    line-height: 20px;
+  }
+  .landing-hero-team-mobile {
+    font-size: 12px;
     line-height: 18px;
   }
-  .landing-hero-actions {
+  .landing-hero-cta {
     margin-top: 10px;
   }
-  .landing-hero-note {
-    margin-top: 4px;
+  .landing-hero-copy {
+    display: none;
+  }
+  .landing-hero-copy-compact,
+  .landing-hero-copy-mobile {
+    display: block;
   }
   .landing-hero-stage {
     gap: 12px;

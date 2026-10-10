@@ -14,8 +14,10 @@ export const refreshedLandingFrench: Record<string, string> = {
     "Pour les entreprises et les agences qui les accompagnent",
   "Your business data. A clearer next decision.":
     "Vos données d'entreprise. Une prochaine décision plus claire.",
-  "Connect accounting, sales and marketing tools, or upload spreadsheets. Spot trends and explore AI-assisted insights. Build reports, record decisions, assign actions and track outcomes in one workspace. Spend less time gathering data and more time acting on it.":
-    "Connectez vos outils ou importez des tableurs. Tendances, analyses IA, rapports, décisions, actions attribuées et résultats dans un seul espace. Moins de collecte, plus d'action.",
+  "Connect accounting, sales and marketing tools, or upload spreadsheets. Spot trends with AI-assisted insights. Build reports, record decisions, assign actions and track outcomes in one workspace.":
+    "Connectez vos outils ou importez des tableurs. Tendances, analyses IA, rapports, décisions, actions attribuées et résultats dans un seul espace.",
+  "Connect business tools or spreadsheets. Explore insights, decide what to do next and track the results.":
+    "Connectez vos outils ou tableurs. Explorez les tendances, décidez et suivez les résultats.",
   "Automatic daily syncing keeps connected data current. Weekly performance reports and KPI alerts arrive by email.":
     "Synchronisation quotidienne automatique, rapports de performance hebdomadaires et alertes KPI par courriel pour garder votre équipe à jour.",
   "Work together in one business workspace, or manage separate client workspaces with your agency's branding and role-based access.":

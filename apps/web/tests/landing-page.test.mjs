@@ -120,9 +120,9 @@ test("the first-screen message explains the inputs, insights and follow-through 
     "record decisions",
     "assign actions",
     "track outcomes",
-    "less time gathering data"
+    "one workspace"
   ]) assert.ok(copy.includes(benefit), `Missing first-screen benefit: ${benefit}`)
-  assert.ok(copy.split(/\s+/).length <= 50, "Keep the hero message concise")
+  assert.ok(copy.split(/\s+/).length <= 35, "Keep the hero message concise")
   const french = refreshedLandingFrench[copy]
   assert.ok(french, "The updated hero needs a French translation")
   assert.ok(french.split(/\s+/).length <= 50, "Keep the French hero message concise too")
@@ -130,6 +130,43 @@ test("the first-screen message explains the inputs, insights and follow-through 
     assert.ok(french.includes(benefit), `Missing French benefit: ${benefit}`)
   assert.match(hero, /Start your 30-day trial/)
   assert.match(hero, /No credit card required\./)
+})
+
+test("hero copy steps down by purpose and the trial reassurance precedes the action row", () => {
+  const hero = read("../components/landing/hero.tsx")
+  assert.match(hero, /className="landing-hero-cta"/)
+  assert.ok(hero.indexOf('className="landing-hero-note ') < hero.indexOf('className="landing-hero-actions '))
+  assert.match(hero, /<\/Link>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/LandingProductDemo>/)
+  const css = require("postcss").parse(read("../components/landing/landing.css"))
+  const declarations = (parent, selector) => Object.fromEntries(parent.nodes.find(node => node.selector === selector).nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value]))
+  const sizes = [
+    ".landing-hero-copy,\n.landing-hero-copy-mobile,\n.landing-hero-copy-compact",
+    ".landing-hero-automation,\n.landing-hero-automation-mobile",
+    ".landing-hero-team,\n.landing-hero-team-mobile"
+  ].map(selector => parseInt(declarations(css, selector)["font-size"]))
+  assert.deepEqual(sizes, [16, 15, 14])
+  const wide = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1200px)")
+  assert.equal(declarations(wide, ".landing-hero-copy")["font-size"], "18px")
+  assert.equal(declarations(wide, ".landing-hero-automation")["font-size"], "16px")
+  const cta = declarations(css, ".landing-hero-cta")
+  assert.equal(cta.display, "flex")
+  assert.equal(cta["flex-direction"], "column")
+  assert.equal(cta.gap, "8px")
+  assert.equal(cta["flex-shrink"], "0")
+  css.walkRules(".landing-hero-note", rule => assert.ok(!rule.nodes.some(node => node.prop === "position" && node.value === "absolute")))
+})
+
+test("small portrait screens get a compact overview without losing the fuller workflow details", () => {
+  const hero = read("../components/landing/hero.tsx")
+  const compact = hero.match(/const compactSummary = t\(\s*"([^"]+)"/)[1]
+  assert.ok(compact.split(/\s+/).length <= 20)
+  assert.ok(refreshedLandingFrench[compact])
+  assert.match(hero, /className="landing-hero-copy-compact /)
+  assert.ok(hero.indexOf('className="landing-hero-copy-mobile') > hero.indexOf("</LandingProductDemo>"))
+  const css = require("postcss").parse(read("../components/landing/landing.css"))
+  const tiny = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 600px) and (max-width: 360px)")
+  assert.ok(tiny.nodes.find(node => node.selector === ".landing-hero-copy").nodes.some(node => node.prop === "display" && node.value === "none"))
+  assert.ok(tiny.nodes.find(node => node.selector === ".landing-hero-copy-compact,\n  .landing-hero-copy-mobile").nodes.some(node => node.prop === "display" && node.value === "block"))
 })
 
 test("automation benefits fill the desktop hero gap and remain available below the mobile demo", () => {
@@ -226,11 +263,9 @@ test("desktop buttons align with the video bottom while copy stays balanced and 
   for (const selector of [".landing-hero-copy", ".landing-hero-automation", ".landing-hero-team"]) {
     css.walkRules(selector, rule => assert.ok(!rule.nodes.some(node => node.prop?.startsWith("margin")), `${selector} must not introduce inconsistent paragraph spacing`))
   }
-  assert.equal(declarations(".landing-hero-actions")["margin-top"], "0")
+  assert.equal(declarations(".landing-hero-cta")["margin-top"], "0")
   assert.equal(declarations(".landing-hero-actions")["align-items"], "flex-end")
   assert.equal(declarations(".landing-hero-actions")["flex-wrap"], "nowrap")
-  assert.equal(declarations(".landing-hero-note").position, "absolute")
-  assert.equal(declarations(".landing-hero-note").top, "100%")
   assert.equal(declarations(".landing-demo-details")["grid-column"], "2")
   assert.equal(declarations(".landing-demo-details")["justify-self"], "end")
   const demo = read("../components/landing/landing-product-demo.tsx")
@@ -250,8 +285,9 @@ test("compact desktop and landscape actions retain the shared video baseline", (
   assert.ok(shortLabel.nodes.some(node => node.prop === "display" && node.value === "inline"))
   const landscape = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 600px) and (min-width: 541px)")
   assert.ok(!landscape.nodes.some(node => node.selector === ".landing-hero-intro" || node.selector === ".landing-hero-note"))
+  const cta = landscape.nodes.find(node => node.selector === ".landing-hero-cta")
+  assert.ok(cta.nodes.some(node => node.prop === "margin-top" && node.value === "0"))
   const actions = landscape.nodes.find(node => node.selector === ".landing-hero-actions")
-  assert.ok(actions.nodes.some(node => node.prop === "margin-top" && node.value === "0"))
   assert.ok(!actions.nodes.some(node => node.prop === "flex-wrap" && node.value === "wrap"))
 })
 
@@ -264,6 +300,9 @@ test("short landscape screens constrain the video while letting text and chapter
   assert.ok(benefits.nodes.some(node => node.prop === "display" && node.value === "none"))
   const narrow = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 600px) and (min-width: 541px) and (max-width: 767px), (max-height: 360px) and (min-width: 541px) and (max-width: 1023px)")
   assert.ok(narrow.nodes.find(node => node.selector === ".landing-hero-copy-mobile").nodes.some(node => node.prop === "display" && node.value === "block"))
+  const shortPhone = css.nodes.find(node => node.type === "atrule" && node.params === "(max-height: 360px) and (min-width: 541px) and (max-width: 639px)")
+  assert.ok(shortPhone.nodes.find(node => node.selector === ".landing-hero-title").nodes.some(node => node.prop === "font-size" && node.value === "28px"))
+  assert.ok(shortPhone.nodes.find(node => node.selector === ".landing-hero-subtitle").nodes.some(node => node.prop === "font-size" && node.value === "16px"))
 })
 
 test("public brand marks match the combined name and tagline height", () => {
