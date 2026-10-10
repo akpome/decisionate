@@ -129,14 +129,14 @@ test("the first-screen message explains the inputs, insights and follow-through 
   for (const benefit of ["tableurs", "IA", "rapports", "décisions", "actions attribuées", "résultats"])
     assert.ok(french.includes(benefit), `Missing French benefit: ${benefit}`)
   assert.match(hero, /Start your 30-day trial/)
-  assert.match(hero, /No credit card required\./)
+  assert.doesNotMatch(hero, /No credit card required\./)
 })
 
-test("hero copy steps down by purpose and trial reassurance follows the action row", () => {
+test("hero copy steps down by purpose and buttons have no credit-card note", () => {
   const hero = read("../components/landing/hero.tsx")
   assert.match(hero, /className="landing-hero-cta"/)
-  assert.ok(hero.indexOf('className="landing-hero-note ') > hero.indexOf('className="landing-hero-actions '))
-  assert.match(hero, /<\/Link>\s*<\/div>\s*<p className="landing-hero-note /)
+  assert.doesNotMatch(hero, /landing-hero-note|No credit card required/)
+  assert.match(hero, /<\/Link>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/LandingProductDemo>/)
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const declarations = (parent, selector) => Object.fromEntries(parent.nodes.find(node => node.selector === selector).nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value]))
   const sizes = [
@@ -151,10 +151,8 @@ test("hero copy steps down by purpose and trial reassurance follows the action r
   const cta = declarations(css, ".landing-hero-cta")
   assert.equal(cta.display, "flex")
   assert.equal(cta["flex-direction"], "column")
-  assert.equal(cta.gap, "8px")
   assert.equal(cta["flex-shrink"], "0")
-  assert.ok(!css.nodes.some(node => node.selector === ".landing-hero-note"), "Reassurance remains in normal flow on stacked mobile layouts")
-  css.walkRules(".landing-hero-note", rule => assert.ok(!rule.nodes.some(node => node.prop === "position" && node.value === "absolute"), "Reassurance must not be absolutely positioned"))
+  assert.doesNotMatch(read("../components/landing/landing.css"), /landing-hero-note/)
 })
 
 test("small portrait screens get a compact overview without losing the fuller workflow details", () => {
@@ -240,7 +238,7 @@ test("all four chapters stay in one row without the removed explanatory copy", (
   assert.ok(narrow.nodes.some(node => node.selector === ".landing-demo-chapters button"))
 })
 
-test("desktop heading and buttons anchor to the video edges with reassurance beneath them", () => {
+test("desktop heading and buttons anchor to the video edges", () => {
   const hero = read("../components/landing/hero.tsx")
   assert.doesNotMatch(hero, /text-center|justify-center|items-baseline/)
   const copyClass = hero.match(/className="landing-hero-copy ([^"]+)"/)[1]
@@ -264,8 +262,6 @@ test("desktop heading and buttons anchor to the video edges with reassurance ben
   for (const selector of [".landing-hero-copy", ".landing-hero-automation", ".landing-hero-team"]) {
     css.walkRules(selector, rule => assert.ok(!rule.nodes.some(node => node.prop?.startsWith("margin")), `${selector} must not introduce inconsistent paragraph spacing`))
   }
-  assert.equal(declarations(".landing-hero-note")["grid-column"], "1")
-  assert.equal(declarations(".landing-hero-note")["grid-row"], "3")
   assert.equal(declarations(".landing-hero-actions")["grid-column"], "1")
   assert.equal(declarations(".landing-hero-actions")["grid-row"], "2")
   assert.equal(declarations(".landing-hero-actions")["align-self"], "end")

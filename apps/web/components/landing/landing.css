@@ -190,7 +190,6 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  gap: 8px;
   margin-top: 20px;
 }
 .landing-hero-automation,
@@ -276,7 +275,7 @@
     grid-template-rows: minmax(0, 1fr) auto auto;
     row-gap: 8px;
   }
-  /* Share the video/button edge; the note occupies the next grid row. */
+  /* Keep button bottoms on the same grid edge as the video. */
   .landing-hero-stage,
   .landing-hero-intro,
   .landing-hero-cta {
@@ -297,11 +296,6 @@
     align-items: flex-end;
     flex-wrap: nowrap;
     flex-shrink: 0;
-  }
-  .landing-hero-note {
-    grid-column: 1;
-    grid-row: 3;
-    align-self: start;
   }
   .landing-demo-frame {
     grid-column: 2;
