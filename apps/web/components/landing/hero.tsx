@@ -75,6 +75,9 @@ export function LandingHero() {
                   <ArrowRight size={16} aria-hidden="true" className="hidden sm:block" />
                 </Link>
               </div>
+              <p className="landing-hero-note text-neutral-500">
+                {t("No credit card required.")}
+              </p>
             </div>
           </div>
         </LandingProductDemo>

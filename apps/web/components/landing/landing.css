@@ -192,6 +192,11 @@
   flex-shrink: 0;
   margin-top: 20px;
 }
+.landing-hero-note {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 18px;
+}
 .landing-hero-automation,
 .landing-hero-team,
 .landing-hero-copy-mobile,
@@ -273,9 +278,9 @@
 @media (min-width: 1024px), (max-height: 600px) and (min-width: 541px) {
   .landing-product-demo {
     grid-template-rows: minmax(0, 1fr) auto auto;
-    row-gap: 8px;
+    row-gap: 0;
   }
-  /* Keep button bottoms on the same grid edge as the video. */
+  /* Button bottoms share the chapter rule's edge; the note sits below it. */
   .landing-hero-stage,
   .landing-hero-intro,
   .landing-hero-cta {
@@ -291,7 +296,8 @@
   .landing-hero-actions {
     grid-column: 1;
     grid-row: 2;
-    min-height: 50px;
+    min-height: 58px;
+    padding-top: 16px;
     align-self: end;
     align-items: flex-end;
     flex-wrap: nowrap;
@@ -302,13 +308,18 @@
     grid-row: 1 / span 2;
     align-self: end;
     justify-content: flex-end;
+    margin-bottom: 20px;
+  }
+  .landing-hero-note {
+    grid-column: 1;
+    grid-row: 3;
+    align-self: start;
   }
   .landing-demo-details {
     grid-column: 2;
     grid-row: 3;
     align-self: start;
     justify-self: end;
-    margin-top: 12px;
   }
 }
 

@@ -129,14 +129,14 @@ test("the first-screen message explains the inputs, insights and follow-through 
   for (const benefit of ["tableurs", "IA", "rapports", "décisions", "actions attribuées", "résultats"])
     assert.ok(french.includes(benefit), `Missing French benefit: ${benefit}`)
   assert.match(hero, /Start your 30-day trial/)
-  assert.doesNotMatch(hero, /No credit card required\./)
+  assert.match(hero, /No credit card required\./)
 })
 
-test("hero copy steps down by purpose and buttons have no credit-card note", () => {
+test("hero copy steps down by purpose and the credit-card note follows the buttons", () => {
   const hero = read("../components/landing/hero.tsx")
   assert.match(hero, /className="landing-hero-cta"/)
-  assert.doesNotMatch(hero, /landing-hero-note|No credit card required/)
-  assert.match(hero, /<\/Link>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/LandingProductDemo>/)
+  assert.match(hero, /<\/Link>\s*<\/div>\s*<p className="landing-hero-note text-neutral-500">\s*\{t\("No credit card required\."\)\}/)
+  assert.equal(refreshedLandingFrench["No credit card required."], "Aucune carte de crédit requise.")
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const declarations = (parent, selector) => Object.fromEntries(parent.nodes.find(node => node.selector === selector).nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value]))
   const sizes = [
@@ -152,7 +152,10 @@ test("hero copy steps down by purpose and buttons have no credit-card note", () 
   assert.equal(cta.display, "flex")
   assert.equal(cta["flex-direction"], "column")
   assert.equal(cta["flex-shrink"], "0")
-  assert.doesNotMatch(read("../components/landing/landing.css"), /landing-hero-note/)
+  const note = declarations(css, ".landing-hero-note")
+  assert.equal(note["margin-top"], "8px")
+  assert.equal(note["font-size"], "12px")
+  assert.equal(note["line-height"], "18px")
 })
 
 test("small portrait screens get a compact overview without losing the fuller workflow details", () => {
@@ -238,7 +241,7 @@ test("all four chapters stay in one row without the removed explanatory copy", (
   assert.ok(narrow.nodes.some(node => node.selector === ".landing-demo-chapters button"))
 })
 
-test("desktop heading and buttons anchor to the video edges", () => {
+test("desktop heading anchors to the video top and button bottoms anchor to the chapter rule", () => {
   const hero = read("../components/landing/hero.tsx")
   assert.doesNotMatch(hero, /text-center|justify-center|items-baseline/)
   const copyClass = hero.match(/className="landing-hero-copy ([^"]+)"/)[1]
@@ -250,7 +253,7 @@ test("desktop heading and buttons anchor to the video edges", () => {
   const grid = desktop.nodes.find(node => node.selector === ".landing-product-demo,\n  .landing-hero-stage")
   assert.ok(grid.nodes.some(node => node.prop === "grid-template-columns" && node.value === "minmax(0, 0.8fr) minmax(0, 1.2fr)"))
   assert.equal(declarations(".landing-product-demo")["grid-template-rows"], "minmax(0, 1fr) auto auto")
-  assert.equal(declarations(".landing-product-demo")["row-gap"], "8px")
+  assert.equal(declarations(".landing-product-demo")["row-gap"], "0")
   for (const selector of [".landing-hero-stage", ".landing-hero-intro", ".landing-hero-cta"])
     assert.equal(declarations(selector).display, "contents")
   assert.equal(declarations(".landing-hero-message")["grid-column"], "1")
@@ -265,15 +268,21 @@ test("desktop heading and buttons anchor to the video edges", () => {
   assert.equal(declarations(".landing-hero-actions")["grid-column"], "1")
   assert.equal(declarations(".landing-hero-actions")["grid-row"], "2")
   assert.equal(declarations(".landing-hero-actions")["align-self"], "end")
-  assert.equal(declarations(".landing-hero-actions")["min-height"], "50px")
+  assert.equal(declarations(".landing-hero-actions")["min-height"], "58px")
+  assert.equal(declarations(".landing-hero-actions")["padding-top"], "16px")
   assert.equal(declarations(".landing-hero-actions")["align-items"], "flex-end")
   assert.equal(declarations(".landing-hero-actions")["flex-wrap"], "nowrap")
   assert.equal(declarations(".landing-demo-frame")["grid-column"], "2")
   assert.equal(declarations(".landing-demo-frame")["grid-row"], "1 / span 2")
   assert.equal(declarations(".landing-demo-frame")["align-self"], "end")
+  assert.equal(declarations(".landing-demo-frame")["margin-bottom"], "20px")
+  assert.equal(declarations(".landing-hero-note")["grid-column"], "1")
+  assert.equal(declarations(".landing-hero-note")["grid-row"], "3")
+  assert.equal(declarations(".landing-hero-note")["align-self"], "start")
   assert.equal(declarations(".landing-demo-details")["grid-column"], "2")
   assert.equal(declarations(".landing-demo-details")["grid-row"], "3")
   assert.equal(declarations(".landing-demo-details")["justify-self"], "end")
+  assert.equal(declarations(".landing-demo-details")["margin-top"], undefined)
   const demo = read("../components/landing/landing-product-demo.tsx")
   assert.ok(demo.indexOf('className="landing-demo-details"') < demo.indexOf('className="landing-demo-chapters'))
   assert.match(demo, /new ResizeObserver/)
@@ -284,7 +293,7 @@ test("desktop heading and buttons anchor to the video edges", () => {
   assert.ok(frame.nodes.some(node => node.prop === "justify-content" && node.value === "flex-end"))
 })
 
-test("compact desktop and landscape actions retain the shared video baseline", () => {
+test("compact desktop and landscape actions retain the shared chapter-rule baseline", () => {
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const compact = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1024px) and (max-width: 1199px)")
   const shortLabel = compact.nodes.find(node => node.selector === ".landing-trial-short")
