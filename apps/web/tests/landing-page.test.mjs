@@ -132,6 +132,24 @@ test("the first-screen message explains the inputs, insights and follow-through 
   assert.match(hero, /No credit card required\./)
 })
 
+test("automation benefits fill the desktop hero gap and remain available below the mobile demo", () => {
+  const hero = read("../components/landing/hero.tsx")
+  const summary = hero.match(/const automationSummary = t\(\s*"([^"]+)"/)[1]
+  for (const benefit of ["Automatic daily syncing", "Weekly performance reports", "KPI alerts", "email"])
+    assert.ok(summary.includes(benefit), `Missing automation benefit: ${benefit}`)
+  assert.ok(summary.split(/\s+/).length <= 25, "Keep the automation summary concise")
+  const french = refreshedLandingFrench[summary]
+  assert.ok(french, "The automation summary needs a French translation")
+  for (const benefit of ["quotidienne automatique", "hebdomadaires", "KPI", "courriel"])
+    assert.ok(french.includes(benefit), `Missing French automation benefit: ${benefit}`)
+  assert.ok(french.split(/\s+/).length <= 25)
+  assert.match(hero, /className="landing-hero-automation hidden[^\"]*lg:block"/)
+  assert.match(hero, /className="landing-hero-automation-mobile[^\"]*lg:hidden"/)
+  assert.equal((hero.match(/\{automationSummary\}/g) ?? []).length, 2)
+  assert.ok(hero.indexOf('className="landing-hero-automation hidden') < hero.indexOf('className="landing-hero-actions'))
+  assert.ok(hero.indexOf('className="landing-hero-automation-mobile') > hero.indexOf("</LandingProductDemo>"))
+})
+
 test("the video stage fits the first viewport without cropping the product", () => {
   const css = require("postcss").parse(read("../components/landing/landing.css"))
   const values = (selector) => {
@@ -145,6 +163,7 @@ test("the video stage fits the first viewport without cropping the product", () 
   assert.match(values(".landing-hero-stage")["max-height"], /100svh - var\(--landing-nav-height\)/)
   assert.equal(values(".landing-product-video")["max-height"], "100%")
   assert.equal(values(".landing-product-video")["aspect-ratio"], "8 / 5")
+  assert.equal(values(".landing-product-video")["object-position"], "center bottom")
   assert.match(read("../components/landing/landing-product-demo.tsx"), /object-contain/)
   assert.equal(values(".landing-page svg.lucide").color, "var(--landing-brand-accent)")
   assert.notEqual(values(".landing-button-accent").background, "var(--landing-brand-accent)")
@@ -182,8 +201,10 @@ test("desktop buttons align with the video bottom while copy stays balanced and 
   assert.equal(declarations(".landing-hero-intro").display, "flex")
   assert.equal(declarations(".landing-hero-intro")["flex-direction"], "column")
   assert.equal(declarations(".landing-hero-heading")["margin-top"], "auto")
-  assert.equal(declarations(".landing-hero-copy")["margin-bottom"], "24px")
-  assert.equal(declarations(".landing-hero-actions")["margin-top"], "auto")
+  assert.equal(declarations(".landing-hero-copy")["margin-bottom"], "16px")
+  assert.equal(declarations(".landing-hero-automation")["margin-top"], "auto")
+  assert.equal(declarations(".landing-hero-automation")["margin-bottom"], "16px")
+  assert.equal(declarations(".landing-hero-actions")["margin-top"], "0")
   assert.equal(declarations(".landing-hero-actions")["flex-wrap"], "nowrap")
   assert.equal(declarations(".landing-hero-note").position, "absolute")
   assert.equal(declarations(".landing-hero-note").top, "100%")

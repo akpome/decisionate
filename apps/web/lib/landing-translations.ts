@@ -16,6 +16,8 @@ export const refreshedLandingFrench: Record<string, string> = {
     "Vos données d'entreprise. Une prochaine décision plus claire.",
   "Connect accounting, sales and marketing tools, or upload spreadsheets. Spot trends and explore AI-assisted insights. Build reports, record decisions, assign actions and track outcomes in one workspace. Spend less time gathering data and more time acting on it.":
     "Connectez vos outils ou importez des tableurs. Tendances, analyses IA, rapports, décisions, actions attribuées et résultats dans un seul espace. Moins de collecte, plus d'action.",
+  "Automatic daily syncing keeps connected data current. Weekly performance reports and KPI alerts arrive by email.":
+    "Synchronisation quotidienne automatique, rapports de performance hebdomadaires et alertes KPI par courriel pour garder votre équipe à jour.",
   "Start your 30-day trial": "Commencer votre essai de 30 jours",
   "No credit card required.": "Aucune carte de crédit requise.",
   "Marketing Performance · demonstration data":

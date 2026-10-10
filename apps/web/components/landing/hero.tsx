@@ -8,6 +8,9 @@ import { LandingProductDemo } from "./landing-product-demo"
 
 export function LandingHero() {
   const { t } = useLandingText()
+  const automationSummary = t(
+    "Automatic daily syncing keeps connected data current. Weekly performance reports and KPI alerts arrive by email."
+  )
   return (
     <section id="product" className="landing-hero border-b border-neutral-200 bg-white">
       <div className="landing-container">
@@ -25,6 +28,9 @@ export function LandingHero() {
               {t(
                 "Connect accounting, sales and marketing tools, or upload spreadsheets. Spot trends and explore AI-assisted insights. Build reports, record decisions, assign actions and track outcomes in one workspace. Spend less time gathering data and more time acting on it."
               )}
+            </p>
+            <p className="landing-hero-automation hidden max-w-lg text-sm leading-[22px] text-neutral-600 lg:block">
+              {automationSummary}
             </p>
             <div className="landing-hero-actions mt-6 flex flex-wrap items-center gap-3">
               <Link
@@ -58,6 +64,9 @@ export function LandingHero() {
             </p>
           </div>
         </LandingProductDemo>
+        <p className="landing-hero-automation-mobile mt-5 max-w-lg text-sm leading-6 text-neutral-600 lg:hidden">
+          {automationSummary}
+        </p>
       </div>
     </section>
   )

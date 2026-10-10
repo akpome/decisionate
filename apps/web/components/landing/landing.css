@@ -225,6 +225,8 @@
   max-width: 100%;
   max-height: 100%;
   aspect-ratio: 8 / 5;
+  /* The shorter poster must share the video's bottom edge, not its center. */
+  object-position: center bottom;
 }
 .landing-product-video::cue {
   background-color: rgb(0 0 0 / 80%);
@@ -254,11 +256,15 @@
     margin-top: auto;
   }
   .landing-hero-copy {
-    margin-bottom: 24px;
+    margin-bottom: 16px;
+  }
+  .landing-hero-automation {
+    margin-top: auto;
+    margin-bottom: 16px;
   }
   .landing-hero-actions {
     flex-wrap: nowrap;
-    margin-top: auto;
+    margin-top: 0;
   }
   .landing-hero-actions .landing-button {
     padding-inline: 12px;
@@ -417,6 +423,10 @@
     margin-top: 0;
   }
   .landing-hero-copy {
+    margin-bottom: 0;
+  }
+  .landing-hero-automation {
+    margin-top: 12px;
     margin-bottom: 0;
   }
   .landing-hero-note {
