@@ -478,11 +478,11 @@ export default function DatasetDetailsPage() {
       ? new ResizeObserver(updateTableWidth)
       : null
     observer?.observe(table)
-    window.addEventListener("resize", updateTableWidth)
+    if (!observer) window.addEventListener("resize", updateTableWidth)
 
     return () => {
       window.cancelAnimationFrame(frame)
-      window.removeEventListener("resize", updateTableWidth)
+      if (!observer) window.removeEventListener("resize", updateTableWidth)
       observer?.disconnect()
     }
   }, [

@@ -72,15 +72,17 @@ for (const [label, path, dimension] of [
       const cleanup = harness.run()
       for (const callback of harness.frames.values()) callback()
       assert.equal(harness.updates.at(-1), harness.element[dimension])
-      harness.element[dimension] = 640
-      harness.listeners.get("resize")()
-      assert.equal(harness.updates.at(-1), 640)
       const observer = harness.getObserver()
       if (observerAvailable) {
+        assert.equal(harness.listeners.size, 0)
         assert.equal(observer.node, harness.element)
         harness.element[dimension] = 720
-        observer.callback()
+        observer.callback([{ contentRect: { width: harness.element.width } }])
         assert.equal(harness.updates.at(-1), 720)
+      } else {
+        harness.element[dimension] = 640
+        harness.listeners.get("resize")()
+        assert.equal(harness.updates.at(-1), 640)
       }
       cleanup()
       assert.equal(harness.listeners.size, 0)

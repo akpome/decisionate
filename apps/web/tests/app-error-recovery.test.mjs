@@ -43,8 +43,7 @@ test("page and root recovery render without authentication, theme, language, or 
     assert.match(html, /This page could not load/)
     assert.match(html, /Reload page/)
     assert.match(html, /href="\/"/)
-    assert.match(html, /Reference: <code>TypeError<\/code>/)
-    assert.doesNotMatch(html, /Sensitive diagnostic details/)
+    assert.doesNotMatch(html, /Sensitive diagnostic details|TypeError|Reference:|screenshot/)
   }
 })
 
@@ -60,7 +59,7 @@ test("global recovery supplies a standalone document, viewport, and inline styli
   assert.doesNotMatch(html, /stylesheet/)
 })
 
-test("error references prefer the server digest without exposing the underlying message", () => {
+test("error references show the server digest without exposing the underlying message", () => {
   const error = Object.assign(new Error("token=private-value"), { digest: "test-reference" })
   const html = render(PageError, error)
   assert.match(html, /Reference: <code>test-reference<\/code>/)

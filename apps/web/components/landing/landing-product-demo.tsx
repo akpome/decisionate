@@ -43,13 +43,13 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
     }
     const frame = window.requestAnimationFrame(updateVideoWidth)
     const observer = typeof ResizeObserver === "function"
-      ? new ResizeObserver(updateVideoWidth)
+      ? new ResizeObserver(([entry]) => setVideoWidth(entry.contentRect.width))
       : null
     observer?.observe(video)
-    window.addEventListener("resize", updateVideoWidth)
+    if (!observer) window.addEventListener("resize", updateVideoWidth)
     return () => {
       window.cancelAnimationFrame(frame)
-      window.removeEventListener("resize", updateVideoWidth)
+      if (!observer) window.removeEventListener("resize", updateVideoWidth)
       observer?.disconnect()
     }
   }, [])

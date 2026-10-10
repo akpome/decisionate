@@ -68,12 +68,14 @@ export function AppErrorRecovery({
           This page could not load
         </h1>
         <p style={{ margin: "12px 0 0", fontSize: 14, lineHeight: "22px", color: "#525252" }}>
-          Reload the page to try again. If the problem continues, send us a
-          screenshot of this message.
+          Something went wrong while loading this page. Reload to try again, or
+          return to the home page.
         </p>
-        <p style={{ margin: "12px 0 0", fontSize: 12, lineHeight: "18px", color: "#525252" }}>
-          Reference: <code>{error.digest || error.name || "Client error"}</code>
-        </p>
+        {error.digest && (
+          <p style={{ margin: "12px 0 0", fontSize: 12, lineHeight: "18px", color: "#525252" }}>
+            Reference: <code>{error.digest}</code>
+          </p>
+        )}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 24 }}>
           <button
             type="button"
