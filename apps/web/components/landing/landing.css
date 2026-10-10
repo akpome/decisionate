@@ -272,43 +272,49 @@
 }
 
 @media (min-width: 1024px), (max-height: 600px) and (min-width: 541px) {
-  .landing-hero-stage {
-    grid-column: 1 / -1;
-    grid-template-rows: auto;
-    align-items: end;
-    max-height: none;
+  .landing-product-demo {
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    row-gap: 8px;
   }
-  .landing-hero-intro {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    align-self: stretch;
+  /* Share the video/button edge; the note occupies the next grid row. */
+  .landing-hero-stage,
+  .landing-hero-intro,
+  .landing-hero-cta {
+    display: contents;
   }
   .landing-hero-message {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    align-self: start;
     margin-block: 0;
   }
   .landing-hero-actions {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 50px;
+    align-self: end;
     align-items: flex-end;
     flex-wrap: nowrap;
     flex-shrink: 0;
   }
-  .landing-hero-cta {
-    position: relative;
-    margin-top: auto;
-  }
-  /* Leave the reassurance below the shared button/video baseline. */
   .landing-hero-note {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 0;
-    width: 100%;
+    grid-column: 1;
+    grid-row: 3;
+    align-self: start;
   }
   .landing-demo-frame {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: end;
     justify-content: flex-end;
   }
   .landing-demo-details {
     grid-column: 2;
+    grid-row: 3;
+    align-self: start;
     justify-self: end;
+    margin-top: 12px;
   }
 }
 
@@ -492,9 +498,6 @@
   }
   .landing-hero-actions {
     gap: 8px;
-  }
-  .landing-hero-cta {
-    margin-top: auto;
   }
   .landing-hero-actions .landing-button {
     padding-inline: 12px;
