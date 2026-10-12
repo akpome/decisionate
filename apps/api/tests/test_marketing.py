@@ -15,7 +15,7 @@ from svix.webhooks import Webhook
 
 from app.db.database import Base
 from app.db.models import AppUser, Dataset, DataIngestionJob, Organization, OrganizationMember, WorkspaceSubscription, utc_now
-from app.modules.marketing import config, router, service, templates, worker
+from app.modules.marketing import config, provider, router, service, templates, worker
 from app.modules.marketing.config import SEGMENTS
 from app.modules.marketing.hooks import install_marketing_hooks
 from app.modules.marketing.models import MarketingContact, MarketingConsentEvent, MarketingEmail, MarketingJob, MarketingWorkspace, MarketingLinkVisit
@@ -656,6 +656,48 @@ class MarketingTests(unittest.TestCase):
             payload=json.dumps({"type": "contact.updated", "data": {"id": "previous-provider-id", "email": self.contact.email, "unsubscribed": True}}))
         worker.process_webhook(self.db, receipt, self.provider)
         self.assertEqual(self.contact.marketing_status, "subscribed")
+
+
+class MarketingProviderRequestTests(unittest.TestCase):
+    def setUp(self):
+        configuration = patch.object(provider, "get_platform_email_settings", return_value={"resend_api_key": "test-only-resend-key"})
+        self.addCleanup(configuration.stop)
+        configuration.start()
+        sleep = patch.object(provider.time, "sleep")
+        self.addCleanup(sleep.stop)
+        sleep.start()
+        http = patch.object(provider, "urlopen")
+        self.addCleanup(http.stop)
+        self.http = http.start()
+        self.http.return_value.__enter__.return_value.read.return_value = b'{"id":"test-provider-id"}'
+        self.client = provider.ResendMarketing()
+
+    def test_contact_lookup_identifies_client_and_escapes_address(self):
+        self.assertEqual(self.client.get_contact("owner+test@example.test"), {"id": "test-provider-id"})
+        request = self.http.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.resend.com/contacts/owner%2Btest%40example.test")
+        self.assertEqual(request.get_method(), "GET")
+        self.assertEqual(request.get_header("User-agent"), "Decisionate/1.0")
+        self.assertEqual(request.get_header("Authorization"), "Bearer test-only-resend-key")
+        self.assertEqual(self.http.call_args.kwargs, {"timeout": 10})
+
+    def test_submission_identifies_client_and_preserves_idempotency(self):
+        payload = {"to": ["owner@example.test"], "subject": "Test-only email"}
+        self.client.request("POST", "/emails", payload, key="test-only-message-key")
+        request = self.http.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.resend.com/emails")
+        self.assertEqual(request.get_method(), "POST")
+        self.assertEqual(request.get_header("User-agent"), "Decisionate/1.0")
+        self.assertEqual(request.get_header("Content-type"), "application/json")
+        self.assertEqual(request.get_header("Idempotency-key"), "test-only-message-key")
+        self.assertEqual(json.loads(request.data), payload)
+
+    def test_missing_key_does_not_make_a_provider_request(self):
+        self.client.config["resend_api_key"] = ""
+        with self.assertRaises(ProviderError) as error:
+            self.client.get_contact("owner@example.test")
+        self.assertEqual(error.exception.code, "unconfigured")
+        self.http.assert_not_called()
 
 
 if __name__ == "__main__":

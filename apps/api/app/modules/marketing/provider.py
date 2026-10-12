@@ -30,7 +30,11 @@ class ResendMarketing:
         # The shared worker is single-consumer. Leave headroom under Resend's
         # default rate limit; 429 responses still receive persistent backoff.
         time.sleep(0.6)
-        headers = {"Authorization": f"Bearer {self.config['resend_api_key']}", "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {self.config['resend_api_key']}",
+            "Content-Type": "application/json",
+            "User-Agent": "Decisionate/1.0",
+        }
         if key:
             headers["Idempotency-Key"] = key
         request = Request("https://api.resend.com" + path, method=method,
