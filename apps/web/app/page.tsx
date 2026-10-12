@@ -4,10 +4,10 @@ import { LandingNavbar } from "@/components/landing/navbar"
 import "@/components/landing/landing.css"
 import {
   AgencySection,
+  BusinessSection,
   FAQSection,
   FeaturesSection,
   FinalCTASection,
-  IndustryDashboardsSection,
   IntegrationsSection,
   PricingSection
 } from "@/components/landing/landing-sections"
@@ -19,7 +19,7 @@ export default function HomePage() {
       <main id="main-content">
         <LandingHero />
         <FeaturesSection />
-        <IndustryDashboardsSection />
+        <BusinessSection />
         <AgencySection />
         <IntegrationsSection />
         <PricingSection />

@@ -44,6 +44,22 @@ function renderHero(language = "en") {
   return renderToStaticMarkup(React.createElement(LandingHero))
 }
 
+function renderSections(language = "en") {
+  const overrides = {
+    "next/link": { default: props => React.createElement("a", props) },
+    "@/app/use-decisionate-language": {
+      useLandingText: () => ({ language, t: text => language === "fr" ? refreshedLandingFrench[text] || text : text }),
+    },
+    "@/features/dashboards/dashboard-definitions": load("../features/dashboards/dashboard-definitions.ts"),
+    "./landing-content": { integrationGroups, faqs },
+  }
+  const sections = load("../components/landing/landing-sections.tsx", overrides)
+  return renderToStaticMarkup(React.createElement(React.Fragment, null,
+    ...["FeaturesSection", "BusinessSection", "AgencySection", "IntegrationsSection", "PricingSection", "FAQSection"]
+      .map(name => React.createElement(sections[name], { key: name }))
+  ))
+}
+
 test("landing catalog includes every source except all Lightspeed variants", () => {
   const backend = read("../../api/app/modules/datasets/services/sources.py").split("DATASET_SOURCES = [")[1].split("\ndef ")[0]
   const sources = [...backend.matchAll(/"type": "([^"]+)"[\s\S]*?"label": "([^"]+)"/g)].map(match => ({ type: match[1], name: match[2] }))
@@ -111,7 +127,7 @@ test("mobile menu owns auth links and retains keyboard dismissal with focus rest
   assert.doesNotMatch(css, /landing-sign-in\s*\{[^}]*grid-row: 2/)
 })
 
-test("agency messaging is separate and follows the unchanged product and dashboard sections", () => {
+test("agency messaging is separate and follows the product and business sections", () => {
   const hero = read("../components/landing/hero.tsx")
   assert.doesNotMatch(hero, /agency|client workspaces|teamSummary/)
   const sections = read("../components/landing/landing-sections.tsx")
@@ -121,8 +137,55 @@ test("agency messaging is separate and follows the unchanged product and dashboa
   assert.ok(refreshedLandingFrench[agencySummary])
   assert.doesNotMatch(sections, /audience ===|Workspace type|Manage your agency and client workspaces separately/)
   const page = read("../app/page.tsx")
-  assert.ok(page.indexOf("<FeaturesSection />") < page.indexOf("<AgencySection />"))
-  assert.ok(page.indexOf("<IndustryDashboardsSection />") < page.indexOf("<AgencySection />"))
+  const order = ["FeaturesSection", "BusinessSection", "AgencySection", "IntegrationsSection", "PricingSection", "FAQSection"]
+    .map(name => page.indexOf(`<${name} />`))
+  assert.ok(order.every(index => index >= 0))
+  assert.ok(order.every((index, position) => !position || index > order[position - 1]))
+})
+
+test("business and agency sections are explicitly labelled and all content bands alternate", () => {
+  const html = renderSections()
+  assert.match(html, /For businesses/)
+  assert.match(html, /For agencies/)
+  assert.match(html, /aria-labelledby="landing-business-heading"/)
+  assert.match(html, /aria-labelledby="landing-agency-heading"/)
+  const backgrounds = [...html.matchAll(/<section\b[^>]*class="([^"]+)"/g)]
+    .map(match => match[1].split(" ").find(value => value === "bg-white" || value === "bg-neutral-50"))
+  assert.deepEqual(backgrounds, ["bg-neutral-50", "bg-white", "bg-neutral-50", "bg-white", "bg-neutral-50", "bg-white"])
+  assert.match(html, /<article[^>]*class="[^"]*bg-white/)
+})
+
+test("agency plan, permissions and four-step workflow are described in both languages", () => {
+  const copy = [
+    "One workspace for your business.",
+    "Connect your accounting, sales and marketing data or upload spreadsheets. Compare KPIs, explore AI-assisted insights, assign actions and review results with your team.",
+    "Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.",
+    "Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.",
+    "Create and brand your agency",
+    "Choose Agency during workspace setup, then add your agency name, logo and brand colours. Client workspaces carry your branding.",
+    "Connect each client's data",
+    "Create a separate workspace for each client. Connect business tools for daily or weekly syncing, or upload files. Switch between workspaces without mixing client data.",
+    "Invite clients with scoped access",
+    "Each client workspace supports one client owner and one client user. Role-based access keeps their data and decisions within their own workspace.",
+    "Review performance and follow through",
+    "Explore KPIs and AI-assisted insights, record decisions and assign actions. Enable agency-branded weekly reports and KPI alerts by email, then review outcomes with each client."
+  ]
+  for (const language of ["en", "fr"]) {
+    const html = renderSections(language)
+    for (const text of copy) {
+      assert.ok(refreshedLandingFrench[text], `Missing French copy: ${text}`)
+      const expected = renderToStaticMarkup(React.createElement(React.Fragment, null, language === "fr" ? refreshedLandingFrench[text] : text))
+      assert.ok(html.includes(expected), `Missing ${language} content: ${text}`)
+    }
+    const workflow = html.match(/<ol\b[^>]*>[\s\S]*?<\/ol>/)[0]
+    assert.equal((workflow.match(/<li\b/g) || []).length, 4)
+    assert.match(html, /href="#pricing"/)
+    assert.match(html, /href="\/sign-up"/)
+    assert.match(html, /href="\/demo\?dashboard=/)
+  }
+  const backend = read("../../api/app/modules/organizations/router.py")
+  assert.match(backend, /A client workspace can have only one client owner/)
+  assert.match(backend, /A client workspace can have only one client user/)
 })
 
 test("desktop columns and stacked mobile content use normal flow rather than CTA spacers", () => {

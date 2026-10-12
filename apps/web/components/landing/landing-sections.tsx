@@ -63,22 +63,25 @@ export function FeaturesSection() {
   )
 }
 
-export function IndustryDashboardsSection() {
+export function BusinessSection() {
   const { t } = useLandingText()
   return (
-    <section id="industries" className="landing-section bg-white">
+    <section id="industries" aria-labelledby="landing-business-heading" className="landing-section bg-white">
       <div className="landing-container grid gap-10 lg:grid-cols-2">
         <div>
-          <p className="landing-eyebrow">{t("Your workspace, your context")}</p>
-          <h2 className="landing-heading mt-3">
-            {t("Built around the work you do.")}
+          <p className="landing-eyebrow">{t("For businesses")}</p>
+          <h2 id="landing-business-heading" className="landing-heading mt-3">
+            {t("One workspace for your business.")}
           </h2>
           <p className="mt-5 max-w-lg text-base leading-7 text-neutral-600">
-            {t("Bring your team into one workspace, choose the dashboards that fit your business, and keep important decisions visible.")}
+            {t("Connect your accounting, sales and marketing data or upload spreadsheets. Compare KPIs, explore AI-assisted insights, assign actions and review results with your team.")}
+          </p>
+          <p className="mt-4 max-w-lg text-sm leading-7 text-neutral-600">
+            {t("Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.")}
           </p>
           <Link
             href="/sign-up"
-            className="landing-brand-link mt-5 inline-flex items-center gap-2 text-sm font-semibold"
+            className="landing-brand-link mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold"
           >
             {t("Start trial")}
             <ArrowRight size={16} aria-hidden="true" />
@@ -114,24 +117,62 @@ export function IndustryDashboardsSection() {
 
 export function AgencySection() {
   const { t } = useLandingText()
+  const workflow = [
+    {
+      title: "Create and brand your agency",
+      description: "Choose Agency during workspace setup, then add your agency name, logo and brand colours. Client workspaces carry your branding."
+    },
+    {
+      title: "Connect each client's data",
+      description: "Create a separate workspace for each client. Connect business tools for daily or weekly syncing, or upload files. Switch between workspaces without mixing client data."
+    },
+    {
+      title: "Invite clients with scoped access",
+      description: "Each client workspace supports one client owner and one client user. Role-based access keeps their data and decisions within their own workspace."
+    },
+    {
+      title: "Review performance and follow through",
+      description: "Explore KPIs and AI-assisted insights, record decisions and assign actions. Enable agency-branded weekly reports and KPI alerts by email, then review outcomes with each client."
+    }
+  ]
   return (
-    <section id="agencies" className="landing-section border-t border-neutral-200 bg-white">
-      <div className="landing-container grid gap-6 lg:grid-cols-2 lg:gap-10">
+    <section id="agencies" aria-labelledby="landing-agency-heading" className="landing-section border-y border-neutral-200 bg-neutral-50">
+      <div className="landing-container grid gap-10 lg:grid-cols-2">
         <div>
           <p className="landing-eyebrow">{t("For agencies")}</p>
-          <h2 className="landing-heading mt-3">
+          <h2 id="landing-agency-heading" className="landing-heading mt-3">
             {t("Help every client move from data to action.")}
           </h2>
-        </div>
-        <div>
-          <p className="max-w-lg text-base leading-7 text-neutral-600">
+          <p className="mt-5 max-w-lg text-base leading-7 text-neutral-600">
             {t("Manage separate client workspaces with your agency’s branding and role-based access. Help clients understand their performance, coordinate actions and track results.")}
           </p>
-          <Link href="/sign-up" className="landing-brand-link mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold">
-            {t("Start trial")}
-            <ArrowRight size={16} aria-hidden="true" />
-          </Link>
+          <p className="mt-4 max-w-lg text-sm leading-7 text-neutral-600">
+            {t("Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.")}
+          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2">
+            <Link href="/sign-up" className="landing-brand-link inline-flex min-h-11 items-center gap-2 text-sm font-semibold">
+              {t("Start trial")}
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+            <a href="#pricing" className="landing-brand-link inline-flex min-h-11 items-center gap-2 text-sm font-medium">
+              {t("Compare plans")}
+              <ArrowRight size={16} aria-hidden="true" />
+            </a>
+          </div>
         </div>
+        <ol className="divide-y divide-neutral-200 border-y border-neutral-200">
+          {workflow.map((step, index) => (
+            <li key={step.title} className="flex min-w-0 gap-4 py-5 first:pt-4">
+              <span aria-hidden="true" className="landing-brand-text w-6 shrink-0 pt-0.5 text-sm font-semibold tabular-nums">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-base font-semibold leading-6">{t(step.title)}</h3>
+                <p className="mt-2 text-sm leading-6 text-neutral-600">{t(step.description)}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
   )
@@ -151,7 +192,7 @@ export function IntegrationsSection() {
   return (
     <section
       id="integrations"
-      className="landing-section border-y border-neutral-200 bg-neutral-50"
+      className="landing-section bg-white"
     >
       <div className="landing-container">
         <p className="landing-eyebrow">{t("Connections")}</p>
@@ -248,7 +289,7 @@ export function PricingSection() {
     }
   ]
   return (
-    <section id="pricing" className="landing-section bg-white">
+    <section id="pricing" className="landing-section border-y border-neutral-200 bg-neutral-50">
       <div className="landing-container">
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
@@ -284,7 +325,7 @@ export function PricingSection() {
           {plans.map((plan) => (
             <article
               key={plan.name}
-              className="flex min-w-0 flex-col rounded-lg border border-neutral-200 p-6 sm:p-8"
+              className="flex min-w-0 flex-col rounded-lg border border-neutral-200 bg-white p-6 sm:p-8"
             >
               <h3 className="text-xl font-semibold">{t(plan.name)}</h3>
               <p className="mt-3 text-sm leading-6 text-neutral-600">
@@ -353,7 +394,7 @@ export function FAQSection() {
   return (
     <section
       id="questions"
-      className="landing-section border-t border-neutral-200 bg-neutral-50"
+      className="landing-section bg-white"
     >
       <div className="landing-container grid gap-8 lg:grid-cols-[1fr_2fr]">
         <div>

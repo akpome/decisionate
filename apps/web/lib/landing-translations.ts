@@ -9,10 +9,31 @@ export const refreshedLandingFrench: Record<string, string> = {
   "From connecting your data to making decisions and reviewing outcomes.":
     "De la connexion de vos données à la prise de décisions et au suivi des résultats.",
   "For agencies": "Pour les agences",
+  "For businesses": "Pour les entreprises",
+  "One workspace for your business.": "Un seul espace pour votre entreprise.",
+  "Connect your accounting, sales and marketing data or upload spreadsheets. Compare KPIs, explore AI-assisted insights, assign actions and review results with your team.":
+    "Connectez vos données de comptabilité, de vente et de marketing ou importez des tableurs. Comparez les KPI, explorez les analyses assistées par IA, attribuez des actions et examinez les résultats avec votre équipe.",
+  "Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.":
+    "Professional comprend un espace d'entreprise, tous les tableaux de bord sectoriels et la gestion des décisions. Rassemblez les données, rapports, actions et dates de révision de votre équipe.",
   "Help every client move from data to action.":
     "Aidez chaque client à passer des données à l'action.",
   "Manage separate client workspaces with your agency’s branding and role-based access. Help clients understand their performance, coordinate actions and track results.":
     "Gérez des espaces clients distincts avec l'image de votre agence et des accès par rôle. Aidez vos clients à comprendre leur performance, à coordonner leurs actions et à suivre les résultats.",
+  "Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.":
+    "Agency comprend votre espace d'agence et jusqu'à 10 espaces clients, toutes les fonctionnalités Professional et une allocation partagée de crédits IA. Des espaces supplémentaires payants accompagnent la croissance de votre agence.",
+  "Create and brand your agency": "Créez votre agence et son image de marque",
+  "Choose Agency during workspace setup, then add your agency name, logo and brand colours. Client workspaces carry your branding.":
+    "Choisissez Agency lors de la configuration de l'espace, puis ajoutez le nom, le logo et les couleurs de votre agence. Les espaces clients reprennent votre image de marque.",
+  "Connect each client's data": "Connectez les données de chaque client",
+  "Create a separate workspace for each client. Connect business tools for daily or weekly syncing, or upload files. Switch between workspaces without mixing client data.":
+    "Créez un espace distinct pour chaque client. Connectez les outils pour une synchronisation quotidienne ou hebdomadaire, ou importez des fichiers. Passez d'un espace à l'autre sans mélanger les données des clients.",
+  "Invite clients with scoped access": "Invitez les clients avec des accès définis",
+  "Each client workspace supports one client owner and one client user. Role-based access keeps their data and decisions within their own workspace.":
+    "Chaque espace client accueille un propriétaire client et un utilisateur client. Les accès par rôle limitent leurs données et décisions à leur propre espace.",
+  "Review performance and follow through": "Examinez la performance et assurez le suivi",
+  "Explore KPIs and AI-assisted insights, record decisions and assign actions. Enable agency-branded weekly reports and KPI alerts by email, then review outcomes with each client.":
+    "Explorez les KPI et les analyses assistées par IA, consignez les décisions et attribuez des actions. Activez les rapports hebdomadaires et les alertes KPI par courriel à l'image de votre agence, puis examinez les résultats avec chaque client.",
+  "Compare plans": "Comparer les forfaits",
   "jump to": "aller à",
   seconds: "secondes",
   "Explore live demo": "Explorer la démo",
