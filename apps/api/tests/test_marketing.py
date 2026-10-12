@@ -176,6 +176,85 @@ class MarketingTests(unittest.TestCase):
         self.assertIn(("DELETE", "/contacts/provider-contact/segments/segment-trial_setup_incomplete"), [call.args[:2] for call in self.provider.request.call_args_list])
         self.assertIn(("POST", "/contacts/provider-contact/segments/segment-trial_data_ready"), [call.args[:2] for call in self.provider.request.call_args_list])
 
+    def test_partial_segment_mapping_keeps_unmapped_setup_and_welcome_eligible(self):
+        self.config["segments"] = {name: value if name in {"trial_data_ready", "trial_expired"} else ""
+            for name, value in self.config["segments"].items()}
+        self.contact.provider_contact_id = None
+        self.provider.get_contact.return_value = None
+        worker.sync_contact(self.db, self.contact, self.provider)
+        self.db.commit()
+        self.assertEqual(service.desired_segments(self.db, self.contact), {"trial_setup_incomplete"})
+        self.assertEqual(self.contact.synced_revision, self.contact.revision)
+        self.assertIsNone(self.contact.sync_error)
+        self.assertTrue(any(call.args[:2] == ("POST", "/contacts") for call in self.provider.request.call_args_list))
+        self.assertFalse(any("/segments/" in call.args[1] for call in self.provider.request.call_args_list))
+        welcome = self.schedule()["welcome"]
+        self.provider.get_contact.return_value = {"id": self.contact.provider_contact_id, "unsubscribed": False}
+        worker.deliver_message(self.db, welcome, self.provider)
+        self.assertEqual(welcome.status, "submitted")
+
+    def test_partial_segment_mapping_adds_only_configured_agency_and_ready_groups(self):
+        self.config["segments"] = {"trial_data_ready": "segment-ready", "agency_account": "segment-agency"}
+        self.org.business_type = "agency"
+        self.dataset()
+        worker.sync_contact(self.db, self.contact, self.provider)
+        additions = {call.args[1] for call in self.provider.request.call_args_list if call.args[0] == "POST"}
+        self.assertEqual(additions, {"/contacts/provider-contact/segments/segment-ready", "/contacts/provider-contact/segments/segment-agency"})
+
+    def test_partial_segment_mapping_removes_ready_on_conversion_and_preserves_general(self):
+        self.config["segments"] = {"trial_data_ready": "segment-ready", "agency_account": "segment-agency"}
+        self.org.business_type = "agency"
+        self.sub.status = "active"
+        self.db.commit()
+        self.provider.segments.return_value = {"segment-ready", "segment-agency", "segment-general"}
+        worker.sync_contact(self.db, self.contact, self.provider)
+        removals = {call.args[1] for call in self.provider.request.call_args_list if call.args[0] == "DELETE"}
+        self.assertEqual(removals, {"/contacts/provider-contact/segments/segment-ready"})
+        self.assertEqual(service.desired_segments(self.db, self.contact), {"paying_customer", "agency_account"})
+
+    def test_partial_segment_mapping_withdrawal_removes_even_unmanaged_groups(self):
+        self.config["segments"] = {"trial_data_ready": "segment-ready", "agency_account": "segment-agency"}
+        self.provider.segments.return_value = {"segment-ready", "segment-agency", "segment-general"}
+        service.withdraw(self.db, self.contact, "account_preferences")
+        worker.sync_contact(self.db, self.contact, self.provider)
+        self.provider.request.assert_any_call("PATCH", "/contacts/provider-contact", {"first_name": "Sam", "unsubscribed": True})
+        removals = {call.args[1] for call in self.provider.request.call_args_list if call.args[0] == "DELETE"}
+        self.assertEqual(removals, {f"/contacts/provider-contact/segments/{name}" for name in self.provider.segments.return_value})
+
+    def test_partial_segment_mapping_moves_ready_trial_into_configured_expired_group(self):
+        self.config["segments"] = {"trial_data_ready": "segment-ready", "trial_expired": "segment-expired"}
+        self.dataset()
+        worker.sync_contact(self.db, self.contact, self.provider)
+        self.provider.request.assert_any_call("POST", "/contacts/provider-contact/segments/segment-ready")
+        self.sub.current_period_end = self.now - timedelta(hours=1)
+        self.db.commit()
+        self.provider.segments.return_value = {"segment-ready"}
+        self.provider.request.reset_mock()
+        worker.sync_contact(self.db, self.contact, self.provider)
+        membership_calls = [call.args[:2] for call in self.provider.request.call_args_list if "/segments/" in call.args[1]]
+        self.assertEqual(membership_calls, [
+            ("DELETE", "/contacts/provider-contact/segments/segment-ready"),
+            ("POST", "/contacts/provider-contact/segments/segment-expired"),
+        ])
+
+    def test_future_segment_mapping_is_applied_by_reconciliation_without_new_consent(self):
+        self.config["segments"] = {"trial_data_ready": "segment-ready", "trial_expired": "segment-expired"}
+        self.org.business_type = "agency"
+        self.dataset()
+        worker.sync_contact(self.db, self.contact, self.provider)
+        self.db.commit()
+        consent_count = self.db.query(MarketingConsentEvent).count()
+        self.provider.segments.return_value = {"segment-ready"}
+        self.provider.request.reset_mock()
+        self.config["segments"]["agency_account"] = "segment-agency"
+        worker.reconcile_page()
+        job = self.db.query(MarketingJob).filter_by(dedupe_key=f"daily:{utc_now().date()}:{self.contact.id}").one()
+        self.assertIsNone(job.revision)
+        worker.process_job(self.db, job, self.provider)
+        self.provider.request.assert_any_call("POST", "/contacts/provider-contact/segments/segment-agency")
+        self.assertEqual(self.db.query(MarketingConsentEvent).count(), consent_count)
+        self.assertEqual(self.contact.marketing_status, "subscribed")
+
     def test_cancel_at_period_end_remains_paying_and_payment_failure_is_attention(self):
         self.sub.status = "active"
         self.sub.cancel_at_period_end = 1

@@ -38,9 +38,7 @@ def sync_contact(db, contact, provider):
         contact.sync_error = None
         return
     config = settings()
-    mapping = config["segments"]
-    if desired and any(not mapping[name] for name in desired):
-        raise ProviderError("segment_mapping_missing")
+    mapping = {name: segment_id for name, segment_id in config["segments"].items() if segment_id}
     remote = provider.get_contact(contact.provider_contact_id or contact.email)
     contact.provider_checked_at = utc_now()
     if remote is None and contact.provider_contact_id:
@@ -64,7 +62,7 @@ def sync_contact(db, contact, provider):
         contact.provider_contact_id = result["id"]
     if contact.provider_contact_id:
         actual = provider.segments(contact.provider_contact_id)
-        wanted = {mapping[name] for name in desired}
+        wanted = {mapping[name] for name in desired if name in mapping}
         # Remove all memberships on withdrawal, including operator-added segments.
         obsolete = actual - wanted if not eligible(contact) else (actual & set(mapping.values())) - wanted
         for segment_id in obsolete:

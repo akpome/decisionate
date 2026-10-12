@@ -45,7 +45,7 @@ Configure on the API and existing worker:
 | `MARKETING_TRIAL_ENDING_ENABLED` | `false`. |
 | `MARKETING_ACTIVATION_CUTOFF` | Required before sending; an ISO UTC timestamp, for example a real rollout timestamp chosen by the operator. Older welcome/setup messages are not backfilled; a still-useful future trial-ending reminder remains eligible after fresh opt-in. |
 | `MARKETING_UNSUBSCRIBE_SECRET` | Stable random secret of at least 32 characters. Links do not expire. Preserve the key for outstanding links; rotating it invalidates older links, so do not rotate within their required validity period. |
-| `MARKETING_SEGMENT_IDS` | JSON mapping below, using actual IDs from Resend. |
+| `MARKETING_SEGMENT_IDS` | Optional JSON mapping below, using actual IDs from Resend only for the groups you choose to export. |
 | `MARKETING_INACTIVITY_DAYS` | `14`, product assumption, configurable. |
 | `MARKETING_WELCOME_WINDOW_HOURS` | `48`; a delayed verification outside this window skips welcome. |
 | `MARKETING_SETUP_DELAY_HOURS` | `48` after the actual trial start. Active ingestion defers six hours; existing import-error notices take precedence. |
@@ -61,7 +61,20 @@ Configure `MARKETING_SCHEDULER_SECRET` on the API and scheduler and add `marketi
 
 ## Segments and Recipients
 
-Create eight segments in Resend and configure:
+Decisionate tracks eight lifecycle groups internally. You do not need to purchase or create eight Resend segments: configure only the groups useful for your current plan. An omitted or empty mapping skips that group's Resend membership, not contact sync or eligible lifecycle emails. All consent, verification, suppression and send gates still apply.
+
+For the initial two-segment setup, configure:
+
+```json
+{
+  "trial_data_ready": "ACTUAL_SEGMENT_ID",
+  "trial_expired": "ACTUAL_SEGMENT_ID"
+}
+```
+
+Leave the existing `General` segment unmanaged; do not map unrelated lifecycle groups to it just to satisfy configuration. Decisionate preserves unmanaged membership during normal sync, but removes all memberships on withdrawal. A subscribed contact may have no mapped segment while still qualifying for a lifecycle email. For example, an incomplete-setup trial owner need not be in either of the two initial segments to receive an eligible welcome or setup reminder.
+
+The complete optional mapping is:
 
 ```json
 {
@@ -77,6 +90,10 @@ Create eight segments in Resend and configure:
 ```
 
 These are placeholders, not usable IDs. One persisted primary marketing workspace determines the subscription/setup segments. Owner status is derived from real membership/ownership. Invited team members and agency-funded client spaces do not receive trial or billing upgrade prompts. The existing billing workflow designates the owner as billing recipient. Inactive/agency segments can overlap. Scheduled cancellation stays paying until entitlement ends; payment trouble is not labeled former. Obsolete managed segment membership is removed, not just supplemented. Withdrawal removes every provider segment and marks the contact globally unsubscribed.
+
+To add a segment later, create it in Resend and add its actual ID under the matching group name in `MARKETING_SEGMENT_IDS` on both the API and worker. Retain the existing IDs. Omitted keys and empty strings both leave room for future groups without requiring extra provider segments. Redeploy both services to load the updated environment; normal scheduled reconciliation then queues existing contacts for membership refresh even when their account or consent has not changed. Existing eligibility rules determine membership, and withdrawn or suppressed contacts are not resubscribed. Adding any of the eight supported groups requires no schema or code changes, and does not enable an email automation or grant new consent.
+
+On Railway, the worker can use `${{decisionate-api.MARKETING_SEGMENT_IDS}}` as a reference variable instead of a duplicated JSON value, provided `decisionate-api` is the actual API service name. Future edits then happen only on the API; review and deploy the staged changes for both services. See [Railway reference variables](https://docs.railway.com/variables).
 
 There is no newsletter form or prospect signup in this initial release; the prospect segment is reserved for that later scope. Monthly updates and reactivation are manual campaign use cases, not automatic sequences. Topics and a campaign editor inside Decisionate are not added.
 
@@ -108,7 +125,7 @@ For an uncertain submission, inspect Resend email logs and the ledger's provider
 
 ## Founder Broadcast Checklist
 
-1. Confirm domain verification, sender settings, all segment IDs and current contact sync health.
+1. Confirm domain verification, sender settings, the IDs for your configured segments and current contact sync health.
 2. In [Resend Broadcasts](https://resend.com/docs/dashboard/broadcasts/editor), select an application-managed segment. Leave topic unset for the initial single global marketing preference; adding topics requires extending synchronization and topic webhooks first.
 3. Check the recipient list, exclude unsubscribed/suppressed addresses and coordinate timing against recent lifecycle sends in Platform Admin. The worker's 24-hour cap does not control dashboard Broadcasts.
 4. Compose a short subject and one main action. Supported first-name fallback is `{{{contact.first_name|there}}}`. Insert the actual legal sender, mailing address and monitored contact details.
@@ -120,6 +137,6 @@ For an uncertain submission, inspect Resend email logs and the ledger's provider
 
 Run the marketing API tests, related auth/billing/ingestion/service-email regressions, web tests, lint and build. Verify migration twice on a disposable database. Render all three email templates at mobile and desktop widths. The mocked end-to-end checks cover identity, opt-in, verification, segment reconciliation, welcome submission, usable data, unsubscribe and blocked future delivery.
 
-External rollout is still required: saved real sender details, verified domain/DNS, a working Resend key and webhook secret, actual segment IDs, stable unsubscribe secret, scheduler configuration, activation cutoff, and internal test recipients. Start with sync only, inspect dry-run decisions, perform a real internal delivery/unsubscribe test, then enable the three flags and finally disable test mode for eligible customers. Repository tests do not establish production deliverability.
+External rollout is still required: saved real sender details, verified domain/DNS, a working Resend key and webhook secret, actual IDs for the configured segments, stable unsubscribe secret, scheduler configuration, activation cutoff, and internal test recipients. Start with sync only, inspect dry-run decisions, perform a real internal delivery/unsubscribe test, then enable the three flags and finally disable test mode for eligible customers. Repository tests do not establish production deliverability.
 
 Consent policy here deliberately requires express opt-in for promotional onboarding. It does not claim that this is the only lawful basis under Canadian law. Consult [CRTC's CASL guidance](https://crtc.gc.ca/eng/com500/guide.htm) for compliance review. Provider references verified during implementation: [Contacts](https://resend.com/docs/api-reference/contacts/create-contact), [Segments](https://resend.com/docs/api-reference/contacts/list-contact-segments), [contact.updated](https://resend.com/docs/webhooks/contacts/updated), [verification](https://resend.com/docs/webhooks/verify-webhooks-requests), and [24-hour idempotency retention](https://resend.com/docs/dashboard/emails/idempotency-keys).
