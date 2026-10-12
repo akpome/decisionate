@@ -3,7 +3,7 @@
 import json
 import logging
 import os
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -29,7 +29,11 @@ def get_verified_clerk_primary_email(subject: str) -> str | None:
     try:
         request = Request(
             "https://api.clerk.com/v1/users/" + quote(subject, safe=""),
-            headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Accept": "application/json",
+                "User-Agent": "Decisionate/1.0",
+            },
         )
         with _clerk_opener.open(request, timeout=5) as response:
             if response.status != 200:
@@ -40,8 +44,17 @@ def get_verified_clerk_primary_email(subject: str) -> str | None:
         addresses = profile.get("email_addresses")
         if not isinstance(addresses, list):
             raise ValueError("Invalid Clerk email addresses")
+    except HTTPError as error:
+        logger.warning(
+            "Clerk primary email lookup failed: HTTP %s", error.code,
+            extra={"error_type": type(error).__name__, "http_status": error.code},
+        )
+        raise HTTPException(503, LOOKUP_UNAVAILABLE) from None
     except (URLError, OSError, ValueError) as error:
-        logger.warning("Clerk primary email lookup failed", extra={"error_type": type(error).__name__})
+        logger.warning(
+            "Clerk primary email lookup failed: %s", type(error).__name__,
+            extra={"error_type": type(error).__name__},
+        )
         raise HTTPException(503, LOOKUP_UNAVAILABLE) from None
 
     primary_id = profile.get("primary_email_address_id")

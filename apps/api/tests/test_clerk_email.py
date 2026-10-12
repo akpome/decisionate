@@ -34,6 +34,7 @@ class ClerkEmailTests(unittest.TestCase):
         request = self.get.call_args.args[0]
         self.assertEqual(request.full_url, "https://api.clerk.com/v1/users/user_owner")
         self.assertEqual(request.headers["Authorization"], "Bearer test-only-clerk-key")
+        self.assertEqual(request.get_header("User-agent"), "Decisionate/1.0")
         self.assertEqual(self.get.call_args.kwargs, {"timeout": 5})
 
     def test_does_not_use_verified_secondary_when_primary_is_unverified(self):
@@ -73,6 +74,34 @@ class ClerkEmailTests(unittest.TestCase):
                     clerk.get_verified_clerk_primary_email("user_owner")
                 self.assertEqual(error.exception.status_code, 503)
                 self.assertEqual(error.exception.detail, clerk.LOOKUP_UNAVAILABLE)
+
+    def test_provider_http_errors_log_only_status_and_keep_verification_closed(self):
+        for status in (401, 403, 404, 429, 500, 503):
+            with self.subTest(status=status):
+                self.get.side_effect = HTTPError(
+                    "https://api.clerk.com/v1/users/user_owner", status,
+                    "private upstream error with owner@example.test and test-only-clerk-key", {}, None,
+                )
+                with self.assertLogs(clerk.logger, level="WARNING") as logs:
+                    with self.assertRaises(HTTPException) as error:
+                        clerk.get_verified_clerk_primary_email("user_owner")
+                self.assertEqual(error.exception.status_code, 503)
+                self.assertEqual(error.exception.detail, clerk.LOOKUP_UNAVAILABLE)
+                self.assertEqual(logs.records[0].http_status, status)
+                self.assertEqual(logs.records[0].getMessage(), f"Clerk primary email lookup failed: HTTP {status}")
+                for private_value in ("owner@example.test", "test-only-clerk-key", "user_owner"):
+                    self.assertNotIn(private_value, logs.output[0])
+                    self.assertNotIn(private_value, error.exception.detail)
+
+    def test_connection_errors_log_type_without_private_exception_details(self):
+        self.get.side_effect = TimeoutError("private error with owner@example.test and test-only-clerk-key")
+        with self.assertLogs(clerk.logger, level="WARNING") as logs:
+            with self.assertRaises(HTTPException) as error:
+                clerk.get_verified_clerk_primary_email("user_owner")
+        self.assertEqual(error.exception.status_code, 503)
+        self.assertEqual(logs.records[0].getMessage(), "Clerk primary email lookup failed: TimeoutError")
+        self.assertNotIn("owner@example.test", logs.output[0])
+        self.assertNotIn("test-only-clerk-key", logs.output[0])
 
     def test_redirects_and_malformed_profiles_fail_closed(self):
         self.response.status = 302
