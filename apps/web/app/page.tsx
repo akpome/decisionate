@@ -18,9 +18,9 @@ export default function HomePage() {
       <LandingNavbar />
       <main id="main-content">
         <LandingHero />
-        <FeaturesSection />
         <BusinessSection />
         <AgencySection />
+        <FeaturesSection />
         <IntegrationsSection />
         <PricingSection />
         <FAQSection />

@@ -66,7 +66,7 @@ export function FeaturesSection() {
 export function BusinessSection() {
   const { t } = useLandingText()
   return (
-    <section id="industries" aria-labelledby="landing-business-heading" className="landing-section bg-white">
+    <section id="industries" aria-labelledby="landing-business-heading" className="landing-section border-y border-neutral-200 bg-neutral-50">
       <div className="landing-container grid gap-10 lg:grid-cols-2">
         <div>
           <p className="landing-eyebrow">{t("For businesses")}</p>
@@ -123,20 +123,20 @@ export function AgencySection() {
       description: "Choose Agency during workspace setup, then add your agency name, logo and brand colours. Client workspaces carry your branding."
     },
     {
-      title: "Connect each client's data",
-      description: "Create a separate workspace for each client. Connect business tools for daily or weekly syncing, or upload files. Switch between workspaces without mixing client data."
+      title: "Create workspaces and invite clients",
+      description: "Your agency creates a separate workspace for each client and invites their client owner. Each workspace supports one client owner and one client user, with role-based access."
     },
     {
-      title: "Invite clients with scoped access",
-      description: "Each client workspace supports one client owner and one client user. Role-based access keeps their data and decisions within their own workspace."
+      title: "Clients connect and manage their data",
+      description: "Clients authorize their own business tools for daily or weekly syncing, or upload files. They manage their datasets and connections; your agency does not connect or manage their data."
     },
     {
       title: "Review performance and follow through",
-      description: "Explore KPIs and AI-assisted insights, record decisions and assign actions. Enable agency-branded weekly reports and KPI alerts by email, then review outcomes with each client."
+      description: "With client-approved access, review KPIs and AI-assisted insights, record decisions and assign actions. Enable agency-branded weekly reports and KPI alerts by email, then review outcomes together."
     }
   ]
   return (
-    <section id="agencies" aria-labelledby="landing-agency-heading" className="landing-section border-y border-neutral-200 bg-neutral-50">
+    <section id="agencies" aria-labelledby="landing-agency-heading" className="landing-section bg-white">
       <div className="landing-container grid gap-10 lg:grid-cols-2">
         <div>
           <p className="landing-eyebrow">{t("For agencies")}</p>
@@ -144,7 +144,7 @@ export function AgencySection() {
             {t("Help every client move from data to action.")}
           </h2>
           <p className="mt-5 max-w-lg text-base leading-7 text-neutral-600">
-            {t("Manage separate client workspaces with your agency’s branding and role-based access. Help clients understand their performance, coordinate actions and track results.")}
+            {t("Create branded workspaces for your clients. Clients connect and manage their own data; your agency helps them understand performance, coordinate actions and track results with client-approved access.")}
           </p>
           <p className="mt-4 max-w-lg text-sm leading-7 text-neutral-600">
             {t("Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.")}

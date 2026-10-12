@@ -29,7 +29,7 @@ const { refreshedLandingFrench } = load("../lib/landing-translations.ts")
 const headline = "Turn your business data into better decisions."
 const productSummary = "Connect your accounting, sales and marketing tools—or upload spreadsheets. Spot what needs attention with AI-assisted insights, assign actions and track results in one workspace."
 const automationSummary = "Daily syncing keeps your connected data current. Enable weekly performance reports and KPI alerts by email."
-const agencySummary = "Manage separate client workspaces with your agency’s branding and role-based access. Help clients understand their performance, coordinate actions and track results."
+const agencySummary = "Create branded workspaces for your clients. Clients connect and manage their own data; your agency helps them understand performance, coordinate actions and track results with client-approved access."
 
 function renderHero(language = "en") {
   const overrides = {
@@ -55,7 +55,7 @@ function renderSections(language = "en") {
   }
   const sections = load("../components/landing/landing-sections.tsx", overrides)
   return renderToStaticMarkup(React.createElement(React.Fragment, null,
-    ...["FeaturesSection", "BusinessSection", "AgencySection", "IntegrationsSection", "PricingSection", "FAQSection"]
+    ...["BusinessSection", "AgencySection", "FeaturesSection", "IntegrationsSection", "PricingSection", "FAQSection"]
       .map(name => React.createElement(sections[name], { key: name }))
   ))
 }
@@ -127,7 +127,7 @@ test("mobile menu owns auth links and retains keyboard dismissal with focus rest
   assert.doesNotMatch(css, /landing-sign-in\s*\{[^}]*grid-row: 2/)
 })
 
-test("agency messaging is separate and follows the product and business sections", () => {
+test("business and agency sections precede the evidence and action section", () => {
   const hero = read("../components/landing/hero.tsx")
   assert.doesNotMatch(hero, /agency|client workspaces|teamSummary/)
   const sections = read("../components/landing/landing-sections.tsx")
@@ -137,10 +137,11 @@ test("agency messaging is separate and follows the product and business sections
   assert.ok(refreshedLandingFrench[agencySummary])
   assert.doesNotMatch(sections, /audience ===|Workspace type|Manage your agency and client workspaces separately/)
   const page = read("../app/page.tsx")
-  const order = ["FeaturesSection", "BusinessSection", "AgencySection", "IntegrationsSection", "PricingSection", "FAQSection"]
+  const order = ["BusinessSection", "AgencySection", "FeaturesSection", "IntegrationsSection", "PricingSection", "FAQSection"]
     .map(name => page.indexOf(`<${name} />`))
   assert.ok(order.every(index => index >= 0))
   assert.ok(order.every((index, position) => !position || index > order[position - 1]))
+  assert.match(page, /<AgencySection \/>\s*<FeaturesSection \/>/)
 })
 
 test("business and agency sections are explicitly labelled and all content bands alternate", () => {
@@ -163,12 +164,13 @@ test("agency plan, permissions and four-step workflow are described in both lang
     "Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.",
     "Create and brand your agency",
     "Choose Agency during workspace setup, then add your agency name, logo and brand colours. Client workspaces carry your branding.",
-    "Connect each client's data",
-    "Create a separate workspace for each client. Connect business tools for daily or weekly syncing, or upload files. Switch between workspaces without mixing client data.",
-    "Invite clients with scoped access",
-    "Each client workspace supports one client owner and one client user. Role-based access keeps their data and decisions within their own workspace.",
+    agencySummary,
+    "Create workspaces and invite clients",
+    "Your agency creates a separate workspace for each client and invites their client owner. Each workspace supports one client owner and one client user, with role-based access.",
+    "Clients connect and manage their data",
+    "Clients authorize their own business tools for daily or weekly syncing, or upload files. They manage their datasets and connections; your agency does not connect or manage their data.",
     "Review performance and follow through",
-    "Explore KPIs and AI-assisted insights, record decisions and assign actions. Enable agency-branded weekly reports and KPI alerts by email, then review outcomes with each client."
+    "With client-approved access, review KPIs and AI-assisted insights, record decisions and assign actions. Enable agency-branded weekly reports and KPI alerts by email, then review outcomes together."
   ]
   for (const language of ["en", "fr"]) {
     const html = renderSections(language)
@@ -186,6 +188,15 @@ test("agency plan, permissions and four-step workflow are described in both lang
   const backend = read("../../api/app/modules/organizations/router.py")
   assert.match(backend, /A client workspace can have only one client owner/)
   assert.match(backend, /A client workspace can have only one client user/)
+})
+
+test("agency workflow assigns data connections and management to the client", () => {
+  const html = renderSections()
+  assert.match(html, /Clients connect and manage their data/)
+  assert.match(html, /Clients authorize their own business tools/)
+  assert.match(html, /your agency does not connect or manage their data/)
+  assert.match(html, /With client-approved access/)
+  assert.doesNotMatch(read("../components/landing/landing-sections.tsx"), /Connect each client's data|Connect business tools for daily or weekly syncing/)
 })
 
 test("desktop columns and stacked mobile content use normal flow rather than CTA spacers", () => {
