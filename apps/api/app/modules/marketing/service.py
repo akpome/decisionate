@@ -266,6 +266,8 @@ def message_blocker(db, contact, message, now=None):
     owned = refresh_memberships(db, contact)
     if message.workspace_id not in owned:
         return "recipient_changed"
+    if message.message_type == "delivery_test":
+        return None if message.is_test and contact.email in settings()["test_recipients"] else "test_recipient_required"
     facts = workspace_facts(db, message.workspace_id, now)
     if not facts or facts["subscription_status"] != "trial":
         return "trial_not_active"

@@ -15,11 +15,12 @@ def render_message(db, contact, message):
     unsubscribe = absolute_url(runtime.api_url) + "/marketing/unsubscribe?" + urlencode({"token": unsubscribe_token(contact)})
     name = str(contact.first_name or "there").strip() or "there"
     subject, text, label, path = {
+        "delivery_test": ("Decisionate email delivery test", "This is an internal email delivery test requested from Decisionate Platform Admin. Your subscription and business data are unchanged.", "Open Decisionate", "/dashboard"),
         "welcome": ("Your first step in Decisionate", "Bring one source of business data into your workspace. Connect an accounting, sales or marketing tool, or upload a spreadsheet to start reviewing your numbers.", "Add your data", "/dashboard/datasets"),
         "incomplete_setup": ("Ready to add your first data source?", "Your workspace is ready for data. Choose a business tool to connect, or upload a spreadsheet. Once the import finishes, you can review trends and record your next decision.", "Add your data", "/dashboard/datasets"),
         "trial_ending": ("Your Decisionate trial is ending", "", "Review plans", "/dashboard/billing"),
     }[message.message_type]
-    facts = workspace_facts(db, message.workspace_id)
+    facts = workspace_facts(db, message.workspace_id) if message.message_type != "delivery_test" else None
     if facts and facts["account_type"] == "agency" and message.message_type in {"welcome", "incomplete_setup"}:
         subject = "Create your first client workspace" if message.message_type == "welcome" else "Ready to invite your first client?"
         text = "Create a client workspace and invite its owner. Each client connects and manages their own business data. When they grant your agency access, you can review performance, record decisions and coordinate actions together."

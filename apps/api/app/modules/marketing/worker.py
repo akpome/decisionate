@@ -159,7 +159,8 @@ def deliver_message(db, message, provider):
             message.status, message.reason = "skipped", blocker
         db.commit()
         return
-    if not config["enabled"] or not config["sending"] or not config["automation"].get(message.message_type):
+    delivery_test = message.is_test and message.message_type == "delivery_test"
+    if not config["enabled"] or not config["sending"] or (not delivery_test and not config["automation"].get(message.message_type)):
         message.reason = "dry_run_sending_disabled"
         message.due_at = now + timedelta(hours=1)
         db.commit()

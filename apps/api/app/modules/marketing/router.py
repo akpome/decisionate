@@ -20,7 +20,7 @@ from app.modules.alerts.email_delivery import clean_env_value
 from app.modules.marketing.config import public_settings, settings
 from app.modules.marketing.models import MarketingContact, MarketingEmail, MarketingJob, MarketingSettings, MarketingWebhook, MarketingLinkVisit
 from app.modules.marketing.service import (
-    capture_identity, enqueue, record_meaningful_activity, set_preference, withdraw, workspace_facts,
+    capture_identity, eligible, enqueue, record_meaningful_activity, set_preference, withdraw, workspace_facts,
 )
 from app.modules.marketing.worker import process_webhook, reconcile_page
 
@@ -227,7 +227,10 @@ def marketing_support(request: Request, after: int = 0):
         return {"configuration": {**public_settings(), "enabled": config["enabled"], "sending": config["sending"],
             "automation": config["automation"], "from_email": config["from_email"], "from_name": config["from_name"],
             "segments_configured": {key: bool(value) for key, value in config["segments"].items()}},
-            "contacts": [serialize_contact(db, contact) for contact in contacts],
+            "contacts": [{**serialize_contact(db, contact), "test_eligible": bool(
+                eligible(contact) and contact.email in config["test_recipients"] and contact.primary_workspace_id
+                and contact.provider_contact_id and contact.synced_revision >= contact.revision and not contact.sync_error
+            )} for contact in contacts],
             "next_contact_id": contacts[-1].id if len(contacts) == 50 else None,
             "emails": [{"id": entry.id, "contact_id": entry.contact_id, "message_type": entry.message_type,
                 "workspace_id": entry.workspace_id, "status": entry.status, "due_at": entry.due_at,
@@ -281,19 +284,33 @@ def email_preview(message_id: int, request: Request):
 
 
 @router.post("/admin/contacts/{contact_id}/test")
-def queue_internal_test(contact_id: int, request: Request):
+def queue_internal_test(contact_id: int, request: Request, kind: Literal["delivery_test", "welcome"] = "delivery_test"):
     admin(request)
-    from app.modules.marketing.service import eligible, refresh_memberships
+    from app.modules.marketing.service import refresh_memberships
+    config = settings()
+    if not config["enabled"] or not config["sending"]:
+        raise HTTPException(409, "Internal test delivery is disabled.")
+    if not config["consent_available"] or not config["from_email"] or not config["cutoff"]:
+        raise HTTPException(409, "Configure the sender details and marketing activation cutoff before testing.")
     with SessionLocal() as db:
-        contact = db.get(MarketingContact, contact_id)
-        if not eligible(contact) or contact.email not in settings()["test_recipients"]:
+        contact = db.query(MarketingContact).filter_by(id=contact_id).with_for_update().first()
+        if not eligible(contact) or contact.email not in config["test_recipients"]:
             raise HTTPException(409, "Test sends require a verified, opted-in internal test recipient.")
+        if not contact.provider_contact_id or contact.synced_revision < contact.revision or contact.sync_error:
+            raise HTTPException(409, "Wait for this contact to finish syncing before testing.")
         allowed = refresh_memberships(db, contact)
-        facts = workspace_facts(db, allowed[0]) if allowed else None
-        if not facts or facts["subscription_status"] != "trial":
+        if not allowed:
+            raise HTTPException(409, "Use an internal account with an owned workspace for this delivery test.")
+        workspace_id = contact.primary_workspace_id if contact.primary_workspace_id in allowed else allowed[0]
+        facts = workspace_facts(db, workspace_id) if kind == "welcome" else None
+        if kind == "welcome" and (not facts or facts["subscription_status"] != "trial"):
             raise HTTPException(409, "Use an internal trial workspace for this lifecycle test.")
-        message = MarketingEmail(contact_id=contact.id, workspace_id=allowed[0], is_test=True,
-                                 sequence_instance="test:" + secrets.token_hex(16), message_type="welcome", due_at=utc_now())
-        db.add(message)
+        message = db.query(MarketingEmail).filter_by(
+            contact_id=contact.id, workspace_id=workspace_id, is_test=True, message_type=kind,
+        ).filter(MarketingEmail.status.in_({"pending", "retry", "sending"})).first()
+        if not message:
+            message = MarketingEmail(contact_id=contact.id, workspace_id=workspace_id, is_test=True,
+                                     sequence_instance="test:" + secrets.token_hex(16), message_type=kind, due_at=utc_now())
+            db.add(message)
         db.commit()
         return {"status": "queued", "message_id": message.id}

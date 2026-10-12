@@ -76,7 +76,7 @@ export type MarketingSender = {
 
 export type MarketingSupport = {
   configuration: MarketingConsentRequest & MarketingSender & { enabled: boolean; sending: boolean; automation: Record<string, boolean> }
-  contacts: MarketingContact[]
+  contacts: (MarketingContact & { test_eligible: boolean })[]
   next_contact_id: number | null
   emails: { id: number; contact_id: number; message_type: string; status: string; due_at: string; reason: string | null }[]
   failed_jobs: { id: number; job_type: string; error: string; attempts: number }[]

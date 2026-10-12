@@ -78,6 +78,13 @@ test("email links can select only an authorized workspace", () => {
   assert.match(shell, /const nextWorkspaceId = linkedWorkspaceId \?\?/)
 })
 
+test("internal delivery test controls use server eligibility and respect sending gates", () => {
+  const admin = read("../features/marketing/marketing-admin.tsx")
+  assert.match(admin, /Queue internal delivery test/)
+  assert.doesNotMatch(admin, /Queue internal test welcome/)
+  assert.match(admin, /disabled=\{busy \|\| !contact\.test_eligible \|\| !data\.configuration\.enabled \|\| !data\.configuration\.sending\}/)
+})
+
 test("meaningful activity excludes background syncing and hidden views", () => {
   const tracker = read("../features/marketing/activity-tracker.tsx")
   assert.match(tracker, /document\.visibilityState === "visible"/)

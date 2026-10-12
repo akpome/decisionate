@@ -18,7 +18,7 @@ from app.db.models import AppUser, Dataset, DataIngestionJob, Organization, Orga
 from app.modules.marketing import config, provider, router, service, templates, worker
 from app.modules.marketing.config import SEGMENTS
 from app.modules.marketing.hooks import install_marketing_hooks
-from app.modules.marketing.models import MarketingContact, MarketingConsentEvent, MarketingEmail, MarketingJob, MarketingWorkspace, MarketingLinkVisit
+from app.modules.marketing.models import MarketingContact, MarketingConsentEvent, MarketingEmail, MarketingJob, MarketingWorkspace, MarketingLinkVisit, MarketingWebhook
 from app.modules.marketing.provider import ProviderError
 
 
@@ -85,6 +85,177 @@ class MarketingTests(unittest.TestCase):
         self.db.add(row)
         self.db.commit()
         return row
+
+    def internal_test(self, **query):
+        app = FastAPI(); app.include_router(router.router)
+        with patch.object(router, "admin", return_value=SimpleNamespace(user_id="admin")):
+            return TestClient(app).post(f"/marketing/admin/contacts/{self.contact.id}/test", params=query)
+
+    def test_paid_account_can_receive_neutral_test_without_lifecycle_automation(self):
+        self.sub.status = "active"
+        self.db.commit()
+        self.config["automation"] = {kind: False for kind in config.MESSAGE_TYPES}
+        response = self.internal_test()
+        self.assertEqual(response.status_code, 200, response.text)
+        message = self.db.get(MarketingEmail, response.json()["message_id"])
+        self.assertTrue(message.is_test)
+        self.assertEqual(message.message_type, "delivery_test")
+        worker.deliver_message(self.db, message, self.provider)
+        self.assertEqual(message.status, "submitted")
+        payload = self.provider.request.call_args.args[2]
+        self.assertEqual(payload["to"], ["owner@example.test"])
+        self.assertEqual(payload["subject"], "Decisionate email delivery test")
+        self.assertIn("subscription and business data are unchanged", payload["text"])
+        self.assertIn("List-Unsubscribe", payload["headers"])
+        self.assertNotIn("trial", payload["text"].lower())
+        self.db.refresh(self.sub)
+        self.assertEqual(self.sub.status, "active")
+        self.assertEqual(self.sub.current_period_end, self.now + timedelta(days=30))
+
+    def test_internal_welcome_test_still_requires_an_active_trial(self):
+        self.sub.status = "active"
+        self.db.commit()
+        self.assertEqual(self.internal_test(kind="welcome").status_code, 409)
+        self.assertEqual(self.db.query(MarketingEmail).count(), 0)
+        self.sub.status = "trialing"
+        self.db.commit()
+        response = self.internal_test(kind="welcome")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.db.get(MarketingEmail, response.json()["message_id"]).message_type, "welcome")
+
+    def test_repeated_test_requests_reuse_the_pending_message(self):
+        first, second = self.internal_test(), self.internal_test()
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.json()["message_id"], second.json()["message_id"])
+        self.assertEqual(self.db.query(MarketingEmail).count(), 1)
+
+    def test_delivery_test_rechecks_allowlist_after_queueing(self):
+        response = self.internal_test()
+        message = self.db.get(MarketingEmail, response.json()["message_id"])
+        self.config["test_recipients"] = set()
+        worker.deliver_message(self.db, message, self.provider)
+        self.assertEqual(message.reason, "test_recipient_required")
+        self.provider.request.assert_not_called()
+
+    def test_test_queue_respects_enabled_and_sending_gates(self):
+        for flag in ("enabled", "sending"):
+            with self.subTest(flag=flag):
+                self.config[flag] = False
+                self.assertEqual(self.internal_test().status_code, 409)
+                self.config[flag] = True
+        self.assertEqual(self.db.query(MarketingEmail).count(), 0)
+
+    def test_test_queue_requires_sender_and_activation_cutoff(self):
+        for flag in ("consent_available", "from_email", "cutoff"):
+            with self.subTest(flag=flag):
+                previous = self.config[flag]
+                self.config[flag] = ""
+                self.assertEqual(self.internal_test().status_code, 409)
+                self.config[flag] = previous
+        self.assertEqual(self.db.query(MarketingEmail).count(), 0)
+
+    def test_test_queue_requires_verified_consent_and_an_allowlisted_address(self):
+        self.config["test_recipients"] = set()
+        self.assertEqual(self.internal_test().status_code, 409)
+        self.config["test_recipients"] = {self.contact.email}
+        for field, value in (("email_verified_at", None), ("marketing_status", "unknown"), ("suppression_reason", "test suppression")):
+            with self.subTest(field=field):
+                previous = getattr(self.contact, field)
+                setattr(self.contact, field, value)
+                self.db.commit()
+                self.assertEqual(self.internal_test().status_code, 409)
+                setattr(self.contact, field, previous)
+                self.db.commit()
+        self.assertEqual(self.db.query(MarketingEmail).count(), 0)
+
+    def test_test_queue_requires_current_contact_sync(self):
+        for field, value in (("provider_contact_id", None), ("sync_error", "test sync error"), ("synced_revision", self.contact.revision - 1)):
+            with self.subTest(field=field):
+                previous = getattr(self.contact, field)
+                setattr(self.contact, field, value)
+                self.db.commit()
+                self.assertEqual(self.internal_test().status_code, 409)
+                setattr(self.contact, field, previous)
+                self.db.commit()
+        self.assertEqual(self.db.query(MarketingEmail).count(), 0)
+
+    def test_test_queue_requires_an_owned_workspace(self):
+        self.contact.user_id = "invited-member"
+        self.db.commit()
+        self.assertEqual(self.internal_test().status_code, 409)
+        self.assertEqual(self.db.query(MarketingEmail).count(), 0)
+
+    def test_ordinary_user_cannot_queue_an_internal_delivery_test(self):
+        app = FastAPI(); app.include_router(router.router)
+        with patch.object(router, "admin", side_effect=HTTPException(403, "Full platform admin access required")):
+            response = TestClient(app).post(f"/marketing/admin/contacts/{self.contact.id}/test")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.db.query(MarketingEmail).count(), 0)
+
+    def test_delivery_test_cannot_bypass_sending_gate_after_it_is_queued(self):
+        response = self.internal_test()
+        message = self.db.get(MarketingEmail, response.json()["message_id"])
+        self.config["sending"] = False
+        worker.deliver_message(self.db, message, self.provider)
+        self.assertEqual(message.reason, "dry_run_sending_disabled")
+        self.provider.request.assert_not_called()
+
+    def test_neutral_test_content_cannot_be_used_as_an_automated_message(self):
+        response = self.internal_test()
+        message = self.db.get(MarketingEmail, response.json()["message_id"])
+        message.is_test = False
+        self.db.commit()
+        worker.deliver_message(self.db, message, self.provider)
+        self.assertEqual(message.status, "skipped")
+        self.assertEqual(message.reason, "test_recipient_required")
+        self.provider.request.assert_not_called()
+
+    def test_delivery_test_rechecks_provider_opt_out(self):
+        response = self.internal_test()
+        message = self.db.get(MarketingEmail, response.json()["message_id"])
+        self.provider.get_contact.return_value["unsubscribed"] = True
+        worker.deliver_message(self.db, message, self.provider)
+        self.assertEqual(message.reason, "provider_opt_out")
+        self.assertEqual(self.contact.marketing_status, "unsubscribed")
+        self.provider.request.assert_not_called()
+
+    def test_delivery_test_is_subject_to_the_contact_frequency_cap(self):
+        response = self.internal_test()
+        message = self.db.get(MarketingEmail, response.json()["message_id"])
+        self.db.add(MarketingEmail(contact_id=self.contact.id, workspace_id="owner", sequence_instance="earlier-test",
+            is_test=True, message_type="delivery_test", due_at=self.now, status="submitted", first_attempt_at=self.now - timedelta(hours=1)))
+        self.db.commit()
+        worker.deliver_message(self.db, message, self.provider)
+        self.assertEqual(message.reason, "frequency_cap")
+        self.provider.request.assert_not_called()
+
+    def test_delivery_test_exception_does_not_allow_trial_emails_for_paid_accounts(self):
+        welcome = self.schedule()["welcome"]
+        self.sub.status = "active"
+        self.db.commit()
+        worker.deliver_message(self.db, welcome, self.provider)
+        self.assertEqual(welcome.reason, "trial_not_active")
+        self.provider.request.assert_not_called()
+
+    def test_admin_test_eligibility_is_limited_to_current_synced_internal_contacts(self):
+        service.refresh_memberships(self.db, self.contact)
+        self.db.commit()
+        app = FastAPI(); app.include_router(router.router)
+        with patch.object(router, "admin", return_value=SimpleNamespace(user_id="admin")):
+            client = TestClient(app)
+            self.assertTrue(client.get("/marketing/admin").json()["contacts"][0]["test_eligible"])
+            self.config["test_recipients"] = set()
+            self.assertFalse(client.get("/marketing/admin").json()["contacts"][0]["test_eligible"])
+
+    def test_delivery_test_receives_delivery_webhook_updates(self):
+        response = self.internal_test()
+        message = self.db.get(MarketingEmail, response.json()["message_id"])
+        worker.deliver_message(self.db, message, self.provider)
+        receipt = MarketingWebhook(event_id="delivery-test-event", event_type="email.delivered",
+            payload=json.dumps({"type": "email.delivered", "data": {"email_id": message.provider_message_id}}))
+        worker.process_webhook(self.db, receipt, self.provider)
+        self.assertEqual(message.status, "delivered")
 
     def test_unknown_and_unverified_consent_are_ineligible(self):
         self.contact.marketing_status = "unknown"
