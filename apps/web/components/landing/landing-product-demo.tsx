@@ -79,9 +79,17 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="landing-product-demo">
-      <div className="landing-hero-stage">
-        {children}
+    <div className="landing-hero-stage">
+      {children}
+      <section className="landing-product-demo" aria-labelledby="landing-demo-heading">
+        <div className="landing-demo-intro">
+          <h2 id="landing-demo-heading" className="landing-demo-heading">
+            {t("See Decisionate in action")}
+          </h2>
+          <p className="landing-demo-summary text-neutral-600">
+            {t("From connecting your data to making decisions and reviewing outcomes.")}
+          </p>
+        </div>
         <div className="landing-demo-frame">
           <video
             ref={videoRef}
@@ -134,45 +142,45 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
             </button>
           )}
         </div>
-      </div>
-      <div className="landing-demo-details" style={{ maxWidth: videoWidth }}>
-        {playbackError && (
-          <p role="alert" className="mb-3 text-sm text-red-700">
-            {t(
-              "The video could not play. You can still explore the live demo below."
-            )}
-          </p>
-        )}
-        <div
-          className="landing-demo-chapters"
-          aria-label={t("Walkthrough chapters")}
-        >
-          {productDemoChapters.map((item, index) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => seek(item.time, index)}
-              aria-label={`${t("Play chapter")}: ${t(item.label)}`}
-              aria-current={chapter === index ? "step" : undefined}
-              className={`min-h-14 min-w-0 border-t-2 pt-3 text-left text-sm font-semibold text-neutral-950 ${chapter === index ? "landing-brand-chapter" : "border-neutral-200"}`}
-            >
-              <span className="mb-1 block text-xs font-normal tabular-nums text-neutral-500">
-                0:{String(item.time).padStart(2, "0")}
-              </span>
-              <span className="block whitespace-nowrap">{t(item.label)}</span>
-            </button>
-          ))}
-        </div>
-        <div className="mt-4 flex justify-end text-xs leading-5">
-          <Link
-            href="/demo"
-            className="landing-brand-link inline-flex items-center gap-2 font-medium"
+        <div className="landing-demo-details" style={{ maxWidth: videoWidth }}>
+          {playbackError && (
+            <p role="alert" className="mb-3 text-sm text-red-700">
+              {t(
+                "The video could not play. You can still explore the live demo below."
+              )}
+            </p>
+          )}
+          <div
+            className="landing-demo-chapters"
+            aria-label={t("Walkthrough chapters")}
           >
-            {t("Explore the live demo")}
-            <ArrowRight size={15} aria-hidden="true" />
-          </Link>
+            {productDemoChapters.map((item, index) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => seek(item.time, index)}
+                aria-label={`${t(item.label)}, ${t("jump to")} ${item.time} ${t("seconds")}`}
+                aria-current={chapter === index ? "step" : undefined}
+                className={`min-h-14 min-w-0 border-t-2 pt-3 text-left text-sm font-semibold text-neutral-950 ${chapter === index ? "landing-brand-chapter" : "border-neutral-200"}`}
+              >
+                <span className="mb-1 block text-xs font-normal tabular-nums text-neutral-500">
+                  0:{String(item.time).padStart(2, "0")}
+                </span>
+                <span className="block whitespace-nowrap">{t(item.label)}</span>
+              </button>
+            ))}
+          </div>
+          <div className="mt-4 flex justify-end text-xs leading-5">
+            <Link
+              href="/demo"
+              className="landing-brand-link inline-flex items-center gap-2 font-medium"
+            >
+              {t("Explore live demo")}
+              <ArrowRight size={15} aria-hidden="true" />
+            </Link>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   )
 }

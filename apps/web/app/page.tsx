@@ -3,6 +3,7 @@ import { LandingHero } from "@/components/landing/hero"
 import { LandingNavbar } from "@/components/landing/navbar"
 import "@/components/landing/landing.css"
 import {
+  AgencySection,
   FAQSection,
   FeaturesSection,
   FinalCTASection,
@@ -19,6 +20,7 @@ export default function HomePage() {
         <LandingHero />
         <FeaturesSection />
         <IndustryDashboardsSection />
+        <AgencySection />
         <IntegrationsSection />
         <PricingSection />
         <FAQSection />

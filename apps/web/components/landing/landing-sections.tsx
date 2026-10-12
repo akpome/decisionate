@@ -65,7 +65,6 @@ export function FeaturesSection() {
 
 export function IndustryDashboardsSection() {
   const { t } = useLandingText()
-  const [audience, setAudience] = useState<"business" | "agency">("business")
   return (
     <section id="industries" className="landing-section bg-white">
       <div className="landing-container grid gap-10 lg:grid-cols-2">
@@ -74,33 +73,8 @@ export function IndustryDashboardsSection() {
           <h2 className="landing-heading mt-3">
             {t("Built around the work you do.")}
           </h2>
-          <div
-            role="group"
-            aria-label={t("Workspace type")}
-            className="mt-7 inline-flex max-w-full gap-1 rounded-md border border-neutral-200 p-1"
-          >
-            {(["business", "agency"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={audience === option}
-                onClick={() => setAudience(option)}
-                className={`rounded px-3 py-2 text-sm font-medium ${audience === option ? "landing-brand-selected" : "text-neutral-600 hover:bg-neutral-100"}`}
-              >
-                {t(
-                  option === "business"
-                    ? "For your business"
-                    : "For your agency"
-                )}
-              </button>
-            ))}
-          </div>
           <p className="mt-5 max-w-lg text-base leading-7 text-neutral-600">
-            {t(
-              audience === "business"
-                ? "Bring your team into one workspace, choose the dashboards that fit your business, and keep important decisions visible."
-                : "Manage your agency and client workspaces separately. Give clients their own view, with your branding and role-based access."
-            )}
+            {t("Bring your team into one workspace, choose the dashboards that fit your business, and keep important decisions visible.")}
           </p>
           <Link
             href="/sign-up"
@@ -132,6 +106,31 @@ export function IndustryDashboardsSection() {
                 </Link>
               ))}
           </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function AgencySection() {
+  const { t } = useLandingText()
+  return (
+    <section id="agencies" className="landing-section border-t border-neutral-200 bg-white">
+      <div className="landing-container grid gap-6 lg:grid-cols-2 lg:gap-10">
+        <div>
+          <p className="landing-eyebrow">{t("For agencies")}</p>
+          <h2 className="landing-heading mt-3">
+            {t("Help every client move from data to action.")}
+          </h2>
+        </div>
+        <div>
+          <p className="max-w-lg text-base leading-7 text-neutral-600">
+            {t("Manage separate client workspaces with your agency’s branding and role-based access. Help clients understand their performance, coordinate actions and track results.")}
+          </p>
+          <Link href="/sign-up" className="landing-brand-link mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold">
+            {t("Start trial")}
+            <ArrowRight size={16} aria-hidden="true" />
+          </Link>
         </div>
       </div>
     </section>
