@@ -169,8 +169,8 @@ class MarketingTests(unittest.TestCase):
                 self.db.commit()
         self.assertEqual(self.db.query(MarketingEmail).count(), 0)
 
-    def test_test_queue_requires_current_contact_sync(self):
-        for field, value in (("provider_contact_id", None), ("sync_error", "test sync error"), ("synced_revision", self.contact.revision - 1)):
+    def test_test_queue_requires_initial_successful_contact_sync(self):
+        for field, value in (("provider_contact_id", None), ("sync_error", "test sync error")):
             with self.subTest(field=field):
                 previous = getattr(self.contact, field)
                 setattr(self.contact, field, value)
@@ -179,6 +179,59 @@ class MarketingTests(unittest.TestCase):
                 setattr(self.contact, field, previous)
                 self.db.commit()
         self.assertEqual(self.db.query(MarketingEmail).count(), 0)
+
+    def test_paid_test_queues_during_update_but_waits_for_sync_before_sending(self):
+        self.sub.status = "active"
+        service.touch_contact(self.db, self.contact)
+        self.db.commit()
+        self.config["automation"] = {kind: False for kind in config.MESSAGE_TYPES}
+        response = self.internal_test()
+        self.assertEqual(response.status_code, 200, response.text)
+        message = self.db.get(MarketingEmail, response.json()["message_id"])
+        sync_job = self.db.query(MarketingJob).filter_by(
+            dedupe_key=f"internal-test-sync:{message.id}:{self.contact.revision}").one()
+        self.assertEqual(sync_job.job_type, "contact")
+        self.assertEqual(sync_job.entity_id, str(self.contact.id))
+        worker.deliver_message(self.db, message, self.provider)
+        self.assertEqual(message.reason, "awaiting_contact_sync")
+        self.assertEqual(message.status, "pending")
+        self.provider.request.assert_not_called()
+        worker.process_job(self.db, sync_job, self.provider)
+        self.db.commit()
+        self.db.refresh(message)
+        self.assertLessEqual(message.due_at, utc_now())
+        self.assertIsNone(message.reason)
+        self.assertEqual(self.contact.synced_revision, self.contact.revision)
+        worker.deliver_message(self.db, message, self.provider)
+        self.assertEqual(message.status, "submitted")
+        self.assertEqual(self.sub.status, "active")
+        self.assertEqual(self.db.query(MarketingEmail).count(), 1)
+
+    def test_pending_test_and_its_sync_job_are_deduplicated_during_update(self):
+        service.touch_contact(self.db, self.contact)
+        self.db.commit()
+        first, second = self.internal_test(), self.internal_test()
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.json()["message_id"], second.json()["message_id"])
+        self.assertEqual(self.db.query(MarketingEmail).count(), 1)
+        self.assertEqual(self.db.query(MarketingJob).filter(
+            MarketingJob.dedupe_key.like("internal-test-sync:%")).count(), 1)
+
+    def test_withdrawal_cancels_a_test_waiting_for_sync(self):
+        service.touch_contact(self.db, self.contact)
+        self.db.commit()
+        response = self.internal_test()
+        message = self.db.get(MarketingEmail, response.json()["message_id"])
+        worker.deliver_message(self.db, message, self.provider)
+        self.assertEqual(message.reason, "awaiting_contact_sync")
+        service.withdraw(self.db, self.contact, "test-withdrawal")
+        worker.sync_contact(self.db, self.contact, self.provider)
+        self.db.commit()
+        self.db.refresh(message)
+        self.assertEqual(message.status, "skipped")
+        self.assertEqual(message.reason, "marketing_withdrawn")
+        self.assertFalse(any(call.args[:2] == ("POST", "/emails") for call in self.provider.request.call_args_list))
 
     def test_test_queue_requires_an_owned_workspace(self):
         self.contact.user_id = "invited-member"
@@ -238,13 +291,17 @@ class MarketingTests(unittest.TestCase):
         self.assertEqual(welcome.reason, "trial_not_active")
         self.provider.request.assert_not_called()
 
-    def test_admin_test_eligibility_is_limited_to_current_synced_internal_contacts(self):
+    def test_admin_test_eligibility_allows_a_previously_synced_internal_contact_to_update(self):
         service.refresh_memberships(self.db, self.contact)
+        self.contact.last_successful_sync_at = self.now
+        service.touch_contact(self.db, self.contact)
         self.db.commit()
         app = FastAPI(); app.include_router(router.router)
         with patch.object(router, "admin", return_value=SimpleNamespace(user_id="admin")):
             client = TestClient(app)
-            self.assertTrue(client.get("/marketing/admin").json()["contacts"][0]["test_eligible"])
+            record = client.get("/marketing/admin").json()["contacts"][0]
+            self.assertTrue(record["test_eligible"])
+            self.assertLess(record["synced_revision"], record["revision"])
             self.config["test_recipients"] = set()
             self.assertFalse(client.get("/marketing/admin").json()["contacts"][0]["test_eligible"])
 
@@ -708,6 +765,104 @@ class MarketingTests(unittest.TestCase):
         self.assertEqual(job.status, "queued")
         self.assertGreater(job.next_attempt_at, self.now + timedelta(seconds=119))
         self.assertIsNotNone(self.db.get(AppUser, "owner"))
+
+    def test_sync_wakes_only_messages_waiting_for_contact_sync(self):
+        self.sub.status = "active"
+        deadline = self.now + timedelta(hours=12)
+        cases = [("pending", "awaiting_contact_sync"), ("retry", "awaiting_contact_sync"),
+                 ("retry", "frequency_cap"), ("retry", "provider_retry"),
+                 ("sending", "awaiting_contact_sync"), ("skipped", "marketing_withdrawn")]
+        messages = [MarketingEmail(contact_id=self.contact.id, workspace_id="owner", sequence_instance=f"wake-{index}",
+            is_test=True, message_type="delivery_test", status=status, reason=reason, due_at=deadline)
+            for index, (status, reason) in enumerate(cases)]
+        other = MarketingContact(email="other@example.test")
+        self.db.add(other)
+        self.db.flush()
+        unrelated = MarketingEmail(contact_id=other.id, workspace_id="owner", sequence_instance="other-wake",
+            message_type="delivery_test", reason="awaiting_contact_sync", due_at=deadline)
+        self.db.add_all([*messages, unrelated])
+        self.db.commit()
+        worker.sync_contact(self.db, self.contact, self.provider)
+        self.db.commit()
+        for index, message in enumerate(messages):
+            self.db.refresh(message)
+            self.assertEqual(message.status, cases[index][0])
+            if index < 2:
+                self.assertLessEqual(message.due_at, utc_now())
+                self.assertIsNone(message.reason)
+            else:
+                self.assertEqual(message.due_at, deadline)
+                self.assertEqual(message.reason, cases[index][1])
+        self.db.refresh(unrelated)
+        self.assertEqual(unrelated.due_at, deadline)
+        self.assertEqual(unrelated.reason, "awaiting_contact_sync")
+
+    def test_successful_sync_completes_only_covered_versioned_contact_jobs(self):
+        self.sub.status = "active"
+        self.db.query(MarketingJob).delete()
+        self.contact.revision += 1
+        revision = self.contact.revision
+        cases = [("contact", str(self.contact.id), revision - 1, "queued"),
+                 ("contact", str(self.contact.id), revision, "queued"),
+                 ("contact", str(self.contact.id), revision + 1, "queued"),
+                 ("contact", str(self.contact.id), None, "queued"),
+                 ("contact", str(self.contact.id), revision - 1, "failed"),
+                 ("contact", "999999", revision - 1, "queued"),
+                 ("workspace", "owner", revision - 1, "queued")]
+        jobs = [MarketingJob(dedupe_key=f"covered-{index}", job_type=kind, entity_id=entity_id, revision=value, status=status)
+            for index, (kind, entity_id, value, status) in enumerate(cases)]
+        self.db.add_all(jobs)
+        self.db.commit()
+        worker.process_job(self.db, jobs[0], self.provider)
+        self.db.commit()
+        for index, job in enumerate(jobs):
+            self.db.refresh(job)
+            self.assertEqual(job.status, "succeeded" if index < 2 else cases[index][3])
+            if index < 2:
+                self.assertIsNotNone(job.completed_at)
+            else:
+                self.assertIsNone(job.completed_at)
+
+    def test_failed_sync_does_not_complete_queued_contact_jobs(self):
+        service.touch_contact(self.db, self.contact)
+        self.db.commit()
+        job = self.db.query(MarketingJob).filter_by(job_type="contact", revision=self.contact.revision).one()
+        self.provider.get_contact.side_effect = ProviderError(429, retry_after=120)
+        with self.assertRaises(ProviderError):
+            worker.process_job(self.db, job, self.provider)
+        self.db.rollback()
+        self.db.refresh(job)
+        self.assertEqual(job.status, "queued")
+        self.assertIsNone(job.completed_at)
+
+    def test_webhook_and_contact_jobs_take_priority_without_bypassing_backoff(self):
+        self.db.query(MarketingJob).delete()
+        cases = [("workspace", self.now), ("contact", self.now), ("webhook", self.now),
+                 ("contact", self.now), ("webhook", self.now + timedelta(hours=1))]
+        jobs = [MarketingJob(dedupe_key=f"priority-{index}", job_type=kind, entity_id=str(index), next_attempt_at=due)
+            for index, (kind, due) in enumerate(cases)]
+        self.db.add_all(jobs)
+        self.db.commit()
+        processed = []
+        with patch.object(worker, "ResendMarketing", return_value=self.provider), patch.object(worker, "process_job",
+                side_effect=lambda db, job, provider: processed.append(job.dedupe_key)):
+            result = worker.process_batch(10)
+        self.assertEqual(processed, ["priority-2", "priority-1", "priority-3", "priority-0"])
+        self.assertEqual(result["processed"], 4)
+        self.assertEqual(result["failed_count"], 0)
+        self.db.refresh(jobs[-1])
+        self.assertEqual(jobs[-1].status, "queued")
+
+    def test_unchanged_workspace_records_do_not_create_refresh_jobs(self):
+        self.db.query(MarketingJob).delete()
+        self.db.commit()
+        self.org.name = self.org.name
+        self.sub.status = self.sub.status
+        self.db.commit()
+        self.assertEqual(self.db.query(MarketingJob).count(), 0)
+        self.org.name = "Updated workspace"
+        self.db.commit()
+        self.assertEqual(self.db.query(MarketingJob).filter_by(job_type="workspace", entity_id="owner").count(), 1)
 
     def test_mocked_end_to_end_verification_sync_setup_and_unsubscribe(self):
         self.contact.email_verified_at = None

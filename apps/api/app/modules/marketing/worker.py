@@ -4,7 +4,7 @@ import random
 from datetime import timedelta
 from email.utils import formataddr
 
-from sqlalchemy import or_
+from sqlalchemy import case, or_
 
 from app.db.database import SessionLocal
 from app.db.models import AppUser, Organization, OrganizationMember, utc_now
@@ -74,6 +74,11 @@ def sync_contact(db, contact, provider):
     contact.last_successful_sync_at = utc_now()
     contact.sync_error = None
     schedule_messages(db, contact)
+    # Wake only sync-blocked messages; provider retries and frequency caps keep their deadlines.
+    db.query(MarketingEmail).filter(
+        MarketingEmail.contact_id == contact.id, MarketingEmail.status.in_({"pending", "retry"}),
+        MarketingEmail.reason == "awaiting_contact_sync",
+    ).update({"due_at": utc_now(), "reason": None}, synchronize_session=False)
 
 
 def process_webhook(db, receipt, provider):
@@ -133,6 +138,11 @@ def process_job(db, job, provider):
             if job.revision is not None and job.revision <= contact.synced_revision and contact.synced_revision == contact.revision:
                 return
             sync_contact(db, contact, provider)
+            db.query(MarketingJob).filter(
+                MarketingJob.job_type == "contact", MarketingJob.entity_id == job.entity_id,
+                MarketingJob.status == "queued", MarketingJob.revision.isnot(None),
+                MarketingJob.revision <= contact.synced_revision,
+            ).update({"status": "succeeded", "completed_at": utc_now()}, synchronize_session=False)
     elif job.job_type == "workspace":
         org = db.query(Organization).filter_by(owner_user_id=job.entity_id).first()
         user_ids = {member.clerk_user_id for member in db.query(OrganizationMember).filter_by(organization_id=org.id)} if org else set()
@@ -244,7 +254,9 @@ def process_batch(limit=10, heartbeat=None):
     provider, processed, failed = ResendMarketing(heartbeat), 0, 0
     for _ in range(limit):
         with SessionLocal() as db:
-            job = db.query(MarketingJob).filter_by(status="queued").filter(MarketingJob.next_attempt_at <= utc_now()).order_by(MarketingJob.id).with_for_update(skip_locked=True).first()
+            job = db.query(MarketingJob).filter_by(status="queued").filter(MarketingJob.next_attempt_at <= utc_now()).order_by(
+                case({"webhook": 0, "contact": 1}, value=MarketingJob.job_type, else_=2), MarketingJob.id,
+            ).with_for_update(skip_locked=True).first()
             if not job:
                 break
             try:

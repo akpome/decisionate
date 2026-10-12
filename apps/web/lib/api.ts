@@ -64,6 +64,8 @@ export type MarketingContact = {
   lifecycle: { subscription_status: string; setup_status: string; engagement_status: string } | null
   last_successful_sync_at: string | null
   sync_error: string | null
+  revision: number
+  synced_revision: number
 }
 
 export type MarketingSender = {

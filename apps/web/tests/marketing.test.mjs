@@ -85,6 +85,14 @@ test("internal delivery test controls use server eligibility and respect sending
   assert.match(admin, /disabled=\{busy \|\| !contact\.test_eligible \|\| !data\.configuration\.enabled \|\| !data\.configuration\.sending\}/)
 })
 
+test("contact sync status distinguishes a pending revision from a completed sync", () => {
+  const admin = read("../features/marketing/marketing-admin.tsx")
+  const api = read("../lib/api.ts")
+  assert.match(admin, /!contact\.last_successful_sync_at \? "Pending" : contact\.synced_revision < contact\.revision \? "Updating" : "Synced"/)
+  assert.match(api, /synced_revision: number/)
+  assert.match(api, /revision: number/)
+})
+
 test("meaningful activity excludes background syncing and hidden views", () => {
   const tracker = read("../features/marketing/activity-tracker.tsx")
   assert.match(tracker, /document\.visibilityState === "visible"/)

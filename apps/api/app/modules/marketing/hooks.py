@@ -12,6 +12,9 @@ from app.modules.marketing.service import enqueue, mark_completed_data
 def before_flush(db, flush_context, instances):
     workspace_ids = set()
     for record in list(db.new) + list(db.dirty) + list(db.deleted):
+        if (record in db.dirty and record not in db.new and record not in db.deleted
+                and not db.is_modified(record, include_collections=False)):
+            continue
         if isinstance(record, Organization):
             workspace_ids.add(record.owner_user_id)
         elif isinstance(record, OrganizationMember):

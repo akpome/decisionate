@@ -229,7 +229,7 @@ def marketing_support(request: Request, after: int = 0):
             "segments_configured": {key: bool(value) for key, value in config["segments"].items()}},
             "contacts": [{**serialize_contact(db, contact), "test_eligible": bool(
                 eligible(contact) and contact.email in config["test_recipients"] and contact.primary_workspace_id
-                and contact.provider_contact_id and contact.synced_revision >= contact.revision and not contact.sync_error
+                and contact.provider_contact_id and not contact.sync_error
             )} for contact in contacts],
             "next_contact_id": contacts[-1].id if len(contacts) == 50 else None,
             "emails": [{"id": entry.id, "contact_id": entry.contact_id, "message_type": entry.message_type,
@@ -296,7 +296,7 @@ def queue_internal_test(contact_id: int, request: Request, kind: Literal["delive
         contact = db.query(MarketingContact).filter_by(id=contact_id).with_for_update().first()
         if not eligible(contact) or contact.email not in config["test_recipients"]:
             raise HTTPException(409, "Test sends require a verified, opted-in internal test recipient.")
-        if not contact.provider_contact_id or contact.synced_revision < contact.revision or contact.sync_error:
+        if not contact.provider_contact_id or contact.sync_error:
             raise HTTPException(409, "Wait for this contact to finish syncing before testing.")
         allowed = refresh_memberships(db, contact)
         if not allowed:
@@ -312,5 +312,9 @@ def queue_internal_test(contact_id: int, request: Request, kind: Literal["delive
             message = MarketingEmail(contact_id=contact.id, workspace_id=workspace_id, is_test=True,
                                      sequence_instance="test:" + secrets.token_hex(16), message_type=kind, due_at=utc_now())
             db.add(message)
+            db.flush()
+        if contact.synced_revision < contact.revision:
+            enqueue(db, "contact", contact.id, contact.revision,
+                    key=f"internal-test-sync:{message.id}:{contact.revision}")
         db.commit()
         return {"status": "queued", "message_id": message.id}
