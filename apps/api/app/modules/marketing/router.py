@@ -13,7 +13,9 @@ from svix.webhooks import Webhook, WebhookVerificationError
 
 from app.db.database import SessionLocal
 from app.db.models import utc_now
-from app.modules.auth_context import get_auth_context
+from app.modules.auth_context import get_auth_context, get_auth_jwks_url
+from app.modules.identity.clerk import get_verified_clerk_primary_email
+from app.modules.identity.service import DEFAULT_AUTH_PROVIDER
 from app.modules.alerts.email_delivery import clean_env_value
 from app.modules.marketing.config import public_settings, settings
 from app.modules.marketing.models import MarketingContact, MarketingEmail, MarketingJob, MarketingSettings, MarketingWebhook, MarketingLinkVisit
@@ -52,7 +54,13 @@ def admin(request):
 
 def current_contact(db, request):
     auth = get_auth_context(request)
-    contact = capture_identity(db, auth.user_id, auth.email, verified=auth.email_verified)
+    email, verified = auth.email, auth.email_verified
+    # Only preferences need this lookup; ordinary product requests stay JWT-only.
+    if (not (email and verified) and getattr(auth, "auth_provider", None) == DEFAULT_AUTH_PROVIDER
+            and getattr(auth, "external_user_id", None) and get_auth_jwks_url()):
+        email = get_verified_clerk_primary_email(auth.external_user_id)
+        verified = bool(email)
+    contact = capture_identity(db, auth.user_id, email, verified=verified)
     if not contact:
         raise HTTPException(409, "Your current email address is unavailable. Verify your address before changing email preferences.")
     from app.modules.marketing.service import refresh_memberships

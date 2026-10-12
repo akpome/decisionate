@@ -103,6 +103,99 @@ class MarketingTests(unittest.TestCase):
         self.assertEqual(self.sub.status, "trialing")
         self.assertEqual(self.contact.marketing_status, "unsubscribed")
 
+    def test_subject_only_session_uses_verified_clerk_primary_email_for_preferences(self):
+        self.contact.email_verified_at = None
+        self.contact.marketing_status = "unknown"
+        self.db.commit()
+        consent_count = self.db.query(MarketingConsentEvent).count()
+        app = FastAPI(); app.include_router(router.router)
+        client = TestClient(app)
+        auth = SimpleNamespace(user_id="owner", workspace_id="owner", email=None, email_verified=False,
+            external_user_id="user_clerk_owner", auth_provider="clerk")
+        with patch.object(router, "get_auth_context", return_value=auth), patch.object(router, "get_auth_jwks_url", return_value="https://issuer/jwks"), patch.object(
+            router, "get_verified_clerk_primary_email", return_value="owner@example.test"
+        ) as lookup:
+            response = client.get("/marketing/preferences", headers={"X-User-Email": "other@example.test"})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["email"], "owner@example.test")
+            self.assertTrue(response.json()["email_verified"])
+            self.assertEqual(response.json()["marketing_status"], "unknown")
+            self.assertEqual(self.db.query(MarketingConsentEvent).count(), consent_count)
+            lookup.assert_called_once_with("user_clerk_owner")
+            response = client.put("/marketing/preferences", json={"subscribed": True, "consent_version": "test-v1"})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["marketing_status"], "subscribed")
+        self.assertEqual(self.db.query(MarketingConsentEvent).count(), consent_count + 1)
+        self.assertEqual(self.db.query(MarketingContact).count(), 1)
+
+    def test_unverified_clerk_primary_email_does_not_fall_back_to_headers_or_saved_email(self):
+        app = FastAPI(); app.include_router(router.router)
+        client = TestClient(app)
+        auth = SimpleNamespace(user_id="owner", workspace_id="owner", email=None, email_verified=False,
+            external_user_id="user_clerk_owner", auth_provider="clerk")
+        with patch.object(router, "get_auth_context", return_value=auth), patch.object(router, "get_auth_jwks_url", return_value="https://issuer/jwks"), patch.object(
+            router, "get_verified_clerk_primary_email", return_value=None
+        ):
+            response = client.put("/marketing/preferences", headers={"X-User-Email": "owner@example.test"}, json={"subscribed": True, "consent_version": "test-v1"})
+        self.assertEqual(response.status_code, 409)
+
+    def test_clerk_lookup_failure_reports_a_retryable_preferences_error(self):
+        app = FastAPI(); app.include_router(router.router)
+        client = TestClient(app)
+        auth = SimpleNamespace(user_id="owner", workspace_id="owner", email=None, email_verified=False,
+            external_user_id="user_clerk_owner", auth_provider="clerk")
+        with patch.object(router, "get_auth_context", return_value=auth), patch.object(router, "get_auth_jwks_url", return_value="https://issuer/jwks"), patch.object(
+            router, "get_verified_clerk_primary_email", side_effect=HTTPException(503, "Verification temporarily unavailable")
+        ):
+            response = client.get("/marketing/preferences")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["detail"], "Verification temporarily unavailable")
+
+    def test_development_header_identity_cannot_use_clerk_as_verification(self):
+        app = FastAPI(); app.include_router(router.router)
+        client = TestClient(app)
+        auth = SimpleNamespace(user_id="owner", workspace_id="owner", email=None, email_verified=False,
+            external_user_id="user_clerk_owner", auth_provider="clerk")
+        with patch.object(router, "get_auth_context", return_value=auth), patch.object(router, "get_auth_jwks_url", return_value=None), patch.object(
+            router, "get_verified_clerk_primary_email"
+        ) as lookup:
+            self.assertEqual(client.get("/marketing/preferences").status_code, 409)
+            lookup.assert_not_called()
+
+    def test_verified_email_claim_does_not_require_a_clerk_lookup(self):
+        app = FastAPI(); app.include_router(router.router)
+        client = TestClient(app)
+        auth = SimpleNamespace(user_id="owner", workspace_id="owner", email="owner@example.test", email_verified=True,
+            external_user_id="user_clerk_owner", auth_provider="clerk")
+        with patch.object(router, "get_auth_context", return_value=auth), patch.object(router, "get_verified_clerk_primary_email") as lookup:
+            self.assertEqual(client.get("/marketing/preferences").status_code, 200)
+            lookup.assert_not_called()
+
+    def test_clerk_primary_email_change_does_not_transfer_marketing_consent(self):
+        app = FastAPI(); app.include_router(router.router)
+        client = TestClient(app)
+        auth = SimpleNamespace(user_id="owner", workspace_id="owner", email=None, email_verified=False,
+            external_user_id="user_clerk_owner", auth_provider="clerk")
+        with patch.object(router, "get_auth_context", return_value=auth), patch.object(router, "get_auth_jwks_url", return_value="https://issuer/jwks"), patch.object(
+            router, "get_verified_clerk_primary_email", return_value="new@example.test"
+        ):
+            response = client.get("/marketing/preferences")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["email"], "new@example.test")
+        self.assertTrue(response.json()["email_verified"])
+        self.assertEqual(response.json()["marketing_status"], "unknown")
+        self.db.refresh(self.contact)
+        self.assertEqual(self.contact.marketing_status, "unsubscribed")
+
+    def test_clerk_lookup_is_not_called_before_session_authentication(self):
+        app = FastAPI(); app.include_router(router.router)
+        client = TestClient(app)
+        with patch.object(router, "get_auth_context", side_effect=HTTPException(401, "Missing token")), patch.object(
+            router, "get_verified_clerk_primary_email"
+        ) as lookup:
+            self.assertEqual(client.get("/marketing/preferences").status_code, 401)
+            lookup.assert_not_called()
+
     def test_normalization_preserves_dots_and_plus_suffix(self):
         self.assertEqual(service.normalize_email(" Test.Person+news@EXAMPLE.test "), "test.person+news@example.test")
         same = service.capture_identity(self.db, "owner", " OWNER@example.test ", verified=True)

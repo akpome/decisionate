@@ -105,6 +105,8 @@ snapshot creation and object-storage restoration remain deployment operations.
 
 `CLERK_JWKS_URL`, `CLERK_JWT_AUDIENCE`, and `CLERK_JWT_ISSUER` enable Clerk JWT verification for protected product routes. If `CLERK_JWKS_URL` is not set, local development can use the existing header-based auth flow. For identity linking and invitation claiming, configure the issuer to include a signed `email` and boolean `email_verified: true` only for verified addresses. A token without those claims can authenticate by subject but cannot claim email invitations or link accounts by email. Browser-supplied `X-User-Email` is never trusted for those operations.
 
+Marketing preferences also support Clerk's default subject-only session tokens. After session authentication, this route can use the API service's server-only `CLERK_SECRET_KEY` to retrieve that exact user's verified primary email from Clerk. It never substitutes a secondary address, browser header, or stored unverified address. Provider outages return a retryable error rather than bypassing verification. The lookup is limited to preferences; ordinary product requests, identity linking and invitation claiming retain the contract above.
+
 ## AI Analysis And Forecasting
 
 AI-assisted analysis is optional for the core launch. Leave `AI_PROVIDER` blank

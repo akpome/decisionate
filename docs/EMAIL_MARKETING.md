@@ -3,7 +3,7 @@
 ## Implementation Map
 
 - Clerk remains responsible for signup and address verification. `identity/service.py` creates a local marketing contact and an outbox entry in the same transaction as the resolved account. Only the server-verified address can become eligible.
-- Preserve the existing identity contract: Clerk's signed session claims must include the address and boolean `email_verified: true` only for a verified address, as described in `apps/api/README.md`. Subject-only tokens can sign in but cannot grant verified marketing eligibility. Browser-supplied email headers are not verification.
+- Preserve the existing identity contract: Clerk's signed session claims can include the address and boolean `email_verified: true` only for a verified address, as described in `apps/api/README.md`. When those claims are absent, marketing preferences use the API service's `CLERK_SECRET_KEY` to fetch the authenticated subject's verified primary address directly from Clerk. Missing/unverified primary addresses remain ineligible, and lookup outages return a retryable error. Browser-supplied email headers and saved unverified addresses are not verification. The fallback is confined to preferences, so ordinary product requests do not acquire an extra provider call and existing identity-linking/invitation rules remain unchanged.
 - Signup has a separate optional, unchecked checkbox. Settings exposes the account-wide marketing preference to business, agency and client users. Signup succeeds when marketing is declined or unavailable.
 - `marketing/models.py` adds contacts, immutable consent evidence, workspace readiness/activity, membership recipients, jobs, an email ledger, webhook receipts and sender settings. No billing facts are copied into another subscription table.
 - `marketing/hooks.py` writes workspace changes to the database outbox. Asynchronous imports qualify only after successful completion with usable, non-demo rows; empty/failed imports and connector authorization do not qualify. First readiness is preserved independently of current data availability.
@@ -35,6 +35,7 @@ Configure on the API and existing worker:
 | Variable | Default / Purpose |
 | --- | --- |
 | `RESEND_API_KEY` | Existing environment fallback; an encrypted key saved in platform email settings also works. Requires Contacts/Segments and email permissions. |
+| `CLERK_SECRET_KEY` | API service only; enables verified primary-email lookup for preferences when the session token lacks verified address claims. This is a Clerk backend key, not the Resend key. |
 | `RESEND_WEBHOOK_SECRET` | Resend signing secret, server-side only. |
 | `MARKETING_ENABLED` | `false`; enables background contact/webhook processing. |
 | `MARKETING_SEND_ENABLED` | `false`; sending gate independent of sync. |
