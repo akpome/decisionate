@@ -14,9 +14,9 @@ function load(path) {
       target: ts.ScriptTarget.ES2020
     }
   })
-  const module = { exports: {} }
-  vm.runInNewContext(outputText, { module, exports: module.exports })
-  return module.exports
+  const loadedModule = { exports: {} }
+  vm.runInNewContext(outputText, { module: loadedModule, exports: loadedModule.exports })
+  return loadedModule.exports
 }
 const renewal = load("../features/billing/lib/renewals.ts")
 const upgrade = load("../features/billing/lib/upgrade.ts")
