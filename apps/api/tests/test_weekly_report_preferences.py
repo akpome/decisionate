@@ -147,7 +147,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         self.assertEqual(branding["agency_name"], "")
         self.assertTrue(
             branding["brand_logo_url"].endswith(
-                "/icons/decisionate-icon.svg"
+                "/icons/decisionate-logo.png"
             )
         )
         self.assertEqual(

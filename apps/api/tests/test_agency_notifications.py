@@ -1,3 +1,4 @@
+import asyncio
 import json
 import unittest
 from email.utils import parseaddr
@@ -7,7 +8,7 @@ from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.db.models import AppUser, AuthIdentity, Organization, OrganizationMember
+from app.db.models import AppUser, AuthIdentity, Organization, OrganizationMember, PlatformMaintenanceNotice, utc_now
 from app.modules.alerts import email_delivery
 from app.modules.alerts.router import (
     build_weekly_report_digest,
@@ -17,6 +18,8 @@ from app.modules.alerts.router import (
 from app.modules.alerts.schemas import WeeklyReportPreferenceResponse
 from app.modules.billing.notifications import get_workspace_owner_email
 from app.modules.datasets.services import authorization_notifications
+from app.modules.organizations.branding import get_client_email_branding
+from app.modules import platform_admin
 
 
 class AgencyNotificationTests(unittest.TestCase):
@@ -154,6 +157,9 @@ class AgencyNotificationTests(unittest.TestCase):
             self.assertEqual(parseaddr(sender)[1], "alerts@decisionate.ca")
             for body in (text, html):
                 self.assertIn("Prepared for Smith Dental by North Star Agency", body)
+            self.assertIn(self.agency.logo_url, html)
+            self.assertNotIn("/icons/decisionate-logo.png", html)
+            self.assertNotIn('alt="Decisionate"', html)
 
     def test_agency_rename_applies_without_changing_client_settings(self):
         self.agency.name = "New Agency Name"
@@ -169,7 +175,7 @@ class AgencyNotificationTests(unittest.TestCase):
         self.assertEqual(digest.agency_name, "North Star Agency")
 
     def test_two_clients_keep_their_own_agency_identity_and_recipient(self):
-        other_agency = Organization(name="Other Agency", owner_user_id="other-owner")
+        other_agency = Organization(name="Other Agency", owner_user_id="other-owner", logo_url="https://example.com/other-agency.png")
         other_client = Organization(name="Other Client", owner_user_id="other-owner:client:other")
         self.db.add_all([
             other_agency, other_client,
@@ -189,6 +195,12 @@ class AgencyNotificationTests(unittest.TestCase):
             branding = get_weekly_report_branding(self.db, client.owner_user_id)
             self.assertEqual(branding["agency_name"], agency_name)
             self.assertEqual(get_workspace_owner_email(self.db, client), recipient)
+            digest = build_weekly_report_test_digest(None, branding["brand_name"], branding)
+            html = email_delivery.build_weekly_report_email_html(digest)
+            self.assertIn(branding["brand_logo_url"], html)
+            self.assertNotIn("/icons/decisionate-logo.png", html)
+            other_logo = other_agency.logo_url if client is self.client else self.agency.logo_url
+            self.assertNotIn(other_logo, html)
 
     def test_agency_text_is_escaped_in_html_and_header_newlines_are_normalized(self):
         self.agency.name = "North <Star> & Agency\r\nTeam"
@@ -206,6 +218,9 @@ class AgencyNotificationTests(unittest.TestCase):
         branding = get_weekly_report_branding(self.db, self.client.owner_user_id)
         self.assertEqual(branding["agency_name"], "")
         self.assertEqual(branding["brand_name"], "Decisionate")
+        self.assertIsNone(branding["brand_logo_url"])
+        digest = build_weekly_report_test_digest(None, branding["brand_name"], branding)
+        self.assertNotIn("<img", email_delivery.build_weekly_report_email_html(digest))
 
     def test_client_owner_email_resolves_member_and_legacy_owner_role(self):
         for role in ("client_owner", "client"):
@@ -246,6 +261,87 @@ class AgencyNotificationTests(unittest.TestCase):
         self.assertIn("North Star Agency", subject)
         self.assertIn("Smith Dental is managed by North Star Agency", body)
         self.assertEqual(send.call_args.kwargs["sender_name"], "North Star Agency via Decisionate")
+        self.assertEqual(send.call_args.kwargs["branding"], get_client_email_branding(self.db, self.client))
+
+    def test_agency_owner_report_keeps_decisionate_logo_not_agency_logo(self):
+        branding = get_weekly_report_branding(self.db, self.agency.owner_user_id)
+        digest = build_weekly_report_test_digest(None, branding["brand_name"], branding)
+        html = email_delivery.build_weekly_report_email_html(digest)
+        self.assertIn("/icons/decisionate-logo.png", html)
+        self.assertNotIn(self.agency.logo_url, html)
+        self.assertIsNone(get_client_email_branding(self.db, self.agency))
+
+    def test_reauthorization_transport_keeps_only_managing_agency_logo(self):
+        for provider in ("smtp", "resend"):
+            connection = SimpleNamespace(id=17, workspace_id=self.client.owner_user_id, user_id="agency-owner",
+                source_type="quickbooks", display_name="Client QuickBooks", authorization_error="Authorization expired",
+                authorization_notification_error=None, authorization_notification_sent_at=None)
+            with self.subTest(provider=provider), patch.object(email_delivery, "get_platform_email_settings",
+                    return_value=self.email_settings(provider)), patch.object(email_delivery.smtplib, "SMTP") as smtp, patch.object(
+                        email_delivery, "urlopen") as http:
+                smtp.return_value.__enter__.return_value.send_message.return_value = {}
+                http.return_value.__enter__.return_value.status = 200
+                self.assertTrue(authorization_notifications.notify_workspace_owner_of_authorization_failure(self.db, connection))
+                if provider == "smtp":
+                    message = smtp.return_value.__enter__.return_value.send_message.call_args.args[0]
+                    html = message.get_body(preferencelist=("html",)).get_content()
+                    self.assertEqual(str(message["To"]), "client@example.com")
+                else:
+                    payload = json.loads(http.call_args.args[0].data)
+                    html = payload["html"]
+                    self.assertEqual(payload["to"], ["client@example.com"])
+            self.assertIn(self.agency.logo_url, html)
+            self.assertNotIn("/icons/decisionate-logo.png", html)
+
+    def test_missing_managing_agency_never_injects_decisionate_into_client_notice(self):
+        self.client.owner_user_id = "missing-owner:client:smith"
+        self.db.commit()
+        branding = get_client_email_branding(self.db, self.client)
+        self.assertTrue(branding["is_managed_client"])
+        self.assertIsNone(branding["brand_logo_url"])
+        with patch.object(email_delivery, "get_platform_email_settings", return_value=self.email_settings("resend")), patch.object(
+                email_delivery, "_send_platform_message") as send:
+            email_delivery.send_platform_system_email("client@example.com", "Notice", "Body", branding=branding)
+        html = send.call_args.args[0].get_body(preferencelist=("html",)).get_content()
+        self.assertIn("Smith Dental", html)
+        self.assertNotIn("<img", html)
+
+    def test_maintenance_keeps_client_branding_and_owner_platform_branding(self):
+        branding = platform_admin.maintenance_owner_email_branding(self.db)
+        self.assertEqual(set(branding), {"agency@example.com", "client@example.com"})
+        self.assertIsNone(branding["agency@example.com"])
+        self.assertEqual(branding["client@example.com"]["brand_logo_url"], self.agency.logo_url)
+        self.assertEqual(platform_admin.maintenance_owner_emails(self.db), sorted(branding))
+        with patch.object(platform_admin, "send_platform_system_email") as send:
+            result = platform_admin.send_maintenance_emails(sorted(branding), "Maintenance", "Body", recipient_branding=branding)
+        self.assertEqual(result, (2, 0, None))
+        calls = {call.args[0]: call.kwargs for call in send.call_args_list}
+        self.assertEqual(calls["agency@example.com"], {})
+        self.assertEqual(calls["client@example.com"]["branding"], branding["client@example.com"])
+        self.assertEqual(calls["client@example.com"]["sender_name"], "North Star Agency via Decisionate")
+
+    def test_maintenance_deduplicates_dual_role_owner_with_platform_brand(self):
+        self.db.add(Organization(name="Own business", owner_user_id="client-owner"))
+        self.db.commit()
+        branding = platform_admin.maintenance_owner_email_branding(self.db)
+        self.assertEqual(set(branding), {"agency@example.com", "client@example.com"})
+        self.assertIsNone(branding["client@example.com"])
+
+    def test_maintenance_publish_and_completion_pass_recipient_branding(self):
+        PlatformMaintenanceNotice.__table__.create(self.engine)
+        expected = platform_admin.maintenance_owner_email_branding(self.db)
+        payload = platform_admin.PlatformAdminMaintenanceUpdate(message="Scheduled update", scheduled_at=utc_now())
+        with patch.object(platform_admin, "SessionLocal", return_value=self.db), patch.object(platform_admin,
+                "require_platform_admin", return_value=SimpleNamespace(user_id="agency-owner")), patch.object(platform_admin,
+                "record_platform_admin_audit"), patch.object(platform_admin, "send_maintenance_emails", return_value=(2, 0, None)) as send:
+            announcement = asyncio.run(platform_admin.update_platform_admin_maintenance(payload, SimpleNamespace()))
+            completion = asyncio.run(platform_admin.complete_platform_admin_maintenance(SimpleNamespace()))
+        self.assertEqual(announcement.email_sent_count, 2)
+        self.assertEqual(completion.email_sent_count, 2)
+        self.assertEqual(send.call_count, 2)
+        for call in send.call_args_list:
+            self.assertEqual(call.args[0], sorted(expected))
+            self.assertEqual(call.kwargs["recipient_branding"], expected)
 
     def test_system_sender_override_preserves_platform_address_and_default_sender(self):
         with patch.object(

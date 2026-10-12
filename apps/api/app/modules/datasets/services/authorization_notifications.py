@@ -8,7 +8,7 @@ from app.db.models import utc_now
 from app.modules.billing.notifications import get_workspace_owner_email
 from app.modules.alerts.email_delivery import send_platform_system_email
 from app.modules.datasets.services.connectors import connector_display_name
-from app.modules.organizations.branding import get_managing_agency
+from app.modules.organizations.branding import get_client_email_branding
 
 
 logger = logging.getLogger(__name__)
@@ -79,8 +79,8 @@ def notify_workspace_owner_of_authorization_failure(
             getattr(connection, "display_name", source_label) or source_label
         ).strip()
         subject = f"Action required: reauthorize {source_label} in Decisionate"
-        agency = get_managing_agency(db, organization)
-        agency_name = " ".join(str(agency.name or "").split()) if agency else ""
+        branding = get_client_email_branding(db, organization)
+        agency_name = branding["agency_name"] if branding else ""
         body = (
             f"Hello,\n\n"
             f"Decisionate could no longer access the {source_label} connection "
@@ -113,6 +113,8 @@ def notify_workspace_owner_of_authorization_failure(
             {"sender_name": f"{agency_name} via Decisionate"}
             if agency_name else {}
         )
+        if branding:
+            sender_options["branding"] = branding
         send_platform_system_email(
             recipient,
             subject,

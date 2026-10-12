@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarDays,
   Coins,
+  Copy,
   Database,
   Download,
   FileCheck2,
@@ -19,6 +20,7 @@ import {
   Trash2,
   Users,
   Wrench,
+  X,
 } from "lucide-react"
 import {
   UserButton,
@@ -72,6 +74,33 @@ import {
 
 function formatCount(value: number) {
   return value.toLocaleString()
+}
+
+function AdminReference({ value, label }: { value: string; label: string }) {
+  const [status, setStatus] = useState<"idle" | "copied" | "error">("idle")
+  useEffect(() => {
+    if (status === "idle") return
+    const timer = window.setTimeout(() => setStatus("idle"), 2000)
+    return () => window.clearTimeout(timer)
+  }, [status])
+  async function copyReference() {
+    try {
+      await navigator.clipboard.writeText(value)
+      setStatus("copied")
+    } catch {
+      setStatus("error")
+    }
+  }
+  const message = status === "copied" ? "Copied" : status === "error" ? "Could not copy reference" : `Copy ${label}`
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="min-w-0 flex-1 truncate font-mono text-xs" title={value}>{value}</span>
+      <button type="button" title={message} aria-label={`Copy ${label}: ${value}`} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900" onClick={() => void copyReference()}>
+        {status === "copied" ? <CheckCircle2 size={14} /> : <Copy size={14} />}
+      </button>
+      <span role="status" className="sr-only">{status === "idle" ? "" : message}</span>
+    </span>
+  )
 }
 
 function displayAdminValue(value?: string | null) {
@@ -1900,6 +1929,7 @@ export default function PlatformAdminPage() {
 
     return [
       platformUser.clerk_user_id,
+      platformUser.email || "",
       ...platformUser.organization_names,
       ...accountProfiles.flatMap(profile => [
         profile.account_type,
@@ -1917,8 +1947,8 @@ export default function PlatformAdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 px-6 py-10 text-gray-900 sm:px-10">
-      <div className="mx-auto flex max-w-6xl flex-col">
+    <main className="platform-admin-layout min-h-screen bg-gray-50 px-4 py-10 text-gray-900 sm:px-10">
+      <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col">
         <header className="flex flex-col gap-4 border-b border-gray-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
@@ -3457,19 +3487,30 @@ export default function PlatformAdminPage() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+              <div className="max-w-full overflow-x-auto" role="region" aria-label="Workspaces table" tabIndex={0}>
+                <table className="admin-data-table min-w-[1112px] divide-y divide-gray-200 text-left text-sm">
+                  <colgroup>
+                    <col style={{ width: 164 }} />
+                    <col style={{ width: 216 }} />
+                    <col style={{ width: 112 }} />
+                    <col style={{ width: 120 }} />
+                    <col style={{ width: 88 }} />
+                    <col style={{ width: 84 }} />
+                    <col style={{ width: 92 }} />
+                    <col style={{ width: 92 }} />
+                    <col style={{ width: 144 }} />
+                  </colgroup>
                   <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                     <tr>
-                      <th className="px-5 py-3 font-medium">Organization</th>
-                      <th className="px-5 py-3 font-medium">Owner</th>
-                      <th className="px-5 py-3 font-medium">Plan</th>
-                      <th className="px-5 py-3 font-medium">Expires</th>
-                      <th className="px-5 py-3 font-medium">Members</th>
-                      <th className="px-5 py-3 font-medium">Datasets</th>
-                      <th className="px-5 py-3 font-medium">Decisions</th>
-                      <th className="px-5 py-3 font-medium">Evaluated</th>
-                      <th className="px-5 py-3 font-medium">Actions</th>
+                      <th scope="col" className="px-5 py-3 font-medium">Organization</th>
+                      <th scope="col" className="px-5 py-3 font-medium">Owner</th>
+                      <th scope="col" className="px-5 py-3 font-medium">Plan</th>
+                      <th scope="col" className="px-5 py-3 font-medium">Expires</th>
+                      <th scope="col" className="admin-numeric px-5 py-3 font-medium">Members</th>
+                      <th scope="col" className="admin-numeric px-5 py-3 font-medium">Datasets</th>
+                      <th scope="col" className="admin-numeric px-5 py-3 font-medium">Decisions</th>
+                      <th scope="col" className="admin-numeric px-5 py-3 font-medium">Evaluated</th>
+                      <th scope="col" className="px-5 py-3 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -3477,10 +3518,10 @@ export default function PlatformAdminPage() {
                       <Fragment key={organization.id}>
                       <tr>
                         <td className="whitespace-nowrap px-5 py-3 font-medium text-gray-900">
-                          {organization.name}
+                          <span className="block truncate" title={organization.name}>{organization.name}</span>
                         </td>
                         <td className="whitespace-nowrap px-5 py-3 text-gray-500">
-                          {organization.owner_email || organization.owner_user_id}
+                          <AdminReference value={organization.owner_email || organization.owner_user_id} label="owner reference" />
                         </td>
                         <td className="whitespace-nowrap px-5 py-3 capitalize text-gray-700">
                           {organization.plan}
@@ -3490,37 +3531,62 @@ export default function PlatformAdminPage() {
                             ? new Date(organization.billing_expires_at).toLocaleDateString()
                             : "No expiry"}
                         </td>
-                        <td className="px-5 py-3 text-gray-700">
+                        <td className="admin-numeric px-5 py-3 text-gray-700">
                           {formatCount(organization.member_count)}
                         </td>
-                        <td className="px-5 py-3 text-gray-700">
+                        <td className="admin-numeric px-5 py-3 text-gray-700">
                           {formatCount(organization.dataset_count)}
                         </td>
-                        <td className="px-5 py-3 text-gray-700">
+                        <td className="admin-numeric px-5 py-3 text-gray-700">
                           {formatCount(organization.decision_count)}
                         </td>
-                        <td className="px-5 py-3 text-gray-700">
+                        <td className="admin-numeric px-5 py-3 text-gray-700">
                           {formatCount(organization.evaluated_decision_count)}
                         </td>
                         <td className="px-5 py-3">
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
+                              title={`View members of ${organization.name}`}
+                              aria-label={`View members of ${organization.name}`}
+                              aria-expanded={selectedOrganizationId === organization.id}
                               onClick={() => {
                                 void handleViewMembers(organization.id)
                               }}
-                              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-gray-300 text-gray-700 transition hover:bg-gray-50"
                             >
-                              View members
+                              <Users size={15} />
                             </button>
-                            {deleteConfirmationId === organization.id ? (
-                              <>
+                            <button
+                              type="button"
+                              title={`Delete ${organization.name}`}
+                              aria-label={`Delete workspace ${organization.name}`}
+                              aria-expanded={deleteConfirmationId === organization.id}
+                              aria-controls={`workspace-delete-confirm-${organization.id}`}
+                              disabled={destructiveActionId === `organization:${organization.id}`}
+                              onClick={() => { void handleDeleteOrganization(organization) }}
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-red-200 text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {deleteConfirmationId === organization.id && (
+                        <tr id={`workspace-delete-confirm-${organization.id}`}>
+                          <td colSpan={9} className="border-y border-red-100 bg-red-50">
+                            <div className="flex max-w-[calc(100vw-4rem)] flex-wrap items-center gap-3">
+                              <label className="text-sm font-medium text-red-800" htmlFor={`workspace-delete-input-${organization.id}`}>
+                                Delete {organization.name}
+                              </label>
                                 <input
+                                  id={`workspace-delete-input-${organization.id}`}
+                                  autoFocus
                                   aria-label={`Deletion confirmation for ${organization.name}`}
                                   value={deleteConfirmationText}
                                   onChange={(event) => setDeleteConfirmationText(event.target.value)}
                                   placeholder="Type DELETE WORKSPACE"
-                                  className="w-44 rounded-lg border border-red-300 px-2.5 py-1.5 text-xs text-gray-900"
+                                  className="w-56 rounded border border-red-300 bg-white px-2.5 py-2 text-xs text-gray-900"
                                 />
                                 <button
                                   type="button"
@@ -3532,7 +3598,7 @@ export default function PlatformAdminPage() {
                                   onClick={() => {
                                     void handleDeleteOrganization(organization)
                                   }}
-                                  className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="inline-flex items-center gap-1 rounded bg-red-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   <Trash2 size={13} />
                                   {destructiveActionId ===
@@ -3542,6 +3608,8 @@ export default function PlatformAdminPage() {
                                 </button>
                                 <button
                                   type="button"
+                                  title="Cancel workspace deletion"
+                                  aria-label="Cancel workspace deletion"
                                   onClick={() => {
                                     setDeleteConfirmationId(null)
                                     setDeleteConfirmationText("")
@@ -3549,27 +3617,14 @@ export default function PlatformAdminPage() {
                                     setDestructiveMessage("")
                                     setDeleteModalOrganization(null)
                                   }}
-                                  className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
                                 >
-                                  Cancel
+                                  <X size={15} />
                                 </button>
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                title="Delete workspace"
-                                onClick={() => {
-                                  void handleDeleteOrganization(organization)
-                                }}
-                                className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-50"
-                              >
-                                <Trash2 size={13} />
-                                Delete
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
                       {selectedOrganizationId === organization.id && (
                         <tr>
                           <td
@@ -3809,72 +3864,85 @@ export default function PlatformAdminPage() {
               )}
 
               {!platformUsersLoading && !platformUsersError && visiblePlatformUsers.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+                <div className="max-w-full overflow-x-auto" role="region" aria-label="Users table" tabIndex={0}>
+                  <table className="admin-data-table min-w-[1140px] divide-y divide-gray-200 text-left text-sm">
+                    <colgroup>
+                      <col style={{ width: 204 }} />
+                      <col style={{ width: 216 }} />
+                      <col style={{ width: 176 }} />
+                      <col style={{ width: 112 }} />
+                      <col style={{ width: 192 }} />
+                      <col style={{ width: 144 }} />
+                      <col style={{ width: 96 }} />
+                    </colgroup>
                     <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                       <tr>
-                      <th className="px-5 py-3 font-medium">Internal user</th>
-                      <th className="px-5 py-3 font-medium">Email</th>
-                      <th className="px-5 py-3 font-medium">Account type</th>
-                      <th className="px-5 py-3 font-medium">Workspaces</th>
-                        <th className="px-5 py-3 font-medium">Roles and admin cards</th>
-                        <th className="px-5 py-3 font-medium">Organizations</th>
-                        <th className="px-5 py-3 font-medium">Actions</th>
+                      <th scope="col" className="px-5 py-3 font-medium">Internal user</th>
+                      <th scope="col" className="px-5 py-3 font-medium">Email</th>
+                      <th scope="col" className="px-5 py-3 font-medium">Account type</th>
+                      <th scope="col" className="admin-numeric px-5 py-3 font-medium">Workspaces</th>
+                        <th scope="col" className="px-5 py-3 font-medium">Roles and admin cards</th>
+                        <th scope="col" className="px-5 py-3 font-medium">Organizations</th>
+                        <th scope="col" className="px-5 py-3 font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {visiblePlatformUsers.map((platformUser) => (
                         <tr key={platformUser.clerk_user_id}>
                           <td className="whitespace-nowrap px-5 py-3 font-medium text-gray-900">
-                            {platformUser.clerk_user_id}
+                            <AdminReference value={platformUser.clerk_user_id} label="user ID" />
                           </td>
                           <td className="px-5 py-3 text-gray-500">
-                            {platformUser.email || "-"}
+                            <span className="block truncate" title={platformUser.email || undefined}>{platformUser.email || "-"}</span>
                           </td>
                           <td className="px-5 py-3 text-gray-700">
                             {(platformUser.account_profiles || []).length > 0 ? (
                               <div className="flex flex-col items-start gap-1">
                                 {(platformUser.account_profiles || []).map((profile) => (
-                                  <span
+                                  <div
                                     key={`${profile.account_type}:${profile.account_name}`}
-                                    className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800"
+                                    className="min-w-0 max-w-full"
                                   >
-                                    {formatAdminLabel(profile.account_type)}
-                                    <span className="ml-1 font-normal text-blue-700">
-                                      · {profile.account_name}
+                                    <span className="inline-flex whitespace-nowrap rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800">
+                                      {formatAdminLabel(profile.account_type)}
                                     </span>
-                                  </span>
+                                    <span className="mt-1 block truncate text-xs text-gray-500" title={profile.account_name}>
+                                      {profile.account_name}
+                                    </span>
+                                  </div>
                                 ))}
                               </div>
                             ) : (
                               "Not assigned"
                             )}
                           </td>
-                          <td className="px-5 py-3 text-gray-700">
+                          <td className="admin-numeric px-5 py-3 text-gray-700">
                             {platformUser.organization_count}
                           </td>
                           <td className="px-5 py-3 capitalize text-gray-700">
-                            {platformUser.roles.join(", ")}
+                            {platformUser.roles.map(formatAdminLabel).join(", ")}
                             {platformUser.platform_admin && (
                               <span className="mt-1 block text-xs normal-case text-gray-500">
                                 {platformUser.platform_admin_permissions?.length
-                                  ? platformUser.platform_admin_permissions.join(", ")
+                                  ? platformUser.platform_admin_permissions.map(formatAdminLabel).join(", ")
                                   : "All platform admin cards"}
                               </span>
                             )}
                           </td>
                           <td className="px-5 py-3 text-gray-500">
-                            {platformUser.organization_names.join(", ")}
+                            {platformUser.organization_names.map((name, index) => <span key={`${name}:${index}`} className="block truncate" title={name}>{name}</span>)}
                           </td>
                           <td className="px-5 py-3">
                             {platformUser.protected ? (
-                              <span className="text-xs font-medium text-gray-500">
+                              <span className="whitespace-nowrap text-xs font-medium text-gray-500">
                                 Protected
                               </span>
                             ) : (
                               <button
                                 type="button"
-                                title="Delete user"
+                                title={`Delete ${platformUser.email || platformUser.clerk_user_id}`}
+                                aria-label={`Delete user ${platformUser.email || platformUser.clerk_user_id}`}
+                                aria-busy={destructiveActionId === `user:${platformUser.clerk_user_id}`}
                                 disabled={
                                   destructiveActionId ===
                                   `user:${platformUser.clerk_user_id}`
@@ -3882,13 +3950,11 @@ export default function PlatformAdminPage() {
                                 onClick={() => {
                                   void handleDeleteUser(platformUser)
                                 }}
-                                className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-red-200 text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                <Trash2 size={13} />
-                                {destructiveActionId ===
-                                `user:${platformUser.clerk_user_id}`
-                                  ? "Deleting..."
-                                  : "Delete"}
+                                {destructiveActionId === `user:${platformUser.clerk_user_id}`
+                                  ? <RefreshCw size={15} className="animate-spin" />
+                                  : <Trash2 size={15} />}
                               </button>
                             )}
                           </td>

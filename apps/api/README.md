@@ -158,6 +158,27 @@ use Resend for Decisionate-owned mail. `RESEND_API_URL` defaults to
 `https://api.resend.com/emails` and only needs to be set when using a compatible
 custom endpoint. All workspace report delivery uses the selected platform provider.
 
+App-sent emails to business and agency workspace owners include a shared Decisionate
+logo header in their HTML version and retain a plain-text alternative. The PNG is
+loaded from `DECISIONATE_WEB_APP_URL` plus `/icons/decisionate-logo.png`; this must
+be a publicly reachable web URL, not the API host. Agency client reports, connector
+notices and maintenance emails use only the managing agency's logo, never the
+Decisionate logo. Missing or invalid agency logos fall back to the agency name.
+The existing text-only powered-by attribution remains unchanged. Business and
+agency owner reports and billing/marketing notices keep Decisionate branding.
+Email clients can block remote images; the sender name and message remain readable.
+Queued marketing retries retain their original payload and do not acquire new
+branding until a new email is composed.
+
+Clerk-sent verification and invitation email branding is configured separately
+in the production Clerk Dashboard's **Settings > Branding** and email templates. See the
+[Clerk email template guide](https://clerk.com/docs/guides/customizing-clerk/email-sms-templates).
+Manually composed Resend Broadcasts and Stripe-generated emails also use those
+providers' branding settings, not the application's HTML renderer. Local agency
+workspace branding is not automatically synchronized to Clerk's organization
+branding; provider-managed client emails need their own recipient-aware templates
+and must not use a blanket Decisionate logo.
+
 - `SMTP_HOST`
 - `SMTP_FROM_EMAIL`
 - `SMTP_PORT` (defaults to `587`)

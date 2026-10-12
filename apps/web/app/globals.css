@@ -76,6 +76,39 @@ body {
   overflow-wrap: anywhere;
 }
 
+.platform-admin-layout table {
+  overflow-wrap: normal;
+}
+
+.platform-admin-layout th {
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+
+.platform-admin-layout table :is(button, select) {
+  white-space: nowrap;
+}
+
+.platform-admin-layout table svg {
+  flex-shrink: 0;
+}
+
+.platform-admin-layout .admin-data-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.platform-admin-layout .admin-data-table > :is(thead, tbody) > tr > :is(th, td) {
+  padding: 12px 16px;
+  vertical-align: top;
+}
+
+.platform-admin-layout .admin-numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .dashboard-shell-layout {
   letter-spacing: 0;
 }

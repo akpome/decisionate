@@ -17,6 +17,7 @@ from sqlalchemy import or_
 
 from app.db.database import SessionLocal
 from app.configuration import get_runtime_configuration
+from app.infrastructure.email_branding import build_decisionate_logo_url
 from app.db.models import Dataset
 from app.db.models import DatasetRelationship
 from app.db.models import Organization
@@ -80,7 +81,6 @@ allowed_delivery_days = {
 default_weekly_report_brand_name = "Decisionate"
 default_weekly_report_primary_color = "#2563EB"
 default_weekly_report_accent_color = "#14B8A6"
-decisionate_logo_path = "/icons/decisionate-icon.svg"
 
 
 def clean_weekly_report_brand_name(
@@ -579,7 +579,7 @@ def get_weekly_report_branding(
         )
     else:
         brand_name = default_weekly_report_brand_name
-        brand_logo_url = build_decisionate_logo_url()
+        brand_logo_url = None if is_managed_client else build_decisionate_logo_url()
         primary_color = default_weekly_report_primary_color
         accent_color = default_weekly_report_accent_color
 
@@ -595,16 +595,6 @@ def get_weekly_report_branding(
         "is_managed_client": is_managed_client,
         "review_url": build_weekly_report_review_url(),
     }
-
-
-def build_decisionate_logo_url() -> str | None:
-    try:
-        return (
-            get_runtime_configuration().web_url.rstrip("/")
-            + decisionate_logo_path
-        )
-    except Exception:
-        return None
 
 
 def build_weekly_report_review_url() -> str | None:

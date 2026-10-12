@@ -704,6 +704,18 @@ class MarketingTests(unittest.TestCase):
         self.assertIn("List-Unsubscribe", body["headers"])
         self.assertIn("Test Company", body["html"])
 
+    def test_all_marketing_templates_include_the_public_png_logo(self):
+        messages = self.schedule()
+        messages["delivery_test"] = MarketingEmail(contact_id=self.contact.id, workspace_id="owner", id=999,
+            message_type="delivery_test", sequence_instance="test-logo", is_test=True, due_at=self.now)
+        for kind, message in messages.items():
+            with self.subTest(kind=kind):
+                body = templates.render_message(self.db, self.contact, message)
+                self.assertIn('/icons/decisionate-logo.png"', body["html"])
+                self.assertIn('alt="Decisionate"', body["html"])
+                self.assertIn("Unsubscribe from marketing", body["html"])
+                self.assertNotIn("<img", body["text"])
+
     def test_account_deletion_withdraws_and_preserves_audit(self):
         service.remove_user_marketing(self.db, "owner")
         self.db.commit()

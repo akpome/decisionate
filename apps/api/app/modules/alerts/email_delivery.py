@@ -9,13 +9,17 @@ from email.message import EmailMessage
 from email.utils import formataddr, parseaddr
 from html import escape as escape_html
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from fastapi import HTTPException
 
 from app.db.database import SessionLocal
 from app.db.models import PlatformEmailSettings
+from app.infrastructure.email_branding import (
+    build_decisionate_email_header,
+    build_system_email_html,
+    clean_email_logo_url,
+)
 from app.modules.alerts.schemas import (
     WeeklyReportDigestResponse,
     WeeklyReportAIAnalysis,
@@ -382,6 +386,7 @@ def send_platform_system_email(
     reply_to: str | None = None,
     *,
     sender_name: str | None = None,
+    branding: dict | None = None,
 ) -> None:
     """Send a Decisionate-owned system message through the platform provider."""
     clean_recipient = str(recipient or "").strip()
@@ -405,6 +410,7 @@ def send_platform_system_email(
     if reply_to:
         message["Reply-To"] = reply_to
     message.set_content(body)
+    message.add_alternative(build_system_email_html(subject, body, branding=branding), subtype="html")
 
     try:
         _send_platform_message(message)
@@ -630,21 +636,6 @@ def clean_email_brand_color(
     return default
 
 
-def clean_email_logo_url(
-    value: str | None,
-) -> str | None:
-    clean_value = str(value or "").strip()
-    if not clean_value:
-        return None
-
-    parsed_url = urlparse(clean_value)
-    if parsed_url.scheme in {"http", "https"}:
-        return clean_value
-    if clean_value.lower().startswith("data:image/"):
-        return clean_value
-    return None
-
-
 def build_weekly_report_email_html(
     digest: WeeklyReportDigestResponse,
 ) -> str:
@@ -663,7 +654,7 @@ def build_weekly_report_email_html(
     brand_name = escape_html(raw_brand_name)
     workspace_name = escape_html(raw_workspace_name)
     logo_url = clean_email_logo_url(digest.brand_logo_url)
-    logo = (
+    agency_logo = (
         f'<img src="{escape_html(logo_url, quote=True)}" '
         f'alt="{brand_name}" width="160" '
         'style="display:block;max-width:160px;height:auto;margin:0 auto 24px;">'
@@ -674,6 +665,7 @@ def build_weekly_report_email_html(
             f"{brand_name}</div>"
         )
     )
+    logo = agency_logo if digest.is_managed_client else build_decisionate_email_header()
     title = (
         "Weekly Performance Alert"
         if digest.is_managed_client
@@ -1058,6 +1050,10 @@ def send_support_request_email(
             "",
             message,
         ])
+    )
+    email.add_alternative(
+        build_system_email_html(str(email["Subject"]), email.get_content()),
+        subtype="html",
     )
 
     try:

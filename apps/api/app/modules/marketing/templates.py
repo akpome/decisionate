@@ -2,6 +2,7 @@ from html import escape
 from urllib.parse import urlencode
 
 from app.configuration import get_runtime_configuration
+from app.infrastructure.email_branding import build_decisionate_email_header
 from app.modules.marketing.config import absolute_url, settings
 from app.modules.marketing.service import unsubscribe_token, workspace_facts
 
@@ -34,7 +35,7 @@ def render_message(db, contact, message):
     html = f"""<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
 <body style="margin:0;background:#f8f9fa;font-family:Arial,sans-serif;color:#1a1a1a">
 <main style="max-width:560px;margin:0 auto;padding:28px 20px;background:white">
-<p style="color:#0047ff;font-weight:bold;font-size:20px">Decisionate</p>
+{build_decisionate_email_header()}
 <h1 style="font-size:24px;line-height:1.3">{escape(subject)}</h1>
 <p style="line-height:1.6">Hi {escape(name)},</p><p style="line-height:1.6">{escape(text)}</p>
 <p style="margin:28px 0"><a href="{escape(link, quote=True)}" style="display:inline-block;padding:12px 18px;background:#0047ff;color:white;text-decoration:none;border-radius:6px">{escape(label)}</a></p>

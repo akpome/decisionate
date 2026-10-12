@@ -67,6 +67,7 @@ from app.modules.alerts.email_delivery import (
 from app.modules.auth_context import get_auth_context
 from app.infrastructure.ingestion_jobs import ensure_workspace_jobs_idle, delete_workspace_ingestion_jobs
 from app.modules.billing.notifications import get_workspace_owner_email
+from app.modules.organizations.branding import get_client_email_branding
 from app.modules.billing.lifecycle import (
     build_subscription_access_state,
     resolve_billing_workspace_id,
@@ -926,28 +927,44 @@ def normalize_maintenance_datetime(value: datetime) -> datetime:
     return normalized.replace(tzinfo=None)
 
 
-def maintenance_owner_emails(db) -> list[str]:
-    emails = set()
-    for organization in db.query(Organization).all():
+def maintenance_owner_email_branding(db) -> dict[str, dict | None]:
+    recipients = {}
+    for organization in db.query(Organization).order_by(Organization.id.asc()).all():
         owner_email = get_workspace_owner_email(db, organization)
-        if owner_email:
-            emails.add(owner_email.strip().lower())
-    return sorted(email for email in emails if email)
+        email = str(owner_email or "").strip().lower()
+        if not email:
+            continue
+        branding = get_client_email_branding(db, organization)
+        # Direct workspace owners receive the platform notice once, even if they also own a client space.
+        if email not in recipients or branding is None:
+            recipients[email] = branding
+    return recipients
+
+
+def maintenance_owner_emails(db) -> list[str]:
+    return sorted(maintenance_owner_email_branding(db))
 
 
 def send_maintenance_emails(
     recipients: list[str],
     subject: str,
     body: str,
+    *,
+    recipient_branding: dict[str, dict | None] | None = None,
 ) -> tuple[int, int, str | None]:
     sent_count = 0
     failures = []
     for recipient in recipients:
         try:
+            branding = (recipient_branding or {}).get(recipient)
+            options = {"branding": branding} if branding else {}
+            if branding and branding.get("agency_name"):
+                options["sender_name"] = f"{branding['agency_name']} via Decisionate"
             send_platform_system_email(
                 recipient,
                 subject,
                 body,
+                **options,
             )
             sent_count += 1
         except Exception as error:
@@ -1075,7 +1092,8 @@ async def update_platform_admin_maintenance(
             notice.completion_email_sent_at = None
 
         db.commit()
-        recipients = maintenance_owner_emails(db)
+        recipient_branding = maintenance_owner_email_branding(db)
+        recipients = sorted(recipient_branding)
         sent_count, failed_count, failure_message = send_maintenance_emails(
             recipients,
             "Scheduled maintenance for Decisionate",
@@ -1083,6 +1101,7 @@ async def update_platform_admin_maintenance(
                 clean_message,
                 scheduled_at,
             ),
+            recipient_branding=recipient_branding,
         )
         if sent_count:
             notice.announcement_email_sent_at = utc_now()
@@ -1132,11 +1151,13 @@ async def complete_platform_admin_maintenance(request: Request):
         notice.ended_at = utc_now()
         notice.ended_by_user_id = auth_context.user_id
         db.commit()
-        recipients = maintenance_owner_emails(db)
+        recipient_branding = maintenance_owner_email_branding(db)
+        recipients = sorted(recipient_branding)
         sent_count, failed_count, failure_message = send_maintenance_emails(
             recipients,
             "Decisionate maintenance is complete",
             maintenance_completion_email_body(notice.message),
+            recipient_branding=recipient_branding,
         )
         if sent_count:
             notice.completion_email_sent_at = utc_now()
