@@ -113,6 +113,8 @@ from app.security.config import (
 from app.security.request_limits import RequestBodyLimitMiddleware
 from app.security.rate_limits import consume_workspace_request
 from app.infrastructure.monitoring import configure_error_monitoring
+from app.modules.marketing.router import router as marketing_router
+from app.modules.marketing.hooks import install_marketing_hooks
 
 
 logger = logging.getLogger(__name__)
@@ -1550,6 +1552,8 @@ if _schema_lock_connection is not None:
 app = FastAPI(
     title="Decisionate API"
 )
+install_marketing_hooks()
+app.include_router(marketing_router)
 
 
 def get_allowed_origins():
@@ -1622,6 +1626,7 @@ async def enforce_product_route_auth(
         "/decisions",
         "/billing",
         "/ai",
+        "/marketing",
     )
 
     if (
@@ -1632,6 +1637,10 @@ async def enforce_product_route_auth(
             "/alerts/weekly-report/send-due",
             "/billing/lifecycle/send-due",
             "/billing/webhook",
+            "/marketing/consent",
+            "/marketing/webhook",
+            "/marketing/unsubscribe",
+            "/marketing/reconcile",
         }
     ):
         try:

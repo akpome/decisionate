@@ -42,6 +42,65 @@ function resolveApiUrl(value: string | undefined) {
 
 export const API_URL =
   resolveApiUrl(configuredApiUrl)
+
+export type MarketingConsentRequest = {
+  available: boolean
+  text: string
+  version: string
+  language: "en" | "fr"
+  sender_identity: string
+  mailing_address: string
+  reply_to: string
+}
+
+export type MarketingContact = {
+  id: number
+  email: string
+  marketing_status: string
+  email_verified: boolean
+  suppression_reason: string | null
+  consent_at: string | null
+  primary_workspace_id: string | null
+  lifecycle: { subscription_status: string; setup_status: string; engagement_status: string } | null
+  last_successful_sync_at: string | null
+  sync_error: string | null
+}
+
+export type MarketingSender = {
+  sender_identity: string
+  mailing_address: string
+  reply_to: string
+  from_email: string
+  from_name: string
+}
+
+export type MarketingSupport = {
+  configuration: MarketingConsentRequest & MarketingSender & { enabled: boolean; sending: boolean; automation: Record<string, boolean> }
+  contacts: MarketingContact[]
+  next_contact_id: number | null
+  emails: { id: number; contact_id: number; message_type: string; status: string; due_at: string; reason: string | null }[]
+  failed_jobs: { id: number; job_type: string; error: string; attempts: number }[]
+}
+
+export async function getMarketingConsent(language: "en" | "fr" = "en"): Promise<MarketingConsentRequest> {
+  const response = await apiFetch(`${API_URL}/marketing/consent?language=${language}`, { cache: "no-store" })
+  if (!response.ok) await throwApiError(response, "Email preferences are unavailable")
+  return response.json()
+}
+
+export async function marketingRequest<T>(userId: string, path: string, init: RequestInit = {}): Promise<T> {
+  const response = await apiFetch(`${API_URL}/marketing${path}`, {
+    ...init, cache: "no-store", headers: { ...await workspaceHeaders(userId), "Content-Type": "application/json", ...init.headers },
+  })
+  if (!response.ok) await throwApiError(response, "Email preferences could not be updated")
+  return response.json()
+}
+
+export async function getMarketingPreview(userId: string, messageId: number): Promise<string> {
+  const response = await apiFetch(`${API_URL}/marketing/admin/emails/${messageId}/preview`, { headers: await workspaceHeaders(userId), cache: "no-store" })
+  if (!response.ok) await throwApiError(response, "Email preview is unavailable")
+  return response.text()
+}
 export const apiAvailabilityChangedEvent =
   "decisionate:api-availability-changed"
 const maxDashboardTitleLength = 120

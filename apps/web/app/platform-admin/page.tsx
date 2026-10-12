@@ -26,6 +26,7 @@ import {
   useUser,
 } from "@clerk/nextjs"
 import { Fragment, useEffect, useState } from "react"
+import { MarketingAdmin } from "@/features/marketing/marketing-admin"
 
 import {
   addPlatformAdminOrganizationInvite,
@@ -2847,6 +2848,7 @@ export default function PlatformAdminPage() {
             </div>
             )}
 
+            {adminAccess.full_access && <MarketingAdmin userId={user.id} />}
             <section className={canView("email_settings") ? "mt-8 rounded-xl border border-gray-200 bg-white p-5 shadow-sm" : "hidden"}>
               <div className="flex items-start gap-3">
                 <Mail className="mt-0.5 text-blue-600" size={20} />

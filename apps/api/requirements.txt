@@ -21,3 +21,4 @@ google-analytics-data
 google-auth
 redis
 sentry-sdk[fastapi]
+svix==2.8.0

@@ -14,6 +14,7 @@ import { ArrowRight, RefreshCw } from "lucide-react"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { getAuthRedirectUrl, getSignInUrl, getSignUpUrl } from "@/features/auth/lib/auth-redirects"
 import { readSignupConsent, subscribeSignupConsent, writeSignupConsent } from "@/features/auth/lib/signup-consent"
+import { SignupMarketingOptIn } from "@/features/marketing/email-preferences"
 
 type ClerkAuthCardProps = {
   mode: "sign-in" | "sign-up"
@@ -139,6 +140,7 @@ function SignUpWithConsent({ returnTo }: { returnTo?: string | null }) {
               .
             </span>
           </label>
+          <SignupMarketingOptIn />
         </div>
 
         <button

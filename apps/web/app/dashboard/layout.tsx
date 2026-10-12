@@ -1,4 +1,5 @@
 import { DashboardShell } from "./dashboard-shell"
+import { MarketingActivityTracker } from "@/features/marketing/activity-tracker"
 
 export default function DashboardLayout({
   children,
@@ -7,6 +8,7 @@ export default function DashboardLayout({
 }) {
   return (
     <DashboardShell>
+      <MarketingActivityTracker />
       {children}
     </DashboardShell>
   )

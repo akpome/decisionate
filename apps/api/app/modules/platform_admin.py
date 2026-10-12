@@ -3337,6 +3337,8 @@ def delete_workspace_records(
     organization_id: int | None = None,
 ) -> dict[str, int]:
     clean_workspace_id = str(workspace_id or "").strip()
+    from app.modules.marketing.service import enqueue, remove_user_marketing
+    enqueue(db, "workspace", clean_workspace_id)
     ensure_workspace_jobs_idle(db, [clean_workspace_id])
     delete_workspace_ingestion_jobs(db, [clean_workspace_id])
     summary = {
@@ -3560,6 +3562,7 @@ def delete_workspace_records(
             db.query(AuthIdentity).filter(
                 AuthIdentity.user_id == member_user_id
             ).delete(synchronize_session=False)
+            remove_user_marketing(db, member_user_id)
             db.query(AppUser).filter(
                 AppUser.id == member_user_id
             ).delete(synchronize_session=False)
@@ -3572,6 +3575,8 @@ def delete_internal_user_records(
     db,
     user_id: str,
 ) -> dict[str, int]:
+    from app.modules.marketing.service import remove_user_marketing
+    remove_user_marketing(db, user_id)
     summary = {
         "workspaces": 0,
         "users": 0,

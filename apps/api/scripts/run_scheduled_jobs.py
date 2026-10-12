@@ -31,6 +31,12 @@ class ScheduledJob:
 
 
 JOBS = {
+    "marketing": ScheduledJob(
+        name="marketing",
+        path="/marketing/reconcile",
+        secret_name="MARKETING_SCHEDULER_SECRET",
+        header_name="X-Marketing-Scheduler-Secret",
+    ),
     "connectors": ScheduledJob(
         name="connectors",
         path="/datasets/source-connections/sync-due",

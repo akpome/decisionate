@@ -13,6 +13,7 @@ import {
 import { getDashboardReturnTo, getSafeReturnTo, getSignInUrl } from "@/features/auth/lib/auth-redirects"
 import { chooseAuthWorkspace, getAuthenticatedDestination } from "@/features/auth/lib/auth-workspaces"
 import { writeSignupConsent } from "@/features/auth/lib/signup-consent"
+import { completeSignupMarketing } from "@/features/auth/lib/marketing-consent"
 import { getActiveWorkspaceId, setActiveWorkspaceId } from "@/lib/workspace-context"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 
@@ -27,6 +28,7 @@ export default function AuthRedirectPage() {
     user?.primaryEmailAddress?.emailAddress
   const userFallbackEmail =
     user?.emailAddresses?.[0]?.emailAddress
+  const userCreatedAt = user?.createdAt?.getTime() ?? null
 
   useEffect(() => {
     if (!isLoaded) {
@@ -51,6 +53,7 @@ export default function AuthRedirectPage() {
     async function routeAuthenticatedUser() {
       setError(null)
       writeSignupConsent(false)
+      void completeSignupMarketing(authenticatedUserId, userCreatedAt)
       const userEmail =
         userPrimaryEmail ?? userFallbackEmail
 
@@ -96,6 +99,7 @@ export default function AuthRedirectPage() {
     user?.id,
     userFallbackEmail,
     userPrimaryEmail,
+    userCreatedAt,
     attempt,
   ])
 

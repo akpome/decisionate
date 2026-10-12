@@ -269,5 +269,6 @@ def is_subscription_exempt_path(path: str) -> bool:
             "/organizations",
             "/support",
             "/admin",
+            "/marketing",
         )
     )

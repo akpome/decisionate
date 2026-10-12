@@ -1,0 +1,125 @@
+# Customer Email Marketing
+
+## Implementation Map
+
+- Clerk remains responsible for signup and address verification. `identity/service.py` creates a local marketing contact and an outbox entry in the same transaction as the resolved account. Only the server-verified address can become eligible.
+- Preserve the existing identity contract: Clerk's signed session claims must include the address and boolean `email_verified: true` only for a verified address, as described in `apps/api/README.md`. Subject-only tokens can sign in but cannot grant verified marketing eligibility. Browser-supplied email headers are not verification.
+- Signup has a separate optional, unchecked checkbox. Settings exposes the account-wide marketing preference to business, agency and client users. Signup succeeds when marketing is declined or unavailable.
+- `marketing/models.py` adds contacts, immutable consent evidence, workspace readiness/activity, membership recipients, jobs, an email ledger, webhook receipts and sender settings. No billing facts are copied into another subscription table.
+- `marketing/hooks.py` writes workspace changes to the database outbox. Asynchronous imports qualify only after successful completion with usable, non-demo rows; empty/failed imports and connector authorization do not qualify. First readiness is preserved independently of current data availability.
+- `marketing/worker.py` runs through the existing supervised ingestion worker. There is no new queue service. Resend REST uses the platform's existing encrypted Resend key/environment fallback; SMTP or Resend system-email delivery is unchanged. No Resend SDK was previously installed; Svix is the signature verifier.
+- `run_scheduled_jobs.py` adds an optional marketing reconciliation job. Persistent cursors page through identities and contacts, refreshing inactive states, recipient membership, segments, due dates and provider preferences without loading all tenants in one request.
+- Platform Admin, restricted to full platform administrators, holds sender details and displays consent/suppression, lifecycle, sync errors, email history, previews and failed-job retries. Agency users cannot access the global directory.
+
+## Database Rollout
+
+Back up the database first. The API's existing serialized startup schema bootstrap creates these additive tables. For an explicit pre-deployment migration, from `apps/api`:
+
+```sh
+python scripts/migrate_marketing.py
+python scripts/migrate_marketing.py --apply
+```
+
+The first command is a dry run. Neither command grants consent, calls Resend or schedules historical messages. Reconciliation backfills unknown identities only. Unknown and unverified contacts are not exported as new Resend contacts. Existing customers must opt in through Settings.
+
+## Sender Settings
+
+In **Platform Admin > Customer email marketing**, save the real legal sender identity, mailing address, verified sender email, display name and monitored reply-to. Do not enter example addresses in production. Those values feed the public consent request and email footers; each grant retains its exact English/French text, version and sender details even if settings change later.
+
+Sender-domain verification remains an external Resend/DNS action. Follow [Resend's domain instructions](https://resend.com/docs/add-a-domain) to publish the records supplied by your account and confirm domain verification. This feature does not migrate or replace existing essential-email settings.
+
+## Environment Contract
+
+Configure on the API and existing worker:
+
+| Variable | Default / Purpose |
+| --- | --- |
+| `RESEND_API_KEY` | Existing environment fallback; an encrypted key saved in platform email settings also works. Requires Contacts/Segments and email permissions. |
+| `RESEND_WEBHOOK_SECRET` | Resend signing secret, server-side only. |
+| `MARKETING_ENABLED` | `false`; enables background contact/webhook processing. |
+| `MARKETING_SEND_ENABLED` | `false`; sending gate independent of sync. |
+| `MARKETING_TEST_MODE` | `true`; even production sends require an explicitly allowlisted test recipient until deliberately turned off. Staging always requires the allowlist. |
+| `MARKETING_TEST_RECIPIENTS` | Empty; comma-separated internal test addresses. Never redirect customer messages to an unrelated test address. |
+| `MARKETING_WELCOME_ENABLED` | `false`. |
+| `MARKETING_INCOMPLETE_SETUP_ENABLED` | `false`. |
+| `MARKETING_TRIAL_ENDING_ENABLED` | `false`. |
+| `MARKETING_ACTIVATION_CUTOFF` | Required before sending; an ISO UTC timestamp, for example a real rollout timestamp chosen by the operator. Older welcome/setup messages are not backfilled; a still-useful future trial-ending reminder remains eligible after fresh opt-in. |
+| `MARKETING_UNSUBSCRIBE_SECRET` | Stable random secret of at least 32 characters. Links do not expire. Preserve the key for outstanding links; rotating it invalidates older links, so do not rotate within their required validity period. |
+| `MARKETING_SEGMENT_IDS` | JSON mapping below, using actual IDs from Resend. |
+| `MARKETING_INACTIVITY_DAYS` | `14`, product assumption, configurable. |
+| `MARKETING_WELCOME_WINDOW_HOURS` | `48`; a delayed verification outside this window skips welcome. |
+| `MARKETING_SETUP_DELAY_HOURS` | `48` after the actual trial start. Active ingestion defers six hours; existing import-error notices take precedence. |
+| `MARKETING_TRIAL_REMINDER_HOURS` | `48` before the actual billing trial deadline; an extension moves unsent reminders. |
+| `MARKETING_TRIAL_MIN_NOTICE_HOURS` | `6`; skip reminders that no longer leave useful time to act. Very short trials also respect the welcome frequency interval. |
+| `MARKETING_FREQUENCY_CAP_HOURS` | `24` per contact, across automated workspace messages. |
+| `DECISIONATE_WEB_APP_URL` | Existing absolute app URL; HTTPS in production. |
+| `DECISIONATE_API_URL` | Existing absolute API URL for no-login unsubscribe links; HTTPS in production. |
+
+Optional sender environment fallbacks are `MARKETING_SENDER_IDENTITY`, `MARKETING_MAILING_ADDRESS`, `MARKETING_FROM_EMAIL`, `MARKETING_FROM_NAME` and `MARKETING_REPLY_TO`. Saved admin values take precedence. No secrets are exposed to browser code.
+
+Configure `MARKETING_SCHEDULER_SECRET` on the API and scheduler and add `marketing` to an explicitly configured `SCHEDULED_JOBS`. Without an explicit list, the existing runner selects jobs with configured secrets. The protected endpoint is `POST /marketing/reconcile`, using `X-Marketing-Scheduler-Secret`. It advances persistent cursors in batches of up to 100; the existing recurring cron invocation completes successive pages. Run often enough for the contact population to complete at least one pass per day. Email submission occurs in the worker, not the scheduler request.
+
+## Segments and Recipients
+
+Create eight segments in Resend and configure:
+
+```json
+{
+  "prospect": "ACTUAL_SEGMENT_ID",
+  "trial_setup_incomplete": "ACTUAL_SEGMENT_ID",
+  "trial_data_ready": "ACTUAL_SEGMENT_ID",
+  "paying_customer": "ACTUAL_SEGMENT_ID",
+  "trial_expired": "ACTUAL_SEGMENT_ID",
+  "former_customer": "ACTUAL_SEGMENT_ID",
+  "inactive_customer": "ACTUAL_SEGMENT_ID",
+  "agency_account": "ACTUAL_SEGMENT_ID"
+}
+```
+
+These are placeholders, not usable IDs. One persisted primary marketing workspace determines the subscription/setup segments. Owner status is derived from real membership/ownership. Invited team members and agency-funded client spaces do not receive trial or billing upgrade prompts. The existing billing workflow designates the owner as billing recipient. Inactive/agency segments can overlap. Scheduled cancellation stays paying until entitlement ends; payment trouble is not labeled former. Obsolete managed segment membership is removed, not just supplemented. Withdrawal removes every provider segment and marks the contact globally unsubscribed.
+
+There is no newsletter form or prospect signup in this initial release; the prospect segment is reserved for that later scope. Monthly updates and reactivation are manual campaign use cases, not automatic sequences. Topics and a campaign editor inside Decisionate are not added.
+
+## Webhooks and Unsubscribe
+
+In Resend, register `https://YOUR_API_HOST/marketing/webhook` for:
+
+- `contact.updated`, `contact.deleted`
+- `email.sent`, `email.delivered`, `email.failed`, `email.bounced`, `email.complained`, `email.suppressed`
+- `suppression.added`
+
+Use the actual API host and signing secret. Svix validates the raw body, signature and timestamp. The event ID is unique. Only minimal preference/delivery identifiers are retained, not the full email content. Explicit withdrawal/suppression applies locally before acknowledgement even if marketing processing is disabled. Events lacking unsubscribe details are fetched through the outbox. Provider opt-ins never grant local consent or clear a newer opt-out. A fresh authenticated opt-in on the verified address is required to resubscribe. Hard bounces/complaints stay suppressed; there is no force-subscribe control.
+
+Marketing email `GET /marketing/unsubscribe?token=...` displays confirmation to avoid link-scanner withdrawals; POST immediately suppresses without login. It also supports List-Unsubscribe one-click POST. Signing tokens authorize withdrawal only, not access to workspace data. Keep the configured API domain and signing secret available for outstanding links.
+
+## Delivery and Dry Run
+
+Welcome, incomplete setup and trial ending use HTML and plain-text templates with one main CTA, actual trial timestamps and authenticated app links. `workspace_id` links are selected only after verifying membership. The ledger has unique contact/workspace/sequence/type keys. API acceptance is `submitted`, not `delivered`; delivery webhooks update the ledger. The original payload and idempotency key are reused on ambiguous retries only inside a conservative 23-hour window. Older uncertain submissions are held for manual provider reconciliation, never blindly replayed. Failed sync retries always read current preference/state; they cannot restore withdrawn consent.
+
+The current application creates one onboarding trial per workspace subscription. Its sequence uses the immutable workspace/subscription record IDs, not a mutable billing-period timestamp. Extending the deadline or adjusting the billing period cannot create another welcome or repeat a sent reminder. Future support for genuinely separate trials on the same subscription row requires an explicit authoritative trial-instance identifier.
+
+Agency welcome/setup copy directs the agency to create a client workspace and invite its owner, not to connect client data. The setup reminder stops once a client workspace exists. Data-based segment classification remains separate from this agency onboarding milestone; no client's private metrics are read or exported to describe agency setup.
+
+With sync enabled and sending disabled, due ledger entries record `dry_run_sending_disabled`. Full admins can preview messages and queue a test welcome for a verified, opted-in, allowlisted internal contact with an active trial workspace. The test remains subject to sending gates and frequency caps. A preview does not send. No real external delivery was performed by repository tests.
+
+Automated sends also wait for a successful current contact sync and fetch the provider's global unsubscribe state again immediately before submission. Provider outages defer work; ordinary authenticated requests use a read-only contact fast path so a marketing-sync lock does not hold up regular business requests.
+
+For an uncertain submission, inspect Resend email logs and the ledger's provider message ID/tags before any manual decision. The UI intentionally has no retry-send button for uncertain messages. Ordinary provider timeouts and 429/5xx use bounded backoff and jitter; exhausted sync failures remain visible and retryable. Disabling sends preserves evidence/ledger state and does not affect essential notices or user-configured reports.
+
+## Founder Broadcast Checklist
+
+1. Confirm domain verification, sender settings, all segment IDs and current contact sync health.
+2. In [Resend Broadcasts](https://resend.com/docs/dashboard/broadcasts/editor), select an application-managed segment. Leave topic unset for the initial single global marketing preference; adding topics requires extending synchronization and topic webhooks first.
+3. Check the recipient list, exclude unsubscribed/suppressed addresses and coordinate timing against recent lifecycle sends in Platform Admin. The worker's 24-hour cap does not control dashboard Broadcasts.
+4. Compose a short subject and one main action. Supported first-name fallback is `{{{contact.first_name|there}}}`. Insert the actual legal sender, mailing address and monitored contact details.
+5. Add the provider unsubscribe URL `{{{RESEND_UNSUBSCRIBE_URL}}}` as a footer link. A segment selection never bypasses global unsubscribe.
+6. Preview mobile/desktop, inspect plain text and links, and send an internal test. Then deliberately schedule/send the final copy. No CSV transfer or recurring unfinished campaign is needed.
+7. Review delivery, complaints and unsubscribes alongside product outcomes. Lifecycle links carry sequence/UTM identifiers and record deduplicated authenticated recipient visits in the authorized workspace; forwarded links from another user do not count. Link visits alone, opens and background sync are not meaningful product activity. Readiness, activity, existing decision/action records and billing provide downstream facts to review; this release does not claim causal conversion attribution or a completed campaign-attribution dashboard.
+
+## Release Verification
+
+Run the marketing API tests, related auth/billing/ingestion/service-email regressions, web tests, lint and build. Verify migration twice on a disposable database. Render all three email templates at mobile and desktop widths. The mocked end-to-end checks cover identity, opt-in, verification, segment reconciliation, welcome submission, usable data, unsubscribe and blocked future delivery.
+
+External rollout is still required: saved real sender details, verified domain/DNS, a working Resend key and webhook secret, actual segment IDs, stable unsubscribe secret, scheduler configuration, activation cutoff, and internal test recipients. Start with sync only, inspect dry-run decisions, perform a real internal delivery/unsubscribe test, then enable the three flags and finally disable test mode for eligible customers. Repository tests do not establish production deliverability.
+
+Consent policy here deliberately requires express opt-in for promotional onboarding. It does not claim that this is the only lawful basis under Canadian law. Consult [CRTC's CASL guidance](https://crtc.gc.ca/eng/com500/guide.htm) for compliance review. Provider references verified during implementation: [Contacts](https://resend.com/docs/api-reference/contacts/create-contact), [Segments](https://resend.com/docs/api-reference/contacts/list-contact-segments), [contact.updated](https://resend.com/docs/webhooks/contacts/updated), [verification](https://resend.com/docs/webhooks/verify-webhooks-requests), and [24-hour idempotency retention](https://resend.com/docs/dashboard/emails/idempotency-keys).

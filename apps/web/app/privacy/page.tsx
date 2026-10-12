@@ -11,7 +11,7 @@ const processors = [
   ["Hosting and storage providers", "Application delivery, databases, files, service logs, and backups. Supported infrastructure includes Railway, Vercel, PostgreSQL, and Cloudflare R2 or Amazon S3; the providers and locations used depend on the deployment."],
   ["OpenAI", "The selected analysis context, aggregate metrics and trends, and bounded decision outcomes or learning notes. User-authored text and category labels can contain personal information."],
   ["Stripe", "Subscription identifiers, checkout, payments, invoices, and billing events. Stripe collects payment-card details through its services; Decisionate does not store full card numbers."],
-  ["Resend or the configured email provider", "Recipient details and the contents of requested reports, alerts, invitations, support correspondence, and service emails when email delivery is enabled."],
+  ["Resend or the configured email provider", "Recipient details and the contents of requested reports, alerts, invitations, support correspondence, and service emails. With marketing opt-in, Resend also receives your name, email and lifecycle segment memberships; it does not receive raw business datasets or connector credentials for marketing."],
   ["Sentry, when diagnostics are configured", "Error context and service request metadata. The API disables default personal-information collection, local-variable capture, and request-body capture in its monitoring configuration."],
   ["Optional cache and analytics providers", "Upstash Redis may process temporary cache values and operational counters; BigQuery may process configured analytical data. These providers receive data only when the corresponding service is configured."],
   ["Connected providers", "Authorized imports and provider API requests, including Meta Ads, Google services, accounting, commerce, payment, and CRM connectors selected by a workspace."]
@@ -48,6 +48,7 @@ export default function PrivacyPage() {
           <li>Business information: uploaded files, authorized connector records, dataset columns and metrics, dashboards, forecasts, relationships, alerts, reports, decisions, notes, outcomes, and lessons.</li>
           <li>Connection information: provider and account identifiers, configuration, authorization scopes, and credentials needed to import authorized data.</li>
           <li>Service information: request metadata, usage and AI-credit records, billing identifiers, delivery status, activity history, errors, and support messages.</li>
+          <li>Email preferences: verification and marketing-consent records, the wording and sender details shown when you opted in, unsubscribe and suppression records, lifecycle classifications, and email-delivery history.</li>
         </ul>
       </PolicySection>
 
@@ -60,6 +61,19 @@ export default function PrivacyPage() {
           prevent abuse, investigate failures, and maintain reliability.
           We do not use a connection as authorization to access unrelated accounts
           or to publish a workspace&apos;s data.
+        </p>
+        <p>
+          Marketing is optional and requires recorded opt-in and a verified
+          email address. We use account type, subscription and trial status,
+          successful data setup, and meaningful product activity to tailor
+          eligible onboarding emails and product campaigns. Background syncing
+          and email opens do not count as meaningful product activity.
+          You can change marketing preferences in Settings or unsubscribe using
+          the link in a marketing email without signing in. Withdrawal stops
+          marketing; essential account notices and your configured reports and
+          alerts have separate controls. We retain consent and withdrawal
+          evidence, suppression records and delivery history as needed to honor
+          preferences, operate the service and meet applicable obligations.
         </p>
       </PolicySection>
 

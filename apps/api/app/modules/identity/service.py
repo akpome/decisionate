@@ -13,6 +13,7 @@ from app.db.models import (
     OrganizationMember,
     utc_now,
 )
+from app.modules.marketing.service import capture_identity
 
 
 INTERNAL_USER_PREFIX = "usr_"
@@ -350,6 +351,7 @@ def resolve_external_identity(
     subject: str,
     email: str | None = None,
     provider: str = DEFAULT_AUTH_PROVIDER,
+    email_verified: bool = False,
 ) -> str:
     clean_subject = str(subject or "").strip()
     if not clean_subject:
@@ -437,6 +439,7 @@ def resolve_external_identity(
                     user.email = clean_email
 
         identity.last_seen_at = utc_now()
+        capture_identity(db, identity.user_id, email, verified=email_verified)
         db.commit()
         return identity.user_id
     except Exception:

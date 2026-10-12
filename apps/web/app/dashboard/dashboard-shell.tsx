@@ -527,13 +527,16 @@ export function DashboardShell({
               (workspace) =>
                 workspace.owner_user_id === storedWorkspaceId
             )
-          const nextWorkspaceId =
+          const requestedWorkspaceId = new URLSearchParams(window.location.search).get("workspace_id")
+          const linkedWorkspaceId = selectableWorkspaces.find(workspace => workspace.owner_user_id === requestedWorkspaceId)?.owner_user_id
+          const nextWorkspaceId = linkedWorkspaceId ?? (
             clientWorkspaces.length > 0 &&
             storedWorkspaceId === userId
               ? defaultWorkspaceId
               : workspaceAvailable
                 ? storedWorkspaceId
                 : defaultWorkspaceId
+          )
 
           if (nextWorkspaceId !== storedWorkspaceId) {
             setActiveWorkspaceId(

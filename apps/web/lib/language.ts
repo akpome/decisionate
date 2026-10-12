@@ -95,6 +95,12 @@ const translations = {
 } as const
 
 const frenchLandingTranslations: Record<string, string> = {
+  Optional: "Facultatif",
+  "Email preferences": "Préférences de courriel",
+  "Save preferences": "Enregistrer les préférences",
+  "Email preferences saved.": "Préférences de courriel enregistrées.",
+  "Marketing subscriptions are not available yet.": "Les abonnements aux courriels promotionnels ne sont pas encore disponibles.",
+  "This address is suppressed. Contact support before subscribing.": "Cette adresse est bloquée pour les envois. Contactez l'assistance avant de vous abonner.",
   ...refreshedLandingFrench,
   "Decisions from Data.": "Des décisions fondées sur les données.",
   "Decisionate home": "Accueil de Decisionate",

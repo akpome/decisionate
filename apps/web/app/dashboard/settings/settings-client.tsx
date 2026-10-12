@@ -51,6 +51,7 @@ import {
   notifyWorkspaceAccessChanged,
 } from "@/lib/workspace-context"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { EmailPreferences } from "@/features/marketing/email-preferences"
 import {
   useWorkspaceAccess,
 } from "@/lib/use-workspace-access"
@@ -1417,6 +1418,7 @@ export function SettingsClient({
           title="Settings"
           description="Workspace configuration is available to the business owner."
         />
+        <EmailPreferences userId={userId} />
         {isClientWorkspaceOwner ? (
           <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1491,6 +1493,7 @@ export function SettingsClient({
         }
       />
 
+      <EmailPreferences userId={userId} />
       {isClientPortalUser && (
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
           <div>

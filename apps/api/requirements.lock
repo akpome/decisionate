@@ -10,8 +10,11 @@ annotated-types==0.8.0
     # via pydantic
 anyio==4.15.1
     # via
+    #   httpx
     #   starlette
     #   watchfiles
+attrs==26.1.0
+    # via svix
 azure-core==1.41.0
     # via azure-storage-blob
 azure-storage-blob==12.31.0
@@ -25,6 +28,8 @@ botocore==1.43.109
 certifi==2026.7.22
     # via
     #   curl-cffi
+    #   httpcore
+    #   httpx
     #   requests
     #   sentry-sdk
 cffi==2.1.1
@@ -44,6 +49,8 @@ cryptography==50.0.1
     #   google-auth
 curl-cffi==0.16.3
     # via -r requirements.txt
+deprecated==3.0.0
+    # via svix
 duckdb==1.5.5
     # via -r requirements.txt
 et-xmlfile==2.0.0
@@ -94,12 +101,19 @@ grpcio==1.84.0
 grpcio-status==1.84.0
     # via google-api-core
 h11==0.16.0
-    # via uvicorn
+    # via
+    #   httpcore
+    #   uvicorn
+httpcore==1.0.9
+    # via httpx
 httptools==0.8.0
     # via uvicorn
+httpx==0.28.1
+    # via svix
 idna==3.20
     # via
     #   anyio
+    #   httpx
     #   requests
 isodate==0.7.2
     # via azure-storage-blob
@@ -146,7 +160,9 @@ pyasn1-modules==0.4.2
 pycparser==3.1
     # via cffi
 pydantic==2.14.0
-    # via fastapi
+    # via
+    #   fastapi
+    #   svix
 pydantic-core==2.50.0
     # via pydantic
 pyjwt==2.13.0
@@ -159,6 +175,7 @@ python-dateutil==2.9.0.post0
     # via
     #   botocore
     #   pandas
+    #   svix
 python-dotenv==1.2.4
     # via uvicorn
 python-multipart==0.0.32
@@ -180,8 +197,12 @@ six==1.17.0
     # via python-dateutil
 sqlalchemy==2.0.50
     # via -r requirements.txt
+standardwebhooks==1.1.0
+    # via svix
 starlette==1.7.0
     # via fastapi
+svix==2.8.0
+    # via -r requirements.txt
 typing-extensions==4.16.0
     # via
     #   anyio
@@ -213,3 +234,5 @@ watchfiles==1.3.0
     # via uvicorn
 websockets==17.2
     # via uvicorn
+wrapt==2.5.0
+    # via deprecated

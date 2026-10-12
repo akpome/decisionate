@@ -100,6 +100,7 @@ def get_auth_context(
         external_user_id,
         email=user_email if email_is_verified else None,
         provider=DEFAULT_AUTH_PROVIDER,
+        email_verified=email_is_verified,
     )
     clerk_jwks_url = get_auth_jwks_url()
     requested_user_id = request.headers.get(

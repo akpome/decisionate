@@ -101,6 +101,8 @@ def cleanup_terminal_file_jobs():
 
 
 def execute_job(job_id):
+    from app.modules.marketing.hooks import install_marketing_hooks
+    install_marketing_hooks()
     from app.modules.datasets import router as routes
 
     with SessionLocal() as db:
@@ -151,6 +153,7 @@ def run_worker(script, once=False):
             fail_interrupted_jobs()
             cleanup_terminal_file_jobs()
             last_retention = 0
+            last_marketing = 0
             while True:
                 connection.execute(text("SELECT 1"))
                 connection.commit()
@@ -166,6 +169,13 @@ def run_worker(script, once=False):
                     last_retention = time.monotonic()
                 if job_id is not None:
                     supervise_job(job_id, connection, script)
+                elif time.monotonic() - last_marketing >= 10:
+                    from app.modules.marketing.worker import process_batch
+                    try:
+                        process_batch(limit=1, heartbeat=lambda: record_heartbeat())
+                    except Exception as error:
+                        logger.error("Marketing processing failed; ingestion remains available", extra={"error_type": type(error).__name__})
+                    last_marketing = time.monotonic()
                 if once:
                     return
                 time.sleep(1)
