@@ -3,6 +3,7 @@
 
 import argparse
 import ctypes
+import logging
 import os
 from pathlib import Path
 import signal
@@ -16,6 +17,7 @@ def main():
     parser.add_argument("--job-id", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--parent-pid", type=int, help=argparse.SUPPRESS)
     args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     if args.job_id is not None:
         if not sys.platform.startswith("linux") or not args.parent_pid:
             raise RuntimeError("Isolated ingestion jobs require the Linux supervisor.")

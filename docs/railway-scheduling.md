@@ -79,7 +79,23 @@ storage, connector credentials, encryption key, authentication configuration,
 and monitoring variables. Use the same application revision and
 `APP_ENV=production`; set `BILLING_ENFORCEMENT_ENABLED=false` while billing is
 deferred. Configure automatic restart and run one replica. A database advisory
-lock rejects a second ingestion worker.
+lock ensures only one ingestion worker consumes the queue. During deployment
+overlap, the new persistent worker stays running and retries the lock every
+five seconds until the previous worker stops. It does not mark imports as
+interrupted, consume jobs, or update readiness before it owns the lock.
+One-shot `--once` runs still reject a competing worker immediately.
+
+Worker deploy logs report standby, lock acquisition, the marketing sync/send
+flags, and nonempty marketing batches without printing credentials or contact
+addresses. A fresh heartbeat proves that a lock owner is running, not that the
+latest deployment has taken over. If standby persists, check for an older
+worker deployment or duplicate worker service; retain only the intended owner.
+Do not remove the lock or restart PostgreSQL to force concurrent consumers.
+
+Railway overlaps old and new deployments during replacement; the old process
+is stopped after the new deployment becomes active. Keep this worker without
+an HTTP healthcheck or cron schedule. Use API `/ready` to check queue-owner
+readiness. See [Railway deployment teardown](https://docs.railway.com/deployments/deployment-teardown).
 
 The worker executes queued jobs in isolated, deadline-limited processes and
 independently sweeps three-year connector retention hourly, including revoked

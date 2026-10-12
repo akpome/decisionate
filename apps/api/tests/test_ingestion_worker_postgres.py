@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import select
 import subprocess
 import sys
 import tempfile
@@ -36,6 +37,7 @@ class DurableWorkerIntegrationTests(unittest.TestCase):
             **os.environ, "DATABASE_URL": TEST_URL, "APP_ENV": "development",
             "INGESTION_EXECUTION_MODE": "worker", "PYTHONDONTWRITEBYTECODE": "1",
             "OBJECT_STORAGE_PROVIDER": "local", "BILLING_ENFORCEMENT_ENABLED": "false",
+            "MARKETING_ENABLED": "false", "MARKETING_SEND_ENABLED": "false",
         }
 
     def tearDown(self):
@@ -124,3 +126,43 @@ class DurableWorkerIntegrationTests(unittest.TestCase):
             thread.join(timeout=10)
             self.assertFalse(thread.is_alive())
         self.assertCountEqual(outcomes, ["queued", 409])
+
+    def test_persistent_worker_waits_and_acquires_only_after_owner_releases(self):
+        script = """
+import logging
+from sqlalchemy import text
+from app.infrastructure import ingestion_worker
+
+logging.basicConfig(level=logging.INFO)
+ingestion_worker.WORKER_LOCK_RETRY_SECONDS = 0.1
+with ingestion_worker.engine.connect() as connection:
+    ingestion_worker.acquire_worker_lock(connection)
+    print("QUEUE_LOCK_ACQUIRED", flush=True)
+    connection.execute(text("SELECT pg_advisory_unlock(59831, 1)"))
+    connection.commit()
+"""
+        with self.engine.connect() as connection:
+            self.assertTrue(connection.execute(text("SELECT pg_try_advisory_lock(59831, 1)")).scalar())
+            connection.commit()
+            locked = True
+            process = subprocess.Popen(
+                [sys.executable, "-B", "-c", script], cwd=API_ROOT, env=self.environment,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            try:
+                self.assertTrue(select.select([process.stderr], [], [], 20)[0], "Standby worker did not report waiting")
+                self.assertIn("waiting for it to stop", process.stderr.readline())
+                self.assertIsNone(process.poll())
+                connection.execute(text("SELECT pg_advisory_unlock(59831, 1)"))
+                connection.commit()
+                locked = False
+                stdout, stderr = process.communicate(timeout=20)
+                self.assertEqual(process.returncode, 0, stderr)
+                self.assertIn("QUEUE_LOCK_ACQUIRED", stdout)
+            finally:
+                if locked:
+                    connection.execute(text("SELECT pg_advisory_unlock(59831, 1)"))
+                    connection.commit()
+                if process.poll() is None:
+                    process.kill()
+                    process.communicate(timeout=5)

@@ -23,6 +23,26 @@ from app.infrastructure.ingestion_jobs import cleanup_ingestion_staging
 logger = logging.getLogger(__name__)
 WORKER_NAME = "ingestion"
 WORKER_LOCK = "SELECT pg_try_advisory_lock(59831, 1)"
+WORKER_LOCK_RETRY_SECONDS = 5
+
+
+def acquire_worker_lock(connection, *, once=False):
+    next_warning = 0
+    while True:
+        acquired = connection.execute(text(WORKER_LOCK)).scalar()
+        connection.commit()
+        if acquired:
+            return
+        if once:
+            raise RuntimeError("Another ingestion worker already owns the queue.")
+        now = time.monotonic()
+        if now >= next_warning:
+            logger.warning(
+                "Another ingestion worker owns the queue; waiting for it to stop. "
+                "Only the lock owner processes jobs or updates readiness."
+            )
+            next_warning = now + 60
+        time.sleep(WORKER_LOCK_RETRY_SECONDS)
 
 
 def record_heartbeat(job_id=None):
@@ -146,10 +166,14 @@ def run_worker(script, once=False):
     if engine.dialect.name != "postgresql":
         raise RuntimeError("The durable ingestion worker requires PostgreSQL.")
     with engine.connect() as connection:
-        if not connection.execute(text(WORKER_LOCK)).scalar():
-            raise RuntimeError("Another ingestion worker already owns the queue.")
-        connection.commit()
+        acquire_worker_lock(connection, once=once)
         try:
+            from app.modules.marketing.config import settings
+            marketing_config = settings()
+            logger.info(
+                "Ingestion worker acquired queue lock; marketing sync=%s, sending=%s, test_mode=%s",
+                marketing_config["enabled"], marketing_config["sending"], marketing_config["test_mode"],
+            )
             fail_interrupted_jobs()
             cleanup_terminal_file_jobs()
             last_retention = 0
@@ -172,7 +196,12 @@ def run_worker(script, once=False):
                 elif time.monotonic() - last_marketing >= 10:
                     from app.modules.marketing.worker import process_batch
                     try:
-                        process_batch(limit=1, heartbeat=lambda: record_heartbeat())
+                        result = process_batch(limit=1, heartbeat=lambda: record_heartbeat())
+                        if result.get("processed") or result.get("failed_count"):
+                            logger.info(
+                                "Marketing queue batch finished: processed=%s, failed=%s",
+                                result.get("processed", 0), result.get("failed_count", 0),
+                            )
                     except Exception as error:
                         logger.error("Marketing processing failed; ingestion remains available", extra={"error_type": type(error).__name__})
                     last_marketing = time.monotonic()
