@@ -3402,6 +3402,8 @@ def delete_workspace_records(
         .all()
     )
     dataset_ids = [dataset.id for dataset in datasets]
+    from app.modules.correlation.cleanup import cleanup_workspace
+    cleanup_workspace(db, clean_workspace_id)
     for dataset in datasets:
         remove_dataset_file_for_admin(
             get_dataset_storage_reference(dataset)

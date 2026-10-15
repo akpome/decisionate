@@ -468,6 +468,13 @@ Configure the same `CURATED_METRIC_DEFAULTS_*` settings on the API and ingestion
 worker. See [discovery, mapping boundaries and rollout](../../docs/CURATED_METRIC_DEFAULTS.md)
 before enabling the internal cohort or automatic new-dataset selection.
 
+## Multi-Metric Relationship Analysis
+
+The separate `/api/v2` correlation workflow and dedicated worker are opt-in.
+The current two-metric relationship API remains unchanged. See
+[`docs/MULTI_METRIC_CORRELATION.md`](../../docs/MULTI_METRIC_CORRELATION.md)
+for contracts, flags, worker deployment, verification and rollback.
+
 ## Future Data Source Connectors
 
 The dataset source registry already lists the planned connector roadmap. CSV,

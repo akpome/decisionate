@@ -17,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 from app.modules.datasets.router import (
     router as datasets_router,
 )
+from app.modules.correlation.router import router as correlation_router
 
 from app.modules.organizations.router import (
     router as organization_router,
@@ -1726,6 +1727,7 @@ app.include_router(
     prefix="/datasets",
     tags=["datasets"],
 )
+app.include_router(correlation_router)
 
 app.include_router(
     organization_router,

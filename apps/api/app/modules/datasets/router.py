@@ -1584,6 +1584,8 @@ def cleanup_deleted_dataset_relationships(
     db,
     dataset,
 ):
+    from app.modules.correlation.cleanup import cleanup_source
+    cleanup_source(db, dataset.id)
     filters = [
         DatasetRelationship.left_dataset_id == dataset.id,
         DatasetRelationship.right_dataset_id == dataset.id,
