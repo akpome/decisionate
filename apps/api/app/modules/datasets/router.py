@@ -128,6 +128,18 @@ from app.modules.datasets.services.metric_selection import (
     get_selectable_numeric_columns,
     normalize_selected_metric_columns,
 )
+from app.modules.datasets.services.metric_policy import (
+    CURATED_SELECTION_KEY,
+    SCHEMA_VERSION_KEY,
+    SELECTION_PROVENANCE_KEY,
+)
+from app.modules.datasets.services.metric_recommendations import (
+    initialize_curated_selection,
+    metric_default_flags,
+    recommended_columns,
+    resolve_metric_recommendations,
+    selection_provenance,
+)
 
 from app.modules.datasets.services.charts import (
     generate_chart_data,
@@ -701,6 +713,7 @@ def persist_dataset_file(
             column_count=len(dataframe.columns),
         )
 
+        initialize_curated_selection(dataset, dataframe)
         db.add(dataset)
         db.commit()
         db.refresh(dataset)
@@ -8278,6 +8291,10 @@ def persist_connector_dataframe(
             for key in (
                 DATASET_METRIC_DECISIONS_KEY,
                 DATASET_METRIC_OBJECTIVE_KEY,
+                CURATED_SELECTION_KEY,
+                SCHEMA_VERSION_KEY,
+                SELECTION_PROVENANCE_KEY,
+                "metric_defaults_candidate",
             ):
                 if key in previous_source_config:
                     next_source_config[key] = previous_source_config[key]
@@ -8322,6 +8339,7 @@ def persist_connector_dataframe(
                 ),
                 column_count=storage_result["column_count"],
             )
+            initialize_curated_selection(dataset, merged_dataframe)
             db.add(dataset)
 
         if connection.source_type == "google_search_console":
@@ -10513,6 +10531,23 @@ async def sync_source_connection(
         db.close()
 
 
+@router.get("/{dataset_id}/metric-recommendations")
+async def dataset_metric_recommendations(request: Request, dataset_id: int):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(request, user_id)
+    db = SessionLocal()
+    try:
+        dataset = load_dataset(db, dataset_id)
+        verify_dataset_owner(dataset, user_id, workspace_id)
+        flags = metric_default_flags(dataset)
+        if not flags["backend"]:
+            raise HTTPException(404, "Metric recommendations are not enabled.")
+        dataframe = await asyncio.to_thread(load_dataframe_from_dataset, dataset, False)
+        return await asyncio.to_thread(resolve_metric_recommendations, dataset, dataframe, diagnostics=flags["diagnostics"])
+    finally:
+        db.close()
+
+
 @router.patch("/{dataset_id}/metric-selection")
 async def update_dataset_metric_selection(
     request: Request,
@@ -10553,27 +10588,48 @@ async def update_dataset_metric_selection(
             dataframe,
             payload.business_objective,
         )
-        requested_metric_columns = (
-            profile["recommended_metric_columns"]
-            if payload.select_recommended_metric_columns
-            else payload.selected_metric_columns
-        )
-        numeric_columns, selected_columns = (
-            normalize_selected_metric_columns(
-                dataframe,
-                requested_metric_columns,
-                dataset,
-                available_metric_columns=profile[
-                    "available_metric_columns"
-                ],
+        recommendations = None
+        if payload.use_curated_recommendations:
+            if not metric_default_flags(dataset)["backend"]:
+                raise HTTPException(404, "Metric recommendations are not enabled.")
+            recommendations = resolve_metric_recommendations(dataset, dataframe)
+            if payload.policy_version != recommendations["policyVersion"]:
+                raise ValueError("Metric recommendations changed. Refresh before saving.")
+            numeric_columns = [entry["columnKey"] for group in ("recommended", "optional", "derived") for entry in recommendations[group]]
+            requested = recommended_columns(recommendations) if payload.select_recommended_metric_columns else payload.selected_metric_columns
+            if any(column not in numeric_columns for column in requested):
+                raise ValueError("The selection contains a missing or unsafe metric. Refresh the recommendations.")
+            selected_columns = list(dict.fromkeys(requested))
+        else:
+            requested_metric_columns = (
+                profile["recommended_metric_columns"]
+                if payload.select_recommended_metric_columns
+                else payload.selected_metric_columns
             )
-        )
+            numeric_columns, selected_columns = normalize_selected_metric_columns(
+                dataframe, requested_metric_columns, dataset,
+                available_metric_columns=profile["available_metric_columns"],
+            )
         source_config = parse_source_connection_config(
             dataset.source_config
         )
         source_config[DATASET_SELECTED_METRICS_KEY] = (
             selected_columns
         )
+        if recommendations is not None:
+            source_config[CURATED_SELECTION_KEY] = True
+            source_config[SELECTION_PROVENANCE_KEY] = selection_provenance(
+                dataset, selected_columns, recommendations, user_id,
+                "recommended" if payload.select_recommended_metric_columns else "user",
+            )
+        elif source_config.get(CURATED_SELECTION_KEY):
+            # The legacy picker remains usable during a rollback or for an
+            # unclassified custom schema. Do not leave an invisible policy owner.
+            source_config[CURATED_SELECTION_KEY] = False
+            source_config[SELECTION_PROVENANCE_KEY] = {
+                "source": "user", "selected_by": user_id,
+                "selected_at": utc_now().isoformat(), "policy_version": None,
+            }
         if payload.business_objective:
             source_config[DATASET_METRIC_OBJECTIVE_KEY] = (
                 payload.business_objective.strip().lower()
@@ -10596,6 +10652,8 @@ async def update_dataset_metric_selection(
             source_config,
             sort_keys=True,
         )
+        if recommendations is not None:
+            db.query(DatasetAnalysis).filter(DatasetAnalysis.dataset_id == dataset.id).delete(synchronize_session=False)
         db.commit()
         db.refresh(dataset)
 

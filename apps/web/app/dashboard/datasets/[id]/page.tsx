@@ -44,7 +44,9 @@ import {
   getDatasetDetails,
   updateDatasetMetricSelection,
   type AIAnalysis,
+  type DatasetMetricRecommendations,
 } from "@/lib/api"
+import { CuratedMetricPicker, getRecommendedMetricKeys } from "@/features/datasets/components/curated-metric-picker"
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -70,6 +72,7 @@ type DatasetMetric = {
   column: string
   total: number
   average: number
+  aggregation?: string
 }
 
 type MetricProfileField = {
@@ -91,6 +94,7 @@ type MetricProfileField = {
 }
 
 type MetricSelectionProfile = {
+  curated_recommendations?: DatasetMetricRecommendations
   objective: string
   recommended_metric_columns: string[]
   ambiguous_metric_columns: string[]
@@ -213,6 +217,10 @@ function getPreviewNumericColumns(
 function getSelectedMetricColumns(
   dataset: DatasetDetails
 ) {
+  const savedCuratedSelection = dataset.metric_profile?.curated_recommendations?.savedSelection
+  if (savedCuratedSelection !== null && savedCuratedSelection !== undefined) {
+    return savedCuratedSelection
+  }
   if (
     dataset.metric_selection_configured === false
   ) {
@@ -451,6 +459,8 @@ export default function DatasetDetailsPage() {
     Array.from(numericMetricColumns)
   const ambiguousMetricColumns =
     dataset?.metric_profile?.ambiguous_metric_columns ?? []
+  const curatedRecommendations = dataset?.metric_profile?.curated_recommendations
+  const showCuratedPicker = Boolean(curatedRecommendations?.uiEnabled && curatedRecommendations.grain)
   const selectedMetricColumnSet = new Set(
     selectedMetricColumns
   )
@@ -673,6 +683,7 @@ export default function DatasetDetailsPage() {
         activeWorkspaceId,
         objective,
         selectRecommendedMetricColumns,
+        showCuratedPicker ? curatedRecommendations?.policyVersion : undefined,
       )
 
       const refreshedDataset = await getDatasetDetails(
@@ -1038,8 +1049,8 @@ export default function DatasetDetailsPage() {
               <MetricCard
                 key={metric.column}
                 title={formatMetricLabel(metric.column)}
-                value={metric.total}
-                description="Sum of values"
+                value={metric.total ?? "Not available"}
+                description={metric.aggregation ? metric.aggregation.replaceAll("_", " ") : "Sum of values"}
               />
             ))}
           </div>
@@ -1075,12 +1086,12 @@ export default function DatasetDetailsPage() {
                 />
               </label>
             </div>
-            <p className="mt-1 max-w-2xl text-sm text-gray-500">
+            {!showCuratedPicker && <p className="mt-1 max-w-2xl text-sm text-gray-500">
               Decisionate recommends business metrics automatically; use the table checkboxes to choose any columns for metric calculations.
-            </p>
+            </p>}
           </div>
 
-          {canManageWorkspaceData && (
+          {canManageWorkspaceData && !showCuratedPicker && (
             <div className="flex shrink-0 flex-wrap justify-end gap-2">
               <button
                 type="button"
@@ -1118,7 +1129,21 @@ export default function DatasetDetailsPage() {
           )}
         </div>
 
-        {dataset.metric_profile && (
+        {showCuratedPicker && curatedRecommendations && <CuratedMetricPicker
+          recommendations={curatedRecommendations}
+          selected={selectedMetricColumns}
+          dimensions={[...new Set([...(dataset.metric_profile?.dimension_columns ?? []), ...(dataset.metric_profile?.time_columns ?? [])])]}
+          disabled={!canManageWorkspaceData}
+          saving={savingMetricSelection}
+          onChange={setSelectedMetricColumns}
+          onSave={() => { void handleSaveMetricSelection() }}
+          onRestore={() => {
+            setSelectedMetricColumns(getRecommendedMetricKeys(curatedRecommendations))
+            void saveMetricSelection([], metricObjective, true)
+          }}
+        />}
+
+        {dataset.metric_profile && !showCuratedPicker && (
           <div className="mb-4 grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950 md:grid-cols-[minmax(0,220px)_1fr]">
             <label className="flex flex-col gap-1 font-medium">
               Business objective
@@ -1258,7 +1283,7 @@ export default function DatasetDetailsPage() {
                       className="border-b px-4 py-3 text-left font-medium text-gray-600"
                     >
                       <label className="flex min-w-0 items-center gap-2">
-                        <input
+                        {!showCuratedPicker && <input
                           type="checkbox"
                           checked={selectedMetricColumnSet.has(column)}
                           disabled={
@@ -1277,7 +1302,7 @@ export default function DatasetDetailsPage() {
                           }
                           aria-label={`Use ${column} as a metric`}
                           className="h-4 w-4 shrink-0 accent-blue-600"
-                        />
+                        />}
                         <span className="truncate">
                           {column}
                         </span>

@@ -124,6 +124,9 @@ def get_numeric_columns(
     numeric_columns = []
 
     for column in dataframe.columns:
+        policy = dataframe.attrs.get("decisionate_metric_policy")
+        if policy is not None and (str(column) not in policy["selected"] or str(column) not in policy["descriptors"]):
+            continue
         try:
             series = dataframe[column]
             numeric_series = coerce_numeric_series(

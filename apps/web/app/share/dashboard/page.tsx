@@ -113,7 +113,7 @@ type DashboardRow =
 type DashboardMetric = {
   column: string
   count?: number
-  total?: number
+  total?: number | null
   average?: number
   min?: number
   max?: number
@@ -1619,7 +1619,7 @@ function KpiGrid({
               label={formatMetricName(
                 metric.column
               )}
-              value={metric.total ?? 0}
+              value={metric.total === null ? "Not available" : metric.total ?? 0}
             />
           </div>
         ))}

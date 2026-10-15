@@ -345,6 +345,11 @@ def prepare_forecast_dataframe(
     clean_aggregation = str(
         aggregation
     ).strip().lower()
+    from app.modules.datasets.services.curated_metric_analytics import aggregate_curated_dataframe
+    curated_dataframe = aggregate_curated_dataframe(scoped_dataframe, date_column, clean_aggregation)
+    if curated_dataframe is not None:
+        return curated_dataframe
+
     summary_aware_dataframe = aggregate_summary_aware_dataframe(
         scoped_dataframe,
         date_column,

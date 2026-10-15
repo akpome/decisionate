@@ -1,4 +1,5 @@
 import pandas as pd
+import json
 
 from app.modules.datasets.services.numeric import (
     get_numeric_columns,
@@ -66,6 +67,8 @@ def generate_chart_data(
         if limit is not None
         else dataframe
     ).copy()
+    if dataframe.attrs.get("decisionate_metric_policy"):
+        chart_frame = chart_frame.drop(columns=[column for column in chart_frame if str(column).startswith("__curated_")])
 
     numeric_series_by_column = dict(
         numeric_column_pairs
@@ -77,6 +80,23 @@ def generate_chart_data(
             if limit is not None
             else series
         )
+
+    policy = dataframe.attrs.get("decisionate_metric_policy")
+    if policy:
+        public_policy = {
+            key: {name: entry[name] for name in ("aggregation", "operation", "components") if name in entry}
+            for key, entry in policy["descriptors"].items()
+            if key in policy["selected"]
+        }
+        chart_frame["__decisionate_metric_policy__"] = json.dumps(public_policy, sort_keys=True)
+        for key in policy["selected"]:
+            member_column = f"__curated_members__{key}"
+            if member_column in dataframe:
+                chart_frame[f"__decisionate_metric_members__{key}"] = dataframe.loc[chart_frame.index, member_column].map(json.dumps)
+            for state in ("weighted_sum", "weight"):
+                state_column = f"__curated_{state}__{key}"
+                if state_column in dataframe:
+                    chart_frame[f"__decisionate_metric_{state}__{key}"] = dataframe.loc[chart_frame.index, state_column]
 
     return {
         "x_key": str(x_column),

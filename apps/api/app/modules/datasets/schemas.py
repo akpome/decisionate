@@ -20,6 +20,8 @@ class DatasetMetricSelectionUpdate(BaseModel):
         max_length=80,
     )
     select_recommended_metric_columns: bool = False
+    use_curated_recommendations: bool = False
+    policy_version: str | None = Field(default=None, max_length=80)
 
 
 class DatasetSignedUrlImport(BaseModel):

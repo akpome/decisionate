@@ -458,6 +458,16 @@ credential material in a workspace connection. Add a Google Analytics source
 connection with its GA4 `property_id`, then use the connection's manual sync
 action. The service account must have viewer access to that property.
 
+## Curated Metric Defaults
+
+Curated recommendations are versioned and matched against exact emitted-schema
+fixtures, independently of numeric datatype and heuristic profiling. The
+recommendation API, selection provenance, grouped picker and safe analytical
+aggregation are gated off by default. Existing choices are never migrated.
+Configure the same `CURATED_METRIC_DEFAULTS_*` settings on the API and ingestion
+worker. See [discovery, mapping boundaries and rollout](../../docs/CURATED_METRIC_DEFAULTS.md)
+before enabling the internal cohort or automatic new-dataset selection.
+
 ## Future Data Source Connectors
 
 The dataset source registry already lists the planned connector roadmap. CSV,

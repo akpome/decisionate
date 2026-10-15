@@ -144,7 +144,7 @@ type DashboardDatasetRow =
 type DashboardDatasetMetric = {
   column: string
   count?: number
-  total?: number
+  total?: number | null
   average?: number
   min?: number
   max?: number
@@ -171,8 +171,8 @@ type IndustryMetric = {
 
 type IndustryChartPoint = {
   name: string
-  value: number
-  secondary?: number
+  value: number | null
+  secondary?: number | null
   valueColumn?: string
 }
 
@@ -4154,10 +4154,10 @@ function groupRowsByValue(
         aggregationType
       ),
     }))
-    .filter(item =>
-      includeNegative
+    .filter((item): item is { name: string; value: number } =>
+      item.value !== null && (includeNegative
         ? item.value !== 0
-        : item.value > 0
+        : item.value > 0)
     )
     .sort((a, b) => b.value - a.value)
 }
@@ -4215,7 +4215,7 @@ function buildTrendData(
     )
     .map(([name, values]) => ({
       name,
-      value: Math.round(
+      value: roundNullableValue(
         aggregateSummaryAwareValues(
           values.rows,
           primaryColumn,
@@ -4223,7 +4223,7 @@ function buildTrendData(
         )
       ),
       secondary: secondaryColumn
-        ? Math.round(
+        ? roundNullableValue(
           aggregateSummaryAwareValues(
             values.rows,
             secondaryColumn,
@@ -4340,9 +4340,10 @@ function compareDashboardPeriods(
 }
 
 function formatMappedMetricValue(
-  value: number,
+  value: number | null,
   column: string
 ) {
+  if (value === null) return "Not available"
   const normalizedColumn = normalizeColumnName(column)
   const isCurrency = [
     "revenue",
@@ -4391,7 +4392,12 @@ function formatCategoryChartLabel(
   return `${formattedValue} (${formattedPercentage}%)`
 }
 
-function formatInteger(value: number) {
+function roundNullableValue(value: number | null) {
+  return value === null ? null : Math.round(value)
+}
+
+function formatInteger(value: number | null) {
+  if (value === null) return "Not available"
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 0,
   }).format(value)

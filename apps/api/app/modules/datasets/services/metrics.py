@@ -1,4 +1,5 @@
 import pandas as pd
+from app.modules.datasets.services.curated_metric_analytics import curated_metrics
 
 from app.modules.datasets.services.numeric import (
     coerce_numeric_series,
@@ -19,6 +20,10 @@ def generate_metrics(
         pd.DataFrame,
     ):
         return []
+
+    curated = curated_metrics(dataframe, selected_columns)
+    if curated is not None:
+        return curated
 
     metrics = []
     selected_column_set = (

@@ -312,12 +312,43 @@ export type EntityMatchingRun = {
   }>
 }
 
+export type MetricRecommendation = {
+  columnKey: string
+  semanticKey: string
+  classification: string
+  aggregation: string
+  unit: string
+  currency?: string | null
+  reason: string
+  formula?: string
+  defaultSelected?: boolean
+}
+
+export type DatasetMetricRecommendations = {
+  policyVersion: string
+  connectorSchemaVersion: string | null
+  connectorKey: string
+  datasetKey: string
+  grain?: string
+  recommended: MetricRecommendation[]
+  optional: MetricRecommendation[]
+  derived: MetricRecommendation[]
+  skipped: { semanticKey: string; reasonCode: string }[]
+  userHasExplicitSelection: boolean
+  savedSelection: string[] | null
+  missingSelectedColumns: string[]
+  unavailableSelectedColumns?: string[]
+  savedPolicyUnavailable?: boolean
+  uiEnabled: boolean
+}
+
 export type DatasetMetricSelectionResponse = {
   dataset_id: number
   file_name: string
   numeric_columns: string[]
   selected_metric_columns: string[]
   metric_profile?: {
+    curated_recommendations?: DatasetMetricRecommendations
     objective: string
     recommended_metric_columns: string[]
     ambiguous_metric_columns: string[]
@@ -5522,6 +5553,7 @@ export async function updateDatasetMetricSelection(
   workspaceId?: string,
   businessObjective?: string,
   selectRecommendedMetricColumns = false,
+  curatedPolicyVersion?: string,
 ): Promise<DatasetMetricSelectionResponse> {
   const cleanDatasetId =
     cleanPositiveIntegerId(
@@ -5545,6 +5577,10 @@ export async function updateDatasetMetricSelection(
       ),
       body: JSON.stringify({
         selected_metric_columns: selectedColumns,
+        ...(curatedPolicyVersion ? {
+          use_curated_recommendations: true,
+          policy_version: curatedPolicyVersion,
+        } : {}),
         ...(businessObjective
           ? { business_objective: businessObjective }
           : {}),

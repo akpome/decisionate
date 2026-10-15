@@ -18,6 +18,7 @@ from app.modules.datasets.services.numeric import (
     get_numeric_columns,
     is_identifier_column,
 )
+from app.modules.datasets.services.curated_metric_analytics import aggregate_curated_dataframe, frame_policy
 
 
 RELATIONSHIP_PERIODS = {
@@ -135,6 +136,11 @@ def _build_metric_series(
         dataframe[date_column],
         reference_year=reference_year,
     )
+    if frame_policy(dataframe):
+        scoped = dataframe.copy()
+        scoped[date_column] = parsed_dates
+        grouped = aggregate_curated_dataframe(scoped, date_column, period)
+        return grouped[[date_column, metric_column]].rename(columns={date_column: "period", metric_column: "value"})
     values = coerce_numeric_series(dataframe[metric_column])
     working = pd.DataFrame({
         "date": parsed_dates,

@@ -620,6 +620,14 @@ def build_joined_dataset(
             str(column)
             for column, _series in get_numeric_columns(dataframe)
         }
+        policy = dataframe.attrs.get("decisionate_metric_policy")
+        if policy:
+            for column in columns_to_join:
+                entry = policy["descriptors"].get(str(column))
+                if entry and (entry.get("operation") or entry["aggregation"] != "SUM"):
+                    raise ValueError(
+                        f"'{column}' is non-additive. Use relationship or multi-metric analysis instead of a physical dataset join."
+                    )
 
         dates = _safe_parse_dates(
             dataframe[date_column],

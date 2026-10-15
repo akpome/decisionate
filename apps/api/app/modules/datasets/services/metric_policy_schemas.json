@@ -1,0 +1,1013 @@
+{
+  "freshbooks/chart_of_accounts/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "account_name",
+      "account_uuid",
+      "balance",
+      "record_id",
+      "resource_type"
+    ]
+  },
+  "freshbooks/clients/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "client_id",
+      "client_name",
+      "created_at",
+      "id",
+      "organization",
+      "record_id",
+      "resource_type",
+      "signup_date"
+    ]
+  },
+  "freshbooks/credit_notes/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "amount",
+      "amount__amount",
+      "amount__code",
+      "client_name",
+      "create_date",
+      "created_at",
+      "credit_note_id",
+      "creditid",
+      "currency",
+      "line_index",
+      "line_item_id",
+      "record_id",
+      "resource_type"
+    ]
+  },
+  "freshbooks/expenses/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "amount",
+      "amount__amount",
+      "amount__code",
+      "created_at",
+      "currency",
+      "date",
+      "expense_id",
+      "expenseid",
+      "record_id",
+      "resource_type"
+    ]
+  },
+  "freshbooks/invoices/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "amount",
+      "amount__amount",
+      "amount__code",
+      "client_name",
+      "create_date",
+      "created_at",
+      "currency",
+      "invoice_id",
+      "invoiceid",
+      "item_description",
+      "line__amount",
+      "line__description",
+      "line__id",
+      "line__quantity",
+      "line__unit_price",
+      "line_index",
+      "line_item_id",
+      "line_total",
+      "quantity",
+      "record_id",
+      "resource_type",
+      "unit_price",
+      "updated",
+      "updated_at"
+    ]
+  },
+  "freshbooks/payments/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "amount",
+      "amount__amount",
+      "amount__code",
+      "created_at",
+      "currency",
+      "date",
+      "id",
+      "payment_id",
+      "record_id",
+      "resource_type"
+    ]
+  },
+  "freshbooks/profile/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "first_name",
+      "identity_id",
+      "last_name",
+      "profile_id",
+      "resource_type"
+    ]
+  },
+  "freshbooks/projects/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "created_at",
+      "id",
+      "project_id",
+      "record_id",
+      "resource_type",
+      "title"
+    ]
+  },
+  "google_ads/campaign_performance/decisionate-v1": {
+    "api_versions": [
+      "v22"
+    ],
+    "columns": [
+      "advertising_channel_type",
+      "average_cpc",
+      "average_cpc_micros",
+      "campaign__advertisingChannelType",
+      "campaign__id",
+      "campaign__name",
+      "campaign__status",
+      "campaign_id",
+      "campaign_name",
+      "campaign_status",
+      "clicks",
+      "conversions",
+      "conversions_value",
+      "cost",
+      "cost_micros",
+      "ctr",
+      "customer_id",
+      "date",
+      "impressions",
+      "metrics__averageCpc",
+      "metrics__clicks",
+      "metrics__conversions",
+      "metrics__conversionsValue",
+      "metrics__costMicros",
+      "metrics__ctr",
+      "metrics__impressions",
+      "record_id",
+      "segments__date"
+    ]
+  },
+  "google_analytics/report/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "activeUsers",
+      "date",
+      "sessions"
+    ]
+  },
+  "google_business_profile/location_performance/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "daily_metric",
+      "data_type",
+      "date",
+      "location_id",
+      "location_name",
+      "location_title",
+      "metadata__placeId",
+      "metric_value",
+      "name",
+      "openInfo__status",
+      "open_status",
+      "phoneNumbers__primaryPhone",
+      "place_id",
+      "primary_phone",
+      "record_id",
+      "storeCode",
+      "store_code",
+      "title",
+      "websiteUri",
+      "website_uri"
+    ]
+  },
+  "google_search_console/search_analytics/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "clicks",
+      "ctr",
+      "date",
+      "impressions",
+      "keys",
+      "position"
+    ]
+  },
+  "hubspot/deals/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "amount",
+      "createdAt",
+      "created_at",
+      "id",
+      "properties__amount",
+      "record_id",
+      "updatedAt",
+      "updated_at"
+    ]
+  },
+  "lightspeed/sales/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "calcTotal",
+      "completed",
+      "createTime",
+      "created_at",
+      "item_description",
+      "item_id",
+      "line__Item__description",
+      "line__itemID",
+      "line__saleLineID",
+      "line__unitPrice",
+      "line__unitQuantity",
+      "line_index",
+      "line_item_id",
+      "quantity",
+      "saleID",
+      "sale_id",
+      "sale_line_id",
+      "status",
+      "timeStamp",
+      "timestamp",
+      "tip",
+      "total",
+      "unit_price"
+    ]
+  },
+  "lightspeed_k/sales/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "accountFiscId",
+      "completed_at",
+      "customer_id",
+      "item_description",
+      "item_id",
+      "line__id",
+      "line__item_id",
+      "line__name",
+      "line__quantity",
+      "line__total",
+      "line__unit_price",
+      "line_index",
+      "line_item_id",
+      "line_total",
+      "payments__0__consumer__customerId",
+      "payments__0__consumer__email",
+      "payments__0__netAmountWithTax",
+      "payments__count",
+      "quantity",
+      "record_id",
+      "sale_id",
+      "sale_line_id",
+      "status",
+      "timeClosed",
+      "timeOpening",
+      "total",
+      "type",
+      "unit_price",
+      "updated_at"
+    ]
+  },
+  "lightspeed_o/sales/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "created_at",
+      "customer_id",
+      "id",
+      "item_description",
+      "item_id",
+      "line__id",
+      "line__item_id",
+      "line__name",
+      "line__price",
+      "line__quantity",
+      "line__total",
+      "line_index",
+      "line_item_id",
+      "line_total",
+      "quantity",
+      "record_id",
+      "sale_id",
+      "sale_line_id",
+      "status",
+      "total",
+      "unit_price",
+      "value"
+    ]
+  },
+  "lightspeed_x/sales/decisionate-v1": {
+    "api_versions": [
+      "2026-07"
+    ],
+    "columns": [
+      "created_at",
+      "customer_id",
+      "id",
+      "item_description",
+      "item_id",
+      "line__id",
+      "line__pricing__price",
+      "line__pricing__total",
+      "line__product__id",
+      "line__product__name",
+      "line__product_id",
+      "line__quantity",
+      "line_index",
+      "line_item_id",
+      "line_total",
+      "quantity",
+      "record_id",
+      "sale_id",
+      "sale_line_id",
+      "state",
+      "total",
+      "total_price",
+      "unit_price"
+    ]
+  },
+  "meta_ads/campaign_insights/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "action__lead",
+      "actions",
+      "campaign_id",
+      "campaign_name",
+      "date_start",
+      "date_stop",
+      "impressions",
+      "leads"
+    ]
+  },
+  "mysql/report/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "created_at",
+      "revenue"
+    ]
+  },
+  "postgresql/report/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "created_at",
+      "revenue",
+      "updated_at"
+    ]
+  },
+  "quickbooks/accounts/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "Id",
+      "MetaData__CreateTime",
+      "TotalAmt",
+      "TxnDate",
+      "account_id",
+      "create_time",
+      "created_at",
+      "record_id",
+      "resource_type",
+      "total_amount"
+    ]
+  },
+  "quickbooks/bills/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "Id",
+      "MetaData__CreateTime",
+      "TotalAmt",
+      "TxnDate",
+      "create_time",
+      "created_at",
+      "line_index",
+      "line_item_id",
+      "record_id",
+      "resource_type",
+      "total_amount"
+    ]
+  },
+  "quickbooks/customers/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "Id",
+      "MetaData__CreateTime",
+      "TotalAmt",
+      "TxnDate",
+      "create_time",
+      "created_at",
+      "customer_id",
+      "record_id",
+      "resource_type",
+      "total_amount"
+    ]
+  },
+  "quickbooks/estimates/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "Id",
+      "MetaData__CreateTime",
+      "TotalAmt",
+      "TxnDate",
+      "create_time",
+      "created_at",
+      "line_index",
+      "line_item_id",
+      "record_id",
+      "resource_type",
+      "total_amount"
+    ]
+  },
+  "quickbooks/invoices/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "CustomerRef__value",
+      "Id",
+      "MetaData__CreateTime",
+      "MetaData__LastUpdatedTime",
+      "TotalAmt",
+      "TxnDate",
+      "create_time",
+      "created_at",
+      "customer_id",
+      "invoice_id",
+      "item_description",
+      "item_id",
+      "item_name",
+      "last_updated_time",
+      "line__Amount",
+      "line__DetailType",
+      "line__Id",
+      "line__SalesItemLineDetail__ItemRef__name",
+      "line__SalesItemLineDetail__ItemRef__value",
+      "line__SalesItemLineDetail__Qty",
+      "line__SalesItemLineDetail__UnitPrice",
+      "line_detail_type",
+      "line_index",
+      "line_item_id",
+      "line_total",
+      "quantity",
+      "record_id",
+      "resource_type",
+      "total_amount",
+      "unit_price",
+      "updated_at"
+    ]
+  },
+  "quickbooks/payments/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "Id",
+      "MetaData__CreateTime",
+      "TotalAmt",
+      "TxnDate",
+      "create_time",
+      "created_at",
+      "record_id",
+      "resource_type",
+      "total_amount"
+    ]
+  },
+  "quickbooks/products_services/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "Id",
+      "MetaData__CreateTime",
+      "TotalAmt",
+      "TxnDate",
+      "create_time",
+      "created_at",
+      "item_id",
+      "record_id",
+      "resource_type",
+      "total_amount"
+    ]
+  },
+  "quickbooks/purchases/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "Id",
+      "MetaData__CreateTime",
+      "TotalAmt",
+      "TxnDate",
+      "create_time",
+      "created_at",
+      "line_index",
+      "line_item_id",
+      "record_id",
+      "resource_type",
+      "total_amount"
+    ]
+  },
+  "quickbooks/sales_receipts/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "Id",
+      "MetaData__CreateTime",
+      "TotalAmt",
+      "TxnDate",
+      "create_time",
+      "created_at",
+      "line_index",
+      "line_item_id",
+      "record_id",
+      "resource_type",
+      "total_amount"
+    ]
+  },
+  "quickbooks/vendors/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "Id",
+      "MetaData__CreateTime",
+      "TotalAmt",
+      "TxnDate",
+      "create_time",
+      "created_at",
+      "record_id",
+      "resource_type",
+      "total_amount",
+      "vendor_id"
+    ]
+  },
+  "sage/contacts/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "contact_id",
+      "contact_name",
+      "email",
+      "main_address__address_line_1",
+      "main_address__city",
+      "record_id",
+      "resource_type"
+    ]
+  },
+  "sage/sales_invoices/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "contact",
+      "created_at",
+      "currency",
+      "customer_id",
+      "customer_name",
+      "date",
+      "decisionate__currency",
+      "due_date",
+      "invoice_id",
+      "invoice_line_id",
+      "invoice_number",
+      "item_description",
+      "line__description",
+      "line__quantity",
+      "line__unit_price",
+      "line_index",
+      "line_item_id",
+      "quantity",
+      "record_id",
+      "resource_type",
+      "status",
+      "total_amount",
+      "unit_price",
+      "updated_at"
+    ]
+  },
+  "salesforce/opportunities/decisionate-v1": {
+    "api_versions": [
+      "v65.0"
+    ],
+    "columns": [
+      "Amount",
+      "CreatedDate",
+      "Custom_Score__c",
+      "Id",
+      "LastModifiedDate",
+      "Name",
+      "created_at",
+      "object_type",
+      "record_id",
+      "updated_at"
+    ]
+  },
+  "shopify/orders/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "cancelledAt",
+      "createdAt",
+      "created_at",
+      "currency",
+      "currencyCode",
+      "discounted_unit_price",
+      "displayFinancialStatus",
+      "displayFulfillmentStatus",
+      "financial_status",
+      "fulfillment_status",
+      "id",
+      "item_description",
+      "item_id",
+      "item_sku",
+      "legacyResourceId",
+      "line__discountedTotalSet__shopMoney__amount",
+      "line__discountedUnitPriceSet__shopMoney__amount",
+      "line__id",
+      "line__name",
+      "line__originalUnitPriceSet__shopMoney__amount",
+      "line__product__id",
+      "line__product__title",
+      "line__quantity",
+      "line__sku",
+      "line__variant",
+      "line_index",
+      "line_item_count",
+      "line_item_id",
+      "line_total",
+      "name",
+      "order_id",
+      "order_name",
+      "quantity",
+      "sourceName",
+      "source_name",
+      "subtotalLineItemsQuantity",
+      "subtotalPriceSet",
+      "subtotalPriceSet__shopMoney__amount",
+      "subtotalPriceSet__shopMoney__currencyCode",
+      "subtotal_price",
+      "test",
+      "totalDiscountsSet",
+      "totalDiscountsSet__shopMoney__amount",
+      "totalDiscountsSet__shopMoney__currencyCode",
+      "totalPriceSet__shopMoney__amount",
+      "totalPriceSet__shopMoney__currencyCode",
+      "totalTaxSet",
+      "totalTaxSet__shopMoney__amount",
+      "totalTaxSet__shopMoney__currencyCode",
+      "total_discounts",
+      "total_price",
+      "total_tax",
+      "unit_price",
+      "updatedAt",
+      "updated_at"
+    ]
+  },
+  "sql_server/report/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "created_at",
+      "revenue"
+    ]
+  },
+  "square/orders/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "created_at",
+      "currency",
+      "id",
+      "item_description",
+      "item_id",
+      "line__catalog_object_id",
+      "line__name",
+      "line__quantity",
+      "line__uid",
+      "line_index",
+      "line_item_count",
+      "line_item_id",
+      "location_id",
+      "order_id",
+      "quantity",
+      "total_amount",
+      "total_money__amount",
+      "total_money__currency"
+    ]
+  },
+  "stripe/charges/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "amount",
+      "amount_major",
+      "charge_id",
+      "created",
+      "created_at",
+      "currency",
+      "id"
+    ]
+  },
+  "woocommerce/orders/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "billing__country",
+      "billing_country",
+      "created_at",
+      "date_created",
+      "date_modified",
+      "id",
+      "item_description",
+      "item_id",
+      "line__id",
+      "line__name",
+      "line__price",
+      "line__product_id",
+      "line__quantity",
+      "line_index",
+      "line_item_count",
+      "line_item_id",
+      "number",
+      "order_id",
+      "order_number",
+      "quantity",
+      "total",
+      "unit_price",
+      "updated_at"
+    ]
+  },
+  "xero/accounts/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "AccountID",
+      "ContactID",
+      "Contact__ContactID",
+      "CreditNoteID",
+      "DateString",
+      "InvoiceID",
+      "ItemID",
+      "LineItems__0__Description",
+      "LineItems__count",
+      "Name",
+      "PaymentID",
+      "PurchaseOrderID",
+      "QuoteID",
+      "Total",
+      "UpdatedDateUTCString",
+      "account_id",
+      "account_name",
+      "created_at",
+      "provider_specific_field",
+      "record_id",
+      "resource_type",
+      "updated_at"
+    ]
+  },
+  "xero/contacts/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "AccountID",
+      "ContactID",
+      "Contact__ContactID",
+      "CreditNoteID",
+      "DateString",
+      "InvoiceID",
+      "ItemID",
+      "LineItems__0__Description",
+      "LineItems__count",
+      "Name",
+      "PaymentID",
+      "PurchaseOrderID",
+      "QuoteID",
+      "Total",
+      "UpdatedDateUTCString",
+      "contact_id",
+      "contact_name",
+      "created_at",
+      "provider_specific_field",
+      "record_id",
+      "resource_type",
+      "updated_at"
+    ]
+  },
+  "xero/credit_notes/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "AccountID",
+      "ContactID",
+      "Contact__ContactID",
+      "CreditNoteID",
+      "DateString",
+      "InvoiceID",
+      "ItemID",
+      "Name",
+      "PaymentID",
+      "PurchaseOrderID",
+      "QuoteID",
+      "Total",
+      "UpdatedDateUTCString",
+      "created_at",
+      "credit_note_id",
+      "customer_id",
+      "invoice_line_id",
+      "item_description",
+      "line__Description",
+      "line_index",
+      "line_item_id",
+      "provider_specific_field",
+      "record_id",
+      "resource_type",
+      "total",
+      "updated_at"
+    ]
+  },
+  "xero/invoices/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "AccountID",
+      "ContactID",
+      "Contact__ContactID",
+      "CreditNoteID",
+      "CurrencyCode",
+      "DateString",
+      "InvoiceID",
+      "ItemID",
+      "Name",
+      "PaymentID",
+      "PurchaseOrderID",
+      "QuoteID",
+      "Total",
+      "UpdatedDateUTCString",
+      "created_at",
+      "currency",
+      "customer_id",
+      "invoice_id",
+      "invoice_line_id",
+      "item_description",
+      "item_id",
+      "item_sku",
+      "line__Description",
+      "line__ItemCode",
+      "line__LineAmount",
+      "line__LineItemID",
+      "line__Quantity",
+      "line__UnitAmount",
+      "line_index",
+      "line_item_count",
+      "line_item_id",
+      "line_total",
+      "provider_specific_field",
+      "quantity",
+      "record_id",
+      "resource_type",
+      "total",
+      "unit_price",
+      "updated_at"
+    ]
+  },
+  "xero/items/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "AccountID",
+      "ContactID",
+      "Contact__ContactID",
+      "CreditNoteID",
+      "DateString",
+      "InvoiceID",
+      "ItemID",
+      "LineItems__0__Description",
+      "LineItems__count",
+      "Name",
+      "PaymentID",
+      "PurchaseOrderID",
+      "QuoteID",
+      "Total",
+      "UpdatedDateUTCString",
+      "created_at",
+      "item_id",
+      "item_name",
+      "provider_specific_field",
+      "record_id",
+      "resource_type",
+      "updated_at"
+    ]
+  },
+  "xero/payments/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "AccountID",
+      "ContactID",
+      "Contact__ContactID",
+      "CreditNoteID",
+      "DateString",
+      "InvoiceID",
+      "ItemID",
+      "LineItems__0__Description",
+      "LineItems__count",
+      "Name",
+      "PaymentID",
+      "PurchaseOrderID",
+      "QuoteID",
+      "Total",
+      "UpdatedDateUTCString",
+      "created_at",
+      "payment_id",
+      "provider_specific_field",
+      "record_id",
+      "resource_type",
+      "updated_at"
+    ]
+  },
+  "xero/purchase_orders/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "AccountID",
+      "ContactID",
+      "Contact__ContactID",
+      "CreditNoteID",
+      "DateString",
+      "InvoiceID",
+      "ItemID",
+      "Name",
+      "PaymentID",
+      "PurchaseOrderID",
+      "QuoteID",
+      "Total",
+      "UpdatedDateUTCString",
+      "created_at",
+      "invoice_line_id",
+      "item_description",
+      "line__Description",
+      "line_index",
+      "line_item_id",
+      "provider_specific_field",
+      "purchase_order_id",
+      "record_id",
+      "resource_type",
+      "supplier_id",
+      "total",
+      "updated_at"
+    ]
+  },
+  "xero/quotes/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "AccountID",
+      "ContactID",
+      "Contact__ContactID",
+      "CreditNoteID",
+      "DateString",
+      "InvoiceID",
+      "ItemID",
+      "Name",
+      "PaymentID",
+      "PurchaseOrderID",
+      "QuoteID",
+      "Total",
+      "UpdatedDateUTCString",
+      "created_at",
+      "customer_id",
+      "invoice_line_id",
+      "item_description",
+      "line__Description",
+      "line_index",
+      "line_item_id",
+      "provider_specific_field",
+      "quote_id",
+      "record_id",
+      "resource_type",
+      "total",
+      "updated_at"
+    ]
+  },
+  "zoho_books/customer_payments/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "amount",
+      "created_at",
+      "date",
+      "payment_id",
+      "record_id",
+      "resource_type",
+      "total_amount"
+    ]
+  },
+  "zoho_books/invoices/decisionate-v1": {
+    "api_versions": [],
+    "columns": [
+      "created_at",
+      "custom_fields__0__label",
+      "custom_fields__0__value",
+      "custom_fields__count",
+      "customer_name",
+      "date",
+      "invoice_id",
+      "invoice_line_id",
+      "invoice_number",
+      "item_description",
+      "item_id",
+      "last_modified_time",
+      "line__item_id",
+      "line__item_total",
+      "line__line_item_id",
+      "line__name",
+      "line__quantity",
+      "line__rate",
+      "line_index",
+      "line_item_id",
+      "line_total",
+      "quantity",
+      "record_id",
+      "resource_type",
+      "total",
+      "total_amount",
+      "unit_price",
+      "updated_at"
+    ]
+  }
+}

@@ -19,6 +19,11 @@ from app.modules.datasets.services.numeric import (
 from app.modules.datasets.services.summary_query import (
     is_summary_dataframe,
 )
+from app.modules.datasets.services.metric_recommendations import (
+    curated_profile,
+    resolve_metric_recommendations,
+    uses_curated_selection,
+)
 
 
 DATASET_SELECTED_METRICS_KEY = "selected_metric_columns"
@@ -649,7 +654,7 @@ def build_metric_selection_profile(
     recommended_names = [field["column"] for field in recommended]
     recommended_name_set = set(recommended_names)
 
-    return {
+    return curated_profile(dataset, dataframe, {
         "version": DATASET_METRIC_PROFILE_VERSION,
         "source_type": source_type,
         "objective": resolved_objective,
@@ -675,7 +680,7 @@ def build_metric_selection_profile(
             if field["status"] == "excluded"
         ],
         "fields": fields,
-    }
+    })
 
 
 def parse_dataset_source_config(dataset) -> dict:
@@ -831,6 +836,10 @@ def get_effective_dataset_metric_columns(
     )
     selected_columns = get_dataset_selected_metric_columns(dataset)
 
+    if uses_curated_selection(dataset) and selected_columns is not None:
+        eligible = set(resolved_profile.get("available_metric_columns", []))
+        return [column for column in selected_columns if column in eligible]
+
     if selected_columns is None:
         return list(
             resolved_profile.get(
@@ -862,6 +871,23 @@ def filter_dataframe_to_selected_metrics(
 ) -> pd.DataFrame:
     if not isinstance(dataframe, pd.DataFrame):
         return dataframe
+
+    if uses_curated_selection(dataset):
+        from app.modules.datasets.services.curated_metric_analytics import prepare_curated_dataframe
+        recommendations = resolve_metric_recommendations(dataset, dataframe, selection_policy=True)
+        selected = get_dataset_selected_metric_columns(dataset) or []
+        descriptors = {entry["columnKey"]: entry for group in ("recommended", "optional", "derived") for entry in recommendations[group]}
+        required = set(selected)
+        for column in selected:
+            required.update(descriptors.get(column, {}).get("components", ()))
+        resolved_profile = profile if profile is not None else build_metric_selection_profile(dataset, dataframe)
+        dimensions = {field["column"] for field in resolved_profile["fields"] if field["role"] in {"time", "dimension", "identifier"}}
+        keep = [column for column in dataframe if str(column) in required | dimensions | _GENERATED_METRIC_COLUMNS or any(str(column) == f"{component}__{statistic}" for component in required for statistic in _SUMMARY_STATISTICS)]
+        return prepare_curated_dataframe(
+            dataframe.loc[:, keep],
+            recommendations,
+            selected,
+        )
 
     selected_columns = get_dataset_selected_metric_columns(dataset)
     resolved_profile = (

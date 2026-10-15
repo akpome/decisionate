@@ -176,7 +176,7 @@ type DashboardRow = Record<string, DashboardCellValue>
 type DashboardMetric = {
   column: string
   count?: number
-  total?: number
+  total?: number | null
   average?: number
   min?: number
   max?: number
@@ -4613,9 +4613,9 @@ function DashboardPrintPage({
               </p>
 
               <p className="mt-1 truncate text-base font-bold text-gray-950">
-                {formatNumber(
-                  metric.total ?? 0
-                )}
+                {metric.total === null
+                  ? "Not available"
+                  : formatNumber(metric.total ?? 0)}
               </p>
             </section>
           ))}
@@ -6410,7 +6410,7 @@ function KpiCarousel({
               label={formatMetricName(
                 metric.column
               )}
-              value={metric.total ?? 0}
+              value={metric.total === null ? "Not available" : metric.total ?? 0}
               signal={getDashboardKpiSignal(
                 metric.column,
                 anomalies,
@@ -7556,7 +7556,9 @@ function getDashboardPeriodMetrics(
         Number.isFinite(datasetValue)
         ? datasetValue
         : 0
-    const average = state && state.count > 0
+    const average = state?.policyAggregation && state.policyAggregation !== "SUM"
+      ? finalizeSummaryAggregation(state, aggregationType) ?? 0
+      : state && state.count > 0
       ? state.sum / state.count
       : 0
     const minimum = state?.min ?? 0

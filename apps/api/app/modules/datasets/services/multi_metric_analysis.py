@@ -15,6 +15,7 @@ from app.modules.datasets.services.joins import (
     resolve_column,
 )
 from app.modules.datasets.services.numeric import coerce_numeric_series
+from app.modules.datasets.services.curated_metric_analytics import aggregate_curated_dataframe, aggregate_metric, frame_policy
 
 
 AGGREGATIONS = {
@@ -88,6 +89,14 @@ def _build_metric_frame(
         dataframe[date_column],
         reference_year=reference_year,
     )
+    if frame_policy(dataframe):
+        result = dataframe.copy()
+        result["date"] = parsed_dates
+        result["value"] = numeric_values
+        result = result.dropna(subset=["date"])
+        result.attrs["curated_analysis_column"] = str(metric_column)
+        result.attrs["curated_analysis_grouping"] = grouping
+        return result
     frame = pd.DataFrame({
         "date": parsed_dates,
         "value": numeric_values,
@@ -97,6 +106,13 @@ def _build_metric_frame(
 
 
 def _aggregate_metric(frame: pd.DataFrame, aggregation: str):
+    if frame_policy(frame):
+        column = frame.attrs["curated_analysis_column"]
+        entry = frame_policy(frame)["descriptors"][column]
+        grouped = aggregate_curated_dataframe(frame, "date", frame.attrs["curated_analysis_grouping"])
+        result = grouped[["date", column]].rename(columns={"date": "period", column: "value"})
+        result.attrs.update(curated_total=aggregate_metric(frame, entry), curated_aggregation=entry["aggregation"], curated_unit=entry["unit"])
+        return result
     function = AGGREGATIONS.get(aggregation)
     if not function:
         raise ValueError("Unsupported metric aggregation")
@@ -125,10 +141,10 @@ def _metric_summary(
         "dataset_name": getattr(dataset, "file_name", "Dataset"),
         "metric": str(selection["metric_column"]),
         "label": _selection_label(dataset, selection),
-        "aggregation": str(selection.get("aggregation") or "sum"),
+        "aggregation": aggregated.attrs.get("curated_aggregation", str(selection.get("aggregation") or "sum")),
         "period_count": int(len(values)),
-        "total": _finite(values.sum()) if not values.empty else None,
-        "average": _finite(values.mean()) if not values.empty else None,
+        "total": _finite(aggregated.attrs["curated_total"]) if "curated_total" in aggregated.attrs else _finite(values.sum()) if not values.empty else None,
+        "average": _finite(aggregated.attrs["curated_total"]) if aggregated.attrs.get("curated_aggregation", "SUM") != "SUM" else _finite(values.mean()) if not values.empty else None,
         "minimum": _finite(values.min()) if not values.empty else None,
         "maximum": _finite(values.max()) if not values.empty else None,
         "first_value": first,

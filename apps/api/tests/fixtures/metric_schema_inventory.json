@@ -1,0 +1,2236 @@
+{
+  "evidence": "existing_mocked_connector_contract_tests",
+  "schemas": [
+    {
+      "columns": {
+        "cancelledAt": "object",
+        "createdAt": "str",
+        "created_at": "str",
+        "currency": "str",
+        "currencyCode": "str",
+        "displayFinancialStatus": "str",
+        "displayFulfillmentStatus": "str",
+        "financial_status": "str",
+        "fulfillment_status": "str",
+        "id": "str",
+        "legacyResourceId": "str",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "name": "str",
+        "order_id": "str",
+        "order_name": "str",
+        "sourceName": "str",
+        "source_name": "str",
+        "subtotalLineItemsQuantity": "int64",
+        "subtotalPriceSet": "object",
+        "test": "bool",
+        "totalDiscountsSet": "object",
+        "totalPriceSet__shopMoney__amount": "str",
+        "totalTaxSet": "object",
+        "total_price": "str",
+        "updatedAt": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "api": "graphql_admin",
+        "connector": "shopify",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "order_id"
+        ],
+        "resource": "orders"
+      }
+    },
+    {
+      "columns": {
+        "Amount": "int64",
+        "CreatedDate": "str",
+        "Custom_Score__c": "float64",
+        "Id": "str",
+        "LastModifiedDate": "str",
+        "Name": "str",
+        "created_at": "str",
+        "object_type": "str",
+        "record_id": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "api_version": "v65.0",
+        "connector": "salesforce",
+        "object_type": "Opportunity",
+        "resource": "opportunities",
+        "resource_type": "opportunities"
+      }
+    },
+    {
+      "columns": {
+        "amount": "str",
+        "amount__amount": "str",
+        "amount__code": "str",
+        "client_name": "str",
+        "create_date": "str",
+        "created_at": "str",
+        "currency": "str",
+        "invoice_id": "str",
+        "invoiceid": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "freshbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "amount": "str",
+        "createdAt": "str",
+        "created_at": "str",
+        "id": "str",
+        "properties__amount": "str",
+        "record_id": "str"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "hubspot",
+        "object_type": "deals"
+      }
+    },
+    {
+      "columns": {
+        "action__lead": "str",
+        "actions": "str",
+        "campaign_id": "str",
+        "campaign_name": "str",
+        "date_start": "str",
+        "date_stop": "str",
+        "impressions": "str",
+        "leads": "str"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "meta_ads",
+        "resource": "campaign_insights"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "revenue": "int64"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "mysql"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "revenue": "int64",
+        "updated_at": "str"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "postgresql"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "revenue": "int64"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "postgresql"
+      }
+    },
+    {
+      "columns": {
+        "CustomerRef__value": "str",
+        "Id": "str",
+        "TotalAmt": "int64",
+        "TxnDate": "str",
+        "created_at": "str",
+        "customer_id": "str",
+        "invoice_id": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "int64"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoice",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "revenue": "int64"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "sql_server"
+      }
+    },
+    {
+      "columns": {
+        "amount": "int64",
+        "amount_major": "float64",
+        "charge_id": "str",
+        "created": "int64",
+        "created_at": "str",
+        "currency": "str",
+        "id": "str"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "stripe",
+        "resource": "charges"
+      }
+    },
+    {
+      "columns": {
+        "Contact__ContactID": "str",
+        "CurrencyCode": "str",
+        "DateString": "str",
+        "InvoiceID": "str",
+        "Total": "int64",
+        "created_at": "str",
+        "currency": "str",
+        "customer_id": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "int64"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoices",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "custom_fields__0__label": "str",
+        "custom_fields__0__value": "str",
+        "custom_fields__count": "int64",
+        "customer_name": "str",
+        "date": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "invoice_number": "str",
+        "item_description": "str",
+        "item_id": "str",
+        "last_modified_time": "str",
+        "line__item_id": "str",
+        "line__item_total": "float64",
+        "line__line_item_id": "str",
+        "line__name": "str",
+        "line__quantity": "int64",
+        "line__rate": "float64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "float64",
+        "quantity": "int64",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "float64",
+        "total_amount": "float64",
+        "unit_price": "float64",
+        "updated_at": "str"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "zoho_books",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "invoices",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "date": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "last_modified_time": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "int64",
+        "total_amount": "int64",
+        "updated_at": "str"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "zoho_books",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "invoices",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "amount": "int64",
+        "created_at": "str",
+        "date": "str",
+        "payment_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "int64"
+      },
+      "loader": "load_connector_dataframe",
+      "metadata": {
+        "connector": "zoho_books",
+        "object_type": "customerpayments",
+        "resource": "customer_payments"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "revenue": "int64"
+      },
+      "loader": "load_database_dataframe",
+      "metadata": {
+        "connector": "mysql"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "revenue": "int64",
+        "updated_at": "str"
+      },
+      "loader": "load_database_dataframe",
+      "metadata": {
+        "connector": "postgresql"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "revenue": "int64"
+      },
+      "loader": "load_database_dataframe",
+      "metadata": {
+        "connector": "postgresql"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "revenue": "int64"
+      },
+      "loader": "load_database_dataframe",
+      "metadata": {
+        "connector": "sql_server"
+      }
+    },
+    {
+      "columns": {
+        "amount": "str",
+        "amount__amount": "str",
+        "amount__code": "str",
+        "client_name": "str",
+        "create_date": "str",
+        "created_at": "str",
+        "credit_note_id": "int64",
+        "creditid": "int64",
+        "currency": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "int64",
+        "resource_type": "str"
+      },
+      "loader": "load_freshbooks_dataframe",
+      "metadata": {
+        "connector": "freshbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "resource": "credit_notes"
+      }
+    },
+    {
+      "columns": {
+        "amount": "str",
+        "amount__amount": "str",
+        "amount__code": "str",
+        "client_name": "str",
+        "create_date": "str",
+        "created_at": "str",
+        "currency": "str",
+        "invoice_id": "int64",
+        "invoiceid": "int64",
+        "item_description": "str",
+        "line__amount": "str",
+        "line__description": "str",
+        "line__id": "str",
+        "line__quantity": "int64",
+        "line__unit_price": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "str",
+        "quantity": "int64",
+        "record_id": "int64",
+        "resource_type": "str",
+        "unit_price": "str",
+        "updated": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_freshbooks_dataframe",
+      "metadata": {
+        "connector": "freshbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "amount": "str",
+        "amount__amount": "str",
+        "amount__code": "str",
+        "client_name": "str",
+        "create_date": "str",
+        "created_at": "str",
+        "currency": "str",
+        "invoice_id": "int64",
+        "invoiceid": "int64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "int64",
+        "resource_type": "str"
+      },
+      "loader": "load_freshbooks_dataframe",
+      "metadata": {
+        "connector": "freshbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "amount": "str",
+        "amount__amount": "str",
+        "amount__code": "str",
+        "client_name": "str",
+        "create_date": "str",
+        "created_at": "str",
+        "currency": "str",
+        "invoice_id": "str",
+        "invoiceid": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str"
+      },
+      "loader": "load_freshbooks_dataframe",
+      "metadata": {
+        "connector": "freshbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "account_name": "str",
+        "account_uuid": "str",
+        "balance": "str",
+        "record_id": "str",
+        "resource_type": "str"
+      },
+      "loader": "load_freshbooks_dataframe",
+      "metadata": {
+        "connector": "freshbooks",
+        "resource": "chart_of_accounts"
+      }
+    },
+    {
+      "columns": {
+        "client_id": "int64",
+        "client_name": "str",
+        "created_at": "str",
+        "id": "int64",
+        "organization": "str",
+        "record_id": "int64",
+        "resource_type": "str",
+        "signup_date": "str"
+      },
+      "loader": "load_freshbooks_dataframe",
+      "metadata": {
+        "connector": "freshbooks",
+        "resource": "clients"
+      }
+    },
+    {
+      "columns": {
+        "amount": "str",
+        "amount__amount": "str",
+        "amount__code": "str",
+        "created_at": "str",
+        "currency": "str",
+        "date": "str",
+        "expense_id": "int64",
+        "expenseid": "int64",
+        "record_id": "int64",
+        "resource_type": "str"
+      },
+      "loader": "load_freshbooks_dataframe",
+      "metadata": {
+        "connector": "freshbooks",
+        "resource": "expenses"
+      }
+    },
+    {
+      "columns": {
+        "amount": "str",
+        "amount__amount": "str",
+        "amount__code": "str",
+        "created_at": "str",
+        "currency": "str",
+        "date": "str",
+        "id": "int64",
+        "payment_id": "int64",
+        "record_id": "int64",
+        "resource_type": "str"
+      },
+      "loader": "load_freshbooks_dataframe",
+      "metadata": {
+        "connector": "freshbooks",
+        "resource": "payments"
+      }
+    },
+    {
+      "columns": {
+        "first_name": "str",
+        "identity_id": "int64",
+        "last_name": "str",
+        "profile_id": "int64",
+        "resource_type": "str"
+      },
+      "loader": "load_freshbooks_dataframe",
+      "metadata": {
+        "connector": "freshbooks",
+        "resource": "profile"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "id": "int64",
+        "project_id": "int64",
+        "record_id": "int64",
+        "resource_type": "str",
+        "title": "str"
+      },
+      "loader": "load_freshbooks_dataframe",
+      "metadata": {
+        "connector": "freshbooks",
+        "resource": "projects"
+      }
+    },
+    {
+      "columns": {
+        "advertising_channel_type": "str",
+        "average_cpc": "float64",
+        "average_cpc_micros": "int64",
+        "campaign__advertisingChannelType": "str",
+        "campaign__id": "str",
+        "campaign__name": "str",
+        "campaign__status": "str",
+        "campaign_id": "str",
+        "campaign_name": "str",
+        "campaign_status": "str",
+        "clicks": "int64",
+        "conversions": "int64",
+        "conversions_value": "int64",
+        "cost": "float64",
+        "cost_micros": "int64",
+        "ctr": "float64",
+        "customer_id": "str",
+        "date": "str",
+        "impressions": "int64",
+        "metrics__averageCpc": "str",
+        "metrics__clicks": "str",
+        "metrics__conversions": "str",
+        "metrics__conversionsValue": "str",
+        "metrics__costMicros": "str",
+        "metrics__ctr": "str",
+        "metrics__impressions": "str",
+        "record_id": "str",
+        "segments__date": "str"
+      },
+      "loader": "load_google_ads_dataframe",
+      "metadata": {
+        "api_version": "v22",
+        "connector": "google_ads",
+        "resource": "campaign_performance"
+      }
+    },
+    {
+      "columns": {},
+      "loader": "load_google_ads_dataframe",
+      "metadata": {
+        "api_version": "v22",
+        "connector": "google_ads",
+        "resource": "campaign_performance"
+      }
+    },
+    {
+      "columns": {
+        "activeUsers": "int64",
+        "date": "str",
+        "sessions": "int64"
+      },
+      "loader": "load_google_analytics_report",
+      "metadata": {
+        "dimensions": [
+          "date"
+        ],
+        "metrics": [
+          "sessions",
+          "activeUsers"
+        ]
+      }
+    },
+    {
+      "columns": {
+        "daily_metric": "str",
+        "data_type": "str",
+        "date": "str",
+        "location_id": "str",
+        "location_name": "str",
+        "location_title": "str",
+        "metadata__placeId": "str",
+        "metric_value": "int64",
+        "name": "str",
+        "openInfo__status": "str",
+        "open_status": "str",
+        "phoneNumbers__primaryPhone": "str",
+        "place_id": "str",
+        "primary_phone": "str",
+        "record_id": "str",
+        "storeCode": "str",
+        "store_code": "str",
+        "title": "str",
+        "websiteUri": "str",
+        "website_uri": "str"
+      },
+      "loader": "load_google_business_profile_dataframe",
+      "metadata": {
+        "connector": "google_business_profile",
+        "resource": "location_performance"
+      }
+    },
+    {
+      "columns": {},
+      "loader": "load_google_business_profile_dataframe",
+      "metadata": {
+        "connector": "google_business_profile",
+        "resource": "location_performance"
+      }
+    },
+    {
+      "columns": {
+        "clicks": "int64",
+        "ctr": "float64",
+        "date": "str",
+        "impressions": "int64",
+        "keys": "str",
+        "position": "float64"
+      },
+      "loader": "load_google_search_console_dataframe",
+      "metadata": {
+        "connector": "google_search_console",
+        "dimensions": [
+          "date"
+        ],
+        "resource": "search_analytics"
+      }
+    },
+    {
+      "columns": {
+        "clicks": "int64",
+        "ctr": "int64",
+        "date": "str",
+        "impressions": "int64",
+        "keys": "str",
+        "position": "int64"
+      },
+      "loader": "load_google_search_console_dataframe",
+      "metadata": {
+        "connector": "google_search_console",
+        "dimensions": [
+          "date"
+        ],
+        "resource": "search_analytics"
+      }
+    },
+    {
+      "columns": {
+        "amount": "str",
+        "createdAt": "str",
+        "created_at": "str",
+        "id": "str",
+        "properties__amount": "str",
+        "record_id": "str",
+        "updatedAt": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_hubspot_dataframe",
+      "metadata": {
+        "connector": "hubspot",
+        "object_type": "deals"
+      }
+    },
+    {
+      "columns": {
+        "amount": "str",
+        "createdAt": "str",
+        "created_at": "str",
+        "id": "str",
+        "properties__amount": "str",
+        "record_id": "str"
+      },
+      "loader": "load_hubspot_dataframe",
+      "metadata": {
+        "connector": "hubspot",
+        "object_type": "deals"
+      }
+    },
+    {
+      "columns": {
+        "calcTotal": "str",
+        "completed": "bool",
+        "created_at": "str",
+        "item_description": "str",
+        "item_id": "str",
+        "line__Item__description": "str",
+        "line__itemID": "str",
+        "line__saleLineID": "str",
+        "line__unitPrice": "str",
+        "line__unitQuantity": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "quantity": "str",
+        "saleID": "str",
+        "sale_id": "str",
+        "sale_line_id": "str",
+        "status": "bool",
+        "timeStamp": "str",
+        "timestamp": "str",
+        "tip": "str",
+        "unit_price": "str"
+      },
+      "loader": "load_lightspeed_dataframe",
+      "metadata": {
+        "connector": "lightspeed",
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "completed": "bool",
+        "created_at": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "saleID": "str",
+        "sale_id": "str",
+        "sale_line_id": "str",
+        "status": "bool",
+        "timeStamp": "str",
+        "timestamp": "str",
+        "total": "str"
+      },
+      "loader": "load_lightspeed_dataframe",
+      "metadata": {
+        "connector": "lightspeed",
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "createTime": "str",
+        "created_at": "str",
+        "line__saleLineID": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "saleID": "str",
+        "sale_id": "str",
+        "sale_line_id": "str",
+        "timestamp": "str"
+      },
+      "loader": "load_lightspeed_dataframe",
+      "metadata": {
+        "connector": "lightspeed",
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "createTime": "str",
+        "created_at": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "saleID": "str",
+        "sale_id": "str",
+        "sale_line_id": "str",
+        "timestamp": "str",
+        "total": "str"
+      },
+      "loader": "load_lightspeed_dataframe",
+      "metadata": {
+        "connector": "lightspeed",
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "accountFiscId": "str",
+        "completed_at": "str",
+        "customer_id": "int64",
+        "item_description": "str",
+        "item_id": "str",
+        "line__id": "str",
+        "line__item_id": "str",
+        "line__name": "str",
+        "line__quantity": "int64",
+        "line__total": "int64",
+        "line__unit_price": "int64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "int64",
+        "payments__0__consumer__customerId": "int64",
+        "payments__0__consumer__email": "str",
+        "payments__0__netAmountWithTax": "str",
+        "payments__count": "int64",
+        "quantity": "int64",
+        "record_id": "str",
+        "sale_id": "str",
+        "sale_line_id": "str",
+        "status": "str",
+        "timeClosed": "str",
+        "timeOpening": "str",
+        "total": "float64",
+        "type": "str",
+        "unit_price": "int64",
+        "updated_at": "str"
+      },
+      "loader": "load_lightspeed_k_dataframe",
+      "metadata": {
+        "connector": "lightspeed_k",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "customer_id": "int64",
+        "id": "int64",
+        "item_description": "str",
+        "item_id": "str",
+        "line__id": "str",
+        "line__item_id": "str",
+        "line__name": "str",
+        "line__price": "str",
+        "line__quantity": "int64",
+        "line__total": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "str",
+        "quantity": "int64",
+        "record_id": "int64",
+        "sale_id": "int64",
+        "sale_line_id": "str",
+        "status": "str",
+        "total": "str",
+        "unit_price": "str",
+        "value": "str"
+      },
+      "loader": "load_lightspeed_o_dataframe",
+      "metadata": {
+        "connector": "lightspeed_o",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "customer_id": "str",
+        "id": "str",
+        "item_id": "str",
+        "line__product_id": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "sale_id": "str",
+        "sale_line_id": "str",
+        "total": "str",
+        "total_price": "str"
+      },
+      "loader": "load_lightspeed_x_dataframe",
+      "metadata": {
+        "api_version": "2026-07",
+        "connector": "lightspeed_x",
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "id": "str",
+        "item_description": "str",
+        "item_id": "str",
+        "line__id": "str",
+        "line__pricing__price": "str",
+        "line__pricing__total": "str",
+        "line__product__id": "str",
+        "line__product__name": "str",
+        "line__quantity": "int64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "str",
+        "quantity": "int64",
+        "record_id": "str",
+        "sale_id": "str",
+        "sale_line_id": "str",
+        "state": "str",
+        "total": "str",
+        "unit_price": "str"
+      },
+      "loader": "load_lightspeed_x_dataframe",
+      "metadata": {
+        "api_version": "2026-07",
+        "connector": "lightspeed_x",
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "action__lead": "str",
+        "actions": "str",
+        "campaign_id": "str",
+        "campaign_name": "str",
+        "date_start": "str",
+        "date_stop": "str",
+        "impressions": "str",
+        "leads": "str"
+      },
+      "loader": "load_meta_ads_dataframe",
+      "metadata": {
+        "connector": "meta_ads",
+        "resource": "campaign_insights"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "MetaData__CreateTime": "str",
+        "TotalAmt": "str",
+        "TxnDate": "str",
+        "create_time": "str",
+        "created_at": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Bill",
+        "resource": "bills"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "MetaData__CreateTime": "str",
+        "TotalAmt": "str",
+        "TxnDate": "str",
+        "create_time": "str",
+        "created_at": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Estimate",
+        "resource": "estimates"
+      }
+    },
+    {
+      "columns": {
+        "CustomerRef__value": "str",
+        "Id": "str",
+        "TotalAmt": "int64",
+        "TxnDate": "str",
+        "created_at": "str",
+        "customer_id": "str",
+        "invoice_id": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "int64"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoice",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "MetaData__CreateTime": "str",
+        "MetaData__LastUpdatedTime": "str",
+        "TxnDate": "str",
+        "create_time": "str",
+        "created_at": "str",
+        "invoice_id": "str",
+        "last_updated_time": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoice",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "MetaData__CreateTime": "str",
+        "TotalAmt": "str",
+        "TxnDate": "str",
+        "create_time": "str",
+        "created_at": "str",
+        "invoice_id": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoice",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "TotalAmt": "float64",
+        "TxnDate": "str",
+        "created_at": "str",
+        "invoice_id": "str",
+        "item_description": "str",
+        "item_id": "str",
+        "item_name": "str",
+        "line__Amount": "int64",
+        "line__DetailType": "str",
+        "line__Id": "str",
+        "line__SalesItemLineDetail__ItemRef__name": "str",
+        "line__SalesItemLineDetail__ItemRef__value": "str",
+        "line__SalesItemLineDetail__Qty": "int64",
+        "line__SalesItemLineDetail__UnitPrice": "int64",
+        "line_detail_type": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "int64",
+        "quantity": "int64",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "float64",
+        "unit_price": "int64"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoice",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "TxnDate": "str",
+        "created_at": "str",
+        "invoice_id": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoice",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "MetaData__CreateTime": "str",
+        "TotalAmt": "str",
+        "TxnDate": "str",
+        "create_time": "str",
+        "created_at": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Purchase",
+        "resource": "purchases"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "MetaData__CreateTime": "str",
+        "TotalAmt": "str",
+        "TxnDate": "str",
+        "create_time": "str",
+        "created_at": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "SalesReceipt",
+        "resource": "sales_receipts"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "MetaData__CreateTime": "str",
+        "TotalAmt": "str",
+        "TxnDate": "str",
+        "account_id": "str",
+        "create_time": "str",
+        "created_at": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "object_type": "Account",
+        "resource": "accounts"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "MetaData__CreateTime": "str",
+        "TotalAmt": "str",
+        "TxnDate": "str",
+        "create_time": "str",
+        "created_at": "str",
+        "customer_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "object_type": "Customer",
+        "resource": "customers"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "MetaData__CreateTime": "str",
+        "TotalAmt": "str",
+        "TxnDate": "str",
+        "create_time": "str",
+        "created_at": "str",
+        "item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "object_type": "Item",
+        "resource": "products_services"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "MetaData__CreateTime": "str",
+        "TotalAmt": "str",
+        "TxnDate": "str",
+        "create_time": "str",
+        "created_at": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "object_type": "Payment",
+        "resource": "payments"
+      }
+    },
+    {
+      "columns": {
+        "Id": "str",
+        "MetaData__CreateTime": "str",
+        "TotalAmt": "str",
+        "TxnDate": "str",
+        "create_time": "str",
+        "created_at": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "str",
+        "vendor_id": "str"
+      },
+      "loader": "load_quickbooks_dataframe",
+      "metadata": {
+        "connector": "quickbooks",
+        "object_type": "Vendor",
+        "resource": "vendors"
+      }
+    },
+    {
+      "columns": {
+        "contact": "str",
+        "created_at": "str",
+        "currency": "str",
+        "customer_id": "str",
+        "customer_name": "str",
+        "date": "str",
+        "decisionate__currency": "str",
+        "due_date": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "invoice_number": "str",
+        "item_description": "str",
+        "line__description": "str",
+        "line__quantity": "int64",
+        "line__unit_price": "int64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "quantity": "int64",
+        "record_id": "str",
+        "resource_type": "str",
+        "status": "str",
+        "total_amount": "float64",
+        "unit_price": "int64"
+      },
+      "loader": "load_sage_dataframe",
+      "metadata": {
+        "connector": "sage",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "sales_invoices",
+        "resource": "sales_invoices"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "date": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "int64",
+        "updated_at": "str"
+      },
+      "loader": "load_sage_dataframe",
+      "metadata": {
+        "connector": "sage",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "sales_invoices",
+        "resource": "sales_invoices"
+      }
+    },
+    {
+      "columns": {
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_sage_dataframe",
+      "metadata": {
+        "connector": "sage",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "sales_invoices",
+        "resource": "sales_invoices"
+      }
+    },
+    {
+      "columns": {
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str"
+      },
+      "loader": "load_sage_dataframe",
+      "metadata": {
+        "connector": "sage",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "sales_invoices",
+        "resource": "sales_invoices"
+      }
+    },
+    {
+      "columns": {
+        "contact_id": "str",
+        "contact_name": "str",
+        "email": "str",
+        "main_address__address_line_1": "str",
+        "main_address__city": "str",
+        "record_id": "str",
+        "resource_type": "str"
+      },
+      "loader": "load_sage_dataframe",
+      "metadata": {
+        "connector": "sage",
+        "object_type": "contacts",
+        "resource": "contacts"
+      }
+    },
+    {
+      "columns": {},
+      "loader": "load_sage_dataframe",
+      "metadata": {
+        "connector": "sage",
+        "object_type": "contacts",
+        "resource": "contacts"
+      }
+    },
+    {
+      "columns": {
+        "Amount": "int64",
+        "CreatedDate": "str",
+        "Custom_Score__c": "float64",
+        "Id": "str",
+        "LastModifiedDate": "str",
+        "Name": "str",
+        "created_at": "str",
+        "object_type": "str",
+        "record_id": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_salesforce_dataframe",
+      "metadata": {
+        "api_version": "v65.0",
+        "connector": "salesforce",
+        "object_type": "Opportunity",
+        "resource": "opportunities",
+        "resource_type": "opportunities"
+      }
+    },
+    {
+      "columns": {
+        "cancelledAt": "object",
+        "createdAt": "str",
+        "created_at": "str",
+        "currency": "str",
+        "currencyCode": "str",
+        "discounted_unit_price": "str",
+        "displayFinancialStatus": "str",
+        "displayFulfillmentStatus": "str",
+        "financial_status": "str",
+        "fulfillment_status": "str",
+        "id": "str",
+        "item_description": "str",
+        "item_id": "str",
+        "item_sku": "str",
+        "legacyResourceId": "str",
+        "line__discountedTotalSet__shopMoney__amount": "str",
+        "line__discountedUnitPriceSet__shopMoney__amount": "str",
+        "line__id": "str",
+        "line__name": "str",
+        "line__originalUnitPriceSet__shopMoney__amount": "str",
+        "line__product__id": "str",
+        "line__product__title": "str",
+        "line__quantity": "int64",
+        "line__sku": "str",
+        "line__variant": "float64",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "line_total": "str",
+        "name": "str",
+        "order_id": "str",
+        "order_name": "str",
+        "quantity": "int64",
+        "sourceName": "str",
+        "source_name": "str",
+        "subtotalLineItemsQuantity": "int64",
+        "subtotalPriceSet": "float64",
+        "subtotalPriceSet__shopMoney__amount": "str",
+        "subtotalPriceSet__shopMoney__currencyCode": "str",
+        "subtotal_price": "str",
+        "test": "bool",
+        "totalDiscountsSet": "float64",
+        "totalDiscountsSet__shopMoney__amount": "str",
+        "totalDiscountsSet__shopMoney__currencyCode": "str",
+        "totalPriceSet__shopMoney__amount": "str",
+        "totalPriceSet__shopMoney__currencyCode": "str",
+        "totalTaxSet": "float64",
+        "totalTaxSet__shopMoney__amount": "str",
+        "totalTaxSet__shopMoney__currencyCode": "str",
+        "total_discounts": "str",
+        "total_price": "str",
+        "total_tax": "str",
+        "unit_price": "str",
+        "updatedAt": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_shopify_dataframe",
+      "metadata": {
+        "api": "graphql_admin",
+        "connector": "shopify",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "order_id"
+        ],
+        "resource": "orders"
+      }
+    },
+    {
+      "columns": {
+        "cancelledAt": "object",
+        "createdAt": "str",
+        "created_at": "str",
+        "currency": "str",
+        "currencyCode": "str",
+        "displayFinancialStatus": "str",
+        "displayFulfillmentStatus": "str",
+        "financial_status": "str",
+        "fulfillment_status": "str",
+        "id": "str",
+        "legacyResourceId": "str",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "name": "str",
+        "order_id": "str",
+        "order_name": "str",
+        "sourceName": "str",
+        "source_name": "str",
+        "subtotalLineItemsQuantity": "int64",
+        "subtotalPriceSet": "object",
+        "test": "bool",
+        "totalDiscountsSet": "object",
+        "totalPriceSet__shopMoney__amount": "str",
+        "totalTaxSet": "object",
+        "total_price": "str",
+        "updatedAt": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_shopify_dataframe",
+      "metadata": {
+        "api": "graphql_admin",
+        "connector": "shopify",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "order_id"
+        ],
+        "resource": "orders"
+      }
+    },
+    {
+      "columns": {
+        "createdAt": "str",
+        "created_at": "str",
+        "currency": "str",
+        "currencyCode": "str",
+        "id": "str",
+        "item_description": "str",
+        "legacyResourceId": "str",
+        "line__id": "str",
+        "line__name": "str",
+        "line__quantity": "int64",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "name": "str",
+        "order_id": "str",
+        "order_name": "str",
+        "quantity": "int64",
+        "subtotalLineItemsQuantity": "int64",
+        "updatedAt": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_shopify_dataframe",
+      "metadata": {
+        "api": "graphql_admin",
+        "connector": "shopify",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "order_id"
+        ],
+        "resource": "orders"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "currency": "str",
+        "id": "str",
+        "item_description": "str",
+        "item_id": "str",
+        "line__catalog_object_id": "str",
+        "line__name": "str",
+        "line__quantity": "str",
+        "line__uid": "str",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "location_id": "str",
+        "order_id": "str",
+        "quantity": "str",
+        "total_amount": "float64",
+        "total_money__amount": "float64",
+        "total_money__currency": "str"
+      },
+      "loader": "load_square_dataframe",
+      "metadata": {
+        "connector": "square",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "order_id"
+        ],
+        "resource": "orders"
+      }
+    },
+    {
+      "columns": {
+        "amount": "int64",
+        "amount_major": "float64",
+        "charge_id": "str",
+        "created": "int64",
+        "created_at": "str",
+        "currency": "str",
+        "id": "str"
+      },
+      "loader": "load_stripe_dataframe",
+      "metadata": {
+        "connector": "stripe",
+        "resource": "charges"
+      }
+    },
+    {
+      "columns": {
+        "billing__country": "str",
+        "billing_country": "str",
+        "created_at": "str",
+        "date_created": "str",
+        "date_modified": "str",
+        "id": "int64",
+        "item_description": "str",
+        "item_id": "int64",
+        "line__id": "int64",
+        "line__name": "str",
+        "line__price": "str",
+        "line__product_id": "int64",
+        "line__quantity": "int64",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "number": "str",
+        "order_id": "int64",
+        "order_number": "str",
+        "quantity": "int64",
+        "total": "str",
+        "unit_price": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_woocommerce_dataframe",
+      "metadata": {
+        "connector": "woocommerce",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "order_id"
+        ],
+        "resource": "orders"
+      }
+    },
+    {
+      "columns": {
+        "AccountID": "str",
+        "ContactID": "str",
+        "Contact__ContactID": "str",
+        "CreditNoteID": "str",
+        "DateString": "str",
+        "InvoiceID": "str",
+        "ItemID": "str",
+        "Name": "str",
+        "PaymentID": "str",
+        "PurchaseOrderID": "str",
+        "QuoteID": "str",
+        "Total": "float64",
+        "UpdatedDateUTCString": "str",
+        "created_at": "str",
+        "credit_note_id": "str",
+        "customer_id": "str",
+        "invoice_line_id": "str",
+        "item_description": "str",
+        "line__Description": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "provider_specific_field": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "float64",
+        "updated_at": "str"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "CreditNotes",
+        "resource": "credit_notes"
+      }
+    },
+    {
+      "columns": {
+        "AccountID": "str",
+        "ContactID": "str",
+        "Contact__ContactID": "str",
+        "CreditNoteID": "str",
+        "DateString": "str",
+        "InvoiceID": "str",
+        "ItemID": "str",
+        "Name": "str",
+        "PaymentID": "str",
+        "PurchaseOrderID": "str",
+        "QuoteID": "str",
+        "Total": "float64",
+        "UpdatedDateUTCString": "str",
+        "created_at": "str",
+        "customer_id": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "item_description": "str",
+        "line__Description": "str",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "provider_specific_field": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "float64",
+        "updated_at": "str"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoices",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "Contact__ContactID": "str",
+        "CurrencyCode": "str",
+        "DateString": "str",
+        "InvoiceID": "str",
+        "Total": "int64",
+        "created_at": "str",
+        "currency": "str",
+        "customer_id": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "int64"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoices",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "DateString": "str",
+        "InvoiceID": "str",
+        "Total": "float64",
+        "UpdatedDateUTCString": "str",
+        "created_at": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "item_description": "str",
+        "item_id": "str",
+        "item_sku": "str",
+        "line__Description": "str",
+        "line__ItemCode": "str",
+        "line__LineAmount": "int64",
+        "line__LineItemID": "str",
+        "line__Quantity": "int64",
+        "line__UnitAmount": "int64",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "line_total": "int64",
+        "quantity": "int64",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "float64",
+        "unit_price": "int64",
+        "updated_at": "str"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoices",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "DateString": "str",
+        "InvoiceID": "str",
+        "Total": "float64",
+        "UpdatedDateUTCString": "str",
+        "created_at": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "float64",
+        "updated_at": "str"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoices",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "DateString": "str",
+        "InvoiceID": "str",
+        "Total": "float64",
+        "created_at": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "line_index": "int64",
+        "line_item_count": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "float64"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Invoices",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "AccountID": "str",
+        "ContactID": "str",
+        "Contact__ContactID": "str",
+        "CreditNoteID": "str",
+        "DateString": "str",
+        "InvoiceID": "str",
+        "ItemID": "str",
+        "Name": "str",
+        "PaymentID": "str",
+        "PurchaseOrderID": "str",
+        "QuoteID": "str",
+        "Total": "float64",
+        "UpdatedDateUTCString": "str",
+        "created_at": "str",
+        "invoice_line_id": "str",
+        "item_description": "str",
+        "line__Description": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "provider_specific_field": "str",
+        "purchase_order_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "supplier_id": "str",
+        "total": "float64",
+        "updated_at": "str"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "PurchaseOrders",
+        "resource": "purchase_orders"
+      }
+    },
+    {
+      "columns": {
+        "AccountID": "str",
+        "ContactID": "str",
+        "Contact__ContactID": "str",
+        "CreditNoteID": "str",
+        "DateString": "str",
+        "InvoiceID": "str",
+        "ItemID": "str",
+        "Name": "str",
+        "PaymentID": "str",
+        "PurchaseOrderID": "str",
+        "QuoteID": "str",
+        "Total": "float64",
+        "UpdatedDateUTCString": "str",
+        "created_at": "str",
+        "customer_id": "str",
+        "invoice_line_id": "str",
+        "item_description": "str",
+        "line__Description": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "provider_specific_field": "str",
+        "quote_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "float64",
+        "updated_at": "str"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "Quotes",
+        "resource": "quotes"
+      }
+    },
+    {
+      "columns": {
+        "AccountID": "str",
+        "ContactID": "str",
+        "Contact__ContactID": "str",
+        "CreditNoteID": "str",
+        "DateString": "str",
+        "InvoiceID": "str",
+        "ItemID": "str",
+        "LineItems__0__Description": "str",
+        "LineItems__count": "int64",
+        "Name": "str",
+        "PaymentID": "str",
+        "PurchaseOrderID": "str",
+        "QuoteID": "str",
+        "Total": "float64",
+        "UpdatedDateUTCString": "str",
+        "account_id": "str",
+        "account_name": "str",
+        "created_at": "str",
+        "provider_specific_field": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "object_type": "Accounts",
+        "resource": "accounts"
+      }
+    },
+    {
+      "columns": {
+        "AccountID": "str",
+        "ContactID": "str",
+        "Contact__ContactID": "str",
+        "CreditNoteID": "str",
+        "DateString": "str",
+        "InvoiceID": "str",
+        "ItemID": "str",
+        "LineItems__0__Description": "str",
+        "LineItems__count": "int64",
+        "Name": "str",
+        "PaymentID": "str",
+        "PurchaseOrderID": "str",
+        "QuoteID": "str",
+        "Total": "float64",
+        "UpdatedDateUTCString": "str",
+        "contact_id": "str",
+        "contact_name": "str",
+        "created_at": "str",
+        "provider_specific_field": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "object_type": "Contacts",
+        "resource": "contacts"
+      }
+    },
+    {
+      "columns": {
+        "ContactID": "str",
+        "Name": "str",
+        "UpdatedDateUTCString": "str",
+        "contact_id": "str",
+        "contact_name": "str",
+        "created_at": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "object_type": "Contacts",
+        "resource": "contacts"
+      }
+    },
+    {
+      "columns": {
+        "AccountID": "str",
+        "ContactID": "str",
+        "Contact__ContactID": "str",
+        "CreditNoteID": "str",
+        "DateString": "str",
+        "InvoiceID": "str",
+        "ItemID": "str",
+        "LineItems__0__Description": "str",
+        "LineItems__count": "int64",
+        "Name": "str",
+        "PaymentID": "str",
+        "PurchaseOrderID": "str",
+        "QuoteID": "str",
+        "Total": "float64",
+        "UpdatedDateUTCString": "str",
+        "created_at": "str",
+        "item_id": "str",
+        "item_name": "str",
+        "provider_specific_field": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "object_type": "Items",
+        "resource": "items"
+      }
+    },
+    {
+      "columns": {
+        "AccountID": "str",
+        "ContactID": "str",
+        "Contact__ContactID": "str",
+        "CreditNoteID": "str",
+        "DateString": "str",
+        "InvoiceID": "str",
+        "ItemID": "str",
+        "LineItems__0__Description": "str",
+        "LineItems__count": "int64",
+        "Name": "str",
+        "PaymentID": "str",
+        "PurchaseOrderID": "str",
+        "QuoteID": "str",
+        "Total": "float64",
+        "UpdatedDateUTCString": "str",
+        "created_at": "str",
+        "payment_id": "str",
+        "provider_specific_field": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "updated_at": "str"
+      },
+      "loader": "load_xero_dataframe",
+      "metadata": {
+        "connector": "xero",
+        "object_type": "Payments",
+        "resource": "payments"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "custom_fields__0__label": "str",
+        "custom_fields__0__value": "str",
+        "custom_fields__count": "int64",
+        "customer_name": "str",
+        "date": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "invoice_number": "str",
+        "item_description": "str",
+        "item_id": "str",
+        "last_modified_time": "str",
+        "line__item_id": "str",
+        "line__item_total": "float64",
+        "line__line_item_id": "str",
+        "line__name": "str",
+        "line__quantity": "int64",
+        "line__rate": "float64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "float64",
+        "quantity": "int64",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "float64",
+        "total_amount": "float64",
+        "unit_price": "float64",
+        "updated_at": "str"
+      },
+      "loader": "load_zoho_books_dataframe",
+      "metadata": {
+        "connector": "zoho_books",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "invoices",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "date": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "last_modified_time": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total": "int64",
+        "total_amount": "int64",
+        "updated_at": "str"
+      },
+      "loader": "load_zoho_books_dataframe",
+      "metadata": {
+        "connector": "zoho_books",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "invoices",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "amount": "int64",
+        "created_at": "str",
+        "date": "str",
+        "payment_id": "str",
+        "record_id": "str",
+        "resource_type": "str",
+        "total_amount": "int64"
+      },
+      "loader": "load_zoho_books_dataframe",
+      "metadata": {
+        "connector": "zoho_books",
+        "object_type": "customerpayments",
+        "resource": "customer_payments"
+      }
+    }
+  ]
+}
