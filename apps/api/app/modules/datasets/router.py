@@ -10551,7 +10551,7 @@ async def dataset_metric_recommendations(request: Request, dataset_id: int):
 
 
 @router.patch("/{dataset_id}/metric-selection")
-async def update_dataset_metric_selection(
+def update_dataset_metric_selection(
     request: Request,
     dataset_id: int,
     payload: DatasetMetricSelectionUpdate,
@@ -10577,18 +10577,11 @@ async def update_dataset_metric_selection(
             workspace_id,
         )
 
-        # Dataset loading and profiling are blocking dataframe work. Keep it
-        # off the event loop so one large dataset cannot stall the API worker.
-        dataframe = await asyncio.to_thread(
-            load_dataframe_from_dataset,
-            dataset,
-            False,
-        )
-        profile = await asyncio.to_thread(
-            build_metric_selection_profile,
-            dataset,
-            dataframe,
-            payload.business_objective,
+        # FastAPI runs this synchronous handler on a worker thread, keeping
+        # database waits and all dataframe work off the event loop together.
+        dataframe = load_dataframe_from_dataset(dataset, False)
+        profile = build_metric_selection_profile(
+            dataset, dataframe, payload.business_objective,
         )
         recommendations = None
         if payload.use_curated_recommendations:
@@ -10659,11 +10652,7 @@ async def update_dataset_metric_selection(
         db.commit()
         db.refresh(dataset)
 
-        saved_profile = await asyncio.to_thread(
-            build_metric_selection_profile,
-            dataset,
-            dataframe,
-        )
+        saved_profile = build_metric_selection_profile(dataset, dataframe)
         return {
             "dataset_id": dataset.id,
             "file_name": connector_dataset_display_name(dataset),

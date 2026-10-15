@@ -13,6 +13,7 @@ from fastapi.routing import run_endpoint_function
 
 from app import main
 from app.modules.datasets import router as routes
+from app.modules.datasets.schemas import DatasetMetricSelectionUpdate
 from app.modules.datasets.services.joins import JOIN_RESULT_VERSION
 
 
@@ -68,6 +69,7 @@ class DatasetReadConcurrencyTests(unittest.IsolatedAsyncioTestCase):
             "dataset_preview", "dataset_metrics", "dataset_insights", "dataset_chart_data",
             "dataset_anomalies", "dataset_details", "dataset_ai_analysis", "get_dataset_join_cache",
             "sync_due_source_connections",
+            "update_dataset_metric_selection",
         ):
             with self.subTest(endpoint=name):
                 self.assertFalse(inspect.iscoroutinefunction(getattr(routes, name)))
@@ -98,6 +100,63 @@ class DatasetReadConcurrencyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(encoding_threads), 1)
         self.assertNotEqual(encoding_threads[0], event_loop_thread)
         db.close.assert_called_once()
+
+    async def test_metric_save_keeps_database_and_dataframe_work_on_one_worker_thread(self):
+        event_loop_thread = threading.get_ident()
+        loop = asyncio.get_running_loop()
+        for blocked_stage in ("recommendations", "commit"):
+            with self.subTest(stage=blocked_stage):
+                threads = {}
+                started = asyncio.Event()
+                release = threading.Event()
+
+                def stage(name, result=None):
+                    def call(*args, **kwargs):
+                        threads[name] = threading.get_ident()
+                        if name == blocked_stage:
+                            loop.call_soon_threadsafe(started.set)
+                            release.wait(2)
+                        return result
+                    return call
+
+                dataset = SimpleNamespace(id=1, source_config="{}")
+                db = Mock()
+                db.commit.side_effect = stage("commit")
+                db.refresh.side_effect = stage("refresh")
+                db.close.side_effect = stage("close")
+                profile = {"available_metric_columns": ["revenue"], "fields": []}
+                recommendations = {"policyVersion": "v1", "recommended": [{"columnKey": "revenue"}], "optional": [], "derived": []}
+                with ExitStack() as stack:
+                    for name, callback in (
+                        ("SessionLocal", stage("open", db)),
+                        ("get_user_id", stage("auth", "user")),
+                        ("get_workspace_id", stage("workspace", "workspace")),
+                        ("require_workspace_data_manager", stage("permission")),
+                        ("load_dataset", stage("query", dataset)),
+                        ("verify_dataset_owner", stage("ownership")),
+                        ("load_dataframe_from_dataset", stage("load", pd.DataFrame({"revenue": [10, 20]}))),
+                        ("build_metric_selection_profile", stage("profile", profile)),
+                        ("resolve_metric_recommendations", stage("recommendations", recommendations)),
+                        ("metric_default_flags", stage("flags", {"backend": True})),
+                        ("selection_provenance", stage("provenance", {})),
+                        ("connector_dataset_display_name", stage("name", "data.csv")),
+                    ):
+                        stack.enter_context(patch.object(routes, name, side_effect=callback))
+                    request = asyncio.create_task(dispatch(
+                        routes.update_dataset_metric_selection, request=object(), dataset_id=1,
+                        payload=DatasetMetricSelectionUpdate(selected_metric_columns=["revenue"], use_curated_recommendations=True, policy_version="v1"),
+                    ))
+                    try:
+                        await asyncio.wait_for(started.wait(), 1)
+                        self.assertFalse(request.done())
+                        self.assertNotEqual(threads[blocked_stage], event_loop_thread)
+                        self.assertNotIn("close", threads)
+                    finally:
+                        release.set()
+                        result = await request
+                self.assertEqual(result["selected_metric_columns"], ["revenue"])
+                self.assertEqual(set(threads.values()), {threads["open"]})
+                self.assertIn("close", threads)
 
     async def test_denied_access_does_not_load_dataset_storage(self):
         with patch.object(routes, "load_dataset", return_value=SimpleNamespace(id=1)), patch.object(

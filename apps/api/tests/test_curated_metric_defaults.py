@@ -423,7 +423,7 @@ class MetricRecommendationApiTests(unittest.TestCase):
             self.addCleanup(patcher.stop)
 
     def save(self, columns=(), **kwargs):
-        return asyncio.run(router.update_dataset_metric_selection(SimpleNamespace(), 1, DatasetMetricSelectionUpdate(selected_metric_columns=list(columns), use_curated_recommendations=True, policy_version=POLICY_VERSION, **kwargs)))
+        return router.update_dataset_metric_selection(SimpleNamespace(), 1, DatasetMetricSelectionUpdate(selected_metric_columns=list(columns), use_curated_recommendations=True, policy_version=POLICY_VERSION, **kwargs))
 
     def test_read_endpoint_preserves_existing_source_config(self):
         with self.Session() as db:
@@ -457,7 +457,7 @@ class MetricRecommendationApiTests(unittest.TestCase):
 
     def test_stale_policy_is_rejected_without_changing_selection(self):
         with self.assertRaises(HTTPException) as caught:
-            asyncio.run(router.update_dataset_metric_selection(SimpleNamespace(), 1, DatasetMetricSelectionUpdate(selected_metric_columns=["clicks"], use_curated_recommendations=True, policy_version="old")))
+            router.update_dataset_metric_selection(SimpleNamespace(), 1, DatasetMetricSelectionUpdate(selected_metric_columns=["clicks"], use_curated_recommendations=True, policy_version="old"))
         self.assertEqual(caught.exception.status_code, 400)
         with self.Session() as db:
             self.assertNotIn("selected_metric_columns", config_for(db.get(Dataset, 1)))
@@ -479,7 +479,7 @@ class MetricRecommendationApiTests(unittest.TestCase):
     def test_legacy_client_can_save_during_rollback(self):
         self.save(["clicks"])
         with patch.dict("os.environ", {"CURATED_METRIC_DEFAULTS_BACKEND": "false"}):
-            asyncio.run(router.update_dataset_metric_selection(SimpleNamespace(), 1, DatasetMetricSelectionUpdate(selected_metric_columns=["unknown_numeric"])))
+            router.update_dataset_metric_selection(SimpleNamespace(), 1, DatasetMetricSelectionUpdate(selected_metric_columns=["unknown_numeric"]))
         with self.Session() as db:
             config = config_for(db.get(Dataset, 1))
             self.assertEqual(config["selected_metric_columns"], ["unknown_numeric"])

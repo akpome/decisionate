@@ -18,6 +18,7 @@ import {
   BarChart3,
   FileText,
   LineChart,
+  RefreshCw,
   Sparkles,
 } from "lucide-react"
 import { MetricCard } from "@/features/dashboard/components/metric-card"
@@ -42,11 +43,11 @@ import {
   createDecision,
   getDatasetAIAnalysis,
   getDatasetDetails,
-  updateDatasetMetricSelection,
   type AIAnalysis,
   type DatasetMetricRecommendations,
 } from "@/lib/api"
 import { CuratedMetricPicker, getRecommendedMetricKeys } from "@/features/datasets/components/curated-metric-picker"
+import { refreshDatasetMetrics, saveMetricSelectionWithRecovery } from "@/features/datasets/lib/metric-selection-save"
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -130,6 +131,10 @@ type DatasetDetails = {
   anomalies?: Record<string, unknown> | null
   preview?: DatasetRow[]
 }
+
+type MetricSelectionRetry =
+  | { action: "save"; columns: string[]; objective: string; restoreRecommended: boolean }
+  | { action: "refresh" }
 
 function getErrorMessage(
   error: unknown,
@@ -260,6 +265,9 @@ export default function DatasetDetailsPage() {
     useState(false)
   const [metricSelectionError, setMetricSelectionError] =
     useState("")
+  const [metricSelectionNotice, setMetricSelectionNotice] = useState("")
+  const [metricSelectionRetry, setMetricSelectionRetry] = useState<MetricSelectionRetry | null>(null)
+  const metricSelectionRequest = useRef(0)
 
   const [loading, setLoading] =
     useState(true)
@@ -319,12 +327,16 @@ export default function DatasetDetailsPage() {
     let ignoreResult = false
 
     async function loadDataset() {
+      metricSelectionRequest.current += 1
+      setSavingMetricSelection(false)
       setDataset(null)
       setSelectedMetric(undefined)
       setSelectedMetricColumns([])
       setMetricObjective("general_business")
       setColumnSearch("")
       setMetricSelectionError("")
+      setMetricSelectionNotice("")
+      setMetricSelectionRetry(null)
       setErrorMessage("")
       setLoading(true)
 
@@ -383,6 +395,7 @@ export default function DatasetDetailsPage() {
 
     return () => {
       ignoreResult = true
+      metricSelectionRequest.current += 1
     }
   }, [
     params.id,
@@ -655,6 +668,16 @@ export default function DatasetDetailsPage() {
       )
     })
     setMetricSelectionError("")
+    setMetricSelectionNotice("")
+    setMetricSelectionRetry(null)
+  }
+
+  function applyRefreshedDataset(refreshedDataset: DatasetDetails) {
+    setDataset(refreshedDataset)
+    setSelectedMetricColumns(getSelectedMetricColumns(refreshedDataset))
+    setMetricObjective(refreshedDataset.metric_profile?.objective ?? metricObjective)
+    setSelectedMetric(currentMetric => refreshedDataset.metrics?.some(metric => metric.column === currentMetric)
+      ? currentMetric : undefined)
   }
 
   async function saveMetricSelection(
@@ -671,52 +694,78 @@ export default function DatasetDetailsPage() {
       return
     }
 
+    const requestId = ++metricSelectionRequest.current
     try {
       setSavingMetricSelection(true)
       setMetricSelectionError("")
+      setMetricSelectionNotice("")
+      setMetricSelectionRetry(null)
       setErrorMessage("")
 
-      await updateDatasetMetricSelection(
-        datasetId,
-        columns,
+      const result = await saveMetricSelectionWithRecovery({
+        datasetId, columns, objective,
         userId,
-        activeWorkspaceId,
-        objective,
-        selectRecommendedMetricColumns,
-        showCuratedPicker ? curatedRecommendations?.policyVersion : undefined,
-      )
+        workspaceId: activeWorkspaceId,
+        restoreRecommended: selectRecommendedMetricColumns,
+        recommendedColumns: showCuratedPicker && curatedRecommendations
+          ? getRecommendedMetricKeys(curatedRecommendations) : recommendedMetricColumns,
+        policyVersion: showCuratedPicker ? curatedRecommendations?.policyVersion : undefined,
+      })
+      if (requestId !== metricSelectionRequest.current) return
+      if (!result.saved) {
+        setMetricSelectionError(result.message)
+        setMetricSelectionRetry(result.retryable ? {
+          action: "save", columns, objective, restoreRecommended: selectRecommendedMetricColumns,
+        } : null)
+        return
+      }
 
-      const refreshedDataset = await getDatasetDetails(
-        datasetId,
-        userId,
-        activeWorkspaceId,
-        { includeAIAnalysis: false }
-      )
-      setDataset(refreshedDataset)
-      setSelectedMetricColumns(
-        getSelectedMetricColumns(refreshedDataset)
-      )
-      setMetricObjective(
-        refreshedDataset.metric_profile?.objective ??
-        objective
-      )
-      setSelectedMetric(currentMetric =>
-        refreshedDataset.metrics?.some(
-          (metric: DatasetMetric) =>
-            metric.column === currentMetric
-        )
-          ? currentMetric
-          : undefined
-      )
-    } catch (error) {
-      setMetricSelectionError(
-        getErrorMessage(
-          error,
-          "Could not save metric selection."
-        )
-      )
+      const selection = result.selection
+      setDataset(current => current ? {
+        ...current,
+        ...selection,
+        metric_selection_configured: true,
+        metric_profile: selection.metric_profile ?? current.metric_profile,
+        metrics: current.metrics?.filter(metric => selection.selected_metric_columns.includes(metric.column)),
+      } : current)
+      setSelectedMetricColumns(selection.selected_metric_columns)
+      setMetricObjective(selection.metric_profile?.objective ?? objective)
+      setMetricSelectionNotice("Metrics saved.")
+      try {
+        const refreshedDataset = result.dataset ?? await refreshDatasetMetrics(datasetId, userId, activeWorkspaceId)
+        if (requestId === metricSelectionRequest.current) applyRefreshedDataset(refreshedDataset)
+      } catch {
+        if (requestId === metricSelectionRequest.current) {
+          setMetricSelectionNotice("Metrics saved. Updated results are temporarily unavailable.")
+          setMetricSelectionRetry({ action: "refresh" })
+        }
+      }
+    } catch {
+      if (requestId === metricSelectionRequest.current) {
+        setMetricSelectionError("We couldn't confirm your changes were saved. Your selections are still here. Please try again.")
+        setMetricSelectionRetry({ action: "save", columns, objective, restoreRecommended: selectRecommendedMetricColumns })
+      }
     } finally {
-      setSavingMetricSelection(false)
+      if (requestId === metricSelectionRequest.current) setSavingMetricSelection(false)
+    }
+  }
+
+  async function handleRefreshSavedMetrics() {
+    if (!datasetId || !userId || savingMetricSelection) return
+    const requestId = ++metricSelectionRequest.current
+    setSavingMetricSelection(true)
+    try {
+      const refreshedDataset = await refreshDatasetMetrics(datasetId, userId, activeWorkspaceId)
+      if (requestId !== metricSelectionRequest.current) return
+      applyRefreshedDataset(refreshedDataset)
+      setMetricSelectionNotice("Metrics saved.")
+      setMetricSelectionRetry(null)
+    } catch {
+      if (requestId === metricSelectionRequest.current) {
+        setMetricSelectionNotice("Metrics saved. Updated results are temporarily unavailable.")
+      }
+    } finally {
+      if (requestId === metricSelectionRequest.current) setSavingMetricSelection(false)
     }
   }
 
@@ -1135,7 +1184,12 @@ export default function DatasetDetailsPage() {
           dimensions={[...new Set([...(dataset.metric_profile?.dimension_columns ?? []), ...(dataset.metric_profile?.time_columns ?? [])])]}
           disabled={!canManageWorkspaceData}
           saving={savingMetricSelection}
-          onChange={setSelectedMetricColumns}
+          onChange={columns => {
+            setSelectedMetricColumns(columns)
+            setMetricSelectionError("")
+            setMetricSelectionNotice("")
+            setMetricSelectionRetry(null)
+          }}
           onSave={() => { void handleSaveMetricSelection() }}
           onRestore={() => {
             setSelectedMetricColumns(getRecommendedMetricKeys(curatedRecommendations))
@@ -1212,12 +1266,31 @@ export default function DatasetDetailsPage() {
         )}
 
         {metricSelectionError && (
-          <p
+          <div
             role="alert"
-            className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
           >
-            {metricSelectionError}
-          </p>
+            <p className="min-w-0 flex-1 basis-64">{metricSelectionError}</p>
+            {metricSelectionRetry?.action === "save" && <button
+              type="button"
+              onClick={() => {
+                void saveMetricSelection(metricSelectionRetry.columns, metricSelectionRetry.objective, metricSelectionRetry.restoreRecommended)
+              }}
+              disabled={savingMetricSelection}
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-red-200 bg-white px-3 font-medium disabled:opacity-60"
+            ><RefreshCw size={16} aria-hidden="true" className={savingMetricSelection ? "animate-spin" : ""} />Retry save</button>}
+          </div>
+        )}
+        {metricSelectionNotice && (
+          <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+            <p className="min-w-0 flex-1 basis-64">{metricSelectionNotice}</p>
+            {metricSelectionRetry?.action === "refresh" && <button
+              type="button"
+              onClick={() => { void handleRefreshSavedMetrics() }}
+              disabled={savingMetricSelection}
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 font-medium disabled:opacity-60"
+            ><RefreshCw size={16} aria-hidden="true" className={savingMetricSelection ? "animate-spin" : ""} />Refresh results</button>}
+          </div>
         )}
 
         {previewTableWidth > 0 && (

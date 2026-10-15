@@ -5480,6 +5480,8 @@ export async function getDatasetDetails(
     periodFilter?: ForecastPeriodFilter
     aggregation?: DashboardAggregation
     aggregationType?: DashboardValueAggregation
+    forceRefresh?: boolean
+    notifyAvailability?: boolean
   }
 ) {
   const cleanDatasetId =
@@ -5528,6 +5530,10 @@ export async function getDatasetDetails(
       workspaceId
     )}:${cleanDatasetId}:${queryString}`
 
+  if (options?.forceRefresh) {
+    invalidateApiReadCache([cacheKey])
+  }
+
   return getCachedRead(
     cacheKey,
     async () => {
@@ -5541,6 +5547,7 @@ export async function getDatasetDetails(
             ),
           },
           datasetDetailsRequestTimeoutMs,
+          options?.notifyAvailability ?? true,
         )
 
       if (!response.ok) {
@@ -5576,6 +5583,13 @@ export async function updateDatasetMetricSelection(
         .filter(Boolean)
     )
   )
+  const cachePrefixes = [
+    `dataset-details:${getWorkspaceCacheIdentity(userId, workspaceId)}:${cleanDatasetId}:`,
+    `dataset-metrics:${getWorkspaceCacheIdentity(userId, workspaceId)}:${cleanDatasetId}`,
+  ]
+  // A disconnected response does not mean the write failed. Recovery must
+  // never verify the save against a cached pre-save selection.
+  invalidateApiReadCache(cachePrefixes)
   const response = await apiFetch(
     `${API_URL}/datasets/${cleanDatasetId}/metric-selection`,
     {
@@ -5598,7 +5612,8 @@ export async function updateDatasetMetricSelection(
           : {}),
       }),
     },
-    datasetMetricSelectionTimeoutMs
+    datasetMetricSelectionTimeoutMs,
+    false,
   )
 
   if (!response.ok) {
@@ -5608,16 +5623,7 @@ export async function updateDatasetMetricSelection(
     )
   }
 
-  invalidateApiReadCache([
-    `dataset-details:${getWorkspaceCacheIdentity(
-      userId,
-      workspaceId
-    )}:${cleanDatasetId}:`,
-    `dataset-metrics:${getWorkspaceCacheIdentity(
-      userId,
-      workspaceId
-    )}:${cleanDatasetId}`,
-  ])
+  invalidateApiReadCache(cachePrefixes)
 
   return response.json()
 }
