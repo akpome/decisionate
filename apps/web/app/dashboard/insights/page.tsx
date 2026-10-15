@@ -12,6 +12,7 @@ import {
 
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { CorrelationInsights } from "@/features/relationships/correlation-widgets"
 import {
   MetricSelector,
   formatMetricLabel,
@@ -852,6 +853,7 @@ export default function InsightsPage() {
 
   return (
     <div className="space-y-8">
+      <CorrelationInsights key={`${user?.id}:${activeWorkspaceId}`} userId={user?.id} workspaceId={activeWorkspaceId} />
       <div>
         <DashboardPageHeader
           title="Insights"

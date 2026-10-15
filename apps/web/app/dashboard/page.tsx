@@ -16,6 +16,7 @@ import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
+import { CorrelationWidgets } from "@/features/relationships/correlation-widgets"
 import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
 import {
   formatMetricLabel,
@@ -4054,6 +4055,8 @@ export default function DashboardPage() {
           shareEnabled={shareEnabled}
         />
 
+        <CorrelationWidgets key={`${userId}:${activeWorkspaceId}:${selectedDashboard}`} userId={userId} workspaceId={activeWorkspaceId} dashboardKey={selectedDashboard} canManage={canManageWorkspaceData} />
+
         {!datasetsLoading &&
           userId &&
           !dashboardError &&
@@ -4292,6 +4295,8 @@ export default function DashboardPage() {
 
         </div>
       </header>
+
+      <CorrelationWidgets key={`${userId}:${activeWorkspaceId}:${selectedDashboard}`} userId={userId} workspaceId={activeWorkspaceId} dashboardKey={selectedDashboard} canManage={canManageWorkspaceData} />
 
       <WorkspaceAccessNotice
         loading={loadingWorkspaceAccess}

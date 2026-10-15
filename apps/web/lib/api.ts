@@ -43,6 +43,15 @@ function resolveApiUrl(value: string | undefined) {
 export const API_URL =
   resolveApiUrl(configuredApiUrl)
 
+export async function correlationRequest<T>(userId: string, path: string, init: RequestInit = {}, workspaceId?: string): Promise<T> {
+  const response = await apiFetch(`${API_URL}/api/v2${path}`, {
+    ...init, cache: "no-store",
+    headers: { ...await workspaceJsonHeaders(userId, workspaceId), ...init.headers },
+  })
+  if (!response.ok) await throwApiError(response, "Relationship analysis is unavailable")
+  return response.json()
+}
+
 export type MarketingConsentRequest = {
   available: boolean
   text: string
