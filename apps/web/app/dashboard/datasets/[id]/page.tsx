@@ -222,8 +222,11 @@ function getPreviewNumericColumns(
 function getSelectedMetricColumns(
   dataset: DatasetDetails
 ) {
+  if (Array.isArray(dataset.selected_metric_columns)) {
+    return dataset.selected_metric_columns
+  }
   const savedCuratedSelection = dataset.metric_profile?.curated_recommendations?.savedSelection
-  if (savedCuratedSelection !== null && savedCuratedSelection !== undefined) {
+  if (dataset.metric_selection_configured !== false && Array.isArray(savedCuratedSelection)) {
     return savedCuratedSelection
   }
   if (
@@ -774,7 +777,7 @@ export default function DatasetDetailsPage() {
   async function handleResetMetricSelection() {
     const defaultColumns = recommendedMetricColumns
     setSelectedMetricColumns(defaultColumns)
-    await saveMetricSelection(defaultColumns)
+    await saveMetricSelection(defaultColumns, metricObjective, true)
   }
 
   async function handleUnselectAllMetricSelection() {

@@ -190,6 +190,7 @@ class ConnectorRowSchemaTests(unittest.TestCase):
         item = SimpleNamespace(source_type="quickbooks", source_config=json.dumps({
             "selected_metric_columns": ["Line__0__unit_price", "Line__1__unit_price", "total"],
             "business_objective": "increase_revenue", "connector": "quickbooks",
+            "metric_selection_provenance": {"source": "user"},
         }))
         frame = connectors.normalize_connector_row_schema(legacy_frame("Line"), "quickbooks")
         self.assertEqual(get_effective_dataset_metric_columns(item, frame), ["total", "line__unit_price"])

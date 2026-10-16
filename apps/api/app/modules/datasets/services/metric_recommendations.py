@@ -16,7 +16,7 @@ from app.modules.datasets.services.metric_policy import (
 )
 from app.modules.datasets.services.numeric import is_identifier_column
 from app.modules.datasets.services.summary_query import is_summary_dataframe
-from app.modules.datasets.services.receipt_metrics import receipt_metric_columns
+from app.modules.datasets.services.receipt_metrics import receipt_metric_columns, uses_receipt_defaults
 
 
 logger = logging.getLogger(__name__)
@@ -99,13 +99,16 @@ def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, sel
         provenance = config.get(SELECTION_PROVENANCE_KEY)
         version = provenance.get("policy_version") if isinstance(provenance, dict) else None
         policy = METRIC_POLICY_VERSIONS.get((*key, version))
+    saved_selection = config.get("selected_metric_columns")
+    if uses_receipt_defaults(key[0], config):
+        saved_selection = None
     result = {
         "policyVersion": policy.policy_version if policy else POLICY_VERSION,
         "connectorSchemaVersion": key[2] or None,
         "connectorKey": key[0], "datasetKey": key[1],
         "recommended": [], "optional": [], "derived": [], "skipped": [],
-        "userHasExplicitSelection": isinstance(config.get("selected_metric_columns"), list),
-        "savedSelection": config.get("selected_metric_columns") if isinstance(config.get("selected_metric_columns"), list) else None,
+        "userHasExplicitSelection": isinstance(saved_selection, list),
+        "savedSelection": saved_selection if isinstance(saved_selection, list) else None,
         "missingSelectedColumns": [],
         "uiEnabled": metric_default_flags(dataset)["ui"],
     }

@@ -18,7 +18,7 @@ from app.modules.datasets.services.metric_selection import (
     get_effective_dataset_metric_columns,
 )
 from app.modules.datasets.services.metrics import generate_metrics
-from app.modules.datasets.services.receipt_metrics import receipt_metric_columns, receipt_projection
+from app.modules.datasets.services.receipt_metrics import receipt_metric_columns, receipt_projection, uses_receipt_defaults
 
 
 def dataset(source="quickbooks", resource="invoices", **config):
@@ -79,12 +79,74 @@ class ReceiptMetricDefaultTests(unittest.TestCase):
     def test_saved_choices_and_explicit_empty_selection_are_not_rewritten(self):
         frame = pd.DataFrame({"quantity": [2], "exchange_rate": [1.5], "record_id": [9]})
         for selected in ([], ["exchange_rate"], ["record_id"]):
-            item = dataset(selected_metric_columns=selected)
+            item = dataset(selected_metric_columns=selected, metric_selection_provenance={"source": "user"})
             before = item.source_config
             self.assertEqual(get_effective_dataset_metric_columns(item, frame), selected)
             result = filter_dataframe_to_selected_metrics(item, frame)
             self.assertEqual(item.source_config, before)
             self.assertEqual([metric["column"] for metric in generate_metrics(result, selected)], selected)
+
+    def test_old_broad_saved_lists_are_replaced_by_effective_receipt_defaults_for_every_source(self):
+        cases = {"quickbooks": "invoices", "freshbooks": "invoices", "sage": "sales_invoices",
+                 "xero": "invoices", "zoho_books": "invoices", "shopify": "orders",
+                 "woocommerce": "orders", "square": "orders", "lightspeed": "sales", "lightspeed_x": "sales"}
+        frame = pd.DataFrame({"quantity": [2, 3], "unit_price": [10, 12],
+                              **{f"internal_metric_{index}": [index, index + 1] for index in range(40)}})
+        for source, resource in cases.items():
+            for provenance in (None, {"source": "recommended"}):
+                with self.subTest(source=source, provenance=provenance):
+                    config = {"selected_metric_columns": list(frame)}
+                    if provenance:
+                        config["metric_selection_provenance"] = provenance
+                    item = dataset(source, resource, **config)
+                    before = item.source_config
+                    self.assertEqual(set(get_effective_dataset_metric_columns(item, frame)), {"quantity", "unit_price"})
+                    filtered = filter_dataframe_to_selected_metrics(item, frame)
+                    self.assertEqual(set(filtered), {"quantity", "unit_price"})
+                    self.assertEqual(item.source_config, before)
+                    projection = receipt_projection(source, json.loads(before), {column: "DOUBLE" for column in frame})
+                    self.assertEqual(set(projection), {"quantity", "unit_price"})
+
+    def test_old_non_transaction_lists_do_not_bypass_receipt_defaults(self):
+        frame = pd.DataFrame({"balance": [10], "quantity_on_hand": [4], "internal_count": [50]})
+        for source in ("quickbooks", "freshbooks", "sage", "xero", "zoho_books", "lightspeed_x"):
+            item = dataset(source, "accounts", selected_metric_columns=list(frame))
+            with self.subTest(source=source):
+                self.assertEqual(get_effective_dataset_metric_columns(item, frame), [])
+                self.assertEqual(generate_metrics(filter_dataframe_to_selected_metrics(item, frame)), [])
+
+    def test_explicit_legacy_opt_out_is_not_treated_as_an_automatic_selection(self):
+        item = dataset(selected_metric_columns=[])
+        self.assertFalse(uses_receipt_defaults(item.source_type, json.loads(item.source_config)))
+        self.assertEqual(get_effective_dataset_metric_columns(item, pd.DataFrame({"quantity": [2]})), [])
+
+    def test_old_curated_automatic_entity_counts_are_not_selected(self):
+        item = dataset("xero", "contacts", selected_metric_columns=["__metric_record_count"],
+                       curated_metric_selection=True, connector_schema_version=CONNECTOR_SCHEMA_VERSION,
+                       metric_selection_provenance={"source": "recommended", "policy_version": "2026-10-14.1"})
+        frame = pd.DataFrame({"record_id": ["one", "two"]})
+        with patch.dict(os.environ, {"CURATED_METRIC_DEFAULTS_BACKEND": "true", "CURATED_METRIC_DEFAULTS_ROLLOUT": "all"}):
+            self.assertEqual(get_effective_dataset_metric_columns(item, frame), [])
+            self.assertEqual(generate_metrics(filter_dataframe_to_selected_metrics(item, frame)), [])
+            self.assertIsNone(resolve_metric_recommendations(item, frame)["savedSelection"])
+
+    def test_documented_lightspeed_totals_do_not_select_internal_costs(self):
+        frame = pd.DataFrame({"quantity": [2] * 20, "unit_price": [10] * 20,
+                              "line__calcTotal": [23] * 20, "total": [23] * 20, "calcTotal": [23] * 20,
+                              "calcTax1": [3] * 20, "calcTax2": [0] * 20,
+                              "calcAvgCost": [4] * 20, "calcFIFOCost": [4] * 20, "line__avgCost": [2] * 20})
+        result = get_effective_dataset_metric_columns(dataset("lightspeed", "sales", selected_metric_columns=list(frame)), frame)
+        self.assertEqual(set(result), {"quantity", "unit_price", "line__calcTotal", "total", "calcTax1", "calcTax2"})
+
+    def test_payment_resources_cannot_select_invoice_or_inventory_fields_by_default(self):
+        frame = pd.DataFrame({"amount": [20], "TotalAmt": [20], "total_amount": [20],
+                              "quantity": [3], "unit_price": [10], "balance": [5], "quantity_on_hand": [30]})
+        for source, resource, expected in (("quickbooks", "payments", {"total_amount"}),
+                                           ("freshbooks", "payments", {"amount"}),
+                                           ("zoho_books", "customer_payments", {"amount"})):
+            with self.subTest(source=source):
+                item = dataset(source, resource, selected_metric_columns=list(frame))
+                self.assertEqual(set(get_effective_dataset_metric_columns(item, frame)), expected)
 
     def test_unselected_numeric_helpers_are_removed_from_analytics_not_source(self):
         frame = pd.DataFrame({"quantity": [2, 3], "exchange_rate": [1.5, 1.5], "all_null": [float("nan")] * 2,
@@ -129,7 +191,7 @@ class ReceiptMetricDefaultTests(unittest.TestCase):
                   "currency": "VARCHAR", "status": "VARCHAR", "date": "DATE", "customer_id": "BIGINT",
                   "exchange_rate": "DECIMAL(18,6)", "internal_count": "INT64", "notes": "VARCHAR"}
         for config, expected in (({}, {"quantity", "unit_price", "line_total"}),
-                                 ({"selected_metric_columns": ["exchange_rate"]}, {"exchange_rate"}),
+                                 ({"selected_metric_columns": ["exchange_rate"], "metric_selection_provenance": {"source": "user"}}, {"exchange_rate"}),
                                  ({"selected_metric_columns": []}, set())):
             with self.subTest(config=config):
                 columns = receipt_projection("quickbooks", {"resource": "invoices", **config}, schema)
@@ -162,7 +224,7 @@ class ReceiptMetricDefaultTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "rows.parquet"
             pd.DataFrame({"quantity": [2], 'odd"name': [3], "exchange_rate": [1.5]}).to_parquet(path)
-            item = dataset(selected_metric_columns=['odd"name'])
+            item = dataset(selected_metric_columns=['odd"name'], metric_selection_provenance={"source": "user"})
             item.file_path, item.file_name = str(path), path.name
             adapter = DuckDBAnalyticsAdapter(config)
             result = adapter.load_dataframe(item, column_selector=lambda schema: receipt_projection(item.source_type, json.loads(item.source_config), schema))

@@ -10643,12 +10643,14 @@ def update_dataset_metric_selection(
                 dataset, selected_columns, recommendations, user_id,
                 "recommended" if payload.select_recommended_metric_columns else "user",
             )
-        elif source_config.get(CURATED_SELECTION_KEY):
+        else:
             # The legacy picker remains usable during a rollback or for an
             # unclassified custom schema. Do not leave an invisible policy owner.
-            source_config[CURATED_SELECTION_KEY] = False
+            if source_config.get(CURATED_SELECTION_KEY):
+                source_config[CURATED_SELECTION_KEY] = False
             source_config[SELECTION_PROVENANCE_KEY] = {
-                "source": "user", "selected_by": user_id,
+                "source": "recommended" if payload.select_recommended_metric_columns else "user",
+                "selected_by": user_id,
                 "selected_at": utc_now().isoformat(), "policy_version": None,
             }
         if payload.business_objective:

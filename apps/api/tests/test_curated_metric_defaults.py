@@ -65,6 +65,7 @@ class CuratedMetricDefaultTests(unittest.TestCase):
         if selection is not None:
             config = config_for(item)
             config["selected_metric_columns"] = selection
+            config[SELECTION_PROVENANCE_KEY]["source"] = "user"
             item.source_config = json.dumps(config)
         return filter_dataframe_to_selected_metrics(item, frame)
 
@@ -161,6 +162,7 @@ class CuratedMetricDefaultTests(unittest.TestCase):
         self.assertEqual(evidence["policy_version"], POLICY_VERSION)
         self.assertTrue(evidence["selected_at"])
         config["selected_metric_columns"] = []
+        config[SELECTION_PROVENANCE_KEY]["source"] = "user"
         item.source_config = json.dumps(config)
         before = item.source_config
         initialize_curated_selection(item, search_frame())
@@ -450,6 +452,34 @@ class MetricRecommendationApiTests(unittest.TestCase):
             config = config_for(db.get(Dataset, 1))
             self.assertEqual(config["selected_metric_columns"], ["clicks", "impressions", "ctr", "weighted_position"])
             self.assertEqual(config[SELECTION_PROVENANCE_KEY]["source"], "recommended")
+
+    def test_financial_legacy_defaults_are_corrected_in_details_and_saves_record_intent(self):
+        frame = pd.DataFrame({"quantity": [2, 3], "unit_price": [10, 12], "line_total": [20, 36],
+                              **{f"internal_{index}": [index, index + 1] for index in range(40)}})
+        with self.Session() as db:
+            item = db.get(Dataset, 1)
+            item.source_type = "quickbooks"
+            item.source_config = json.dumps({"resource": "invoices", "selected_metric_columns": list(frame)})
+            db.commit()
+            before = item.source_config
+            details = router.build_dataset_details_response(item, frame, include_ai_analysis=False)
+            self.assertEqual(set(details["selected_metric_columns"]), {"quantity", "unit_price", "line_total"})
+            self.assertEqual({metric["column"] for metric in details["metrics"]}, {"quantity", "unit_price", "line_total"})
+            self.assertEqual(item.source_config, before)
+        with patch.object(router, "load_dataframe_from_dataset", return_value=frame):
+            manual = router.update_dataset_metric_selection(SimpleNamespace(), 1, DatasetMetricSelectionUpdate(selected_metric_columns=["internal_0"]))
+            self.assertEqual(manual["selected_metric_columns"], ["internal_0"])
+            with self.Session() as db:
+                item = db.get(Dataset, 1)
+                self.assertEqual(config_for(item)[SELECTION_PROVENANCE_KEY]["source"], "user")
+                self.assertEqual(router.build_dataset_details_response(item, frame, include_ai_analysis=False)["selected_metric_columns"], ["internal_0"])
+            reset = router.update_dataset_metric_selection(SimpleNamespace(), 1, DatasetMetricSelectionUpdate(selected_metric_columns=list(frame), select_recommended_metric_columns=True))
+            self.assertEqual(set(reset["selected_metric_columns"]), {"quantity", "unit_price", "line_total"})
+            with self.Session() as db:
+                item = db.get(Dataset, 1)
+                self.assertEqual(config_for(item)[SELECTION_PROVENANCE_KEY]["source"], "recommended")
+                details = router.build_dataset_details_response(item, frame, include_ai_analysis=False)
+                self.assertEqual(set(details["selected_metric_columns"]), {"quantity", "unit_price", "line_total"})
 
     def test_unknown_metric_cannot_be_saved_as_a_curated_metric(self):
         with self.assertRaises(HTTPException) as caught:

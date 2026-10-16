@@ -31,9 +31,9 @@ _RULES = {
     "zoho_books": ({"invoices", "expenses", "customer_payments", "credit_notes", "estimates", "sales_orders"},
         _LINE_FIELDS + (("total", "amount"), ("sub_total",), ("tax_total",),
                         ("discount_amount",), ("shipping_charge",))),
-    # Only the stable quantity/price aliases have local contract evidence here.
-    # Do not infer monetary defaults from another Lightspeed series.
-    "lightspeed": ({"sales"}, (("quantity",), ("unit_price",))),
+    "lightspeed": ({"sales"}, (("quantity",), ("unit_price",),
+        ("line_total", "line__calcTotal"), ("total", "calcTotal"), ("calcSubtotal",),
+        ("calcTax1",), ("calcTax2",), ("calcDiscount",), ("tip", "calcTips"))),
     "lightspeed_x": ({"sales"}, _LINE_FIELDS),
     "lightspeed_k": (set(), ()),
     "lightspeed_o": (set(), ()),
@@ -53,7 +53,7 @@ _NUMERIC_TYPES = {
 }
 
 
-def receipt_metric_columns(source_type, config, columns):
+def receipt_metric_columns(source_type, config, columns, *, include_aliases=False):
     """Return exact defaults, or None when this restriction does not apply."""
     source_type = str(source_type or "").strip().lower()
     rule = _RULES.get(source_type)
@@ -64,10 +64,34 @@ def receipt_metric_columns(source_type, config, columns):
     if resource not in rule[0]:
         return []
     available = set(columns)
+    alternatives = rule[1]
     if source_type == "xero" and resource == "payments":
-        return ["Amount"] if "Amount" in available else []
-    return [next(column for column in alternatives if column in available)
-            for alternatives in rule[1] if any(column in available for column in alternatives)]
+        alternatives = (("Amount",),)
+    elif source_type == "quickbooks" and resource == "payments":
+        alternatives = (("total_amount", "TotalAmt"),)
+    elif source_type == "freshbooks" and resource in {"payments", "expenses"}:
+        alternatives = (("amount", "amount__amount"),)
+    elif source_type == "zoho_books" and resource == "customer_payments":
+        alternatives = (("amount",),)
+    if include_aliases:
+        return [column for group in alternatives for column in group if column in available]
+    return [next(column for column in group if column in available)
+            for group in alternatives if any(column in available for column in group)]
+
+
+def uses_receipt_defaults(source_type, config):
+    """Treat unclassified legacy lists as defaults, not proof of manual intent."""
+    if str(source_type or "").strip().lower() not in _RULES:
+        return False
+    provenance = config.get("metric_selection_provenance")
+    source = provenance.get("source") if isinstance(provenance, dict) else None
+    if source == "user":
+        return False
+    if source == "recommended":
+        return True
+    # An empty legacy selection is a deliberate opt-out. Broad old lists were
+    # saved by the automatic picker too, without recording how they were chosen.
+    return config.get("selected_metric_columns") != []
 
 
 def restrict_receipt_profile(source_type, config, profile):
@@ -96,13 +120,13 @@ def receipt_projection(source_type, config, schema):
     # Legacy item repair and saved indexed-field remapping need the original row.
     if connector_schema_needs_repair(schema, source_type):
         return None
-    selected = config.get("selected_metric_columns")
+    selected = None if uses_receipt_defaults(source_type, config) else config.get("selected_metric_columns")
     required = set(selected if isinstance(selected, list) else defaults)
     required.update(_GENERATED)
     # Policy-managed analytics may need unselected components and currency/status
     # conditions; the curated filter will discard unused values after resolution.
     if config.get("curated_metric_selection") is True:
-        required.update(defaults)
+        required.update(receipt_metric_columns(source_type, config, schema, include_aliases=True))
     for column in tuple(required):
         required.update(f"{column}__{statistic}" for statistic in _STATISTICS)
     return [column for column, dtype in schema.items()

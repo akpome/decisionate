@@ -28,6 +28,7 @@ from app.modules.datasets.services.metric_recommendations import (
 from app.modules.datasets.services.receipt_metrics import (
     receipt_metric_columns,
     restrict_receipt_profile,
+    uses_receipt_defaults,
 )
 
 
@@ -387,7 +388,7 @@ def build_metric_selection_profile(
                 signature,
                 [],
             ):
-                if column_name in receipt_default_set and candidate_column not in receipt_default_set:
+                if column_name in receipt_default_set:
                     continue
                 candidate_definition = get_metric_definition(candidate_column, source_type)
                 same_metric = (
@@ -549,6 +550,11 @@ def build_metric_selection_profile(
                     status="excluded",
                     exclusion_reason="Almost entirely empty.",
                     reason="Almost entirely empty.",
+                )
+            elif column_name in receipt_default_set:
+                field.update(
+                    role="metric", status="recommended",
+                    reason="Documented receipt or invoice measure.",
                 )
             elif is_small_dataset:
                 field.update(
@@ -867,6 +873,8 @@ def get_effective_dataset_metric_columns(
         )
     )
     selected_columns = get_dataset_selected_metric_columns(dataset)
+    if uses_receipt_defaults(_dataset_source_type(dataset), parse_dataset_source_config(dataset)):
+        return list(resolved_profile.get("recommended_metric_columns", []))
     if selected_columns is not None:
         mapping = dataframe.attrs.get(COLUMN_MAPPING_ATTR, {})
         selected_columns = list(dict.fromkeys(mapping.get(column, column) for column in selected_columns))
@@ -910,12 +918,12 @@ def filter_dataframe_to_selected_metrics(
     if uses_curated_selection(dataset):
         from app.modules.datasets.services.curated_metric_analytics import prepare_curated_dataframe
         recommendations = resolve_metric_recommendations(dataset, dataframe, selection_policy=True)
-        selected = get_dataset_selected_metric_columns(dataset) or []
+        resolved_profile = profile if profile is not None else build_metric_selection_profile(dataset, dataframe)
+        selected = get_effective_dataset_metric_columns(dataset, dataframe, resolved_profile)
         descriptors = {entry["columnKey"]: entry for group in ("recommended", "optional", "derived") for entry in recommendations[group]}
         required = set(selected)
         for column in selected:
             required.update(descriptors.get(column, {}).get("components", ()))
-        resolved_profile = profile if profile is not None else build_metric_selection_profile(dataset, dataframe)
         dimensions = {field["column"] for field in resolved_profile["fields"] if field["role"] in {"time", "dimension", "identifier"}}
         keep = [column for column in dataframe if str(column) in required | dimensions | _GENERATED_METRIC_COLUMNS or any(str(column) == f"{component}__{statistic}" for component in required for statistic in _SUMMARY_STATISTICS)]
         return prepare_curated_dataframe(
@@ -925,6 +933,8 @@ def filter_dataframe_to_selected_metrics(
         )
 
     selected_columns = get_dataset_selected_metric_columns(dataset)
+    if uses_receipt_defaults(_dataset_source_type(dataset), parse_dataset_source_config(dataset)):
+        selected_columns = None
     resolved_profile = (
         profile
         if profile is not None

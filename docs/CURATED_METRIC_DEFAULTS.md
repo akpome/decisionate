@@ -43,7 +43,7 @@ the numeric blanket for financial connectors, independently of rollout flags.
 | Square | orders expanded into lines | Normalized money is already major units; require COMPLETED state and currency. |
 | Shopify | GraphQL orders expanded into lines | Current query does not request current* order totals; use verified discounted line totals instead of claiming current-order semantics. |
 | WooCommerce | v3 orders expanded into lines | Exact line totals/quantity; exclude canceled/refunded states from automatic money recommendations. |
-| Lightspeed R/X | Sales expanded into lines; X also products/customers | Restricted partner-schema verification outstanding; no monetary defaults guessed from other Lightspeed series. |
+| Lightspeed R/X | Sales expanded into lines; X also products/customers | Per-series references must be used; R Sale/SaleLine receipt fields were verified in the 2026-10-16 follow-up. Curated monetary policy certification remains separate. |
 | Lightspeed K/O, Business Profile | Marked planned by source registry | No defaults enabled. |
 | CSV, Excel, JSON, Parquet, SQL | User-defined schemas | No guessed defaults; explicit saved selections remain supported. |
 
@@ -207,22 +207,39 @@ Research checked the following primary references against the local emitters:
 | FreshBooks | [Invoices](https://www.freshbooks.com/api/invoices): qty, unit_cost and line amount. |
 | Xero | [Invoices](https://developer.xero.com/documentation/api/accounting/invoices) and [Payments](https://developer.xero.com/documentation/api/accounting/payments): Quantity, UnitAmount, LineAmount, tax and document amounts; payment Amount differs from BankAmount. |
 | Zoho Books | [Invoices](https://www.zoho.com/books/api/v3/invoices/): quantity, rate and item/document amounts; bcy_rate is a different base-currency value. |
-| WooCommerce | [v3 order fields](https://woocommerce.github.io/woocommerce-rest-api-docs/): quantity, price, line total/tax and order charges. |
+| WooCommerce | [v3 order fields](https://developer.woocommerce.com/docs/apis/rest-api/v3/orders/): quantity, price, line total/tax and order charges. |
 | Square | [OrderLineItem](https://developer.squareup.com/reference/square/objects/orderlineitem): quantity and monetary fields. Only existing normalized major-unit aliases are allowed here, not duplicate raw minor-unit amounts. |
 | Stripe | [Charge](https://docs.stripe.com/api/charges/object) and [receipts](https://docs.stripe.com/receipts): payment/refund amount; exclude application fees, risk scores and card metadata. Raw amount remains minor units outside curated conversion; the restriction does not certify the legacy amount_major alias. |
 | Lightspeed X | [Sales 101](https://x-series-api.lightspeedhq.com/docs/sales_101): quantity and pricing; internal cost and loyalty fields are not receipt defaults. |
+| Lightspeed R | [Sale](https://developers.lightspeedhq.com/retail/endpoints/Sale/) and [SaleLine](https://developers.lightspeedhq.com/retail/endpoints/Sale-SaleLine/): quantity, unit price, line total, sale total/subtotal, tax, discount and tip. Exclude calcAvgCost, calcFIFOCost, IDs, flags and duplicate calcTotal/total aliases. |
+| Sage Accounting | [Create sales invoices](https://ca-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=240304191312200): customer invoice price/rate and totals. Keep local normalized line aliases; do not substitute Sage Active, Sage 50 or Sage Operations API schemas. |
+| Lightspeed K (planned) | [Reservation order notification](https://api-docs.lsk.lightspeed.app/operation/operation-reservationordernotification): receipt/line fields exist, but are not certification of Decisionate's current Financial API emitter. No defaults are guessed from this different endpoint. |
+| Lightspeed O (planned) | [Orders](https://apidoc.kounta.com/orders/) and [Lines](https://apidoc.kounta.com/lines/): reviewed the public references, but current rendered line-field evidence is incomplete. No unverified monetary defaults are enabled. |
 
-The Sage Accounting and Lightspeed R reference pages could not be fully read
-through the research client. Their restrictions use only existing normalized
-aliases backed by local connector tests; this is not a claim of external schema
-certification. No regional Sage field or cross-series Lightspeed total was
-invented. Existing curated fixture/currency checks remain in force.
+Sage Accounting's detailed API reference still could not be read through the
+research client (the direct reference request returned 403). Its customer invoice
+guide was reviewed and the restriction remains limited to normalized aliases
+backed by local connector tests. The Lightspeed R reference was accessible in the
+follow-up review. No regional Sage field or cross-series Lightspeed total was
+invented. Existing curated fixture/currency checks remain in force; public field
+documentation is not a claim of sanitized live-provider payload certification.
 
-Existing explicitly saved selections, including an empty list, are preserved.
-Use the dataset's reset-to-defaults action to replace an older saved selection.
+The initial restriction did not correct old selected-column lists. The follow-up
+uses receipt defaults for financial selections marked `recommended` and for
+nonempty legacy lists without selection provenance. Older legacy saves recorded
+automatic defaults and manual choices identically, so intent cannot be recovered
+reliably from those lists. Their original configuration is left untouched; only
+the effective analytical/UI selection is corrected. An empty unclassified list
+remains an opt-out. Selections explicitly recorded as `user` remain manual.
+All new saves record `user` or `recommended`, including the legacy picker, and
+reset sends the explicit select-recommended request. The page prefers the API's
+effective selection over raw curated savedSelection metadata. Users do not need
+to reset each old dataset to remove obsolete defaults.
+
 Automatic contact record counts in curated profiles remain available for manual
-selection but are no longer selected by default. Saved policy semantics are not
-rewritten on read.
+selection but are no longer selected by default. Stored aggregation policy
+versions and source data are not rewritten on read. Payment resources are scoped
+to payment amounts, not invoice line quantities, stock or embedded invoice totals.
 
 For selected financial analytical reads, DuckDB and BigQuery inspect schema
 metadata and project out unrelated typed numeric columns before creating the
