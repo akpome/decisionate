@@ -29,6 +29,7 @@ from app.modules.datasets.services.metric_selection import (
     get_dataset_selected_metric_columns,
 )
 from app.modules.datasets.services.metrics import generate_metrics
+from app.modules.datasets.services.sources import IMPLEMENTED_CONNECTOR_TYPES
 from app.modules.forecasting.services import prepare_forecast_dataframe
 
 
@@ -544,6 +545,44 @@ class MetricRecommendationApiTests(unittest.TestCase):
         self.assertEqual(log.call_args.kwargs["extra"]["dataset_id"], 1)
         with self.Session() as db:
             self.assertEqual(db.get(Dataset, 1).source_config, before)
+
+    def test_all_connectors_can_save_and_reload_metrics_with_empty_numeric_fields(self):
+        frame = pd.DataFrame({
+            "tax_calculation_method": pd.Series([None, None], dtype="float64"),
+            "line_tax_amount": pd.Series([None, None], dtype="float64"),
+            "total_paid": [25.0, 30.0],
+            "unit_price": [15.0, 20.0],
+            "links__count": [2, 2],
+            "links__0__rel": ["alternate", "alternate"],
+        })
+        for source_type in sorted(IMPLEMENTED_CONNECTOR_TYPES):
+            with self.subTest(source_type=source_type):
+                with self.Session() as db:
+                    item = db.get(Dataset, 1)
+                    item.source_type = source_type
+                    item.source_config = json.dumps({"connector": source_type})
+                    db.commit()
+                for selected in (["total_paid", "unit_price"], []):
+                    with self.subTest(selected=selected):
+                        with patch.object(router, "load_dataframe_from_dataset", return_value=frame):
+                            result = router.update_dataset_metric_selection(
+                                SimpleNamespace(), 1, DatasetMetricSelectionUpdate(
+                                    selected_metric_columns=selected,
+                                    business_objective="increase_revenue",
+                                ),
+                            )
+                        self.assertEqual(result["selected_metric_columns"], selected)
+                        self.assertEqual(len(result["metric_profile"]["fields"]), len(frame.columns))
+                        with self.Session() as db:
+                            item = db.get(Dataset, 1)
+                            config = config_for(item)
+                            self.assertEqual(config["selected_metric_columns"], selected)
+                            self.assertEqual(config["business_objective"], "increase_revenue")
+                            self.assertEqual(config["connector"], source_type)
+                            details = router.build_dataset_details_response(item, frame, include_ai_analysis=False)
+                        self.assertEqual(details["selected_metric_columns"], selected)
+                        self.assertEqual(details.get("detail_warnings", []), [])
+                        self.assertEqual(len(details["metric_profile"]["fields"]), len(frame.columns))
 
 
 if __name__ == "__main__":

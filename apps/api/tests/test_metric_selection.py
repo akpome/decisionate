@@ -1,5 +1,7 @@
 import json
 import unittest
+from itertools import product
+from pathlib import Path
 from types import SimpleNamespace
 
 import pandas as pd
@@ -17,6 +19,7 @@ from app.modules.datasets.services.metric_selection import (
 from app.modules.datasets.services.metrics import (
     generate_metrics,
 )
+from app.modules.datasets.services.sources import IMPLEMENTED_CONNECTOR_TYPES
 
 
 class DatasetMetricSelectionTests(unittest.TestCase):
@@ -120,6 +123,84 @@ class DatasetMetricSelectionTests(unittest.TestCase):
         }
         self.assertIn("actions", fields)
         self.assertIn("spend", profile["available_metric_columns"])
+
+    def test_all_connectors_handle_matching_empty_numeric_fields(self):
+        empty_columns = (
+            "tax_calculation_method", "line_tax_amount", "tax_total",
+            "unitquantity", "quantity", "cost", "expenses",
+            "empty_metric", "empty_metric_copy",
+        )
+        for source_type, dtype, row_count in product(
+            sorted(IMPLEMENTED_CONNECTOR_TYPES),
+            ("float64", "Float64", "Int64", "UInt32"),
+            (0, 1, 2, 16),
+        ):
+            with self.subTest(source_type=source_type, dtype=dtype, rows=row_count):
+                dataframe = pd.DataFrame({
+                    **{
+                        column: pd.Series([None] * row_count, dtype=dtype)
+                        for column in empty_columns
+                    },
+                    "total_paid": pd.Series(range(25, 25 + row_count), dtype="float64"),
+                    "unit_price": pd.Series(range(15, 15 + row_count), dtype="float64"),
+                    "links__count": pd.Series([2] * row_count, dtype="int64"),
+                    "links__0__rel": pd.Series(["alternate"] * row_count, dtype="str"),
+                })
+                profile = build_metric_selection_profile(
+                    SimpleNamespace(source_type=source_type, source_config=None),
+                    dataframe,
+                    "increase_revenue",
+                )
+                fields = {field["column"]: field for field in profile["fields"]}
+                self.assertEqual(set(fields), set(dataframe.columns))
+                for column in empty_columns:
+                    self.assertEqual(fields[column]["status"], "excluded")
+                    self.assertNotIn(column, profile["available_metric_columns"])
+                if row_count:
+                    self.assertIn("total_paid", profile["recommended_metric_columns"])
+                    self.assertIn("unit_price", profile["recommended_metric_columns"])
+                else:
+                    self.assertEqual(profile["available_metric_columns"], [])
+
+    def test_all_connectors_handle_nonfinite_duplicate_numeric_fields(self):
+        for source_type in sorted(IMPLEMENTED_CONNECTOR_TYPES):
+            with self.subTest(source_type=source_type):
+                dataframe = pd.DataFrame({
+                    "cost": [float("inf"), float("-inf")],
+                    "expenses": [float("inf"), float("-inf")],
+                    "revenue": [100.0, 125.0],
+                })
+                profile = build_metric_selection_profile(
+                    SimpleNamespace(source_type=source_type, source_config=None),
+                    dataframe,
+                )
+                self.assertEqual(profile["available_metric_columns"], ["revenue"])
+                self.assertEqual(profile["recommended_metric_columns"], ["revenue"])
+
+    def test_empty_connector_resource_schemas_can_be_profiled(self):
+        inventory = json.loads(
+            (Path(__file__).parent / "fixtures/metric_schema_inventory.json").read_text()
+        )
+        covered_connectors = set()
+        for schema in inventory["schemas"]:
+            metadata = schema["metadata"]
+            source_type = metadata.get("connector") or "google_analytics"
+            covered_connectors.add(source_type)
+            with self.subTest(loader=schema["loader"], metadata=metadata):
+                dataframe = pd.DataFrame({
+                    column: pd.Series(dtype=dtype)
+                    for column, dtype in schema["columns"].items()
+                })
+                profile = build_metric_selection_profile(
+                    SimpleNamespace(source_type=source_type, source_config=json.dumps(metadata)),
+                    dataframe,
+                )
+                self.assertEqual(
+                    [field["column"] for field in profile["fields"]],
+                    list(dataframe.columns),
+                )
+                self.assertEqual(profile["available_metric_columns"], [])
+        self.assertEqual(covered_connectors, IMPLEMENTED_CONNECTOR_TYPES)
 
     def test_unrecognized_numeric_columns_require_confirmation(self):
         dataframe = pd.DataFrame({

@@ -345,6 +345,9 @@ def build_metric_selection_profile(
         )
         if numeric_series is None and is_numeric:
             numeric_series = _numeric_series(dataframe, column)
+            # Empty native numeric fields are absent from initial discovery,
+            # but duplicate comparisons still need their converted series.
+            numeric_lookup[column_name] = numeric_series
         definition = get_metric_definition(column, source_type)
         normalized_column = normalize_metric_column_name(column)
         completeness = _completeness(series, numeric_series if is_numeric else None)
