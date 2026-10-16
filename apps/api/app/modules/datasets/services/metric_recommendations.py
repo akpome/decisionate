@@ -16,6 +16,7 @@ from app.modules.datasets.services.metric_policy import (
 )
 from app.modules.datasets.services.numeric import is_identifier_column
 from app.modules.datasets.services.summary_query import is_summary_dataframe
+from app.modules.datasets.services.receipt_metrics import receipt_metric_columns
 
 
 logger = logging.getLogger(__name__)
@@ -227,6 +228,16 @@ def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, sel
     result["missingSelectedColumns"] = [column for column in result["savedSelection"] or [] if column not in known]
     eligible = {entry["columnKey"] for group in ("recommended", "optional", "derived") for entry in result[group]}
     result["unavailableSelectedColumns"] = [column for column in result["savedSelection"] or [] if column not in eligible]
+    if not selection_policy:
+        policy_columns = [entry["columnKey"] for group in ("recommended", "optional") for entry in result[group]]
+        allowed = receipt_metric_columns(key[0], config, policy_columns)
+        if allowed is not None:
+            # Keep policy descriptors available for deliberate selections; only
+            # change what is recommended for a new/reset automatic selection.
+            result["optional"].extend(entry for entry in result["recommended"] if entry["columnKey"] not in allowed)
+            result["recommended"] = [entry for entry in result["recommended"] if entry["columnKey"] in allowed]
+            for entry in result["derived"]:
+                entry["defaultSelected"] = entry["defaultSelected"] and entry["columnKey"] in allowed
     return result
 
 

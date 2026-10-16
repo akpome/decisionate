@@ -44,6 +44,18 @@ def _line_root(root, source_type):
     )
 
 
+def connector_schema_needs_repair(columns, source_type):
+    """Whether projection could discard fields needed to reconstruct old rows."""
+    for column in columns:
+        name = str(column)
+        if _INDEXED_COLUMN.match(name):
+            return True
+        parts = name.split("__")
+        if any(_line_root("__".join(parts[:length]), source_type) for length in range(1, len(parts) + 1)):
+            return True
+    return False
+
+
 def _restore_collections(value):
     if not isinstance(value, dict):
         return value

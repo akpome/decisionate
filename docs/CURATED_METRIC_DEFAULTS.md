@@ -21,7 +21,8 @@ before changing the selection implementation:
 
 The existing 16 metric-selection tests characterize legacy behavior, including
 the <=15-row numeric blanket, explicit empty selections, manual dimension/ID
-selection and saved selections. They must keep passing with the feature off.
+selection and saved selections. The receipt-only restriction below supersedes
+the numeric blanket for financial connectors, independently of rollout flags.
 
 ## Mapping Boundaries
 
@@ -173,3 +174,62 @@ accounting currency fields, and CRM property/Describe metadata fixtures. Missing
 objects/fields do not become recommended merely because they appear in the
 workflow matrix. The internal policy infrastructure is not evidence that all
 providers have passed that external review.
+
+## Receipt-Only Financial Defaults (2026-10-16)
+
+Accounting, commerce and payment datasets now intersect automatic recommendations
+with exact receipt/invoice field names in `services/receipt_metrics.py`. This is
+a restriction on the existing profiler, not a new currency or aggregation policy.
+It does not turn every field containing `amount`, `rate` or `total` into a metric.
+The restriction also applies to small datasets and objective changes.
+
+The mappings prefer one emitted alias per measure. Depending on the connector,
+eligible fields include line quantity, unit price, line amount, document total,
+tax, discount, shipping and amount paid/due. Only fields actually present and
+accepted by the existing profiler can be recommended. Normalized line aliases
+are preferred to their raw copies; a raw copy cannot suppress the chosen alias
+as a duplicate. Exchange rates, inventory levels, costs internal to the provider,
+transport counters and IDs are not automatically selected. IDs and textual
+dimensions may still be retained for grouping and joins.
+
+Resource scope matters: contacts, customers, accounts, products and unrecognized
+resources get no automatic financial metrics. Payment objects use their payment
+amount, not an embedded invoice total or a bank-currency equivalent. Planned
+Lightspeed K/O schemas get no guessed defaults. Business-app, advertising,
+analytics, uploaded-file and SQL-query defaults are unchanged.
+
+Research checked the following primary references against the local emitters:
+
+| Provider | Field evidence |
+| --- | --- |
+| Shopify | [LineItem](https://shopify.dev/docs/api/admin-graphql/latest/objects/LineItem) and [Order Printer fields](https://help.shopify.com/en/manual/fulfillment/managing-orders/printing-orders/shopify-order-printer/liquid-variables-and-filters-reference): quantity and original/discounted line prices. |
+| QuickBooks | [Invoice](https://developer.intuit.com/docs/api/accounting/invoice): line Amount, Qty, UnitPrice, document TotalAmt and Balance. |
+| FreshBooks | [Invoices](https://www.freshbooks.com/api/invoices): qty, unit_cost and line amount. |
+| Xero | [Invoices](https://developer.xero.com/documentation/api/accounting/invoices) and [Payments](https://developer.xero.com/documentation/api/accounting/payments): Quantity, UnitAmount, LineAmount, tax and document amounts; payment Amount differs from BankAmount. |
+| Zoho Books | [Invoices](https://www.zoho.com/books/api/v3/invoices/): quantity, rate and item/document amounts; bcy_rate is a different base-currency value. |
+| WooCommerce | [v3 order fields](https://woocommerce.github.io/woocommerce-rest-api-docs/): quantity, price, line total/tax and order charges. |
+| Square | [OrderLineItem](https://developer.squareup.com/reference/square/objects/orderlineitem): quantity and monetary fields. Only existing normalized major-unit aliases are allowed here, not duplicate raw minor-unit amounts. |
+| Stripe | [Charge](https://docs.stripe.com/api/charges/object) and [receipts](https://docs.stripe.com/receipts): payment/refund amount; exclude application fees, risk scores and card metadata. Raw amount remains minor units outside curated conversion; the restriction does not certify the legacy amount_major alias. |
+| Lightspeed X | [Sales 101](https://x-series-api.lightspeedhq.com/docs/sales_101): quantity and pricing; internal cost and loyalty fields are not receipt defaults. |
+
+The Sage Accounting and Lightspeed R reference pages could not be fully read
+through the research client. Their restrictions use only existing normalized
+aliases backed by local connector tests; this is not a claim of external schema
+certification. No regional Sage field or cross-series Lightspeed total was
+invented. Existing curated fixture/currency checks remain in force.
+
+Existing explicitly saved selections, including an empty list, are preserved.
+Use the dataset's reset-to-defaults action to replace an older saved selection.
+Automatic contact record counts in curated profiles remain available for manual
+selection but are no longer selected by default. Saved policy semantics are not
+rewritten on read.
+
+For selected financial analytical reads, DuckDB and BigQuery inspect schema
+metadata and project out unrelated typed numeric columns before creating the
+pandas DataFrame. Selected fields, identifiers, nonnumeric dimensions and selected
+summary state are retained. Legacy indexed/singleton transaction schemas bypass
+projection so vertical-item repair still has the original row. Numeric text can
+only be identified after reading and is removed by the analytical filter.
+Ingestion, stored source data, full dataset previews, metric configuration and
+legacy non-Parquet reads can still load the full data. This is not a claim of
+zero ingestion memory or a measured production-wide memory reduction.

@@ -158,8 +158,9 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                     self.assertNotIn(column, profile["available_metric_columns"])
                 if row_count:
                     self.assertEqual(fields["total_paid"]["registry"]["canonical_name"], "revenue")
-                    self.assertIn("total_paid", profile["recommended_metric_columns"])
-                    self.assertIn("unit_price", profile["recommended_metric_columns"])
+                    financial = source_type in {"stripe", "shopify", "square", "woocommerce", "lightspeed", "lightspeed_x", "lightspeed_k", "lightspeed_o", "quickbooks", "freshbooks", "sage", "xero", "zoho_books"}
+                    self.assertEqual("total_paid" in profile["recommended_metric_columns"], not financial)
+                    self.assertEqual("unit_price" in profile["recommended_metric_columns"], source_type not in {"stripe", "lightspeed_k", "lightspeed_o"})
                 else:
                     self.assertEqual(profile["available_metric_columns"], [])
 
@@ -176,7 +177,8 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                     dataframe,
                 )
                 self.assertEqual(profile["available_metric_columns"], ["revenue"])
-                self.assertEqual(profile["recommended_metric_columns"], ["revenue"])
+                financial = source_type in {"stripe", "shopify", "square", "woocommerce", "lightspeed", "lightspeed_x", "lightspeed_k", "lightspeed_o", "quickbooks", "freshbooks", "sage", "xero", "zoho_books"}
+                self.assertEqual(profile["recommended_metric_columns"], [] if financial else ["revenue"])
 
     def test_empty_connector_resource_schemas_can_be_profiled(self):
         inventory = json.loads(
@@ -226,6 +228,12 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             }))
             for objective, expected in expectations.items():
                 with self.subTest(source_type=source_type, rows=row_count, objective=objective):
+                    if source_type in {"stripe", "lightspeed_k", "lightspeed_o"}:
+                        expected = set()
+                    elif source_type == "quickbooks":
+                        expected = expected & {"unit_price", "balance"}
+                    elif source_type in {"shopify", "square", "woocommerce", "lightspeed", "lightspeed_x", "freshbooks", "sage", "xero", "zoho_books"}:
+                        expected = expected & {"unit_price"}
                     profile = build_metric_selection_profile(item, dataframe, objective)
                     self.assertEqual(set(profile["recommended_metric_columns"]), expected)
                     self.assertEqual(set(profile["available_metric_columns"]), set(dataframe.columns))
@@ -433,10 +441,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             for field in profile["fields"]
         }
 
-        self.assertIn(
-            "amount",
-            profile["recommended_metric_columns"],
-        )
+        self.assertNotIn("amount", profile["recommended_metric_columns"])
         self.assertIn(
             "quantity",
             profile["recommended_metric_columns"],
@@ -450,10 +455,10 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             profile["recommended_metric_columns"],
         )
         self.assertEqual(fields["quantity"]["status"], "recommended")
-        self.assertEqual(fields["amount"]["status"], "recommended")
+        self.assertEqual(fields["amount"]["status"], "advanced")
         self.assertEqual(fields["unit_price"]["status"], "recommended")
         self.assertEqual(fields["line_total"]["status"], "recommended")
-        self.assertEqual(fields["raw_metric"]["status"], "recommended")
+        self.assertEqual(fields["raw_metric"]["status"], "advanced")
         self.assertEqual(fields["order_id"]["role"], "identifier")
         self.assertEqual(fields["order_id"]["status"], "excluded")
         self.assertEqual(
@@ -564,11 +569,11 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             for field in profile["fields"]
         }
 
-        self.assertIn("revenue", profile["recommended_metric_columns"])
+        self.assertNotIn("revenue", profile["recommended_metric_columns"])
         self.assertEqual(fields["date"]["role"], "time")
         self.assertEqual(fields["customer_id"]["role"], "identifier")
         self.assertEqual(fields["row_sequence"]["role"], "identifier")
-        self.assertEqual(fields["constant_value"]["status"], "recommended")
+        self.assertEqual(fields["constant_value"]["status"], "advanced")
         self.assertEqual(fields["revenue_copy"]["status"], "excluded")
         self.assertEqual(fields["channel"]["role"], "dimension")
         self.assertNotIn("customer_id", profile["available_metric_columns"])

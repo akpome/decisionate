@@ -609,6 +609,10 @@ class MetricRecommendationApiTests(unittest.TestCase):
                         ("general_business", list(frame.columns)),
                     ):
                         with self.subTest(objective=objective):
+                            if source_type in {"stripe", "lightspeed_k", "lightspeed_o"}:
+                                expected = []
+                            elif source_type in {"shopify", "square", "woocommerce", "lightspeed", "lightspeed_x", "quickbooks", "freshbooks", "sage", "xero", "zoho_books"}:
+                                expected = [column for column in expected if column == "unit_price"]
                             result = router.update_dataset_metric_selection(
                                 SimpleNamespace(), 1, DatasetMetricSelectionUpdate(
                                     selected_metric_columns=list(frame.columns),

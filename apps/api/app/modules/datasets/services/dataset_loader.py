@@ -1,4 +1,5 @@
 import logging
+from functools import partial
 
 from fastapi import HTTPException
 
@@ -23,6 +24,7 @@ from app.modules.datasets.services.connectors import (
 from app.modules.datasets.services.sources import (
     IMPLEMENTED_CONNECTOR_TYPES,
 )
+from app.modules.datasets.services.receipt_metrics import receipt_metric_columns, receipt_projection
 
 
 logger = logging.getLogger(__name__)
@@ -51,15 +53,19 @@ def load_dataframe_from_dataset(
     apply_metric_selection: bool = True,
 ):
     try:
-        dataframe = load_dataset_dataframe(
-            dataset
-        )
-        if str(dataset.source_type or "").strip().lower() in (
+        config = parse_dataset_source_config(dataset)
+        source_type = str(getattr(dataset, "source_type", "") or "").strip().lower()
+        if apply_metric_selection and receipt_metric_columns(source_type, config, ()) is not None:
+            dataframe = load_dataset_dataframe(
+                dataset, column_selector=partial(receipt_projection, source_type, config),
+            )
+        else:
+            dataframe = load_dataset_dataframe(dataset)
+        if source_type in (
             IMPLEMENTED_CONNECTOR_TYPES
         ):
-            config = parse_dataset_source_config(dataset)
             dataframe = normalize_connector_row_schema(
-                dataframe, dataset.source_type, config.get("resource") or config.get("resource_type"),
+                dataframe, source_type, config.get("resource") or config.get("resource_type"),
             )
             dataframe = normalize_connector_dataframe_dates(dataframe)
         if apply_metric_selection:

@@ -25,6 +25,10 @@ from app.modules.datasets.services.metric_recommendations import (
     resolve_metric_recommendations,
     uses_curated_selection,
 )
+from app.modules.datasets.services.receipt_metrics import (
+    receipt_metric_columns,
+    restrict_receipt_profile,
+)
 
 
 DATASET_SELECTED_METRICS_KEY = "selected_metric_columns"
@@ -320,6 +324,8 @@ def build_metric_selection_profile(
         or "general_business"
     )
     source_type = _dataset_source_type(dataset)
+    receipt_defaults = receipt_metric_columns(source_type, parse_dataset_source_config(dataset), dataframe.columns)
+    receipt_default_set = set(receipt_defaults or [])
     saved_decisions = _saved_metric_decisions(dataset)
     row_count = len(dataframe)
     is_small_dataset = (
@@ -381,6 +387,8 @@ def build_metric_selection_profile(
                 signature,
                 [],
             ):
+                if column_name in receipt_default_set and candidate_column not in receipt_default_set:
+                    continue
                 candidate_definition = get_metric_definition(candidate_column, source_type)
                 same_metric = (
                     definition is not None
@@ -677,7 +685,7 @@ def build_metric_selection_profile(
     recommended_names = [field["column"] for field in recommended]
     recommended_name_set = set(recommended_names)
 
-    return curated_profile(dataset, dataframe, {
+    result = curated_profile(dataset, dataframe, {
         "version": DATASET_METRIC_PROFILE_VERSION,
         "source_type": source_type,
         "objective": resolved_objective,
@@ -704,6 +712,7 @@ def build_metric_selection_profile(
         ],
         "fields": fields,
     })
+    return restrict_receipt_profile(source_type, parse_dataset_source_config(dataset), result)
 
 
 def parse_dataset_source_config(dataset) -> dict:
@@ -927,14 +936,25 @@ def filter_dataframe_to_selected_metrics(
     automatic_metric_columns = set(
         resolved_profile.get("available_metric_columns", [])
     )
+    receipt_defaults = receipt_metric_columns(
+        _dataset_source_type(dataset), parse_dataset_source_config(dataset), dataframe.columns,
+    )
 
+    numeric_columns = {str(column) for column, _ in get_numeric_columns(dataframe)}
+    if receipt_defaults is not None:
+        numeric_columns.update(
+            str(column) for column in dataframe
+            if pd.api.types.is_numeric_dtype(dataframe[column])
+        )
     metric_like_columns = {
         str(column)
-        for column, _ in get_numeric_columns(dataframe)
+        for column in dataframe.columns
         if (
-            not pd.api.types.is_bool_dtype(dataframe[column])
+            str(column) in numeric_columns
+            and not pd.api.types.is_bool_dtype(dataframe[column])
             and (
                 selected_columns is not None
+                or receipt_defaults is not None
                 or str(column) in automatic_metric_columns
             )
             and not _is_generated_metric_column(
@@ -950,13 +970,31 @@ def filter_dataframe_to_selected_metrics(
             profile=resolved_profile,
         )
     )
+    selected_summary_columns = {
+        f"{selected}__{statistic}"
+        for selected in selected_set for statistic in _SUMMARY_STATISTICS
+    }
     keep_columns = [
         column
         for column in dataframe.columns
         if (
             str(column) not in metric_like_columns
             or str(column) in selected_set
+            or (receipt_defaults is not None and selected_columns is None and is_identifier_column(column))
+        )
+        and (
+            receipt_defaults is None
+            or not _is_generated_metric_column(column, dataframe)
+            or str(column) in _GENERATED_METRIC_COLUMNS
+            or str(column) in selected_summary_columns
         )
     ]
 
-    return dataframe.loc[:, keep_columns].copy()
+    result = dataframe.loc[:, keep_columns].copy()
+    if receipt_defaults is not None:
+        for column in result:
+            if str(column) not in selected_set | _GENERATED_METRIC_COLUMNS and pd.api.types.is_bool_dtype(result[column]):
+                # Keep boolean grouping fields without treating True/False as
+                # receipt amounts in downstream numeric discovery.
+                result[column] = result[column].astype("string")
+    return result

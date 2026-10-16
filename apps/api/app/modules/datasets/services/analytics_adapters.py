@@ -33,6 +33,7 @@ class AnalyticsAdapter:
     def load_dataframe(
         self,
         dataset,
+        column_selector=None,
     ):
         raise NotImplementedError
 
@@ -81,6 +82,7 @@ class DuckDBAnalyticsAdapter(
     def load_dataframe(
         self,
         dataset,
+        column_selector=None,
     ):
         file_path = get_dataset_storage_reference(dataset)
         with get_object_storage().materialize(file_path) as materialized_path:
@@ -97,14 +99,28 @@ class DuckDBAnalyticsAdapter(
             connection = self._open_connection()
             try:
                 placeholders = ", ".join("?" for _ in parquet_paths)
-                query = (
-                    "SELECT * FROM read_parquet("
+                source_query = (
+                    "FROM read_parquet("
                     f"[{placeholders}], union_by_name = true)"
                 )
-                return connection.execute(
+                query = f"SELECT * {source_query}"
+                columns = None
+                if column_selector is not None:
+                    schema = {
+                        row[0]: row[1]
+                        for row in connection.execute(f"DESCRIBE {query}", parquet_paths).fetchall()
+                    }
+                    columns = column_selector(schema)
+                    if columns is not None:
+                        projection = ", ".join(
+                            '"' + column.replace('"', '""') + '"' for column in columns
+                        ) or "NULL AS __decisionate_projection_row__"
+                        query = f"SELECT {projection} {source_query}"
+                dataframe = connection.execute(
                     query,
                     parquet_paths,
                 ).fetchdf()
+                return dataframe.iloc[:, :0] if columns == [] else dataframe
             except FileNotFoundError:
                 raise
             except Exception as error:
@@ -123,6 +139,7 @@ class BigQueryAnalyticsAdapter(
     def load_dataframe(
         self,
         dataset,
+        column_selector=None,
     ):
         if not self.config.bigquery_project_id:
             raise AnalyticsAdapterUnavailable(
@@ -150,16 +167,30 @@ class BigQueryAnalyticsAdapter(
         client = bigquery.Client(
             project=self.config.bigquery_project_id
         )
+        columns = None
+        projection = "*"
+        if column_selector is not None:
+            schema = {
+                field.name: field.field_type + ("[]" if getattr(field, "mode", None) == "REPEATED" else "")
+                for field in client.get_table(table_id).schema
+            }
+            columns = column_selector(schema)
+            if columns is not None:
+                projection = ", ".join(
+                    "`" + column.replace("\\", "\\\\").replace("`", "\\`") + "`" for column in columns
+                )
+                projection = projection or "NULL AS __decisionate_projection_row__"
         query_job = client.query(
-            f"SELECT * FROM `{table_id}`",
+            f"SELECT {projection} FROM `{table_id}`",
             location=self.config.bigquery_location,
         )
 
-        return (
+        dataframe = (
             query_job
             .result()
             .to_dataframe()
         )
+        return dataframe.iloc[:, :0] if columns == [] else dataframe
 
 
 def get_analytics_adapter(
@@ -187,8 +218,9 @@ def get_analytics_adapter(
 
 def load_dataset_dataframe(
     dataset,
+    column_selector=None,
 ):
-    return (
-        get_analytics_adapter()
-        .load_dataframe(dataset)
-    )
+    adapter = get_analytics_adapter()
+    if column_selector is None:
+        return adapter.load_dataframe(dataset)
+    return adapter.load_dataframe(dataset, column_selector=column_selector)
