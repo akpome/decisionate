@@ -216,6 +216,10 @@ from app.modules.datasets.services.google_analytics import (
     GoogleAnalyticsConnectorUnavailable,
     load_google_analytics_report,
 )
+from app.modules.datasets.services.connector_schema import (
+    COLUMN_MAPPING_ATTR,
+    remap_connector_metric_config,
+)
 from app.modules.datasets.services.connectors import (
     ConnectorNoData,
     ConnectorUnavailable,
@@ -229,6 +233,7 @@ from app.modules.datasets.services.connectors import (
     deduplicate_lightspeed_sales,
     filter_lightspeed_completed_sales,
     load_connector_dataframe,
+    normalize_connector_row_schema,
     normalize_hubspot_resource_types,
     normalize_lightspeed_x_resource_types,
     normalize_lightspeed_k_resource_types,
@@ -1876,6 +1881,10 @@ def build_dataset_details_response(
             str(column)
             for column in dataframe.columns
         ],
+        **({
+            "row_count": len(dataframe),
+            "column_count": len(dataframe.columns),
+        } if COLUMN_MAPPING_ATTR in dataframe.attrs else {}),
         "metrics": _safe_dataset_detail_section(
             "metrics",
             lambda: generate_metrics(
@@ -7440,6 +7449,10 @@ def merge_connector_dataframes(
     source_type: str,
     report_config: dict,
 ):
+    resource = report_config.get("resource") or report_config.get("resource_type")
+    existing_dataframe = normalize_connector_row_schema(existing_dataframe, source_type, resource)
+    incoming_dataframe = normalize_connector_row_schema(incoming_dataframe, source_type, resource)
+
     def remove_non_authoritative_rows(dataframe):
         if not isinstance(dataframe, pd.DataFrame) or dataframe.empty:
             return dataframe
@@ -8081,6 +8094,11 @@ def persist_connector_dataframe(
         # Normalize dynamic values before deduplication. Older connector
         # partitions and provider aliases can contain dict/list values in an
         # identity column, which pandas cannot hash during drop_duplicates.
+        existing_dataframe = normalize_connector_row_schema(existing_dataframe, connection.source_type, sync_resource)
+        schema_column_mapping = (
+            existing_dataframe.attrs.get(COLUMN_MAPPING_ATTR, {})
+            if isinstance(existing_dataframe, pd.DataFrame) else {}
+        )
         existing_dataframe = normalize_connector_dataframe_for_parquet(
             existing_dataframe
         )
@@ -8286,6 +8304,7 @@ def persist_connector_dataframe(
             previous_source_config = parse_source_connection_config(
                 existing_dataset.source_config
             )
+            previous_source_config = remap_connector_metric_config(previous_source_config, schema_column_mapping)
             if DATASET_SELECTED_METRICS_KEY in previous_source_config:
                 next_source_config[DATASET_SELECTED_METRICS_KEY] = (
                     previous_source_config[DATASET_SELECTED_METRICS_KEY]

@@ -14,9 +14,11 @@ from app.modules.datasets.services.analytics_adapters import (
 )
 from app.modules.datasets.services.metric_selection import (
     filter_dataframe_to_selected_metrics,
+    parse_dataset_source_config,
 )
 from app.modules.datasets.services.connectors import (
     normalize_connector_dataframe_dates,
+    normalize_connector_row_schema,
 )
 from app.modules.datasets.services.sources import (
     IMPLEMENTED_CONNECTOR_TYPES,
@@ -55,6 +57,10 @@ def load_dataframe_from_dataset(
         if str(dataset.source_type or "").strip().lower() in (
             IMPLEMENTED_CONNECTOR_TYPES
         ):
+            config = parse_dataset_source_config(dataset)
+            dataframe = normalize_connector_row_schema(
+                dataframe, dataset.source_type, config.get("resource") or config.get("resource_type"),
+            )
             dataframe = normalize_connector_dataframe_dates(dataframe)
         if apply_metric_selection:
             return filter_dataframe_to_selected_metrics(

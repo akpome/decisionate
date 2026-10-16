@@ -7,6 +7,7 @@ import re
 
 import pandas as pd
 
+from app.modules.datasets.services.connector_schema import COLUMN_MAPPING_ATTR
 from app.modules.datasets.services.metric_registry import (
     get_metric_definition,
     normalize_metric_column_name,
@@ -857,6 +858,9 @@ def get_effective_dataset_metric_columns(
         )
     )
     selected_columns = get_dataset_selected_metric_columns(dataset)
+    if selected_columns is not None:
+        mapping = dataframe.attrs.get(COLUMN_MAPPING_ATTR, {})
+        selected_columns = list(dict.fromkeys(mapping.get(column, column) for column in selected_columns))
 
     if uses_curated_selection(dataset) and selected_columns is not None:
         eligible = set(resolved_profile.get("available_metric_columns", []))

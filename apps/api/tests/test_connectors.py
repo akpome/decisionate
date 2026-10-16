@@ -655,7 +655,7 @@ class ConnectorSmokeTests(unittest.TestCase):
             json.loads(connection.connection_config),
         )
 
-    def test_quickbooks_nested_lists_are_flattened_for_analysis(self):
+    def test_nested_lists_never_create_position_dependent_columns(self):
         row = connectors.build_dynamic_connector_row(
             {
                 "Id": "invoice-1",
@@ -674,12 +674,8 @@ class ConnectorSmokeTests(unittest.TestCase):
         )
 
         self.assertEqual(row["Line__count"], 1)
-        self.assertEqual(row["Line__0__Amount"], 125)
-        self.assertEqual(
-            row["Line__0__SalesItemLineDetail__ItemRef__value"],
-            "item-1",
-        )
-        self.assertEqual(row["Line__0__SalesItemLineDetail__Qty"], 2)
+        self.assertEqual(json.loads(row["Line"])[0]["Amount"], 125)
+        self.assertFalse(any("__0" in column for column in row))
 
     def test_implemented_connectors_are_registered(self):
         for source_type in IMPLEMENTED_CONNECTOR_TYPES:

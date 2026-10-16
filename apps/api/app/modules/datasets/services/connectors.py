@@ -21,6 +21,7 @@ from urllib.request import Request, urlopen
 
 import pandas as pd
 
+from app.modules.datasets.services.connector_schema import normalize_connector_row_schema
 from app.configuration import get_provider_setting
 from app.db.models import DataSourceConnection
 from app.db.models import OAuthCredential
@@ -981,7 +982,7 @@ def flatten_connector_record(
     prefix: str = "",
     flatten_lists: bool = False,
 ) -> dict:
-    """Flatten provider fields while retaining their dynamic schema."""
+    """Flatten objects, keeping collections independent of their item count."""
     if not isinstance(value, dict):
         return {_dynamic_column_name("", prefix): value}
 
@@ -1000,27 +1001,6 @@ def flatten_connector_record(
 
         if isinstance(child, list) and flatten_lists:
             flattened[_dynamic_column_name(column, "count")] = len(child)
-            for index, item in enumerate(child):
-                item_column = _dynamic_column_name(column, index)
-                if isinstance(item, dict) and item:
-                    flattened.update(
-                        flatten_connector_record(
-                            item,
-                            item_column,
-                            flatten_lists=True,
-                        )
-                    )
-                elif isinstance(item, list):
-                    flattened.update(
-                        flatten_connector_record(
-                            {str(index): item},
-                            column,
-                            flatten_lists=True,
-                        )
-                    )
-                else:
-                    flattened[item_column] = item
-            continue
 
         if isinstance(child, (dict, list)):
             flattened[column] = json.dumps(

@@ -334,7 +334,7 @@ class ZohoBooksConnectorTests(unittest.TestCase):
             dataframe["item_description"].tolist(),
             ["Consulting", "Support"],
         )
-        self.assertEqual(dataframe["custom_fields__0__value"].tolist(), ["SMB", "SMB"])
+        self.assertEqual([json.loads(value)[0]["value"] for value in dataframe["custom_fields"]], ["SMB", "SMB"])
         self.assertFalse(any("line_items__" in column for column in dataframe.columns))
         self.assertEqual(report["connector"], "zoho_books")
         self.assertEqual(report["organization_id"], "123456789")
