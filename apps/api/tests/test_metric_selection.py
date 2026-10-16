@@ -157,6 +157,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                     self.assertEqual(fields[column]["status"], "excluded")
                     self.assertNotIn(column, profile["available_metric_columns"])
                 if row_count:
+                    self.assertEqual(fields["total_paid"]["registry"]["canonical_name"], "revenue")
                     self.assertIn("total_paid", profile["recommended_metric_columns"])
                     self.assertIn("unit_price", profile["recommended_metric_columns"])
                 else:
@@ -201,6 +202,59 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 )
                 self.assertEqual(profile["available_metric_columns"], [])
         self.assertEqual(covered_connectors, IMPLEMENTED_CONNECTOR_TYPES)
+
+    def test_objective_defaults_only_include_relevant_metrics_for_all_connectors(self):
+        expectations = {
+            "general_business": {"revenue", "spend", "unit_price", "balance", "tax", "customers", "payment_amount", "repeat_purchase_value", "custom_amount"},
+            "increase_revenue": {"revenue", "unit_price", "customers"},
+            "profitability": {"revenue", "spend", "unit_price", "balance", "tax"},
+            "reduce_expenses": {"spend"},
+            "cash_flow": {"revenue", "spend", "balance", "tax", "payment_amount"},
+            "qualified_leads": set(),
+            "retention": {"customers", "repeat_purchase_value"},
+            "marketing_return": {"revenue", "spend", "unit_price"},
+        }
+        for source_type, row_count in product(sorted(IMPLEMENTED_CONNECTOR_TYPES), (2, 16)):
+            dataframe = pd.DataFrame({
+                column: range(index + 1, index + row_count + 1)
+                for index, column in enumerate(sorted(expectations["general_business"]))
+            })
+            item = SimpleNamespace(source_type=source_type, source_config=json.dumps({
+                "business_objective": "general_business",
+                "selected_metric_columns": list(dataframe.columns),
+                "metric_decisions": {column: "metric" for column in dataframe.columns},
+            }))
+            for objective, expected in expectations.items():
+                with self.subTest(source_type=source_type, rows=row_count, objective=objective):
+                    profile = build_metric_selection_profile(item, dataframe, objective)
+                    self.assertEqual(set(profile["recommended_metric_columns"]), expected)
+                    self.assertEqual(set(profile["available_metric_columns"]), set(dataframe.columns))
+                    for field in profile["fields"]:
+                        if field["column"] not in expected:
+                            self.assertNotEqual(field["status"], "recommended")
+
+    def test_objective_defaults_do_not_replace_explicit_choices_on_read(self):
+        dataframe = pd.DataFrame({"revenue": [100, 125], "spend": [20, 25]})
+        item = SimpleNamespace(source_type="csv", source_config=json.dumps({
+            "business_objective": "reduce_expenses",
+            "selected_metric_columns": ["revenue"],
+            "metric_decisions": {"revenue": "metric"},
+        }))
+        before = item.source_config
+        profile = build_metric_selection_profile(item, dataframe)
+        self.assertEqual(profile["recommended_metric_columns"], ["spend"])
+        self.assertEqual(get_effective_dataset_metric_columns(item, dataframe, profile), ["revenue"])
+        self.assertEqual(item.source_config, before)
+
+    def test_objective_without_relevant_fields_has_no_automatic_selection(self):
+        dataframe = pd.DataFrame({"revenue": [100, 125], "unit_price": [15, 20]})
+        profile = build_metric_selection_profile(
+            SimpleNamespace(source_type="csv", source_config=None),
+            dataframe,
+            "reduce_expenses",
+        )
+        self.assertEqual(profile["recommended_metric_columns"], [])
+        self.assertEqual(set(profile["available_metric_columns"]), set(dataframe.columns))
 
     def test_unrecognized_numeric_columns_require_confirmation(self):
         dataframe = pd.DataFrame({

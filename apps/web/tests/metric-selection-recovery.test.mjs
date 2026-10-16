@@ -11,12 +11,12 @@ class ApiError extends Error {
 }
 const options = {
   datasetId: 58, userId: "owner", workspaceId: "workspace-1", columns: ["revenue"],
-  objective: "general_business", recommendedColumns: ["revenue", "visits"],
+  objective: "general_business",
 }
 const savedDataset = {
   file_name: "sales.csv", numeric_columns: ["revenue", "visits"],
   selected_metric_columns: ["revenue"], metric_selection_configured: true,
-  metric_profile: { objective: "general_business" },
+  metric_profile: { objective: "general_business", recommended_metric_columns: ["revenue", "visits"] },
 }
 
 function harness({ save = async () => ({ ...savedDataset, dataset_id: 58 }), read = async () => savedDataset } = {}) {
@@ -113,6 +113,43 @@ test("restoring recommendations verifies the intended defaults rather than the e
   const result = await h.saveMetricSelectionWithRecovery({ ...options, columns: [], restoreRecommended: true })
   assert.equal(result.saved, true)
   assert.equal(h.calls.saves[0][5], true)
+})
+
+test("objective changes recover against the new defaults rather than the previous objective's metrics", async () => {
+  const dataset = {
+    ...savedDataset, selected_metric_columns: ["spend"],
+    metric_profile: { objective: "reduce_expenses", recommended_metric_columns: ["spend"] },
+  }
+  const h = harness({ save: async () => { throw new TypeError("Failed to fetch") }, read: async () => dataset })
+  const result = await h.saveMetricSelectionWithRecovery({
+    ...options, objective: "reduce_expenses", restoreRecommended: true,
+  })
+  assert.equal(result.saved, true)
+  assert.deepEqual(result.selection.selected_metric_columns, ["spend"])
+  assert.equal(h.calls.saves.length, 1)
+  assert.equal(h.calls.saves[0][4], "reduce_expenses")
+  assert.equal(h.calls.saves[0][5], true)
+
+  for (const unconfirmed of [
+    { ...dataset, selected_metric_columns: ["revenue"] },
+    { ...dataset, selected_metric_columns: ["spend", "revenue"] },
+    { ...dataset, selected_metric_columns: [], metric_profile: { objective: "reduce_expenses" } },
+  ]) {
+    const mismatch = harness({ save: async () => { throw new Error("offline") }, read: async () => unconfirmed })
+    assert.equal((await mismatch.saveMetricSelectionWithRecovery({
+      ...options, objective: "reduce_expenses", restoreRecommended: true,
+    })).saved, false)
+  }
+})
+
+test("an objective with no relevant metrics can recover an explicitly empty default selection", async () => {
+  const h = harness({ save: async () => { throw new Error("offline") }, read: async () => ({
+    ...savedDataset, selected_metric_columns: [],
+    metric_profile: { objective: "reduce_expenses", recommended_metric_columns: [] },
+  }) })
+  assert.equal((await h.saveMetricSelectionWithRecovery({
+    ...options, objective: "reduce_expenses", restoreRecommended: true,
+  })).saved, true)
 })
 
 test("validation and authorization failures are not mistaken for successful matching old state", async () => {

@@ -240,6 +240,15 @@ def _objective_relevance(
     return 0.35
 
 
+def _matches_objective(normalized_column: str, definition, objective: str) -> bool:
+    if objective not in _OBJECTIVE_ALIASES:
+        return True
+    return bool(
+        (definition and objective in definition.business_functions)
+        or any(alias in normalized_column for alias in _OBJECTIVE_ALIASES[objective])
+    )
+
+
 def _semantic_relevance(normalized_column: str, definition) -> float:
     if definition:
         return 1.0
@@ -614,6 +623,16 @@ def build_metric_selection_profile(
                 role="metric",
                 status="advanced",
                 reason="Previously reviewed and kept out of metric calculations.",
+            )
+
+        # A past confirmation or small-dataset fallback must not reselect
+        # unrelated metrics when the user switches business objectives.
+        if field["status"] == "recommended" and not _matches_objective(
+            normalized_column, definition, resolved_objective,
+        ):
+            field.update(
+                status="ambiguous",
+                reason="Not recommended for this business objective; available for manual selection.",
             )
 
         if field["status"] in {"recommended", "ambiguous"}:

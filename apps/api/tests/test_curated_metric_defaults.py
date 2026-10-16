@@ -584,6 +584,64 @@ class MetricRecommendationApiTests(unittest.TestCase):
                         self.assertEqual(details.get("detail_warnings", []), [])
                         self.assertEqual(len(details["metric_profile"]["fields"]), len(frame.columns))
 
+    def test_changing_objectives_replaces_stale_defaults_for_every_connector(self):
+        frame = pd.DataFrame({
+            "revenue": [100.0, 125.0], "unit_price": [15.0, 20.0],
+            "spend": [20.0, 25.0], "customers": [3, 5],
+        })
+        for source_type in sorted(IMPLEMENTED_CONNECTOR_TYPES):
+            with self.subTest(source_type=source_type):
+                with self.Session() as db:
+                    item = db.get(Dataset, 1)
+                    item.source_type = source_type
+                    item.source_config = json.dumps({
+                        "connector": source_type,
+                        "business_objective": "increase_revenue",
+                        "selected_metric_columns": ["revenue", "unit_price", "customers"],
+                        "metric_decisions": {column: "metric" for column in ("revenue", "unit_price", "customers")},
+                    })
+                    db.commit()
+                with patch.object(router, "load_dataframe_from_dataset", return_value=frame):
+                    for objective, expected in (
+                        ("reduce_expenses", ["spend"]),
+                        ("retention", ["customers"]),
+                        ("increase_revenue", ["revenue", "unit_price", "customers"]),
+                        ("general_business", list(frame.columns)),
+                    ):
+                        with self.subTest(objective=objective):
+                            result = router.update_dataset_metric_selection(
+                                SimpleNamespace(), 1, DatasetMetricSelectionUpdate(
+                                    selected_metric_columns=list(frame.columns),
+                                    business_objective=objective,
+                                    select_recommended_metric_columns=True,
+                                ),
+                            )
+                            self.assertEqual(result["selected_metric_columns"], expected)
+                            self.assertEqual(set(result["metric_profile"]["recommended_metric_columns"]), set(expected))
+                            with self.Session() as db:
+                                item = db.get(Dataset, 1)
+                                self.assertEqual(config_for(item)["business_objective"], objective)
+                                self.assertEqual(config_for(item)["selected_metric_columns"], expected)
+                                details = router.build_dataset_details_response(item, frame, include_ai_analysis=False)
+                            self.assertEqual(details["selected_metric_columns"], expected)
+                            self.assertEqual(details["detail_warnings"], [])
+
+    def test_manual_selection_is_preserved_when_saving_the_same_objective(self):
+        with self.Session() as db:
+            item = db.get(Dataset, 1)
+            item.source_type = "csv"
+            item.source_config = json.dumps({"business_objective": "reduce_expenses"})
+            db.commit()
+        frame = pd.DataFrame({"revenue": [100, 125], "spend": [20, 25]})
+        with patch.object(router, "load_dataframe_from_dataset", return_value=frame):
+            result = router.update_dataset_metric_selection(
+                SimpleNamespace(), 1, DatasetMetricSelectionUpdate(
+                    selected_metric_columns=["revenue"], business_objective="reduce_expenses",
+                ),
+            )
+        self.assertEqual(result["selected_metric_columns"], ["revenue"])
+        self.assertEqual(result["metric_profile"]["recommended_metric_columns"], ["spend"])
+
 
 if __name__ == "__main__":
     unittest.main()

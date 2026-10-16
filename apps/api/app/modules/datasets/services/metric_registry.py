@@ -60,7 +60,7 @@ _REVENUE = _definition(
     (
         r"(^|_)(revenue|sales|sale_value|order_total|invoice_total)$",
         r"(^|_)(gross_sales|net_sales|conversion_value|total_amount)$",
-        r"(^|_)(total|subtotal|sub_total|line_total|line_amount|amount_paid|paid_amount)$",
+        r"(^|_)(total|subtotal|sub_total|line_total|line_amount|amount_paid|paid_amount|total_paid)$",
     ),
     "Money earned from completed sales, orders, or invoices.",
     "currency",

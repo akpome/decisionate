@@ -707,8 +707,6 @@ export default function DatasetDetailsPage() {
         userId,
         workspaceId: activeWorkspaceId,
         restoreRecommended: selectRecommendedMetricColumns,
-        recommendedColumns: showCuratedPicker && curatedRecommendations
-          ? getRecommendedMetricKeys(curatedRecommendations) : recommendedMetricColumns,
         policyVersion: showCuratedPicker ? curatedRecommendations?.policyVersion : undefined,
       })
       if (requestId !== metricSelectionRequest.current) return

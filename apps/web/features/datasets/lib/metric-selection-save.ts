@@ -12,7 +12,6 @@ type SaveOptions = {
   columns: string[]
   objective: string
   restoreRecommended?: boolean
-  recommendedColumns: string[]
   policyVersion?: string
 }
 
@@ -66,10 +65,13 @@ export async function saveMetricSelectionWithRecovery(options: SaveOptions): Pro
     // Verify a potentially committed write without replaying the mutation.
     try {
       const dataset = await refreshDatasetMetrics(datasetId, userId, workspaceId)
-      const expected = new Set(restoreRecommended ? options.recommendedColumns : columns)
+      const expectedColumns = restoreRecommended
+        ? dataset.metric_profile?.recommended_metric_columns : columns
+      const expected = new Set(expectedColumns)
       const actual = dataset.selected_metric_columns
       if (
         dataset.metric_selection_configured === true &&
+        Array.isArray(expectedColumns) &&
         Array.isArray(actual) &&
         new Set(actual).size === expected.size && actual.every((column: string) => expected.has(column)) &&
         dataset.metric_profile?.objective === objective &&
