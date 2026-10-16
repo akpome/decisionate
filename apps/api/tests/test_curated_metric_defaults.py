@@ -485,6 +485,66 @@ class MetricRecommendationApiTests(unittest.TestCase):
             self.assertEqual(config["selected_metric_columns"], ["unknown_numeric"])
             self.assertFalse(config[CURATED_SELECTION_KEY])
 
+    def test_legacy_duplicate_columns_can_save_the_names_displayed_by_the_preview(self):
+        with self.Session() as db:
+            item = db.get(Dataset, 1)
+            item.source_type = "csv"
+            item.source_config = "{}"
+            db.commit()
+        frame = pd.DataFrame([[1, 2], [3, 4]], columns=["value", "value"])
+        with patch.object(router, "load_dataframe_from_dataset", return_value=frame):
+            result = router.update_dataset_metric_selection(
+                SimpleNamespace(), 1, DatasetMetricSelectionUpdate(
+                    selected_metric_columns=["value", "value__duplicate_2"],
+                ),
+            )
+        self.assertEqual(result["selected_metric_columns"], ["value", "value__duplicate_2"])
+        self.assertEqual([field["column"] for field in result["metric_profile"]["fields"]], ["value", "value__duplicate_2"])
+        self.assertEqual(list(frame.columns), ["value", "value"])
+        with self.Session() as db:
+            self.assertEqual(config_for(db.get(Dataset, 1))["selected_metric_columns"], ["value", "value__duplicate_2"])
+
+    def test_response_profile_failure_does_not_commit_a_selection_then_report_failure(self):
+        original_profile = router.build_metric_selection_profile
+        with self.Session() as db:
+            before = db.get(Dataset, 1).source_config
+        calls = 0
+
+        def profile(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise RuntimeError("Response profiling failed")
+            return original_profile(*args, **kwargs)
+
+        with patch.object(router, "build_metric_selection_profile", side_effect=profile), patch.object(router.logger, "exception"):
+            with self.assertRaises(HTTPException) as caught:
+                self.save(["clicks"])
+        self.assertEqual(caught.exception.status_code, 503)
+        with self.Session() as db:
+            self.assertEqual(db.get(Dataset, 1).source_config, before)
+
+    def test_recommendations_use_the_same_duplicate_column_names_as_the_preview(self):
+        frame = search_frame()
+        frame = pd.concat([frame, frame[["clicks"]]], axis=1)
+        with patch.object(router, "load_dataframe_from_dataset", return_value=frame):
+            result = asyncio.run(router.dataset_metric_recommendations(SimpleNamespace(), 1))
+        self.assertEqual(recommended_columns(result), ["clicks", "impressions", "ctr", "weighted_position"])
+        self.assertFalse(frame.columns.is_unique)
+
+    def test_storage_503_is_logged_with_the_failing_save_stage_and_no_metadata_change(self):
+        error = HTTPException(503, "Dataset storage is temporarily unavailable. Try again shortly.")
+        with self.Session() as db:
+            before = db.get(Dataset, 1).source_config
+        with patch.object(router, "load_dataframe_from_dataset", side_effect=error), patch.object(router.logger, "exception") as log:
+            with self.assertRaises(HTTPException) as caught:
+                self.save(["clicks"])
+        self.assertIs(caught.exception, error)
+        self.assertEqual(log.call_args.kwargs["extra"]["stage"], "data_load")
+        self.assertEqual(log.call_args.kwargs["extra"]["dataset_id"], 1)
+        with self.Session() as db:
+            self.assertEqual(db.get(Dataset, 1).source_config, before)
+
 
 if __name__ == "__main__":
     unittest.main()

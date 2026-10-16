@@ -10545,6 +10545,7 @@ async def dataset_metric_recommendations(request: Request, dataset_id: int):
         if not flags["backend"]:
             raise HTTPException(404, "Metric recommendations are not enabled.")
         dataframe = await asyncio.to_thread(load_dataframe_from_dataset, dataset, False)
+        dataframe = await asyncio.to_thread(normalize_dataset_details_dataframe, dataframe)
         return await asyncio.to_thread(resolve_metric_recommendations, dataset, dataframe, diagnostics=flags["diagnostics"])
     finally:
         db.close()
@@ -10564,6 +10565,7 @@ def update_dataset_metric_selection(
     require_workspace_data_manager(request)
 
     db = SessionLocal()
+    stage = "dataset_lookup"
 
     try:
         dataset = load_dataset(
@@ -10579,10 +10581,15 @@ def update_dataset_metric_selection(
 
         # FastAPI runs this synchronous handler on a worker thread, keeping
         # database waits and all dataframe work off the event loop together.
+        stage = "data_load"
         dataframe = load_dataframe_from_dataset(dataset, False)
+        # Use the same stable field names that the preview presents to the user.
+        dataframe = normalize_dataset_details_dataframe(dataframe)
+        stage = "metric_profile"
         profile = build_metric_selection_profile(
             dataset, dataframe, payload.business_objective,
         )
+        stage = "selection_validation"
         recommendations = None
         if payload.use_curated_recommendations:
             if not metric_default_flags(dataset)["backend"]:
@@ -10647,37 +10654,47 @@ def update_dataset_metric_selection(
             source_config,
             sort_keys=True,
         )
-        if recommendations is not None:
-            db.query(DatasetAnalysis).filter(DatasetAnalysis.dataset_id == dataset.id).delete(synchronize_session=False)
-        db.commit()
-        db.refresh(dataset)
-
+        # Prepare the response while rollback can still undo the metadata write.
+        stage = "response_profile"
         saved_profile = build_metric_selection_profile(dataset, dataframe)
-        return {
+        response = {
             "dataset_id": dataset.id,
             "file_name": connector_dataset_display_name(dataset),
             "numeric_columns": numeric_columns,
             "selected_metric_columns": selected_columns,
             "metric_profile": saved_profile,
         }
+        stage = "persistence"
+        if recommendations is not None:
+            db.query(DatasetAnalysis).filter(DatasetAnalysis.dataset_id == dataset.id).delete(synchronize_session=False)
+        db.commit()
+        return response
     except ValueError as error:
         db.rollback()
         raise HTTPException(
             status_code=400,
             detail=str(error),
         ) from error
-    except HTTPException:
+    except HTTPException as error:
         db.rollback()
+        if error.status_code >= 500:
+            logger.exception(
+                "Dataset metric selection failed during %s (dataset_id=%s)",
+                stage, dataset_id,
+                extra={"dataset_id": dataset_id, "stage": stage, "error_type": type(error).__name__},
+            )
         raise
     except Exception as error:
         db.rollback()
         logger.exception(
-            "Dataset metric selection failed",
+            "Dataset metric selection failed during %s (dataset_id=%s)",
+            stage, dataset_id,
             extra={
                 "dataset_id": dataset_id,
                 "user_id": user_id,
                 "workspace_id": workspace_id,
                 "error_type": type(error).__name__,
+                "stage": stage,
             },
         )
         raise HTTPException(
