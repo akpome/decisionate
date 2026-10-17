@@ -7500,15 +7500,23 @@ def merge_connector_dataframes(
             end_date=report_config.get("end_date"),
         )
 
+    parent_keys = report_config.get("line_item_parent_keys")
+    item_key = report_config.get("line_item_key")
     if (
-        has_existing and source_type == "zoho_books"
-        and report_config.get("complete_document_items") is True
-        and "record_id" in existing_dataframe and "record_id" in incoming_dataframe
+        has_existing and report_config.get("complete_document_items") is True
+        and isinstance(item_key, str) and item_key in incoming_dataframe
+        and incoming_dataframe[item_key].notna().all()
+        and incoming_dataframe[item_key].astype("string").str.strip().ne("").all()
+        and isinstance(parent_keys, (list, tuple)) and parent_keys
+        and all(isinstance(key, str) and key in existing_dataframe and key in incoming_dataframe for key in parent_keys)
     ):
         # Complete documents supersede summary placeholders and removed item rows.
-        refreshed = set(incoming_dataframe["record_id"].dropna().astype("string"))
+        parent_keys = list(dict.fromkeys(parent_keys))
+        incoming_ids = incoming_dataframe[parent_keys].astype("string")
+        valid_ids = incoming_ids.notna().all(axis=1) & incoming_ids.apply(lambda values: values.str.strip().ne("")).all(axis=1)
+        refreshed = pd.MultiIndex.from_frame(incoming_ids.loc[valid_ids])
         existing_dataframe = existing_dataframe.loc[
-            ~existing_dataframe["record_id"].astype("string").isin(refreshed)
+            ~pd.MultiIndex.from_frame(existing_dataframe[parent_keys].astype("string")).isin(refreshed)
         ]
 
     combined = (

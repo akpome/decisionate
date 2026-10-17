@@ -2,20 +2,32 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Mapping
+from urllib.parse import urlparse
+
 from app.modules.datasets.services.numeric import is_identifier_column
 
 
 # Alternatives are ordered: select one emitted representation per measure.
 # Field definitions, emitter mappings and evidence gaps are recorded in
 # docs/CURATED_METRIC_DEFAULTS.md. These rules do not convert monetary units.
-_LINE_FIELDS = (("quantity",), ("unit_price",), ("line_total",))
-_QUICKBOOKS_DOCUMENT_FIELDS = _LINE_FIELDS + (
+_QUICKBOOKS_LINE_FIELDS = (
+    ("quantity", "line__SalesItemLineDetail__Qty", "line__ItemBasedExpenseLineDetail__Qty"),
+    ("unit_price", "line__SalesItemLineDetail__UnitPrice", "line__ItemBasedExpenseLineDetail__UnitPrice"),
+    ("line_total", "line__Amount"),
+)
+_QUICKBOOKS_DOCUMENT_FIELDS = _QUICKBOOKS_LINE_FIELDS + (
     ("total_amount", "TotalAmt"), ("TxnTaxDetail__TotalTax",),
 )
 _FRESHBOOKS_LINE_FIELDS = (
-    ("quantity",), ("unit_price", "line__unit_cost__amount"), ("line_total",),
+    ("quantity", "line__qty", "line__quantity"),
+    ("unit_price", "line__unit_cost__amount"), ("line_total", "line__amount__amount"),
 )
-_XERO_DOCUMENT_FIELDS = _LINE_FIELDS + (
+_XERO_DOCUMENT_FIELDS = (
+    ("quantity", "line__Quantity"), ("unit_price", "line__UnitAmount"),
+    ("line_total", "line__LineAmount"),
     ("line_tax", "line__TaxAmount"), ("total", "Total"),
     ("subtotal", "SubTotal"), ("total_tax", "TotalTax"),
 )
@@ -34,15 +46,22 @@ _SAGE_DOCUMENT_FIELDS = (
     ("line__discount_amount",), ("net_amount",), ("tax_amount",), ("total_amount",),
 )
 _RULES = {
-    "shopify": {"orders": _LINE_FIELDS + (
-        ("discounted_unit_price",), ("subtotal_price",), ("total_price",),
+    "shopify": {"orders": (
+        ("quantity", "line__quantity"),
+        ("unit_price", "line__originalUnitPriceSet__shopMoney__amount"),
+        ("line_total", "line__discountedTotalSet__shopMoney__amount"),
+        ("discounted_unit_price", "line__discountedUnitPriceSet__shopMoney__amount"),
+        ("subtotal_price",), ("total_price",),
         ("total_tax",), ("total_discounts",),
     )},
-    "woocommerce": {"orders": _LINE_FIELDS + (
+    "woocommerce": {"orders": (
+        ("quantity", "line__quantity"), ("unit_price", "line__price"),
+        ("line_total", "line__total"),
         ("line_tax", "line__total_tax"), ("total",), ("total_tax",),
         ("discount_total",), ("shipping_total",),
     )},
-    "square": {"orders": _LINE_FIELDS + (("total_amount",),)},
+    # Square's raw money amounts are minor units, unlike the normalized aliases.
+    "square": {"orders": (("quantity", "line__quantity"), ("unit_price",), ("line_total",), ("total_amount",))},
     "stripe": {"charges": (("amount",), ("amount_refunded",))},
     "quickbooks": {
         "invoices": _QUICKBOOKS_DOCUMENT_FIELDS + (("balance", "Balance"),),
@@ -76,7 +95,7 @@ _RULES = {
         "expenses": (("total",), ("sub_total",), ("tax_amount",)),
         "customer_payments": (("amount",),),
     },
-    "lightspeed": {"sales": (("quantity",), ("unit_price",),
+    "lightspeed": {"sales": (("quantity", "line__unitQuantity"), ("unit_price", "line__unitPrice"),
         ("line_total", "line__calcTotal"), ("total", "calcTotal"), ("calcSubtotal",),
         ("calcTax1",), ("calcTax2",), ("calcDiscount",), ("calcTips",))},
     "lightspeed_x": {"sales": (
@@ -95,6 +114,115 @@ _DEFAULT_RESOURCES = {
     "lightspeed": "sales", "lightspeed_x": "sales", "quickbooks": "invoices",
     "freshbooks": "invoices", "sage": "sales_invoices", "xero": "invoices", "zoho_books": "invoices",
 }
+
+
+@dataclass(frozen=True)
+class ReceiptConnectorPolicy:
+    resources: Mapping[str, tuple[tuple[str, ...], ...]]
+    default_resource: str | None
+    item_resources: tuple[str, ...]
+    line_roots: tuple[str, ...]
+    document_fields: Mapping[str, tuple[str, ...]]
+    evidence_urls: tuple[str, ...]
+
+
+RECEIPT_CONNECTOR_POLICIES: dict[str, ReceiptConnectorPolicy] = {}
+RECEIPT_SOURCE_CATEGORIES = frozenset({"accounting", "commerce", "payments", "restaurant"})
+
+
+def register_receipt_connector(source_type, *, resources, default_resource=None,
+                               item_resources=(), line_roots=(), document_fields=None,
+                               evidence_urls):
+    """Register reviewed adapter code, never customer-supplied configuration."""
+    source_type = str(source_type).strip().lower()
+    if not source_type or source_type in RECEIPT_CONNECTOR_POLICIES:
+        raise ValueError("A receipt connector must have a unique source type")
+    if not evidence_urls or any(urlparse(url).scheme != "https" or not urlparse(url).netloc for url in evidence_urls):
+        raise ValueError("Receipt defaults require HTTPS field evidence")
+    fields = {resource: tuple(tuple(group) for group in groups) for resource, groups in resources.items()}
+    headers = {resource: tuple(columns) for resource, columns in (document_fields or {}).items()}
+    if default_resource is not None and default_resource not in fields:
+        raise ValueError("The default receipt resource must be reviewed")
+    if item_resources and not line_roots:
+        raise ValueError("Item resources require explicit collection roots")
+    for resource, groups in fields.items():
+        aliases = [column for group in groups for column in group]
+        if not resource or any(not group for group in groups) or any(not isinstance(column, str) or not column for column in aliases) or len(aliases) != len(set(aliases)):
+            raise ValueError("Receipt measures require nonempty, unambiguous aliases")
+    if any(resource not in fields or not set(columns) <= {column for group in fields[resource] for column in group} for resource, columns in headers.items()):
+        raise ValueError("Document amounts must belong to a reviewed resource")
+    RECEIPT_CONNECTOR_POLICIES[source_type] = ReceiptConnectorPolicy(
+        MappingProxyType(fields), default_resource, tuple(item_resources),
+        tuple(root.replace("_", "").lower() for root in line_roots),
+        MappingProxyType(headers), tuple(evidence_urls),
+    )
+
+
+_ITEM_ROOTS = {
+    "shopify": ("lineItems",), "square": ("line_items",), "woocommerce": ("line_items",),
+    "lightspeed": ("SaleLines", "SaleLine"), "lightspeed_x": ("line_items", "sale_lines", "items"),
+    "lightspeed_k": ("line_items", "salesLines", "items"), "lightspeed_o": ("line_items", "salesLines", "items", "products"),
+    "quickbooks": ("Line",), "freshbooks": ("lines", "line_items", "invoice_lines", "items"),
+    "sage": ("invoice_lines", "credit_note_lines", "lines", "line_items"),
+    "xero": ("LineItems",), "zoho_books": ("line_items",),
+}
+_ITEM_RESOURCES = {
+    "shopify": ("orders",), "square": ("orders",), "woocommerce": ("orders",),
+    "lightspeed": ("sales",), "lightspeed_x": ("sales",), "lightspeed_k": ("sales",), "lightspeed_o": ("sales",),
+    "quickbooks": ("invoices", "bills", "sales_receipts", "purchases", "estimates"),
+    "freshbooks": ("invoices", "credit_notes"),
+    "sage": ("sales_invoices", "purchase_invoices", "sales_credit_notes", "purchase_credit_notes"),
+    "xero": ("invoices", "credit_notes", "purchase_orders", "quotes"),
+    "zoho_books": ("invoices", "expenses", "credit_notes", "estimates", "sales_orders"),
+}
+_EVIDENCE = {
+    "shopify": "https://shopify.dev/docs/api/admin-graphql/latest/objects/LineItem",
+    "square": "https://developer.squareup.com/reference/square/objects/OrderLineItem",
+    "woocommerce": "https://developer.woocommerce.com/docs/apis/rest-api/v3/orders/",
+    "stripe": "https://docs.stripe.com/api/charges/object",
+    "quickbooks": "https://developer.intuit.com/docs/api/accounting/invoice",
+    "freshbooks": "https://www.freshbooks.com/api/invoices",
+    "sage": "https://us-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=210126214952167",
+    "xero": "https://developer.xero.com/documentation/api/accounting/invoices",
+    "zoho_books": "https://www.zoho.com/books/api/v3/invoices/",
+    "lightspeed": "https://developers.lightspeedhq.com/retail/endpoints/Sale/",
+    "lightspeed_x": "https://x-series-api.lightspeedhq.com/docs/sales_returns",
+    "lightspeed_k": "https://api-docs.lsk.lightspeed.app/operation/operation-financial-apigetfinancials",
+    "lightspeed_o": "https://apidoc.kounta.com/lines/",
+}
+_LINE_ALIASES = {"quantity", "unit_price", "line_total", "line_tax", "discounted_unit_price"}
+for _source, _resources in _RULES.items():
+    register_receipt_connector(
+        _source, resources=_resources, default_resource=_DEFAULT_RESOURCES.get(_source),
+        item_resources=_ITEM_RESOURCES.get(_source, ()), line_roots=_ITEM_ROOTS.get(_source, ()),
+        document_fields={resource: tuple(column for group in groups
+            if group[0] not in _LINE_ALIASES and not group[0].startswith("line__") for column in group)
+            for resource, groups in _resources.items()}, evidence_urls=(_EVIDENCE[_source],),
+    )
+
+
+def uses_receipt_policy(source_type):
+    source_type = str(source_type or "").strip().lower()
+    if source_type in RECEIPT_CONNECTOR_POLICIES:
+        return True
+    from app.modules.datasets.services.sources import DATASET_SOURCES
+    return any(source["type"] == source_type and source["category"] in RECEIPT_SOURCE_CATEGORIES for source in DATASET_SOURCES)
+
+
+def receipt_document_columns(source_type, config):
+    policy = RECEIPT_CONNECTOR_POLICIES.get(source_type)
+    if policy is None:
+        return ()
+    resource = config.get("resource_type") or config.get("resource") or config.get("object_type") or policy.default_resource
+    return policy.document_fields.get(str(resource or "").strip().lower(), ())
+
+
+def receipt_metric_aliases(source_type, config, column):
+    policy = RECEIPT_CONNECTOR_POLICIES.get(source_type)
+    if policy is None:
+        return ()
+    resource = config.get("resource_type") or config.get("resource") or config.get("object_type") or policy.default_resource
+    return next((group for group in policy.resources.get(str(resource or "").strip().lower(), ()) if column in group), ())
 _STATISTICS = ("sum", "count", "min", "max", "mean")
 _GENERATED = {"__decisionate_summary__", "__decisionate_summary_month__"}
 _NUMERIC_TYPES = {
@@ -108,13 +236,16 @@ _NUMERIC_TYPES = {
 def receipt_metric_columns(source_type, config, columns, *, include_aliases=False):
     """Return exact defaults, or None when this restriction does not apply."""
     source_type = str(source_type or "").strip().lower()
-    rule = _RULES.get(source_type)
-    if rule is None:
+    policy = RECEIPT_CONNECTOR_POLICIES.get(source_type)
+    if policy is None:
+        # New financial catalog entries cannot silently select arbitrary numbers.
+        if uses_receipt_policy(source_type):
+            return []
         return None
     resource = config.get("resource_type") or config.get("resource") or config.get("object_type")
-    resource = str(resource or _DEFAULT_RESOURCES.get(source_type, "")).strip().lower()
+    resource = str(resource or policy.default_resource or "").strip().lower()
     available = set(columns)
-    alternatives = rule.get(resource, ())
+    alternatives = policy.resources.get(resource, ())
     if include_aliases:
         return [column for group in alternatives for column in group if column in available]
     return [next(column for column in group if column in available)
@@ -123,7 +254,7 @@ def receipt_metric_columns(source_type, config, columns, *, include_aliases=Fals
 
 def uses_receipt_defaults(source_type, config):
     """Treat unclassified legacy lists as defaults, not proof of manual intent."""
-    if str(source_type or "").strip().lower() not in _RULES:
+    if not uses_receipt_policy(source_type):
         return False
     provenance = config.get("metric_selection_provenance")
     source = provenance.get("source") if isinstance(provenance, dict) else None

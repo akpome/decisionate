@@ -321,3 +321,59 @@ only be identified after reading and is removed by the analytical filter.
 Ingestion, stored source data, full dataset previews, metric configuration and
 legacy non-Parquet reads can still load the full data. This is not a claim of
 zero ingestion memory or a measured production-wide memory reduction.
+
+### Shared Connector Contract (2026-10-17)
+
+Receipt behavior is now shared across the financial connector catalog, not
+limited to the three providers in the preceding fix. Accounting, commerce,
+payments and restaurant entries are receipt-policy sources. Analytics, CRM,
+advertising, files and database queries retain their own domain defaults.
+
+`ReceiptConnectorPolicy` and `register_receipt_connector` in `receipt_metrics.py`
+provide one reviewed contract for each provider: exact resource-specific alias
+groups, the default resource, item resources, collection roots, document-level
+amount columns and HTTPS evidence links. The built-in field audit above still
+defines which amounts are legitimate; the contract is not a name-based guess.
+Square's raw minor-unit money is not an alternative to its normalized major-unit
+amounts, and no cross-provider tax, discount or currency conversions are invented.
+
+All financial connectors share these safeguards:
+
+- Select one usable numeric representation per reviewed measure. A null,
+  malformed or JSON-valued preferred alias cannot hide a reviewed alternative.
+  The curated path also requires the alias in its emitted-schema evidence and
+  retains its currency/type/aggregation checks. Manual pinned policies remain.
+- Preserve sparse receipt amounts on long invoices. Reviewed numeric fields
+  bypass completeness and statistical uniqueness guesses, but actual identifiers
+  and empty values are still excluded. Objective relevance remains in force.
+- Keep transaction items vertical using the same contract's collection roots.
+  Store declared document amounts on the first item row only, including future
+  fields whose names do not match today's amount-name vocabulary.
+- Replace previous rows only for complete incoming documents, regardless of the
+  connector name. The adapter must set `complete_document_items=true`, provide a
+  line-item key and declare its parent keys. The shared merge uses the entire
+  composite parent identity and does not replace unrelated documents or rows
+  with missing parent IDs. Partial/summary responses do not authorize deletion.
+- Preserve explicit manual selections and opt-outs. New financial catalog entries
+  without reviewed contracts have no automatic receipt metrics; they cannot
+  silently fall back to selecting every numeric column.
+
+Current item adapters report completeness only when their requested item
+collection is present and structurally valid. Shopify already follows nested
+[line-item pagination](https://shopify.dev/docs/api/usage/pagination-graphql);
+Xero already uses [paged invoice requests](https://developer.xero.com/documentation/api/accounting/invoices),
+QuickBooks queries complete documents, Sage requests all attributes, and Zoho
+fetches the individual document when its list response is a summary. FreshBooks
+invoice requests now explicitly use the documented
+[`include[]=lines`](https://www.freshbooks.com/api/parameters).
+Missing collections do not certify a complete document.
+
+For a future financial connector, add its catalog entry, reviewed registration
+and adapter tests together. Register explicit roots and document fields rather
+than modifying shared profiler, projection or legacy-repair code. Retrieve all
+item pages before declaring a document complete; keep provider-specific detail
+requests in the adapter. `test_receipt_connector_contract.py` checks catalog
+coverage, every existing field/alias, sparse totals, manual selections, composite
+resync identities, and a synthetic future provider using that same path.
+The synthetic provider demonstrates extensibility, not live support for an
+unimplemented service. K/O remain planned with no unverified monetary defaults.

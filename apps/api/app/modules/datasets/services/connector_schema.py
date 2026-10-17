@@ -7,23 +7,11 @@ import re
 
 import pandas as pd
 
+from app.modules.datasets.services.receipt_metrics import RECEIPT_CONNECTOR_POLICIES
+
 
 COLUMN_MAPPING_ATTR = "decisionate_connector_column_mapping"
 _INDEXED_COLUMN = re.compile(r"^(.*?)__(\d+)(?:__(.*))?$")
-_LINE_ROOTS = {
-    "shopify": {"lineitems"},
-    "square": {"lineitems"},
-    "woocommerce": {"lineitems"},
-    "lightspeed": {"salelines", "saleline"},
-    "lightspeed_x": {"lineitems", "salelines", "items"},
-    "lightspeed_k": {"lineitems", "saleslines", "items"},
-    "lightspeed_o": {"lineitems", "saleslines", "items", "products"},
-    "quickbooks": {"line"},
-    "freshbooks": {"lines", "lineitems", "invoicelines", "items"},
-    "sage": {"invoicelines", "creditnotelines", "lines", "lineitems"},
-    "xero": {"lineitems"},
-    "zoho_books": {"lineitems"},
-}
 _RELATION_WRAPPERS = {"nodes", "edges", "data", "items", "lines", "saleline", "salelines", "lineitems"}
 
 
@@ -39,7 +27,8 @@ def _identified(value):
 
 def _line_root(root, source_type):
     parts = [part.replace("_", "").lower() for part in root.split("__")]
-    return parts[0] in _LINE_ROOTS.get(source_type, ()) and all(
+    policy = RECEIPT_CONNECTOR_POLICIES.get(source_type)
+    return policy is not None and parts[0] in policy.line_roots and all(
         part in _RELATION_WRAPPERS for part in parts[1:]
     )
 
@@ -126,20 +115,12 @@ def normalize_connector_row_schema(dataframe, source_type, resource=None):
     from app.modules.datasets.services.sources import IMPLEMENTED_CONNECTOR_TYPES
     from app.modules.datasets.services.connectors import (
         _parent_values_for_item_row, build_dynamic_connector_row, connector_first_value,
-        FRESHBOOKS_LINE_ITEM_RESOURCES, QUICKBOOKS_LINE_ITEM_RESOURCES,
-        SAGE_LINE_ITEM_RESOURCES, XERO_LINE_ITEM_RESOURCES, ZOHO_BOOKS_LINE_ITEM_RESOURCES,
     )
 
-    if not isinstance(dataframe, pd.DataFrame) or source_type not in IMPLEMENTED_CONNECTOR_TYPES - {"postgresql", "mysql", "sql_server"}:
+    if not isinstance(dataframe, pd.DataFrame) or source_type not in (IMPLEMENTED_CONNECTOR_TYPES | RECEIPT_CONNECTOR_POLICIES.keys()) - {"postgresql", "mysql", "sql_server"}:
         return dataframe
-    resource_types = {
-        "shopify": {"orders"}, "square": {"orders"}, "woocommerce": {"orders"},
-        "lightspeed": {"sales"}, "lightspeed_x": {"sales"}, "lightspeed_k": {"sales"}, "lightspeed_o": {"sales"},
-        "quickbooks": QUICKBOOKS_LINE_ITEM_RESOURCES, "freshbooks": FRESHBOOKS_LINE_ITEM_RESOURCES,
-        "sage": SAGE_LINE_ITEM_RESOURCES, "xero": XERO_LINE_ITEM_RESOURCES,
-        "zoho_books": ZOHO_BOOKS_LINE_ITEM_RESOURCES,
-    }
-    expand_items = not resource or str(resource).strip().lower() in resource_types.get(source_type, ())
+    policy = RECEIPT_CONNECTOR_POLICIES.get(source_type)
+    expand_items = not resource or policy is not None and str(resource).strip().lower() in policy.item_resources
     indexed, singleton = {}, {}
     json_roots = [column for column in dataframe.columns if expand_items and _line_root(str(column), source_type)]
     for column in dataframe.columns:
@@ -213,7 +194,7 @@ def normalize_connector_row_schema(dataframe, source_type, resource=None):
             if isinstance(line.get("node"), dict):
                 line = line["node"]
             rows.append({
-                **_parent_values_for_item_row(parent, position),
+                **_parent_values_for_item_row(parent, position, source_type, resource),
                 **build_dynamic_connector_row(line, _line_aliases(line, source_type, parent_id, int(index)), prefix="line"),
             })
         for column, (root, _, suffix) in repaired_fields.items():

@@ -18,7 +18,7 @@ from app.modules.datasets.services.numeric import is_identifier_column
 from app.modules.datasets.services.metric_objectives import matches_objective
 from app.modules.datasets.services.metric_registry import get_metric_definition, normalize_metric_column_name
 from app.modules.datasets.services.summary_query import is_summary_dataframe
-from app.modules.datasets.services.receipt_metrics import receipt_metric_columns, uses_receipt_defaults
+from app.modules.datasets.services.receipt_metrics import receipt_metric_aliases, receipt_metric_columns, uses_receipt_defaults
 
 
 logger = logging.getLogger(__name__)
@@ -142,7 +142,11 @@ def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, sel
     historical = is_summary_dataframe(dataframe)
     resolved = {}
     for entry in policy.metrics:
-        reviewed_paths = [path for path in entry.source_paths if path in schema["columns"]]
+        paths = list(entry.source_paths)
+        if automatic_receipt_selection:
+            for path in entry.source_paths:
+                paths.extend(alias for alias in receipt_metric_aliases(key[0], config, path) if alias not in paths)
+        reviewed_paths = [path for path in paths if path in schema["columns"]]
         if not reviewed_paths:
             skip(entry.semantic_key, "field_fixture_review_pending")
             continue

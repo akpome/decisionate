@@ -22,6 +22,7 @@ from urllib.request import Request, urlopen
 import pandas as pd
 
 from app.modules.datasets.services.connector_schema import normalize_connector_row_schema
+from app.modules.datasets.services.receipt_metrics import receipt_document_columns
 from app.configuration import get_provider_setting
 from app.db.models import DataSourceConnection
 from app.db.models import OAuthCredential
@@ -1190,6 +1191,17 @@ def deduplicate_lightspeed_sales(dataframe: pd.DataFrame) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+def connector_has_item_collection(record: dict, *keys: str) -> bool:
+    """A summary or malformed collection cannot authorize replacing old items."""
+    relation = next((record[key] for key in keys if key in record), None)
+    while isinstance(relation, dict):
+        nested = next((relation[key] for key in ("nodes", "edges", "items", "data", "lines", "SaleLine", "Line", "line_items", "lineItems") if key in relation), None)
+        if nested is None:
+            return bool(relation) and set(relation) != {"count"}
+        relation = nested
+    return isinstance(relation, list) and all(isinstance(line, dict) for line in relation)
+
+
 def connector_line_items(record: dict, *keys: str) -> list[dict]:
     """Extract provider line-item arrays without using array indexes as columns."""
     relation = None
@@ -1535,12 +1547,13 @@ def _is_lightspeed_transaction_metric(column_name: str) -> bool:
     return _is_transaction_metric(column_name)
 
 
-def _parent_values_for_item_row(parent_row: dict, line_index: int) -> dict:
+def _parent_values_for_item_row(parent_row: dict, line_index: int, source_type=None, resource=None) -> dict:
     """Keep additive parent metrics only on the first item row."""
     if line_index == 0:
         return parent_row
+    document_columns = set(receipt_document_columns(source_type, {"resource": resource}))
     return {
-        key: None if _is_transaction_metric(key) else value
+        key: None if key in document_columns or _is_transaction_metric(key) else value
         for key, value in parent_row.items()
     }
 
@@ -2539,6 +2552,7 @@ def load_shopify_dataframe(
     graphql_url = shopify_graphql_url(shop_domain, api_version)
     order_query = shopify_order_query(start_date, end_date)
     rows = []
+    complete_document_items = True
     after_cursor = None
     seen_cursors = set()
 
@@ -2572,6 +2586,7 @@ def load_shopify_dataframe(
         for order in orders:
             if not isinstance(order, dict):
                 continue
+            complete_document_items &= connector_has_item_collection(order, "lineItems")
             order_id = order.get("legacyResourceId") or order.get("id")
             if not order_id:
                 raise ConnectorUnavailable(
@@ -2628,7 +2643,7 @@ def load_shopify_dataframe(
                 variant = line.get("variant")
                 variant = variant if isinstance(variant, dict) else {}
                 rows.append({
-                    **_parent_values_for_item_row(order_row, line_index),
+                    **_parent_values_for_item_row(order_row, line_index, "shopify", "orders"),
                     **build_dynamic_connector_row(
                         line,
                         {
@@ -2689,6 +2704,7 @@ def load_shopify_dataframe(
     return dataframe, {
         "connector": "shopify",
         "resource": "orders",
+        "complete_document_items": complete_document_items,
         "dedup_keys": ["line_item_id"],
         "line_item_key": "line_item_id",
         "line_item_parent_keys": ["order_id"],
@@ -3278,6 +3294,7 @@ def load_square_dataframe(
     end_at = f"{until.isoformat()}T23:59:59Z"
     next_cursor = None
     rows = []
+    complete_document_items = True
     seen_cursors = set()
     while True:
         request_payload = {
@@ -3320,6 +3337,7 @@ def load_square_dataframe(
         for order in orders:
             if not isinstance(order, dict):
                 continue
+            complete_document_items &= connector_has_item_collection(order, "line_items")
             line_items = order.get("line_items")
             net_amounts = order.get("net_amounts")
             normalized_row = {
@@ -3358,7 +3376,7 @@ def load_square_dataframe(
                 connector_line_items(order, "line_items")
             ):
                 rows.append({
-                    **_parent_values_for_item_row(order_row, line_index),
+                    **_parent_values_for_item_row(order_row, line_index, "square", "orders"),
                     **build_dynamic_connector_row(
                         line,
                         {
@@ -3399,6 +3417,7 @@ def load_square_dataframe(
     return dataframe, {
         "connector": "square",
         "resource": "orders",
+        "complete_document_items": complete_document_items,
         "dedup_keys": ["line_item_id"],
         "line_item_key": "line_item_id",
         "line_item_parent_keys": ["order_id"],
@@ -3478,6 +3497,7 @@ def load_woocommerce_dataframe(
     ).decode("ascii")
     headers = {"Authorization": f"Basic {basic_token}"}
     rows = []
+    complete_document_items = True
     page = 1
     since = start_date
     until = end_date
@@ -3502,6 +3522,7 @@ def load_woocommerce_dataframe(
         for order in payload:
             if not isinstance(order, dict):
                 continue
+            complete_document_items &= connector_has_item_collection(order, "line_items")
             billing = order.get("billing")
             line_items = order.get("line_items")
             normalized_row = {
@@ -3538,7 +3559,7 @@ def load_woocommerce_dataframe(
                 connector_line_items(order, "line_items")
             ):
                 rows.append({
-                    **_parent_values_for_item_row(order_row, line_index),
+                    **_parent_values_for_item_row(order_row, line_index, "woocommerce", "orders"),
                     **build_dynamic_connector_row(
                         line,
                         {
@@ -3586,6 +3607,7 @@ def load_woocommerce_dataframe(
     return dataframe, {
         "connector": "woocommerce",
         "resource": "orders",
+        "complete_document_items": complete_document_items,
         "dedup_keys": ["line_item_id"],
         "line_item_key": "line_item_id",
         "line_item_parent_keys": ["order_id"],
@@ -3620,6 +3642,7 @@ def load_lightspeed_dataframe(
         "limit": str(PAGE_SIZE),
         "load_relations": "[\"SaleLines\",\"SaleLines.Item\"]",
     }
+    complete_document_items = True
     next_url = f"{base_url}/Sale.json?{urlencode(params)}"
     seen_urls = set()
     while next_url:
@@ -3641,6 +3664,7 @@ def load_lightspeed_dataframe(
         for sale in sales:
             if not isinstance(sale, dict):
                 continue
+            complete_document_items &= connector_has_item_collection(sale, "SaleLines", "saleLines", "SaleLine")
             completed = sale.get("completed")
             if completed is not None and str(completed).strip().lower() not in {
                 "1",
@@ -3724,16 +3748,7 @@ def load_lightspeed_dataframe(
                     flatten_lists=False,
                     prefix="line",
                 )
-                sale_values = sale_row
-                if line_index > 0:
-                    sale_values = {
-                        key: (
-                            None
-                            if _is_lightspeed_transaction_metric(key)
-                            else value
-                        )
-                        for key, value in sale_row.items()
-                    }
+                sale_values = _parent_values_for_item_row(sale_row, line_index, "lightspeed", "sales")
                 rows.append({**sale_values, **line_row})
         attributes = payload.get("@attributes")
         if not isinstance(attributes, dict):
@@ -3749,6 +3764,7 @@ def load_lightspeed_dataframe(
     return dataframe, {
         "connector": "lightspeed",
         "resource": "sales",
+        "complete_document_items": complete_document_items,
         "dedup_keys": ["sale_line_id"],
         "line_item_key": "sale_line_id",
         "line_item_parent_keys": ["sale_id"],
@@ -3819,6 +3835,7 @@ def load_lightspeed_x_dataframe(
 
     rows = []
     after = None
+    complete_document_items = True
     seen_versions = set()
     resource_path = LIGHTSPEED_X_RESOURCE_TYPES[resource_type]
     while True:
@@ -3840,6 +3857,7 @@ def load_lightspeed_x_dataframe(
                 continue
             record_id = record.get("id")
             if resource_type == "sales":
+                complete_document_items &= connector_has_item_collection(record, "line_items", "lineItems", "sale_lines", "saleLines", "items")
                 sale_timestamp = (
                     record.get("created_at")
                     or record.get("date")
@@ -3947,7 +3965,7 @@ def load_lightspeed_x_dataframe(
                         prefix="line",
                     )
                     rows.append({
-                        **_parent_values_for_item_row(sale_row, line_index),
+                        **_parent_values_for_item_row(sale_row, line_index, "lightspeed_x", resource_type),
                         **line_row,
                     })
                 continue
@@ -3995,6 +4013,7 @@ def load_lightspeed_x_dataframe(
     return dataframe, {
         "connector": "lightspeed_x",
         "resource": resource_type,
+        "complete_document_items": resource_type == "sales" and complete_document_items,
         **(
             {
                 "dedup_keys": ["sale_line_id"],
@@ -4135,7 +4154,7 @@ def load_lightspeed_k_dataframe(
                     pricing = line.get("pricing")
                     pricing = pricing if isinstance(pricing, dict) else {}
                     rows.append({
-                        **_parent_values_for_item_row(sale_row, line_index),
+                        **_parent_values_for_item_row(sale_row, line_index, "lightspeed_k", resource_type),
                         **build_dynamic_connector_row(
                             line,
                             {
@@ -4392,7 +4411,7 @@ def load_lightspeed_o_dataframe(
                     )
                 ):
                     rows.append({
-                        **_parent_values_for_item_row(sale_row, line_index),
+                        **_parent_values_for_item_row(sale_row, line_index, "lightspeed_o", resource_type),
                         **build_dynamic_connector_row(
                             line,
                             {
@@ -5080,6 +5099,7 @@ def load_quickbooks_dataframe(
         )
     entity = QUICKBOOKS_RESOURCE_TYPES[resource_type]
     rows = []
+    complete_document_items = True
     start_position = 1
     seen_positions = set()
 
@@ -5124,6 +5144,7 @@ def load_quickbooks_dataframe(
                 resource_type,
             )
             if resource_type in QUICKBOOKS_LINE_ITEM_RESOURCES:
+                complete_document_items &= connector_has_item_collection(record, "Line")
                 parent_id = normalized_fields.get("record_id")
                 parent_row = build_dynamic_connector_row(
                     {
@@ -5151,7 +5172,7 @@ def load_quickbooks_dataframe(
                     item_ref = detail.get("ItemRef")
                     item_ref = item_ref if isinstance(item_ref, dict) else {}
                     rows.append({
-                        **_parent_values_for_item_row(parent_row, line_index),
+                        **_parent_values_for_item_row(parent_row, line_index, "quickbooks", resource_type),
                         **build_dynamic_connector_row(
                             line,
                             {
@@ -5209,6 +5230,7 @@ def load_quickbooks_dataframe(
     return dataframe, {
         "connector": "quickbooks",
         "resource": resource_type,
+        "complete_document_items": resource_type in QUICKBOOKS_LINE_ITEM_RESOURCES and complete_document_items,
         **(
             {
                 "dedup_keys": ["line_item_id"],
@@ -5323,6 +5345,7 @@ def load_freshbooks_dataframe(
             sort_keys=True,
         )
     rows = []
+    complete_document_items = False
 
     if resource_type == "profile":
         identity_url = get_provider_setting(
@@ -5376,7 +5399,7 @@ def load_freshbooks_dataframe(
                 end_date,
             )
         else:
-            rows = _load_freshbooks_account_resource(
+            rows, complete_document_items = _load_freshbooks_account_resource(
                 access_token,
                 account_id,
                 resource_type,
@@ -5400,6 +5423,7 @@ def load_freshbooks_dataframe(
     return dataframe, {
         "connector": "freshbooks",
         "resource": resource_type,
+        "complete_document_items": resource_type in FRESHBOOKS_LINE_ITEM_RESOURCES and complete_document_items,
         **(
             {
                 "dedup_keys": ["line_item_id"],
@@ -5588,7 +5612,7 @@ def _load_freshbooks_account_resource(
     resource_type: str,
     start_date=None,
     end_date=None,
-) -> list[dict]:
+) -> tuple[list[dict], bool]:
     base_template = get_provider_setting(
         "FRESHBOOKS_API_BASE_URL_TEMPLATE"
     )
@@ -5611,6 +5635,7 @@ def _load_freshbooks_account_resource(
     resource_path, response_key = FRESHBOOKS_RESOURCE_PATHS[resource_type]
     endpoint = f"{account_base_url.rstrip('/')}/{resource_path}"
     rows = []
+    complete_document_items = True
     page = 1
     seen_pages = set()
 
@@ -5624,6 +5649,8 @@ def _load_freshbooks_account_resource(
             "page": str(page),
             "per_page": str(PAGE_SIZE),
         }
+        if resource_type == "invoices":
+            params["include[]"] = "lines"
         if resource_type in {"invoices", "expenses"}:
             if start_date:
                 params["updated_min"] = start_date.isoformat()
@@ -5762,6 +5789,7 @@ def _load_freshbooks_account_resource(
                     ),
                 })
             if resource_type in FRESHBOOKS_LINE_ITEM_RESOURCES:
+                complete_document_items &= connector_has_item_collection(record, "lines", "line_items", "invoice_lines", "items")
                 parent_row = build_dynamic_connector_row(
                     {
                         key: value
@@ -5789,7 +5817,7 @@ def _load_freshbooks_account_resource(
                     if isinstance(line_amount, dict):
                         line_amount = line_amount.get("amount")
                     rows.append({
-                        **_parent_values_for_item_row(parent_row, line_index),
+                        **_parent_values_for_item_row(parent_row, line_index, "freshbooks", resource_type),
                         **build_dynamic_connector_row(
                             line,
                             {
@@ -5833,7 +5861,7 @@ def _load_freshbooks_account_resource(
             break
         page += 1
 
-    return rows
+    return rows, complete_document_items
 
 
 def _sage_first_value(record: dict, *keys: str):
@@ -6144,6 +6172,7 @@ def load_sage_dataframe(
 
     rows = []
     request_url = ""
+    complete_document_items = True
     seen_request_urls = set()
     used_unfiltered_fallback = False
     while True:
@@ -6228,6 +6257,7 @@ def load_sage_dataframe(
                 resource_type,
             )
             if resource_type in SAGE_LINE_ITEM_RESOURCES:
+                complete_document_items &= connector_has_item_collection(record, "invoice_lines", "credit_note_lines", "lines", "line_items")
                 parent_source = strip_sage_metadata(record)
                 for key in (
                     "invoice_lines",
@@ -6257,7 +6287,7 @@ def load_sage_dataframe(
                     )
                     line_source = strip_sage_metadata(line)
                     rows.append({
-                        **_parent_values_for_item_row(parent_row, line_index),
+                        **_parent_values_for_item_row(parent_row, line_index, "sage", resource_type),
                         **build_dynamic_connector_row(
                             line_source,
                             {
@@ -6327,6 +6357,7 @@ def load_sage_dataframe(
     return dataframe, {
         "connector": "sage",
         "resource": resource_type,
+        "complete_document_items": resource_type in SAGE_LINE_ITEM_RESOURCES and complete_document_items,
         **(
             {
                 "dedup_keys": ["line_item_id"],
@@ -6562,6 +6593,7 @@ def load_xero_dataframe(
     base_url = require_provider_url("XERO_API_BASE_URL")
     resource_path, response_key = XERO_RESOURCE_TYPES[resource_type]
     rows = []
+    complete_document_items = True
     page = 1
     seen_pages = set()
 
@@ -6596,6 +6628,7 @@ def load_xero_dataframe(
                 line_item_count=len(line_items),
             )
             if resource_type in XERO_LINE_ITEM_RESOURCES:
+                complete_document_items &= connector_has_item_collection(record, "LineItems")
                 parent_row = build_dynamic_connector_row(
                     {
                         key: value
@@ -6609,7 +6642,7 @@ def load_xero_dataframe(
                     connector_line_items(record, "LineItems")
                 ):
                     rows.append({
-                        **_parent_values_for_item_row(parent_row, line_index),
+                        **_parent_values_for_item_row(parent_row, line_index, "xero", resource_type),
                         **build_dynamic_connector_row(
                             line,
                             {
@@ -6669,6 +6702,7 @@ def load_xero_dataframe(
     return dataframe, {
         "connector": "xero",
         "resource": resource_type,
+        "complete_document_items": resource_type in XERO_LINE_ITEM_RESOURCES and complete_document_items,
         **(
             {
                 "dedup_keys": ["line_item_id"],
@@ -6969,7 +7003,7 @@ def load_zoho_books_dataframe(
                     )
                 ):
                     rows.append({
-                        **_parent_values_for_item_row(parent_row, line_index),
+                        **_parent_values_for_item_row(parent_row, line_index, "zoho_books", resource_type),
                         **build_dynamic_connector_row(
                             line,
                             {

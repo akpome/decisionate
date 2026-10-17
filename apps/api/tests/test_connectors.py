@@ -312,6 +312,8 @@ class ConnectorSmokeTests(unittest.TestCase):
             )
 
         request_params = parse_qs(urlsplit(requested_urls[0]).query)
+        self.assertEqual(request_params["include[]"], ["lines"])
+        self.assertTrue(_report["complete_document_items"])
         self.assertEqual(len(dataframe), 2)
         self.assertEqual(
             dataframe["line_item_id"].tolist(),

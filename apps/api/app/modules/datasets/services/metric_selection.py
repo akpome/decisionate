@@ -30,6 +30,7 @@ from app.modules.datasets.services.metric_recommendations import (
     uses_curated_selection,
 )
 from app.modules.datasets.services.receipt_metrics import (
+    receipt_metric_aliases,
     receipt_metric_columns,
     restrict_receipt_profile,
     uses_receipt_defaults,
@@ -295,6 +296,7 @@ def build_metric_selection_profile(
         or "general_business"
     )
     source_type = _dataset_source_type(dataset)
+    source_config = parse_dataset_source_config(dataset)
     saved_decisions = _saved_metric_decisions(dataset)
     row_count = len(dataframe)
     is_small_dataset = (
@@ -311,7 +313,7 @@ def build_metric_selection_profile(
         str(column): series
         for column, series in get_numeric_columns(dataframe)
     }
-    receipt_defaults = receipt_metric_columns(source_type, parse_dataset_source_config(dataset), numeric_lookup)
+    receipt_defaults = receipt_metric_columns(source_type, source_config, numeric_lookup)
     receipt_default_set = set(receipt_defaults or [])
     fields = []
     recommended_candidates = []
@@ -335,7 +337,10 @@ def build_metric_selection_profile(
             # Empty native numeric fields are absent from initial discovery,
             # but duplicate comparisons still need their converted series.
             numeric_lookup[column_name] = numeric_series
-        definition = get_metric_definition(column, source_type)
+        aliases = receipt_metric_aliases(source_type, source_config, column_name)
+        definition = get_metric_definition(column, source_type) or (
+            get_metric_definition(aliases[0], source_type) if aliases else None
+        )
         normalized_column = normalize_metric_column_name(column)
         completeness = _completeness(series, numeric_series if is_numeric else None)
         valid_count = int(
@@ -487,6 +492,7 @@ def build_metric_selection_profile(
                 )
             elif (
                 row_count >= 5
+                and column_name not in receipt_default_set
                 and unique_ratio >= 0.98
                 and not is_small_dataset
                 and not _has_value_semantics(
