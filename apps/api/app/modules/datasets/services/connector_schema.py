@@ -105,6 +105,10 @@ def _line_aliases(line, source_type, parent_id, index):
         for key, field in (("unit_price", "base_price_money"), ("line_total", "total_money")):
             if isinstance(line.get(field), dict):
                 result[key] = square_money_amount(line[field])
+    elif source_type == "lightspeed_x":
+        result["line_total"] = connector_first_value(line, "line_total", "price_total", "total_price", "total")
+    elif source_type == "zoho_books":
+        result["line_total"] = connector_first_value(line, "item_total", "amount", "total")
     elif source_type == "shopify":
         for key, field in (("unit_price", "originalUnitPriceSet"), ("line_total", "discountedTotalSet")):
             value = _shopify_money_amount(line, field)

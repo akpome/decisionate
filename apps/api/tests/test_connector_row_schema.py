@@ -98,6 +98,16 @@ class ConnectorRowSchemaTests(unittest.TestCase):
         self.assertEqual(json.loads(normalized["links"].iloc[0]), [{"rel": "self"}, {"rel": "next"}])
         self.assert_no_indexed_columns(normalized)
 
+    def test_legacy_lightspeed_and_zoho_documented_line_amounts_are_repaired(self):
+        for source, amount_field in (("lightspeed_x", "price_total"), ("zoho_books", "item_total")):
+            frame = pd.DataFrame([{"record_id": "document-1", "total": 20,
+                                   "line_items__0__id": "one", "line_items__0__quantity": 2,
+                                   "line_items__0__rate": 10, f"line_items__0__{amount_field}": 20}])
+            with self.subTest(source=source):
+                result = connectors.normalize_connector_row_schema(frame, source)
+                self.assertEqual(result["line_total"].tolist(), [20])
+                self.assertEqual(result["quantity"].tolist(), [2])
+
     def test_nested_item_arrays_remain_collections_instead_of_recreating_numbered_columns(self):
         frame = legacy_frame("Line", 1)
         frame["Line__0__taxes__count"] = 2

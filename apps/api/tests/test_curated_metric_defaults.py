@@ -86,6 +86,43 @@ class CuratedMetricDefaultTests(unittest.TestCase):
                 self.assertEqual(recommended_columns(result), [])
                 self.assertEqual(result["skipped"][0]["reasonCode"], "unknown_dataset_or_schema_version")
 
+    def test_reviewed_receipt_fixes_apply_to_old_automatic_selections(self):
+        cases = (
+            ("lightspeed_x", "sales", {"api_version": "2026-07"},
+             {"quantity": 2, "unit_price": 10, "line_total": 20, "line__tax_total": 2, "line__discount_total": 1, "total": 20, "total_tax": 2}),
+            ("zoho_books", "invoices", {},
+             {"quantity": 2, "unit_price": 10, "line_total": 20, "line__discount_amount": 1, "total": 22, "sub_total": 20, "tax_total": 2, "balance": 0, "payment_made": 22, "credits_applied": 0, "shipping_charge": 0, "adjustment": 0}),
+            ("sage", "sales_invoices", {},
+             {"quantity": 2, "unit_price": 10, "line__net_amount": 20, "line_tax": 2, "line__discount_amount": 1, "net_amount": 20, "tax_amount": 2, "total_amount": 22}),
+        )
+        for source, resource, config, values in cases:
+            with self.subTest(source=source):
+                item = dataset(source, resource, **config, selected_metric_columns=["quantity"], curated_metric_selection=True,
+                               metric_selection_provenance={"source": "recommended", "policy_version": "2026-10-14.1"})
+                frame = pd.DataFrame({"currency": ["CAD"], **{key: [value] for key, value in values.items()}, "internal_cost": [4]})
+                profile = build_metric_selection_profile(item, frame)
+                self.assertEqual(set(profile["recommended_metric_columns"]), set(values))
+                result = self.analytical_frame(item, frame)
+                self.assertTrue(set(values) <= set(result))
+                self.assertNotIn("internal_cost", result)
+
+    def test_old_manual_sage_selection_keeps_its_pinned_unit_price_policy(self):
+        item = dataset("sage", "sales_invoices", selected_metric_columns=["unit_price"], curated_metric_selection=True,
+                       metric_selection_provenance={"source": "user", "policy_version": "2026-10-14.1"})
+        frame = pd.DataFrame({"currency": ["CAD"], "unit_price": [10], "line__net_amount": [20], "quantity": [2]})
+        result = resolve_metric_recommendations(item, frame, selection_policy=True)
+        self.assertEqual(result["policyVersion"], "2026-10-14.1")
+        self.assertIn("unit_price", [entry["columnKey"] for entry in result["optional"]])
+        prepared = filter_dataframe_to_selected_metrics(item, frame)
+        self.assertEqual(prepared["unit_price"].tolist(), [10])
+
+    def test_reviewed_receipt_policy_falls_back_from_empty_normalized_amounts(self):
+        item = dataset("lightspeed_x", "sales", api_version="2026-07")
+        frame = pd.DataFrame({"currency": ["CAD"], "quantity": [2], "unit_price": [None], "line__price": [10],
+                              "line_total": [None], "line__price_total": [20], "total": [20]})
+        result = resolve_metric_recommendations(item, frame)
+        self.assertTrue({"line__price", "line__price_total", "total"} <= set(recommended_columns(result)))
+
     def test_new_columns_are_not_selected_without_reviewed_emitted_fixture(self):
         item = dataset("google_analytics", "report", dimensions=["date"])
         result = resolve_metric_recommendations(item, pd.DataFrame({"date": ["2026-10-01"], "sessions": [2], "newUsers": [1]}))

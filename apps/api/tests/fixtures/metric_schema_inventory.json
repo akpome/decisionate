@@ -923,6 +923,46 @@
     {
       "columns": {
         "created_at": "str",
+        "currency": "str",
+        "discount": "int64",
+        "id": "str",
+        "line__cost": "int64",
+        "line__discount_total": "int64",
+        "line__id": "str",
+        "line__loyalty_value": "int64",
+        "line__price": "int64",
+        "line__price_total": "int64",
+        "line__quantity": "int64",
+        "line__tax_total": "float64",
+        "line__unit_price": "int64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "int64",
+        "quantity": "int64",
+        "record_id": "str",
+        "sale_id": "str",
+        "sale_line_id": "str",
+        "state": "str",
+        "total": "float64",
+        "total_cost": "int64",
+        "total_price": "float64",
+        "total_tax": "float64",
+        "unit_price": "int64"
+      },
+      "loader": "load_lightspeed_x_dataframe",
+      "metadata": {
+        "api_version": "2026-07",
+        "connector": "lightspeed_x",
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
         "customer_id": "str",
         "id": "str",
         "item_id": "str",
@@ -1350,14 +1390,22 @@
         "invoice_number": "str",
         "item_description": "str",
         "line__description": "str",
+        "line__discount_amount": "int64",
+        "line__net_amount": "int64",
         "line__quantity": "int64",
+        "line__tax_amount": "int64",
+        "line__total_amount": "int64",
         "line__unit_price": "int64",
         "line_index": "int64",
         "line_item_id": "str",
+        "line_tax": "int64",
+        "line_total": "int64",
+        "net_amount": "float64",
         "quantity": "int64",
         "record_id": "str",
         "resource_type": "str",
         "status": "str",
+        "tax_amount": "float64",
         "total_amount": "float64",
         "unit_price": "int64"
       },
@@ -2146,6 +2194,130 @@
     },
     {
       "columns": {
+        "adjustment": "float64",
+        "balance": "float64",
+        "created_at": "str",
+        "credit_note_id": "str",
+        "creditnote_id": "str",
+        "credits_applied": "float64",
+        "currency": "str",
+        "currency_code": "str",
+        "date": "str",
+        "invoice_line_id": "str",
+        "line__discount_amount": "int64",
+        "line__item_total": "int64",
+        "line__line_item_id": "str",
+        "line__quantity": "int64",
+        "line__rate": "int64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "int64",
+        "payment_made": "float64",
+        "quantity": "int64",
+        "record_id": "str",
+        "resource_type": "str",
+        "shipping_charge": "float64",
+        "sub_total": "float64",
+        "tax_total": "float64",
+        "total": "float64",
+        "total_amount": "float64",
+        "unit_price": "int64"
+      },
+      "loader": "load_zoho_books_dataframe",
+      "metadata": {
+        "connector": "zoho_books",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "creditnotes",
+        "resource": "credit_notes"
+      }
+    },
+    {
+      "columns": {
+        "adjustment": "float64",
+        "balance": "float64",
+        "created_at": "str",
+        "credits_applied": "float64",
+        "currency": "str",
+        "currency_code": "str",
+        "date": "str",
+        "estimate_id": "str",
+        "invoice_line_id": "str",
+        "line__discount_amount": "int64",
+        "line__item_total": "int64",
+        "line__line_item_id": "str",
+        "line__quantity": "int64",
+        "line__rate": "int64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "int64",
+        "payment_made": "float64",
+        "quantity": "int64",
+        "record_id": "str",
+        "resource_type": "str",
+        "shipping_charge": "float64",
+        "sub_total": "float64",
+        "tax_total": "float64",
+        "total": "float64",
+        "total_amount": "float64",
+        "unit_price": "int64"
+      },
+      "loader": "load_zoho_books_dataframe",
+      "metadata": {
+        "connector": "zoho_books",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "estimates",
+        "resource": "estimates"
+      }
+    },
+    {
+      "columns": {
+        "adjustment": "float64",
+        "balance": "float64",
+        "created_at": "str",
+        "credits_applied": "float64",
+        "currency": "str",
+        "currency_code": "str",
+        "date": "str",
+        "invoice_id": "str",
+        "invoice_line_id": "str",
+        "line__discount_amount": "int64",
+        "line__item_total": "int64",
+        "line__line_item_id": "str",
+        "line__quantity": "int64",
+        "line__rate": "int64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "int64",
+        "payment_made": "float64",
+        "quantity": "int64",
+        "record_id": "str",
+        "resource_type": "str",
+        "shipping_charge": "float64",
+        "sub_total": "float64",
+        "tax_total": "float64",
+        "total": "float64",
+        "total_amount": "float64",
+        "unit_price": "int64"
+      },
+      "loader": "load_zoho_books_dataframe",
+      "metadata": {
+        "connector": "zoho_books",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "invoices",
+        "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
         "created_at": "str",
         "custom_fields": "str",
         "custom_fields__count": "int64",
@@ -2209,6 +2381,48 @@
         ],
         "object_type": "invoices",
         "resource": "invoices"
+      }
+    },
+    {
+      "columns": {
+        "adjustment": "float64",
+        "balance": "float64",
+        "created_at": "str",
+        "credits_applied": "float64",
+        "currency": "str",
+        "currency_code": "str",
+        "date": "str",
+        "invoice_line_id": "str",
+        "line__discount_amount": "int64",
+        "line__item_total": "int64",
+        "line__line_item_id": "str",
+        "line__quantity": "int64",
+        "line__rate": "int64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "int64",
+        "payment_made": "float64",
+        "quantity": "int64",
+        "record_id": "str",
+        "resource_type": "str",
+        "sales_order_id": "str",
+        "salesorder_id": "str",
+        "shipping_charge": "float64",
+        "sub_total": "float64",
+        "tax_total": "float64",
+        "total": "float64",
+        "total_amount": "float64",
+        "unit_price": "int64"
+      },
+      "loader": "load_zoho_books_dataframe",
+      "metadata": {
+        "connector": "zoho_books",
+        "line_item_key": "line_item_id",
+        "line_item_parent_keys": [
+          "record_id"
+        ],
+        "object_type": "salesorders",
+        "resource": "sales_orders"
       }
     },
     {

@@ -1446,10 +1446,12 @@ def _lightspeed_item_description(line: dict) -> str | None:
 
 
 TRANSACTION_METRIC_NAMES = {
+    "adjustment",
     "amount",
     "amountdue",
     "amountpaid",
     "balance",
+    "creditsapplied",
     "calctax",
     "calctotal",
     "discount",
@@ -1460,7 +1462,9 @@ TRANSACTION_METRIC_NAMES = {
     "netsalesamount",
     "outstanding",
     "outstandingamount",
+    "paymentmade",
     "shippingamount",
+    "shippingcharge",
     "shippingtotal",
     "subtotal",
     "subtotalamount",
@@ -3848,10 +3852,7 @@ def load_lightspeed_x_dataframe(
                     "updated_at": record.get("updated_at"),
                     "customer_id": record.get("customer_id"),
                     "state": record.get("state"),
-                    "total": (
-                        record.get("total_price")
-                        or record.get("total")
-                    ),
+                    "total": connector_first_value(record, "total_price", "total"),
                 }
                 sale_source = {
                     key: value
@@ -3929,6 +3930,7 @@ def load_lightspeed_x_dataframe(
                                 line,
                                 pricing,
                                 "line_total",
+                                "price_total",
                                 "total_price",
                                 "total",
                             ),
@@ -5915,6 +5917,10 @@ def build_sage_normalized_fields(record: dict, resource_type: str) -> dict:
         "status": _sage_first_value(record, "status", "status_id"),
     }
 
+    if resource_type in SAGE_LINE_ITEM_RESOURCES:
+        # Net, tax and gross are separate Accounting API amounts, not fallbacks.
+        normalized["total_amount"] = record.get("total_amount")
+
     if resource_type in {"sales_invoices", "purchase_invoices"}:
         normalized.update(
             {
@@ -6877,6 +6883,12 @@ def load_zoho_books_dataframe(
         raise ConnectorUnavailable(str(error)) from error
 
     resource_path, response_key = ZOHO_BOOKS_RESOURCE_TYPES[resource_type]
+    document_detail = {
+        "invoices": ("invoice_id", "invoice"),
+        "credit_notes": ("creditnote_id", "creditnote"),
+        "estimates": ("estimate_id", "estimate"),
+        "sales_orders": ("salesorder_id", "salesorder"),
+    }.get(resource_type)
     rows = []
     page = 1
     seen_pages = set()
@@ -6916,6 +6928,20 @@ def load_zoho_books_dataframe(
         for record in records:
             if not isinstance(record, dict):
                 continue
+            if document_detail and not any(isinstance(record.get(key), list) for key in ("line_items", "lineItems", "items")):
+                # List endpoints return summaries; only document GETs include items.
+                id_key, response_key_single = document_detail
+                document_id = record.get(id_key)
+                if document_id is None:
+                    raise ConnectorUnavailable("Zoho Books returned a document without an identifier")
+                detail = connector_json_request(
+                    f"{api_domain}/books/v3/{resource_path}/{quote(str(document_id), safe='')}?"
+                    f"{urlencode({'organization_id': organization_id})}",
+                    headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
+                ).get(response_key_single)
+                if not isinstance(detail, dict) or str(detail.get(id_key)) != str(document_id) or not isinstance(detail.get("line_items"), list):
+                    raise ConnectorUnavailable("Zoho Books returned incomplete document details; please retry the sync")
+                record = {**record, **detail}
             normalized_fields = build_zoho_books_normalized_fields(
                 record,
                 resource_type,
@@ -7032,6 +7058,7 @@ def load_zoho_books_dataframe(
     return dataframe, {
         "connector": "zoho_books",
         "resource": resource_type,
+        "complete_document_items": document_detail is not None,
         **(
             {
                 "dedup_keys": ["line_item_id"],

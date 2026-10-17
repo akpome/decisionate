@@ -544,6 +544,8 @@ class SageConnectorTests(unittest.TestCase):
                     "due_date": "2026-02-01",
                     "status": "PROGRESS",
                     "total_amount": 1200,
+                    "net_amount": 1000,
+                    "tax_amount": 200,
                     "contact": {
                         "id": "contact-1",
                         "displayed_as": "Acme Ltd",
@@ -553,11 +555,19 @@ class SageConnectorTests(unittest.TestCase):
                     "invoice_lines": [{
                         "description": "Consulting",
                         "quantity": 2,
-                        "unit_price": 600,
+                        "unit_price": 450,
+                        "net_amount": 900,
+                        "tax_amount": 180,
+                        "total_amount": 1080,
+                        "discount_amount": 0,
                     }, {
                         "description": "Support",
                         "quantity": 1,
                         "unit_price": 100,
+                        "net_amount": 100,
+                        "tax_amount": 20,
+                        "total_amount": 120,
+                        "discount_amount": 0,
                     }],
                 }],
             }
@@ -602,12 +612,21 @@ class SageConnectorTests(unittest.TestCase):
             ["Consulting", "Support"],
         )
         self.assertEqual(dataframe["quantity"].tolist(), [2, 1])
+        self.assertEqual(dataframe["line__net_amount"].tolist(), [900, 100])
+        self.assertEqual(dataframe["line_tax"].tolist(), [180, 20])
+        self.assertEqual(dataframe["net_amount"].sum(), 1000)
+        self.assertEqual(dataframe["tax_amount"].sum(), 200)
         self.assertEqual(
             dataframe["line_item_id"].tolist(),
             ["invoice-1:line:0", "invoice-1:line:1"],
         )
         self.assertFalse(any("invoice_lines__" in column for column in dataframe.columns))
         self.assertEqual(report["connector"], "sage")
+
+    def test_sage_document_total_never_falls_back_to_net_or_an_unclassified_amount(self):
+        for resource in connectors.SAGE_LINE_ITEM_RESOURCES:
+            normalized = connectors.build_sage_normalized_fields({"net_amount": 100, "amount": 110, "total": 120}, resource)
+            self.assertIsNone(normalized["total_amount"])
 
     def test_sage_v31_defaults_to_x_business_header(self):
         connection = SimpleNamespace(

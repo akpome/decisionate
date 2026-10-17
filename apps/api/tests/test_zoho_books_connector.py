@@ -353,6 +353,8 @@ class ZohoBooksConnectorTests(unittest.TestCase):
         )
 
         def fake_request(url, headers):
+            if "/invoices/invoice-updated?" in url:
+                return {"invoice": {"invoice_id": "invoice-updated", "total": 200, "line_items": []}}
             return {
                 "invoices": [{
                     "invoice_id": "invoice-updated",
@@ -386,6 +388,66 @@ class ZohoBooksConnectorTests(unittest.TestCase):
 
         self.assertEqual(len(dataframe), 1)
         self.assertEqual(dataframe.iloc[0]["record_id"], "invoice-updated")
+
+    def test_document_list_summaries_are_hydrated_before_vertical_item_normalization(self):
+        cases = (("invoices", "invoices", "invoice", "invoice_id"),
+                 ("credit_notes", "creditnotes", "creditnote", "creditnote_id"),
+                 ("estimates", "estimates", "estimate", "estimate_id"),
+                 ("sales_orders", "salesorders", "salesorder", "salesorder_id"))
+        for resource, path, singular, id_key in cases:
+            with self.subTest(resource=resource):
+                connection = SimpleNamespace(id=9, source_type="zoho_books", connection_config=json.dumps({"organization_id": "123", "api_domain": "https://www.zohoapis.eu"}))
+                detail = {id_key: "doc-1", "date": "2026-10-01", "currency_code": "EUR",
+                          "total": 24, "sub_total": 20, "tax_total": 2, "balance": 0,
+                          "payment_made": 22, "credits_applied": 2, "shipping_charge": 3, "adjustment": -1,
+                          "line_items": [{"line_item_id": "one", "quantity": 2, "rate": 5, "item_total": 10, "discount_amount": 0},
+                                         {"line_item_id": "two", "quantity": 1, "rate": 10, "item_total": 10, "discount_amount": 0}]}
+                def request(url, headers):
+                    self.assertTrue(url.startswith(f"https://www.zohoapis.eu/books/v3/{path}"))
+                    self.assertEqual(parse_qs(urlparse(url).query)["organization_id"], ["123"])
+                    self.assertEqual(headers["Authorization"], "Zoho-oauthtoken test-token")
+                    if urlparse(url).path.endswith("/doc-1"):
+                        return {"code": 0, singular: detail}
+                    return {path: [{id_key: "doc-1", "total": 24}], "page_context": {"has_more_page": False}}
+                with patch.object(connectors, "get_oauth_access_token", return_value="test-token"), patch.object(connectors, "connector_json_request", side_effect=request) as mocked:
+                    frame, report = connectors.load_zoho_books_dataframe(None, connection, resource_type_override=resource)
+                self.assertEqual(mocked.call_count, 2)
+                self.assertEqual(frame["quantity"].tolist(), [2, 1])
+                self.assertEqual(frame["unit_price"].tolist(), [5, 10])
+                self.assertEqual(frame["line_total"].tolist(), [10, 10])
+                self.assertEqual(frame["total"].sum(), 24)
+                self.assertEqual(frame["payment_made"].sum(), 22)
+                self.assertEqual(frame["credits_applied"].sum(), 2)
+                self.assertEqual(frame["shipping_charge"].sum(), 3)
+                self.assertEqual(frame["adjustment"].sum(), -1)
+                self.assertEqual(frame["balance"].iloc[0], 0)
+                self.assertFalse(any("__0__" in column for column in frame))
+                from app.modules.datasets.router import merge_connector_dataframes
+                previous = pd.DataFrame([
+                    {"record_id": "doc-1", "line_item_id": "doc-1:line:0", "total": 24},
+                    {"record_id": "untouched", "line_item_id": "other-item", "total": 5},
+                ])
+                merged = merge_connector_dataframes(previous, frame, "zoho_books", report)
+                self.assertEqual(len(merged), 3)
+                self.assertEqual(merged["total"].sum(), 29)
+                self.assertNotIn("doc-1:line:0", merged["line_item_id"].tolist())
+                repeated = merge_connector_dataframes(merged, frame, "zoho_books", report)
+                self.assertEqual(repeated["total"].sum(), 29)
+                from app.modules.datasets.services.metric_selection import get_effective_dataset_metric_columns
+                item = SimpleNamespace(source_type="zoho_books", source_config=json.dumps({"resource": resource}))
+                selected = get_effective_dataset_metric_columns(item, frame)
+                self.assertTrue({"quantity", "unit_price", "line_total", "total"} <= set(selected))
+                if resource == "invoices":
+                    self.assertTrue({"tax_total", "sub_total", "balance", "payment_made"} <= set(selected))
+
+    def test_incomplete_document_detail_does_not_silently_import_summary_as_an_invoice(self):
+        connection = SimpleNamespace(id=9, source_type="zoho_books", connection_config=json.dumps({"organization_id": "123", "api_domain": "https://www.zohoapis.com"}))
+        for detail in ({"invoice_id": "doc-1"}, {"invoice_id": "wrong-document", "line_items": []}):
+            with self.subTest(detail=detail), patch.object(connectors, "get_oauth_access_token", return_value="test-token"), patch.object(
+                connectors, "connector_json_request", side_effect=[{"invoices": [{"invoice_id": "doc-1"}]}, {"invoice": detail}],
+            ):
+                with self.assertRaisesRegex(connectors.ConnectorUnavailable, "incomplete document details"):
+                    connectors.load_zoho_books_dataframe(None, connection, resource_type_override="invoices")
 
     def test_customer_payment_sync_does_not_send_unsupported_range_filters(self):
         connection = SimpleNamespace(

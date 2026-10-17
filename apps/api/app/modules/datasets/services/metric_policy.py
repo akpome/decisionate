@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 from pathlib import Path
 from typing import NotRequired, TypedDict
 from urllib.parse import urlparse
 
 
-POLICY_VERSION = "2026-10-14.1"
+POLICY_VERSION = "2026-10-16.1"
 CONNECTOR_SCHEMA_VERSION = "decisionate-v1"
 SELECTION_PROVENANCE_KEY = "metric_selection_provenance"
 SCHEMA_VERSION_KEY = "connector_schema_version"
@@ -190,6 +190,42 @@ for connector, resources, evidence, fixture in (
 ):
     for resource in resources:
         POLICIES.append(DatasetMetricPolicy(connector, resource, "entity", evidence, fixture, derived=(RECORDS,)))
+
+
+# Preserve the policy pinned to deliberate selections; automatic defaults use
+# the newly reviewed receipt fields without silently rewriting manual choices.
+_previous_policies = [replace(profile, policy_version="2026-10-14.1") for profile in POLICIES]
+for index, profile in enumerate(POLICIES):
+    if profile.connector_key == "sage" and profile.dataset_key == "sales_invoices":
+        POLICIES[index] = replace(profile,
+            evidence_url="https://us-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=210126214952167",
+            reviewed_at="2026-10-16", metrics=(
+                LINE_QUANTITY, replace(UNIT_PRICE, classification="core"),
+                money("line_total", "Net line amount printed on the invoice, excluding tax.", paths=("line__net_amount",), family="line_value"),
+                money("line_tax", "Tax amount on the invoice line.", paths=("line_tax", "line__tax_amount")),
+                money("line_discount", "Monetary line discount, not its percentage.", paths=("line__discount_amount",)),
+                money("net_amount", "Document net amount, recorded once per invoice.", family="document_value"),
+                money("tax_amount", "Document tax amount, recorded once per invoice."),
+                money("total_amount", "Document total including tax, recorded once per invoice.", family="document_value"),
+            ))
+    elif profile.connector_key == "zoho_books" and profile.dataset_key == "invoices":
+        POLICIES[index] = replace(profile, reviewed_at="2026-10-16", metrics=(
+            LINE_QUANTITY, LINE_TOTAL, replace(UNIT_PRICE, classification="core"),
+            money("line_discount", "Fixed line discount amount, not the percentage/fixed input.", paths=("line__discount_amount",)),
+            *(money(key, "Invoice amount in the document currency, recorded once per invoice.", family="document_value")
+              for key in ("total", "sub_total", "tax_total", "shipping_charge", "adjustment", "balance", "payment_made", "credits_applied")),
+        ))
+POLICIES.append(DatasetMetricPolicy("lightspeed_x", "sales", "sale_line",
+    "https://x-series-api.lightspeedhq.com/docs/sales_returns", "tests.test_new_connectors", (
+        LINE_QUANTITY,
+        money("unit_price", "Tax-exclusive customer unit price; never the inventory cost.", paths=("unit_price", "line__unit_price", "line__price", "line__pricing__price"), aggregation="AVG"),
+        money("line_total", "Provider-reported line price total, without inventing price-times-quantity.", paths=("line_total", "line__price_total", "line__total_price"), family="line_value"),
+        money("line_tax", "Provider-reported line tax total, not the per-unit tax.", paths=("line__tax_total", "line__total_tax")),
+        money("line_discount", "Provider-reported line discount total.", paths=("line__discount_total", "line__total_discount")),
+        money("total", "Sale price total, recorded once per sale; not a tax-inclusive grand total.", paths=("total", "total_price"), family="document_value"),
+        money("total_tax", "Sale tax total, recorded once per sale."),
+    ), reviewed_at="2026-10-16"))
+POLICIES.extend(_previous_policies)
 
 
 def validate_policies(policies=POLICIES):

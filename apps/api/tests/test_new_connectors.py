@@ -2232,6 +2232,27 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(dataframe.loc[0, "total"], "28.00")
         self.assertTrue(pd.isna(dataframe.loc[1, "total"]))
 
+    def test_lightspeed_x_documented_flat_prices_taxes_and_discounts_are_preserved(self):
+        record = {
+            "id": "sale-1", "created_at": "2026-10-01", "state": "closed", "currency": "CAD",
+            "total_price": 0, "total_tax": 0, "total_cost": 16,
+            "line_items": [{"id": "line-1", "quantity": 2, "unit_price": 10, "price": 10, "price_total": 18,
+                            "tax_total": 2.34, "discount_total": 2, "cost": 8, "loyalty_value": 1},
+                           {"id": "line-2", "quantity": -2, "unit_price": 10, "price": 10, "price_total": -18,
+                            "tax_total": -2.34, "discount_total": -2, "cost": 8, "loyalty_value": 1}],
+        }
+        with patch.object(connectors, "get_oauth_access_token", return_value="test-token"), patch.object(
+            connectors, "connector_json_request", return_value={"data": [record]},
+        ), patch.dict(os.environ, {"LIGHTSPEED_X_API_BASE_URL_TEMPLATE": "https://{domain_prefix}.retail.lightspeed.app/api/{version}", "LIGHTSPEED_X_API_VERSION": "2026-07"}):
+            frame, _ = connectors.load_lightspeed_x_dataframe(None, make_connection("lightspeed_x", {"domain_prefix": "test-store", "resource_types": ["sales"]}))
+        self.assertEqual(frame["line_total"].tolist(), [18, -18])
+        self.assertEqual(frame["unit_price"].tolist(), [10, 10])
+        self.assertEqual(frame["total"].iloc[0], 0)
+        self.assertTrue(pd.isna(frame["total"].iloc[1]))
+        from app.modules.datasets.services.metric_selection import get_effective_dataset_metric_columns
+        item = SimpleNamespace(source_type="lightspeed_x", source_config=json.dumps({"resource": "sales"}))
+        self.assertEqual(set(get_effective_dataset_metric_columns(item, frame)), {"quantity", "unit_price", "line_total", "line__tax_total", "line__discount_total", "total", "total_tax"})
+
     def test_lightspeed_x_sales_merge_by_sale_line_id(self):
         existing = pd.DataFrame([
             {

@@ -226,16 +226,16 @@ printed on every regional or customized invoice template.
 | Stripe | [Charge](https://docs.stripe.com/api/charges/object) and [receipts](https://docs.stripe.com/receipts): payment/refund amount; exclude application fees, risk scores and card metadata. Raw amount remains minor units outside curated conversion; the restriction does not certify the legacy amount_major alias. |
 | Lightspeed X | [Sales 101](https://x-series-api.lightspeedhq.com/docs/sales_101): quantity and pricing; internal cost and loyalty fields are not receipt defaults. |
 | Lightspeed R | [Sale](https://developers.lightspeedhq.com/retail/endpoints/Sale/) and [SaleLine](https://developers.lightspeedhq.com/retail/endpoints/Sale-SaleLine/): quantity, unit price, line total, sale total/subtotal, tax, discount and tip. Exclude calcAvgCost, calcFIFOCost, IDs, flags and duplicate calcTotal/total aliases. |
-| Sage Accounting | [Create sales invoices](https://ca-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=240304191312200): customer invoice price/rate and quantities. Keep only unambiguous normalized quantity/unit-price fields; net/gross total fallback mappings are not approved. Do not substitute Sage Active, Sage 50 or Sage Operations schemas. |
+| Sage Accounting | [Invoice display options](https://us-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=210126214952167): quantity, unit price, discount, tax and net line amount, plus the tax-inclusive document total. Use separate exact net/tax/gross paths; do not substitute Sage Active, Sage 50 or Sage Operations schemas. |
 | Lightspeed K (planned) | [Financials](https://api-docs.lsk.lightspeed.app/operation/operation-financial-apigetfinancials) and [receipt](https://api-docs.lsk.lightspeed.app/operation/operation-financial-apigetreceiptbyexternalreference): quantity, tax and net amounts are documented in the actual Financial API. Defaults remain disabled until the connector's emitted schema is matched to these fields by reviewed fixtures. |
 | Lightspeed O (planned) | [Orders](https://apidoc.kounta.com/orders/) and [Lines](https://apidoc.kounta.com/lines/): reviewed the public references, but current rendered line-field evidence is incomplete. No unverified monetary defaults are enabled. |
 
 Sage Accounting's detailed API reference still returned no readable schema through
-the research client. Its customer invoice guide was reviewed, but the local
-`line_total` and `total_amount` aliases can fall back between net, gross and generic
-amounts. They are no longer automatic defaults. No regional Sage field or
-cross-series Lightspeed total is invented. Existing curated fixture/currency
-checks remain in force; public documentation is not live-provider certification.
+the research client. The follow-up below uses its explicit invoice-display guide
+and a Sage developer-support example to separate net, tax and gross amounts.
+The ambiguous legacy line-total alias remains excluded; the connector no longer
+fills a document's gross total from net or generic amounts. Existing curated
+fixture/currency checks remain in force; documentation is not live certification.
 
 ### Field-Level Follow-Up Audit (2026-10-16)
 
@@ -257,20 +257,43 @@ preserved, including technical columns deliberately selected by the customer.
 | FreshBooks payments/expenses | Payment `amount.amount` -> `amount` only. Expenses use that amount plus `taxAmount1.amount` and `taxAmount2.amount`. | [Payments](https://www.freshbooks.com/api/payments) and [expenses](https://www.freshbooks.com/api/expenses) distinguish money objects from `taxPercent1/2` and markup. Do not reuse invoice tax semantics on expenses. |
 | Xero invoices | `LineItems[].Quantity`, `UnitAmount`, `LineAmount`, `TaxAmount` -> `quantity`, `unit_price`, `line_total`, `line_tax`. Prefer normalized `total`, `subtotal`, `total_tax`, `amount_paid`, `amount_due` to raw aliases. | [Invoices](https://developer.xero.com/documentation/api/accounting/invoices) and [official OpenAPI](https://github.com/XeroAPI/Xero-OpenAPI/blob/master/xero_accounting.yaml). One representation per measure is selected. |
 | Xero credit notes/quotes/purchase orders/payments | Document line measures plus subtotal/tax/total; no invoice paid/due values on non-invoice documents. Payments select `Amount`, not `BankAmount`. | The official OpenAPI `CreditNote`, `Quote`, `PurchaseOrder`, `Payment` and `LineItem` schemas were parsed directly because some rendered references returned only a JavaScript shell. Currency rates and bank-currency payment equivalents are not extra receipt measures. |
-| Zoho Books invoices/estimates/sales orders | `line_items[].quantity`, `rate`, `item_total` -> `quantity`, `unit_price`, `line_total` where actually emitted; header `total`, `sub_total`, `tax_total`, `shipping_charge`. | [Invoices](https://www.zoho.com/books/api/v3/invoices/), [estimates](https://www.zoho.com/books/api/v3/estimates/), [sales orders](https://www.zoho.com/books/api/v3/sales-order/). No guessed line totals are calculated. `bcy_rate`, base-currency amounts and ambiguous percentage/fixed discount aliases are not defaults. |
+| Zoho Books invoices/estimates/sales orders | `line_items[].quantity`, `rate`, `item_total` -> `quantity`, `unit_price`, `line_total` with exact raw numeric fallbacks; `line_items[].discount_amount` remains its raw money field. Header `total`, `sub_total`, `tax_total`, `shipping_charge`, `adjustment`; invoices also `balance`, `payment_made`, `credits_applied`. | [Invoices](https://www.zoho.com/books/api/v3/invoices/), [estimates](https://www.zoho.com/books/api/v3/estimates/), [sales orders](https://www.zoho.com/books/api/v3/sales-order/) and the [PDF total-section settings](https://www.zoho.com/ca/books/help/settings/templates.html). Fetch the individual document when the list returns only a summary. No guessed line totals are calculated. Base-currency amounts, exchange rates and ambiguous percentage/fixed `discount` inputs are not defaults. |
 | Zoho Books credit notes/expenses/payments | Credits use line quantity/price/amount plus `total`; no unverified invoice footer fields. Expenses use `total`, `sub_total`, `tax_amount`, not a generic invoice line list. Customer payments use `amount` only. | [Credits](https://www.zoho.com/books/api/v3/credit-notes/), [expenses](https://www.zoho.com/books/api/v3/expenses/), [customer payments](https://www.zoho.com/books/api/v3/customer-payments/). `total` and `amount` are not assumed equivalent on expenses. |
-| Sage Accounting invoice/credit resources | `quantity` -> `quantity`; `unit_price` -> `unit_price`. No automatic `line_total`/`total_amount` until net/gross fallback paths are verified. | The official customer invoice guide and local emitter establish quantity and unit price. Detailed API evidence is incomplete; normalized total names alone are not proof. No Sage Active/50/ERP schema is substituted. |
+| Sage Accounting invoice/credit resources | `quantity`, `unit_price`; exact `line__net_amount`, line tax (`line_tax` or `line__tax_amount`), `line__discount_amount`; document `net_amount`, `tax_amount`, `total_amount`. | [Sage Accounting invoice-display guide](https://us-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=210126214952167) explicitly lists quantity, price, discount, tax and net line amount, with the tax-inclusive total at document level. [Sage developer support's Canadian invoice example](https://developer-community.sage.com/profile/34-steel-mark/content/page/18/?type=forums_topic_post) shows separate line/header net, tax and total fields. The legacy `line_total` can be gross and is not selected automatically. Base-currency copies, percentage discounts and ambiguous generic amounts are excluded. No Sage Active/50/ERP schema is substituted. |
 | Lightspeed R sales | `unitQuantity`/`unitPrice` -> `quantity`/`unit_price`; line `calcTotal` -> `line__calcTotal` or repaired `line_total`; sale `total`/`calcTotal`, `calcSubtotal`, `calcTax1/2`, `calcDiscount`, `calcTips`. | [Sale](https://developers.lightspeedhq.com/retail/endpoints/Sale/), [SaleLine](https://developers.lightspeedhq.com/retail/endpoints/Sale-SaleLine/), and the [provider-linked receipt template](https://raw.githubusercontent.com/merchantos/PrintTemplates/master/receipt/SaleReceipt.tpl). Tip uses documented `calcTips`, not a guessed `tip` alias. Average/FIFO costs remain excluded. |
-| Lightspeed X sales | Line quantity, `pricing.price` -> `unit_price`, and an emitted authoritative line total -> `line_total`. | [Sales 101](https://x-series-api.lightspeedhq.com/docs/sales_101) explicitly distinguishes customer price from `pricing.cost` used for margin. No cost, loyalty, recognized-quantity counters or invented price-times-quantity default is added. |
+| Lightspeed X sales | Line quantity and `unit_price`/`price`/`pricing.price`; authoritative `price_total`/`total_price` -> `line_total`; exact line `tax_total` and `discount_total`; sale `total_price` -> `total` plus `total_tax`. Raw numeric alternatives support already-vertical old rows with null aliases. | [Receipt settings](https://x-series-support.lightspeedhq.com/hc/en-us/articles/25534014632987-Setting-up-receipt-templates), [current returns/GET response](https://x-series-api.lightspeedhq.com/docs/sales_returns), [sales synchronization](https://x-series-api.lightspeedhq.com/docs/sync_sale_into_vend), and [Sales 101](https://x-series-api.lightspeedhq.com/docs/sales_101). Unit prices and tax-exclusive totals are not a tax-inclusive grand total. No cost, loyalty, recognized-quantity counters or invented price-times-quantity default is added. |
 | Lightspeed K/O (planned) | No automatic metrics. | [K Financial API](https://api-docs.lsk.lightspeed.app/operation/operation-financial-apigetfinancials) documents receipt sales lines; [O line API](https://apidoc.kounta.com/lines/) documents exclusive/inclusive prices. Reviewed matching emitter fixtures and tax/unit semantics are still required before enabling defaults. These providers are not reported as live-certified. |
 
 Preferred aliases are chosen from usable numeric fields, not merely from all
 column names. Thus an empty, JSON-valued or malformed alias cannot shadow a
 documented numeric alternative. Analytical projection retains the small set of
 reviewed aliases until that check, then removes unselected numeric values.
-Full source previews and ingestion remain unchanged; they are not receipt-only
-materializations. The tests use local mocked contracts and synthetic values,
+Full source previews and ingestion are not receipt-only materializations.
+Zoho document imports now retrieve missing line details rather
+than persist summary-only invoice rows. The tests use mocked contracts and synthetic values,
 not customer credentials or live-provider data.
+
+### Missing Receipt Amounts Follow-Up (2026-10-16)
+
+The first allowlists were incomplete, not evidence that receipts contain only
+quantity or total. This correction adds documented X-Series amounts, retrieves
+Zoho document details, and uses exact Sage net/tax/gross fields. Header amounts
+remain stored only on the first item row; these reviewed fields are no longer
+rejected for low completeness on invoices with many items. They are not repeated
+on every line and are not added to line totals to manufacture revenue.
+
+Curated policy `2026-10-16.1` includes the matching fixture-backed paths and keeps
+currency/type/objective checks. The previous policy remains available for manual
+selections pinned to it. Automatic receipt selections use the latest policy;
+manual selections and opt-outs are not rewritten. Empty normalized aliases no
+longer suppress a valid reviewed raw alias in the curated resolver.
+
+Existing Zoho datasets containing only list summaries need a sync covering the
+affected invoice dates to fetch missing details; a read cannot reconstruct absent
+line items or prices. Complete incoming documents replace their previous item
+rows, including old synthetic summary placeholders; unrelated documents remain.
+New and re-synced transactions stay vertical. This change
+does not access customer accounts or certify a live production sync.
 
 The initial restriction did not correct old selected-column lists. The follow-up
 uses receipt defaults for financial selections marked `recommended` and for

@@ -7500,6 +7500,17 @@ def merge_connector_dataframes(
             end_date=report_config.get("end_date"),
         )
 
+    if (
+        has_existing and source_type == "zoho_books"
+        and report_config.get("complete_document_items") is True
+        and "record_id" in existing_dataframe and "record_id" in incoming_dataframe
+    ):
+        # Complete documents supersede summary placeholders and removed item rows.
+        refreshed = set(incoming_dataframe["record_id"].dropna().astype("string"))
+        existing_dataframe = existing_dataframe.loc[
+            ~existing_dataframe["record_id"].astype("string").isin(refreshed)
+        ]
+
     combined = (
         pd.concat(
             [existing_dataframe, incoming_dataframe],

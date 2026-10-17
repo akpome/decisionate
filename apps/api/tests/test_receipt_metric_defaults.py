@@ -92,12 +92,48 @@ class ReceiptMetricDefaultTests(unittest.TestCase):
         profile = build_metric_selection_profile(dataset("zoho_books", "credit_notes"), frame)
         self.assertEqual(set(profile["recommended_metric_columns"]), {"quantity", "unit_price", "line_total", "total"})
 
-    def test_ambiguous_sage_total_fallbacks_do_not_become_receipt_defaults(self):
+    def test_sage_uses_exact_net_tax_and_document_total_not_the_mixed_line_alias(self):
         frame = pd.DataFrame({"quantity": [2], "unit_price": [10], "line_total": [20],
                               "total_amount": [20], "net_amount": [20], "tax_amount": [2.6]})
         for resource in ("sales_invoices", "purchase_invoices", "sales_credit_notes", "purchase_credit_notes"):
             with self.subTest(resource=resource):
-                self.assertEqual(set(build_metric_selection_profile(dataset("sage", resource), frame)["recommended_metric_columns"]), {"quantity", "unit_price"})
+                self.assertEqual(set(build_metric_selection_profile(dataset("sage", resource), frame)["recommended_metric_columns"]), {"quantity", "unit_price", "net_amount", "tax_amount", "total_amount"})
+
+    def test_document_totals_are_not_rejected_for_being_present_only_on_the_first_item(self):
+        cases = (
+            ("lightspeed_x", "sales", {"quantity", "unit_price", "line_total", "total", "total_tax"}),
+            ("zoho_books", "invoices", {"quantity", "unit_price", "line_total", "total", "sub_total", "tax_total", "balance"}),
+            ("sage", "sales_invoices", {"quantity", "unit_price", "line__net_amount", "line_tax", "net_amount", "tax_amount", "total_amount"}),
+        )
+        for source, resource, expected in cases:
+            with self.subTest(source=source):
+                frame = pd.DataFrame({column: [100] + [None] * 19 if column in {"total", "total_tax", "sub_total", "tax_total", "balance", "net_amount", "tax_amount", "total_amount"} else [10] * 20 for column in expected})
+                frame["internal_count"] = [1] + [None] * 19
+                item = dataset(source, resource, selected_metric_columns=["quantity"], metric_selection_provenance={"source": "recommended"})
+                self.assertEqual(set(get_effective_dataset_metric_columns(item, frame)), expected)
+                self.assertEqual(filter_dataframe_to_selected_metrics(item, frame)[next(column for column in expected if column in {"total", "total_amount"})].sum(), 100)
+
+    def test_existing_vertical_lightspeed_and_zoho_rows_use_documented_numeric_aliases(self):
+        cases = (
+            ("lightspeed_x", {"quantity": [2], "unit_price": [None], "line_total": [None], "line__price": [10], "line__price_total": [20], "line__tax_total": [2], "line__discount_total": [1], "total": [20], "total_price": [20], "total_tax": [2], "line__cost": [3], "total_cost": [6]}, {"quantity", "line__price", "line__price_total", "line__tax_total", "line__discount_total", "total", "total_tax"}),
+            ("zoho_books", {"quantity": [2], "unit_price": [None], "line_total": [None], "line__rate": [10], "line__item_total": [20], "total": [22], "tax_total": [2], "exchange_rate": [1.5]}, {"quantity", "line__rate", "line__item_total", "total", "tax_total"}),
+        )
+        for source, values, expected in cases:
+            item = dataset(source, "sales" if source == "lightspeed_x" else "invoices")
+            frame = pd.DataFrame(values)
+            with self.subTest(source=source):
+                self.assertEqual(set(get_effective_dataset_metric_columns(item, frame)), expected)
+                revenue = build_metric_selection_profile(item, frame, "increase_revenue")["recommended_metric_columns"]
+                self.assertIn("line__price" if source == "lightspeed_x" else "line__rate", revenue)
+                self.assertIn("line__price_total" if source == "lightspeed_x" else "line__item_total", revenue)
+
+    def test_receipt_fixes_preserve_manual_selections_for_affected_connectors(self):
+        for source, resource in (("lightspeed_x", "sales"), ("zoho_books", "invoices"), ("sage", "sales_invoices")):
+            frame = pd.DataFrame({"quantity": [2], "unit_price": [10], "total": [20], "internal_cost": [3]})
+            for selected in (["quantity"], ["internal_cost"], []):
+                item = dataset(source, resource, selected_metric_columns=selected, metric_selection_provenance={"source": "user"})
+                with self.subTest(source=source, selected=selected):
+                    self.assertEqual(get_effective_dataset_metric_columns(item, frame), selected)
 
     def test_lightspeed_tip_defaults_use_the_documented_payment_tip_total(self):
         columns = ["tip", "calcTips", "normal_unit_price", "calcAvgCost", "calcFIFOCost"]

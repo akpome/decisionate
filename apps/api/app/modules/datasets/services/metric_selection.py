@@ -514,17 +514,17 @@ def build_metric_selection_profile(
                     exclusion_reason="No usable observations.",
                     reason="No usable observations.",
                 )
+            elif column_name in receipt_default_set:
+                field.update(
+                    role="metric", status="recommended",
+                    reason="Documented receipt or invoice measure.",
+                )
             elif completeness < 0.2:
                 field.update(
                     role="technical",
                     status="excluded",
                     exclusion_reason="Almost entirely empty.",
                     reason="Almost entirely empty.",
-                )
-            elif column_name in receipt_default_set:
-                field.update(
-                    role="metric", status="recommended",
-                    reason="Documented receipt or invoice measure.",
                 )
             elif is_small_dataset:
                 field.update(

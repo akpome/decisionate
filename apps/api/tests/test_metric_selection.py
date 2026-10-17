@@ -230,9 +230,9 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 with self.subTest(source_type=source_type, rows=row_count, objective=objective):
                     if source_type in {"stripe", "lightspeed_k", "lightspeed_o"}:
                         expected = set()
-                    elif source_type == "quickbooks":
+                    elif source_type in {"quickbooks", "zoho_books"}:
                         expected = expected & {"unit_price", "balance"}
-                    elif source_type in {"shopify", "square", "woocommerce", "lightspeed", "lightspeed_x", "freshbooks", "sage", "xero", "zoho_books"}:
+                    elif source_type in {"shopify", "square", "woocommerce", "lightspeed", "lightspeed_x", "freshbooks", "sage", "xero"}:
                         expected = expected & {"unit_price"}
                     profile = build_metric_selection_profile(item, dataframe, objective)
                     self.assertEqual(set(profile["recommended_metric_columns"]), expected)

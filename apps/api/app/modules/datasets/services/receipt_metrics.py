@@ -19,8 +19,19 @@ _XERO_DOCUMENT_FIELDS = _LINE_FIELDS + (
     ("line_tax", "line__TaxAmount"), ("total", "Total"),
     ("subtotal", "SubTotal"), ("total_tax", "TotalTax"),
 )
-_ZOHO_DOCUMENT_FIELDS = _LINE_FIELDS + (
+_ZOHO_LINE_FIELDS = (
+    ("quantity", "line__quantity"), ("unit_price", "line__rate"),
+    ("line_total", "line__item_total"), ("line__discount_amount",),
+)
+_ZOHO_DOCUMENT_FIELDS = _ZOHO_LINE_FIELDS + (
     ("total",), ("sub_total",), ("tax_total",), ("shipping_charge",),
+    ("adjustment",),
+)
+_SAGE_DOCUMENT_FIELDS = (
+    ("quantity", "line__quantity"), ("unit_price", "line__unit_price"),
+    # The printed line amount is net; the legacy line_total alias mixes net/gross.
+    ("line__net_amount",), ("line_tax", "line__tax_amount"),
+    ("line__discount_amount",), ("net_amount",), ("tax_amount",), ("total_amount",),
 )
 _RULES = {
     "shopify": {"orders": _LINE_FIELDS + (
@@ -47,9 +58,7 @@ _RULES = {
         "payments": (("amount", "amount__amount"),),
         "expenses": (("amount", "amount__amount"), ("taxAmount1__amount",), ("taxAmount2__amount",)),
     },
-    # The existing Sage aliases mix net/gross/amount fallback paths. Until the
-    # Accounting API contract is verified, only unambiguous line fields default.
-    "sage": {resource: (("quantity",), ("unit_price",)) for resource in (
+    "sage": {resource: _SAGE_DOCUMENT_FIELDS for resource in (
         "sales_invoices", "purchase_invoices", "sales_credit_notes", "purchase_credit_notes",
     )},
     "xero": {
@@ -60,8 +69,8 @@ _RULES = {
         "payments": (("Amount",),),
     },
     "zoho_books": {
-        "invoices": _ZOHO_DOCUMENT_FIELDS,
-        "credit_notes": _LINE_FIELDS + (("total",),),
+        "invoices": _ZOHO_DOCUMENT_FIELDS + (("balance",), ("payment_made",), ("credits_applied",)),
+        "credit_notes": _ZOHO_LINE_FIELDS + (("total",),),
         "estimates": _ZOHO_DOCUMENT_FIELDS,
         "sales_orders": _ZOHO_DOCUMENT_FIELDS,
         "expenses": (("total",), ("sub_total",), ("tax_amount",)),
@@ -70,7 +79,14 @@ _RULES = {
     "lightspeed": {"sales": (("quantity",), ("unit_price",),
         ("line_total", "line__calcTotal"), ("total", "calcTotal"), ("calcSubtotal",),
         ("calcTax1",), ("calcTax2",), ("calcDiscount",), ("calcTips",))},
-    "lightspeed_x": {"sales": _LINE_FIELDS},
+    "lightspeed_x": {"sales": (
+        ("quantity", "line__quantity"),
+        ("unit_price", "line__unit_price", "line__price", "line__pricing__price"),
+        ("line_total", "line__price_total", "line__total_price"),
+        ("line__tax_total", "line__total_tax"),
+        ("line__discount_total", "line__total_discount"),
+        ("total", "total_price"), ("total_tax",),
+    )},
     "lightspeed_k": {},
     "lightspeed_o": {},
 }

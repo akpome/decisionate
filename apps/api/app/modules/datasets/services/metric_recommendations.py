@@ -98,7 +98,8 @@ def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, sel
     objective = str(objective or config.get("business_objective") or "general_business").strip().lower()
     key = dataset_policy_key(dataset, config)
     policy = METRIC_POLICIES.get(key)
-    if selection_policy:
+    automatic_receipt_selection = uses_receipt_defaults(key[0], config)
+    if selection_policy and not automatic_receipt_selection:
         provenance = config.get(SELECTION_PROVENANCE_KEY)
         version = provenance.get("policy_version") if isinstance(provenance, dict) else None
         policy = METRIC_POLICY_VERSIONS.get((*key, version))
@@ -145,7 +146,8 @@ def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, sel
         if not reviewed_paths:
             skip(entry.semantic_key, "field_fixture_review_pending")
             continue
-        column = next((path for path in reviewed_paths if path in dataframe), None)
+        present_paths = [path for path in reviewed_paths if path in dataframe]
+        column = next((path for path in present_paths if _numeric_values(dataframe[path]) is not None), next(iter(present_paths), None))
         if column is None:
             skip(entry.semantic_key, "missing_source_column")
             continue
@@ -234,7 +236,7 @@ def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, sel
     result["missingSelectedColumns"] = [column for column in result["savedSelection"] or [] if column not in known]
     eligible = {entry["columnKey"] for group in ("recommended", "optional", "derived") for entry in result[group]}
     result["unavailableSelectedColumns"] = [column for column in result["savedSelection"] or [] if column not in eligible]
-    if not selection_policy:
+    if not selection_policy or automatic_receipt_selection:
         policy_columns = [entry["columnKey"] for group in ("recommended", "optional") for entry in result[group]]
         allowed = receipt_metric_columns(key[0], config, policy_columns)
         if allowed is not None:
