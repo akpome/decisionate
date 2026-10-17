@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import asdict
 from dataclasses import dataclass
+from dataclasses import replace
 
 
 @dataclass(frozen=True)
@@ -182,7 +183,10 @@ METRIC_REGISTRY: dict[str, tuple[MetricDefinition, ...]] = {
     "meta_ads": (_SPEND, _QUANTITY, _REVENUE, _DERIVED_RETURN),
     "google_analytics": (_QUANTITY, _REVENUE, _DERIVED_RETURN),
     "quickbooks": (_REVENUE, _SPEND, _TAX, _BALANCE, _QUANTITY),
-    "freshbooks": (_REVENUE, _SPEND, _TAX, _BALANCE, _QUANTITY),
+    "freshbooks": (
+        replace(_UNIT_PRICE, patterns=_UNIT_PRICE.patterns + (r"^line_unit_cost_amount$",)),
+        _REVENUE, _SPEND, _TAX, _BALANCE, _QUANTITY,
+    ),
     "sage": (_REVENUE, _SPEND, _TAX, _BALANCE, _QUANTITY),
     "xero": (_REVENUE, _SPEND, _TAX, _BALANCE, _QUANTITY),
     "zoho_books": (_REVENUE, _SPEND, _TAX, _BALANCE, _QUANTITY),

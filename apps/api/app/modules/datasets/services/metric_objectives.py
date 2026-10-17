@@ -21,7 +21,8 @@ def objective_relevance(normalized_column, definition, objective):
 def matches_objective(normalized_column, definition, objective):
     if objective not in OBJECTIVE_ALIASES:
         return True
+    if definition:
+        return objective in definition.business_functions
     return bool(
-        (definition and objective in definition.business_functions)
-        or any(alias in normalized_column for alias in OBJECTIVE_ALIASES[objective])
+        any(alias in normalized_column for alias in OBJECTIVE_ALIASES[objective])
     )

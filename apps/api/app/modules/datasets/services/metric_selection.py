@@ -295,8 +295,6 @@ def build_metric_selection_profile(
         or "general_business"
     )
     source_type = _dataset_source_type(dataset)
-    receipt_defaults = receipt_metric_columns(source_type, parse_dataset_source_config(dataset), dataframe.columns)
-    receipt_default_set = set(receipt_defaults or [])
     saved_decisions = _saved_metric_decisions(dataset)
     row_count = len(dataframe)
     is_small_dataset = (
@@ -313,6 +311,8 @@ def build_metric_selection_profile(
         str(column): series
         for column, series in get_numeric_columns(dataframe)
     }
+    receipt_defaults = receipt_metric_columns(source_type, parse_dataset_source_config(dataset), numeric_lookup)
+    receipt_default_set = set(receipt_defaults or [])
     fields = []
     recommended_candidates = []
     ambiguous_candidates = []

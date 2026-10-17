@@ -209,7 +209,10 @@ amount, not an embedded invoice total or a bank-currency equivalent. Planned
 Lightspeed K/O schemas get no guessed defaults. Business-app, advertising,
 analytics, uploaded-file and SQL-query defaults are unchanged.
 
-Research checked the following primary references against the local emitters:
+Research checked the following primary references against the local emitters.
+The field-level follow-up audit below supersedes the earlier broad resource
+groups. These are eligible automatic measures, not a claim that every field is
+printed on every regional or customized invoice template.
 
 | Provider | Field evidence |
 | --- | --- |
@@ -223,17 +226,51 @@ Research checked the following primary references against the local emitters:
 | Stripe | [Charge](https://docs.stripe.com/api/charges/object) and [receipts](https://docs.stripe.com/receipts): payment/refund amount; exclude application fees, risk scores and card metadata. Raw amount remains minor units outside curated conversion; the restriction does not certify the legacy amount_major alias. |
 | Lightspeed X | [Sales 101](https://x-series-api.lightspeedhq.com/docs/sales_101): quantity and pricing; internal cost and loyalty fields are not receipt defaults. |
 | Lightspeed R | [Sale](https://developers.lightspeedhq.com/retail/endpoints/Sale/) and [SaleLine](https://developers.lightspeedhq.com/retail/endpoints/Sale-SaleLine/): quantity, unit price, line total, sale total/subtotal, tax, discount and tip. Exclude calcAvgCost, calcFIFOCost, IDs, flags and duplicate calcTotal/total aliases. |
-| Sage Accounting | [Create sales invoices](https://ca-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=240304191312200): customer invoice price/rate and totals. Keep local normalized line aliases; do not substitute Sage Active, Sage 50 or Sage Operations API schemas. |
-| Lightspeed K (planned) | [Reservation order notification](https://api-docs.lsk.lightspeed.app/operation/operation-reservationordernotification): receipt/line fields exist, but are not certification of Decisionate's current Financial API emitter. No defaults are guessed from this different endpoint. |
+| Sage Accounting | [Create sales invoices](https://ca-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=240304191312200): customer invoice price/rate and quantities. Keep only unambiguous normalized quantity/unit-price fields; net/gross total fallback mappings are not approved. Do not substitute Sage Active, Sage 50 or Sage Operations schemas. |
+| Lightspeed K (planned) | [Financials](https://api-docs.lsk.lightspeed.app/operation/operation-financial-apigetfinancials) and [receipt](https://api-docs.lsk.lightspeed.app/operation/operation-financial-apigetreceiptbyexternalreference): quantity, tax and net amounts are documented in the actual Financial API. Defaults remain disabled until the connector's emitted schema is matched to these fields by reviewed fixtures. |
 | Lightspeed O (planned) | [Orders](https://apidoc.kounta.com/orders/) and [Lines](https://apidoc.kounta.com/lines/): reviewed the public references, but current rendered line-field evidence is incomplete. No unverified monetary defaults are enabled. |
 
-Sage Accounting's detailed API reference still could not be read through the
-research client (the direct reference request returned 403). Its customer invoice
-guide was reviewed and the restriction remains limited to normalized aliases
-backed by local connector tests. The Lightspeed R reference was accessible in the
-follow-up review. No regional Sage field or cross-series Lightspeed total was
-invented. Existing curated fixture/currency checks remain in force; public field
-documentation is not a claim of sanitized live-provider payload certification.
+Sage Accounting's detailed API reference still returned no readable schema through
+the research client. Its customer invoice guide was reviewed, but the local
+`line_total` and `total_amount` aliases can fall back between net, gross and generic
+amounts. They are no longer automatic defaults. No regional Sage field or
+cross-series Lightspeed total is invented. Existing curated fixture/currency
+checks remain in force; public documentation is not live-provider certification.
+
+### Field-Level Follow-Up Audit (2026-10-16)
+
+This audit distinguishes provider definitions from Decisionate aliases. A name
+containing `amount`, `cost`, `total` or `tax` is not sufficient evidence. Fields
+must be on the exact allowlist, contain usable numeric values, and meet the
+business-objective and existing curated safety checks. Manual choices are
+preserved, including technical columns deliberately selected by the customer.
+
+| Connector/resource | Provider field to emitted column mapping | Evidence and limits |
+| --- | --- | --- |
+| Shopify orders | `quantity` -> `quantity`; `originalUnitPriceSet` -> `unit_price`; `discountedUnitPriceSet` -> `discounted_unit_price`; `discountedTotalSet` -> `line_total`; order money sets -> `subtotal_price`, `total_price`, `total_tax`, `total_discounts`. | [GraphQL line definitions](https://shopify.dev/docs/api/admin-graphql/latest/objects/LineItem) plus [Order Printer](https://help.shopify.com/en/manual/fulfillment/managing-orders/printing-orders/shopify-order-printer/liquid-variables-and-filters-reference). Transport counts and raw duplicate money representations are not defaults. |
+| WooCommerce orders | `line_items[].quantity`, `price`, `total`, `total_tax` -> `quantity`, `unit_price`, `line_total`, `line_tax`; header `total`, `total_tax`, `discount_total`, `shipping_total` remain exact fields. | [Current v3 orders](https://developer.woocommerce.com/docs/apis/rest-api/v3/orders/). IDs, tax-class codes, metadata and collection counts are not measures. |
+| Square orders | `line_items[].quantity`, `base_price_money`, `total_money` -> `quantity`, `unit_price`, `line_total`; order total money -> `total_amount`. | [OrderLineItem](https://developer.squareup.com/reference/square/objects/orderlineitem) and [receipt customization](https://squareup.com/help/us/en/article/5424-customize-digital-receipts-and-invoices). Keep existing unit/currency checks; raw minor-unit money copies are not additional defaults. |
+| Stripe charges | `amount`, `amount_refunded` remain exact charge/refund measures. | [Charge](https://docs.stripe.com/api/charges/object) and [receipts](https://docs.stripe.com/receipts). A receipt reflects charge/refund state. Processing fees, risk scores, metadata and card details are excluded. This audit does not change the existing monetary conversion rules. |
+| QuickBooks invoices/bills | `Line[].Qty`/`UnitPrice` inside item detail -> `quantity`/`unit_price`; `Line[].Amount` -> `line_total`; `TotalAmt` -> `total_amount`; `Balance` -> `balance`; `TxnTaxDetail.TotalTax` stays its flattened field. | [Invoice](https://developer.intuit.com/docs/api/accounting/invoice), [Bill](https://static.developer.intuit.com/sdkdocs/qbv3doc/ipp-v3-java-devkit-javadoc/com/intuit/ipp/data/Bill.html), [item detail](https://static.developer.intuit.com/sdkdocs/qbv3doc/ipp-v3-java-devkit-javadoc/com/intuit/ipp/data/ItemLineDetail.html). The static SDK is older schema evidence, cross-checked against current local emitters; it is not proof of every present-day regional variant. |
+| QuickBooks sales receipts/purchases/estimates | Same normalized line fields and transaction total/tax; no invoice balance. Payments use `TotalAmt` -> `total_amount` only. | [SalesReceipt properties](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippdotnetdevkitv3/html/c8f82f83-f9ff-b8c2-d5ba-f0967cb24587.htm), [Purchase](https://static.developer.intuit.com/sdkdocs/qbv3doc/ipp-v3-java-devkit-javadoc/com/intuit/ipp/data/Purchase.html), [Payment](https://static.developer.intuit.com/sdkdocs/qbv3doc/ipp-v3-java-devkit-javadoc/com/intuit/ipp/data/Payment.html) and the shared local item normalizer. Estimates retain receipt-compatible line measures, not a claim of completed revenue. New documentation pages returned a JavaScript shell; no extra fields were inferred from them. |
+| FreshBooks invoices/credit notes | `lines[].qty` -> `quantity`; `lines[].unit_cost.amount` -> numeric `line__unit_cost__amount` when the normalized `unit_price` is not numeric; line `amount.amount` -> `line_total`; header `amount.amount` -> `amount`. Invoice `outstanding.amount` -> `outstanding`. | [Invoices](https://www.freshbooks.com/api/invoices), [credits](https://www.freshbooks.com/api/credits) and [printable invoice](https://www.freshbooks.com/invoice-templates/itemized). Invoice `unit_cost` is the customer price, not inventory cost. Credits explicitly define `taxAmount1/2` as percentages; invoice field names alone do not establish money semantics. Neither receives guessed tax-amount defaults. |
+| FreshBooks payments/expenses | Payment `amount.amount` -> `amount` only. Expenses use that amount plus `taxAmount1.amount` and `taxAmount2.amount`. | [Payments](https://www.freshbooks.com/api/payments) and [expenses](https://www.freshbooks.com/api/expenses) distinguish money objects from `taxPercent1/2` and markup. Do not reuse invoice tax semantics on expenses. |
+| Xero invoices | `LineItems[].Quantity`, `UnitAmount`, `LineAmount`, `TaxAmount` -> `quantity`, `unit_price`, `line_total`, `line_tax`. Prefer normalized `total`, `subtotal`, `total_tax`, `amount_paid`, `amount_due` to raw aliases. | [Invoices](https://developer.xero.com/documentation/api/accounting/invoices) and [official OpenAPI](https://github.com/XeroAPI/Xero-OpenAPI/blob/master/xero_accounting.yaml). One representation per measure is selected. |
+| Xero credit notes/quotes/purchase orders/payments | Document line measures plus subtotal/tax/total; no invoice paid/due values on non-invoice documents. Payments select `Amount`, not `BankAmount`. | The official OpenAPI `CreditNote`, `Quote`, `PurchaseOrder`, `Payment` and `LineItem` schemas were parsed directly because some rendered references returned only a JavaScript shell. Currency rates and bank-currency payment equivalents are not extra receipt measures. |
+| Zoho Books invoices/estimates/sales orders | `line_items[].quantity`, `rate`, `item_total` -> `quantity`, `unit_price`, `line_total` where actually emitted; header `total`, `sub_total`, `tax_total`, `shipping_charge`. | [Invoices](https://www.zoho.com/books/api/v3/invoices/), [estimates](https://www.zoho.com/books/api/v3/estimates/), [sales orders](https://www.zoho.com/books/api/v3/sales-order/). No guessed line totals are calculated. `bcy_rate`, base-currency amounts and ambiguous percentage/fixed discount aliases are not defaults. |
+| Zoho Books credit notes/expenses/payments | Credits use line quantity/price/amount plus `total`; no unverified invoice footer fields. Expenses use `total`, `sub_total`, `tax_amount`, not a generic invoice line list. Customer payments use `amount` only. | [Credits](https://www.zoho.com/books/api/v3/credit-notes/), [expenses](https://www.zoho.com/books/api/v3/expenses/), [customer payments](https://www.zoho.com/books/api/v3/customer-payments/). `total` and `amount` are not assumed equivalent on expenses. |
+| Sage Accounting invoice/credit resources | `quantity` -> `quantity`; `unit_price` -> `unit_price`. No automatic `line_total`/`total_amount` until net/gross fallback paths are verified. | The official customer invoice guide and local emitter establish quantity and unit price. Detailed API evidence is incomplete; normalized total names alone are not proof. No Sage Active/50/ERP schema is substituted. |
+| Lightspeed R sales | `unitQuantity`/`unitPrice` -> `quantity`/`unit_price`; line `calcTotal` -> `line__calcTotal` or repaired `line_total`; sale `total`/`calcTotal`, `calcSubtotal`, `calcTax1/2`, `calcDiscount`, `calcTips`. | [Sale](https://developers.lightspeedhq.com/retail/endpoints/Sale/), [SaleLine](https://developers.lightspeedhq.com/retail/endpoints/Sale-SaleLine/), and the [provider-linked receipt template](https://raw.githubusercontent.com/merchantos/PrintTemplates/master/receipt/SaleReceipt.tpl). Tip uses documented `calcTips`, not a guessed `tip` alias. Average/FIFO costs remain excluded. |
+| Lightspeed X sales | Line quantity, `pricing.price` -> `unit_price`, and an emitted authoritative line total -> `line_total`. | [Sales 101](https://x-series-api.lightspeedhq.com/docs/sales_101) explicitly distinguishes customer price from `pricing.cost` used for margin. No cost, loyalty, recognized-quantity counters or invented price-times-quantity default is added. |
+| Lightspeed K/O (planned) | No automatic metrics. | [K Financial API](https://api-docs.lsk.lightspeed.app/operation/operation-financial-apigetfinancials) documents receipt sales lines; [O line API](https://apidoc.kounta.com/lines/) documents exclusive/inclusive prices. Reviewed matching emitter fixtures and tax/unit semantics are still required before enabling defaults. These providers are not reported as live-certified. |
+
+Preferred aliases are chosen from usable numeric fields, not merely from all
+column names. Thus an empty, JSON-valued or malformed alias cannot shadow a
+documented numeric alternative. Analytical projection retains the small set of
+reviewed aliases until that check, then removes unselected numeric values.
+Full source previews and ingestion remain unchanged; they are not receipt-only
+materializations. The tests use local mocked contracts and synthetic values,
+not customer credentials or live-provider data.
 
 The initial restriction did not correct old selected-column lists. The follow-up
 uses receipt defaults for financial selections marked `recommended` and for

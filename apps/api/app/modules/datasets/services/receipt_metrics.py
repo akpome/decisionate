@@ -6,37 +6,73 @@ from app.modules.datasets.services.numeric import is_identifier_column
 
 
 # Alternatives are ordered: select one emitted representation per measure.
-# Provider references and the deliberately unsupported schemas are documented in
+# Field definitions, emitter mappings and evidence gaps are recorded in
 # docs/CURATED_METRIC_DEFAULTS.md. These rules do not convert monetary units.
 _LINE_FIELDS = (("quantity",), ("unit_price",), ("line_total",))
+_QUICKBOOKS_DOCUMENT_FIELDS = _LINE_FIELDS + (
+    ("total_amount", "TotalAmt"), ("TxnTaxDetail__TotalTax",),
+)
+_FRESHBOOKS_LINE_FIELDS = (
+    ("quantity",), ("unit_price", "line__unit_cost__amount"), ("line_total",),
+)
+_XERO_DOCUMENT_FIELDS = _LINE_FIELDS + (
+    ("line_tax", "line__TaxAmount"), ("total", "Total"),
+    ("subtotal", "SubTotal"), ("total_tax", "TotalTax"),
+)
+_ZOHO_DOCUMENT_FIELDS = _LINE_FIELDS + (
+    ("total",), ("sub_total",), ("tax_total",), ("shipping_charge",),
+)
 _RULES = {
-    "shopify": ({"orders"}, _LINE_FIELDS + (
+    "shopify": {"orders": _LINE_FIELDS + (
         ("discounted_unit_price",), ("subtotal_price",), ("total_price",),
         ("total_tax",), ("total_discounts",),
-    )),
-    "woocommerce": ({"orders"}, _LINE_FIELDS + (
+    )},
+    "woocommerce": {"orders": _LINE_FIELDS + (
         ("line_tax", "line__total_tax"), ("total",), ("total_tax",),
         ("discount_total",), ("shipping_total",),
-    )),
-    "square": ({"orders"}, _LINE_FIELDS + (("total_amount",),)),
-    "stripe": ({"charges"}, (("amount",), ("amount_refunded",))),
-    "quickbooks": ({"invoices", "bills", "sales_receipts", "purchases", "estimates", "payments"},
-        _LINE_FIELDS + (("total_amount", "TotalAmt"), ("balance", "Balance"), ("TxnTaxDetail__TotalTax",))),
-    "freshbooks": ({"invoices", "credit_notes", "payments", "expenses"},
-        _LINE_FIELDS + (("amount", "amount__amount"),)),
-    "sage": ({"sales_invoices", "purchase_invoices", "sales_credit_notes", "purchase_credit_notes"},
-        _LINE_FIELDS + (("total_amount",),)),
-    "xero": ({"invoices", "credit_notes", "purchase_orders", "quotes", "payments"},
-        _LINE_FIELDS + (("total", "Total"), ("SubTotal",), ("TotalTax",), ("AmountPaid",), ("AmountDue",))),
-    "zoho_books": ({"invoices", "expenses", "customer_payments", "credit_notes", "estimates", "sales_orders"},
-        _LINE_FIELDS + (("total", "amount"), ("sub_total",), ("tax_total",),
-                        ("discount_amount",), ("shipping_charge",))),
-    "lightspeed": ({"sales"}, (("quantity",), ("unit_price",),
+    )},
+    "square": {"orders": _LINE_FIELDS + (("total_amount",),)},
+    "stripe": {"charges": (("amount",), ("amount_refunded",))},
+    "quickbooks": {
+        "invoices": _QUICKBOOKS_DOCUMENT_FIELDS + (("balance", "Balance"),),
+        "bills": _QUICKBOOKS_DOCUMENT_FIELDS + (("balance", "Balance"),),
+        "sales_receipts": _QUICKBOOKS_DOCUMENT_FIELDS,
+        "purchases": _QUICKBOOKS_DOCUMENT_FIELDS,
+        "estimates": _QUICKBOOKS_DOCUMENT_FIELDS,
+        "payments": (("total_amount", "TotalAmt"),),
+    },
+    "freshbooks": {
+        "invoices": _FRESHBOOKS_LINE_FIELDS + (("amount", "amount__amount"), ("outstanding", "outstanding__amount")),
+        "credit_notes": _FRESHBOOKS_LINE_FIELDS + (("amount", "amount__amount"),),
+        "payments": (("amount", "amount__amount"),),
+        "expenses": (("amount", "amount__amount"), ("taxAmount1__amount",), ("taxAmount2__amount",)),
+    },
+    # The existing Sage aliases mix net/gross/amount fallback paths. Until the
+    # Accounting API contract is verified, only unambiguous line fields default.
+    "sage": {resource: (("quantity",), ("unit_price",)) for resource in (
+        "sales_invoices", "purchase_invoices", "sales_credit_notes", "purchase_credit_notes",
+    )},
+    "xero": {
+        "invoices": _XERO_DOCUMENT_FIELDS + (("amount_paid", "AmountPaid"), ("amount_due", "AmountDue")),
+        "credit_notes": _XERO_DOCUMENT_FIELDS,
+        "purchase_orders": _XERO_DOCUMENT_FIELDS,
+        "quotes": _XERO_DOCUMENT_FIELDS,
+        "payments": (("Amount",),),
+    },
+    "zoho_books": {
+        "invoices": _ZOHO_DOCUMENT_FIELDS,
+        "credit_notes": _LINE_FIELDS + (("total",),),
+        "estimates": _ZOHO_DOCUMENT_FIELDS,
+        "sales_orders": _ZOHO_DOCUMENT_FIELDS,
+        "expenses": (("total",), ("sub_total",), ("tax_amount",)),
+        "customer_payments": (("amount",),),
+    },
+    "lightspeed": {"sales": (("quantity",), ("unit_price",),
         ("line_total", "line__calcTotal"), ("total", "calcTotal"), ("calcSubtotal",),
-        ("calcTax1",), ("calcTax2",), ("calcDiscount",), ("tip", "calcTips"))),
-    "lightspeed_x": ({"sales"}, _LINE_FIELDS),
-    "lightspeed_k": (set(), ()),
-    "lightspeed_o": (set(), ()),
+        ("calcTax1",), ("calcTax2",), ("calcDiscount",), ("calcTips",))},
+    "lightspeed_x": {"sales": _LINE_FIELDS},
+    "lightspeed_k": {},
+    "lightspeed_o": {},
 }
 _DEFAULT_RESOURCES = {
     "stripe": "charges", "shopify": "orders", "square": "orders", "woocommerce": "orders",
@@ -61,18 +97,8 @@ def receipt_metric_columns(source_type, config, columns, *, include_aliases=Fals
         return None
     resource = config.get("resource_type") or config.get("resource") or config.get("object_type")
     resource = str(resource or _DEFAULT_RESOURCES.get(source_type, "")).strip().lower()
-    if resource not in rule[0]:
-        return []
     available = set(columns)
-    alternatives = rule[1]
-    if source_type == "xero" and resource == "payments":
-        alternatives = (("Amount",),)
-    elif source_type == "quickbooks" and resource == "payments":
-        alternatives = (("total_amount", "TotalAmt"),)
-    elif source_type == "freshbooks" and resource in {"payments", "expenses"}:
-        alternatives = (("amount", "amount__amount"),)
-    elif source_type == "zoho_books" and resource == "customer_payments":
-        alternatives = (("amount",),)
+    alternatives = rule.get(resource, ())
     if include_aliases:
         return [column for group in alternatives for column in group if column in available]
     return [next(column for column in group if column in available)
@@ -95,9 +121,7 @@ def uses_receipt_defaults(source_type, config):
 
 
 def restrict_receipt_profile(source_type, config, profile):
-    columns = (profile["available_metric_columns"] if "policy_version" in profile
-               else [field["column"] for field in profile["fields"]])
-    allowed = receipt_metric_columns(source_type, config, columns)
+    allowed = receipt_metric_columns(source_type, config, profile["available_metric_columns"])
     if allowed is None:
         return profile
     allowed = set(allowed)
@@ -112,7 +136,9 @@ def restrict_receipt_profile(source_type, config, profile):
 
 def receipt_projection(source_type, config, schema):
     """Prune typed numeric columns before materialization; keep dimensions intact."""
-    defaults = receipt_metric_columns(source_type, config, schema)
+    # Type/value checks happen after materialization. Keep reviewed alternative
+    # aliases so an empty or nonnumeric preferred alias cannot hide a valid one.
+    defaults = receipt_metric_columns(source_type, config, schema, include_aliases=True)
     if defaults is None:
         return None
     from app.modules.datasets.services.connector_schema import connector_schema_needs_repair

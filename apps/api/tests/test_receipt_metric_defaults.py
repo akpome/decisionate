@@ -43,7 +43,72 @@ class ReceiptMetricDefaultTests(unittest.TestCase):
                         "line__internal_cost": [8] * row_count, "tax_calculation_method": [1] * row_count,
                     })
                     profile = build_metric_selection_profile(dataset(source, resource), frame)
+                    expected = {"quantity", "unit_price"} if source == "sage" else {"quantity", "unit_price", "line_total"}
+                    self.assertEqual(set(profile["recommended_metric_columns"]), expected)
+
+    def test_invoice_only_balances_are_not_defaults_for_other_documents(self):
+        frame = pd.DataFrame({"quantity": [2], "unit_price": [10], "line_total": [20],
+                              "balance": [3], "Balance": [3], "AmountPaid": [10], "AmountDue": [3]})
+        for source, resources in (("quickbooks", ("sales_receipts", "purchases", "estimates")),
+                                  ("xero", ("credit_notes", "purchase_orders", "quotes"))):
+            for resource in resources:
+                with self.subTest(source=source, resource=resource):
+                    profile = build_metric_selection_profile(dataset(source, resource), frame)
                     self.assertEqual(set(profile["recommended_metric_columns"]), {"quantity", "unit_price", "line_total"})
+
+    def test_freshbooks_documented_unit_cost_is_a_sale_price_not_an_internal_cost(self):
+        frame = pd.DataFrame({"quantity": [2, 3], "unit_price": ['{"amount":"10","code":"CAD"}'] * 2,
+                              "line__unit_cost__amount": [10, 12], "line_total": [20, 36],
+                              "line__taxAmount1": [13, 13], "line__taxAmount2": [5, 5],
+                              "amount": [22.6, 40.68], "outstanding": [22.6, 10], "markup_percent": [25, 30]})
+        profile = build_metric_selection_profile(dataset("freshbooks"), frame, "increase_revenue")
+        self.assertIn("line__unit_cost__amount", profile["recommended_metric_columns"])
+        self.assertNotIn("line__unit_cost__amount", build_metric_selection_profile(dataset("freshbooks"), frame, "reduce_expenses")["recommended_metric_columns"])
+        self.assertLessEqual(set(profile["recommended_metric_columns"]), {"quantity", "line__unit_cost__amount", "line_total", "amount", "outstanding"})
+        projection = receipt_projection("freshbooks", {"resource": "invoices"}, {column: "VARCHAR" if column == "unit_price" else "DOUBLE" for column in frame})
+        self.assertIn("line__unit_cost__amount", projection)
+        self.assertNotIn("line__taxAmount1", projection)
+
+    def test_freshbooks_expense_tax_money_is_not_assumed_on_invoice_resources(self):
+        frame = pd.DataFrame({"amount": [113], "taxAmount1__amount": [13], "taxAmount2__amount": [0],
+                              "taxPercent1": [13], "taxPercent2": [0], "quantity": [2], "unit_price": [50],
+                              "line_total": [100], "outstanding": [20], "markup_percent": [20]})
+        expense = build_metric_selection_profile(dataset("freshbooks", "expenses"), frame)
+        self.assertEqual(set(expense["recommended_metric_columns"]), {"amount", "taxAmount1__amount", "taxAmount2__amount"})
+        invoice = build_metric_selection_profile(dataset("freshbooks", "invoices"), frame)
+        self.assertFalse({"taxAmount1__amount", "taxAmount2__amount", "taxPercent1", "taxPercent2"} & set(invoice["recommended_metric_columns"]))
+
+    def test_zoho_expenses_do_not_inherit_invoice_fields_or_base_currency_amounts(self):
+        frame = pd.DataFrame({"total": [113], "amount": [110], "sub_total": [100], "tax_amount": [13],
+                              "bcy_total": [150], "bcy_amount": [155], "exchange_rate": [1.3],
+                              "quantity": [2], "unit_price": [50], "line_total": [100], "shipping_charge": [4],
+                              "tax_total": [13], "discount_amount": [5]})
+        profile = build_metric_selection_profile(dataset("zoho_books", "expenses"), frame)
+        self.assertEqual(set(profile["recommended_metric_columns"]), {"total", "sub_total", "tax_amount"})
+
+    def test_zoho_credit_notes_do_not_inherit_unverified_invoice_footer_fields(self):
+        frame = pd.DataFrame({"quantity": [2], "unit_price": [10], "line_total": [20], "total": [20],
+                              "sub_total": [20], "tax_total": [2], "shipping_charge": [3], "discount_amount": [4]})
+        profile = build_metric_selection_profile(dataset("zoho_books", "credit_notes"), frame)
+        self.assertEqual(set(profile["recommended_metric_columns"]), {"quantity", "unit_price", "line_total", "total"})
+
+    def test_ambiguous_sage_total_fallbacks_do_not_become_receipt_defaults(self):
+        frame = pd.DataFrame({"quantity": [2], "unit_price": [10], "line_total": [20],
+                              "total_amount": [20], "net_amount": [20], "tax_amount": [2.6]})
+        for resource in ("sales_invoices", "purchase_invoices", "sales_credit_notes", "purchase_credit_notes"):
+            with self.subTest(resource=resource):
+                self.assertEqual(set(build_metric_selection_profile(dataset("sage", resource), frame)["recommended_metric_columns"]), {"quantity", "unit_price"})
+
+    def test_lightspeed_tip_defaults_use_the_documented_payment_tip_total(self):
+        columns = ["tip", "calcTips", "normal_unit_price", "calcAvgCost", "calcFIFOCost"]
+        self.assertEqual(receipt_metric_columns("lightspeed", {"resource": "sales"}, columns), ["calcTips"])
+
+    def test_nonnumeric_or_empty_preferred_alias_does_not_hide_a_documented_amount(self):
+        for primary in (None, "not an amount"):
+            frame = pd.DataFrame({"total": [primary], "Total": [20], "CurrencyRate": [1.3]})
+            profile = build_metric_selection_profile(dataset("xero"), frame)
+            self.assertEqual(profile["recommended_metric_columns"], ["Total"])
+            self.assertEqual(receipt_projection("xero", {"resource": "invoices"}, {"total": "DOUBLE", "Total": "DOUBLE", "CurrencyRate": "DOUBLE"}), ["total", "Total"])
 
     def test_receipt_header_fields_use_one_representation_per_measure(self):
         frame = pd.DataFrame({"total_amount": [30], "TotalAmt": [30], "Balance": [5], "balance": [5],
