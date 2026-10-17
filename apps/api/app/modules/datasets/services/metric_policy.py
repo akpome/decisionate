@@ -9,7 +9,7 @@ from typing import NotRequired, TypedDict
 from urllib.parse import urlparse
 
 
-POLICY_VERSION = "2026-10-17.3"
+POLICY_VERSION = "2026-10-17.4"
 CONNECTOR_SCHEMA_VERSION = "decisionate-v1"
 SELECTION_PROVENANCE_KEY = "metric_selection_provenance"
 SCHEMA_VERSION_KEY = "connector_schema_version"
@@ -265,6 +265,15 @@ for index, profile in enumerate(POLICIES):
             if entry.semantic_key == "opportunity_quantity" else entry
             for entry in profile.metrics
         ))
+_previous_optional_opportunity_policies = [replace(profile, policy_version="2026-10-17.3") for profile in POLICIES]
+for index, profile in enumerate(POLICIES):
+    if profile.connector_key == "salesforce" and profile.dataset_key == "opportunities":
+        POLICIES[index] = replace(profile, metrics=tuple(
+            replace(entry, classification="core")
+            if entry.semantic_key == "opportunity_quantity" else entry
+            for entry in profile.metrics
+        ))
+POLICIES.extend(_previous_optional_opportunity_policies)
 POLICIES.extend(_previous_opportunity_policies)
 POLICIES.extend(_previous_sales_policies)
 POLICIES.extend(_previous_receipt_policies)

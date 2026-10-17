@@ -1,6 +1,6 @@
 """Reviewed Opportunity defaults, separate from receipt/invoice measures."""
 
-OPPORTUNITY_DEFAULT_METRICS = ("Amount", "ExpectedRevenue", "Probability")
+OPPORTUNITY_DEFAULT_METRICS = ("Amount", "ExpectedRevenue", "Probability", "TotalOpportunityQuantity")
 
 
 def salesforce_resource(config):
