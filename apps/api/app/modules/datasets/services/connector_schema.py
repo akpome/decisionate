@@ -7,7 +7,7 @@ import re
 
 import pandas as pd
 
-from app.modules.datasets.services.receipt_metrics import RECEIPT_CONNECTOR_POLICIES
+from app.modules.datasets.services.receipt_metrics import RECEIPT_CONNECTOR_POLICIES, receipt_document_columns
 
 
 COLUMN_MAPPING_ATTR = "decisionate_connector_column_mapping"
@@ -66,6 +66,7 @@ def _line_aliases(line, source_type, parent_id, index):
     from app.modules.datasets.services.connectors import (
         _shopify_money_amount, connector_first_value, connector_line_item_description,
         connector_line_item_id, connector_line_item_reference, square_money_amount,
+        _lightspeed_x_line_value,
     )
 
     detail = next((line[key] for key in (
@@ -95,7 +96,7 @@ def _line_aliases(line, source_type, parent_id, index):
             if isinstance(line.get(field), dict):
                 result[key] = square_money_amount(line[field])
     elif source_type == "lightspeed_x":
-        result["line_total"] = connector_first_value(line, "line_total", "price_total", "total_price", "total")
+        result["line_total"] = _lightspeed_x_line_value(line, detail, "line_total", "price_total", "total_price", "total")
     elif source_type == "zoho_books":
         result["line_total"] = connector_first_value(line, "item_total", "amount", "total")
     elif source_type == "shopify":
@@ -121,6 +122,20 @@ def normalize_connector_row_schema(dataframe, source_type, resource=None):
         return dataframe
     policy = RECEIPT_CONNECTOR_POLICIES.get(source_type)
     expand_items = not resource or policy is not None and str(resource).strip().lower() in policy.item_resources
+    # Older X-Series imports repeated nested header totals on every item row.
+    if source_type == "lightspeed_x" and expand_items:
+        parent_key = next((key for key in ("sale_id", "record_id") if key in dataframe), None)
+        line_key = next((key for key in ("sale_line_id", "line_item_id") if key in dataframe), None)
+        if parent_key and line_key:
+            valid = dataframe[parent_key].map(_identified) & dataframe[line_key].map(_identified)
+            if "__decisionate_summary__" in dataframe:
+                valid &= ~dataframe["__decisionate_summary__"].eq(True).fillna(False)
+            repeated = valid & dataframe.loc[valid, parent_key].duplicated().reindex(dataframe.index, fill_value=False)
+            amounts = [column for column in receipt_document_columns(source_type, {"resource": resource or "sales"})
+                       if column.startswith("totals__") and column in dataframe]
+            if amounts and dataframe.loc[repeated, amounts].notna().any().any():
+                dataframe = dataframe.copy()
+                dataframe.loc[repeated, amounts] = None
     indexed, singleton = {}, {}
     json_roots = [column for column in dataframe.columns if expand_items and _line_root(str(column), source_type)]
     for column in dataframe.columns:

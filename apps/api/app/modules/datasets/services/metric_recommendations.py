@@ -80,17 +80,20 @@ def _numeric_values(series):
     return values
 
 
-def _currency(dataframe, paths, value_column):
+def _currency(dataframe, paths, value_column, fallback=None):
+    fallback = fallback if isinstance(fallback, str) and fallback in REVIEWED_CURRENCY_EXPONENTS else None
     relevant = dataframe[value_column].notna()
     for path in paths:
         if path not in dataframe:
             continue
         values = dataframe.loc[relevant, path].astype("string").str.strip().str.upper()
+        if fallback:
+            values = values.replace("", pd.NA).fillna(fallback)
         if values.isna().any() or not values.isin(REVIEWED_CURRENCY_EXPONENTS).all():
             return None
         currencies = values.unique().tolist()
         return currencies[0] if len(currencies) == 1 else None
-    return None
+    return fallback
 
 
 def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, selection_policy=False, objective=None):
@@ -179,7 +182,12 @@ def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, sel
             continue
         currency = None
         if entry.unit == "currency":
-            currency = _currency(dataframe, entry.currency_paths, column)
+            retailer_currency = (
+                config.get("retailer_currency")
+                if key[0] == "lightspeed_x" and config.get("currency_source") == "retailer.currency.code"
+                else None
+            )
+            currency = _currency(dataframe, entry.currency_paths, column, retailer_currency)
             if not currency:
                 skip(entry.semantic_key, "currency_unresolved_or_mixed")
                 continue

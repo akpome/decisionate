@@ -17,6 +17,7 @@ MODULES = (
     "tests.test_connectors", "tests.test_new_connectors",
     "tests.test_google_analytics", "tests.test_sage_connector",
     "tests.test_xero_connector", "tests.test_zoho_books_connector",
+    "tests.test_lightspeed_x_receipt_defaults",
 )
 SAFE_METADATA = {
     "connector", "resource", "resource_type", "object_type", "api_version",

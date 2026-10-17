@@ -3798,6 +3798,31 @@ def build_lightspeed_pagination_url(
     return urljoin(current_url, next_value)
 
 
+def _lightspeed_x_retailer_currency(base_url: str, access_token: str) -> str:
+    try:
+        payload = connector_json_request(
+            f"{base_url}/retailer",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    except ConnectorUnavailable as error:
+        status = re.search(r"HTTP (\d{3})", str(error), re.IGNORECASE)
+        status_detail = f" (HTTP {status.group(1)})" if status else ""
+        raise ConnectorUnavailable(
+            f"Lightspeed X-Series retailer currency could not be verified{status_detail}. "
+            "Check retailer:read and payment_types:read permissions, "
+            "reconnect if needed, and retry the sync."
+        ) from error
+    retailer = payload.get("data")
+    currency = retailer.get("currency") if isinstance(retailer, dict) else None
+    code = currency.get("code") if isinstance(currency, dict) else None
+    if not isinstance(code, str) or not re.fullmatch(r"[A-Za-z]{3}", code.strip()):
+        raise ConnectorUnavailable(
+            "Lightspeed X-Series did not return a valid retailer currency code. "
+            "Check the retailer configuration and retry the sync."
+        )
+    return code.strip().upper()
+
+
 def load_lightspeed_x_dataframe(
     db,
     connection: DataSourceConnection,
@@ -3835,6 +3860,7 @@ def load_lightspeed_x_dataframe(
 
     rows = []
     after = None
+    retailer_currency = None
     complete_document_items = True
     seen_versions = set()
     resource_path = LIGHTSPEED_X_RESOURCE_TYPES[resource_type]
@@ -3857,6 +3883,16 @@ def load_lightspeed_x_dataframe(
                 continue
             record_id = record.get("id")
             if resource_type == "sales":
+                currency = record.get("currency")
+                if currency is None or (isinstance(currency, str) and not currency.strip()):
+                    if retailer_currency is None:
+                        retailer_currency = _lightspeed_x_retailer_currency(base_url, access_token)
+                    currency = retailer_currency
+                totals = record.get("totals")
+                totals = totals if isinstance(totals, dict) else {}
+                price_total = connector_first_value(record, "total_price", "total")
+                if price_total is None:
+                    price_total = totals.get("price")
                 complete_document_items &= connector_has_item_collection(record, "line_items", "lineItems", "sale_lines", "saleLines", "items")
                 sale_timestamp = (
                     record.get("created_at")
@@ -3870,7 +3906,10 @@ def load_lightspeed_x_dataframe(
                     "updated_at": record.get("updated_at"),
                     "customer_id": record.get("customer_id"),
                     "state": record.get("state"),
-                    "total": connector_first_value(record, "total_price", "total"),
+                    "currency": currency,
+                    "total": price_total,
+                    "total_tax": record.get("total_tax") if record.get("total_tax") is not None else totals.get("tax"),
+                    "grand_total": totals.get("price_incl_tax"),
                 }
                 sale_source = {
                     key: value
@@ -4025,6 +4064,7 @@ def load_lightspeed_x_dataframe(
         ),
         "domain_prefix": domain_prefix,
         "api_version": api_version.strip(),
+        **({"retailer_currency": retailer_currency, "currency_source": "retailer.currency.code"} if retailer_currency else {}),
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),

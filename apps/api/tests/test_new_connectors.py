@@ -2075,7 +2075,7 @@ class NewConnectorTests(unittest.TestCase):
         urlopen.assert_not_called()
 
     def test_lightspeed_x_resources_are_normalized(self):
-        with patch.object(
+        with patch.object(connectors, "_lightspeed_x_retailer_currency", return_value="CAD"), patch.object(
             connectors,
             "get_oauth_access_token",
             return_value="lightspeed-x-token",
@@ -2126,7 +2126,7 @@ class NewConnectorTests(unittest.TestCase):
         )
 
     def test_lightspeed_x_sales_are_one_row_per_sale_item(self):
-        with patch.object(
+        with patch.object(connectors, "_lightspeed_x_retailer_currency", return_value="CAD"), patch.object(
             connectors,
             "get_oauth_access_token",
             return_value="lightspeed-x-token",

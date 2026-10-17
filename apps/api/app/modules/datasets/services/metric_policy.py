@@ -9,7 +9,7 @@ from typing import NotRequired, TypedDict
 from urllib.parse import urlparse
 
 
-POLICY_VERSION = "2026-10-16.1"
+POLICY_VERSION = "2026-10-17.1"
 CONNECTOR_SCHEMA_VERSION = "decisionate-v1"
 SELECTION_PROVENANCE_KEY = "metric_selection_provenance"
 SCHEMA_VERSION_KEY = "connector_schema_version"
@@ -225,6 +225,24 @@ POLICIES.append(DatasetMetricPolicy("lightspeed_x", "sales", "sale_line",
         money("total", "Sale price total, recorded once per sale; not a tax-inclusive grand total.", paths=("total", "total_price"), family="document_value"),
         money("total_tax", "Sale tax total, recorded once per sale."),
     ), reviewed_at="2026-10-16"))
+_previous_receipt_policies = [replace(profile, policy_version="2026-10-16.1") for profile in POLICIES]
+for index, profile in enumerate(POLICIES):
+    if profile.connector_key == "lightspeed_x" and profile.dataset_key == "sales":
+        receipt_paths = {
+            "line_total": ("line_total", "line__price_total", "line__total_price", "line__pricing__total"),
+            "line_tax": ("line__tax_total", "line__total_tax", "line__tax__total"),
+            "line_discount": ("line__discount_total", "line__total_discount", "line__pricing__discount_total"),
+            "total": ("total", "total_price", "totals__price"),
+            "total_tax": ("total_tax", "totals__tax"),
+        }
+        POLICIES[index] = replace(profile, reviewed_at="2026-10-17",
+            evidence_url="https://x-series-api.lightspeedhq.com/openapi/api-2026-07.yaml",
+            metrics=tuple(replace(entry, source_paths=receipt_paths.get(entry.semantic_key, entry.source_paths))
+                          for entry in profile.metrics) + (
+                money("grand_total", "Tax-inclusive sale total, recorded once per sale; never added to line or tax-exclusive totals.",
+                      paths=("grand_total", "totals__price_incl_tax"), family="document_value"),
+            ))
+POLICIES.extend(_previous_receipt_policies)
 POLICIES.extend(_previous_policies)
 
 

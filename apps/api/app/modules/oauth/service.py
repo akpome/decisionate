@@ -573,6 +573,8 @@ OAUTH_PROVIDERS = {
             "sales:read",
             "customers:read",
             "products:read",
+            "retailer:read",
+            "payment_types:read",
         ),
     ),
     "lightspeed_k": OAuthProvider(
@@ -848,6 +850,9 @@ def get_provider_scopes(
         for scope in configured_scopes.replace(",", " ").split()
         if scope.strip()
     )
+    if provider.source_type == "lightspeed_x" and scopes:
+        # Existing scope settings predate the retailer currency lookup.
+        scopes = tuple(dict.fromkeys((*scopes, "retailer:read", "payment_types:read")))
     if provider.source_type == "sage":
         # Sage Accounting accepts only readonly or full_access here. Do not
         # pass offline_access, which belongs to other Sage OAuth flows.

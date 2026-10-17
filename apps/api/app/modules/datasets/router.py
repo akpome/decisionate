@@ -8324,6 +8324,15 @@ def persist_connector_dataframe(
                 existing_dataset.source_config
             )
             previous_source_config = remap_connector_metric_config(previous_source_config, schema_column_mapping)
+            if (
+                connection.source_type == "lightspeed_x"
+                and not next_source_config.get("currency_source")
+                and previous_source_config.get("currency_source") == "retailer.currency.code"
+                and previous_source_config.get("domain_prefix")
+                and previous_source_config.get("domain_prefix") == next_source_config.get("domain_prefix")
+            ):
+                for key in ("retailer_currency", "currency_source"):
+                    next_source_config[key] = previous_source_config.get(key)
             if DATASET_SELECTED_METRICS_KEY in previous_source_config:
                 next_source_config[DATASET_SELECTED_METRICS_KEY] = (
                     previous_source_config[DATASET_SELECTED_METRICS_KEY]

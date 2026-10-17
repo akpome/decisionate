@@ -924,6 +924,139 @@
       "columns": {
         "created_at": "str",
         "currency": "str",
+        "customer_id": "str",
+        "id": "str",
+        "item_id": "str",
+        "line__product_id": "str",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "record_id": "str",
+        "sale_id": "str",
+        "sale_line_id": "str",
+        "total": "str",
+        "total_price": "str"
+      },
+      "loader": "load_lightspeed_x_dataframe",
+      "metadata": {
+        "api_version": "2026-07",
+        "connector": "lightspeed_x",
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "currency": "str",
+        "date": "str",
+        "discount": "int64",
+        "grand_total": "float64",
+        "id": "str",
+        "invoice_number": "str",
+        "item_id": "str",
+        "line__id": "str",
+        "line__pricing__cost": "int64",
+        "line__pricing__cost_total": "float64",
+        "line__pricing__discount": "int64",
+        "line__pricing__discount_total": "int64",
+        "line__pricing__loyalty_amount": "float64",
+        "line__pricing__loyalty_amount_total": "float64",
+        "line__pricing__price": "int64",
+        "line__pricing__total": "int64",
+        "line__product__id": "str",
+        "line__quantity": "int64",
+        "line__tax__amount": "float64",
+        "line__tax__id": "str",
+        "line__tax__total": "float64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "int64",
+        "quantity": "int64",
+        "receipt_number": "str",
+        "record_id": "str",
+        "sale_id": "str",
+        "sale_line_id": "str",
+        "state": "str",
+        "total": "float64",
+        "total_tax": "float64",
+        "totals__loyalty": "float64",
+        "totals__price": "float64",
+        "totals__price_incl_tax": "float64",
+        "totals__surcharge": "float64",
+        "totals__tax": "float64",
+        "unit_price": "int64"
+      },
+      "loader": "load_lightspeed_x_dataframe",
+      "metadata": {
+        "api_version": "2026-07",
+        "connector": "lightspeed_x",
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "currency": "str",
+        "date": "str",
+        "discount": "int64",
+        "grand_total": "float64",
+        "id": "str",
+        "invoice_number": "str",
+        "item_id": "str",
+        "line__id": "str",
+        "line__pricing__cost": "int64",
+        "line__pricing__cost_total": "float64",
+        "line__pricing__discount": "int64",
+        "line__pricing__discount_total": "int64",
+        "line__pricing__loyalty_amount": "float64",
+        "line__pricing__loyalty_amount_total": "float64",
+        "line__pricing__price": "int64",
+        "line__pricing__total": "int64",
+        "line__product__id": "str",
+        "line__quantity": "int64",
+        "line__tax__amount": "float64",
+        "line__tax__id": "str",
+        "line__tax__total": "float64",
+        "line_index": "int64",
+        "line_item_id": "str",
+        "line_total": "int64",
+        "quantity": "int64",
+        "receipt_number": "str",
+        "record_id": "str",
+        "sale_id": "str",
+        "sale_line_id": "str",
+        "state": "str",
+        "total": "float64",
+        "total_tax": "float64",
+        "totals__loyalty": "int64",
+        "totals__price": "float64",
+        "totals__price_incl_tax": "float64",
+        "totals__surcharge": "int64",
+        "totals__tax": "float64",
+        "unit_price": "int64"
+      },
+      "loader": "load_lightspeed_x_dataframe",
+      "metadata": {
+        "api_version": "2026-07",
+        "connector": "lightspeed_x",
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {
+        "created_at": "str",
+        "currency": "str",
         "discount": "int64",
         "id": "str",
         "line__cost": "int64",
@@ -963,32 +1096,7 @@
     {
       "columns": {
         "created_at": "str",
-        "customer_id": "str",
-        "id": "str",
-        "item_id": "str",
-        "line__product_id": "str",
-        "line_index": "int64",
-        "line_item_id": "str",
-        "record_id": "str",
-        "sale_id": "str",
-        "sale_line_id": "str",
-        "total": "str",
-        "total_price": "str"
-      },
-      "loader": "load_lightspeed_x_dataframe",
-      "metadata": {
-        "api_version": "2026-07",
-        "connector": "lightspeed_x",
-        "line_item_key": "sale_line_id",
-        "line_item_parent_keys": [
-          "sale_id"
-        ],
-        "resource": "sales"
-      }
-    },
-    {
-      "columns": {
-        "created_at": "str",
+        "currency": "str",
         "id": "str",
         "item_description": "str",
         "item_id": "str",
@@ -1009,6 +1117,19 @@
         "total": "str",
         "unit_price": "str"
       },
+      "loader": "load_lightspeed_x_dataframe",
+      "metadata": {
+        "api_version": "2026-07",
+        "connector": "lightspeed_x",
+        "line_item_key": "sale_line_id",
+        "line_item_parent_keys": [
+          "sale_id"
+        ],
+        "resource": "sales"
+      }
+    },
+    {
+      "columns": {},
       "loader": "load_lightspeed_x_dataframe",
       "metadata": {
         "api_version": "2026-07",
