@@ -12,6 +12,10 @@ from app.modules.datasets.services.metric_registry import (
     get_metric_definition,
     normalize_metric_column_name,
 )
+from app.modules.datasets.services.metric_objectives import (
+    matches_objective,
+    objective_relevance,
+)
 from app.modules.datasets.services.numeric import (
     coerce_numeric_series,
     get_numeric_columns,
@@ -76,15 +80,6 @@ _VALUE_COLUMN_WORDS = {
     "tax",
     "total",
     "value",
-}
-_OBJECTIVE_ALIASES = {
-    "increase_revenue": ("revenue", "sales", "profit", "orders"),
-    "profitability": ("profit", "margin", "revenue", "cost", "expense"),
-    "reduce_expenses": ("cost", "expense", "spend"),
-    "cash_flow": ("balance", "payment", "cash", "receivable", "revenue"),
-    "qualified_leads": ("lead", "conversion", "click", "call"),
-    "retention": ("customer", "retained", "churn", "repeat"),
-    "marketing_return": ("spend", "cost", "lead", "conversion", "revenue", "roas"),
 }
 
 
@@ -228,31 +223,6 @@ def _objective_from_dataset(dataset) -> str:
         or "general_business"
     ).strip().lower()
     return objective or "general_business"
-
-
-def _objective_relevance(
-    normalized_column: str,
-    definition,
-    objective: str,
-) -> float:
-    if definition:
-        if objective in definition.business_functions:
-            return 1.0
-        return 0.65
-
-    aliases = _OBJECTIVE_ALIASES.get(objective, ())
-    if aliases and any(alias in normalized_column for alias in aliases):
-        return 0.8
-    return 0.35
-
-
-def _matches_objective(normalized_column: str, definition, objective: str) -> bool:
-    if objective not in _OBJECTIVE_ALIASES:
-        return True
-    return bool(
-        (definition and objective in definition.business_functions)
-        or any(alias in normalized_column for alias in _OBJECTIVE_ALIASES[objective])
-    )
 
 
 def _semantic_relevance(normalized_column: str, definition) -> float:
@@ -493,7 +463,7 @@ def build_metric_selection_profile(
         else:
             variation = _variation(numeric_series, valid_count)
             semantic = _semantic_relevance(normalized_column, definition)
-            goal_relevance = _objective_relevance(
+            goal_relevance = objective_relevance(
                 normalized_column,
                 definition,
                 resolved_objective,
@@ -642,7 +612,7 @@ def build_metric_selection_profile(
 
         # A past confirmation or small-dataset fallback must not reselect
         # unrelated metrics when the user switches business objectives.
-        if field["status"] == "recommended" and not _matches_objective(
+        if field["status"] == "recommended" and not matches_objective(
             normalized_column, definition, resolved_objective,
         ):
             field.update(

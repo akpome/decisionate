@@ -183,6 +183,17 @@ a restriction on the existing profiler, not a new currency or aggregation policy
 It does not turn every field containing `amount`, `rate` or `total` into a metric.
 The restriction also applies to small datasets and objective changes.
 
+Changing a dataset's business objective replaces its checked metrics with the
+new objective's recommendations, in both the legacy and curated pickers. The
+server detects the objective change even if a client submits an old selection
+without the reset flag. Curated recommendations use the shared objective rules
+after schema, type, currency and receipt eligibility checks; unrelated verified
+metrics remain optional, not checked. No matching metrics means an empty default
+selection. Manual overrides and an explicit empty selection remain intact when
+saving the same objective. The page updates the objective and checked metrics
+together after an acknowledged save, so a failed request cannot mislabel the
+old selection as belonging to the new objective.
+
 The mappings prefer one emitted alias per measure. Depending on the connector,
 eligible fields include line quantity, unit price, line amount, document total,
 tax, discount, shipping and amount paid/due. Only fields actually present and

@@ -15,6 +15,8 @@ from app.modules.datasets.services.metric_policy import (
     MetricDescriptor,
 )
 from app.modules.datasets.services.numeric import is_identifier_column
+from app.modules.datasets.services.metric_objectives import matches_objective
+from app.modules.datasets.services.metric_registry import get_metric_definition, normalize_metric_column_name
 from app.modules.datasets.services.summary_query import is_summary_dataframe
 from app.modules.datasets.services.receipt_metrics import receipt_metric_columns, uses_receipt_defaults
 
@@ -91,8 +93,9 @@ def _currency(dataframe, paths, value_column):
     return None
 
 
-def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, selection_policy=False):
+def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, selection_policy=False, objective=None):
     config = config_for(dataset)
+    objective = str(objective or config.get("business_objective") or "general_business").strip().lower()
     key = dataset_policy_key(dataset, config)
     policy = METRIC_POLICIES.get(key)
     if selection_policy:
@@ -241,6 +244,18 @@ def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, sel
             result["recommended"] = [entry for entry in result["recommended"] if entry["columnKey"] in allowed]
             for entry in result["derived"]:
                 entry["defaultSelected"] = entry["defaultSelected"] and entry["columnKey"] in allowed
+    # Keep unrelated descriptors eligible for deliberate overrides, but never
+    # let a fixed connector policy replace the objective-specific defaults.
+    def relevant(entry):
+        semantic = entry["semanticKey"]
+        definition = get_metric_definition(semantic, key[0]) or get_metric_definition(entry["columnKey"], key[0])
+        return matches_objective(normalize_metric_column_name(semantic), definition, objective)
+
+    unrelated = [entry for entry in result["recommended"] if not relevant(entry)]
+    result["recommended"] = [entry for entry in result["recommended"] if relevant(entry)]
+    result["optional"].extend(unrelated)
+    for entry in result["derived"]:
+        entry["defaultSelected"] = entry["defaultSelected"] and relevant(entry)
     return result
 
 
@@ -292,9 +307,10 @@ def curated_profile(dataset, dataframe, legacy_profile):
     show = flags["ui"] and (active or config.get("metric_defaults_candidate") or flags["existing_prompt"])
     if not active and not show and not flags["diagnostics"]:
         return legacy_profile
-    result = resolve_metric_recommendations(dataset, dataframe, diagnostics=flags["diagnostics"], selection_policy=active)
+    objective = legacy_profile["objective"]
+    result = resolve_metric_recommendations(dataset, dataframe, diagnostics=flags["diagnostics"], selection_policy=active, objective=objective)
     if show:
-        display_result = resolve_metric_recommendations(dataset, dataframe) if active else result
+        display_result = resolve_metric_recommendations(dataset, dataframe, objective=objective) if active else result
         display_result["savedPolicyUnavailable"] = active and not result.get("grain")
         legacy_profile["curated_recommendations"] = display_result
     if not active:
@@ -306,7 +322,7 @@ def curated_profile(dataset, dataframe, legacy_profile):
             fields[column] = {
                 **fields.get(column, {"column": column, "score": 1, "confidence": 1, "completeness": 1, "distinct_count": 0, "unique_ratio": 0}),
                 "role": "derived_metric" if group == "derived" else "metric",
-                "status": "recommended" if group != "optional" else "available",
+                "status": "recommended" if group == "recommended" or (group == "derived" and entry["defaultSelected"]) else "available",
                 "reason": entry["reason"], "exclusion_reason": None,
                 "policy": entry,
                 "registry": {"canonical_name": entry["semanticKey"], "aggregation": entry["aggregation"].lower(), "unit": entry["unit"], "business_definition": entry["reason"], "target_or_driver": "both"},

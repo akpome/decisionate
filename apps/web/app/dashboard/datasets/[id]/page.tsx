@@ -788,9 +788,8 @@ export default function DatasetDetailsPage() {
   async function handleObjectiveChange(
     objective: string
   ) {
-    setMetricObjective(objective)
     await saveMetricSelection(
-      selectedMetricColumns,
+      [],
       objective,
       true,
     )
@@ -1179,26 +1178,7 @@ export default function DatasetDetailsPage() {
           )}
         </div>
 
-        {showCuratedPicker && curatedRecommendations && <CuratedMetricPicker
-          recommendations={curatedRecommendations}
-          selected={selectedMetricColumns}
-          dimensions={[...new Set([...(dataset.metric_profile?.dimension_columns ?? []), ...(dataset.metric_profile?.time_columns ?? [])])]}
-          disabled={!canManageWorkspaceData}
-          saving={savingMetricSelection}
-          onChange={columns => {
-            setSelectedMetricColumns(columns)
-            setMetricSelectionError("")
-            setMetricSelectionNotice("")
-            setMetricSelectionRetry(null)
-          }}
-          onSave={() => { void handleSaveMetricSelection() }}
-          onRestore={() => {
-            setSelectedMetricColumns(getRecommendedMetricKeys(curatedRecommendations))
-            void saveMetricSelection([], metricObjective, true)
-          }}
-        />}
-
-        {dataset.metric_profile && !showCuratedPicker && (
+        {dataset.metric_profile && (
           <div className="mb-4 grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950 md:grid-cols-[minmax(0,220px)_1fr]">
             <label className="flex flex-col gap-1 font-medium">
               Business objective
@@ -1265,6 +1245,25 @@ export default function DatasetDetailsPage() {
             </div>
           </div>
         )}
+
+        {showCuratedPicker && curatedRecommendations && <CuratedMetricPicker
+          recommendations={curatedRecommendations}
+          selected={selectedMetricColumns}
+          dimensions={[...new Set([...(dataset.metric_profile?.dimension_columns ?? []), ...(dataset.metric_profile?.time_columns ?? [])])]}
+          disabled={!canManageWorkspaceData}
+          saving={savingMetricSelection}
+          onChange={columns => {
+            setSelectedMetricColumns(columns)
+            setMetricSelectionError("")
+            setMetricSelectionNotice("")
+            setMetricSelectionRetry(null)
+          }}
+          onSave={() => { void handleSaveMetricSelection() }}
+          onRestore={() => {
+            setSelectedMetricColumns(getRecommendedMetricKeys(curatedRecommendations))
+            void saveMetricSelection([], metricObjective, true)
+          }}
+        />}
 
         {metricSelectionError && (
           <div

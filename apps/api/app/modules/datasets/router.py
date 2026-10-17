@@ -10605,35 +10605,41 @@ def update_dataset_metric_selection(
         # Use the same stable field names that the preview presents to the user.
         dataframe = normalize_dataset_details_dataframe(dataframe)
         stage = "metric_profile"
+        source_config = parse_source_connection_config(dataset.source_config)
+        current_objective = str(source_config.get(DATASET_METRIC_OBJECTIVE_KEY) or "general_business").strip().lower()
+        objective = str(payload.business_objective or current_objective).strip().lower() or "general_business"
+        select_recommended = payload.select_recommended_metric_columns or objective != current_objective
+        if not payload.use_curated_recommendations and source_config.get(CURATED_SELECTION_KEY):
+            # A fallback picker must profile the mode it will save, otherwise
+            # the recommended selection changes again on the next read.
+            source_config[CURATED_SELECTION_KEY] = False
+            dataset.source_config = json.dumps(source_config, sort_keys=True)
         profile = build_metric_selection_profile(
-            dataset, dataframe, payload.business_objective,
+            dataset, dataframe, objective,
         )
         stage = "selection_validation"
         recommendations = None
         if payload.use_curated_recommendations:
             if not metric_default_flags(dataset)["backend"]:
                 raise HTTPException(404, "Metric recommendations are not enabled.")
-            recommendations = resolve_metric_recommendations(dataset, dataframe)
+            recommendations = resolve_metric_recommendations(dataset, dataframe, objective=objective)
             if payload.policy_version != recommendations["policyVersion"]:
                 raise ValueError("Metric recommendations changed. Refresh before saving.")
             numeric_columns = [entry["columnKey"] for group in ("recommended", "optional", "derived") for entry in recommendations[group]]
-            requested = recommended_columns(recommendations) if payload.select_recommended_metric_columns else payload.selected_metric_columns
+            requested = recommended_columns(recommendations) if select_recommended else payload.selected_metric_columns
             if any(column not in numeric_columns for column in requested):
                 raise ValueError("The selection contains a missing or unsafe metric. Refresh the recommendations.")
             selected_columns = list(dict.fromkeys(requested))
         else:
             requested_metric_columns = (
                 profile["recommended_metric_columns"]
-                if payload.select_recommended_metric_columns
+                if select_recommended
                 else payload.selected_metric_columns
             )
             numeric_columns, selected_columns = normalize_selected_metric_columns(
                 dataframe, requested_metric_columns, dataset,
                 available_metric_columns=profile["available_metric_columns"],
             )
-        source_config = parse_source_connection_config(
-            dataset.source_config
-        )
         source_config[DATASET_SELECTED_METRICS_KEY] = (
             selected_columns
         )
@@ -10641,22 +10647,16 @@ def update_dataset_metric_selection(
             source_config[CURATED_SELECTION_KEY] = True
             source_config[SELECTION_PROVENANCE_KEY] = selection_provenance(
                 dataset, selected_columns, recommendations, user_id,
-                "recommended" if payload.select_recommended_metric_columns else "user",
+                "recommended" if select_recommended else "user",
             )
         else:
-            # The legacy picker remains usable during a rollback or for an
-            # unclassified custom schema. Do not leave an invisible policy owner.
-            if source_config.get(CURATED_SELECTION_KEY):
-                source_config[CURATED_SELECTION_KEY] = False
             source_config[SELECTION_PROVENANCE_KEY] = {
-                "source": "recommended" if payload.select_recommended_metric_columns else "user",
+                "source": "recommended" if select_recommended else "user",
                 "selected_by": user_id,
                 "selected_at": utc_now().isoformat(), "policy_version": None,
             }
         if payload.business_objective:
-            source_config[DATASET_METRIC_OBJECTIVE_KEY] = (
-                payload.business_objective.strip().lower()
-            )
+            source_config[DATASET_METRIC_OBJECTIVE_KEY] = objective
         selected_set = set(selected_columns)
         source_config[DATASET_METRIC_DECISIONS_KEY] = {
             field["column"]: (
