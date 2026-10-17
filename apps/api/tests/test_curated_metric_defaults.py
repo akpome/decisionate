@@ -804,7 +804,7 @@ class MetricRecommendationApiTests(unittest.TestCase):
         with patch.object(router, "load_dataframe_from_dataset", return_value=frame):
             for objective, expected in (
                 ("cash_flow", {"Amount", "ExpectedRevenue"}),
-                ("increase_revenue", {"Amount", "ExpectedRevenue", "Probability", "TotalOpportunityQuantity"}),
+                ("increase_revenue", {"Amount", "ExpectedRevenue", "Probability"}),
                 ("reduce_expenses", set()),
             ):
                 with self.subTest(objective=objective):

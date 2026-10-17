@@ -1,6 +1,6 @@
 """Reviewed Opportunity defaults, separate from receipt/invoice measures."""
 
-OPPORTUNITY_METRICS = ("Amount", "ExpectedRevenue", "Probability", "TotalOpportunityQuantity")
+OPPORTUNITY_DEFAULT_METRICS = ("Amount", "ExpectedRevenue", "Probability")
 
 
 def salesforce_resource(config):
@@ -11,7 +11,7 @@ def salesforce_resource(config):
 def salesforce_metric_columns(source_type, config, columns):
     if source_type != "salesforce" or salesforce_resource(config) != "opportunities":
         return None
-    return [column for column in OPPORTUNITY_METRICS if column in columns]
+    return [column for column in OPPORTUNITY_DEFAULT_METRICS if column in columns]
 
 
 def uses_salesforce_defaults(source_type, config):

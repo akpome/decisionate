@@ -228,7 +228,8 @@ METRIC_REGISTRY: dict[str, tuple[MetricDefinition, ...]] = {
     "stripe": (_REVENUE, _SPEND, _TAX, _QUANTITY),
     "salesforce": (
         _OPPORTUNITY_AMOUNT, _EXPECTED_REVENUE, _OPPORTUNITY_PROBABILITY, _OPPORTUNITY_COUNT,
-        replace(_QUANTITY, patterns=(r"^(totalopportunityquantity|opportunity_quantity)$",) + _QUANTITY.patterns),
+        replace(_QUANTITY, patterns=(r"^(totalopportunityquantity|opportunity_quantity)$",) + _QUANTITY.patterns,
+                business_definition="Salesforce opportunity-level Quantity, not a per-product breakdown or a count of deals."),
         _REVENUE,
     ),
     "hubspot": (_REVENUE, _QUANTITY, _DERIVED_RETURN),

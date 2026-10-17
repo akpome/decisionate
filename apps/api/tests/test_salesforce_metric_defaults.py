@@ -29,7 +29,7 @@ OPPORTUNITY = {
     "LeadSource": "Web", "ForecastCategoryName": "Pipeline", "Type": "New Business",
     "FiscalYear": 2026, "FiscalQuarter": 4, "AgeInDays": 1, "Custom_Score__c": .85,
 }
-DEFAULTS = {"Amount", "ExpectedRevenue", "Probability", "TotalOpportunityQuantity"}
+DEFAULTS = {"Amount", "ExpectedRevenue", "Probability"}
 CONTEXT = {"Id", "record_id", "StageName", "IsClosed", "IsWon", "CloseDate", "CreatedDate",
            "OwnerId", "AccountId", "LeadSource", "ForecastCategoryName", "Type", "CurrencyIsoCode"}
 
@@ -110,6 +110,53 @@ class SalesforceMetricDefaultTests(unittest.TestCase):
         self.assertEqual(set(config["selected_metric_columns"]), DEFAULTS | {"__metric_record_count"})
         self.assertEqual(config["metric_selection_provenance"]["source"], "recommended")
 
+    def test_opportunity_quantity_is_optional_not_an_automatic_default(self):
+        frame, _, _ = self.import_opportunities()
+        recommendations = resolve_metric_recommendations(dataset(), frame)
+        quantity = next(entry for entry in recommendations["optional"] if entry["columnKey"] == "TotalOpportunityQuantity")
+        self.assertEqual(quantity["semanticKey"], "opportunity_quantity")
+        self.assertIn("not a per-product breakdown", quantity["reason"])
+        for curated in (False, True):
+            with self.subTest(curated=curated):
+                item = dataset(curated_metric_selection=curated)
+                profile = build_metric_selection_profile(item, frame)
+                self.assertNotIn("TotalOpportunityQuantity", profile["recommended_metric_columns"])
+                self.assertIn("TotalOpportunityQuantity", profile["available_metric_columns"])
+                self.assertNotIn("TotalOpportunityQuantity", filter_dataframe_to_selected_metrics(item, frame))
+
+    def test_optional_quantity_is_not_invented_when_absent_or_empty(self):
+        frame, _, _ = self.import_opportunities()
+        for candidate in (frame.drop(columns="TotalOpportunityQuantity"), frame.assign(TotalOpportunityQuantity=None)):
+            recommendations = resolve_metric_recommendations(dataset(), candidate)
+            self.assertNotIn("TotalOpportunityQuantity", [entry["columnKey"] for entry in recommendations["optional"]])
+            self.assertNotIn("ProductQuantity", candidate)
+            self.assertNotIn("product_quantity", candidate)
+
+    def test_old_automatic_quantity_selection_is_removed_without_changing_other_defaults(self):
+        frame, _, _ = self.import_opportunities()
+        for curated in (False, True):
+            item = dataset(curated_metric_selection=curated, selected_metric_columns=[*sorted(DEFAULTS), "TotalOpportunityQuantity"],
+                           metric_selection_provenance={"source": "recommended", "policy_version": "2026-10-17.2"})
+            before = item.source_config
+            expected = DEFAULTS | ({"__metric_record_count"} if curated else set())
+            self.assertEqual(set(get_effective_dataset_metric_columns(item, frame)), expected)
+            self.assertEqual(item.source_config, before)
+
+    def test_manual_quantity_selection_survives_the_default_correction(self):
+        frame, _, _ = self.import_opportunities()
+        for curated in (False, True):
+            for version in ("2026-10-17.2", POLICY_VERSION):
+                with self.subTest(curated=curated, version=version):
+                    item = dataset(curated_metric_selection=curated, selected_metric_columns=["TotalOpportunityQuantity"],
+                                   metric_selection_provenance={"source": "user", "policy_version": version})
+                    self.assertEqual(get_effective_dataset_metric_columns(item, frame), ["TotalOpportunityQuantity"])
+                    self.assertIn("TotalOpportunityQuantity", filter_dataframe_to_selected_metrics(item, frame))
+                    if curated:
+                        recommendations = resolve_metric_recommendations(item, frame, selection_policy=True)
+                        quantity = next(entry for group in ("recommended", "optional") for entry in recommendations[group]
+                                        if entry["columnKey"] == "TotalOpportunityQuantity")
+                        self.assertIn("not a per-product breakdown", quantity["reason"])
+
     def test_existing_automatic_record_count_defaults_refresh_without_mutating_saved_config(self):
         frame, _, _ = self.import_opportunities()
         for curated in (False, True):
@@ -167,7 +214,8 @@ class SalesforceMetricDefaultTests(unittest.TestCase):
         frame["Probability"] = "unknown"
         for curated in (False, True):
             selected = get_effective_dataset_metric_columns(dataset(curated_metric_selection=curated), frame)
-            self.assertEqual(set(selected) & DEFAULTS, {"TotalOpportunityQuantity"})
+            self.assertEqual(set(selected) & DEFAULTS, set())
+            self.assertNotIn("TotalOpportunityQuantity", selected)
 
     def test_zero_and_constant_measures_are_not_discarded_in_large_datasets(self):
         frame = pd.DataFrame([{**OPPORTUNITY, "Amount": 0, "ExpectedRevenue": 0, "Probability": 0,
