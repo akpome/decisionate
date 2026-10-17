@@ -771,7 +771,7 @@ class MetricRecommendationApiTests(unittest.TestCase):
                         ("general_business", list(frame.columns)),
                     ):
                         with self.subTest(objective=objective):
-                            if source_type in {"stripe", "lightspeed_k", "lightspeed_o"}:
+                            if source_type in {"stripe", "lightspeed_k", "lightspeed_o", "salesforce"}:
                                 expected = []
                             elif source_type in {"shopify", "square", "woocommerce", "lightspeed", "lightspeed_x", "quickbooks", "freshbooks", "sage", "xero", "zoho_books"}:
                                 expected = [column for column in expected if column == "unit_price"]
@@ -791,6 +791,36 @@ class MetricRecommendationApiTests(unittest.TestCase):
                                 details = router.build_dataset_details_response(item, frame, include_ai_analysis=False)
                             self.assertEqual(details["selected_metric_columns"], expected)
                             self.assertEqual(details["detail_warnings"], [])
+
+    def test_salesforce_objective_changes_save_standard_sales_fields(self):
+        frame = pd.DataFrame({"Amount": [100, 200], "ExpectedRevenue": [50, 100],
+                              "Probability": [50, 50], "TotalOpportunityQuantity": [1, 2],
+                              "CurrencyIsoCode": ["CAD", "CAD"], "Custom_Score__c": [.8, .9]})
+        with self.Session() as db:
+            item = db.get(Dataset, 1)
+            item.source_type = "salesforce"
+            item.source_config = json.dumps({"resource_type": "opportunities", "business_objective": "general_business"})
+            db.commit()
+        with patch.object(router, "load_dataframe_from_dataset", return_value=frame):
+            for objective, expected in (
+                ("cash_flow", {"Amount", "ExpectedRevenue"}),
+                ("increase_revenue", {"Amount", "ExpectedRevenue", "Probability", "TotalOpportunityQuantity"}),
+                ("reduce_expenses", set()),
+            ):
+                with self.subTest(objective=objective):
+                    result = router.update_dataset_metric_selection(
+                        SimpleNamespace(), 1, DatasetMetricSelectionUpdate(
+                            selected_metric_columns=[], business_objective=objective,
+                            select_recommended_metric_columns=True,
+                        ),
+                    )
+                    self.assertEqual(set(result["selected_metric_columns"]), expected)
+                    with self.Session() as db:
+                        item = db.get(Dataset, 1)
+                        self.assertEqual(set(config_for(item)["selected_metric_columns"]), expected)
+                        details = router.build_dataset_details_response(item, frame, include_ai_analysis=False)
+                    self.assertEqual(set(details["selected_metric_columns"]), expected)
+                    self.assertEqual(details["detail_warnings"], [])
 
     def test_manual_selection_is_preserved_when_saving_the_same_objective(self):
         with self.Session() as db:

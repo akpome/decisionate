@@ -175,6 +175,31 @@ _CUSTOMER = _definition(
     "outcome",
 )
 
+_OPPORTUNITY_AMOUNT = _definition(
+    "opportunity_amount", (r"^(amount|opportunity_amount)$",),
+    "Estimated opportunity sale amount, not necessarily won or booked revenue.",
+    "currency", "sum", "positive",
+    ("increase_revenue", "profitability", "cash_flow", "marketing_return"), "outcome",
+)
+_EXPECTED_REVENUE = _definition(
+    "expected_revenue", (r"^(expectedrevenue|expected_revenue)$",),
+    "Salesforce expected revenue based on opportunity amount and probability.",
+    "currency", "sum", "positive",
+    ("increase_revenue", "profitability", "cash_flow", "marketing_return"), "outcome",
+)
+_OPPORTUNITY_PROBABILITY = _definition(
+    "opportunity_probability", (r"^(probability|opportunity_probability)$",),
+    "Estimated likelihood of closing, in percent; not an observed win rate.",
+    "probability", "avg", "positive",
+    ("increase_revenue", "qualified_leads", "marketing_return"), "driver",
+)
+_OPPORTUNITY_COUNT = _definition(
+    "record_count", (r"^record_count$",),
+    "Number of distinct Salesforce records, not product quantity.",
+    "count", "sum", "positive",
+    ("increase_revenue", "qualified_leads", "retention", "marketing_return"), "driver",
+)
+
 
 # The source-specific registry takes precedence over the generic vocabulary.
 # It is deliberately data, so connector additions do not require profiler code.
@@ -201,7 +226,11 @@ METRIC_REGISTRY: dict[str, tuple[MetricDefinition, ...]] = {
     "lightspeed_k": (_REVENUE, _TAX, _QUANTITY),
     "lightspeed_o": (_REVENUE, _TAX, _QUANTITY),
     "stripe": (_REVENUE, _SPEND, _TAX, _QUANTITY),
-    "salesforce": (_REVENUE, _QUANTITY),
+    "salesforce": (
+        _OPPORTUNITY_AMOUNT, _EXPECTED_REVENUE, _OPPORTUNITY_PROBABILITY, _OPPORTUNITY_COUNT,
+        replace(_QUANTITY, patterns=(r"^(totalopportunityquantity|opportunity_quantity)$",) + _QUANTITY.patterns),
+        _REVENUE,
+    ),
     "hubspot": (_REVENUE, _QUANTITY, _DERIVED_RETURN),
 }
 

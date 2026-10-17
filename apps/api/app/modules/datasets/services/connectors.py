@@ -18,6 +18,7 @@ from urllib.parse import (
     urlunparse,
 )
 from urllib.request import Request, urlopen
+from xml.etree import ElementTree
 
 import pandas as pd
 
@@ -2041,6 +2042,43 @@ def load_salesforce_query_records(
         )
 
 
+def load_salesforce_organization_currency(instance_url, api_version, access_token):
+    """Use the org currency only when Salesforce confirms single-currency mode."""
+    soap_ns = "http://schemas.xmlsoap.org/soap/envelope/"
+    partner_ns = "urn:partner.soap.sforce.com"
+    envelope = ElementTree.Element(f"{{{soap_ns}}}Envelope")
+    header = ElementTree.SubElement(envelope, f"{{{soap_ns}}}Header")
+    session = ElementTree.SubElement(header, f"{{{partner_ns}}}SessionHeader")
+    ElementTree.SubElement(session, f"{{{partner_ns}}}sessionId").text = access_token
+    body = ElementTree.SubElement(envelope, f"{{{soap_ns}}}Body")
+    ElementTree.SubElement(body, f"{{{partner_ns}}}getUserInfo")
+    request = Request(
+        f"{instance_url}/services/Soap/u/{api_version.removeprefix('v')}",
+        data=ElementTree.tostring(envelope, encoding="utf-8", xml_declaration=True),
+        headers={"Content-Type": "text/xml; charset=UTF-8", "SOAPAction": "getUserInfo"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            payload = response.read(65537)
+        if len(payload) > 65536 or b"<!DOCTYPE" in payload.upper():
+            raise ValueError("Invalid Salesforce currency response")
+        result = ElementTree.fromstring(payload).find(f".//{{{partner_ns}}}result")
+        if result is None:
+            return None
+        multicurrency = result.findtext(f"{{{partner_ns}}}organizationMultiCurrency", "").strip().lower()
+        currency = result.findtext(f"{{{partner_ns}}}orgDefaultCurrencyIsoCode", "").strip().upper()
+        if multicurrency in {"false", "0"} and re.fullmatch(r"[A-Z]{3}", currency):
+            return currency
+    except HTTPError as error:
+        if error.code == 401:
+            raise ConnectorUnavailable("Salesforce currency request failed with HTTP 401") from None
+        logger.warning("Salesforce organization currency lookup unavailable (HTTP %s)", error.code)
+    except (URLError, OSError, ValueError, ElementTree.ParseError):
+        logger.warning("Salesforce organization currency lookup unavailable")
+    return None
+
+
 def load_salesforce_dataframe(
     db,
     connection: DataSourceConnection,
@@ -2146,6 +2184,13 @@ def load_salesforce_dataframe(
             records_by_id.setdefault(record_id, {}).update(row)
 
     dataframe = pd.DataFrame(records_by_id.values())
+    currency_context = {}
+    if resource_type == "opportunities" and "CurrencyIsoCode" not in field_names:
+        organization_currency = load_salesforce_organization_currency(instance_url, api_version, access_token)
+        if organization_currency:
+            currency_context = {"organization_currency": organization_currency,
+                                "currency_source": "getUserInfo.orgDefaultCurrencyIsoCode"}
+            dataframe["currency"] = organization_currency
     return dataframe, {
         "connector": "salesforce",
         "resource": resource_type,
@@ -2157,6 +2202,7 @@ def load_salesforce_dataframe(
         "start_date": date_value(start_date),
         "end_date": date_value(end_date),
         "row_count": len(dataframe),
+        **currency_context,
     }
 
 

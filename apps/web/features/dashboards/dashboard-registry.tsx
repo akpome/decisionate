@@ -1101,7 +1101,7 @@ const salesDashboardConfig: IndustryDashboardConfig = {
     primary: ["booked", "revenue", "amount", "deal", "opportunity"],
     secondary: ["pipeline", "forecast", "open opportunity", "qualified pipeline"],
     conversion: ["conversion", "win rate", "close rate", "won rate"],
-    dealCount: ["deal count", "deals", "opportunities", "bookings"],
+    dealCount: ["deal count", "deals", "opportunities", "bookings", "__metric_record_count"],
     category: ["source", "rep", "segment", "account", "customer"],
     stage: ["stage", "status", "funnel", "forecast"],
     date: ["date", "close", "month", "created"],
@@ -1242,6 +1242,29 @@ export function getDashboardChartTitleFields(
   ]
 }
 
+function getSalesforceOpportunityMapping(
+  config: IndustryDashboardConfig,
+  columns: string[],
+  rows: DashboardDatasetRow[]
+): DashboardMetricMapping | undefined {
+  const isOpportunity = rows.some(row => row.object_type === "Opportunity")
+    || (columns.includes("StageName") && columns.includes("CloseDate"))
+  if (config.kpiMode !== "sales" || !isOpportunity) {
+    return undefined
+  }
+  const numeric = (column: string) =>
+    columns.includes(column) && columnHasNumericValues(rows, column) ? column : undefined
+  const primary = numeric("Amount") ?? numeric("ExpectedRevenue")
+  return {
+    primary,
+    secondary: primary === "Amount" ? numeric("ExpectedRevenue") : undefined,
+    operationsValue: primary,
+    date: columns.includes("CloseDate") ? "CloseDate" : undefined,
+    stage: columns.includes("StageName") ? "StageName" : undefined,
+    category: ["LeadSource", "OwnerId", "AccountId"].find(column => columns.includes(column)),
+  }
+}
+
 export function getDashboardAutoMetricMapping(
   componentKey: DashboardComponentKey,
   dataset?: DashboardDatasetInput | null
@@ -1269,6 +1292,7 @@ export function getDashboardAutoMetricMapping(
     rows,
     dataset.metrics
   )
+  const salesforceMapping = getSalesforceOpportunityMapping(industryConfig, columns, rows)
 
   const datasetDateColumn =
     dataset.chart?.x_key &&
@@ -1276,6 +1300,7 @@ export function getDashboardAutoMetricMapping(
       ? dataset.chart.x_key
       : undefined
   const dateColumn =
+    salesforceMapping?.date ??
     datasetDateColumn ??
     findColumnByHints(
       columns,
@@ -1285,6 +1310,7 @@ export function getDashboardAutoMetricMapping(
       rows
     )
   const categoryColumn =
+    salesforceMapping?.category ??
     findColumnByHints(
       columns,
       industryConfig.roleHints.category ?? [],
@@ -1298,13 +1324,13 @@ export function getDashboardAutoMetricMapping(
       dateColumn ? [dateColumn] : []
     )
 
-  const primaryColumn = findColumnByHints(
+  const primaryColumn = salesforceMapping ? salesforceMapping.primary : findColumnByHints(
     columns,
     industryConfig.roleHints.primary,
     rows,
     true
   )
-  const secondaryColumn = findColumnByHints(
+  const secondaryColumn = salesforceMapping ? salesforceMapping.secondary : findColumnByHints(
     columns.filter(column => column !== primaryColumn),
     industryConfig.roleHints.secondary ?? [],
     rows,
@@ -1318,6 +1344,7 @@ export function getDashboardAutoMetricMapping(
     category:
       categoryColumn,
     stage:
+      salesforceMapping?.stage ??
       findColumnByHints(
         columns,
         industryConfig.roleHints.stage ?? [],
@@ -1342,7 +1369,8 @@ function buildMappedIndustryDashboard(
       ? dataset.chart.data
       : dataset?.preview ?? []
   const columns = getDatasetColumns(rows, dataset?.metrics)
-  const primaryColumn = findColumnByHints(
+  const salesforceMapping = getSalesforceOpportunityMapping(config, columns, rows)
+  const primaryColumn = salesforceMapping ? salesforceMapping.primary : findColumnByHints(
     columns,
     config.roleHints.primary,
     rows,
@@ -1366,12 +1394,15 @@ function buildMappedIndustryDashboard(
       manualMapping?.primary,
       true
     ) || primaryColumn
-  const secondaryColumn = findColumnByHints(
-    columns.filter(column => column !== mappedPrimaryColumn),
-    config.roleHints.secondary ?? [],
-    rows,
-    true
-  )
+  const secondaryColumn = salesforceMapping
+    ? (salesforceMapping.secondary !== mappedPrimaryColumn
+      ? salesforceMapping.secondary : undefined)
+    : findColumnByHints(
+      columns.filter(column => column !== mappedPrimaryColumn),
+      config.roleHints.secondary ?? [],
+      rows,
+      true
+    )
   const mappedSecondaryColumn =
     getValidManualColumn(
       manualMapping?.secondary,
@@ -1390,6 +1421,7 @@ function buildMappedIndustryDashboard(
     getValidManualColumn(
       manualMapping?.date
     ) ||
+    salesforceMapping?.date ||
     datasetDateColumn ||
     findColumnByHints(
       columns,
@@ -1398,7 +1430,7 @@ function buildMappedIndustryDashboard(
       ),
       rows
     )
-  const categoryColumn = findColumnByHints(
+  const categoryColumn = salesforceMapping?.category ?? findColumnByHints(
     columns,
     config.roleHints.category ?? [],
     rows,
@@ -1417,7 +1449,7 @@ function buildMappedIndustryDashboard(
       rows,
       dateColumn ? [dateColumn] : []
     )
-  const stageColumn = findColumnByHints(
+  const stageColumn = salesforceMapping?.stage ?? findColumnByHints(
     columns,
     config.roleHints.stage ?? [],
     rows,
@@ -1641,6 +1673,7 @@ function buildMappedIndustryDashboard(
       dealCountColumn,
       aggregationType,
       trendData,
+      salesforceOpportunity: Boolean(salesforceMapping),
     })
     : mappedMetrics
   const salesSignals = config.kpiMode === "sales"
@@ -1667,8 +1700,11 @@ function buildMappedIndustryDashboard(
   return {
     ...config,
     metrics: salesMetrics,
+    ...(salesforceMapping ? {
+      trendTitle: "Opportunity Value and Expected Revenue",
+    } : {}),
     trendDescription: dateColumn && mappedPrimaryColumn
-      ? `${config.trendDescription} Tracking ${primaryLabel} by ${formatDashboardLabel(dateColumn)}${config.kpiMode === "sales" && mappedSecondaryColumn ? ` with ${formatDashboardLabel(mappedSecondaryColumn)} as pipeline context` : ""}.`
+      ? `${salesforceMapping ? "Estimated opportunity values, not necessarily won revenue." : config.trendDescription} Tracking ${primaryLabel} by ${formatDashboardLabel(dateColumn)}${config.kpiMode === "sales" && mappedSecondaryColumn ? ` with ${formatDashboardLabel(mappedSecondaryColumn)} as pipeline context` : ""}.`
       : "Map a date or period column to render this trend with real data.",
     trendData,
     trendLabel: primaryLabel,
@@ -1686,7 +1722,7 @@ function buildMappedIndustryDashboard(
       : "Needs mapping",
     mixDescription:
       mappedCategoryColumn && mappedPrimaryColumn
-        ? `${config.mixDescription} Grouped by ${formatDashboardLabel(mappedCategoryColumn)}.`
+        ? `${salesforceMapping ? "Opportunity values by sales source." : config.mixDescription} Grouped by ${formatDashboardLabel(mappedCategoryColumn)}.`
         : "Map a category, source, or segment column to render this mix with real data.",
     mixStatus: mappedCategoryColumn && mappedPrimaryColumn
       ? undefined
@@ -3831,6 +3867,7 @@ function buildSalesKpiMetrics({
   dealCountColumn,
   aggregationType,
   trendData,
+  salesforceOpportunity = false,
 }: {
   rows: DashboardDatasetRow[]
   metrics: DashboardDatasetMetric[]
@@ -3840,6 +3877,7 @@ function buildSalesKpiMetrics({
   dealCountColumn?: string
   aggregationType: DashboardValueAggregation
   trendData: IndustryChartPoint[]
+  salesforceOpportunity?: boolean
 }): IndustryMetric[] {
   const revenueMetric = metrics.find(
     metric => metric.column === primaryColumn
@@ -3888,7 +3926,8 @@ function buildSalesKpiMetrics({
 
   return [
     {
-      label: "Revenue",
+      label: salesforceOpportunity && primaryColumn === "Amount" ? "Opportunity Value"
+        : salesforceOpportunity && primaryColumn === "ExpectedRevenue" ? "Expected Revenue" : "Revenue",
       value: primaryColumn
         ? formatMappedMetricValue(revenueValue, primaryColumn)
         : "Needs mapping",
@@ -3913,7 +3952,7 @@ function buildSalesKpiMetrics({
         : "Map a conversion or win-rate value column",
     },
     {
-      label: "Pipeline Value",
+      label: salesforceOpportunity && secondaryColumn === "ExpectedRevenue" ? "Expected Revenue" : "Pipeline Value",
       value: pipelineValue === null || !secondaryColumn
         ? "Needs mapping"
         : formatMappedMetricValue(pipelineValue, secondaryColumn),

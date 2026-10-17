@@ -35,6 +35,11 @@ from app.modules.datasets.services.receipt_metrics import (
     restrict_receipt_profile,
     uses_receipt_defaults,
 )
+from app.modules.datasets.services.salesforce_metrics import (
+    restrict_salesforce_profile,
+    salesforce_metric_columns,
+    uses_salesforce_defaults,
+)
 
 
 DATASET_SELECTED_METRICS_KEY = "selected_metric_columns"
@@ -314,7 +319,8 @@ def build_metric_selection_profile(
         for column, series in get_numeric_columns(dataframe)
     }
     receipt_defaults = receipt_metric_columns(source_type, source_config, numeric_lookup)
-    receipt_default_set = set(receipt_defaults or [])
+    salesforce_defaults = salesforce_metric_columns(source_type, source_config, numeric_lookup)
+    documented_default_set = set(receipt_defaults or []) | set(salesforce_defaults or [])
     fields = []
     recommended_candidates = []
     ambiguous_candidates = []
@@ -363,7 +369,7 @@ def build_metric_selection_profile(
                 signature,
                 [],
             ):
-                if column_name in receipt_default_set:
+                if column_name in documented_default_set:
                     continue
                 candidate_definition = get_metric_definition(candidate_column, source_type)
                 same_metric = (
@@ -492,7 +498,7 @@ def build_metric_selection_profile(
                 )
             elif (
                 row_count >= 5
-                and column_name not in receipt_default_set
+                and column_name not in documented_default_set
                 and unique_ratio >= 0.98
                 and not is_small_dataset
                 and not _has_value_semantics(
@@ -520,10 +526,11 @@ def build_metric_selection_profile(
                     exclusion_reason="No usable observations.",
                     reason="No usable observations.",
                 )
-            elif column_name in receipt_default_set:
+            elif column_name in documented_default_set:
                 field.update(
                     role="metric", status="recommended",
-                    reason="Documented receipt or invoice measure.",
+                    reason=("Documented Salesforce sales-performance measure." if salesforce_defaults is not None
+                            else "Documented receipt or invoice measure."),
                 )
             elif completeness < 0.2:
                 field.update(
@@ -694,7 +701,10 @@ def build_metric_selection_profile(
         ],
         "fields": fields,
     })
-    return restrict_receipt_profile(source_type, parse_dataset_source_config(dataset), result)
+    return restrict_salesforce_profile(
+        source_type, source_config,
+        restrict_receipt_profile(source_type, source_config, result),
+    )
 
 
 def parse_dataset_source_config(dataset) -> dict:
@@ -849,7 +859,8 @@ def get_effective_dataset_metric_columns(
         )
     )
     selected_columns = get_dataset_selected_metric_columns(dataset)
-    if uses_receipt_defaults(_dataset_source_type(dataset), parse_dataset_source_config(dataset)):
+    source_type, config = _dataset_source_type(dataset), parse_dataset_source_config(dataset)
+    if uses_receipt_defaults(source_type, config) or uses_salesforce_defaults(source_type, config):
         return list(resolved_profile.get("recommended_metric_columns", []))
     if selected_columns is not None:
         mapping = dataframe.attrs.get(COLUMN_MAPPING_ATTR, {})
@@ -909,7 +920,8 @@ def filter_dataframe_to_selected_metrics(
         )
 
     selected_columns = get_dataset_selected_metric_columns(dataset)
-    if uses_receipt_defaults(_dataset_source_type(dataset), parse_dataset_source_config(dataset)):
+    source_type, config = _dataset_source_type(dataset), parse_dataset_source_config(dataset)
+    if uses_receipt_defaults(source_type, config) or uses_salesforce_defaults(source_type, config):
         selected_columns = None
     resolved_profile = (
         profile
@@ -922,12 +934,13 @@ def filter_dataframe_to_selected_metrics(
     automatic_metric_columns = set(
         resolved_profile.get("available_metric_columns", [])
     )
-    receipt_defaults = receipt_metric_columns(
-        _dataset_source_type(dataset), parse_dataset_source_config(dataset), dataframe.columns,
+    restricted_defaults = (
+        receipt_metric_columns(source_type, config, dataframe.columns) is not None
+        or salesforce_metric_columns(source_type, config, dataframe.columns) is not None
     )
 
     numeric_columns = {str(column) for column, _ in get_numeric_columns(dataframe)}
-    if receipt_defaults is not None:
+    if restricted_defaults:
         numeric_columns.update(
             str(column) for column in dataframe
             if pd.api.types.is_numeric_dtype(dataframe[column])
@@ -940,7 +953,7 @@ def filter_dataframe_to_selected_metrics(
             and not pd.api.types.is_bool_dtype(dataframe[column])
             and (
                 selected_columns is not None
-                or receipt_defaults is not None
+                or restricted_defaults
                 or str(column) in automatic_metric_columns
             )
             and not _is_generated_metric_column(
@@ -966,10 +979,10 @@ def filter_dataframe_to_selected_metrics(
         if (
             str(column) not in metric_like_columns
             or str(column) in selected_set
-            or (receipt_defaults is not None and selected_columns is None and is_identifier_column(column))
+            or (restricted_defaults and selected_columns is None and is_identifier_column(column))
         )
         and (
-            receipt_defaults is None
+            not restricted_defaults
             or not _is_generated_metric_column(column, dataframe)
             or str(column) in _GENERATED_METRIC_COLUMNS
             or str(column) in selected_summary_columns
@@ -977,10 +990,10 @@ def filter_dataframe_to_selected_metrics(
     ]
 
     result = dataframe.loc[:, keep_columns].copy()
-    if receipt_defaults is not None:
+    if restricted_defaults:
         for column in result:
             if str(column) not in selected_set | _GENERATED_METRIC_COLUMNS and pd.api.types.is_bool_dtype(result[column]):
                 # Keep boolean grouping fields without treating True/False as
-                # receipt amounts in downstream numeric discovery.
+                # business measures in downstream numeric discovery.
                 result[column] = result[column].astype("string")
     return result

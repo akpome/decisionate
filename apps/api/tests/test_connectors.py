@@ -924,6 +924,10 @@ class ConnectorSmokeTests(unittest.TestCase):
             connectors,
             "connector_json_request",
             side_effect=json_request,
+        ), patch.object(
+            connectors,
+            "load_salesforce_organization_currency",
+            return_value=None,
         ), patch.dict(
             os.environ,
             {"SALESFORCE_API_VERSION": "65.0"},

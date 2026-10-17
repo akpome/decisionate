@@ -9,7 +9,7 @@ from typing import NotRequired, TypedDict
 from urllib.parse import urlparse
 
 
-POLICY_VERSION = "2026-10-17.1"
+POLICY_VERSION = "2026-10-17.2"
 CONNECTOR_SCHEMA_VERSION = "decisionate-v1"
 SELECTION_PROVENANCE_KEY = "metric_selection_provenance"
 SCHEMA_VERSION_KEY = "connector_schema_version"
@@ -242,6 +242,22 @@ for index, profile in enumerate(POLICIES):
                 money("grand_total", "Tax-inclusive sale total, recorded once per sale; never added to line or tax-exclusive totals.",
                       paths=("grand_total", "totals__price_incl_tax"), family="document_value"),
             ))
+_previous_sales_policies = [replace(profile, policy_version="2026-10-17.1") for profile in POLICIES]
+for index, profile in enumerate(POLICIES):
+    if profile.connector_key == "salesforce" and profile.dataset_key == "opportunities":
+        POLICIES[index] = replace(profile, grain="opportunity", reviewed_at="2026-10-17",
+            evidence_url="https://help.salesforce.com/s/articleView?id=opp_fields.htm&language=en_US&type=5",
+            fixture="tests.test_salesforce_metric_defaults", metrics=(
+                money("opportunity_amount", "Estimated opportunity sale amount, not necessarily won or booked revenue.",
+                      paths=("Amount",), currency_paths=("CurrencyIsoCode", "currency")),
+                money("expected_revenue", "Salesforce expected revenue based on amount and probability; not booked revenue.",
+                      paths=("ExpectedRevenue",), currency_paths=("CurrencyIsoCode", "currency")),
+                measure("opportunity_probability", "Estimated closing probability in percent (0-100); average, not actual win rate.",
+                        paths=("Probability",), unit="probability", aggregation="AVG"),
+                measure("opportunity_quantity", "Total product quantity on the opportunity, not a count of deals.",
+                        paths=("TotalOpportunityQuantity",)),
+            ))
+POLICIES.extend(_previous_sales_policies)
 POLICIES.extend(_previous_receipt_policies)
 POLICIES.extend(_previous_policies)
 

@@ -19,6 +19,7 @@ from app.modules.datasets.services.metric_objectives import matches_objective
 from app.modules.datasets.services.metric_registry import get_metric_definition, normalize_metric_column_name
 from app.modules.datasets.services.summary_query import is_summary_dataframe
 from app.modules.datasets.services.receipt_metrics import receipt_metric_aliases, receipt_metric_columns, uses_receipt_defaults
+from app.modules.datasets.services.salesforce_metrics import salesforce_resource, uses_salesforce_defaults
 
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,8 @@ def dataset_policy_key(dataset, config=None):
     resource = config.get("resource_type") or config.get("resource") or config.get("object_type")
     if connector == "google_analytics" and config.get("dimensions") == ["date"]:
         resource = "report"
+    if connector == "salesforce":
+        resource = salesforce_resource(config)
     return connector, str(resource or ""), str(config.get(SCHEMA_VERSION_KEY) or "")
 
 
@@ -102,12 +105,13 @@ def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, sel
     key = dataset_policy_key(dataset, config)
     policy = METRIC_POLICIES.get(key)
     automatic_receipt_selection = uses_receipt_defaults(key[0], config)
-    if selection_policy and not automatic_receipt_selection:
+    automatic_selection = automatic_receipt_selection or uses_salesforce_defaults(key[0], config)
+    if selection_policy and not automatic_selection:
         provenance = config.get(SELECTION_PROVENANCE_KEY)
         version = provenance.get("policy_version") if isinstance(provenance, dict) else None
         policy = METRIC_POLICY_VERSIONS.get((*key, version))
     saved_selection = config.get("selected_metric_columns")
-    if uses_receipt_defaults(key[0], config):
+    if automatic_selection:
         saved_selection = None
     result = {
         "policyVersion": policy.policy_version if policy else POLICY_VERSION,
@@ -182,12 +186,14 @@ def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, sel
             continue
         currency = None
         if entry.unit == "currency":
-            retailer_currency = (
+            context_currency = (
                 config.get("retailer_currency")
                 if key[0] == "lightspeed_x" and config.get("currency_source") == "retailer.currency.code"
                 else None
             )
-            currency = _currency(dataframe, entry.currency_paths, column, retailer_currency)
+            if key[0] == "salesforce" and config.get("currency_source") == "getUserInfo.orgDefaultCurrencyIsoCode":
+                context_currency = config.get("organization_currency")
+            currency = _currency(dataframe, entry.currency_paths, column, context_currency)
             if not currency:
                 skip(entry.semantic_key, "currency_unresolved_or_mixed")
                 continue
@@ -248,7 +254,7 @@ def resolve_metric_recommendations(dataset, dataframe, *, diagnostics=False, sel
     result["missingSelectedColumns"] = [column for column in result["savedSelection"] or [] if column not in known]
     eligible = {entry["columnKey"] for group in ("recommended", "optional", "derived") for entry in result[group]}
     result["unavailableSelectedColumns"] = [column for column in result["savedSelection"] or [] if column not in eligible]
-    if not selection_policy or automatic_receipt_selection:
+    if not selection_policy or automatic_selection:
         policy_columns = [entry["columnKey"] for group in ("recommended", "optional") for entry in result[group]]
         allowed = receipt_metric_columns(key[0], config, policy_columns)
         if allowed is not None:

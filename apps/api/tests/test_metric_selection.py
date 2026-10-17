@@ -159,8 +159,9 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 if row_count:
                     self.assertEqual(fields["total_paid"]["registry"]["canonical_name"], "revenue")
                     financial = source_type in {"stripe", "shopify", "square", "woocommerce", "lightspeed", "lightspeed_x", "lightspeed_k", "lightspeed_o", "quickbooks", "freshbooks", "sage", "xero", "zoho_books"}
-                    self.assertEqual("total_paid" in profile["recommended_metric_columns"], not financial)
-                    self.assertEqual("unit_price" in profile["recommended_metric_columns"], source_type not in {"stripe", "lightspeed_k", "lightspeed_o"})
+                    # Neither generic name is a reviewed Salesforce Opportunity field.
+                    self.assertEqual("total_paid" in profile["recommended_metric_columns"], not financial and source_type != "salesforce")
+                    self.assertEqual("unit_price" in profile["recommended_metric_columns"], source_type not in {"stripe", "lightspeed_k", "lightspeed_o", "salesforce"})
                 else:
                     self.assertEqual(profile["available_metric_columns"], [])
 
@@ -178,7 +179,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
                 )
                 self.assertEqual(profile["available_metric_columns"], ["revenue"])
                 financial = source_type in {"stripe", "shopify", "square", "woocommerce", "lightspeed", "lightspeed_x", "lightspeed_k", "lightspeed_o", "quickbooks", "freshbooks", "sage", "xero", "zoho_books"}
-                self.assertEqual(profile["recommended_metric_columns"], [] if financial else ["revenue"])
+                self.assertEqual(profile["recommended_metric_columns"], [] if financial or source_type == "salesforce" else ["revenue"])
 
     def test_empty_connector_resource_schemas_can_be_profiled(self):
         inventory = json.loads(
@@ -228,7 +229,7 @@ class DatasetMetricSelectionTests(unittest.TestCase):
             }))
             for objective, expected in expectations.items():
                 with self.subTest(source_type=source_type, rows=row_count, objective=objective):
-                    if source_type in {"stripe", "lightspeed_k", "lightspeed_o"}:
+                    if source_type in {"stripe", "lightspeed_k", "lightspeed_o", "salesforce"}:
                         expected = set()
                     elif source_type in {"quickbooks", "zoho_books"}:
                         expected = expected & {"unit_price", "balance"}
