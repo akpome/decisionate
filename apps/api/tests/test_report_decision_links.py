@@ -8,7 +8,7 @@ from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.modules.decisions.models import Decision
+from app.modules.decisions.models import Decision, DecisionDuplicate
 from app.modules.decisions.titles import is_legacy_evidence_placeholder
 from app.modules.reports.service import attach_report_decisions, decisions_for_report, legacy_decision_drafts
 from app.modules.reports import router as reports_router
@@ -23,6 +23,7 @@ class ReportDecisionLinkTests(unittest.TestCase):
         self.engine = create_engine("sqlite://")
         self.addCleanup(self.engine.dispose)
         Decision.__table__.create(self.engine)
+        DecisionDuplicate.__table__.create(self.engine)
         self.Session = sessionmaker(bind=self.engine)
 
     def add(self, db, title="Shift campaign budget", action="Run a two-week budget test", report_id=None, status="planned", workspace="workspace", datasets=None):

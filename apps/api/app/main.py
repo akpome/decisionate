@@ -1554,6 +1554,16 @@ def ensure_organization_owner_memberships():
 
 ensure_organization_owner_memberships()
 
+
+def ensure_canonical_decisions():
+    from app.modules.decisions.duplicates import reconcile_duplicate_decisions
+
+    with engine.begin() as connection:
+        reconcile_duplicate_decisions(connection)
+
+
+ensure_canonical_decisions()
+
 if _schema_lock_connection is not None:
     _schema_lock_connection.execute(text("SELECT pg_advisory_unlock(59831, 2)"))
     _schema_lock_connection.commit()

@@ -15,6 +15,7 @@ from app.modules.datasets.services.joins import _bucket_dates, _infer_explicit_y
 from app.modules.datasets.services.numeric import coerce_numeric_series
 from .catalog import prepare_report_source
 from app.modules.decisions.titles import is_legacy_evidence_placeholder
+from app.modules.decisions.duplicates import canonical_decisions
 
 
 def finite(value):
@@ -272,7 +273,7 @@ def decisions_for_report(db, workspace, dataset_ids, report_id=None):
     if not report_id:
         return []
     result = []
-    for item in db.query(Decision).filter(Decision.workspace_id == workspace).order_by(Decision.created_at.desc(), Decision.id.desc()).yield_per(100):
+    for item in db.query(Decision).filter(Decision.workspace_id == workspace, canonical_decisions()).order_by(Decision.created_at.desc(), Decision.id.desc()).yield_per(100):
         evidence_ids = set(item.evidence_dataset_ids or [item.dataset_id])
         if not evidence_ids or not evidence_ids.issubset(dataset_ids):
             continue
@@ -307,7 +308,7 @@ def legacy_decision_drafts(db, workspace, dataset_ids, report_id=None):
 
     if len(dataset_ids) < 2:
         return []
-    query = db.query(Decision).filter(Decision.workspace_id == workspace, Decision.status != "archived")
+    query = db.query(Decision).filter(Decision.workspace_id == workspace, Decision.status != "archived", canonical_decisions())
     query = query.order_by(func.coalesce(Decision.updated_at, Decision.created_at).desc(), Decision.id.desc())
     for item in query.yield_per(100):
         # A source-only draft is not a report link or a completed decision.

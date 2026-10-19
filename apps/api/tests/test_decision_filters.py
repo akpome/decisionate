@@ -57,7 +57,7 @@ from app.modules.decisions.activity_models import (
     DecisionActivity,
     utc_now as activity_utc_now,
 )
-from app.modules.decisions.models import Decision
+from app.modules.decisions.models import Decision, DecisionDuplicate
 from app.modules.decisions.schemas import (
     ACTIVE_DECISION_LIST_LIFECYCLE,
     ARCHIVE_DECISION_ACTIVITY,
@@ -173,6 +173,7 @@ class DecisionFilterTests(unittest.TestCase):
         Decision.__table__.create(
             engine,
         )
+        DecisionDuplicate.__table__.create(engine)
         DecisionActivity.__table__.create(
             engine,
         )

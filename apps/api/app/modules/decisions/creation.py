@@ -7,6 +7,7 @@ from sqlalchemy import text
 
 from .models import Decision
 from .schemas import DEFAULT_DECISION_CATEGORY, DEFAULT_DECISION_PRIORITY
+from .duplicates import canonical_decisions
 
 
 def creation_content(decision):
@@ -44,5 +45,6 @@ def repeated_active_decision(db, submission):
         Decision.title == submission.title,
         Decision.action == submission.action,
         Decision.status.in_(("planned", "in_progress")),
+        canonical_decisions(),
     ).order_by(Decision.created_at, Decision.id)
     return next((item for item in candidates if creation_content(item) == content), None)

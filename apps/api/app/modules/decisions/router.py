@@ -15,6 +15,7 @@ from app.db.models import (
 from app.modules.decisions.models import (
     Decision,
     DecisionCreationRequest,
+    DecisionDuplicate,
 )
 from app.modules.decisions.activity_models import (
     DecisionActivity,
@@ -138,6 +139,7 @@ from app.modules.decisions.outcome_measurement import (
 )
 from app.modules.decisions.metric_scope import decision_metric_options
 from app.modules.decisions.creation import lock_decision_creation, repeated_active_decision
+from app.modules.decisions.duplicates import canonical_decisions
 from app.modules.decisions.titles import is_legacy_evidence_placeholder
 from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
 
@@ -418,6 +420,21 @@ def get_accessible_decision_or_404(
             detail="Decision not found",
         )
 
+    return resolve_canonical_decision(db, decision)
+
+
+def resolve_canonical_decision(db, decision):
+    seen = set()
+    while (duplicate := db.get(DecisionDuplicate, decision.id)) is not None:
+        if decision.id in seen:
+            raise HTTPException(409, "The decision reference could not be resolved.")
+        seen.add(decision.id)
+        canonical = db.get(Decision, duplicate.canonical_id) if duplicate.canonical_id is not None else None
+        if canonical is None:
+            raise HTTPException(410, "This decision was deleted.")
+        if (canonical.workspace_id, canonical.clerk_user_id) != (decision.workspace_id, decision.clerk_user_id):
+            raise HTTPException(404, "Decision not found")
+        decision = canonical
     return decision
 
 
@@ -1032,6 +1049,7 @@ def get_decision_count_map(
             x_user_id,
             x_workspace_id,
         ),
+        canonical_decisions(),
         has_meaningful_text(field),
     ]
 
@@ -1093,6 +1111,7 @@ def get_decision_month_count_map(
             x_user_id,
             x_workspace_id,
         ),
+        canonical_decisions(),
         Decision.created_at.isnot(None),
     ]
 
@@ -1335,13 +1354,13 @@ def get_replayed_decision(db, submission):
         existing = db.get(Decision, request.decision_id) if request.decision_id is not None else None
         if existing is None:
             raise HTTPException(410, "The decision created by this submission was deleted.")
-        return existing
+        return resolve_canonical_decision(db, existing)
     existing = db.query(Decision).filter_by(
         creation_request_key=submission.creation_request_key,
     ).first()
     if existing is not None and existing.creation_payload_hash != submission.creation_payload_hash:
         raise HTTPException(409, "This submission was already used for a different decision. Submit the updated action again.")
-    return existing
+    return resolve_canonical_decision(db, existing) if existing is not None else None
 
 
 @router.get(
@@ -1413,7 +1432,8 @@ async def get_decisions(
                 filter_decisions_for_workspace(
                     x_user_id,
                     x_workspace_id,
-                )
+                ),
+                canonical_decisions(),
             )
         )
 
@@ -1803,9 +1823,9 @@ async def get_decision_summary(
     db = SessionLocal()
 
     try:
-        base_filter = filter_decisions_for_workspace(
-            x_user_id,
-            x_workspace_id,
+        base_filter = and_(
+            filter_decisions_for_workspace(x_user_id, x_workspace_id),
+            canonical_decisions(),
         )
 
         if dataset_id is not None:
@@ -2601,7 +2621,7 @@ async def get_decision_activities(
         return (
             db.query(DecisionActivity)
             .filter(
-                DecisionActivity.decision_id == decision_id,
+                DecisionActivity.decision_id == decision.id,
                 filter_decision_activities_for_workspace(
                     x_user_id,
                     x_workspace_id,

@@ -36,6 +36,15 @@ class DecisionCreationRequest(Base):
     decision_id = Column(Integer, ForeignKey("decisions.id", ondelete="SET NULL"), nullable=True, index=True)
 
 
+class DecisionDuplicate(Base):
+    """Preserve an old duplicate record while using one decision for ongoing work."""
+
+    __tablename__ = "decision_duplicates"
+
+    duplicate_id = Column(Integer, ForeignKey("decisions.id", ondelete="CASCADE"), primary_key=True)
+    canonical_id = Column(Integer, ForeignKey("decisions.id", ondelete="SET NULL"), nullable=True, index=True)
+
+
 class Decision(Base):
     __tablename__ = "decisions"
     __table_args__ = (
