@@ -10,8 +10,12 @@ from sqlalchemy.orm import sessionmaker
 
 from app.modules.decisions.models import Decision
 from app.modules.decisions.titles import is_legacy_evidence_placeholder
-from app.modules.reports.service import decisions_for_report
+from app.modules.reports.service import attach_report_decisions, decisions_for_report, legacy_decision_drafts
+from app.modules.reports import router as reports_router
+from app.modules.reports.models import BusinessReport
+from app.modules.reports.schemas import ReportDefinition
 from app.modules.alerts import router as alerts_router
+from tests.test_business_reports import definition, fixture
 
 
 class ReportDecisionLinkTests(unittest.TestCase):
@@ -83,6 +87,72 @@ class ReportDecisionLinkTests(unittest.TestCase):
         self.assertTrue(is_legacy_evidence_placeholder("Review joined evidence: a.csv + b.csv", "Review joined dataset evidence"))
         self.assertFalse(is_legacy_evidence_placeholder("Review supplier contracts", "Compare renewal terms"))
         self.assertFalse(is_legacy_evidence_placeholder("Review joined dataset evidence", "Run a controlled budget test"))
+
+    def test_three_older_records_keep_one_active_source_draft_without_claiming_a_report_link(self):
+        with self.Session() as db:
+            self.add(db, title="Review joined evidence: a.csv + b.csv", action=None)
+            current = self.add(db, title="Review joined dataset evidence", action=None)
+            self.add(db, title="Review joined dataset evidence", action=None, status="archived")
+            db.commit()
+            for report_id in (None, "report-1"):
+                report = {}
+                attach_report_decisions(report, db, "workspace", {1, 2}, report_id)
+                self.assertEqual(report["decisions"], [])
+                self.assertEqual([item["id"] for item in report["decision_drafts"]], [current.id])
+                self.assertIsNone(report["decision_drafts"][0]["report_id"])
+                self.assertEqual(report["decision_drafts"][0]["evidence_dataset_ids"], [1, 2])
+            self.assertEqual(db.query(Decision).count(), 3)
+
+    def test_drafts_require_the_exact_source_set_and_workspace_and_never_cross_report_links(self):
+        with self.Session() as db:
+            for values in ({"workspace": "other"}, {"datasets": [1]}, {"datasets": [1, 2, 3]},
+                           {"report_id": "another-report"}, {"status": "archived"}):
+                self.add(db, title="Review joined dataset evidence", action=None, **values)
+            self.add(db, title="A genuine unlinked action", action="Pause campaign B")
+            db.commit()
+            self.assertEqual(legacy_decision_drafts(db, "workspace", {1, 2}, "report-1"), [])
+            self.assertEqual(legacy_decision_drafts(db, "workspace", {1}, "report-1"), [])
+
+    def test_a_current_linked_action_replaces_the_legacy_draft_instead_of_showing_both(self):
+        with self.Session() as db:
+            self.add(db, title="Review joined dataset evidence", action=None)
+            current = self.add(db, report_id="report-1")
+            db.commit()
+            report = {}
+            attach_report_decisions(report, db, "workspace", {1, 2}, "report-1")
+            self.assertEqual([item["id"] for item in report["decisions"]], [current.id])
+            self.assertEqual(report["decision_drafts"], [])
+
+    def test_a_report_linked_placeholder_is_kept_as_one_draft_not_discarded(self):
+        with self.Session() as db:
+            draft = self.add(db, title="Review joined dataset evidence", action=None, report_id="report-1")
+            db.commit()
+            report = {}
+            attach_report_decisions(report, db, "workspace", {1, 2}, "report-1")
+            self.assertEqual(report["decisions"], [])
+            self.assertEqual([item["id"] for item in report["decision_drafts"]], [draft.id])
+
+    def test_actual_preview_save_and_detail_routes_return_the_same_existing_draft(self):
+        BusinessReport.__table__.create(self.engine)
+        frames = fixture()
+        with self.Session() as db:
+            self.add(db, title="Review joined evidence: a.csv + b.csv", action=None)
+            current = self.add(db, title="Review joined dataset evidence", action=None)
+            self.add(db, title="Review joined dataset evidence", action=None, status="archived")
+            db.commit()
+            with patch.object(reports_router, "identity", return_value=("owner", "workspace")), \
+                 patch.object(reports_router, "get_workspace_role", return_value="owner"), \
+                 patch.object(reports_router, "authorize_datasets", return_value={identity: value[0] for identity, value in frames.items()}), \
+                 patch.object(reports_router, "load_dataframe_from_dataset", side_effect=lambda dataset: frames[dataset.id][1].copy()):
+                payload = ReportDefinition(**definition())
+                preview = reports_router.preview(None, payload, db)
+                saved = reports_router.save(None, payload, db)
+                detail = reports_router.detail(saved["report_id"], None, db)
+            for response in (preview, saved, detail):
+                self.assertEqual(response["decisions"], [])
+                self.assertEqual([item["id"] for item in response["decision_drafts"]], [current.id])
+                self.assertIsNone(response["decision_drafts"][0]["report_id"])
+            self.assertEqual(db.query(Decision).count(), 3)
 
     def weekly_digest(self, db, preference, asynchronous):
         digest = SimpleNamespace(cross_dataset_report={}, metrics=[SimpleNamespace(dataset_id=1), SimpleNamespace(dataset_id=2)])

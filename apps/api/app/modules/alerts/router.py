@@ -62,7 +62,7 @@ from app.modules.datasets.services.relationships import (
 )
 from app.modules.decisions.models import Decision
 from app.modules.reports.models import BusinessReport
-from app.modules.reports.service import build_report, complete_week, decisions_for_report, scoped_frame
+from app.modules.reports.service import attach_report_decisions, build_report, complete_week, scoped_frame
 from app.modules.reports.catalog import prepare_report_source
 from app.modules.correlation.catalog import metric_catalog, reporting_timezone
 from app.modules.decisions.templates import build_decision_template_url
@@ -1182,8 +1182,8 @@ def build_weekly_report_digest_for_workspace(
         report_definition=weekly_business_template(db, preference, workspace_id),
     )
     digest.cross_dataset_report["decision_report_id"] = preference.business_report_id if preference else None
-    digest.cross_dataset_report["decisions"] = decisions_for_report(
-        db, workspace_id, {metric.dataset_id for metric in digest.metrics},
+    attach_report_decisions(
+        digest.cross_dataset_report, db, workspace_id, {metric.dataset_id for metric in digest.metrics},
         preference.business_report_id if preference else None,
     )
     return digest
@@ -1244,8 +1244,8 @@ async def build_weekly_report_digest_for_workspace_async(
         weekly_business_template(db, preference, workspace_id),
     )
     digest.cross_dataset_report["decision_report_id"] = preference.business_report_id if preference else None
-    digest.cross_dataset_report["decisions"] = decisions_for_report(
-        db, workspace_id, {metric.dataset_id for metric in digest.metrics},
+    attach_report_decisions(
+        digest.cross_dataset_report, db, workspace_id, {metric.dataset_id for metric in digest.metrics},
         preference.business_report_id if preference else None,
     )
     return digest

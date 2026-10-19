@@ -16,7 +16,7 @@ from app.modules.decisions.metric_scope import selected_report_metrics
 from .models import BusinessReport
 from .catalog import report_metric_catalog
 from .schemas import ReportDecision, ReportDefinition
-from .service import build_report, decisions_for_report
+from .service import attach_report_decisions, build_report
 
 
 router = APIRouter(prefix="/api/v2/business-reports", tags=["business-reports"])
@@ -73,6 +73,7 @@ def generate(db, payload, user, workspace):
                                      "definition": json.loads(source_run.definition),
                                      "computed_at": source_run.completed_at.isoformat() if source_run.completed_at else None,
                                      "note": "This report recalculates the selected sources. The original analysis run remains available for comparison."}
+    attach_report_decisions(result, db, workspace, {item["dataset_id"] for item in result["definition"]["metrics"]})
     return result["definition"], result
 
 
@@ -152,7 +153,7 @@ def detail(report_id: str, request: Request, db=Depends(database)):
     user, workspace = identity(request)
     report = allowed_report(db, report_id, user, workspace)
     snapshot = json.loads(report.snapshot)
-    snapshot["decisions"] = decisions_for_report(db, workspace, {item["dataset_id"] for item in snapshot["definition"]["metrics"]}, report.id)
+    attach_report_decisions(snapshot, db, workspace, {item["dataset_id"] for item in snapshot["definition"]["metrics"]}, report.id)
     return {**snapshot, "report_id": report.id}
 
 

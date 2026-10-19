@@ -400,7 +400,7 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         response = self.client.get(f"/api/v2/business-reports/{saved['report_id']}")
         self.assertEqual(response.json()["decisions"][0]["actual_outcome"], "Recorded result")
 
-    def test_preview_and_new_snapshot_do_not_adopt_three_older_joined_data_decisions(self):
+    def test_preview_and_new_snapshot_keep_one_older_draft_separate_from_decision_outcomes(self):
         with self.Session() as db:
             for title, status in (("Review joined evidence: Source 1.csv + Source 2.csv", "planned"),
                                   ("Review joined dataset evidence", "planned"),
@@ -413,9 +413,14 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         response = self.client.post("/api/v2/business-reports/preview", json=definition())
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["decisions"], [])
+        self.assertEqual(len(response.json()["decision_drafts"]), 1)
+        self.assertEqual(response.json()["decision_drafts"][0]["status"], "planned")
         saved = self.save()
         self.assertEqual(saved["decisions"], [])
-        self.assertEqual(self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()["decisions"], [])
+        self.assertEqual(saved["decision_drafts"][0]["id"], response.json()["decision_drafts"][0]["id"])
+        detail = self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()
+        self.assertEqual(detail["decisions"], [])
+        self.assertEqual(detail["decision_drafts"][0]["id"], saved["decision_drafts"][0]["id"])
         with self.Session() as db:
             self.assertEqual(db.query(Decision).count(), 3)
             self.assertEqual(db.query(Decision).filter_by(status="archived").count(), 1)

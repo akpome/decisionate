@@ -2,6 +2,7 @@
 
 from datetime import date, datetime, timedelta, timezone
 from itertools import combinations
+import json
 import math
 from zoneinfo import ZoneInfo
 
@@ -266,7 +267,6 @@ def build_report(frames, definition, *, unavailable=None):
 
 
 def decisions_for_report(db, workspace, dataset_ids, report_id=None):
-    import json
     from app.modules.decisions.models import Decision
     # Sharing datasets is not an explicit link to a report or a decision version.
     if not report_id:
@@ -286,12 +286,45 @@ def decisions_for_report(db, workspace, dataset_ids, report_id=None):
             continue
         if is_legacy_evidence_placeholder(item.title, item.action):
             continue
-        result.append({"id": item.id, "report_id": report_id, "title": item.title, "action": item.action, "status": item.status,
-                       "owner_user_id": item.owner_user_id, "expected_outcome": item.expected_outcome,
-                       "actual_outcome": item.actual_outcome, "outcome_status": item.outcome_status,
-                       "review_date": item.review_date.isoformat() if item.review_date else None,
-                       "baseline": item.outcome_baseline_value, "measured_value": item.outcome_measured_value,
-                       "change_percent": item.outcome_delta_percent})
+        result.append(report_decision_record(item, report_id))
         if len(result) == 20:
             break
     return result
+
+
+def report_decision_record(item, report_id=None):
+    return {"id": item.id, "report_id": report_id, "title": item.title, "action": item.action, "status": item.status,
+            "owner_user_id": item.owner_user_id, "expected_outcome": item.expected_outcome,
+            "actual_outcome": item.actual_outcome, "outcome_status": item.outcome_status,
+            "review_date": item.review_date.isoformat() if item.review_date else None,
+            "baseline": item.outcome_baseline_value, "measured_value": item.outcome_measured_value,
+            "change_percent": item.outcome_delta_percent}
+
+
+def legacy_decision_drafts(db, workspace, dataset_ids, report_id=None):
+    from app.modules.decisions.models import Decision
+    from sqlalchemy import func
+
+    if len(dataset_ids) < 2:
+        return []
+    query = db.query(Decision).filter(Decision.workspace_id == workspace, Decision.status != "archived")
+    query = query.order_by(func.coalesce(Decision.updated_at, Decision.created_at).desc(), Decision.id.desc())
+    for item in query.yield_per(100):
+        # A source-only draft is not a report link or a completed decision.
+        evidence_ids = {item.dataset_id, *(item.evidence_dataset_ids or [])}
+        if evidence_ids != dataset_ids or not is_legacy_evidence_placeholder(item.title, item.action):
+            continue
+        try:
+            context = json.loads(item.recommendation_context or "{}")
+        except (TypeError, ValueError):
+            context = {}
+        linked_report = context.get("report_id") if isinstance(context, dict) else None
+        if linked_report and linked_report != report_id:
+            continue
+        return [{**report_decision_record(item, linked_report), "evidence_dataset_ids": sorted(evidence_ids)}]
+    return []
+
+
+def attach_report_decisions(report, db, workspace, dataset_ids, report_id=None):
+    report["decisions"] = decisions_for_report(db, workspace, dataset_ids, report_id)
+    report["decision_drafts"] = [] if any(item["status"] != "archived" for item in report["decisions"]) else legacy_decision_drafts(db, workspace, dataset_ids, report_id)

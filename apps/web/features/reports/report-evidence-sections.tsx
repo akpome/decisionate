@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
-import type { BusinessReport, ReportFinding } from "./types"
+import type { BusinessReport, ReportDecision, ReportFinding } from "./types"
 
 export function ReportRelationshipFindings({ report }: { report: BusinessReport }) {
   const included = new Set(report.included_findings)
@@ -8,7 +8,7 @@ export function ReportRelationshipFindings({ report }: { report: BusinessReport 
   return <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Relationship findings">
     <h3 className="text-lg font-semibold">Relationship findings</h3>
     {findings.length === 0 ? <p className="text-sm text-gray-500">No relationship findings included in this report.</p>
-      : findings.map(finding => <div key={finding.id} className="min-w-0 border-b border-gray-100 py-3"><Finding finding={finding} /></div>)}
+      : <ul aria-label="Relationship results" className="list-none">{findings.map(finding => <li key={finding.id} className="min-w-0 border-b border-gray-100 py-3"><Finding finding={finding} /></li>)}</ul>}
   </section>
 }
 
@@ -20,17 +20,42 @@ export function ReportDecisions({ report }: { report: BusinessReport }) {
     seen.add(decision.id)
     return true
   }) : []
+  const active = decisions.filter(decision => decision.status !== "archived")
+  const archived = decisions.filter(decision => decision.status === "archived")
+  const datasetIds = new Set(report.definition?.metrics.map(metric => metric.dataset_id) || [])
+  const draft = active.length === 0 ? (report.decision_drafts || []).find(decision =>
+    decision.status !== "archived" && isLegacyEvidencePlaceholder(decision) &&
+    (!decision.report_id || decision.report_id === reportId) && datasetIds.size >= 2 &&
+    new Set(decision.evidence_dataset_ids).size === datasetIds.size &&
+    decision.evidence_dataset_ids?.every(identity => datasetIds.has(identity))
+  ) : undefined
   return <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Decisions and outcomes">
-    <h3 className="text-lg font-semibold">Decisions and outcomes</h3>
-    {decisions.length === 0 ? <p className="text-sm text-gray-500">No decisions linked to this report.</p>
-      : decisions.map(decision => <div key={decision.id} className="border-b border-gray-100 pb-3">
-        <Link className="break-words font-medium text-blue-700 underline" href={`/dashboard/decisions/${decision.id}`}>{getDecisionDisplayTitle(decision)}</Link>
-        <p className="mt-1 text-xs text-gray-500">{decision.status} / Owner: {decision.owner_user_id}{decision.review_date ? ` / Review: ${decision.review_date.slice(0, 10)}` : ""}</p>
-        <p className="mt-2 text-sm">Expected: {decision.expected_outcome || "Not recorded"}</p>
-        <p className="mt-1 text-sm">Actual: {decision.actual_outcome || "Not yet recorded"}</p>
-        {decision.change_percent !== null && <p className="mt-1 text-sm">Measured change: {decision.change_percent.toFixed(1)}%</p>}
-      </div>)}
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h3 className="text-lg font-semibold">Decisions and outcomes</h3>
+      <Link className="text-sm text-blue-700 underline print:hidden" href="/dashboard/decisions">Manage decisions</Link>
+    </div>
+    {active.length > 0 ? active.map(decision => <DecisionRow key={decision.id} decision={decision} />)
+      : draft ? <div className="min-w-0 border-b border-gray-100 pb-3" aria-label="Existing decision draft">
+        <p className="mb-1 text-xs font-medium text-amber-800">Earlier draft for these datasets</p>
+        <Link className="break-words font-medium text-blue-700 underline" href={`/dashboard/decisions/${draft.id}`}>Decision draft</Link>
+        <p className="mt-1 text-sm text-gray-600">Action not recorded.</p>
+      </div>
+        : <p className="text-sm text-gray-500">No active decisions linked to this report.</p>}
+    {archived.length > 0 && <details className="min-w-0 border-t border-gray-100 pt-3 text-sm">
+      <summary className="cursor-pointer text-gray-600">Archived decisions ({archived.length})</summary>
+      <div className="mt-3 space-y-3">{archived.map(decision => <DecisionRow key={decision.id} decision={decision} />)}</div>
+    </details>}
   </section>
+}
+
+function DecisionRow({ decision }: { decision: ReportDecision }) {
+  return <div className="min-w-0 border-b border-gray-100 pb-3">
+    <Link className="break-words font-medium text-blue-700 underline" href={`/dashboard/decisions/${decision.id}`}>{getDecisionDisplayTitle(decision)}</Link>
+    <p className="mt-1 text-xs text-gray-500">{decision.status} / Owner: {decision.owner_user_id}{decision.review_date ? ` / Review: ${decision.review_date.slice(0, 10)}` : ""}</p>
+    <p className="mt-2 text-sm">Expected: {decision.expected_outcome || "Not recorded"}</p>
+    <p className="mt-1 text-sm">Actual: {decision.actual_outcome || "Not yet recorded"}</p>
+    {typeof decision.change_percent === "number" && <p className="mt-1 text-sm">Measured change: {decision.change_percent.toFixed(1)}%</p>}
+  </div>
 }
 
 function Finding({ finding }: { finding: ReportFinding }) {
