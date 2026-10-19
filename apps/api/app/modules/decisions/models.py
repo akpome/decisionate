@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     Index,
+    ForeignKey,
 )
 
 from app.db.database import Base
@@ -23,6 +24,16 @@ def utc_now() -> datetime:
     return datetime.now(UTC).replace(
         tzinfo=None,
     )
+
+
+class DecisionCreationRequest(Base):
+    """Remember additional retry keys without creating additional decisions."""
+
+    __tablename__ = "decision_creation_requests"
+
+    request_key = Column(String(64), primary_key=True)
+    payload_hash = Column(String(64), nullable=False)
+    decision_id = Column(Integer, ForeignKey("decisions.id", ondelete="SET NULL"), nullable=True, index=True)
 
 
 class Decision(Base):

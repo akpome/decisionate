@@ -54,6 +54,7 @@ import {
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 import { DecisionReportEvidence, useDecisionReportEvidence } from "@/features/decisions/components/decision-report-evidence"
+import { decisionCreationKey } from "@/features/decisions/lib/creation-request"
 
 type DecisionDatasetOption = Pick<
     DatasetSummary,
@@ -725,7 +726,7 @@ function NewDecisionContent() {
                 confidence_score: createDecisionConfidence || undefined }
             const signature = JSON.stringify([user.id, activeWorkspaceId, requestPayload])
             if (submissionRequest.current?.signature !== signature) {
-                submissionRequest.current = { signature, key: crypto.randomUUID() }
+                submissionRequest.current = { signature, key: await decisionCreationKey(signature) }
             }
             await createDecision(
                 requestPayload,

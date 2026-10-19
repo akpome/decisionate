@@ -14,6 +14,7 @@ from app.db.models import (
 )
 from app.modules.decisions.models import (
     Decision,
+    DecisionCreationRequest,
 )
 from app.modules.decisions.activity_models import (
     DecisionActivity,
@@ -136,6 +137,7 @@ from app.modules.decisions.outcome_measurement import (
     measure_decision_metric,
 )
 from app.modules.decisions.metric_scope import decision_metric_options
+from app.modules.decisions.creation import lock_decision_creation, repeated_active_decision
 from app.modules.decisions.titles import is_legacy_evidence_placeholder
 from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
 
@@ -1269,6 +1271,7 @@ async def create_decision(
         decision.evidence_dataset_ids = evidence_dataset_ids
         decision.evidence_metrics = evidence_metrics
 
+        lock_decision_creation(db, decision.workspace_id)
         if idempotency_key is not None:
             decision.creation_request_key = sha256(json.dumps(
                 [clean_user_id, decision.workspace_id, idempotency_key],
@@ -1280,6 +1283,18 @@ async def create_decision(
             existing = get_replayed_decision(db, decision)
             if existing is not None:
                 return existing
+
+        existing = repeated_active_decision(db, decision)
+        if existing is not None:
+            if decision.creation_request_key:
+                db.add(DecisionCreationRequest(
+                    request_key=decision.creation_request_key,
+                    payload_hash=decision.creation_payload_hash,
+                    decision_id=existing.id,
+                ))
+                db.commit()
+                db.refresh(existing)
+            return existing
 
         db.add(decision)
 
@@ -1313,6 +1328,14 @@ async def create_decision(
 
 
 def get_replayed_decision(db, submission):
+    request = db.get(DecisionCreationRequest, submission.creation_request_key)
+    if request is not None:
+        if request.payload_hash != submission.creation_payload_hash:
+            raise HTTPException(409, "This submission was already used for a different decision. Submit the updated action again.")
+        existing = db.get(Decision, request.decision_id) if request.decision_id is not None else None
+        if existing is None:
+            raise HTTPException(410, "The decision created by this submission was deleted.")
+        return existing
     existing = db.query(Decision).filter_by(
         creation_request_key=submission.creation_request_key,
     ).first()

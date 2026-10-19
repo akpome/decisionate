@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
-import { randomUUID } from "node:crypto"
+import { randomUUID, webcrypto } from "node:crypto"
 import { createRequire } from "node:module"
 import vm from "node:vm"
 import test from "node:test"
@@ -22,6 +22,14 @@ function functionSource(path, name) {
 }
 
 const handler = functionSource("../app/dashboard/decisions/new/page.tsx", "handleCreateDecision")
+const keySource = readFileSync(new URL("../features/decisions/lib/creation-request.ts", import.meta.url), "utf8")
+const storage = new Map()
+function keyFactory(sessionStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) }) {
+  const loaded = { exports: {} }
+  const code = ts.transpileModule(keySource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText
+  vm.runInNewContext(code, { module: loaded, exports: loaded.exports, crypto: webcrypto, TextEncoder, sessionStorage })
+  return loaded.exports.decisionCreationKey
+}
 
 function submission(createDecision) {
   const calls = [], errors = [], destinations = []
@@ -35,6 +43,7 @@ function submission(createDecision) {
     getCreateDecisionDatasetId: Number, setCreatingDecision: () => {}, setCreateDecisionError: message => errors.push(message),
     getDecisionPageErrorMessage: error => error.message, returnPath: "/dashboard/decisions",
     router: { replace: value => destinations.push(value) }, console: { error: () => {} }, crypto: { randomUUID },
+    decisionCreationKey: keyFactory(),
     createDecision: async (...args) => { calls.push(args); return createDecision?.(...args) },
   }
   const code = ts.transpileModule(`${handler}\nhandleCreateDecision`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
@@ -43,11 +52,13 @@ function submission(createDecision) {
 }
 
 test("two submit events in the same render make one request and successful navigation stays locked", async () => {
-  let release
+  let release, started
   const pending = new Promise(resolve => { release = resolve })
-  const form = submission(() => pending)
+  const requested = new Promise(resolve => { started = resolve })
+  const form = submission(() => { started(); return pending })
   const first = form.submit()
   await form.submit()
+  await requested
   assert.equal(form.calls.length, 1)
   release({ id: 1 })
   await first
@@ -56,6 +67,39 @@ test("two submit events in the same render make one request and successful navig
   assert.deepEqual(form.destinations, ["/dashboard/decisions"])
   assert.equal(form.bindings.submissionInFlight.current, true)
   assert.equal(form.calls[0][0].title, "Shift campaign budget")
+})
+
+test("a form remount or page reload keeps the same submission key without storing private form contents", async () => {
+  storage.clear()
+  const first = submission(() => { throw new Error("Response lost after saving") })
+  await first.submit()
+  const reloaded = submission(() => ({ id: 1 }))
+  await reloaded.submit()
+  assert.equal(first.calls[0][3], reloaded.calls[0][3])
+  const saved = JSON.stringify([...storage])
+  assert.doesNotMatch(saved, /campaign|orders|owner|workspace|finding/)
+})
+
+test("submission keys remain scoped to the action, user and workspace after a reload", async () => {
+  storage.clear()
+  const original = submission()
+  await original.submit()
+  for (const patch of [{ createDecisionAction: "Pause campaign B" }, { user: { id: "another-owner" } }, { activeWorkspaceId: "another-workspace" }]) {
+    const next = submission()
+    Object.assign(next.bindings, patch)
+    await next.submit()
+    assert.notEqual(next.calls[0][3], original.calls[0][3])
+  }
+})
+
+test("unavailable, invalid or expired session storage does not block decision creation", async () => {
+  for (const session of [
+    { getItem() { throw new Error("Blocked") }, setItem() { throw new Error("Blocked") } },
+    { getItem: () => "not json", setItem() {} },
+    { getItem: () => JSON.stringify({ key: "expired", expires: 1 }), setItem() {} },
+  ]) {
+    assert.match(await keyFactory(session)("request"), /^[0-9a-f-]{36}$/)
+  }
 })
 
 test("an uncertain response can be retried with the original submission key", async () => {
