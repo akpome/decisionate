@@ -7,7 +7,7 @@ export function decisionDraftId() {
   const identity = crypto.randomUUID()
   url.searchParams.set("draft", identity)
   // Keep retry identity across reloads without storing any decision or evidence text.
-  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`)
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`)
   return identity
 }
 

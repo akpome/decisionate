@@ -11,7 +11,7 @@ const page = readFileSync(new URL("../app/dashboard/decisions/new/page.tsx", imp
 const identity = "abcddcba-1234-4abc-8abc-1234567890ab"
 
 function draft(url = "https://decisionate.test/dashboard/decisions/new") {
-  const changes = [], state = { nextRouterState: true }
+  const changes = [], state = { __NA: true, nextRouterState: true }
   const window = { location: { href: url }, history: { state, replaceState(value, _, path) {
     changes.push({ state: value, path }); window.location.href = new URL(path, window.location.href).href
   } } }
@@ -53,13 +53,14 @@ test("fresh creation forms receive distinct random default names", () => {
   assert.equal(titles.size, 100)
 })
 
-test("reloading a draft reuses its name and preserves navigation parameters and router state", () => {
+test("reloading a draft reuses its name and preserves navigation parameters without bypassing the router", () => {
   const form = draft("https://decisionate.test/dashboard/decisions/new?dataset=39&metric=ad_spend&returnTo=%2Fdashboard%2Fdecisions#details")
   const first = form.decisionDraftId()
   assert.equal(form.decisionDraftId(), first)
   assert.equal(draft(form.window.location.href).decisionDraftId(), first)
   assert.equal(form.changes.length, 1)
-  assert.equal(form.changes[0].state, form.state)
+  // Passing Next's own history markers would bypass its native-history integration.
+  assert.equal(form.changes[0].state, null)
   const url = new URL(form.window.location.href)
   assert.equal(url.searchParams.get("dataset"), "39")
   assert.equal(url.searchParams.get("metric"), "ad_spend")
