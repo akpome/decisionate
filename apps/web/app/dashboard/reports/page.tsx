@@ -12,5 +12,6 @@ export default function ReportsPage() {
   if (!isLoaded || access.loadingWorkspaceAccess) return <p role="status">Loading workspace...</p>
   if (!user?.id) return <p role="status">Sign in to view reports.</p>
   return <ReportWorkspace key={`${user.id}:${activeWorkspaceId}`} userId={user.id} workspaceId={activeWorkspaceId}
-    canManage={access.canManageWorkspaceData} canSave={access.canManageWorkspaceData || access.canCreateDecisions} />
+    canManage={access.canManageWorkspaceData} canSave={access.canManageWorkspaceData || access.canCreateDecisions}
+    canEditDecisions={access.canCreateDecisions} />
 }

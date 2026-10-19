@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { correlationRequest, getMyOrganization, getOrganizationWorkspaces } from "@/lib/api"
@@ -33,10 +34,12 @@ async function hydrateCatalog(userId: string, workspaceId: string | undefined, c
   return result
 }
 
-export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
-  userId: string; workspaceId?: string; canManage: boolean; canSave: boolean
+export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEditDecisions = false }: {
+  userId: string; workspaceId?: string; canManage: boolean; canSave: boolean; canEditDecisions?: boolean
 }) {
   const { t } = useDecisionateText()
+  const router = useRouter()
+  const openingDraft = useRef(false)
   const [datasets, setDatasets] = useState<CatalogDataset[]>([])
   const [dateColumns, setDateColumns] = useState<Record<number, string>>({})
   const [nextOffset, setNextOffset] = useState<number | null>(null)
@@ -155,6 +158,18 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
     return result
   }
 
+  async function openDecisionDraft(decisionId: number) {
+    if (!canEditDecisions || !canSave || busy || openingDraft.current) return
+    openingDraft.current = true
+    try {
+      await execute(async () => {
+        const snapshot = await saveSnapshot()
+        const result = await request<{ decision_id: number }>(`/${snapshot.report_id}/decision-drafts/${decisionId}/evidence`, { method: "POST" })
+        router.push(`/dashboard/decisions/${result.decision_id}`)
+      })
+    } finally { openingDraft.current = false }
+  }
+
   if (loading) return <div className="mx-auto min-w-0 max-w-[1500px] space-y-5"><AnalysisNavigation active="reports" /><p role="status" className="py-8 text-sm text-gray-600">Loading cross-dataset reports...</p></div>
   return <div className="mx-auto min-w-0 max-w-[1500px] space-y-5">
     <AnalysisNavigation active="reports" />
@@ -230,7 +245,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
         <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Combined findings</h3><Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
         <ReportRelationshipFindings report={report} />
         <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Follow-up actions</h3><Statements statements={report.recommendations} /></section>
-        <ReportDecisions report={report} />
+        <ReportDecisions report={report} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />
         <section className="space-y-2 border-t border-gray-200 pt-5"><h3 className="text-base font-semibold">Evidence limitations</h3><p className="text-xs text-gray-500">Rule-based interpretation / Historical relationships: {report.history_window.start} to {report.history_window.end}</p><Statements statements={report.limitations} /></section>
       </>}
     </section>

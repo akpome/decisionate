@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { ArrowUpRight } from "lucide-react"
 import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
 import { decisionEvidenceHref } from "@/features/decisions/lib/report-metric-scope"
 import type { BusinessReport, ReportDecision, ReportFinding } from "./types"
@@ -13,7 +14,9 @@ export function ReportRelationshipFindings({ report }: { report: BusinessReport 
   </section>
 }
 
-export function ReportDecisions({ report }: { report: BusinessReport }) {
+export function ReportDecisions({ report, onOpenDraft, busy = false }: {
+  report: BusinessReport; onOpenDraft?: (decisionId: number) => Promise<void>; busy?: boolean
+}) {
   const seen = new Set<number>()
   const reportId = report.report_id || report.decision_report_id
   const decisions = reportId ? report.decisions.filter(decision => {
@@ -38,7 +41,8 @@ export function ReportDecisions({ report }: { report: BusinessReport }) {
     {active.length > 0 ? active.map(decision => <DecisionRow key={decision.id} decision={decision} report={report} />)
       : draft ? <div className="min-w-0 border-b border-gray-100 pb-3" aria-label="Existing decision draft">
         <p className="mb-1 text-xs font-medium text-amber-800">Earlier draft for these datasets</p>
-        <Link className="break-words font-medium text-blue-700 underline" href={decisionEvidenceHref(draft.id, report.definition.metrics)}>Decision draft</Link>
+        {onOpenDraft ? <button type="button" disabled={busy} onClick={() => void onOpenDraft(draft.id)} className="inline-flex min-h-10 items-center gap-1 font-medium text-blue-700 underline disabled:opacity-50"><ArrowUpRight size={16} aria-hidden="true" />Decision draft</button>
+          : <Link className="break-words font-medium text-blue-700 underline" href={decisionEvidenceHref(draft.id, report.definition.metrics)}>Decision draft</Link>}
         <p className="mt-1 text-sm text-gray-600">Action not recorded.</p>
       </div>
         : <p className="text-sm text-gray-500">No active decisions linked to this report.</p>}

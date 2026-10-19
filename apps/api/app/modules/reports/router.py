@@ -13,6 +13,7 @@ from app.modules.auth_context import is_client_workspace_role
 from app.modules.datasets.services.auth import get_user_id, get_workspace_id, get_workspace_role, require_workspace_data_manager
 from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
 from app.modules.decisions.metric_scope import selected_report_metrics
+from app.modules.decisions.titles import is_legacy_evidence_placeholder
 from .models import BusinessReport
 from .catalog import report_metric_catalog
 from .schemas import ReportDecision, ReportDefinition
@@ -157,19 +158,13 @@ def detail(report_id: str, request: Request, db=Depends(database)):
     return {**snapshot, "report_id": report.id}
 
 
-@router.post("/{report_id}/decision-evidence")
-def decision_evidence(report_id: str, request: Request, payload: ReportDecision, db=Depends(database)):
-    user, workspace = identity(request)
-    report = allowed_report(db, report_id, user, workspace)
+def report_decision_evidence(report):
     snapshot = json.loads(report.snapshot)
     try:
         metrics = selected_report_metrics(snapshot)
     except ValueError as error:
         raise HTTPException(400, "The saved report's selected metrics are unavailable. Generate a new report.") from error
-    outcome = next((item for item in metrics if item["id"] == payload.outcome_metric), None)
-    if outcome is None:
-        raise HTTPException(400, "Select an outcome metric from the report")
-    if snapshot["status"] != "ready":
+    if not metrics or snapshot["status"] != "ready":
         raise HTTPException(400, "Resolve cross-dataset coverage before using this report as decision evidence")
     metric_ids = {item["id"] for item in metrics}
     findings = [{key: value for key, value in item.items() if key != "evidence"}
@@ -180,14 +175,81 @@ def decision_evidence(report_id: str, request: Request, payload: ReportDecision,
                 "metrics": [{key: value for key, value in item.items() if key != "trend"} for item in metrics],
                 "findings": findings, "definition": snapshot["definition"], "warnings": snapshot["warnings"],
                 "limitations": snapshot["limitations"], "generated_at": snapshot["generated_at"]}
+    descriptors = [{"dataset_id": item["dataset_id"], "file_name": item["dataset_label"],
+                    "metric_column": item["metric_key"], "label": item["label"], "column_type": "numeric"} for item in metrics]
+    return snapshot, metrics, evidence, descriptors
+
+
+@router.post("/{report_id}/decision-evidence")
+def decision_evidence(report_id: str, request: Request, payload: ReportDecision, db=Depends(database)):
+    user, workspace = identity(request)
+    report = allowed_report(db, report_id, user, workspace)
+    snapshot, metrics, evidence, descriptors = report_decision_evidence(report)
+    outcome = next((item for item in metrics if item["id"] == payload.outcome_metric), None)
+    if outcome is None:
+        raise HTTPException(400, "Select an outcome metric from the report")
     return {"decision_payload": {"dataset_id": outcome["dataset_id"], "outcome_dataset_id": outcome["dataset_id"],
             "metric_column": outcome["metric_key"], "title": payload.title, "action": payload.action,
             "description": f"Business question: {snapshot['business_question']}\nReasoning and assumptions: {payload.reasoning}\nEvidence: /dashboard/reports?report={report.id}",
             "expected_outcome": payload.expected_outcome, "review_date": payload.review_date,
             "evidence_dataset_ids": list(dict.fromkeys(item["dataset_id"] for item in metrics)),
-            "evidence_metrics": [{"dataset_id": item["dataset_id"], "file_name": item["dataset_label"],
-                                  "metric_column": item["metric_key"], "label": item["label"], "column_type": "numeric"} for item in metrics],
+            "evidence_metrics": descriptors,
             "recommendation_source": "rules", "recommendation_context": encode(evidence)}}
+
+
+@router.post("/{report_id}/decision-drafts/{decision_id}/evidence")
+def bind_draft_evidence(report_id: str, decision_id: int, request: Request, db=Depends(database)):
+    from app.modules.decisions.router import (
+        DETAILS_DECISION_ACTIVITY, ensure_decision_is_editable,
+        get_accessible_decision_or_404, record_decision_activity, require_decision_manager,
+    )
+
+    user, workspace = identity(request)
+    require_decision_manager(request)
+    report = allowed_report(db, report_id, user, workspace)
+    decision = get_accessible_decision_or_404(db, decision_id, user, workspace)
+    db.refresh(decision, with_for_update=True)
+    ensure_decision_is_editable(decision)
+    recorded = any(str(value or "").strip() for value in (
+        decision.actual_outcome, decision.outcome_status, decision.lessons_learned,
+    )) or any(value is not None for value in (
+        decision.outcome_baseline_value, decision.outcome_measured_value,
+        decision.outcome_delta_percent, decision.outcome_measured_at,
+    ))
+    if decision.status != "planned" or recorded or not is_legacy_evidence_placeholder(decision.title, decision.action):
+        raise HTTPException(409, "Only an unrecorded decision draft can adopt report evidence")
+    _, metrics, evidence, descriptors = report_decision_evidence(report)
+    sources = list(dict.fromkeys(item["dataset_id"] for item in metrics))
+    if set(sources) != {decision.dataset_id, *decision.evidence_dataset_ids}:
+        raise HTTPException(409, "The report and decision draft must use the same datasets")
+    try:
+        previous = json.loads(decision.recommendation_context or "{}")
+    except (TypeError, ValueError):
+        previous = None
+    # Keep the original legacy evidence, but never use its wider cache as the selection.
+    evidence["original_evidence"] = previous["original_evidence"] if isinstance(previous, dict) and "original_evidence" in previous else {
+        "recommendation_context": decision.recommendation_context,
+        "recommendation_text": decision.recommendation_text,
+        "recommendation_source": decision.recommendation_source,
+        "evidence_metrics": decision.evidence_metrics,
+        "evidence_dataset_ids": decision.evidence_dataset_ids,
+        "description": decision.description,
+        "outcome_dataset_id": decision.outcome_dataset_id,
+        "metric_column": decision.metric_column,
+    }
+    context = encode(evidence)
+    if decision.recommendation_context != context or decision.evidence_metrics != descriptors:
+        decision.recommendation_context = context
+        decision.evidence_metrics = descriptors
+        decision.evidence_dataset_ids = sources
+        selected = {(item["dataset_id"], item["metric_key"]) for item in metrics}
+        if (decision.outcome_dataset_id or decision.dataset_id, decision.metric_column) not in selected:
+            decision.metric_column = None
+            decision.outcome_dataset_id = None
+        record_decision_activity(db, decision, DETAILS_DECISION_ACTIVITY,
+                                 f"Selected evidence saved from report {report.id}", actor_user_id=user)
+        db.commit()
+    return {"decision_id": decision.id}
 
 
 @router.post("/{report_id}/weekly")

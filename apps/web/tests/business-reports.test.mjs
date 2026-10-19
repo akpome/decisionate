@@ -100,3 +100,61 @@ test("central decision form checks decision permissions and preserves the report
   const reports = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
   assert.doesNotMatch(reports, /createDecision|DecisionDialog|Create decision/)
 })
+
+function draftHandoff(overrides = {}) {
+  const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  const ast = ts.createSourceFile("report-workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let declaration
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "openDecisionDraft") declaration = node.getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(declaration)
+  const calls = [], errors = [], openingDraft = { current: false }
+  const handler = vm.runInNewContext(ts.transpileModule(`${declaration}\nopenDecisionDraft`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText, {
+    canEditDecisions: true, canSave: true, busy: false, openingDraft,
+    execute: async action => { try { await action() } catch (error) { errors.push(error.message) } },
+    saveSnapshot: async () => { calls.push("save"); return { report_id: "report-1" } },
+    request: async (path, init) => { calls.push([path, init.method]); return { decision_id: 4 } },
+    router: { push: path => calls.push(path) }, ...overrides,
+  })
+  return { handler, calls, errors, openingDraft }
+}
+
+test("opening an existing draft saves selected report evidence before navigating to the canonical decision", async () => {
+  const { handler, calls, errors, openingDraft } = draftHandoff()
+  await handler(3)
+  assert.deepEqual(calls, ["save", ["/report-1/decision-drafts/3/evidence", "POST"], "/dashboard/decisions/4"])
+  assert.deepEqual(errors, [])
+  assert.equal(openingDraft.current, false)
+})
+
+test("double clicking the draft cannot submit multiple handoffs or create a decision", async () => {
+  const { handler, calls } = draftHandoff()
+  await Promise.all([handler(3), handler(3), handler(3)])
+  assert.equal(calls.length, 3)
+  assert.equal(calls.filter(item => Array.isArray(item)).length, 1)
+})
+
+test("a failed save or binding keeps the user in the report and permits retry", async () => {
+  for (const stage of ["saveSnapshot", "request"]) {
+    const { handler, calls, errors, openingDraft } = draftHandoff({ [stage]: async () => { throw new Error("Unavailable") } })
+    await handler(3)
+    assert.deepEqual(errors, ["Unavailable"])
+    assert.ok(calls.every(item => typeof item !== "string" || !item.startsWith("/dashboard/decisions")))
+    assert.equal(openingDraft.current, false)
+  }
+})
+
+test("read-only and busy report views cannot mutate a draft", async () => {
+  for (const overrides of [{ canEditDecisions: false }, { canSave: false }, { busy: true }]) {
+    const { handler, calls } = draftHandoff(overrides)
+    await handler(3)
+    assert.deepEqual(calls, [])
+  }
+  const page = readFileSync(new URL("../app/dashboard/reports/page.tsx", import.meta.url), "utf8")
+  assert.match(page, /canEditDecisions=\{access\.canCreateDecisions\}/)
+})

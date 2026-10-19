@@ -129,6 +129,27 @@ test("one existing active source draft remains editable without inventing an act
   assert.doesNotMatch(html, /Review joined|Actual:|Expected:|No active decisions/)
 })
 
+test("editable draft navigation uses the evidence-saving handoff and blocks repeated clicks while busy", () => {
+  const opened = []
+  const props = { report: { report_id: "report-1", decisions: [],
+    definition: { metrics: [{ dataset_id: 1, metric_key: "spend" }, { dataset_id: 2, metric_key: "orders" }] },
+    decision_drafts: [{ ...legacy[0], evidence_dataset_ids: [1, 2] }],
+  }, onOpenDraft: async id => { opened.push(id) } }
+  const html = renderToStaticMarkup(React.createElement(ReportDecisions, { ...props, busy: true }))
+  assert.match(html, /<button[^>]*disabled=""/)
+  assert.equal(decisionLinks(html).length, 0)
+  const buttons = []
+  function visit(node) {
+    if (!node || typeof node !== "object") return
+    if (node.type === "button") buttons.push(node)
+    React.Children.forEach(node.props?.children, visit)
+  }
+  visit(ReportDecisions(props))
+  assert.equal(buttons.length, 1)
+  buttons[0].props.onClick()
+  assert.deepEqual(opened, [1])
+})
+
 test("a current report-linked decision suppresses the older source-only draft", () => {
   const html = renderDecisions({ decisions: [realDecision], decision_drafts: [{ ...legacy[0], evidence_dataset_ids: [1, 2] }] })
   assert.equal(decisionLinks(html).length, 1)
