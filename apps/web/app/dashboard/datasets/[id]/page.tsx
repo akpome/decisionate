@@ -919,11 +919,11 @@ export default function DatasetDetailsPage() {
             </Link>
 
             <Link
-              href={`/dashboard/reports?dataset=${datasetId ?? ""}`}
+              href={`/dashboard/reports?dataset=${datasetId ?? ""}${effectiveSelectedMetric ? `&metric=${encodeURIComponent(effectiveSelectedMetric)}` : ""}`}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
             >
               <FileText size={16} />
-              Report
+              Cross-dataset report
             </Link>
 
             {canCreateDecisions && datasetId && (

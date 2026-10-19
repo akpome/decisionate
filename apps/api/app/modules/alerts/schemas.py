@@ -26,6 +26,7 @@ class WeeklyReportPreferenceResponse(BaseModel):
     delivery_day: str
     recipient_emails: list[str]
     metric_focus: list[str]
+    business_report_id: str | None = None
     metric_targets: dict[str, float] = Field(
         default_factory=dict
     )
@@ -46,6 +47,11 @@ class WeeklyReportDigestMetric(BaseModel):
     minimum: float | None = None
     maximum: float | None = None
     target: float | None = None
+    previous_value: float | None = None
+    change_percent: float | None = None
+    unit: str | None = None
+    currency: str | None = None
+    warnings: list[str] = Field(default_factory=list)
 
 
 class WeeklyReportDigestRelationship(BaseModel):
@@ -69,6 +75,7 @@ class WeeklyReportDigestRelationship(BaseModel):
     lag_mode: str = "manual"
     delay_description: str | None = None
     lag_credibility: str = "unknown"
+    history_window: dict[str, str] | None = None
 
 
 class WeeklyReportAIAnalysis(AIAnalysis):
@@ -108,6 +115,7 @@ class WeeklyReportDigestResponse(BaseModel):
     unavailable_datasets: list[str]
     decision_template_url: str | None = None
     ai_analysis: WeeklyReportAIAnalysis | None = None
+    cross_dataset_report: dict | None = None
 
 
 class WeeklyReportDeliveryResponse(BaseModel):

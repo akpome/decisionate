@@ -1736,6 +1736,8 @@ class WeeklyReportPreference(Base):
         nullable=True,
     )
 
+    business_report_id = Column(String, nullable=True)
+
     metric_targets = Column(
         Text,
         nullable=True,

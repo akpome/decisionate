@@ -2,6 +2,7 @@ import {
   getActiveWorkspaceId,
   notifyWorkspaceAccessChanged,
 } from "@/lib/workspace-context"
+import type { BusinessReport } from "@/features/reports/types"
 import { ApiReadCache } from "@/lib/api-read-cache"
 import {
   dashboardUsesDatasetMetricMapping,
@@ -1039,6 +1040,7 @@ export type WeeklyReportPreference = {
     | "friday"
   recipient_emails: string[]
   metric_focus: string[]
+  business_report_id?: string | null
   metric_targets: Record<string, number | null>
   relationship_focus: number[]
   include_recommendations: boolean
@@ -1057,6 +1059,11 @@ export type WeeklyReportDigestMetric = {
   minimum?: number | null
   maximum?: number | null
   target?: number | null
+  previous_value?: number | null
+  change_percent?: number | null
+  unit?: string | null
+  currency?: string | null
+  warnings?: string[]
 }
 
 export type WeeklyReportDigestRelationship = {
@@ -1149,6 +1156,7 @@ export type WeeklyReportDigest = {
   subject: string
   preview_text: string
   ai_analysis?: WeeklyReportAIAnalysis | null
+  cross_dataset_report?: BusinessReport | null
   dataset_count: number
   metrics: WeeklyReportDigestMetric[]
   available_metrics?: WeeklyReportDigestMetric[]

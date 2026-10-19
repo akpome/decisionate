@@ -1519,16 +1519,25 @@ function WeeklyReportDigestPreview({
         {digest.preview_text}
       </p>
 
+      {digest.cross_dataset_report && <section className="mt-4 space-y-3 border-y border-gray-200 py-4 text-sm" aria-label="Weekly cross-dataset review">
+        <h3 className="break-words font-semibold">{digest.cross_dataset_report.business_question}</h3>
+        <p className="text-xs text-gray-500">{digest.cross_dataset_report.window.start} to {digest.cross_dataset_report.window.end} / Previous: {digest.cross_dataset_report.previous_window.start} to {digest.cross_dataset_report.previous_window.end}</p>
+        <ul className="list-disc space-y-2 pl-5 text-gray-700">{[...digest.cross_dataset_report.observations, ...digest.cross_dataset_report.contrasts].map((value, index) => <li key={index} className="break-words">{value}</li>)}</ul>
+        {digest.cross_dataset_report.findings.filter(value => digest.cross_dataset_report!.included_findings.includes(value.id)).map(value => <p key={value.id} className="break-words leading-6 text-gray-700">{value.interpretation}</p>)}
+        {digest.cross_dataset_report.warnings.length > 0 && <ul className="space-y-2 text-amber-800">{digest.cross_dataset_report.warnings.map((value, index) => <li key={index}>{value}</li>)}</ul>}
+        <p className="text-xs text-gray-500">Historical relationship window: {digest.cross_dataset_report.history_window.start} to {digest.cross_dataset_report.history_window.end}. Association does not establish causation.</p>
+      </section>}
+
       {digest.decision_template_url && (
         <Link
           href={digest.decision_template_url}
           className="mt-3 inline-flex items-center rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:opacity-80"
         >
-          Start from a decision template
+          {digest.cross_dataset_report ? "Review cross-dataset report" : "Start from a decision template"}
         </Link>
       )}
 
-      {digest.ai_analysis && (
+      {digest.ai_analysis && !digest.cross_dataset_report && (
         <AIAnalysisPanel
           analysis={digest.ai_analysis}
           title="Alert analysis"
@@ -1574,11 +1583,11 @@ function WeeklyReportDigestPreview({
               </div>
             </div>
 
-            <p className="mt-2 text-xs text-gray-500">
+            {digest.cross_dataset_report ? <p className="mt-2 text-xs text-gray-500">{metric.currency || metric.unit} / Previous week: {formatMetricValue(metric.previous_value)} / {metric.change_percent == null ? "No comparable non-zero baseline" : `${metric.change_percent >= 0 ? "+" : ""}${metric.change_percent.toFixed(1)}%`}</p> : <p className="mt-2 text-xs text-gray-500">
               Avg {formatMetricValue(metric.average)} · Min{" "}
               {formatMetricValue(metric.minimum)} · Max{" "}
               {formatMetricValue(metric.maximum)}
-            </p>
+            </p>}
 
             {metric.target !== null &&
               metric.target !== undefined && (
@@ -1627,7 +1636,7 @@ function WeeklyReportDigestPreview({
         </div>
       )}
 
-      {onCreateDecision && (digest.metrics.length > 0 || digest.relationships.length > 0) && (
+      {onCreateDecision && !digest.cross_dataset_report && (digest.metrics.length > 0 || digest.relationships.length > 0) && (
         <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
           {digest.metrics.length > 0 ? (
             <>
@@ -1668,7 +1677,7 @@ function WeeklyReportDigestPreview({
         </div>
       )}
 
-      {onCreateDecision && (
+      {onCreateDecision && !digest.cross_dataset_report && (
         <CreateDecisionButton
           onClick={onCreateDecision}
           creating={creatingDecision}

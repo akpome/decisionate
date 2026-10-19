@@ -18,6 +18,7 @@ from app.modules.datasets.router import (
     router as datasets_router,
 )
 from app.modules.correlation.router import router as correlation_router
+from app.modules.reports.router import router as reports_router
 
 from app.modules.organizations.router import (
     router as organization_router,
@@ -1428,6 +1429,7 @@ def ensure_weekly_report_delivery_columns():
         )
 
         for column_name, column_type in [
+            ("business_report_id", "VARCHAR"),
             (
                 "relationship_focus",
                 "TEXT",
@@ -1728,6 +1730,7 @@ app.include_router(
     tags=["datasets"],
 )
 app.include_router(correlation_router)
+app.include_router(reports_router)
 
 app.include_router(
     organization_router,

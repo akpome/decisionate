@@ -15,7 +15,6 @@ import {
   ChevronDown,
   ChevronRight,
   FileText,
-  GitCompare,
   Home,
   LayoutDashboard,
   LineChart,
@@ -166,6 +165,11 @@ const dashboardNavGroups: DashboardNavGroup[] = [
     collapsible: true,
     items: [
       {
+        href: "/dashboard/reports",
+        label: "Reports",
+        icon: <FileText size={18} />,
+      },
+      {
         href: "/dashboard/insights",
         label: "Insights",
         icon: <BarChart3 size={18} />,
@@ -176,20 +180,10 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         icon: <LineChart size={18} />,
       },
       {
-        href: "/dashboard/reports",
-        label: "Reports",
-        icon: <FileText size={18} />,
-      },
-      {
         href: "/dashboard/alerts",
         label: "Alerts",
         icon: <Bell size={18} />,
         roles: ["owner", "client", "client_owner", "client_user", "managed_client"],
-      },
-      {
-        href: "/dashboard/relationships",
-        label: "Relationships",
-        icon: <GitCompare size={18} />,
       },
     ],
   },

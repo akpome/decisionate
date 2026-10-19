@@ -255,7 +255,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             html_body,
         )
         self.assertIn(
-            "Review in Dashboard",
+            "Review report",
             html_body,
         )
         self.assertIn(
@@ -352,11 +352,17 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         dataset = SimpleNamespace(
             id=42,
             file_name="sales.csv",
+            source_type="csv",
+            source_config=json.dumps({"selected_metric_columns": ["Gross Revenue", "Cost"]}),
         )
 
         with patch(
+            "app.modules.alerts.router.complete_week",
+            return_value={"start": "2026-03-23", "end": "2026-03-29"},
+        ), patch(
             "app.modules.alerts.router.load_dataframe_from_dataset",
             return_value=pd.DataFrame({
+                "date": ["2026-03-23", "2026-03-24"],
                 "Gross Revenue": [
                     10,
                     20,
@@ -429,11 +435,14 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         dataset = SimpleNamespace(
             id=42,
             file_name="sales.csv",
+            source_type="csv",
+            source_config=json.dumps({"selected_metric_columns": ["Gross Revenue", "Cost"]}),
         )
 
         with patch(
             "app.modules.alerts.router.load_dataframe_from_dataset",
             return_value=pd.DataFrame({
+                "date": ["2026-03-23", "2026-03-24"],
                 "Gross Revenue": [10, 20],
                 "Cost": [4, 6],
             }),

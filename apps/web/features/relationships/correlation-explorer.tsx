@@ -184,7 +184,7 @@ export function CorrelationExplorer({ userId, workspaceId, canCreateDecisions = 
   const runMetrics = run?.definition.metrics ?? []
   const visibleDatasets = datasets.filter(dataset => !search || `${dataset.dataset_label} ${dataset.connector} ${dataset.metrics.map(metric => metric.label).join(" ")}`.toLowerCase().includes(search.toLowerCase()))
   return <div className="min-w-0 space-y-6">
-    <header className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 pb-4"><h1 className="text-2xl font-semibold">Relationship Explorer</h1><Link href="/dashboard/relationships" className="text-sm text-blue-700">Two-metric relationships</Link></header>
+    <header className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 pb-4"><h1 className="text-2xl font-semibold">Relationship Explorer</h1><div className="flex gap-4"><Link href={run ? `/dashboard/reports?run=${run.run_id}` : "/dashboard/reports"} className="text-sm font-medium text-blue-700">{run ? "Build cross-dataset report" : "Reports"}</Link><Link href="/dashboard/relationships" className="text-sm text-blue-700">Saved monitors</Link></div></header>
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {message && <p role="status" className="text-sm text-green-800">{message} <Link className="underline" href={message.startsWith("Insight") ? "/dashboard/insights" : "/dashboard"}>Open {message.startsWith("Insight") ? "insights" : "dashboard"}</Link></p>}
     <details open={!run} className="min-w-0 border-b border-gray-200 pb-5"><summary className="cursor-pointer text-base font-semibold">New analysis</summary>

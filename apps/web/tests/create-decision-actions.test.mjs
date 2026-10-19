@@ -186,7 +186,7 @@ test("Decision Performance renders the shared action toolbar outside the analysi
 test("every direct decision handler checks decision permissions rather than data-management permissions", () => {
   const pages = ["insights", "reports", "forecasts", "datasets/[id]", "decisions/new", "alerts"]
   for (const page of pages) {
-    const relativePath = `app/dashboard/${page}/page.tsx`
+    const relativePath = page === "reports" ? "features/reports/single-dataset-report.tsx" : `app/dashboard/${page}/page.tsx`
     const ast = sourceAst(relativePath)
     const handlers = findNodes(ast, node => ts.isFunctionDeclaration(node) && /^handleCreate/.test(node.name?.text ?? ""))
     assert.ok(handlers.length > 0, page)

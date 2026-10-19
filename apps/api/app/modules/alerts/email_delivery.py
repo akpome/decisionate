@@ -437,6 +437,20 @@ def build_weekly_report_email_text(
         "",
         "KPI metrics",
     ]
+    if digest.cross_dataset_report:
+        report = digest.cross_dataset_report
+        review_lines = ["Cross-dataset business review", report["business_question"],
+                        f"Reporting window: {report['window']['start']} to {report['window']['end']}",
+                        f"Previous window: {report['previous_window']['start']} to {report['previous_window']['end']}",
+                        f"Coverage: {report['status']}"]
+        review_lines.extend(report["observations"])
+        review_lines.extend(report["contrasts"])
+        review_lines.extend(item["interpretation"] for item in report["findings"] if item["id"] in report["included_findings"])
+        review_lines.extend("Warning: " + warning for warning in report["warnings"])
+        review_lines.extend(f"Decision: {item['title']} ({item['status']}). Expected: {item['expected_outcome'] or 'Not recorded'}. Actual: {item['actual_outcome'] or 'Not yet recorded'}."
+                            for item in report.get("decisions", []))
+        review_lines.extend(report["limitations"])
+        lines[4:4] = review_lines + [""]
 
     if digest.ai_analysis:
         lines[4:4] = [
@@ -531,11 +545,20 @@ def build_weekly_report_email_text(
             lines.extend([
                 "",
                 f"- {metric.column} ({metric.dataset_name})",
-                f"  Total: {format_digest_number(metric.total)}",
-                f"  Average: {format_digest_number(metric.average)}",
-                f"  Minimum: {format_digest_number(metric.minimum)}",
-                f"  Maximum: {format_digest_number(metric.maximum)}",
             ])
+            if digest.cross_dataset_report:
+                lines.extend([f"  Value: {format_digest_number(metric.total)}",
+                              f"  Unit: {metric.currency or metric.unit or 'number'}",
+                              f"  Previous week: {format_digest_number(metric.previous_value)}",
+                              f"  Change: {metric.change_percent:+.1f}%" if metric.change_percent is not None else "  Change: percentage unavailable"])
+                lines.extend("  Warning: " + warning for warning in metric.warnings)
+            else:
+                lines.extend([
+                    f"  Total: {format_digest_number(metric.total)}",
+                    f"  Average: {format_digest_number(metric.average)}",
+                    f"  Minimum: {format_digest_number(metric.minimum)}",
+                    f"  Maximum: {format_digest_number(metric.maximum)}",
+                ])
             if metric.target is not None:
                 lines.append(
                     "  KPI target: "
@@ -570,6 +593,8 @@ def build_weekly_report_email_text(
                 f"{relationship.period} periods",
                 f"  Evidence: {relationship.decision_context}",
             ])
+            if relationship.history_window:
+                lines.append(f"  Historical window: {relationship.history_window['start']} to {relationship.history_window['end']}")
 
     if digest.ai_analysis and digest.ai_analysis.risks:
         lines.extend([
@@ -605,7 +630,7 @@ def build_weekly_report_email_text(
     if digest.decision_template_url:
         lines.extend([
             "",
-            "Start a decision from a template",
+            "Review report" if digest.cross_dataset_report else "Start a decision from a template",
             digest.decision_template_url,
         ])
 
@@ -684,8 +709,16 @@ def build_weekly_report_email_html(
             else metric.average
         )
         target_markup = ""
-        if metric.target is not None:
+        if digest.cross_dataset_report:
+            change = f"{metric.change_percent:+.1f}%" if metric.change_percent is not None else "No comparable non-zero baseline"
             target_markup = (
+                '<div style="color:#475569;font-size:12px;margin-top:4px;">'
+                f'{escape_html(metric.currency or metric.unit or "number")} / Previous week: '
+                f'{escape_html(format_digest_number(metric.previous_value))} / {escape_html(change)}</div>'
+            )
+            target_markup += "".join(f'<div style="color:#92400e;font-size:12px;">{escape_html(warning)}</div>' for warning in metric.warnings)
+        if metric.target is not None:
+            target_markup += (
                 '<div style="color:#64748B;font-size:12px;margin-top:4px;">'
                 "Target: "
                 f"{escape_html(format_digest_number(metric.target))}"
@@ -725,6 +758,25 @@ def build_weekly_report_email_html(
         else "Recommendations"
     )
     analysis_markup = ""
+    cross_markup = ""
+    if digest.cross_dataset_report:
+        report = digest.cross_dataset_report
+        statements = report["observations"] + report["contrasts"]
+        statements += [item["interpretation"] for item in report["findings"] if item["id"] in report["included_findings"]]
+        statements += ["Warning: " + warning for warning in report["warnings"]]
+        statements += [f"Decision: {item['title']} ({item['status']}). Expected: {item['expected_outcome'] or 'Not recorded'}. Actual: {item['actual_outcome'] or 'Not yet recorded'}."
+                       for item in report.get("decisions", [])]
+        statements += report["limitations"]
+        cross_markup = (
+            '<section style="margin-top:24px;color:#334155;font-size:14px;line-height:1.6;">'
+            '<h2 style="font-size:18px;margin:0 0 10px;">Cross-dataset business review</h2>'
+            f'<p>{escape_html(report["business_question"])}</p>'
+            f'<p>{escape_html(report["window"]["start"])} to {escape_html(report["window"]["end"])}; '
+            f'compared with {escape_html(report["previous_window"]["start"])} to {escape_html(report["previous_window"]["end"])}</p>'
+            '<ul style="padding-left:20px;">'
+            + "".join(f'<li style="margin-bottom:8px;">{escape_html(statement)}</li>' for statement in statements)
+            + '</ul></section>'
+        )
     if digest.ai_analysis:
         analysis_markup = (
             '<p style="color:#475569;font-size:14px;line-height:1.6;'
@@ -740,7 +792,7 @@ def build_weekly_report_email_html(
             f'<a href="{escape_html(review_url, quote=True)}" '
             f'style="background:{accent_color};border-radius:5px;color:#FFFFFF;'
             'display:inline-block;font-size:14px;font-weight:700;padding:12px 20px;'
-            'text-decoration:none;">Review in Dashboard</a>'
+            'text-decoration:none;">Review report</a>'
             "</td></tr></table>"
         )
 
@@ -777,6 +829,7 @@ def build_weekly_report_email_html(
         f"{workspace_name}</p>"
         f'<p style="color:#64748B;font-size:12px;margin:0;text-align:center;">'
         f"{escaped_subject}</p>"
+        f"{cross_markup}"
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
         'border="0" style="margin-top:30px;">'
         f"{metrics_markup}"

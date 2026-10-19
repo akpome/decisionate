@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { X, Pin, Lightbulb, ListPlus } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { coefficientText, type RelationshipDetail } from "./types"
@@ -22,6 +23,7 @@ export function RelationshipEvidence({ detail, onClose, onPin, onInsight, onDeci
     </div>
     {detail.lag_profile.length > 1 && <div className="mt-4 overflow-x-auto"><table className="min-w-full text-left text-xs"><caption className="mb-2 text-left text-sm font-medium">Lag profile (shared periods)</caption><thead><tr>{["Lag", "Coefficient", "Observations", "Eligible"].map(value => <th key={value} className="whitespace-nowrap border-b px-3 py-2">{value}</th>)}</tr></thead><tbody>{detail.lag_profile.map(item => <tr key={item.lag}><td className="px-3 py-2">{item.lag}</td><td className="px-3 py-2">{coefficientText(item.coefficient)}</td><td className="px-3 py-2">{item.n}</td><td className="px-3 py-2">{item.eligible ? "Yes" : "No"}</td></tr>)}</tbody></table></div>}
     <div className="mt-4 flex flex-wrap gap-2">
+      <Link href={`/dashboard/reports?run=${detail.run_id}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm"><ListPlus size={16} />Build cross-dataset report</Link>
       {canPin && <button type="button" disabled={busy || !detail.eligible} onClick={onPin} className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm disabled:opacity-50"><Pin size={16} />Save relationship widget</button>}
       <button type="button" disabled={busy || !detail.eligible} onClick={onInsight} className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm disabled:opacity-50"><Lightbulb size={16} />Save insight</button>
       <button type="button" disabled={busy || !detail.eligible || !canDecide} onClick={onDecision} className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm disabled:opacity-50"><ListPlus size={16} />Create decision</button>

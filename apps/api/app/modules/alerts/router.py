@@ -6,6 +6,7 @@ import os
 import re
 from datetime import datetime
 from datetime import timezone
+from datetime import date, timedelta
 
 from fastapi import APIRouter
 from fastapi import HTTPException
@@ -56,16 +57,14 @@ from app.modules.datasets.services.dataset_loader import (
 from app.modules.datasets.services.deduplication import (
     deduplicate_text_items,
 )
-from app.modules.datasets.services.metrics import (
-    generate_metrics,
-)
 from app.modules.datasets.services.relationships import (
     build_dataset_relationship,
 )
 from app.modules.decisions.models import Decision
-from app.modules.decisions.templates import (
-    build_decision_template_url,
-)
+from app.modules.reports.models import BusinessReport
+from app.modules.reports.service import build_report, complete_week, decisions_for_report, scoped_frame
+from app.modules.correlation.catalog import metric_catalog, reporting_timezone
+from app.modules.decisions.templates import build_decision_template_url
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -345,6 +344,7 @@ def build_weekly_report_preference_response(
 
     return WeeklyReportPreferenceResponse(
         enabled=bool(preference.enabled),
+        business_report_id=getattr(preference, "business_report_id", None),
         cadence=preference.cadence or "weekly",
         delivery_day=preference.delivery_day or "monday",
         recipient_emails=parse_json_list(
@@ -601,7 +601,7 @@ def build_weekly_report_review_url() -> str | None:
     try:
         return (
             get_runtime_configuration().web_url.rstrip("/")
-            + "/dashboard"
+            + "/dashboard/reports?weekly=1"
         )
     except Exception:
         return None
@@ -627,6 +627,7 @@ def build_weekly_report_digest(
     relationships: list[dict] | None = None,
     include_ai_analysis: bool = True,
     branding: dict | None = None,
+    report_definition: dict | None = None,
 ) -> WeeklyReportDigestResponse:
     branding = branding or {}
     clean_brand_name = clean_weekly_report_brand_name(
@@ -643,11 +644,6 @@ def build_weekly_report_digest(
         if is_managed_client else ""
     )
     relationship_results = relationships or []
-    focus_keys = {
-        normalize_metric_key(metric)
-        for metric in preference.metric_focus
-        if normalize_metric_key(metric)
-    }
     target_by_key = {
         normalize_metric_key(metric): target
         for metric, target in preference.metric_targets.items()
@@ -656,6 +652,7 @@ def build_weekly_report_digest(
     digest_metrics = []
     available_digest_metrics = []
     unavailable_datasets = []
+    report_frames = {}
 
     for dataset in datasets:
         dataset_name = (
@@ -667,9 +664,9 @@ def build_weekly_report_digest(
             dataframe = load_dataframe_from_dataset(
                 dataset
             )
-            dataset_metrics = generate_metrics(
-                dataframe
-            )
+            catalog = metric_catalog(dataset, dataframe)
+            report_frames[int(dataset.id)] = (dataset, dataframe)
+            dataset_metrics = [{"column": metric["metric_key"], "unit": metric["unit"], "currency": metric.get("currency")} for metric in catalog["metrics"]]
         except Exception:
             unavailable_datasets.append(
                 dataset_name
@@ -717,14 +714,14 @@ def build_weekly_report_digest(
             }
             available_digest_metrics.append(metric_record)
 
-            if not focus_keys or not metric_focus_matches(
-                focus_keys,
-                dataset.id,
-                column,
-            ):
-                continue
-
-            digest_metrics.append(metric_record)
+    cross_report = build_weekly_cross_dataset_report(report_frames, preference, report_definition, unavailable_datasets, relationship_results)
+    digest_metrics = [
+        {"dataset_id": metric["dataset_id"], "dataset_name": metric["dataset_label"], "column": metric["metric_key"],
+         "total": metric["value"], "previous_value": metric["previous_value"], "change_percent": metric["change_percent"],
+         "target": target_by_key.get(normalize_metric_key(metric["id"])), "unit": metric["unit"],
+         "currency": metric.get("currency"), "warnings": metric["warnings"]}
+        for metric in cross_report["metrics"]
+    ]
 
     generated_at = datetime.now(
         timezone.utc
@@ -763,15 +760,14 @@ def build_weekly_report_digest(
         ", ".join(preview_parts)
         + " ready for review."
     )
-    fallback_recommendations = build_digest_recommendations(
-        preference,
-        digest_metrics,
-        unavailable_datasets,
-    )
+    preview_text = (f"Cross-dataset weekly review: {cross_report['window']['start']} to {cross_report['window']['end']}; "
+                    f"{cross_report['dataset_count']} datasets, {len(digest_metrics)} metrics. "
+                    + ("Coverage limitations require attention." if cross_report["status"] != "ready" else "Compared with the preceding complete week."))
+    fallback_recommendations = cross_report["recommendations"]
     ai_analysis = None
     recommendations = fallback_recommendations
 
-    if include_ai_analysis:
+    if include_ai_analysis and cross_report["status"] == "ready":
         ai_facts = {
             "metrics": digest_metrics[:10],
             "relationships": relationship_results[:10],
@@ -784,8 +780,17 @@ def build_weekly_report_digest(
         if learning_context:
             ai_facts["historical_decision_learning"] = learning_context
 
+        ai_facts["cross_dataset_report"] = {
+            key: cross_report[key] for key in ("business_question", "window", "previous_window", "history_window", "status", "observations", "contrasts", "warnings", "limitations")
+        }
+        ai_facts["cross_dataset_report"]["metrics"] = [{key: value for key, value in item.items() if key != "trend"} for item in cross_report["metrics"]]
+        ai_facts["cross_dataset_report"]["findings"] = [{key: value for key, value in item.items() if key != "evidence"}
+            for item in cross_report["findings"] if item["id"] in cross_report["included_findings"]][:10]
+        ai_facts["limitations"] = cross_report["limitations"]
+        ai_facts["reporting_window"] = cross_report["window"]
+
         ai_analysis = generate_structured_analysis(
-            context="weekly KPI alert and report digest",
+            context="cross-dataset complete-week business review",
             facts=ai_facts,
             fallback_summary=preview_text,
             fallback_recommendations=fallback_recommendations,
@@ -797,26 +802,15 @@ def build_weekly_report_digest(
             ),
             workspace_id=workspace_id,
         )
-        recommendations = ai_analysis["recommendations"]
+        if ai_analysis is not None:
+            recommendations = ai_analysis["recommendations"]
 
     if not preference.include_recommendations:
         recommendations = []
         if ai_analysis is not None:
             ai_analysis["recommendations"] = []
 
-    first_metric = digest_metrics[0] if digest_metrics else None
-    decision_template_url = build_decision_template_url(
-        dataset_id=(
-            first_metric["dataset_id"]
-            if first_metric
-            else None
-        ),
-        metric=(
-            first_metric["column"]
-            if first_metric
-            else None
-        ),
-    )
+    decision_template_url = branding.get("review_url") or build_weekly_report_review_url()
 
     return WeeklyReportDigestResponse(
         enabled=preference.enabled,
@@ -846,6 +840,7 @@ def build_weekly_report_digest(
         subject=subject,
         preview_text=preview_text,
         ai_analysis=ai_analysis,
+        cross_dataset_report=cross_report,
         dataset_count=len(datasets),
         metrics=digest_metrics,
         available_metrics=available_digest_metrics,
@@ -854,6 +849,81 @@ def build_weekly_report_digest(
         unavailable_datasets=unavailable_datasets,
         decision_template_url=decision_template_url,
     )
+
+
+def build_weekly_cross_dataset_report(frames, preference, template=None, unavailable=None, relationships=None):
+    references, warnings = [], [f"Dataset unavailable: {name}." for name in (unavailable or [])]
+    if template:
+        references = template["metrics"]
+    else:
+        focus = {normalize_metric_key(value) for value in preference.metric_focus}
+        for relationship in relationships or []:
+            for side in ("left", "right"):
+                focus.add(normalize_metric_key(f"{relationship[side + '_dataset_id']}:{relationship[side + '_metric']}"))
+        for dataset_id, (dataset, frame) in frames.items():
+            try:
+                catalog = metric_catalog(dataset, frame)
+            except (ValueError, KeyError, AttributeError):
+                warnings.append(f"Metric/date policy is unavailable for {dataset.file_name}.")
+                continue
+            if not catalog["date_columns"]:
+                warnings.append(f"No approved date column in {dataset.file_name}.")
+                continue
+            for metric in catalog["metrics"]:
+                if metric_focus_matches(focus, dataset_id, metric["metric_key"]):
+                    references.append({"dataset_id": dataset_id, "metric_key": metric["metric_key"],
+                                       "date_column": catalog["date_columns"][0], "aggregation": metric["aggregation"]})
+    if len(references) > 25:
+        warnings.append("Weekly review is limited to the first 25 selected metrics; narrow the selection for complete coverage.")
+        references = references[:25]
+    valid_references = []
+    for reference in references:
+        pair = frames.get(reference["dataset_id"])
+        if pair is None:
+            warnings.append(f"Selected dataset {reference['dataset_id']} is unavailable.")
+            continue
+        try:
+            catalog = metric_catalog(*pair)
+            approved = {item["metric_key"]: item for item in catalog["metrics"]}
+            metric = approved.get(reference["metric_key"])
+            if metric is None or metric["aggregation"] != reference["aggregation"] or reference["date_column"] not in catalog["date_columns"]:
+                raise ValueError("Saved metric policy changed")
+        except (ValueError, KeyError, AttributeError):
+            warnings.append(f"Selected metric {reference['metric_key']} in {pair[0].file_name} is no longer available under its saved policy.")
+            continue
+        valid_references.append(reference)
+    references = valid_references
+    lag = (template or {}).get("lag", {"enabled": False, "minimum": 0, "maximum": 0, "direction": "a_leads_b"})
+    if template and template.get("grain", "daily") != "daily" and lag.get("enabled"):
+        warnings.append(f"The saved report tests {template['grain']} lag periods. Weekly reviews use daily periods, so that lag is not reused; review timing in the original report.")
+        lag = {**lag, "enabled": False}
+    definition = {**(template or {}), "name": (template or {}).get("name", "Weekly cross-dataset review"),
+                  "business_question": (template or {}).get("business_question", "What changed across the selected datasets, and which changes deserve investigation?"),
+                  "metrics": references, "date_range": complete_week(), "grain": "daily",
+                  "method": (template or {}).get("method", "spearman"),
+                  "lag": lag,
+                  "filters": {"minimum_abs_coefficient": .3, "minimum_observations": 30}, "included_findings": None}
+    selected_frames = {key: value for key, value in frames.items() if any(item["dataset_id"] == key for item in references)}
+    result = build_report(selected_frames, definition, unavailable=warnings)
+    selection = template.get("included_findings") if template else None
+    if selection is not None:
+        selected_pairs = {"|".join(key.split("|")[:2]) for key in selection}
+        result["included_findings"] = [item["id"] for item in result["findings"] if "|".join(item["id"].split("|")[:2]) in selected_pairs]
+    else:
+        result["included_findings"] = [item["id"] for item in result["findings"]
+                                       if item["eligible"] and abs(item["coefficient"] or 0) >= .3][:5]
+    result["definition"]["included_findings"] = result["included_findings"]
+    return result
+
+
+def weekly_business_template(db, preference, workspace_id):
+    identity = getattr(preference, "business_report_id", None) if preference else None
+    if not identity:
+        return None
+    report = db.get(BusinessReport, identity)
+    if report is None or report.workspace_id != workspace_id:
+        raise HTTPException(400, "The weekly business report template is unavailable in this workspace")
+    return json.loads(report.definition)
 
 
 def get_alert_datasets(
@@ -910,6 +980,9 @@ def build_weekly_report_relationships(
         for dataset in datasets
     }
     results = []
+    cached_frames = {}
+    end = complete_week()["end"]
+    history_window = {"start": str(date.fromisoformat(end) - timedelta(days=89)), "end": end}
 
     for relationship in relationships:
         left_dataset = datasets_by_id.get(
@@ -922,14 +995,17 @@ def build_weekly_report_relationships(
             continue
 
         try:
+            for dataset in (left_dataset, right_dataset):
+                if dataset.id not in cached_frames:
+                    cached_frames[dataset.id] = load_dataframe_from_dataset(dataset)
             frames = [
                 (
                     left_dataset,
-                    load_dataframe_from_dataset(left_dataset),
+                    scoped_frame(cached_frames[left_dataset.id], relationship.left_date_column, history_window, reporting_timezone())[0],
                 ),
                 (
                     right_dataset,
-                    load_dataframe_from_dataset(right_dataset),
+                    scoped_frame(cached_frames[right_dataset.id], relationship.right_date_column, history_window, reporting_timezone())[0],
                 ),
             ]
             result = build_dataset_relationship(
@@ -975,6 +1051,7 @@ def build_weekly_report_relationships(
                 "decision_context": result["decision_context"],
                 "delay_description": result.get("delay_description"),
                 "lag_credibility": result.get("lag_credibility", "unknown"),
+                "history_window": history_window,
             })
         except Exception as error:
             logger.warning(
@@ -1082,7 +1159,7 @@ def build_weekly_report_digest_for_workspace(
         workspace_id,
     )
 
-    return build_weekly_report_digest(
+    digest = build_weekly_report_digest(
         preference_response,
         datasets,
         branding["brand_name"],
@@ -1099,7 +1176,10 @@ def build_weekly_report_digest_for_workspace(
         workspace_id,
         relationship_results,
         branding=branding,
+        report_definition=weekly_business_template(db, preference, workspace_id),
     )
+    digest.cross_dataset_report["decisions"] = decisions_for_report(db, workspace_id, {metric.dataset_id for metric in digest.metrics})
+    return digest
 
 
 async def build_weekly_report_digest_for_workspace_async(
@@ -1144,7 +1224,7 @@ async def build_weekly_report_digest_for_workspace_async(
         workspace_id,
     )
 
-    return await asyncio.to_thread(
+    digest = await asyncio.to_thread(
         build_weekly_report_digest,
         preference_response,
         datasets,
@@ -1154,7 +1234,10 @@ async def build_weekly_report_digest_for_workspace_async(
         relationship_results,
         include_ai_analysis,
         branding,
+        weekly_business_template(db, preference, workspace_id),
     )
+    digest.cross_dataset_report["decisions"] = decisions_for_report(db, workspace_id, {metric.dataset_id for metric in digest.metrics})
+    return digest
 
 
 def validate_weekly_report_digest_for_delivery(
@@ -1165,6 +1248,9 @@ def validate_weekly_report_digest_for_delivery(
             status_code=400,
             detail="Weekly KPI email notifications are not enabled",
         )
+
+    if digest.cross_dataset_report is not None and digest.cross_dataset_report.get("status") != "ready":
+        raise HTTPException(400, "Weekly reports require usable metrics from at least two datasets in the latest complete week. Review report coverage and selections.")
 
     if not digest.recipient_emails:
         raise HTTPException(
@@ -2098,6 +2184,11 @@ async def update_weekly_report_preference(
             clean_focus,
             sort_keys=True,
         )
+        if getattr(preference, "business_report_id", None):
+            template = db.get(BusinessReport, preference.business_report_id)
+            expected = {f"{item['dataset_id']}:{item['metric_key']}" for item in json.loads(template.definition)["metrics"]} if template else set()
+            if set(clean_focus) != expected:
+                preference.business_report_id = None
         preference.metric_targets = json.dumps(
             clean_targets,
             sort_keys=True,

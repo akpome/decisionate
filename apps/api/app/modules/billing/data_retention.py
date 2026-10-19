@@ -97,6 +97,9 @@ def purge_workspace_data_after_expiry(
     datasets = db.query(Dataset).filter(dataset_scope).all()
     ensure_workspace_jobs_idle(db, clean_workspace_ids)
     delete_workspace_ingestion_jobs(db, clean_workspace_ids)
+    from app.modules.reports.cleanup import cleanup_workspace as cleanup_report_workspace
+    for workspace_id in clean_workspace_ids:
+        cleanup_report_workspace(db, workspace_id)
     storage = get_object_storage()
     file_references = {
         get_dataset_storage_reference(dataset)
