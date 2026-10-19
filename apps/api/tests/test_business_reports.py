@@ -296,6 +296,44 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         self.assertEqual(response.json()["datasets"][0]["error_code"], "dataset_unavailable")
         self.assertNotIn("Private storage detail", response.text)
 
+    def test_catalog_index_reads_no_dataset_files_and_keeps_tenant_scope(self):
+        with patch.object(router, "load_dataframe_from_dataset", side_effect=AssertionError("Index must not read files")) as loader:
+            response = self.client.get("/api/v2/business-reports/catalog?metadata_only=true")
+            self.assertEqual(response.status_code, 200, response.text)
+            page = response.json()
+            self.assertEqual([item["dataset_id"] for item in page["datasets"]], [1, 2])
+            self.assertTrue(all(item["catalog_status"] == "pending" and item["metrics"] == [] for item in page["datasets"]))
+            self.assertIsNone(page["next_offset"])
+            private = self.client.get("/api/v2/business-reports/catalog?metadata_only=true&dataset_id=3")
+            self.assertEqual(private.json()["datasets"], [])
+            loader.assert_not_called()
+
+    def test_catalog_index_paginates_without_scanning_any_rows_or_leaking_paths(self):
+        with self.Session() as db:
+            for identity in range(4, 29):
+                db.add(Dataset(id=identity, user_id="owner", workspace_id="owner", file_name=f"Source {identity}.csv",
+                               file_path="private-storage-path", source_type="csv", source_config="{}", row_count=0, column_count=0))
+            db.commit()
+        with patch.object(router, "load_dataframe_from_dataset", side_effect=AssertionError("No scans")):
+            first = self.client.get("/api/v2/business-reports/catalog?metadata_only=true").json()
+            self.assertEqual(len(first["datasets"]), 25)
+            self.assertEqual(first["next_offset"], 25)
+            last = self.client.get("/api/v2/business-reports/catalog?metadata_only=true&offset=25").json()
+            self.assertEqual(len(last["datasets"]), 2)
+            self.assertIsNone(last["next_offset"])
+            ids = [item["dataset_id"] for page in (first, last) for item in page["datasets"]]
+            self.assertEqual(len(ids), len(set(ids)))
+            self.assertNotIn(3, ids)
+            self.assertNotIn("private-storage-path", json.dumps(first))
+
+    def test_individual_catalog_request_only_loads_the_authorized_selected_dataset(self):
+        with patch.object(router, "load_dataframe_from_dataset", side_effect=lambda dataset: self.frames[dataset.id][1].copy()) as loader:
+            result = self.client.get("/api/v2/business-reports/catalog?dataset_id=2").json()
+            self.assertEqual([item["dataset_id"] for item in result["datasets"]], [2])
+            self.assertIsNone(result["next_offset"])
+            self.assertEqual(loader.call_count, 1)
+            self.assertEqual(loader.call_args.args[0].id, 2)
+
     def test_cross_dataset_validation_and_scope_are_enforced(self):
         payload = definition(); payload["metrics"][1]["dataset_id"] = 3
         self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=payload).status_code, 403)

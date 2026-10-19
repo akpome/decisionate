@@ -89,6 +89,30 @@ test("unavailable datasets and old API responses do not invent selection diagnos
   assert.doesNotMatch(old, /Metric selection not saved|No metrics selected/)
 })
 
+test("a timed-out list shows recovery, never a claim that the workspace has no datasets", () => {
+  const html = render({ datasets: [], error: true, onRetry() {} })
+  assert.match(html, /Dataset list could not be loaded/)
+  assert.match(html, /Your selections are unchanged/)
+  assert.match(html, /<button[^>]*>.*Retry/s)
+  assert.doesNotMatch(html, /No datasets available|Open datasets/)
+})
+
+test("pending lists and individual datasets are not labelled empty or unavailable", () => {
+  const initial = render({ datasets: [], loading: true })
+  assert.match(initial, /Loading datasets/)
+  assert.doesNotMatch(initial, /No datasets available|Open datasets/)
+  const pending = render({ datasets: [dataset({ metrics: [], date_columns: [], availability: {}, catalog_status: "pending" })], loading: true })
+  assert.match(pending, /Advertising\.csv/)
+  assert.match(pending, /Loading metrics/)
+  assert.doesNotMatch(pending, /No report-ready metrics|temporarily unavailable|Review dataset|No usable date/)
+})
+
+test("genuinely empty successful lists still offer the dataset library", () => {
+  const html = render({ datasets: [] })
+  assert.match(html, /No datasets available/)
+  assert.match(html, /Open datasets/)
+})
+
 test("date-less metrics cannot be added and existing selections can always be removed", () => {
   const data = dataset({ date_columns: [], availability: {} })
   assert.equal((render({ datasets: [data] }).match(/disabled=""/g) || []).length, 2)

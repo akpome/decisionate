@@ -79,21 +79,30 @@ def generate(db, payload, user, workspace):
 
 
 @router.get("/catalog")
-def catalog(request: Request, db=Depends(database), offset: int = Query(0, ge=0), dataset_id: int | None = Query(None, ge=1)):
+def catalog(request: Request, db=Depends(database), offset: int = Query(0, ge=0), dataset_id: int | None = Query(None, ge=1),
+            metadata_only: bool = Query(False)):
     user, workspace = identity(request)
     query = db.query(Dataset).filter(dataset_scope(user, workspace))
     if dataset_id is not None:
         query = query.filter(Dataset.id == dataset_id)
-    datasets = query.order_by(Dataset.id).offset(offset).limit(25).all()
+    if metadata_only:
+        query = query.with_entities(Dataset.id, Dataset.file_name, Dataset.source_type)
+    page_size = 1 if dataset_id is not None else 25
+    rows = query.order_by(Dataset.id).offset(offset).limit(page_size + 1).all()
+    datasets = rows[:page_size]
     result = []
     for dataset in datasets:
+        if metadata_only:
+            result.append({"dataset_id": dataset.id, "dataset_label": dataset.file_name, "connector": dataset.source_type,
+                           "date_columns": [], "metrics": [], "availability": {}, "catalog_status": "pending"})
+            continue
         try:
             result.append(report_metric_catalog(dataset, load_dataframe_from_dataset(dataset)))
         except Exception:
             logger.warning("Report catalogue dataset %s unavailable", dataset.id, exc_info=True)
             result.append({"dataset_id": dataset.id, "dataset_label": dataset.file_name, "connector": dataset.source_type,
                            "date_columns": [], "metrics": [], "availability": {}, "error_code": "dataset_unavailable"})
-    return {"datasets": result, "next_offset": offset + 25 if len(datasets) == 25 else None}
+    return {"datasets": result, "next_offset": offset + page_size if len(rows) > page_size else None}
 
 
 @router.get("/from-run/{run_id}")

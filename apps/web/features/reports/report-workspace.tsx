@@ -12,6 +12,7 @@ import { useDecisionateText } from "@/app/use-decisionate-language"
 import type { CatalogDataset } from "@/features/relationships/types"
 import { AnalysisNavigation } from "./analysis-navigation"
 import { ReportMetricPicker, reportDateColumn } from "./report-metric-picker"
+import { loadReportCatalogPage } from "./report-catalog-loading"
 import { editableDefinition, formatReportValue, type BusinessReport, type ReportDefinition } from "./types"
 import { ReportDecisions, ReportRelationshipFindings } from "./report-evidence-sections"
 
@@ -24,11 +25,12 @@ const errorMessage = (error: unknown) => error instanceof Error ? error.message 
 
 const mergeCatalog = (current: CatalogDataset[], added: CatalogDataset[]) => [...new Map([...current, ...added].map(item => [item.dataset_id, item])).values()]
 
-async function hydrateCatalog(userId: string, workspaceId: string | undefined, current: CatalogDataset[], value: ReportDefinition) {
+async function hydrateCatalog(userId: string, workspaceId: string | undefined, current: CatalogDataset[], value: ReportDefinition, signal: AbortSignal) {
   let result = current
   for (const identity of new Set(value.metrics.map(metric => metric.dataset_id))) {
+    if (signal.aborted) return result
     if (result.some(dataset => dataset.dataset_id === identity)) continue
-    const page = await correlationRequest<{ datasets: CatalogDataset[] }>(userId, `/business-reports/catalog?dataset_id=${identity}`, {}, workspaceId)
+    const page = await correlationRequest<{ datasets: CatalogDataset[] }>(userId, `/business-reports/catalog?dataset_id=${identity}`, { signal }, workspaceId)
     result = mergeCatalog(result, page.datasets)
   }
   return result
@@ -40,9 +42,16 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const { t } = useDecisionateText()
   const router = useRouter()
   const openingDraft = useRef(false)
+  const routeController = useRef<AbortController | null>(null)
   const [datasets, setDatasets] = useState<CatalogDataset[]>([])
   const [dateColumns, setDateColumns] = useState<Record<number, string>>({})
   const [nextOffset, setNextOffset] = useState<number | null>(null)
+  const [catalogOffset, setCatalogOffset] = useState(0)
+  const [catalogReload, setCatalogReload] = useState(0)
+  const [catalogBusy, setCatalogBusy] = useState(true)
+  const [catalogError, setCatalogError] = useState(false)
+  const [historyError, setHistoryError] = useState(false)
+  const [historyReload, setHistoryReload] = useState(0)
   const [saved, setSaved] = useState<SavedReport[]>([])
   const [definition, setDefinition] = useState<ReportDefinition>(() => editableDefinition({}))
   const [report, setReport] = useState<BusinessReport | null>(null)
@@ -58,40 +67,58 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const taskCount = pairCount * (definition.lag.enabled ? definition.lag.maximum + 1 : 1)
 
   useEffect(() => {
+    const controller = new AbortController()
+    const request = <T,>(path: string, init: RequestInit) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
+    void loadReportCatalogPage(request, catalogOffset, controller.signal, page => {
+      setDatasets(current => mergeCatalog(page.datasets, current)); setNextOffset(page.next_offset)
+    }, dataset => setDatasets(current => mergeCatalog(current, [dataset])))
+      .catch(() => { if (!controller.signal.aborted) setCatalogError(true) })
+      .finally(() => { if (!controller.signal.aborted) setCatalogBusy(false) })
+    return () => controller.abort()
+  }, [userId, workspaceId, catalogOffset, catalogReload])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void correlationRequest<SavedReport[]>(userId, "/business-reports", { signal: controller.signal }, workspaceId)
+      .then(history => { if (!controller.signal.aborted) setSaved(current => [...new Map([...history, ...current].map(item => [item.report_id, item])).values()]) })
+      .catch(() => { if (!controller.signal.aborted) setHistoryError(true) })
+    return () => controller.abort()
+  }, [userId, workspaceId, historyReload])
+
+  useEffect(() => {
     let current = true
+    const controller = new AbortController()
+    routeController.current = controller
+    async function addSelectedDatasets(value: ReportDefinition) {
+      try {
+        const hydrated = await hydrateCatalog(userId, workspaceId, [], value, controller.signal)
+        if (current) setDatasets(existing => mergeCatalog(existing, hydrated))
+      } catch { if (current) setCatalogError(true) }
+    }
     async function load() {
       try {
-        const catalog = await correlationRequest<{ datasets: CatalogDataset[]; next_offset: number | null }>(userId, "/business-reports/catalog", {}, workspaceId)
-        if (!current) return
-        setDatasets(catalog.datasets); setNextOffset(catalog.next_offset)
-        const history = await correlationRequest<SavedReport[]>(userId, "/business-reports", {}, workspaceId)
-        if (!current) return
-        setSaved(history)
         const params = new URLSearchParams(window.location.search)
         if (params.get("report")) {
-          const result = await correlationRequest<BusinessReport>(userId, `/business-reports/${encodeURIComponent(params.get("report")!)}`, {}, workspaceId)
+          const result = await correlationRequest<BusinessReport>(userId, `/business-reports/${encodeURIComponent(params.get("report")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
           setReport(result); setDefinition(editableDefinition(result.definition)); setView("report")
-          const hydrated = await hydrateCatalog(userId, workspaceId, catalog.datasets, result.definition)
-          if (current) setDatasets(hydrated)
+          void addSelectedDatasets(result.definition)
         } else if (params.get("weekly")) {
-          const result = await correlationRequest<BusinessReport>(userId, "/business-reports/weekly-preview", {}, workspaceId)
+          const result = await correlationRequest<BusinessReport>(userId, "/business-reports/weekly-preview", { signal: controller.signal }, workspaceId)
           if (!current) return
           setReport(result); setDefinition(editableDefinition(result.definition)); setView("report")
-          const hydrated = await hydrateCatalog(userId, workspaceId, catalog.datasets, result.definition)
-          if (current) setDatasets(hydrated)
+          void addSelectedDatasets(result.definition)
         } else if (params.get("run")) {
-          const result = await correlationRequest<ReportDefinition>(userId, `/business-reports/from-run/${encodeURIComponent(params.get("run")!)}`, {}, workspaceId)
+          const result = await correlationRequest<ReportDefinition>(userId, `/business-reports/from-run/${encodeURIComponent(params.get("run")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
           setDefinition(editableDefinition(result))
-          const hydrated = await hydrateCatalog(userId, workspaceId, catalog.datasets, result)
-          if (current) setDatasets(hydrated)
+          void addSelectedDatasets(result)
         } else if (params.get("dataset")) {
           const identity = Number(params.get("dataset"))
           if (Number.isSafeInteger(identity) && identity > 0) {
-            const selectedDataset = await correlationRequest<{ datasets: CatalogDataset[] }>(userId, `/business-reports/catalog?dataset_id=${identity}`, {}, workspaceId)
+            const selectedDataset = await correlationRequest<{ datasets: CatalogDataset[] }>(userId, `/business-reports/catalog?dataset_id=${identity}`, { signal: controller.signal }, workspaceId)
             if (!current) return
-            setDatasets(mergeCatalog(catalog.datasets, selectedDataset.datasets))
+            setDatasets(existing => mergeCatalog(existing, selectedDataset.datasets))
             const dataset = selectedDataset.datasets[0]
             const metric = dataset?.metrics.find(item => item.metric_key === params.get("metric")) || dataset?.metrics[0]
             const dateColumn = dataset?.date_columns[0]
@@ -109,8 +136,14 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       } catch { /* Optional branding must not prevent analysis. */ }
     }
     void load()
-    return () => { current = false }
+    return () => { current = false; controller.abort() }
   }, [userId, workspaceId])
+
+  function refreshCatalog() {
+    if (catalogBusy) return
+    setCatalogBusy(true); setCatalogError(false)
+    setCatalogOffset(0); setCatalogReload(value => value + 1)
+  }
 
   function edit(patch: Partial<ReportDefinition>) {
     const analysisChanged = ["metrics", "date_range", "grain", "method", "filters", "lag"].some(key => key in patch)
@@ -190,10 +223,18 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       <label className="block w-full max-w-md text-xs text-gray-600">Saved reports<select className={input} disabled={busy} value={report?.report_id || ""} onChange={event => {
         const id = event.target.value
         if (!id) return
-        void execute(async () => { const result = await request<BusinessReport>(`/${id}`); setReport(result); setDefinition(editableDefinition(result.definition)); setDateColumns({}); setDatasets(await hydrateCatalog(userId, workspaceId, datasets, result.definition)); setView("report"); window.history.replaceState(null, "", `/dashboard/reports?report=${id}`) })
+        void execute(async () => {
+          const result = await request<BusinessReport>(`/${id}`)
+          setReport(result); setDefinition(editableDefinition(result.definition)); setDateColumns({}); setView("report")
+          window.history.replaceState(null, "", `/dashboard/reports?report=${id}`)
+          const signal = routeController.current?.signal
+          if (signal) void hydrateCatalog(userId, workspaceId, datasets, result.definition, signal)
+            .then(hydrated => { if (!signal.aborted) setDatasets(existing => mergeCatalog(existing, hydrated)) })
+            .catch(() => { if (!signal.aborted) setCatalogError(true) })
+        })
       }}><option value="">Unsaved analysis</option>{saved.map(item => <option key={item.report_id} value={item.report_id}>{item.name} / {item.created_at.slice(0, 10)}</option>)}</select></label>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className={button} disabled={busy} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={() => void execute(async () => { const result = await request<{ datasets: CatalogDataset[]; next_offset: number | null }>("/catalog"); setDatasets(await hydrateCatalog(userId, workspaceId, result.datasets, definition)); setNextOffset(result.next_offset) })}><RefreshCw size={16} /></button>
+        <button type="button" className={button} disabled={busy || catalogBusy} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>
         {report && <>
           <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id)} onClick={() => void execute(async () => { await saveSnapshot(); setMessage("Report snapshot saved.") })}><Save size={16} />Save snapshot</button>
           <button type="button" className={button} disabled={busy || !canManage} onClick={() => void execute(async () => { const value = await saveSnapshot(); await request(`/${value.report_id}/weekly`, { method: "POST" }); setMessage("Weekly report template saved. Existing recipients and sending preferences are unchanged.") })}><CalendarDays size={16} />Use for weekly report</button>
@@ -202,6 +243,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         <Link href="/dashboard/alerts" className={button}><CalendarDays size={16} />Weekly delivery</Link>
       </div>
     </div>
+    {historyError && <div className="flex flex-wrap items-center gap-3 text-sm text-amber-900"><p role="alert">{t("Saved reports could not be loaded.")}</p><button type="button" className={button} onClick={() => { setHistoryError(false); setHistoryReload(value => value + 1) }}><RefreshCw size={16} />{t("Retry")}</button></div>}
 
     <section role="tabpanel" id="report-explore" aria-labelledby="tab-explore" hidden={view !== "explore"} className="space-y-6 print:hidden">
       <form onSubmit={event => { event.preventDefault(); void calculate() }}>
@@ -212,11 +254,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           </div>
           <div className="grid min-w-0 gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0">
-              <ReportMetricPicker datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
+              <ReportMetricPicker datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} loading={catalogBusy} error={catalogError} onRetry={refreshCatalog} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
                 setDateColumns(current => ({ ...current, [dataset.dataset_id]: column }))
                 edit({ metrics: definition.metrics.map(item => item.dataset_id === dataset.dataset_id ? { ...item, date_column: column } : item) })
               }} />
-              {nextOffset !== null && <button type="button" className={`${button} mt-3`} onClick={() => void execute(async () => { const result = await request<{ datasets: CatalogDataset[]; next_offset: number | null }>(`/catalog?offset=${nextOffset}`); setDatasets(current => mergeCatalog(current, result.datasets)); setNextOffset(result.next_offset) })}>Load more datasets</button>}
+              {nextOffset !== null && <button type="button" className={`${button} mt-3`} disabled={busy || catalogBusy} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>}
             </div>
             <section className="min-w-0 space-y-4" aria-label="Analysis settings">
               <h2 className="text-base font-semibold">Analysis settings</h2>

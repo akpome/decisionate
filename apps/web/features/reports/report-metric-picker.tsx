@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Search, X } from "lucide-react"
+import { LoaderCircle, RefreshCw, Search, X } from "lucide-react"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { metricIdentity, type CatalogDataset, type CatalogMetricIssue, type MetricRef } from "@/features/relationships/types"
 
@@ -39,12 +39,15 @@ export function filterReportDatasets(datasets: CatalogDataset[], search: string)
   })
 }
 
-export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange }: {
+export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry }: {
   datasets: CatalogDataset[]
   metrics: MetricRef[]
   dateColumns: Record<number, string>
   onToggleMetric: (dataset: CatalogDataset, key: string) => void
   onDateColumnChange: (dataset: CatalogDataset, column: string) => void
+  loading?: boolean
+  error?: boolean
+  onRetry?: () => void
 }) {
   const { t } = useDecisionateText()
   const [search, setSearch] = useState("")
@@ -64,6 +67,8 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
         </div>
       </div>
     </div>
+    {error && <div className="mb-3 flex flex-wrap items-center gap-3 border-l-2 border-amber-500 pl-3 text-sm text-amber-900"><p role="alert">{t("Dataset list could not be loaded. Your selections are unchanged.")}</p>{onRetry && <button type="button" disabled={loading} onClick={onRetry} className="inline-flex min-h-10 items-center gap-2 font-medium text-blue-700 underline disabled:opacity-50"><RefreshCw size={16} aria-hidden="true" />{t("Retry")}</button>}</div>}
+    {loading && <p role="status" className="mb-3 flex items-center gap-2 text-sm text-gray-600"><LoaderCircle size={16} aria-hidden="true" className="animate-spin" />{t(datasets.length ? "Loading metrics..." : "Loading datasets...")}</p>}
     <div className="max-h-[480px] space-y-1 overflow-y-auto pr-1">
       {visible.map(dataset => {
         const count = metrics.filter(metric => metric.dataset_id === dataset.dataset_id).length
@@ -73,9 +78,10 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
         const metricIssues = (dataset.metric_issues || []).filter(issue => issue.metric_key)
         const dates = dataset.date_columns.filter(column => dataset.availability[column])
         const unavailable = Boolean(dataset.error_code)
+        const pending = dataset.catalog_status === "pending"
         return <fieldset key={dataset.dataset_id} className="min-w-0 border-b border-gray-200 py-4">
           <legend className="max-w-full break-words text-sm font-semibold">{dataset.dataset_label}<span className="ml-2 text-xs font-normal text-gray-500">{dataset.connector}</span></legend>
-          {unavailable ? <p className="mt-2 text-sm text-amber-800">{t("Dataset temporarily unavailable.")}</p> : <>
+          {pending ? <p className="mt-2 text-sm text-gray-600">{t("Loading metrics...")}</p> : unavailable ? <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><p className="text-amber-800">{t("Dataset temporarily unavailable.")}</p>{onRetry && <button type="button" disabled={loading} onClick={onRetry} className="inline-flex min-h-10 items-center gap-2 font-medium text-blue-700 underline disabled:opacity-50"><RefreshCw size={16} aria-hidden="true" />{t("Retry")}</button>}</div> : <>
             {dataset.metrics.length > 0 ? <div className="mt-2 grid min-w-0 gap-x-4 gap-y-1 sm:grid-cols-2">
               {dataset.metrics.map(metric => {
                 const checked = selected.has(metricIdentity(metric))
@@ -94,10 +100,10 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
               {dataset.availability[dateColumn] && <p className="mt-1 text-xs text-gray-500">{dataset.availability[dateColumn].start} / {dataset.availability[dateColumn].end}</p>}
             </div>}
           </>}
-          {(unavailable || !dataset.metrics.length || !usableDate || metricIssues.length > 0) && <Link href={`/dashboard/datasets/${dataset.dataset_id}`} className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline">{t("Review dataset")}</Link>}
+          {!pending && (unavailable || !dataset.metrics.length || !usableDate || metricIssues.length > 0) && <Link href={`/dashboard/datasets/${dataset.dataset_id}`} className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline">{t("Review dataset")}</Link>}
         </fieldset>
       })}
     </div>
-    {visible.length === 0 && <div className="border-y border-gray-200 py-8 text-sm text-gray-600"><p role="status">{t(datasets.length ? "No matching datasets or metrics." : "No datasets available.")}</p>{datasets.length === 0 && <Link href="/dashboard/datasets" className="mt-2 inline-flex min-h-10 items-center font-medium text-blue-700 underline">{t("Open datasets")}</Link>}</div>}
+    {visible.length === 0 && (datasets.length > 0 || !loading && !error) && <div className="border-y border-gray-200 py-8 text-sm text-gray-600"><p role="status">{t(datasets.length ? "No matching datasets or metrics." : "No datasets available.")}</p>{datasets.length === 0 && <Link href="/dashboard/datasets" className="mt-2 inline-flex min-h-10 items-center font-medium text-blue-700 underline">{t("Open datasets")}</Link>}</div>}
   </section>
 }
