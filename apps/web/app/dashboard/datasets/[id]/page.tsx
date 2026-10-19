@@ -24,8 +24,6 @@ import {
 import { MetricCard } from "@/features/dashboard/components/metric-card"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
-import { CreateDecisionLink } from "@/features/decisions/components/create-decision-action"
-import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
 import {
   MetricSelector,
   formatMetricLabel,
@@ -36,16 +34,7 @@ import {
 import {
   AnalysisStatus,
 } from "@/features/ai/components/analysis-status"
-import {
-  buildAIRecommendationDecisionPayload,
-} from "@/features/decisions/lib/ai-decision-handoff"
-import {
-  createDecision,
-  getDatasetAIAnalysis,
-  getDatasetDetails,
-  type AIAnalysis,
-  type DatasetMetricRecommendations,
-} from "@/lib/api"
+import { getDatasetAIAnalysis, getDatasetDetails, type AIAnalysis, type DatasetMetricRecommendations } from "@/lib/api";
 import { CuratedMetricPicker, getRecommendedMetricKeys } from "@/features/datasets/components/curated-metric-picker"
 import { refreshDatasetMetrics, saveMetricSelectionWithRecovery } from "@/features/datasets/lib/metric-selection-save"
 import {
@@ -284,8 +273,6 @@ export default function DatasetDetailsPage() {
     useState("")
   const [datasetLoadRetryKey, setDatasetLoadRetryKey] =
     useState(0)
-  const [creatingDecisionKey, setCreatingDecisionKey] =
-    useState<string>()
   const [previewTableWidth, setPreviewTableWidth] =
     useState(0)
   const previewTableRef =
@@ -306,7 +293,6 @@ export default function DatasetDetailsPage() {
   } = useActiveWorkspace(userId ?? undefined)
   const {
     canManageWorkspaceData,
-    canCreateDecisions,
   } = useWorkspaceAccess(userId ?? undefined)
 
   useEffect(() => {
@@ -642,11 +628,6 @@ export default function DatasetDetailsPage() {
       metrics,
       effectiveSelectedMetric
     )
-  const aiRecommendationMetric =
-    effectiveSelectedMetric ||
-    (metricColumns.length === 1
-      ? metricColumns[0]
-      : undefined)
 
   function handleMetricChange(
     metric: string | undefined
@@ -795,61 +776,6 @@ export default function DatasetDetailsPage() {
     )
   }
 
-  async function handleCreateAIRecommendation() {
-    const analysis = dataset?.ai_analysis
-    const recommendation =
-      analysis?.recommendations[0]
-
-    if (
-      !userId ||
-      !datasetId ||
-      !analysis ||
-      !aiRecommendationMetric ||
-      !recommendation ||
-      !canCreateDecisions ||
-      creatingDecisionKey
-    ) {
-      return
-    }
-
-    const decisionPayload =
-      buildAIRecommendationDecisionPayload(
-        datasetId,
-        aiRecommendationMetric,
-        analysis,
-        dataset.file_name
-      )
-
-    if (!decisionPayload) {
-      return
-    }
-
-    try {
-      setCreatingDecisionKey("ai-analysis")
-      setErrorMessage("")
-
-      const createdDecision =
-        await createDecision(
-          decisionPayload,
-          userId,
-          activeWorkspaceId
-        )
-
-      router.push(
-        `/dashboard/decisions/${createdDecision.id}`
-      )
-    } catch (error) {
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          "Unable to create a decision from the analysis."
-        )
-      )
-    } finally {
-      setCreatingDecisionKey(undefined)
-    }
-  }
-
   return (
     <div className="space-y-8">
       <DashboardPageHeader
@@ -926,17 +852,7 @@ export default function DatasetDetailsPage() {
               Cross-dataset report
             </Link>
 
-            {canCreateDecisions && datasetId && (
-              <CreateDecisionLink
-                href={buildCreateDecisionHref({
-                  datasetId,
-                  metric: effectiveSelectedMetric,
-                  returnTo: `/dashboard/datasets/${datasetId}`,
-                })}
-                title="Create a decision from this dataset and selected metric"
-                className="w-full sm:w-auto"
-              />
-            )}
+
           </div>
         }
       />
@@ -1022,18 +938,6 @@ export default function DatasetDetailsPage() {
           title="Dataset analysis"
           metric={effectiveSelectedMetric}
           className="rounded-2xl p-5 shadow-sm sm:p-6"
-          onCreateDecision={
-            canCreateDecisions &&
-            aiRecommendationMetric &&
-            dataset.ai_analysis.recommendations.length > 0
-              ? () => {
-                void handleCreateAIRecommendation()
-              }
-              : undefined
-          }
-          creatingDecision={
-            creatingDecisionKey === "ai-analysis"
-          }
         />
       )}
 

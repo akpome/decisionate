@@ -19,6 +19,7 @@ import {
 
 import {
     createDecision,
+    correlationRequest,
     getDatasets,
     getDatasetMetrics,
     getDecisionTemplates,
@@ -27,6 +28,7 @@ import {
     type DecisionConfidenceScore,
     type DecisionPriority,
     type DecisionTemplate,
+    type DecisionCreatePayload,
 } from "@/lib/api"
 import {
     decisionCategoryOptions,
@@ -50,6 +52,7 @@ import {
 } from "@/features/dashboard/components/metric-selector"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
+import { DecisionReportEvidence, useDecisionReportEvidence } from "@/features/decisions/components/decision-report-evidence"
 
 type DecisionDatasetOption = Pick<
     DatasetSummary,
@@ -225,6 +228,11 @@ function NewDecisionContent() {
         useState("")
     const [createDecisionError, setCreateDecisionError] =
         useState("")
+    const [reportOutcome, setReportOutcome] = useState("")
+    const reportEvidence = useDecisionReportEvidence(
+        user?.id, activeWorkspaceId, !loadingWorkspaceAccess && canCreateDecisions
+    )
+    const reportOutcomeMetric = reportEvidence.report?.metrics.find(metric => metric.id === reportOutcome && metric.value !== null)
 
     const selectedDecisionDataset =
         decisionDatasets.find(
@@ -253,7 +261,16 @@ function NewDecisionContent() {
         Boolean(createDecisionTitle.trim()) &&
         Boolean(createDecisionAction.trim()) &&
         Boolean(createDecisionExpectedOutcome.trim()) &&
-        Boolean(createDatasetId) &&
+        (reportEvidence.reportId
+            ? reportEvidence.report?.status === "ready" &&
+                Boolean(reportOutcomeMetric) &&
+                createDecisionTitle.trim().length >= 3 &&
+                createDecisionAction.trim().length >= 3 &&
+                createDecisionExpectedOutcome.trim().length >= 3 &&
+                createDecisionDescription.trim().length >= 3 &&
+                Boolean(createDecisionReviewDate) &&
+                !reportEvidence.loadingReport
+            : Boolean(createDatasetId)) &&
         !creatingDecision &&
         canCreateDecisions
 
@@ -652,7 +669,7 @@ function NewDecisionContent() {
         if (
             !cleanTitle ||
             !createDecisionAction.trim() ||
-            datasetId === null ||
+            (!reportEvidence.reportId && datasetId === null) ||
             !cleanExpectedOutcome
         ) {
             setCreateDecisionError(
@@ -661,27 +678,46 @@ function NewDecisionContent() {
             return
         }
 
+        if (reportEvidence.reportId && (
+            reportEvidence.loadingReport || reportEvidence.report?.status !== "ready" ||
+            !reportOutcomeMetric || !createDecisionReviewDate || createDecisionDescription.trim().length < 3
+        )) {
+            setCreateDecisionError("Choose an available report and outcome metric, record your reasoning, and set a review date.")
+            return
+        }
+
         setCreatingDecision(true)
         setCreateDecisionError("")
 
         try {
-            await createDecision(
-                {
-                    dataset_id: datasetId,
+            let payload: DecisionCreatePayload
+            if (reportEvidence.reportId) {
+                const evidence = await correlationRequest<{ decision_payload: DecisionCreatePayload }>(
+                    user.id, `/business-reports/${encodeURIComponent(reportEvidence.reportId)}/decision-evidence`, {
+                        method: "POST",
+                        body: JSON.stringify({ title: cleanTitle, action: createDecisionAction.trim(),
+                            reasoning: createDecisionDescription.trim(), expected_outcome: cleanExpectedOutcome,
+                            outcome_metric: reportOutcome, review_date: createDecisionReviewDate }),
+                    }, activeWorkspaceId
+                )
+                payload = evidence.decision_payload
+            } else {
+                payload = {
+                    dataset_id: datasetId!,
                     metric_column: selectedMetric,
                     title: cleanTitle,
                     action: createDecisionAction.trim(),
                     description:
                         createDecisionDescription.trim() || undefined,
                     expected_outcome: cleanExpectedOutcome,
-                    priority: createDecisionPriority,
-                    category: createDecisionCategory,
-                    confidence_score:
-                        createDecisionConfidence || undefined,
                     review_date: createDecisionReviewDate
                         ? `${createDecisionReviewDate}T00:00:00`
                         : undefined,
-                },
+                }
+            }
+            await createDecision(
+                { ...payload, priority: createDecisionPriority, category: createDecisionCategory,
+                    confidence_score: createDecisionConfidence || undefined },
                 user.id,
                 activeWorkspaceId
             )
@@ -713,7 +749,6 @@ function NewDecisionContent() {
                     </Link>
                 }
                 title="Create decision"
-                description="Create a focused decision record from a dataset, then return to where you started."
                 actions={
                     <button
                     type="button"
@@ -735,8 +770,11 @@ function NewDecisionContent() {
                 ) : decisionDatasets.length > 0 ? (
                     <form
                         onSubmit={handleCreateDecision}
-                        className="grid min-w-0 gap-4 lg:grid-cols-3"
                     >
+                        <fieldset disabled={creatingDecision} className="grid min-w-0 gap-4 lg:grid-cols-3">
+                        <DecisionReportEvidence evidence={reportEvidence} outcome={reportOutcome} disabled={creatingDecision}
+                            onReportChange={id => { reportEvidence.select(id); setReportOutcome(""); setCreateDecisionError("") }}
+                            onOutcomeChange={id => { setReportOutcome(id); setCreateDecisionError("") }} />
                         {decisionTemplates.length > 0 && (
                             <div className="min-w-0 lg:col-span-3">
                                 <label
@@ -781,7 +819,7 @@ function NewDecisionContent() {
                             </div>
                         )}
 
-                        <div className="min-w-0">
+                        <div className={`min-w-0 ${reportEvidence.reportId ? "lg:col-span-3" : ""}`}>
                             <label
                                 htmlFor="decision-title"
                                 className="text-xs font-medium uppercase tracking-wider text-gray-500"
@@ -791,6 +829,9 @@ function NewDecisionContent() {
 
                             <input
                                 id="decision-title"
+                                required
+                                minLength={reportEvidence.reportId ? 3 : 1}
+                                maxLength={200}
                                 value={createDecisionTitle}
                                 onChange={(event) => {
                                     setCreateDecisionError("")
@@ -803,7 +844,7 @@ function NewDecisionContent() {
                             />
                         </div>
 
-                        <div className="min-w-0">
+                        {!reportEvidence.reportId && <div className="min-w-0">
                             <label
                                 htmlFor="decision-dataset"
                                 className="text-xs font-medium uppercase tracking-wider text-gray-500"
@@ -856,9 +897,9 @@ function NewDecisionContent() {
                                     </Link>
                                 </p>
                             )}
-                        </div>
+                        </div>}
 
-                        <div className="min-w-0">
+                        {!reportEvidence.reportId && <div className="min-w-0">
                             <label
                                 htmlFor="decision-metric"
                                 className="text-xs font-medium uppercase tracking-wider text-gray-500"
@@ -916,7 +957,7 @@ function NewDecisionContent() {
                                     ? `Focused on ${formatMetricLabel(selectedMetric)}. This metric will be saved with the decision.`
                                     : "Optional focus for this decision. The record remains linked to the selected dataset."}
                             </p>
-                        </div>
+                        </div>}
 
                         <div className="min-w-0 lg:col-span-3">
                             <label
@@ -931,6 +972,9 @@ function NewDecisionContent() {
 
                             <textarea
                                 id="decision-action"
+                                required
+                                minLength={reportEvidence.reportId ? 3 : 1}
+                                maxLength={5000}
                                 value={createDecisionAction}
                                 onChange={(event) => {
                                     setCreateDecisionError("")
@@ -949,11 +993,14 @@ function NewDecisionContent() {
                                 htmlFor="decision-description"
                                 className="text-xs font-medium uppercase tracking-wider text-gray-500"
                             >
-                                Description
+                                {reportEvidence.reportId ? "Reasoning, alternatives and assumptions" : "Description"}
                             </label>
 
                             <textarea
                                 id="decision-description"
+                                required={Boolean(reportEvidence.reportId)}
+                                minLength={reportEvidence.reportId ? 3 : undefined}
+                                maxLength={5000}
                                 value={createDecisionDescription}
                                 onChange={(event) => {
                                     setCreateDecisionError("")
@@ -961,7 +1008,7 @@ function NewDecisionContent() {
                                         event.target.value
                                     )
                                 }}
-                                placeholder="Optional context, hypothesis, or expected business impact."
+                                placeholder={reportEvidence.reportId ? "Why this action? Record competing explanations and assumptions." : "Optional context, hypothesis, or expected business impact."}
                                 rows={3}
                                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
                             />
@@ -980,6 +1027,9 @@ function NewDecisionContent() {
 
                             <textarea
                                 id="decision-expected-outcome"
+                                required
+                                minLength={reportEvidence.reportId ? 3 : 1}
+                                maxLength={3000}
                                 value={createDecisionExpectedOutcome}
                                 onChange={(event) => {
                                     setCreateDecisionError("")
@@ -1097,6 +1147,8 @@ function NewDecisionContent() {
                             <input
                                 id="decision-review-date"
                                 type="date"
+                                required={Boolean(reportEvidence.reportId)}
+                                min={reportEvidence.reportId ? getDateInputValueFromToday(0) : undefined}
                                 value={createDecisionReviewDate}
                                 onChange={(event) => {
                                     setCreateDecisionError("")
@@ -1133,7 +1185,7 @@ function NewDecisionContent() {
                         </div>
 
                         {createDecisionError && (
-                            <p className="text-sm text-red-600 lg:col-span-3">
+                            <p role="alert" className="text-sm text-red-600 lg:col-span-3">
                                 {createDecisionError}
                             </p>
                         )}
@@ -1154,6 +1206,7 @@ function NewDecisionContent() {
                                 Cancel
                             </button>
                         </div>
+                        </fieldset>
                     </form>
                 ) : (
                     <div>

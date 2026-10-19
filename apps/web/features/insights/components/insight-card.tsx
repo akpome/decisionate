@@ -1,20 +1,13 @@
 import { Insight } from "../utils/generate-insights"
-import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 
 interface InsightCardProps {
   insight: Insight
   label?: string
-  onCreateDecision?: () => void
-  creatingDecision?: boolean
-  actionDisabled?: boolean
 }
 
 export function InsightCard({
   insight,
   label = "Insight",
-  onCreateDecision,
-  creatingDecision = false,
-  actionDisabled = false,
 }: InsightCardProps) {
   return (
     <div className="flex h-full min-w-0 flex-col rounded-lg border bg-white p-5 shadow-sm sm:p-6">
@@ -33,17 +26,7 @@ export function InsightCard({
           {insight.description}
         </p>
 
-        {onCreateDecision && (
-          <div className="mt-auto pt-2">
-            <CreateDecisionButton
-              onClick={onCreateDecision}
-              disabled={actionDisabled}
-              creating={creatingDecision}
-              title={`Create a decision from ${insight.title}`}
-              className="w-full sm:w-auto"
-            />
-          </div>
-        )}
+
       </div>
     </div>
   )

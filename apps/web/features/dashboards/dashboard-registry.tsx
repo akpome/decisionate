@@ -7,7 +7,6 @@ import {
   type ReactNode,
 } from "react"
 import { useUser } from "@clerk/nextjs"
-import { useRouter } from "next/navigation"
 import {
   FileDown,
   LoaderCircle,
@@ -33,15 +32,7 @@ import {
   YAxis,
 } from "recharts"
 
-import {
-  createDecision,
-  getDecisionSummary,
-  type AIAnalysis,
-  type DecisionSummary,
-} from "@/lib/api"
-import {
-  buildAIRecommendationDecisionPayload,
-} from "@/features/decisions/lib/ai-decision-handoff"
+import { getDecisionSummary, type AIAnalysis, type DecisionSummary } from "@/lib/api";
 import type {
   DashboardAggregation,
   DashboardValueAggregation,
@@ -64,7 +55,6 @@ import type {
 import {
   AIAnalysisPanel,
 } from "@/features/ai/components/analysis-panel"
-import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 import {
   AnalysisStatus,
 } from "@/features/ai/components/analysis-status"
@@ -100,12 +90,9 @@ type DashboardPlaceholderProps = {
   status?: ReactNode
   brand?: WorkspaceBrand
   canManageWorkspaceData?: boolean
-  canCreateDecisions?: boolean
   onDownloadPdf?: () => void
   onShare?: () => void
   onStopSharing?: () => void
-  onCreateRecommendation?: () => void
-  creatingRecommendation?: boolean
   pdfDisabled?: boolean
   shareDisabled?: boolean
   stopSharingDisabled?: boolean
@@ -1775,16 +1762,12 @@ function SalesDecisionateAnalysis({
   analysisLoading = false,
   analysisError = false,
   onRetryAnalysis,
-  onCreateRecommendation,
-  creatingRecommendation = false,
 }: {
   dashboard: IndustryDashboardConfig
   analysis?: AIAnalysis | null
   analysisLoading?: boolean
   analysisError?: boolean
   onRetryAnalysis?: () => void
-  onCreateRecommendation?: () => void
-  creatingRecommendation?: boolean
 }) {
   const trendData = dashboard.trendData
   const latest = trendData[trendData.length - 1]
@@ -1859,17 +1842,7 @@ function SalesDecisionateAnalysis({
         </div>
       </div>
 
-      {onCreateRecommendation && analysis?.recommendations.length && !analysisLoading ? (
-        <div className="mt-auto flex items-center justify-start pt-4">
-          <CreateDecisionButton
-            onClick={onCreateRecommendation}
-            creating={creatingRecommendation}
-            size="sm"
-            title="Create a decision from this sales recommendation"
-            className="w-full sm:w-auto"
-          />
-        </div>
-      ) : null}
+
     </section>
   )
 }
@@ -1896,8 +1869,6 @@ function IndustryDashboard({
   onDownloadPdf,
   onShare,
   onStopSharing,
-  onCreateRecommendation,
-  creatingRecommendation,
   pdfDisabled,
   shareDisabled,
   stopSharingDisabled,
@@ -1960,8 +1931,6 @@ function IndustryDashboard({
           analysisLoading={analysisLoading}
           analysisError={analysisError}
           onRetryAnalysis={onRetryAnalysis}
-          onCreateRecommendation={onCreateRecommendation}
-          creatingRecommendation={creatingRecommendation}
         />
       ) : (
         <div className="min-w-0">
@@ -1985,10 +1954,6 @@ function IndustryDashboard({
               title="Decisionate Analysis"
               metric={analysisMetric}
               className="h-full print:hidden !p-3"
-              onCreateDecision={
-                onCreateRecommendation
-              }
-              creatingDecision={creatingRecommendation}
             />
           )}
         </div>
@@ -2395,8 +2360,6 @@ function DecisionPerformanceDashboard({
   managementActions,
   status,
   brand,
-  canCreateDecisions = false,
-  datasetName,
   chartTitles,
   onDownloadPdf,
   onShare,
@@ -2421,14 +2384,9 @@ function DecisionPerformanceDashboard({
     activeWorkspaceId,
     workspaceVersion,
   } = useActiveWorkspace(user?.id)
-  const router = useRouter()
   const [summary, setSummary] =
     useState<DecisionSummary | null>(null)
   const [error, setError] = useState("")
-  const [recommendationError, setRecommendationError] =
-    useState("")
-  const [creatingRecommendation, setCreatingRecommendation] =
-    useState(false)
   const [summaryLoading, setSummaryLoading] =
     useState(false)
   const [summaryRetryKey, setSummaryRetryKey] =
@@ -2491,56 +2449,6 @@ function DecisionPerformanceDashboard({
 
   const displayedSummary =
     decisionSummary ?? summary
-
-  async function handleCreateRecommendation() {
-    const analysis =
-      displayedSummary?.ai_analysis
-
-    if (
-      !user?.id ||
-      !datasetId ||
-      !analysis ||
-      !analysis.recommendations.length ||
-      !canCreateDecisions ||
-      creatingRecommendation
-    ) {
-      return
-    }
-
-    const decisionPayload =
-      buildAIRecommendationDecisionPayload(
-        datasetId,
-        undefined,
-        analysis,
-        datasetName
-      )
-
-    if (!decisionPayload) {
-      return
-    }
-
-    try {
-      setCreatingRecommendation(true)
-      setRecommendationError("")
-
-      const createdDecision =
-        await createDecision(
-          decisionPayload,
-          user.id,
-          activeWorkspaceId
-        )
-
-      router.push(
-        `/dashboard/decisions/${createdDecision.id}`
-      )
-    } catch {
-      setRecommendationError(
-        "Unable to create a decision from this recommendation."
-      )
-    } finally {
-      setCreatingRecommendation(false)
-    }
-  }
 
   const successRate = displayedSummary
     ? displayedSummary.outcomes_evaluated > 0
@@ -2726,14 +2634,6 @@ function DecisionPerformanceDashboard({
         </div>
       )}
 
-      {recommendationError && (
-        <div
-          role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 print:hidden"
-        >
-          {recommendationError}
-        </div>
-      )}
 
       <div className="grid gap-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 print:grid-cols-6">
         {metrics.map(metric => (
@@ -2932,15 +2832,6 @@ function DecisionPerformanceDashboard({
                 analysis={displayedSummary.ai_analysis}
                 title="Decisionate Analysis"
                 className="h-full print:hidden"
-                onCreateDecision={
-                  canCreateDecisions && Boolean(datasetId) &&
-                  displayedSummary.ai_analysis.recommendations.length > 0
-                    ? () => {
-                        void handleCreateRecommendation()
-                      }
-                    : undefined
-                }
-                creatingDecision={creatingRecommendation}
               />
             ) : (
               <div className="flex h-full flex-col rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 print:hidden">

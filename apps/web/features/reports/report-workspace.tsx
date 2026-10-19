@@ -1,11 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Search, X } from "lucide-react"
+import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Search } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { correlationRequest, createDecision, getMyOrganization, getOrganizationWorkspaces, type DecisionCreatePayload } from "@/lib/api"
+import { correlationRequest, getMyOrganization, getOrganizationWorkspaces } from "@/lib/api"
 import { defaultWorkspaceBrand, getWorkspaceBrand, type WorkspaceBrand } from "@/lib/workspace-brand"
 import { WorkspaceBrandMark } from "@/app/dashboard/workspace-brand-mark"
 import { metricIdentity, type CatalogDataset } from "@/features/relationships/types"
@@ -30,10 +29,9 @@ async function hydrateCatalog(userId: string, workspaceId: string | undefined, c
   return result
 }
 
-export function ReportWorkspace({ userId, workspaceId, canManage, canDecide }: {
-  userId: string; workspaceId?: string; canManage: boolean; canDecide: boolean
+export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
+  userId: string; workspaceId?: string; canManage: boolean; canSave: boolean
 }) {
-  const router = useRouter()
   const [datasets, setDatasets] = useState<CatalogDataset[]>([])
   const [dateColumns, setDateColumns] = useState<Record<number, string>>({})
   const [nextOffset, setNextOffset] = useState<number | null>(null)
@@ -46,7 +44,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canDecide }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [message, setMessage] = useState("")
-  const [decisionOpen, setDecisionOpen] = useState(false)
   const [brand, setBrand] = useState<WorkspaceBrand>(defaultWorkspaceBrand)
   const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
   const selectedIds = definition.included_findings ?? []
@@ -157,15 +154,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canDecide }: {
     setReport(current => current ? { ...current, report_id: undefined } : null)
   }
 
-  async function handleCreateDecision(payload: Record<string, string>) {
-    if (!canDecide || !report?.report_id) return
-    await execute(async () => {
-      const evidence = await request<{ decision_payload: DecisionCreatePayload }>(`/${report.report_id}/decision-evidence`, { method: "POST", body: JSON.stringify(payload) })
-      const decision = await createDecision(evidence.decision_payload, userId, workspaceId)
-      router.push(`/dashboard/decisions/${decision.id}`)
-    })
-  }
-
   if (loading) return <p role="status" className="py-8 text-sm text-gray-600">Loading cross-dataset reports...</p>
   return <div className="mx-auto min-w-0 max-w-[1500px] space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
@@ -179,7 +167,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canDecide }: {
         }} className={`inline-flex h-9 items-center gap-2 rounded px-4 text-sm ${view === mode ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`}>{mode === "explore" ? <ChartNoAxesCombined size={16} /> : <FileText size={16} />}{mode === "explore" ? "Explore" : "Report"}</button>)}
       </div>
     </header>
-    {error && !decisionOpen && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+    {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {message && <p role="status" className="text-sm text-green-800">{message}</p>}
     <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
       <label className="block w-full max-w-md text-xs text-gray-600">Saved reports<select className={input} disabled={busy} value={report?.report_id || ""} onChange={event => {
@@ -190,9 +178,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canDecide }: {
       <div className="flex flex-wrap gap-2">
         <button type="button" className={button} disabled={busy} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={() => void execute(async () => { const result = await request<{ datasets: CatalogDataset[]; next_offset: number | null }>("/catalog"); setDatasets(await hydrateCatalog(userId, workspaceId, result.datasets, definition)); setNextOffset(result.next_offset) })}><RefreshCw size={16} /></button>
         {report && <>
-          <button type="button" className={button} disabled={busy || !(canManage || canDecide) || Boolean(report.report_id)} onClick={() => void execute(async () => { await saveSnapshot(); setMessage("Report snapshot saved.") })}><Save size={16} />Save snapshot</button>
+          <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id)} onClick={() => void execute(async () => { await saveSnapshot(); setMessage("Report snapshot saved.") })}><Save size={16} />Save snapshot</button>
           <button type="button" className={button} disabled={busy || !canManage} onClick={() => void execute(async () => { const value = await saveSnapshot(); await request(`/${value.report_id}/weekly`, { method: "POST" }); setMessage("Weekly report template saved. Existing recipients and sending preferences are unchanged.") })}><CalendarDays size={16} />Use for weekly report</button>
-          {canDecide && <button type="button" className={button} disabled={busy || report.status !== "ready"} onClick={() => void execute(async () => { await saveSnapshot(); setDecisionOpen(true) })}><FileText size={16} />Create decision</button>}
           {view === "report" && <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>}
         </>}
         <Link href="/dashboard/alerts" className={button}><CalendarDays size={16} />Weekly delivery</Link>
@@ -260,7 +247,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canDecide }: {
         <section className="space-y-2 border-t border-gray-200 pt-5"><h3 className="text-base font-semibold">Evidence limitations</h3><p className="text-xs text-gray-500">Rule-based interpretation / Historical relationships: {report.history_window.start} to {report.history_window.end}</p><Statements statements={report.limitations} /></section>
       </>}
     </section>
-    {decisionOpen && report?.report_id && <DecisionDialog report={report} busy={busy} error={error} onClose={() => setDecisionOpen(false)} onSubmit={payload => void handleCreateDecision(payload)} />}
   </div>
 }
 
@@ -298,29 +284,4 @@ export function MetricTrends({ report }: { report: BusinessReport }) {
       {metric.warnings.length > 0 && <details className="mt-2 text-xs text-amber-800"><summary className="cursor-pointer">Coverage notes</summary><Statements statements={metric.warnings} /></details>}
     </article>)}
   </section>
-}
-
-function DecisionDialog({ report, busy, error, onClose, onSubmit }: { report: BusinessReport; busy: boolean; error: string; onClose: () => void; onSubmit: (value: Record<string, string>) => void }) {
-  const dialog = useRef<HTMLDialogElement>(null)
-  useEffect(() => { const node = dialog.current; node?.showModal(); return () => node?.close() }, [])
-  return <dialog ref={dialog} onCancel={event => { event.preventDefault(); if (!busy) onClose() }} aria-labelledby="report-decision-title" className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-md border border-gray-200 p-5 backdrop:bg-black/40">
-    <form onSubmit={event => { event.preventDefault(); onSubmit(Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>) }}>
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <h2 id="report-decision-title" className="text-lg font-semibold">Decision from combined evidence</h2>
-        <button type="button" disabled={busy} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border" aria-label="Close decision draft" title="Close decision draft" onClick={onClose}><X size={16} /></button>
-      </div>
-      {error && <p role="alert" className="mb-3 text-sm text-red-800">{error}</p>}
-      <fieldset disabled={busy} className="space-y-3">
-        <label className="block text-xs text-gray-600">Decision title<input className={input} name="title" required minLength={3} maxLength={200} /></label>
-        <label className="block text-xs text-gray-600">Chosen action<textarea className={input} name="action" required minLength={3} maxLength={5000} rows={2} /></label>
-        <label className="block text-xs text-gray-600">Reasoning, alternatives and assumptions<textarea className={input} name="reasoning" required minLength={3} maxLength={5000} rows={3} /></label>
-        <label className="block text-xs text-gray-600">Expected measurable outcome<textarea className={input} name="expected_outcome" required minLength={3} maxLength={3000} rows={2} /></label>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block text-xs text-gray-600">Outcome metric<select className={input} name="outcome_metric" required defaultValue=""><option value="" disabled>Choose metric</option>{report.metrics.map(metric => <option key={metric.id} value={metric.id}>{metric.dataset_label} / {metric.label}</option>)}</select></label>
-          <label className="block text-xs text-gray-600">Review date<input className={input} type="date" name="review_date" min={new Date().toISOString().slice(0, 10)} required /></label>
-        </div>
-        <button type="submit" className={`${primaryButton} mt-3`}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <FileText size={16} />}Create decision</button>
-      </fieldset>
-    </form>
-  </dialog>
 }

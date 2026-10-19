@@ -26,9 +26,6 @@ import {
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { submitSupportRequest } from "@/lib/api"
 import { useActiveWorkspace } from "@/lib/use-active-workspace"
-import { useWorkspaceAccess } from "@/lib/use-workspace-access"
-import { CreateDecisionLink } from "@/features/decisions/components/create-decision-action"
-import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
 
 type SupportRequestType = "support" | "bug" | "feature"
 
@@ -66,8 +63,8 @@ const gettingStartedItems = [
     id: "decision",
     title: "Create an accountable decision",
     description: "Turn a recommendation into a decision with an expected outcome.",
-    href: "/dashboard/decisions/new",
-    action: "Create decision",
+    href: "/dashboard/decisions",
+    action: "Open decisions",
   },
   {
     id: "learning",
@@ -92,7 +89,7 @@ const faqItems = [
   {
     question: "How do recommendations become decisions?",
     answer:
-      "Open an insight, forecast, report, or alert recommendation and use its create-decision action. The recommendation context is stored with the decision so the expected result can be reviewed later.",
+      "Review the evidence, then open Decisions to create a decision. Select a saved cross-dataset report to retain its business question, source metrics and findings with the decision.",
   },
   {
     question: "How does Decisionate learn from outcomes?",
@@ -363,7 +360,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Select the dataset and, when needed, a specific numeric metric. Insights can also support selected metrics across datasets where that panel is available.",
           "Set the date range, grouping period, and aggregation controls. Use All data when the question requires the full available history.",
           "Review the generated patterns, anomaly findings, AI analysis, confidence, recommendations, and risks.",
-          "Treat recommendations as prompts for review. Use Create decision from evidence only after confirming the source data and business context.",
+          "Treat recommendations as prompts for review. Create decisions from the Decisions page after confirming the source data and business context.",
         ],
       },
       {
@@ -452,7 +449,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Create a decision from scratch",
         steps: [
-          "Open Decisions and choose Create decision, or use the decision creation action from a dashboard or analysis page.",
+          "Open Decisions and choose Create decision. Select a saved report as evidence, or choose a dataset for a manual decision.",
           "Select the dataset and optional metric. The selected metric should appear consistently in the decision title and metric-specific template content.",
           "Write a concise decision title that states the choice, not just the observation.",
           "Complete Action with the concrete action, scope, owner responsibility, and timing. For example, state what will change and for how long.",
@@ -675,7 +672,6 @@ const referenceChapters: ReferenceChapter[] = [
 export default function HelpSupportPage() {
   const { user } = useUser()
   const { activeWorkspaceId } = useActiveWorkspace(user?.id)
-  const { canCreateDecisions } = useWorkspaceAccess(user?.id)
   const [completedItems, setCompletedItems] =
     useState<Record<string, boolean>>({})
   const [supportFormOpen, setSupportFormOpen] =
@@ -873,15 +869,6 @@ export default function HelpSupportPage() {
                   {item.description}
                 </p>
 
-                {item.id === "decision" && canCreateDecisions ? (
-                  <CreateDecisionLink
-                    href={buildCreateDecisionHref({ returnTo: "/dashboard/help" })}
-                    title={item.description}
-                    variant="secondary"
-                    size="sm"
-                    className="mt-3 w-full"
-                  />
-                ) : (
                   <Link
                     href={item.id === "decision" ? "/dashboard/decisions" : item.href}
                     title={item.description}
@@ -890,7 +877,6 @@ export default function HelpSupportPage() {
                     {item.id === "decision" ? "View decisions" : item.action}
                     <ArrowRight size={13} aria-hidden="true" />
                   </Link>
-                )}
               </div>
             )
           })}

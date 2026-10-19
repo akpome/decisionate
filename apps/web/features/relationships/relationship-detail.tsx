@@ -5,7 +5,7 @@ import { X, Pin, Lightbulb, ListPlus } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { coefficientText, type RelationshipDetail } from "./types"
 
-export function RelationshipEvidence({ detail, onClose, onPin, onInsight, onDecision, busy, canPin, canDecide }: { detail: RelationshipDetail; onClose: () => void; onPin: () => void; onInsight: () => void; onDecision: () => void; busy: boolean; canPin: boolean; canDecide: boolean }) {
+export function RelationshipEvidence({ detail, onClose, onPin, onInsight, busy, canPin }: { detail: RelationshipDetail; onClose: () => void; onPin: () => void; onInsight: () => void; busy: boolean; canPin: boolean }) {
   const lead = detail.lag.lead_metric === detail.metric_a.id ? detail.metric_a : detail.metric_b
   return <section aria-label="Relationship evidence" className="min-w-0 border-y border-gray-200 py-5">
     <div className="flex items-start justify-between gap-3">
@@ -26,7 +26,6 @@ export function RelationshipEvidence({ detail, onClose, onPin, onInsight, onDeci
       <Link href={`/dashboard/reports?run=${detail.run_id}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm"><ListPlus size={16} />Build cross-dataset report</Link>
       {canPin && <button type="button" disabled={busy || !detail.eligible} onClick={onPin} className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm disabled:opacity-50"><Pin size={16} />Save relationship widget</button>}
       <button type="button" disabled={busy || !detail.eligible} onClick={onInsight} className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm disabled:opacity-50"><Lightbulb size={16} />Save insight</button>
-      <button type="button" disabled={busy || !detail.eligible || !canDecide} onClick={onDecision} className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm disabled:opacity-50"><ListPlus size={16} />Create decision</button>
     </div>
   </section>
 }

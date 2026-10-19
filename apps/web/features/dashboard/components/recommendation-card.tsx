@@ -1,6 +1,4 @@
 "use client"
-
-import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 
 interface RecommendationCardProps {
@@ -10,8 +8,6 @@ interface RecommendationCardProps {
     decisionBrief: string
     source?: string
     learningContext?: string
-    onCreateDecision?: () => void
-    creatingDecision: boolean
 
 }
 
@@ -31,9 +27,7 @@ export function RecommendationCard({
     decisionBrief,
     source,
     learningContext,
-    onCreateDecision,
     reason,
-    creatingDecision
 }: RecommendationCardProps) {
     const { t } = useDecisionateText()
 
@@ -80,16 +74,7 @@ export function RecommendationCard({
                     )}
                 </div>
 
-                {onCreateDecision && (
-                    <div className="mt-auto">
-                        <CreateDecisionButton
-                            onClick={onCreateDecision}
-                            creating={creatingDecision}
-                            title="Create a decision from this recommendation"
-                            className="w-full sm:w-auto"
-                        />
-                    </div>
-                )}
+
             </div>
         </div>
     )

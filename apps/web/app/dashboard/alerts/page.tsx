@@ -1,9 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs"
-import { useRouter } from "next/navigation"
 import {
   Bell,
   Save,
@@ -11,20 +10,7 @@ import {
   X,
 } from "lucide-react"
 
-import {
-  getDatasetRelationships,
-  createDecision,
-  getWeeklyReportDeliveryConfig,
-  getWeeklyReportDigest,
-  getWeeklyReportPreference,
-  sendWeeklyReportTestEmail,
-  updateWeeklyReportPreference,
-  type DatasetRelationship,
-  type WeeklyReportDeliveryConfig,
-  type WeeklyReportDigest,
-  type WeeklyReportDigestMetric,
-  type WeeklyReportPreference,
-} from "@/lib/api"
+import { getDatasetRelationships, getWeeklyReportDeliveryConfig, getWeeklyReportDigest, getWeeklyReportPreference, sendWeeklyReportTestEmail, updateWeeklyReportPreference, type DatasetRelationship, type WeeklyReportDeliveryConfig, type WeeklyReportDigest, type WeeklyReportDigestMetric, type WeeklyReportPreference } from "@/lib/api";
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -35,10 +21,6 @@ import {
   WorkspaceAccessNotice,
 } from "@/features/dashboard/components/workspace-access-notice"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
-import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
-import {
-  buildAIRecommendationDecisionPayload,
-} from "@/features/decisions/lib/ai-decision-handoff"
 import {
   formatMetricLabel,
 } from "@/features/dashboard/components/metric-selector"
@@ -90,7 +72,6 @@ export default function AlertsPage() {
   const { user } = useUser()
   const {
     canManageAlerts,
-    canCreateDecisions,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
 
@@ -128,7 +109,6 @@ export default function AlertsPage() {
   return (
     <AlertsPageContent
       canManageAlertAnalysis={canManageAlerts}
-      canCreateDecisions={canCreateDecisions}
       loadingWorkspaceAccess={loadingWorkspaceAccess}
     />
   )
@@ -136,11 +116,9 @@ export default function AlertsPage() {
 
 function AlertsPageContent({
   canManageAlertAnalysis,
-  canCreateDecisions,
   loadingWorkspaceAccess,
 }: {
   canManageAlertAnalysis: boolean
-  canCreateDecisions: boolean
   loadingWorkspaceAccess: boolean
 }) {
   const {
@@ -148,7 +126,6 @@ function AlertsPageContent({
     isLoaded: authLoaded,
     isSignedIn,
   } = useUser()
-  const router = useRouter()
   const {
     activeWorkspaceId,
     workspaceVersion,
@@ -193,10 +170,6 @@ function AlertsPageContent({
     useState("")
   const [loadRetryKey, setLoadRetryKey] =
     useState(0)
-  const [creatingDecision, setCreatingDecision] =
-    useState(false)
-  const [selectedDecisionMetricKey, setSelectedDecisionMetricKey] =
-    useState("")
 
   const selectedMetricLabels =
     weeklyReportPreference.metric_focus.map(
@@ -235,97 +208,6 @@ function AlertsPageContent({
         setTestEmailNotice(null)
         testEmailNoticeTimer.current = null
       }, 6000)
-    }
-  }
-  const effectiveSelectedDecisionMetricKey = useMemo(() => {
-    const metrics = weeklyReportDigest?.metrics ?? []
-    const selectedMetricStillExists = metrics.some(
-      (metric) =>
-        `${metric.dataset_id}:${metric.column}` ===
-        selectedDecisionMetricKey
-    )
-
-    return selectedMetricStillExists
-      ? selectedDecisionMetricKey
-      : metrics[0]
-        ? `${metrics[0].dataset_id}:${metrics[0].column}`
-        : ""
-  }, [
-    selectedDecisionMetricKey,
-    weeklyReportDigest,
-  ])
-  const selectedDecisionMetric = useMemo(() => {
-    const metrics = weeklyReportDigest?.metrics ?? []
-
-    return (
-      metrics.find(
-        (metric) =>
-          `${metric.dataset_id}:${metric.column}` ===
-          effectiveSelectedDecisionMetricKey
-      ) ?? metrics[0]
-    )
-  }, [
-    effectiveSelectedDecisionMetricKey,
-    weeklyReportDigest,
-  ])
-  const selectedDecisionRelationship = useMemo(
-    () => weeklyReportDigest?.relationships?.[0],
-    [weeklyReportDigest]
-  )
-
-  async function handleCreateDigestDecision() {
-    const digest = weeklyReportDigest
-    const metric = selectedDecisionMetric
-    const relationship = selectedDecisionRelationship
-    const recommendation =
-      digest?.ai_analysis?.recommendations[0]
-
-    if (
-      !user?.id ||
-      !canCreateDecisions ||
-      (!metric && !relationship) ||
-      !recommendation ||
-      !digest?.ai_analysis ||
-      creatingDecision
-    ) {
-      return
-    }
-
-    const decisionPayload =
-      buildAIRecommendationDecisionPayload(
-        metric?.dataset_id ?? relationship?.left_dataset_id ?? 0,
-        metric?.column ?? relationship?.left_metric,
-        digest.ai_analysis,
-        metric?.dataset_name ?? relationship?.left_dataset_name
-      )
-
-    if (!decisionPayload) {
-      return
-    }
-
-    try {
-      setCreatingDecision(true)
-      setErrorMessage("")
-
-      const createdDecision =
-        await createDecision(
-          decisionPayload,
-          user.id,
-          activeWorkspaceId
-        )
-
-      router.push(
-        `/dashboard/decisions/${createdDecision.id}`
-      )
-    } catch (error) {
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          "Unable to create a decision from the alert analysis."
-        )
-      )
-    } finally {
-      setCreatingDecision(false)
     }
   }
 
@@ -1400,19 +1282,6 @@ function AlertsPageContent({
             loading={supportingDataLoading}
             unavailable={supportingDataUnavailable}
             selectedMetricLabels={selectedMetricLabels}
-            onCreateDecision={
-              canCreateDecisions && !aiAnalysisLoading &&
-              Boolean(
-                (selectedDecisionMetric || selectedDecisionRelationship) &&
-                (weeklyReportDigest?.metrics.length ||
-                  weeklyReportDigest?.relationships.length) &&
-                weeklyReportDigest?.ai_analysis?.recommendations.length
-              )
-                ? () => {
-                  void handleCreateDigestDecision()
-                }
-                : undefined
-            }
             onRemoveMetric={
               canManageAlertAnalysis
                 ? removeDigestMetric
@@ -1420,18 +1289,6 @@ function AlertsPageContent({
             }
             saving={saving}
             aiAnalysisLoading={aiAnalysisLoading}
-            selectedMetricKey={
-              effectiveSelectedDecisionMetricKey
-            }
-              selectedDecisionMetricLabel={
-                selectedDecisionMetric
-                  ? `${formatMetricName(selectedDecisionMetric.column)} · ${selectedDecisionMetric.dataset_name}`
-                  : selectedDecisionRelationship
-                    ? `${formatMetricName(selectedDecisionRelationship.left_metric)} · ${selectedDecisionRelationship.left_dataset_name} relationship`
-                    : undefined
-            }
-            onSelectMetric={setSelectedDecisionMetricKey}
-            creatingDecision={creatingDecision}
           />
 
         </div>
@@ -1446,28 +1303,18 @@ function WeeklyReportDigestPreview({
   loading,
   unavailable,
   selectedMetricLabels,
-  onCreateDecision,
   onRemoveMetric,
   saving,
   aiAnalysisLoading,
-  selectedMetricKey,
-  selectedDecisionMetricLabel,
-  onSelectMetric,
-  creatingDecision,
 }: {
   digest: WeeklyReportDigest | null
   setupPending: boolean
   loading: boolean
   unavailable: boolean
   selectedMetricLabels: string[]
-  onCreateDecision?: () => void
   onRemoveMetric?: (metric: WeeklyReportDigestMetric) => void | Promise<void>
   saving: boolean
   aiAnalysisLoading: boolean
-  selectedMetricKey: string
-  selectedDecisionMetricLabel?: string
-  onSelectMetric: (value: string) => void
-  creatingDecision: boolean
 }) {
   if (setupPending) {
     return (
@@ -1518,6 +1365,7 @@ function WeeklyReportDigestPreview({
       <p className="mt-2 text-sm text-gray-500">
         {digest.preview_text}
       </p>
+      {aiAnalysisLoading && <p role="status" className="mt-2 text-xs text-gray-500">Updating weekly analysis...</p>}
 
       {digest.cross_dataset_report && <section className="mt-4 space-y-3 border-y border-gray-200 py-4 text-sm" aria-label="Weekly cross-dataset review">
         <h3 className="break-words font-semibold">{digest.cross_dataset_report.business_question}</h3>
@@ -1541,7 +1389,6 @@ function WeeklyReportDigestPreview({
         <AIAnalysisPanel
           analysis={digest.ai_analysis}
           title="Alert analysis"
-          metricContext={selectedDecisionMetricLabel}
           metrics={selectedMetricLabels}
           className="mt-4"
         />
@@ -1636,59 +1483,8 @@ function WeeklyReportDigestPreview({
         </div>
       )}
 
-      {onCreateDecision && !digest.cross_dataset_report && (digest.metrics.length > 0 || digest.relationships.length > 0) && (
-        <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
-          {digest.metrics.length > 0 ? (
-            <>
-              <label
-                htmlFor="alert-decision-metric"
-                className="text-xs font-semibold uppercase tracking-wide text-gray-600"
-              >
-                Decision metric
-              </label>
-              <select
-                id="alert-decision-metric"
-                value={selectedMetricKey}
-                onChange={(event) => onSelectMetric(event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-              >
-                {digest.metrics.map((metric) => {
-                  const metricKey = `${metric.dataset_id}:${metric.column}`
 
-                  return (
-                    <option
-                      key={metricKey}
-                      value={metricKey}
-                    >
-                      {formatMetricName(metric.column)} · {metric.dataset_name}
-                    </option>
-                  )
-                })}
-              </select>
-              <p className="mt-1.5 text-xs text-gray-500">
-                Choose the KPI this decision will target. The recommendation uses all selected KPI metrics as context.
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-600">
-              This decision will use the selected cross-source relationship as its evidence target.
-            </p>
-          )}
-        </div>
-      )}
 
-      {onCreateDecision && !digest.cross_dataset_report && (
-        <CreateDecisionButton
-          onClick={onCreateDecision}
-          creating={creatingDecision}
-          disabled={
-            aiAnalysisLoading ||
-            !digest.ai_analysis?.recommendations.length
-          }
-          title="Create a decision from the selected alert metric and analysis"
-          className="mt-4 w-full sm:w-auto"
-        />
-      )}
 
       {digest.unavailable_datasets.length > 0 && (
         <p className="mt-4 break-words text-xs text-amber-700">

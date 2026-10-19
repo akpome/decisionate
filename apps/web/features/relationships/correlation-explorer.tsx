@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight, Grid2X2, List, Play, RefreshCw, Save, Search, StopCircle } from "lucide-react"
-import { correlationRequest, createDecision, type DecisionCreatePayload } from "@/lib/api"
+import { correlationRequest } from "@/lib/api"
 import { dashboardDefinitions } from "@/features/dashboards/dashboard-definitions"
 import { RelationshipMatrix } from "./relationship-matrix"
 import { RelationshipEvidence } from "./relationship-detail"
@@ -14,7 +14,7 @@ const commandClass = "inline-flex min-h-10 items-center justify-center gap-2 rou
 type History = { analysis_id: string; name: string; latest_run: CorrelationRun | null }
 const explainError = (value: unknown) => value instanceof Error ? value.message : "Relationship analysis is unavailable"
 
-export function CorrelationExplorer({ userId, workspaceId, canCreateDecisions = true }: { userId: string; workspaceId?: string; canCreateDecisions?: boolean }) {
+export function CorrelationExplorer({ userId, workspaceId }: { userId: string; workspaceId?: string }) {
   const [capabilities, setCapabilities] = useState<CorrelationCapabilities | null>(null)
   const [datasets, setDatasets] = useState<CatalogDataset[]>([])
   const [nextOffset, setNextOffset] = useState<number | null>(null)
@@ -168,14 +168,11 @@ export function CorrelationExplorer({ userId, workspaceId, canCreateDecisions = 
     })
   }
 
-  async function saveEvidence(kind: "insight" | "decision") {
+  async function saveInsight() {
     if (!detail) return
     await execute(async () => {
-      const result = await correlationRequest<{ decision_payload?: DecisionCreatePayload }>(userId, `/correlation-results/${detail.result_id}/evidence`, { method: "POST", body: JSON.stringify({ kind }) }, workspaceId)
-      if (kind === "decision" && result.decision_payload) {
-        const decision = await createDecision(result.decision_payload, userId, workspaceId)
-        window.location.assign(`/dashboard/decisions/${decision.id}`)
-      } else setMessage("Insight saved.")
+      await correlationRequest(userId, `/correlation-results/${detail.result_id}/evidence`, { method: "POST", body: JSON.stringify({ kind: "insight" }) }, workspaceId)
+      setMessage("Insight saved.")
     })
   }
 
@@ -234,6 +231,6 @@ export function CorrelationExplorer({ userId, workspaceId, canCreateDecisions = 
         <p className="text-xs leading-5 text-gray-500">Association does not establish causation. Lag counts shared reporting periods. Significance is unavailable when the statistical backend does not provide p-values.</p>
       </>}
     </section>}
-    {detail && <RelationshipEvidence detail={detail} busy={busy} canPin={capabilities.widgets} canDecide={canCreateDecisions} onClose={() => { setDetail(null); window.history.replaceState(null, "", `${window.location.pathname}?run=${runId}`) }} onPin={() => void saveWidget("saved_relationship")} onInsight={() => void saveEvidence("insight")} onDecision={() => void saveEvidence("decision")} />}
+    {detail && <RelationshipEvidence detail={detail} busy={busy} canPin={capabilities.widgets} onClose={() => { setDetail(null); window.history.replaceState(null, "", `${window.location.pathname}?run=${runId}`) }} onPin={() => void saveWidget("saved_relationship")} onInsight={() => void saveInsight()} />}
   </div>
 }

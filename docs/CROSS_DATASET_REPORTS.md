@@ -16,6 +16,12 @@ Users supply their action, reasoning, expected measurable outcome, outcome
 metric and review date. Existing decision permissions, ownership and outcome
 tracking remain authoritative.
 
+Decision creation is centralized under `/dashboard/decisions`: its one creation
+entry opens `/dashboard/decisions/new`. That form can attach a saved report and
+choose its outcome metric, or create a manual dataset-linked decision. Analysis
+pages display evidence and existing decisions, without creation buttons or
+one-click recommendation-to-decision handlers.
+
 Single-dataset inspection remains at `/dashboard/reports/dataset`. Existing
 relationship monitors and advanced matrices remain available from Explore.
 Completed advanced analyses can seed a report while preserving a link to the

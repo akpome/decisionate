@@ -13,43 +13,14 @@ import {
 } from "@clerk/nextjs"
 import Link from "next/link"
 import dynamic from "next/dynamic"
-import { useRouter } from "next/navigation"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
-import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 import { CorrelationWidgets } from "@/features/relationships/correlation-widgets"
-import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
 import {
   formatMetricLabel,
   MetricSelector,
 } from "@/features/dashboard/components/metric-selector"
 
-import {
-  createDecision,
-  getDatasetJoinCache,
-  joinDatasets,
-  type AIAnalysis,
-  type DatasetAnomaliesResponse,
-  type DatasetJoinResult,
-  type DatasetSummary,
-  type DashboardPreferencePayload,
-  type OrganizationRecord,
-  type OrganizationWorkspaceRecord,
-  getDatasetAIAnalysis,
-  getDatasetAnomalies,
-  getDatasetDetails,
-  getDatasetShareLink,
-  getDatasetShareStatus,
-  getDatasets,
-  getDatasetPreference,
-  getDashboardPreference,
-  getMyOrganization,
-  getOrganizationWorkspaces,
-  stopDatasetSharing,
-  updateDatasetPreference,
-} from "@/lib/api"
-import {
-  buildAIRecommendationDecisionPayload,
-} from "@/features/decisions/lib/ai-decision-handoff"
+import { getDatasetJoinCache, joinDatasets, type AIAnalysis, type DatasetAnomaliesResponse, type DatasetJoinResult, type DatasetSummary, type DashboardPreferencePayload, type OrganizationRecord, type OrganizationWorkspaceRecord, getDatasetAIAnalysis, getDatasetAnomalies, getDatasetDetails, getDatasetShareLink, getDatasetShareStatus, getDatasets, getDatasetPreference, getDashboardPreference, getMyOrganization, getOrganizationWorkspaces, stopDatasetSharing, updateDatasetPreference } from "@/lib/api";
 import {
   AnalysisStatus,
 } from "@/features/ai/components/analysis-status"
@@ -239,8 +210,6 @@ type ReportSectionProps = {
   anomalyError: boolean
   aiAnalysis?: AIAnalysis | null
   analysisLoading: boolean
-  onCreateDecision?: () => void
-  creatingDecision: boolean
 }
 
 type DashboardViewPreference = DashboardPreferencePayload
@@ -503,7 +472,6 @@ export default function DashboardPage() {
     isLoaded: authLoaded,
     userId: clerkUserId,
   } = useAuth()
-  const router = useRouter()
   const serverUserId =
     useDashboardSessionUserId()
   const userId =
@@ -519,7 +487,6 @@ export default function DashboardPage() {
   const {
     canConfigureWorkspace,
     canManageWorkspaceData,
-    canCreateDecisions,
     loadingWorkspaceAccess,
   } =
     useWorkspaceAccess(userId || undefined)
@@ -636,8 +603,6 @@ export default function DashboardPage() {
   const [defaultDatasetRetryKey, setDefaultDatasetRetryKey] =
     useState(0)
   const [pdfExporting, setPdfExporting] =
-    useState(false)
-  const [creatingDashboardRecommendation, setCreatingDashboardRecommendation] =
     useState(false)
   const [organization, setOrganization] =
     useState<OrganizationRecord | null>(null)
@@ -2405,59 +2370,6 @@ export default function DashboardPage() {
       [metrics]
     )
 
-  async function handleCreateMainDashboardRecommendation() {
-    const analysis = dataset?.ai_analysis
-
-    if (
-      !userId ||
-      !selectedDatasetId ||
-      !primaryMetric ||
-      !analysis ||
-      !analysis.recommendations.length ||
-      !canCreateDecisions ||
-      creatingDashboardRecommendation
-    ) {
-      return
-    }
-
-    const decisionPayload =
-      buildAIRecommendationDecisionPayload(
-        selectedDatasetId,
-        primaryMetric,
-        analysis,
-        dataset.file_name
-      )
-
-    if (!decisionPayload) {
-      return
-    }
-
-    try {
-      setCreatingDashboardRecommendation(true)
-      setDashboardError("")
-
-      const createdDecision =
-        await createDecision(
-          decisionPayload,
-          userId,
-          activeWorkspaceId
-        )
-
-      router.push(
-        `/dashboard/decisions/${createdDecision.id}`
-      )
-    } catch (error) {
-      setDashboardError(
-        getErrorMessage(
-          error,
-          "Unable to create a decision from the dashboard analysis."
-        )
-      )
-    } finally {
-      setCreatingDashboardRecommendation(false)
-    }
-  }
-
   const chartRows =
     scaleMode === "indexed" &&
     selectedMetrics.length > 1
@@ -2892,15 +2804,6 @@ export default function DashboardPage() {
     anomalyError: dashboardAnomalyError,
     aiAnalysis: dataset?.ai_analysis,
     analysisLoading: metricAnalysisLoading,
-    onCreateDecision:
-      canCreateDecisions &&
-      dashboardAnalysisMetric &&
-      dataset?.ai_analysis?.recommendations.length
-        ? () => {
-          void handleCreateMainDashboardRecommendation()
-        }
-        : undefined,
-    creatingDecision: creatingDashboardRecommendation,
   }
 
   /* =========================
@@ -3290,32 +3193,6 @@ export default function DashboardPage() {
     !isSelectedDerivedDataset &&
     sourceDatasets.length > 1
 
-  function handleOpenDashboardDecision() {
-    if (!selectedDatasetId || !canCreateDecisions) {
-      return
-    }
-
-    const autoMetricMapping =
-      getDashboardAutoMetricMapping(
-        selectedDashboardDefinition.componentKey,
-        selectedDashboardDataset
-      )
-    const dashboardMetric =
-      currentMetricMapping.primary &&
-      availableMetricColumns.includes(
-        currentMetricMapping.primary
-      )
-        ? currentMetricMapping.primary
-        : autoMetricMapping.primary
-    router.push(
-      buildCreateDecisionHref({
-        datasetId: selectedDatasetId,
-        metric: dashboardMetric,
-        returnTo: "/dashboard",
-      })
-    )
-  }
-
   const dashboardManagementActions = (
     <div
       className={
@@ -3329,14 +3206,7 @@ export default function DashboardPage() {
       <Link href="/dashboard/reports" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
         <GitCompare size={16} />Cross-dataset review
       </Link>
-      {canCreateDecisions && selectedDatasetId && (
-        <CreateDecisionButton
-          onClick={handleOpenDashboardDecision}
-          size="sm"
-          title="Create a decision from this dashboard's selected dataset and metric"
-          className="w-full sm:w-auto"
-        />
-      )}
+
 
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
         {canConfigureWorkspace && shareEnabled && (
@@ -3473,9 +3343,6 @@ export default function DashboardPage() {
                   metric={dashboardAnalysisMetric}
                   className="h-full !rounded-none !border-0 !bg-transparent !p-0"
                   compact
-                  creatingDecision={
-                    creatingDashboardRecommendation
-                  }
                 />
               )}
 
@@ -3562,7 +3429,6 @@ export default function DashboardPage() {
           periodFilter={periodFilter}
           aggregation={aggregation}
           aggregationType={aggregationType}
-          canCreateDecisions={canCreateDecisions}
           onJoinResult={handleJoinedDatasetResult}
           persistedResult={joinedDatasetResult}
         />
@@ -3623,62 +3489,6 @@ export default function DashboardPage() {
       )
         ? currentMetricMapping.primary
         : undefined
-    const dashboardRecommendationMetric =
-      customDashboardMetricValue ||
-      dashboardAutoMetricMapping.primary
-
-    async function handleCreateDashboardRecommendation() {
-      const analysis = dataset?.ai_analysis
-
-      if (
-        !userId ||
-        !selectedDatasetId ||
-        !dashboardRecommendationMetric ||
-        !analysis ||
-        !analysis.recommendations.length ||
-        !canCreateDecisions ||
-        creatingDashboardRecommendation
-      ) {
-        return
-      }
-
-      const decisionPayload =
-        buildAIRecommendationDecisionPayload(
-          selectedDatasetId,
-          dashboardRecommendationMetric,
-          analysis,
-          dataset.file_name
-        )
-
-      if (!decisionPayload) {
-        return
-      }
-
-      try {
-        setCreatingDashboardRecommendation(true)
-        setDashboardError("")
-
-        const createdDecision =
-          await createDecision(
-            decisionPayload,
-            userId,
-            activeWorkspaceId
-          )
-
-        router.push(
-          `/dashboard/decisions/${createdDecision.id}`
-        )
-      } catch (error) {
-        setDashboardError(
-          getErrorMessage(
-            error,
-            "Unable to create a decision from the dashboard analysis."
-          )
-        )
-      } finally {
-        setCreatingDashboardRecommendation(false)
-      }
-    }
     const dashboardControls = usesDatasetSelection ? (
       <div className="grid w-full min-w-0 grid-cols-1 gap-3">
         <div className="min-w-0 space-y-1">
@@ -3905,7 +3715,6 @@ export default function DashboardPage() {
             periodFilter={periodFilter}
             aggregation={aggregation}
             aggregationType={aggregationType}
-            canCreateDecisions={canCreateDecisions}
             onJoinResult={handleJoinedDatasetResult}
             persistedResult={joinedDatasetResult}
           />
@@ -3970,7 +3779,6 @@ export default function DashboardPage() {
           aggregation={aggregation}
           aggregationType={aggregationType}
           canManageWorkspaceData={canManageWorkspaceData}
-          canCreateDecisions={canCreateDecisions}
           analysisMetric={dashboardAnalysisMetric}
           analysisLoading={metricAnalysisLoading}
           analysisError={metricAnalysisError}
@@ -3995,21 +3803,6 @@ export default function DashboardPage() {
           managementActions={dashboardManagementActions}
           managementPanels={dashboardManagementPanels}
           showAnalysisPanel={showAnalysisPanel}
-          onCreateRecommendation={
-            usesDatasetMetricMapping &&
-            canCreateDecisions &&
-            Boolean(
-              dashboardRecommendationMetric &&
-              dataset?.ai_analysis?.recommendations.length
-            )
-              ? () => {
-                void handleCreateDashboardRecommendation()
-              }
-              : undefined
-          }
-          creatingRecommendation={
-            creatingDashboardRecommendation
-          }
           status={
             canConfigureWorkspace && shareStatus ? (
               <div

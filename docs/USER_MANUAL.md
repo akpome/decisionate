@@ -421,12 +421,14 @@ The Decisions page provides:
 
 ### 10.1 Create a decision
 
-A decision can be created:
+Open **Decisions** and select **Create decision**. This is the single creation
+entry point; dashboards, insights, forecasts, alerts and reports do not create
+decisions directly.
 
-- From **Create Decision**
-- From an insight or recommendation
-- From a dataset analysis card
-- From an existing decision workflow
+Select a saved cross-dataset report to attach its business question, source
+metrics, findings and limitations, then choose an outcome metric. Alternatively,
+choose a dataset for a manual decision. Report-backed decisions require your
+reasoning and a review date; the saved evidence is retained with the decision.
 
 Record enough context for someone else to understand the decision later:
 

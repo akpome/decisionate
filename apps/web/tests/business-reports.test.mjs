@@ -50,11 +50,14 @@ test("main Reports route opens the combined workspace while dataset inspection r
   assert.match(inspection, /single-dataset-report/)
 })
 
-test("decision action checks decision permissions and preserves the evidence handoff", () => {
-  const page = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
-  assert.match(page, /if \(!canDecide \|\| !report\?\.report_id\) return/)
+test("central decision form checks decision permissions and preserves the report evidence handoff", () => {
+  const page = readFileSync(new URL("../app/dashboard/decisions/new/page.tsx", import.meta.url), "utf8")
+  assert.match(page, /if \(!user\?\.id \|\| !canCreateDecisions \|\| creatingDecision\) return/)
   assert.match(page, /decision-evidence/)
-  assert.match(page, /name="reasoning" required/)
-  assert.match(page, /name="review_date"/)
-  assert.match(page, /createDecision\(evidence\.decision_payload, userId, workspaceId\)/)
+  assert.match(page, /reasoning: createDecisionDescription\.trim\(\)/)
+  assert.match(page, /review_date: createDecisionReviewDate/)
+  assert.match(page, /payload = evidence\.decision_payload/)
+  assert.match(page, /\.\.\.payload, priority: createDecisionPriority/)
+  const reports = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  assert.doesNotMatch(reports, /createDecision|DecisionDialog|Create decision/)
 })

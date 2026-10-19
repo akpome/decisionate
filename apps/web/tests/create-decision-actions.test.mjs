@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { readFileSync, existsSync } from "node:fs"
+import { readFileSync, existsSync, readdirSync } from "node:fs"
 import { createRequire } from "node:module"
 import path from "node:path"
 import test from "node:test"
@@ -128,23 +128,22 @@ test("creation and pending labels use the existing translation hook", () => {
   assert.match(render(TranslatedButton, { creating: true }), />translated:Creating\.\.\.<\/span>/)
 })
 
-test("insight cards only offer creation when a permitted callback is supplied", () => {
+test("insight cards remain evidence-only even if a legacy creation callback is supplied", () => {
   const { InsightCard } = loadSource("features/insights/components/insight-card.tsx")
   const insight = { title: "Revenue change", description: "Review the change in revenue." }
   assert.doesNotMatch(render(InsightCard, { insight }), /<button/)
   const html = render(InsightCard, { insight, onCreateDecision: () => {}, actionDisabled: true })
-  assert.match(html, /title="Create a decision from Revenue change"/)
-  assert.match(html, /disabled=""/)
-  assert.match(html, /mt-auto/)
+  assert.doesNotMatch(html, /<button|Create decision/)
+  assert.match(html, /Review the change in revenue/)
 })
 
-test("recommendation cards keep the action after the evidence and omit it for read-only access", () => {
+test("recommendation cards display their findings without creating a decision", () => {
   const { RecommendationCard } = loadSource("features/dashboard/components/recommendation-card.tsx")
   const props = { title: "Review spending", reason: "Costs increased", confidence: "high", decisionBrief: "Review costs.", creatingDecision: false }
   assert.doesNotMatch(render(RecommendationCard, props), /<button/)
   const html = render(RecommendationCard, { ...props, onCreateDecision: () => {} })
-  assert.ok(html.indexOf("Costs increased") < html.indexOf("<button"))
-  assert.match(html, /mt-auto/)
+  assert.match(html, /Costs increased/)
+  assert.doesNotMatch(html, /<button|Create decision/)
 })
 
 function sourceAst(relativePath) {
@@ -161,8 +160,8 @@ function findNodes(ast, predicate) {
   return nodes
 }
 
-test("manual creation appears once in the Decisions header and dashboard toolbar", () => {
-  for (const [relativePath, tag] of [["app/dashboard/decisions/page.tsx", "CreateDecisionLink"], ["app/dashboard/page.tsx", "CreateDecisionButton"]]) {
+test("creation appears once in the Decisions header and once as the central form submission", () => {
+  for (const [relativePath, tag] of [["app/dashboard/decisions/page.tsx", "CreateDecisionLink"], ["app/dashboard/decisions/new/page.tsx", "CreateDecisionButton"]]) {
     const ast = sourceAst(relativePath)
     const actions = findNodes(ast, node => ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === tag)
     assert.equal(actions.length, 1, relativePath)
@@ -183,16 +182,25 @@ test("Decision Performance renders the shared action toolbar outside the analysi
   assert.equal(toolbars.length, 1)
 })
 
-test("every direct decision handler checks decision permissions rather than data-management permissions", () => {
-  const pages = ["insights", "reports", "forecasts", "datasets/[id]", "decisions/new", "alerts"]
-  for (const page of pages) {
-    const relativePath = page === "reports" ? "features/reports/single-dataset-report.tsx" : `app/dashboard/${page}/page.tsx`
-    const ast = sourceAst(relativePath)
-    const handlers = findNodes(ast, node => ts.isFunctionDeclaration(node) && /^handleCreate/.test(node.name?.text ?? ""))
-    assert.ok(handlers.length > 0, page)
-    for (const handler of handlers) {
-      const permissionChecks = findNodes(handler, node => ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken && node.operand.getText(ast) === "canCreateDecisions")
-      assert.ok(permissionChecks.length > 0, `${page}: ${handler.name.text}`)
+test("the sole direct decision handler checks decision permissions", () => {
+  const ast = sourceAst("app/dashboard/decisions/new/page.tsx")
+  const [handler] = findNodes(ast, node => ts.isFunctionDeclaration(node) && node.name?.text === "handleCreateDecision")
+  const permissionChecks = findNodes(handler, node => ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken && node.operand.getText(ast) === "canCreateDecisions")
+  assert.ok(permissionChecks.length > 0)
+})
+
+test("no analysis surface or help shortcut offers decision creation", () => {
+  function inspect(directory) {
+    for (const entry of readdirSync(path.join(webRoot, directory), { withFileTypes: true })) {
+      const relativePath = `${directory}/${entry.name}`
+      if (entry.isDirectory()) { inspect(relativePath); continue }
+      if (!entry.name.endsWith(".tsx") || relativePath.startsWith("app/dashboard/decisions/") || relativePath.startsWith("features/decisions/")) continue
+      const ast = sourceAst(relativePath)
+      assert.equal(findNodes(ast, node => ts.isCallExpression(node) && node.expression.getText(ast) === "createDecision").length, 0, relativePath)
+      assert.equal(findNodes(ast, node => (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) && /CreateDecision(Button|Link)/.test(node.tagName.getText(ast))).length, 0, relativePath)
+      assert.equal(findNodes(ast, node => ts.isJsxAttribute(node) && ["onCreateDecision", "onCreateRecommendation"].includes(node.name.text)).length, 0, relativePath)
     }
   }
+  inspect("app/dashboard")
+  inspect("features")
 })

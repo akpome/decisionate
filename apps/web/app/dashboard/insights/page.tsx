@@ -39,31 +39,14 @@ import {
 import {
   MultiMetricAnalysisPanel,
 } from "@/features/insights/components/multi-metric-analysis-panel"
-import {
-  buildAIRecommendationDecisionPayload,
-} from "@/features/decisions/lib/ai-decision-handoff"
 import type {
   Insight,
 } from "@/features/insights/utils/generate-insights"
 
 import { useUser } from "@clerk/nextjs"
-import { useRouter } from "next/navigation"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 
-import {
-  createDecision,
-  getDatasetAnomalies,
-  getDatasetAIAnalysis,
-  getDatasetDetails,
-  getDatasets,
-  type AIAnalysis,
-  type DashboardAggregation,
-  type DashboardValueAggregation,
-  type DatasetAnomaliesResponse,
-  type DatasetAnomalyPoint,
-  type DatasetMetricSummary,
-  type DatasetSummary,
-} from "@/lib/api"
+import { getDatasetAnomalies, getDatasetAIAnalysis, getDatasetDetails, getDatasets, type AIAnalysis, type DashboardAggregation, type DashboardValueAggregation, type DatasetAnomaliesResponse, type DatasetMetricSummary, type DatasetSummary } from "@/lib/api";
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -76,9 +59,6 @@ import {
 import {
   getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
-import {
-  buildInsightDecisionPayload,
-} from "@/features/decisions/lib/decision-handoff"
 import {
   aggregateSummaryAwareValues,
   isInternalSummaryColumn,
@@ -158,7 +138,6 @@ export default function InsightsPage() {
     useState("")
 
   const { user } = useUser()
-  const router = useRouter()
   const {
     activeWorkspaceId,
     workspaceVersion,
@@ -166,7 +145,6 @@ export default function InsightsPage() {
     useActiveWorkspace(user?.id)
   const {
     canManageWorkspaceData,
-    canCreateDecisions,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
 
@@ -200,8 +178,6 @@ export default function InsightsPage() {
   ] = useState(0)
   const [datasetLoadRetryKey, setDatasetLoadRetryKey] =
     useState(0)
-  const [creatingDecisionKey, setCreatingDecisionKey] =
-    useState<string>()
 
   const metricColumns =
     useMemo(
@@ -276,11 +252,6 @@ export default function InsightsPage() {
     metricColumns.includes(selectedMetric)
       ? selectedMetric
       : undefined
-  const aiRecommendationMetric =
-    effectiveSelectedMetric ||
-    (metricColumns.length === 1
-      ? metricColumns[0]
-      : undefined)
   const filteredInsights =
     useMemo(
       () =>
@@ -469,171 +440,6 @@ export default function InsightsPage() {
     setInsightsRefreshVersion(
       version => version + 1
     )
-  }
-
-  async function handleCreateDecision(
-    insight: InsightRecord,
-    insightKey: string
-  ) {
-    if (
-      !user?.id ||
-      !selectedDatasetId ||
-      !canCreateDecisions ||
-      creatingDecisionKey
-    ) {
-      return
-    }
-
-    try {
-      setCreatingDecisionKey(insightKey)
-      setPageError("")
-
-      const createdDecision =
-        await createDecision(
-          buildInsightDecisionPayload(
-            selectedDatasetId,
-            insight,
-            effectiveSelectedMetric,
-            dataset?.file_name
-          ),
-          user.id,
-          activeWorkspaceId
-        )
-
-      router.push(
-        `/dashboard/decisions/${createdDecision.id}`
-      )
-    } catch (error) {
-      setPageError(
-        getInsightsPageErrorMessage(
-          error,
-          "Unable to create a decision from this insight."
-        )
-      )
-    } finally {
-      setCreatingDecisionKey(undefined)
-    }
-  }
-
-  async function handleCreateAIRecommendation() {
-    const recommendation =
-      dataset?.ai_analysis?.recommendations[0]
-
-    if (
-      !user?.id ||
-      !selectedDatasetId ||
-      !dataset?.ai_analysis ||
-      !aiRecommendationMetric ||
-      !recommendation ||
-      !canCreateDecisions ||
-      creatingDecisionKey
-    ) {
-      return
-    }
-
-    const decisionPayload =
-      buildAIRecommendationDecisionPayload(
-        selectedDatasetId,
-        aiRecommendationMetric,
-        dataset.ai_analysis,
-        dataset.file_name
-      )
-
-    if (!decisionPayload) {
-      return
-    }
-
-    try {
-      setCreatingDecisionKey("ai-analysis")
-      setPageError("")
-
-      const createdDecision =
-        await createDecision(
-          decisionPayload,
-          user.id,
-          activeWorkspaceId
-        )
-
-      router.push(
-        `/dashboard/decisions/${createdDecision.id}`
-      )
-    } catch (error) {
-      setPageError(
-        getInsightsPageErrorMessage(
-          error,
-          "Unable to create a decision from the analysis."
-        )
-      )
-    } finally {
-      setCreatingDecisionKey(undefined)
-    }
-  }
-
-  async function handleCreateAnomalyDecision(
-    metric: string,
-    anomaly: DatasetAnomalyPoint
-  ) {
-    if (
-      !user?.id ||
-      !selectedDatasetId ||
-      !canCreateDecisions ||
-      creatingDecisionKey
-    ) {
-      return
-    }
-
-    const decisionKey = `anomaly:${metric}:${anomaly.period}:${anomaly.direction}`
-    const metricLabel = formatMetricLabel(metric)
-    const directionLabel =
-      anomaly.direction === "high"
-        ? "high"
-        : "low"
-    const periodLabel = anomaly.period.slice(0, 10)
-    const action =
-      `Investigate the ${directionLabel} ${metricLabel} signal for ${periodLabel}, verify the underlying data and business context, then record the outcome.`
-
-    try {
-      setCreatingDecisionKey(decisionKey)
-      setPageError("")
-
-      const createdDecision =
-        await createDecision(
-          {
-            dataset_id: selectedDatasetId,
-            metric_column: metric,
-            recommendation_text: action,
-            recommendation_source: "rules",
-            recommendation_context: [
-              `Observed value: ${anomaly.value}`,
-              `Baseline: ${anomaly.baseline}`,
-              `Score: ${Math.abs(anomaly.score).toFixed(2)}`,
-              `Period: ${periodLabel}`,
-            ].join("; "),
-            title: `Investigate ${metricLabel} anomaly on ${periodLabel}`,
-            action,
-            description: [
-              "A statistical anomaly was detected from the selected dataset window.",
-              `Observed ${anomaly.value} against a baseline of ${anomaly.baseline}.`,
-            ].join("\n\n"),
-            expected_outcome: `Confirm whether the ${metricLabel} anomaly on ${periodLabel} is a valid business signal or a data-quality issue, then record the actual result and lesson learned.`,
-          },
-          user.id,
-          activeWorkspaceId
-        )
-
-      router.push(
-        `/dashboard/decisions/${createdDecision.id}`
-      )
-    } catch (error) {
-      setPageError(
-        getInsightsPageErrorMessage(
-          error,
-          "Unable to create a decision from this anomaly."
-        )
-      )
-    } finally {
-      setCreatingDecisionKey(undefined)
-    }
   }
 
   const refreshButtonLabel =
@@ -1137,12 +943,6 @@ export default function InsightsPage() {
               currentKey => currentKey + 1
             )
           }
-          onCreateDecision={
-            canCreateDecisions
-              ? handleCreateAnomalyDecision
-              : undefined
-          }
-          creatingDecisionKey={creatingDecisionKey}
         />
       )}
 
@@ -1172,18 +972,6 @@ export default function InsightsPage() {
           title="Insight analysis"
           metric={effectiveSelectedMetric}
           className="rounded-2xl p-4"
-          onCreateDecision={
-            canCreateDecisions &&
-            aiRecommendationMetric &&
-            dataset.ai_analysis.recommendations.length > 0
-              ? () => {
-                void handleCreateAIRecommendation()
-              }
-              : undefined
-          }
-          creatingDecision={
-            creatingDecisionKey === "ai-analysis"
-          }
         />
       )}
 
@@ -1242,23 +1030,6 @@ export default function InsightsPage() {
                 key={`${insight.title}-${index}`}
                 insight={insight}
                 label={insight.type || "Insight"}
-                onCreateDecision={
-                  canCreateDecisions
-                    ? () => {
-                      void handleCreateDecision(
-                        insight,
-                        `${index}:${insight.title}`
-                      )
-                    }
-                    : undefined
-                }
-                creatingDecision={
-                  creatingDecisionKey ===
-                  `${index}:${insight.title}`
-                }
-                actionDisabled={
-                  Boolean(creatingDecisionKey)
-                }
               />
             )
           )}

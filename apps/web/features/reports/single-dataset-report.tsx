@@ -19,21 +19,7 @@ import {
   YAxis,
 } from "recharts"
 
-import {
-  getDatasetDetails,
-  getDatasetAIAnalysis,
-  getDatasets,
-  getMyOrganization,
-  getOrganizationWorkspaces,
-  createDecision,
-  type DatasetSummary,
-  type AIAnalysis,
-  type DashboardAggregation,
-  type DashboardValueAggregation,
-  type OrganizationRecord,
-  type OrganizationWorkspaceRecord,
-  type ForecastPeriodFilter,
-} from "@/lib/api"
+import { getDatasetDetails, getDatasetAIAnalysis, getDatasets, getMyOrganization, getOrganizationWorkspaces, type DatasetSummary, type AIAnalysis, type DashboardAggregation, type DashboardValueAggregation, type OrganizationRecord, type OrganizationWorkspaceRecord, type ForecastPeriodFilter } from "@/lib/api";
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -66,14 +52,7 @@ import {
 import {
   AnalysisStatus,
 } from "@/features/ai/components/analysis-status"
-import {
-  buildAIRecommendationDecisionPayload,
-} from "@/features/decisions/lib/ai-decision-handoff"
-import { useRouter } from "next/navigation"
 import { useDecisionateText } from "@/app/use-decisionate-language"
-import {
-  buildInsightDecisionPayload,
-} from "@/features/decisions/lib/decision-handoff"
 
 type ReportCellValue =
   | string
@@ -208,14 +187,12 @@ export default function SingleDatasetReport() {
     isLoaded: authLoaded,
     isSignedIn,
   } = useUser()
-  const router = useRouter()
   const {
     activeWorkspaceId,
     workspaceVersion,
   } = useActiveWorkspace(user?.id)
   const {
     canManageWorkspaceData,
-    canCreateDecisions,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
   const [datasets, setDatasets] =
@@ -260,8 +237,6 @@ export default function SingleDatasetReport() {
     useState<OrganizationRecord | null>(null)
   const [workspaces, setWorkspaces] =
     useState<OrganizationWorkspaceRecord[]>([])
-  const [creatingDecisionKey, setCreatingDecisionKey] =
-    useState<string>()
 
   const activeBrand = useMemo(
     () =>
@@ -331,11 +306,6 @@ export default function SingleDatasetReport() {
   )
   const topMetrics = reportMetrics.slice(0, 4)
   const topInsights = reportInsights.slice(0, 4)
-  const aiRecommendationMetric =
-    effectiveSelectedMetric ||
-    (metricColumns.length === 1
-      ? metricColumns[0]
-      : undefined)
 
   useEffect(() => {
     if (
@@ -735,104 +705,6 @@ export default function SingleDatasetReport() {
     )
   }
 
-  async function handleCreateDecision(
-    insight: ReportInsight,
-    insightKey: string
-  ) {
-    if (
-      !user?.id ||
-      !selectedDatasetId ||
-      !canCreateDecisions ||
-      creatingDecisionKey
-    ) {
-      return
-    }
-
-    try {
-      setCreatingDecisionKey(insightKey)
-      setErrorMessage("")
-
-      const createdDecision =
-        await createDecision(
-          buildInsightDecisionPayload(
-            selectedDatasetId,
-            insight,
-            effectiveSelectedMetric,
-            dataset?.file_name
-          ),
-          user.id,
-          activeWorkspaceId
-        )
-
-      router.push(
-        `/dashboard/decisions/${createdDecision.id}`
-      )
-    } catch (error) {
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          "Unable to create a decision from this report insight."
-        )
-      )
-    } finally {
-      setCreatingDecisionKey(undefined)
-    }
-  }
-
-  async function handleCreateAIRecommendation() {
-    const recommendation =
-      dataset?.ai_analysis?.recommendations[0]
-
-    if (
-      !user?.id ||
-      !selectedDatasetId ||
-      !dataset?.ai_analysis ||
-      !aiRecommendationMetric ||
-      !recommendation ||
-      !canCreateDecisions ||
-      creatingDecisionKey
-    ) {
-      return
-    }
-
-    const decisionPayload =
-      buildAIRecommendationDecisionPayload(
-        selectedDatasetId,
-        aiRecommendationMetric,
-        dataset.ai_analysis,
-        dataset.file_name
-      )
-
-    if (!decisionPayload) {
-      return
-    }
-
-    try {
-      setCreatingDecisionKey("ai-analysis")
-      setErrorMessage("")
-
-      const createdDecision =
-        await createDecision(
-          decisionPayload,
-          user.id,
-          activeWorkspaceId
-        )
-
-      router.push(
-        `/dashboard/decisions/${createdDecision.id}`
-      )
-    } catch (error) {
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          "Unable to create a decision from the report analysis."
-        )
-      )
-    } finally {
-      setCreatingDecisionKey(undefined)
-    }
-  }
-
   const refreshButtonLabel =
     loadingDatasets
       ? "Loading..."
@@ -1108,7 +980,7 @@ export default function SingleDatasetReport() {
       <WorkspaceAccessNotice
         loading={loadingWorkspaceAccess}
         canManageWorkspaceData={canManageWorkspaceData}
-        message="Analysis and metric selection are available in this shared workspace. Workspace managers handle decision creation and data changes."
+        message="Analysis and metric selection are available in this shared workspace. Workspace managers handle data changes."
         className="print:hidden"
       />
 
@@ -1143,18 +1015,6 @@ export default function SingleDatasetReport() {
                 currentKey => currentKey + 1
               )
             }
-            onCreateRecommendation={
-              canCreateDecisions &&
-              aiRecommendationMetric &&
-              dataset.ai_analysis?.recommendations.length
-                ? () => {
-                  void handleCreateAIRecommendation()
-                }
-                : undefined
-            }
-            creatingRecommendation={
-              creatingDecisionKey === "ai-analysis"
-            }
           />
 
           <ReportMetricGrid
@@ -1170,16 +1030,6 @@ export default function SingleDatasetReport() {
           <ReportInsights
             insights={topInsights}
             selectedMetric={effectiveSelectedMetric}
-            onCreateDecision={(insight, insightKey) => {
-              if (canCreateDecisions) {
-                void handleCreateDecision(
-                  insight,
-                  insightKey
-                )
-              }
-            }}
-            allowDecisionCreation={canCreateDecisions}
-            creatingDecisionKey={creatingDecisionKey}
           />
 
           <ReportFooter
@@ -1288,8 +1138,6 @@ function ExecutiveSummary({
   analysisLoading,
   analysisError,
   onRetryAnalysis,
-  onCreateRecommendation,
-  creatingRecommendation,
 }: {
   dataset: ReportDatasetDetails
   metrics: ReportMetric[]
@@ -1298,8 +1146,6 @@ function ExecutiveSummary({
   analysisLoading: boolean
   analysisError: boolean
   onRetryAnalysis: () => void
-  onCreateRecommendation?: () => void
-  creatingRecommendation: boolean
 }) {
   return (
     <section className="grid min-w-0 gap-5 py-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -1345,8 +1191,6 @@ function ExecutiveSummary({
             metric={selectedMetric}
             className="mt-4 bg-white"
             actionClassName="print:hidden"
-            onCreateDecision={onCreateRecommendation}
-            creatingDecision={creatingRecommendation}
           />
         )}
       </div>
@@ -1587,18 +1431,9 @@ function formatReportChartValue(
 function ReportInsights({
   insights,
   selectedMetric,
-  onCreateDecision,
-  allowDecisionCreation = true,
-  creatingDecisionKey,
 }: {
   insights: ReportInsight[]
   selectedMetric?: string
-  onCreateDecision?: (
-    insight: ReportInsight,
-    insightKey: string
-  ) => void
-  allowDecisionCreation?: boolean
-  creatingDecisionKey?: string
 }) {
   if (insights.length === 0) {
     return (
@@ -1622,23 +1457,6 @@ function ReportInsights({
             key={`${insight.title}-${index}`}
             insight={insight}
             label={insight.type || "Insight"}
-            onCreateDecision={
-              onCreateDecision && allowDecisionCreation
-                ? () => {
-                  onCreateDecision(
-                    insight,
-                    `${index}:${insight.title}`
-                  )
-                }
-                : undefined
-            }
-            creatingDecision={
-              creatingDecisionKey ===
-              `${index}:${insight.title}`
-            }
-            actionDisabled={
-              Boolean(creatingDecisionKey)
-            }
           />
         ))}
       </div>

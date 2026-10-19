@@ -5,7 +5,6 @@ import {
   useMemo,
   useState,
 } from "react"
-import { useRouter } from "next/navigation"
 import {
   GitMerge,
   Play,
@@ -13,21 +12,8 @@ import {
   X,
 } from "lucide-react"
 
-import {
-  createDecision,
-  deleteDatasetJoinCache,
-  getDatasetJoinMetadata,
-  joinDatasets,
-  type DatasetJoinMetadata,
-  type DatasetJoinResult,
-  type DatasetJoinSelection,
-  type DatasetSummary,
-  type DashboardAggregation,
-  type DashboardValueAggregation,
-  type ForecastPeriodFilter,
-} from "@/lib/api"
+import { deleteDatasetJoinCache, getDatasetJoinMetadata, joinDatasets, type DatasetJoinMetadata, type DatasetJoinResult, type DatasetJoinSelection, type DatasetSummary, type DashboardAggregation, type DashboardValueAggregation, type ForecastPeriodFilter } from "@/lib/api";
 import { useDecisionateText } from "@/app/use-decisionate-language"
-import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 
 type DatasetJoinPanelProps = {
   datasets: DatasetSummary[]
@@ -39,7 +25,6 @@ type DatasetJoinPanelProps = {
   periodFilter: ForecastPeriodFilter
   aggregation: DashboardAggregation
   aggregationType: DashboardValueAggregation
-  canCreateDecisions?: boolean
   onJoinResult?: (
     result: DatasetJoinResult | null
   ) => void
@@ -88,12 +73,10 @@ export function DatasetJoinPanel({
   periodFilter,
   aggregation,
   aggregationType,
-  canCreateDecisions = false,
   onJoinResult,
   persistedResult,
 }: DatasetJoinPanelProps) {
   const { t } = useDecisionateText()
-  const router = useRouter()
   const [selectedDatasetIds, setSelectedDatasetIds] =
     useState<number[]>(() =>
       selectedDatasetId ? [selectedDatasetId] : []
@@ -107,8 +90,6 @@ export function DatasetJoinPanel({
   const [loadingMetadata, setLoadingMetadata] =
     useState(false)
   const [joining, setJoining] =
-    useState(false)
-  const [creatingDecision, setCreatingDecision] =
     useState(false)
   const [error, setError] = useState("")
   const activeResult = result ?? persistedResult ?? null
@@ -476,109 +457,6 @@ export function DatasetJoinPanel({
     }
   }
 
-  async function handleCreateDecision() {
-    if (
-      !userId ||
-      !selectedDatasetId ||
-      !activeResult ||
-      !canCreateDecisions ||
-      activeResult.matched_period_count < 1 ||
-      creatingDecision
-    ) {
-      return
-    }
-
-    const availableDatasetIds = new Set(
-      datasets.map(dataset => dataset.id)
-    )
-    const decisionDatasetId =
-      (activeResult.derived_dataset_id &&
-        activeResult.derived_dataset
-        ? activeResult.derived_dataset_id
-        : availableDatasetIds.has(activeResult.primary_dataset_id)
-        ? activeResult.primary_dataset_id
-        : availableDatasetIds.has(selectedDatasetId)
-        ? selectedDatasetId
-        : undefined)
-
-    if (!decisionDatasetId) {
-      setError(
-        t("The joined evidence uses a dataset that is no longer available. Reset and recreate the join.")
-      )
-      return
-    }
-
-    setCreatingDecision(true)
-    setError("")
-
-    try {
-      const latestRow = activeResult.rows[activeResult.rows.length - 1]
-      const latestEvidence = activeResult.datasets
-        .map(item =>
-          `${item.label}: ${formatJoinValue(
-            latestRow?.[item.label] as
-              | string
-              | number
-              | null
-              | undefined
-          )}`
-        )
-        .join("; ")
-      const joinedSourceNames = Array.from(
-        new Set(
-          activeResult.datasets
-            .map(item => item.file_name.trim())
-            .filter(Boolean)
-        )
-      )
-      const generatedDecisionTitle =
-        `Review joined evidence: ${joinedSourceNames.join(" + ")}`
-      const decisionTitle =
-        generatedDecisionTitle.length > 120
-          ? `${generatedDecisionTitle.slice(0, 117)}...`
-          : generatedDecisionTitle
-      const decision = await createDecision(
-        {
-          dataset_id: decisionDatasetId,
-          evidence_dataset_ids: activeResult.dataset_ids,
-          evidence_metrics: activeResult.datasets.map(item => ({
-            dataset_id: item.dataset_id,
-            file_name: item.file_name,
-            metric_column: item.metric_column,
-            label: item.label,
-            column_type: item.column_type,
-          })),
-          recommendation_text:
-            t("Review the joined metrics and agree on the next action."),
-          recommendation_source: "rules",
-          recommendation_context: activeResult.decision_context,
-          title: decisionTitle,
-          description: [
-            activeResult.decision_context,
-            `${t("Latest shared period:")} ${latestRow?.period ?? "-"}.`,
-            `${t("Latest evidence:")} ${latestEvidence}.`,
-            t("Select an outcome metric in Decision Details only if this decision needs numeric outcome measurement."),
-          ].join("\n\n"),
-          expected_outcome:
-            t("Agree on an action based on the joined evidence and measure the result by the review date."),
-          priority: "medium",
-          category: "general",
-        },
-        userId,
-        workspaceId
-      )
-      router.push(`/dashboard/decisions/${decision.id}`)
-    } catch (decisionError) {
-      setError(
-        decisionError instanceof Error
-          ? decisionError.message
-          : t("Unable to create a decision from the joined evidence.")
-      )
-    } finally {
-      setCreatingDecision(false)
-    }
-  }
-
   if (
     !selectedDatasetId ||
     (datasets.length < 2 && !activeResult)
@@ -784,15 +662,7 @@ export function DatasetJoinPanel({
                 {activeResult.matched_period_count} {t("shared periods from")} {activeResult.dataset_ids.length} {t("datasets and")} {activeResult.datasets.length} {t("joined columns, with")} {activeResult.coverage_percent}% {t("period coverage.")}
               </p>
             </div>
-            {canCreateDecisions && activeResult.matched_period_count > 0 && (
-              <CreateDecisionButton
-                onClick={() => void handleCreateDecision()}
-                creating={creatingDecision}
-                size="sm"
-                title="Create decision from evidence"
-                className="w-full sm:w-auto"
-              />
-            )}
+
             <button
               type="button"
               onClick={() => void resetJoinedDataset()}

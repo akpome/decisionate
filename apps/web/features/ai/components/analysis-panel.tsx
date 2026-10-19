@@ -1,7 +1,6 @@
 import {
   Lightbulb,
 } from "lucide-react"
-import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 
 import {
   formatMetricLabel,
@@ -20,8 +19,6 @@ type AIAnalysisPanelProps = {
   metrics?: string[]
   className?: string
   actionClassName?: string
-  onCreateDecision?: () => void
-  creatingDecision?: boolean
   onApplyRecommendation?: () => void
   applyRecommendationLabel?: string
   compact?: boolean
@@ -35,8 +32,6 @@ export function AIAnalysisPanel({
   metrics = [],
   className = "",
   actionClassName = "",
-  onCreateDecision,
-  creatingDecision = false,
   onApplyRecommendation,
   applyRecommendationLabel = "Use recommendation",
   compact = false,
@@ -167,19 +162,8 @@ export function AIAnalysisPanel({
         </div>
       )}
 
-      {(onCreateDecision ||
-        (onApplyRecommendation && analysis.recommendations[0])) && (
+      {onApplyRecommendation && analysis.recommendations[0] && (
         <div className={`mt-auto flex flex-wrap items-center justify-start gap-2 ${compact ? "pt-3" : "pt-4"}`}>
-          {onCreateDecision && (
-            <CreateDecisionButton
-              onClick={onCreateDecision}
-              creating={creatingDecision}
-              size={compact ? "sm" : "md"}
-              title="Create a decision from this analysis"
-              className={`w-full sm:w-auto ${actionClassName}`}
-            />
-          )}
-
           {onApplyRecommendation && analysis.recommendations[0] && (
             <button
               type="button"

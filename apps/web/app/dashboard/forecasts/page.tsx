@@ -4,7 +4,6 @@ import { ForecastChart } from "@/features/dashboard/components/forecast-chart"
 import { useEffect, useState } from "react"
 import { useUser } from "@clerk/nextjs"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import {
   RefreshCw,
@@ -14,18 +13,7 @@ import { RecommendationCard }
 import { ForecastSummaryCard }
   from "@/features/dashboard/components/forecast-summary-card"
 
-import {
-  type DatasetSummary,
-  type DecisionConfidenceScore,
-  type ForecastResponse,
-  type ForecastPeriodFilter,
-  type DashboardAggregation,
-  type DashboardValueAggregation,
-  getDatasets,
-  getDatasetMetrics,
-  getForecast,
-  createDecision,
-} from "@/lib/api"
+import { type DatasetSummary, type DecisionConfidenceScore, type ForecastResponse, type ForecastPeriodFilter, type DashboardAggregation, type DashboardValueAggregation, getDatasets, getDatasetMetrics, getForecast } from "@/lib/api";
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -262,7 +250,6 @@ export default function ForecastsPage() {
   const { t } = useDecisionateText()
   // Auth and navigation: user identity sets ownership; router opens created decisions.
   const { user } = useUser()
-  const router = useRouter()
   const {
     activeWorkspaceId,
     workspaceVersion,
@@ -270,7 +257,6 @@ export default function ForecastsPage() {
     useActiveWorkspace(user?.id)
   const {
     canManageWorkspaceData,
-    canCreateDecisions,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
 
@@ -327,10 +313,6 @@ export default function ForecastsPage() {
     useState("")
   const [metricLoadRetryKey, setMetricLoadRetryKey] =
     useState(0)
-
-  const [creatingDecision,
-    setCreatingDecision] =
-    useState(false)
 
   const [pageError, setPageError] =
     useState("")
@@ -928,112 +910,6 @@ export default function ForecastsPage() {
         forecast.forecast.ai_analysis
       )
       : ""
-  const learningContext =
-    learningContextCopy
-      ? `Decisionate learning context: ${learningContextCopy}`
-      : ""
-  const decisionDatasetName =
-    selectedDataset?.file_name ??
-    forecast?.file_name ??
-    "selected dataset"
-  const forecastModelEvidence =
-    forecast?.forecast.model_quality
-      ? [
-        `Forecast model: ${forecast.forecast.model_quality.method.replaceAll("_", " ")}`,
-        `${forecast.forecast.model_quality.validation_periods} holdout validation period${forecast.forecast.model_quality.validation_periods === 1 ? "" : "s"}`,
-        `Reliability: ${forecast.forecast.model_quality.reliability ?? "limited"}`,
-        forecast.forecast.model_quality.mape !== null
-          ? `MAPE: ${forecast.forecast.model_quality.mape.toLocaleString()}%`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("; ")
-      : ""
-
-  // Decision creation flow: saves the forecast recommendation and opens its detail page.
-  async function handleCreateDecision() {
-    if (
-      creatingDecision ||
-      !canCreateDecisions
-    ) {
-      return
-    }
-
-    if (
-      !forecast ||
-      !user?.id ||
-      !selectedDatasetId
-    ) {
-      return
-    }
-
-    try {
-      setCreatingDecision(true)
-      setPageError("")
-
-      const createdDecision =
-        await createDecision(
-          {
-            dataset_id:
-              selectedDatasetId,
-
-            metric_column:
-              selectedMetric ||
-              forecast.forecast.value_column,
-
-            recommendation_text:
-              recommendationReason || undefined,
-
-            recommendation_source:
-              forecast.forecast.ai_analysis?.source ||
-              (recommendationReason
-                ? "rules"
-                : undefined),
-
-            recommendation_context:
-              `${metricName || selectedMetric || "selected metric"} forecast (${decisionDatasetName})`,
-
-            title: recommendationTitle,
-
-                description:
-              [
-                decisionBrief,
-                `Recommendation: ${recommendationTitle}`,
-                `Decision target: ${metricName || selectedMetric || "selected metric"} (${decisionDatasetName})`,
-                forecastModelEvidence,
-                learningContext,
-                `Decisionate AI source: ${recommendationSource}`,
-              ]
-                .filter(Boolean)
-                .join("\n\n"),
-
-            expected_outcome:
-              decisionBrief ||
-              `Evaluate whether ${metricName || "the selected metric"} in ${decisionDatasetName} follows the forecast recommendation.`,
-
-            confidence_score: recommendationConfidence,
-          },
-
-          user.id,
-          activeWorkspaceId
-        )
-
-      router.push(
-        `/dashboard/decisions/${createdDecision.id}`
-      )
-    } catch (error) {
-      console.error(error)
-
-      setPageError(
-        getForecastPageErrorMessage(
-          error,
-          "Unable to create a decision from this forecast."
-        )
-      )
-    } finally {
-      setCreatingDecision(false)
-    }
-  }
 
   function handleDatasetChange(
     datasetId: number | undefined
@@ -1500,14 +1376,6 @@ export default function ForecastsPage() {
                 confidence={recommendationConfidence}
                 source={recommendationSource}
                 learningContext={learningContextCopy}
-                onCreateDecision={
-                  canCreateDecisions
-                    ? handleCreateDecision
-                    : undefined
-                }
-                creatingDecision={
-                  creatingDecision
-                }
               />
             </div>
           )}

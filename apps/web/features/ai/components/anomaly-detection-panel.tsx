@@ -9,7 +9,6 @@ import {
 } from "lucide-react"
 
 import { useDecisionateText } from "@/app/use-decisionate-language"
-import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 
 import {
   formatMetricLabel,
@@ -34,11 +33,6 @@ type AnomalyDetectionPanelProps = {
     sensitivity: AnomalySensitivity
   ) => void
   onRetry?: () => void
-  onCreateDecision?: (
-    metric: string,
-    anomaly: DatasetAnomalyPoint
-  ) => void
-  creatingDecisionKey?: string
 }
 
 function formatAnomalyNumber(value: number) {
@@ -104,8 +98,6 @@ export function AnomalyDetectionPanel({
   sensitivity,
   onSensitivityChange,
   onRetry,
-  onCreateDecision,
-  creatingDecisionKey,
 }: AnomalyDetectionPanelProps) {
   const { t } = useDecisionateText()
   const metrics = result?.metrics ?? []
@@ -226,8 +218,6 @@ export function AnomalyDetectionPanel({
                 <MetricAnomalyGroup
                   key={metric.metric}
                   metric={metric}
-                  onCreateDecision={onCreateDecision}
-                  creatingDecisionKey={creatingDecisionKey}
                 />
               ))}
             </div>
@@ -259,15 +249,8 @@ function Stat({
 
 function MetricAnomalyGroup({
   metric,
-  onCreateDecision,
-  creatingDecisionKey,
 }: {
   metric: DatasetAnomalyMetric
-  onCreateDecision?: (
-    metric: string,
-    anomaly: DatasetAnomalyPoint
-  ) => void
-  creatingDecisionKey?: string
 }) {
   const { t } = useDecisionateText()
 
@@ -305,9 +288,6 @@ function MetricAnomalyGroup({
               metric.metric,
               anomaly
             )
-            const isCreating =
-              creatingDecisionKey === `anomaly:${key}`
-
             return (
               <div
                 key={key}
@@ -335,19 +315,7 @@ function MetricAnomalyGroup({
                   </div>
                 </div>
 
-                {onCreateDecision && (
-                  <CreateDecisionButton
-                    disabled={Boolean(creatingDecisionKey)}
-                    creating={isCreating}
-                    onClick={() =>
-                      onCreateDecision(metric.metric, anomaly)
-                    }
-                    size="sm"
-                    variant="secondary"
-                    title={`Create a decision from the ${metric.metric} anomaly`}
-                    className="w-full sm:w-auto"
-                  />
-                )}
+
               </div>
             )
           })}
