@@ -1771,6 +1771,15 @@ export type DecisionEvidenceMetric = {
   column_type?: "numeric" | "categorical"
 }
 
+export async function getDecisionMetricOptions(id: number, userId: string, workspaceId?: string): Promise<{ decision_id: number; metrics: DecisionEvidenceMetric[] }> {
+  const cleanId = cleanPositiveIntegerId(id, "Decision id")
+  const response = await apiFetch(`${API_URL}/decisions/${cleanId}/metric-options`, {
+    headers: await decisionHeaders(userId, workspaceId), cache: "no-store",
+  })
+  if (!response.ok) await throwApiError(response, "Selected decision metrics could not be loaded")
+  return response.json()
+}
+
 export type DecisionLifecycleAccess = {
   owner_user_id: string
   is_decision_owner: boolean
@@ -7215,7 +7224,8 @@ export async function getDecisionActivityFeed(
 export async function createDecision(
   payload: DecisionCreatePayload,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  idempotencyKey?: string
 ): Promise<DecisionRecord> {
   const cleanPayload = {
     ...payload,
@@ -7232,10 +7242,10 @@ export async function createDecision(
       {
         method: "POST",
 
-        headers: await decisionHeaders(
-          userId,
-          workspaceId
-        ),
+        headers: {
+          ...await decisionHeaders(userId, workspaceId),
+          ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+        },
 
         body: JSON.stringify(
           cleanPayload

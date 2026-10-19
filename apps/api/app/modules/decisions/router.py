@@ -2,6 +2,8 @@ import asyncio
 import csv
 import io
 import json
+from hashlib import sha256
+from typing import Annotated
 
 from app.configuration import get_runtime_configuration
 from app.db.database import SessionLocal
@@ -111,6 +113,7 @@ from fastapi import (
     Response,
 )
 from sqlalchemy import and_, extract, func, or_
+from sqlalchemy.exc import IntegrityError
 
 from app.modules.auth_context import (
     get_auth_context,
@@ -132,6 +135,9 @@ from app.modules.datasets.services.ownership import (
 from app.modules.decisions.outcome_measurement import (
     measure_decision_metric,
 )
+from app.modules.decisions.metric_scope import decision_metric_options
+from app.modules.decisions.titles import is_legacy_evidence_placeholder
+from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
 
 router = APIRouter(
     prefix="/decisions",
@@ -1142,6 +1148,7 @@ async def create_decision(
         default=None,
         alias="X-Workspace-Id",
     ),
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", min_length=1, max_length=120)] = None,
 ):
     db = SessionLocal()
     clean_user_id = get_active_user_id(
@@ -1206,6 +1213,9 @@ async def create_decision(
         clean_title = clean_required_decision_title(
             payload.title,
         )
+        clean_action = clean_optional_multiline_text(payload.action)
+        if is_legacy_evidence_placeholder(clean_title, clean_action):
+            raise HTTPException(400, "Record the action you have decided to take, not a placeholder to review evidence.")
 
         decision = Decision(
             clerk_user_id=clean_user_id,
@@ -1228,9 +1238,7 @@ async def create_decision(
                 payload.recommendation_context,
             ),
             title=clean_title,
-            action=clean_optional_multiline_text(
-                payload.action,
-            ) or clean_optional_multiline_text(
+            action=clean_action or clean_optional_multiline_text(
                 payload.recommendation_text,
             ) or clean_title,
             description=clean_optional_single_line_text(
@@ -1261,9 +1269,29 @@ async def create_decision(
         decision.evidence_dataset_ids = evidence_dataset_ids
         decision.evidence_metrics = evidence_metrics
 
+        if idempotency_key is not None:
+            decision.creation_request_key = sha256(json.dumps(
+                [clean_user_id, decision.workspace_id, idempotency_key],
+                separators=(",", ":"),
+            ).encode()).hexdigest()
+            decision.creation_payload_hash = sha256(json.dumps(
+                payload.model_dump(mode="json"), sort_keys=True, separators=(",", ":"),
+            ).encode()).hexdigest()
+            existing = get_replayed_decision(db, decision)
+            if existing is not None:
+                return existing
+
         db.add(decision)
 
-        db.flush()
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            if decision.creation_request_key:
+                existing = get_replayed_decision(db, decision)
+                if existing is not None:
+                    return existing
+            raise
 
         record_decision_activity(
             db,
@@ -1282,6 +1310,15 @@ async def create_decision(
 
     finally:
         db.close()
+
+
+def get_replayed_decision(db, submission):
+    existing = db.query(Decision).filter_by(
+        creation_request_key=submission.creation_request_key,
+    ).first()
+    if existing is not None and existing.creation_payload_hash != submission.creation_payload_hash:
+        raise HTTPException(409, "This submission was already used for a different decision. Submit the updated action again.")
+    return existing
 
 
 @router.get(
@@ -2794,6 +2831,27 @@ async def get_decision_lifecycle_access(
 # =========================
 # Single Decision Read Route For Detail Page Loading
 # =========================
+
+@router.get("/{decision_id}/metric-options")
+async def get_decision_metric_options(
+    decision_id: int,
+    x_user_id: str = Header(alias="X-User-Id"),
+    x_workspace_id: str | None = Header(default=None, alias="X-Workspace-Id"),
+):
+    with SessionLocal() as db:
+        decision = get_accessible_decision_or_404(db, decision_id, x_user_id, x_workspace_id)
+        datasets = {}
+
+        def get_dataset(identity):
+            if identity not in datasets:
+                dataset = get_accessible_dataset(db, identity, x_user_id, x_workspace_id)
+                if dataset is None:
+                    raise HTTPException(404, "Evidence dataset not found")
+                datasets[identity] = dataset
+            return datasets[identity]
+
+        return {"decision_id": decision.id, "metrics": decision_metric_options(decision, get_dataset, load_dataframe_from_dataset)}
+
 
 @router.get(
     "/{decision_id}",

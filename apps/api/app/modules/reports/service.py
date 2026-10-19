@@ -13,6 +13,7 @@ from app.modules.datasets.services.curated_metric_analytics import aggregate_met
 from app.modules.datasets.services.joins import _bucket_dates, _infer_explicit_year, _parse_dates
 from app.modules.datasets.services.numeric import coerce_numeric_series
 from .catalog import prepare_report_source
+from app.modules.decisions.titles import is_legacy_evidence_placeholder
 
 
 def finite(value):
@@ -267,8 +268,11 @@ def build_report(frames, definition, *, unavailable=None):
 def decisions_for_report(db, workspace, dataset_ids, report_id=None):
     import json
     from app.modules.decisions.models import Decision
+    # Sharing datasets is not an explicit link to a report or a decision version.
+    if not report_id:
+        return []
     result = []
-    for item in db.query(Decision).filter(Decision.workspace_id == workspace).order_by(Decision.created_at.desc()).limit(100):
+    for item in db.query(Decision).filter(Decision.workspace_id == workspace).order_by(Decision.created_at.desc(), Decision.id.desc()).yield_per(100):
         evidence_ids = set(item.evidence_dataset_ids or [item.dataset_id])
         if not evidence_ids or not evidence_ids.issubset(dataset_ids):
             continue
@@ -278,12 +282,16 @@ def decisions_for_report(db, workspace, dataset_ids, report_id=None):
             context = {}
         if not isinstance(context, dict):
             context = {}
-        if report_id and context.get("report_id") != report_id:
+        if context.get("report_id") != report_id:
             continue
-        result.append({"id": item.id, "title": item.title, "status": item.status,
+        if is_legacy_evidence_placeholder(item.title, item.action):
+            continue
+        result.append({"id": item.id, "report_id": report_id, "title": item.title, "action": item.action, "status": item.status,
                        "owner_user_id": item.owner_user_id, "expected_outcome": item.expected_outcome,
                        "actual_outcome": item.actual_outcome, "outcome_status": item.outcome_status,
                        "review_date": item.review_date.isoformat() if item.review_date else None,
                        "baseline": item.outcome_baseline_value, "measured_value": item.outcome_measured_value,
                        "change_percent": item.outcome_delta_percent})
-    return result[:20]
+        if len(result) == 20:
+            break
+    return result

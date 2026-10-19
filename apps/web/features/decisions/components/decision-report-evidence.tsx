@@ -5,6 +5,7 @@ import Link from "next/link"
 import { RefreshCw } from "lucide-react"
 import { correlationRequest } from "@/lib/api"
 import type { BusinessReport } from "@/features/reports/types"
+import { selectedReportMetrics } from "../lib/report-metric-scope"
 
 type SavedReport = { report_id: string; name: string; created_at: string }
 type LoadState<T> = { key: string; data: T; loading: boolean; error: string }
@@ -43,7 +44,7 @@ export function useDecisionReportEvidence(userId: string | undefined, workspaceI
       setDetail({ key: detailKey, data: null, loading: true, error: "" })
       try {
         const data = await correlationRequest<BusinessReport>(userId!, `/business-reports/${encodeURIComponent(reportId)}`, {}, workspaceId)
-        if (current) setDetail({ key: detailKey, data, loading: false, error: "" })
+        if (current) setDetail({ key: detailKey, data: { ...data, metrics: selectedReportMetrics(data) }, loading: false, error: "" })
       } catch (error) {
         if (current) setDetail({ key: detailKey, data: null, loading: false, error: message(error) })
       }

@@ -12,6 +12,7 @@ from app.modules.correlation.service import allowed_run, authorize_datasets, dat
 from app.modules.auth_context import is_client_workspace_role
 from app.modules.datasets.services.auth import get_user_id, get_workspace_id, get_workspace_role, require_workspace_data_manager
 from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
+from app.modules.decisions.metric_scope import selected_report_metrics
 from .models import BusinessReport
 from .catalog import report_metric_catalog
 from .schemas import ReportDecision, ReportDefinition
@@ -67,7 +68,6 @@ def generate(db, payload, user, workspace):
         result = build_report(frames, definition, unavailable=unavailable)
     except (ValueError, KeyError) as error:
         raise HTTPException(400, "The selected metrics, date columns or saved policies are no longer available. Review the selections.") from error
-    result["decisions"] = decisions_for_report(db, workspace, set(datasets))
     if source_run:
         result["source_analysis"] = {"run_id": source_run.id, "engine_version": source_run.engine_version,
                                      "definition": json.loads(source_run.definition),
@@ -161,14 +161,19 @@ def decision_evidence(report_id: str, request: Request, payload: ReportDecision,
     user, workspace = identity(request)
     report = allowed_report(db, report_id, user, workspace)
     snapshot = json.loads(report.snapshot)
-    metrics = snapshot["metrics"]
+    try:
+        metrics = selected_report_metrics(snapshot)
+    except ValueError as error:
+        raise HTTPException(400, "The saved report's selected metrics are unavailable. Generate a new report.") from error
     outcome = next((item for item in metrics if item["id"] == payload.outcome_metric), None)
     if outcome is None:
         raise HTTPException(400, "Select an outcome metric from the report")
     if snapshot["status"] != "ready":
         raise HTTPException(400, "Resolve cross-dataset coverage before using this report as decision evidence")
+    metric_ids = {item["id"] for item in metrics}
     findings = [{key: value for key, value in item.items() if key != "evidence"}
-                for item in snapshot["findings"] if item["id"] in snapshot["included_findings"]]
+                for item in snapshot["findings"] if item["id"] in snapshot["included_findings"]
+                and item["metric_a"]["id"] in metric_ids and item["metric_b"]["id"] in metric_ids]
     evidence = {"evidence_kind": "business_report", "report_id": report.id, "business_question": snapshot["business_question"],
                 "window": snapshot["window"], "previous_window": snapshot["previous_window"],
                 "metrics": [{key: value for key, value in item.items() if key != "trend"} for item in metrics],

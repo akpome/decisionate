@@ -10884,7 +10884,10 @@ def dataset_metrics(
         return {
             "dataset_id": dataset.id,
             "file_name": connector_dataset_display_name(dataset),
-            "metrics": generate_metrics(dataframe),
+            "metrics": generate_metrics(
+                dataframe,
+                selected_columns=get_effective_dataset_metric_columns(dataset, dataframe),
+            ),
         }
 
     finally:

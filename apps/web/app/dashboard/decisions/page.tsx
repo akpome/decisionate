@@ -53,6 +53,7 @@ import {
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { CreateDecisionLink } from "@/features/decisions/components/create-decision-action"
 import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
+import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
 import { AIAnalysisPanel } from "@/features/ai/components/analysis-panel"
 import { getAIRecommendationSource } from "@/features/decisions/lib/ai-recommendation-source"
 import {
@@ -2553,7 +2554,7 @@ function DecisionCard({
         >
             <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <h2 className="min-w-0 break-words text-lg font-semibold">
-                    {decision.title}
+                    {getDecisionDisplayTitle(decision)}
                 </h2>
 
                 <span
@@ -2565,7 +2566,11 @@ function DecisionCard({
                 </span>
             </div>
 
-            {decision.action && (
+            {isLegacyEvidencePlaceholder(decision) && (
+                <p className="mt-3 text-sm text-amber-800">Legacy evidence placeholder. No decision action was recorded.</p>
+            )}
+
+            {decision.action && !isLegacyEvidencePlaceholder(decision) && (
                 <p className="mt-3 break-words border-l-2 border-[var(--decisionate-brand-primary)] pl-3 text-sm text-gray-700 line-clamp-2">
                     <span className="font-medium text-[var(--decisionate-brand-primary-text)]">
                         Action:

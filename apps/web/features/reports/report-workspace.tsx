@@ -11,7 +11,8 @@ import { useDecisionateText } from "@/app/use-decisionate-language"
 import type { CatalogDataset } from "@/features/relationships/types"
 import { AnalysisNavigation } from "./analysis-navigation"
 import { ReportMetricPicker, reportDateColumn } from "./report-metric-picker"
-import { editableDefinition, formatReportValue, type BusinessReport, type ReportDefinition, type ReportFinding } from "./types"
+import { editableDefinition, formatReportValue, type BusinessReport, type ReportDefinition } from "./types"
+import { ReportDecisions, ReportRelationshipFindings } from "./report-evidence-sections"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
@@ -49,7 +50,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
   const [message, setMessage] = useState("")
   const [brand, setBrand] = useState<WorkspaceBrand>(defaultWorkspaceBrand)
   const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
-  const selectedIds = definition.included_findings ?? []
   const datasetCount = new Set(definition.metrics.map(metric => metric.dataset_id)).size
   const pairCount = definition.metrics.reduce((count, metric, index) => count + definition.metrics.slice(index + 1).filter(other => other.dataset_id !== metric.dataset_id).length, 0)
   const taskCount = pairCount * (definition.lag.enabled ? definition.lag.maximum + 1 : 1)
@@ -110,7 +110,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
   }, [userId, workspaceId])
 
   function edit(patch: Partial<ReportDefinition>) {
-    setDefinition(current => ({ ...current, ...patch, included_findings: [] }))
+    const analysisChanged = ["metrics", "date_range", "grain", "method", "filters", "lag"].some(key => key in patch)
+    setDefinition(current => ({ ...current, ...patch, ...(analysisChanged ? { included_findings: null } : {}) }))
     setReport(null); setError(""); setMessage("")
   }
 
@@ -138,7 +139,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
 
   async function calculate() {
     await execute(async () => {
-      const result = await request<BusinessReport>("/preview", { method: "POST", body: JSON.stringify(definition) })
+      const result = await request<BusinessReport>("/preview", { method: "POST", body: JSON.stringify({ ...definition, included_findings: null }) })
+      setDefinition(editableDefinition(result.definition))
       setReport(result)
       setView("report")
     })
@@ -151,11 +153,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
     setSaved(current => [{ report_id: result.report_id!, name: result.name, created_at: result.generated_at }, ...current])
     window.history.replaceState(null, "", `/dashboard/reports?report=${result.report_id}`)
     return result
-  }
-
-  function chooseFinding(id: string, checked: boolean) {
-    setDefinition(current => ({ ...current, included_findings: checked ? [...(current.included_findings || []), id] : (current.included_findings || []).filter(value => value !== id) }))
-    setReport(current => current ? { ...current, report_id: undefined } : null)
   }
 
   if (loading) return <div className="mx-auto min-w-0 max-w-[1500px] space-y-5"><AnalysisNavigation active="reports" /><p role="status" className="py-8 text-sm text-gray-600">Loading cross-dataset reports...</p></div>
@@ -231,12 +228,9 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
         <ReportOverview report={report} />
         <MetricTrends report={report} />
         <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Combined findings</h3><Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
-        <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Relationship findings"><h3 className="text-lg font-semibold">Relationship findings</h3>
-          {report.findings.length === 0 && <p className="text-sm text-gray-500">No cross-dataset relationships are available.</p>}
-          {report.findings.map(finding => <div key={finding.id} className={`border-b border-gray-100 py-3 ${selectedIds.includes(finding.id) ? "" : "print:hidden"}`}><label className="flex items-start gap-3"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0 print:hidden" disabled={busy} checked={selectedIds.includes(finding.id)} onChange={event => chooseFinding(finding.id, event.target.checked)} aria-label={`Include ${finding.metric_a.label} and ${finding.metric_b.label} in report`} /><span className="min-w-0"><Finding finding={finding} /></span></label></div>)}
-        </section>
+        <ReportRelationshipFindings report={report} />
         <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Follow-up actions</h3><Statements statements={report.recommendations} /></section>
-        <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Decisions and outcomes</h3>{report.decisions.length === 0 ? <p className="text-sm text-gray-500">No linked decisions recorded.</p> : report.decisions.map(decision => <div key={decision.id} className="border-b border-gray-100 pb-3"><Link className="break-words font-medium text-blue-700 underline" href={`/dashboard/decisions/${decision.id}`}>{decision.title}</Link><p className="mt-1 text-xs text-gray-500">{decision.status} / Owner: {decision.owner_user_id}{decision.review_date ? ` / Review: ${decision.review_date.slice(0, 10)}` : ""}</p><p className="mt-2 text-sm">Expected: {decision.expected_outcome || "Not recorded"}</p><p className="mt-1 text-sm">Actual: {decision.actual_outcome || "Not yet recorded"}</p>{decision.change_percent !== null && <p className="mt-1 text-sm">Measured change: {decision.change_percent.toFixed(1)}%</p>}</div>)}</section>
+        <ReportDecisions report={report} />
         <section className="space-y-2 border-t border-gray-200 pt-5"><h3 className="text-base font-semibold">Evidence limitations</h3><p className="text-xs text-gray-500">Rule-based interpretation / Historical relationships: {report.history_window.start} to {report.history_window.end}</p><Statements statements={report.limitations} /></section>
       </>}
     </section>
@@ -249,10 +243,6 @@ function Statements({ statements }: { statements: string[] }) {
 
 function ReportOverview({ report }: { report: BusinessReport }) {
   return <section aria-label="Report coverage" className="space-y-2 border-b border-gray-200 pb-4"><div className="flex flex-wrap items-center gap-x-5 gap-y-2"><h2 className="text-base font-semibold">{report.status === "ready" ? "Cross-dataset coverage available" : "Limited cross-dataset coverage"}</h2><span className="text-xs text-gray-500">Previous period: {report.previous_window.start} to {report.previous_window.end}</span></div>{report.source_analysis && <p className="text-xs leading-5 text-gray-600">{report.source_analysis.note} <Link href={`/dashboard/relationships/explorer?run=${encodeURIComponent(report.source_analysis.run_id)}`} className="text-blue-700 underline">Original analysis</Link> / {report.source_analysis.engine_version}</p>}{report.warnings.length > 0 && <div className="border-l-2 border-amber-500 pl-3"><Statements statements={report.warnings} /></div>}</section>
-}
-
-function Finding({ finding }: { finding: ReportFinding }) {
-  return <><span className="block break-words text-sm font-semibold">{finding.metric_a.dataset_label} / {finding.metric_a.label} <span className="font-normal text-gray-500">and</span> {finding.metric_b.dataset_label} / {finding.metric_b.label}</span><span className="mt-1 block text-xs text-gray-500">{finding.reliability.replaceAll("_", " ")} / {finding.observations} observations / Lag {finding.lag} {finding.lag_unit}</span><span className="mt-2 block text-sm leading-6 text-gray-700">{finding.interpretation}</span>{finding.warnings.length > 0 && <span className="mt-1 block break-words text-xs text-amber-800">{finding.warnings.map(value => value.replaceAll("_", " ")).join("; ")}</span>}</>
 }
 
 export function MetricTrends({ report }: { report: BusinessReport }) {

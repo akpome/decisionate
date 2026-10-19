@@ -870,6 +870,8 @@ def ensure_decision_optional_columns():
             ("outcome_measured_value", "FLOAT"),
             ("outcome_delta_percent", "FLOAT"),
             ("outcome_measured_at", "TIMESTAMP"),
+            ("creation_request_key", "VARCHAR(64)"),
+            ("creation_payload_hash", "VARCHAR(64)"),
         ]:
             if column_name not in column_names:
                 connection.execute(
@@ -878,6 +880,11 @@ def ensure_decision_optional_columns():
                         f"ADD COLUMN {column_name} {column_type}"
                     )
                 )
+
+        connection.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_decisions_creation_request_key "
+            "ON decisions (creation_request_key)"
+        ))
 
         # Older decisions predate the explicit action field. Their title is
         # the safest migration value until the owner edits the action.

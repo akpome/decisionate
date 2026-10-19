@@ -8,6 +8,7 @@ from sqlalchemy import (
     Text,
     DateTime,
     Float,
+    Index,
 )
 
 from app.db.database import Base
@@ -26,6 +27,12 @@ def utc_now() -> datetime:
 
 class Decision(Base):
     __tablename__ = "decisions"
+    __table_args__ = (
+        Index("uq_decisions_creation_request_key", "creation_request_key", unique=True),
+    )
+
+    creation_request_key = Column(String(64), nullable=True)
+    creation_payload_hash = Column(String(64), nullable=True)
 
     id = Column(
         Integer,

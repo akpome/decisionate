@@ -33,7 +33,7 @@ import {
   archiveDecision,
   deleteDecision,
   getDataset,
-  getDatasetMetrics,
+  getDecisionMetricOptions,
   getDecisionActivities,
   getDecision,
   getDecisionLifecycleAccess,
@@ -52,6 +52,8 @@ import {
   getDecisionActivityDotClass,
   getDecisionActivityTitleClass,
 } from "@/lib/decision-activity-style"
+import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
+import { DecisionEvidenceContext } from "@/features/decisions/components/decision-evidence-context"
 import {
   hasAddedNotes,
   hasCapturedLearning,
@@ -122,6 +124,7 @@ import type {
   DecisionCategory,
   DecisionConfidenceScore,
   DecisionDetailsPayload,
+  DecisionEvidenceMetric,
   DecisionLifecycleAccess,
   DecisionOutcomePayload,
   DecisionOutcomeStatus,
@@ -267,7 +270,7 @@ export default function DecisionPage() {
   const [originalMetricColumn, setOriginalMetricColumn] = useState("")
   const [outcomeDatasetId, setOutcomeDatasetId] = useState<number | null>(null)
   const [originalOutcomeDatasetId, setOriginalOutcomeDatasetId] = useState<number | null>(null)
-  const [metricColumns, setMetricColumns] = useState<string[]>([])
+  const [selectedEvidenceMetrics, setSelectedEvidenceMetrics] = useState<DecisionEvidenceMetric[]>([])
   const [metricsLoading, setMetricsLoading] = useState(false)
   const [metricLoadError, setMetricLoadError] = useState("")
 
@@ -396,7 +399,7 @@ export default function DecisionPage() {
         setLifecycleAccess(null)
         setDataset(null)
         setOrganizationMembers([])
-        setMetricColumns([])
+        setSelectedEvidenceMetrics([])
         setMetricsLoading(false)
         setMetricLoadError("")
         setActivities([])
@@ -481,8 +484,8 @@ export default function DecisionPage() {
             userId,
             activeWorkspaceId
           ),
-          getDatasetMetrics(
-            data.dataset_id,
+          getDecisionMetricOptions(
+            data.id,
             userId,
             activeWorkspaceId
           ),
@@ -517,11 +520,7 @@ export default function DecisionPage() {
         }
 
         if (metricsResult.status === "fulfilled") {
-          setMetricColumns(
-            metricsResult.value.metrics
-              .map(metric => metric.column.trim())
-              .filter(Boolean)
-          )
+          setSelectedEvidenceMetrics(metricsResult.value.metrics)
           setMetricLoadError("")
         } else {
           const metricsUnavailable =
@@ -533,7 +532,7 @@ export default function DecisionPage() {
           if (!metricsUnavailable) {
             console.error(metricsResult.reason)
           }
-          setMetricColumns([])
+          setSelectedEvidenceMetrics([])
           setMetricLoadError(
             metricsUnavailable
               ? "The dataset linked to this decision is no longer available. Metric selection is unavailable."
@@ -942,15 +941,14 @@ export default function DecisionPage() {
     nextMetric?: string
   ) {
     const joinedEvidenceMetric =
-      decision?.evidence_metrics?.find(
+      selectedEvidenceMetrics.find(
         metric =>
           `${metric.dataset_id}:${metric.metric_column}` === nextMetric
       )
-    const nextMetricColumn =
-      joinedEvidenceMetric?.metric_column ?? nextMetric ?? ""
+    const nextMetricColumn = joinedEvidenceMetric?.metric_column ?? ""
     const nextOutcomeDatasetId =
       joinedEvidenceMetric?.dataset_id ??
-      (decision?.evidence_metrics?.length
+      (selectedEvidenceMetrics.length
         ? null
         : decision?.outcome_dataset_id ?? null)
     const metricSelectionChanged =
@@ -1717,7 +1715,7 @@ export default function DecisionPage() {
   const evidenceDatasetIds = Array.from(
     new Set([
       decision.dataset_id,
-      ...(decision.evidence_dataset_ids ?? []),
+      ...selectedEvidenceMetrics.map(metric => metric.dataset_id),
     ])
   )
   const linkedEvidenceDatasets = evidenceDatasetIds.map(datasetId => ({
@@ -1731,14 +1729,14 @@ export default function DecisionPage() {
   const hasMultipleEvidenceDatasets =
     linkedEvidenceDatasets.length > 1
   const joinedEvidenceMetricOptions =
-    (decision.evidence_metrics ?? [])
+    selectedEvidenceMetrics
       .filter(metric => metric.column_type !== "categorical")
       .map(metric => ({
         value: `${metric.dataset_id}:${metric.metric_column}`,
         label: `${metric.file_name}: ${formatMetricLabel(metric.metric_column)}`,
       }))
   const selectedJoinedEvidenceMetric =
-    decision.evidence_metrics?.find(
+    selectedEvidenceMetrics.find(
       metric =>
         metric.dataset_id ===
           (outcomeDatasetId ?? decision.dataset_id) &&
@@ -1749,11 +1747,8 @@ export default function DecisionPage() {
       ? selectedJoinedEvidenceMetric
         ? `${selectedJoinedEvidenceMetric.dataset_id}:${selectedJoinedEvidenceMetric.metric_column}`
         : undefined
-      : metricColumn || undefined
-  const metricOptionCount =
-    joinedEvidenceMetricOptions.length > 0
-      ? joinedEvidenceMetricOptions.length
-      : metricColumns.length
+      : undefined
+  const metricOptionCount = joinedEvidenceMetricOptions.length
   const aiRecommendationSource =
     getAIRecommendationSource(
       decision.description
@@ -1789,8 +1784,10 @@ export default function DecisionPage() {
         ========================= */}
 
         <DashboardPageHeader
-          title={decision.title}
-          description={decision.description || "No description provided."}
+          title={getDecisionDisplayTitle(decision)}
+          description={isLegacyEvidencePlaceholder(decision)
+            ? "No decision action was recorded."
+            : decision.description || "No description provided."}
           actions={
             <div className="flex items-center gap-2">
               <Link
@@ -1813,6 +1810,10 @@ export default function DecisionPage() {
             </div>
           }
         />
+
+        {isLegacyEvidencePlaceholder(decision) && (
+          <p className="mt-4 text-sm text-amber-800">Legacy evidence placeholder. No decision action was recorded.</p>
+        )}
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Badge className="border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]">
@@ -1894,9 +1895,8 @@ export default function DecisionPage() {
             </p>
 
             {decision.recommendation_context && (
-              <p className="mt-3 text-xs font-medium text-gray-600">
-                Context: {decision.recommendation_context}
-              </p>
+              <DecisionEvidenceContext context={decision.recommendation_context} metrics={selectedEvidenceMetrics}
+                loading={metricsLoading} unavailable={Boolean(metricLoadError)} />
             )}
 
             {(decision.recommendation_source || recommendationSourceLabel) && (
@@ -2071,16 +2071,8 @@ export default function DecisionPage() {
           <Field label="Outcome metric">
             <MetricSelector
               ariaLabel="Decision metric"
-              metrics={joinedEvidenceMetricOptions.length > 0
-                ? []
-                : metricColumn && !metricColumns.includes(metricColumn)
-                ? [metricColumn, ...metricColumns]
-                : metricColumns}
-              options={
-                joinedEvidenceMetricOptions.length > 0
-                  ? joinedEvidenceMetricOptions
-                  : undefined
-              }
+              metrics={[]}
+              options={joinedEvidenceMetricOptions}
               value={metricSelectorValue}
               loadError={Boolean(metricLoadError)}
               disabled={
@@ -2093,7 +2085,7 @@ export default function DecisionPage() {
                 metricsLoading
                   ? "Loading metrics..."
                   : metricOptionCount === 0
-                    ? "No numeric metrics"
+                    ? "No selected metrics"
                     : "No metric selected"
               }
               onChange={(metric) => {
@@ -2102,9 +2094,9 @@ export default function DecisionPage() {
             />
 
             <p className="mt-2 text-xs text-gray-500">
-              {decision?.evidence_metrics?.length
-                ? "Joined evidence metrics are listed in this selector with their source dataset. Select one only if you want numeric outcome measurement and metric-specific learning."
-                : "Used to focus the outcome review and compare this decision with learning from past decisions on the same metric."}
+              {metricColumn && !selectedJoinedEvidenceMetric && !metricsLoading && !metricLoadError
+                ? "The saved outcome metric is outside the selected evidence metrics."
+                : "Selected evidence metrics"}
             </p>
 
             {!decision?.actual_outcome?.trim() &&
@@ -2405,10 +2397,9 @@ export default function DecisionPage() {
                 {decision.recommendation_text}
               </p>
 
-              {(decision.recommendation_context || decision.recommendation_source) && (
+              {decision.recommendation_source && (
                 <p className="mt-2 text-xs text-[var(--decisionate-brand-primary-text)]/80">
                   {[
-                    decision.recommendation_context,
                     decision.recommendation_source !== "rules" &&
                     Boolean(decision.recommendation_source)
                       ? "AI analysis"

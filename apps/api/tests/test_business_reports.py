@@ -324,6 +324,25 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         self.assertEqual(evidence["window"], saved["window"])
         self.assertTrue(evidence["limitations"])
 
+    def test_decision_handoff_does_not_expand_selected_metrics_from_a_wide_saved_snapshot(self):
+        saved = self.save()
+        with self.Session() as db:
+            report = db.get(BusinessReport, saved["report_id"])
+            snapshot = json.loads(report.snapshot)
+            snapshot["metrics"].append({**snapshot["metrics"][0], "id": "1:clicks", "metric_key": "clicks", "label": "Clicks"})
+            report.snapshot = json.dumps(snapshot)
+            db.commit()
+        fields = {"title": "Shift campaign budget", "action": "Move 10% of budget to a controlled test", "reasoning": "Compare advertising and sales",
+                  "expected_outcome": "Increase orders without increasing spend", "outcome_metric": "2:net_sales", "review_date": "2026-05-01"}
+        response = self.client.post(f"/api/v2/business-reports/{saved['report_id']}/decision-evidence", json=fields)
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()["decision_payload"]
+        self.assertEqual([item["metric_column"] for item in payload["evidence_metrics"]], ["spend", "net_sales"])
+        self.assertEqual([item["metric_key"] for item in json.loads(payload["recommendation_context"])["metrics"]], ["spend", "net_sales"])
+        fields["outcome_metric"] = "1:clicks"
+        response = self.client.post(f"/api/v2/business-reports/{saved['report_id']}/decision-evidence", json=fields)
+        self.assertEqual(response.status_code, 400, response.text)
+
     def test_weekly_template_preserves_disabled_sending_and_existing_recipients(self):
         saved = self.save()
         with self.Session() as db:
@@ -355,6 +374,8 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         self.assertEqual(response.json()["business_question"], definition()["business_question"])
         self.assertEqual(response.json()["dataset_count"], 2)
         self.assertEqual(response.json()["included_findings"], response.json()["definition"]["included_findings"])
+        self.assertEqual(response.json()["decision_report_id"], saved["report_id"])
+        self.assertNotIn("report_id", response.json())
         with self.Session() as db:
             self.assertFalse(db.query(WeeklyReportPreference).one().enabled)
 
@@ -378,6 +399,74 @@ class BusinessReportWorkflowTests(unittest.TestCase):
             self.assertEqual(len(outcomes), 1)
         response = self.client.get(f"/api/v2/business-reports/{saved['report_id']}")
         self.assertEqual(response.json()["decisions"][0]["actual_outcome"], "Recorded result")
+
+    def test_preview_and_new_snapshot_do_not_adopt_three_older_joined_data_decisions(self):
+        with self.Session() as db:
+            for title, status in (("Review joined evidence: Source 1.csv + Source 2.csv", "planned"),
+                                  ("Review joined dataset evidence", "planned"),
+                                  ("Review joined dataset evidence", "archived")):
+                decision = Decision(clerk_user_id="owner", workspace_id="owner", dataset_id=1,
+                                    title=title, status=status, recommendation_context="Joined dataset evidence")
+                decision.evidence_dataset_ids = [1, 2]
+                db.add(decision)
+            db.commit()
+        response = self.client.post("/api/v2/business-reports/preview", json=definition())
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["decisions"], [])
+        saved = self.save()
+        self.assertEqual(saved["decisions"], [])
+        self.assertEqual(self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()["decisions"], [])
+        with self.Session() as db:
+            self.assertEqual(db.query(Decision).count(), 3)
+            self.assertEqual(db.query(Decision).filter_by(status="archived").count(), 1)
+
+    def test_saved_report_only_shows_explicit_links_and_keeps_real_archived_decisions(self):
+        saved, other = self.save(), self.save()
+        with self.Session() as db:
+            for title, status, report_id in (("Move 10% of budget to search", "planned", saved["report_id"]),
+                                             ("Pause an ineffective campaign", "archived", saved["report_id"]),
+                                             ("Reduce supplier lead times", "planned", other["report_id"])):
+                decision = Decision(clerk_user_id="owner", workspace_id="owner", dataset_id=1,
+                                    title=title, status=status, recommendation_context=json.dumps({"report_id": report_id}))
+                decision.evidence_dataset_ids = [1, 2]
+                db.add(decision)
+            db.commit()
+        decisions = self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()["decisions"]
+        self.assertEqual({item["title"] for item in decisions}, {"Move 10% of budget to search", "Pause an ineffective campaign"})
+        self.assertEqual(len(decisions), 2)
+        self.assertTrue(any(item["status"] == "archived" for item in decisions))
+
+    def test_older_report_link_is_not_lost_behind_a_hundred_unrelated_decisions(self):
+        saved = self.save()
+        with self.Session() as db:
+            decision = Decision(clerk_user_id="owner", workspace_id="owner", dataset_id=1, title="Reallocate campaign budget",
+                                recommendation_context=json.dumps({"report_id": saved["report_id"]}))
+            decision.evidence_dataset_ids = [1, 2]
+            db.add(decision)
+            db.flush()
+            for _ in range(101):
+                db.add(Decision(clerk_user_id="owner", workspace_id="owner", dataset_id=1, title="Unrelated decision"))
+            db.commit()
+        decisions = self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()["decisions"]
+        self.assertEqual([item["title"] for item in decisions], ["Reallocate campaign budget"])
+
+    def test_weekly_report_uses_only_decisions_linked_to_its_selected_template(self):
+        saved = self.save()
+        self.client.post(f"/api/v2/business-reports/{saved['report_id']}/weekly")
+        with self.Session() as db:
+            for title, context in (("Shift campaign budget", {"report_id": saved["report_id"]}),
+                                   ("Review joined dataset evidence", {})):
+                decision = Decision(clerk_user_id="owner", workspace_id="owner", dataset_id=1, title=title,
+                                    recommendation_context=json.dumps(context))
+                decision.evidence_dataset_ids = [1, 2]
+                db.add(decision)
+            db.commit()
+        with patch("app.modules.alerts.router.complete_week", return_value=definition()["date_range"]), \
+             patch("app.modules.alerts.router.load_dataframe_from_dataset", side_effect=lambda dataset: self.frames[dataset.id][1].copy()), \
+             patch("app.modules.alerts.router.get_weekly_report_branding", return_value={"brand_name": "Decisionate"}):
+            response = self.client.get("/api/v2/business-reports/weekly-preview")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual([item["title"] for item in response.json()["decisions"]], ["Shift campaign budget"])
 
     def test_changed_saved_metric_policy_is_rejected_and_sources_are_reauthorized(self):
         with self.Session() as db:

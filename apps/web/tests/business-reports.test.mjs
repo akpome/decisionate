@@ -6,11 +6,11 @@ import test from "node:test"
 
 const require = createRequire(import.meta.url)
 const ts = require("typescript")
-const module = { exports: {} }
+const loadedModule = { exports: {} }
 const source = readFileSync(new URL("../features/reports/types.ts", import.meta.url), "utf8")
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText,
-  { module, exports: module.exports, require, Intl, Number, Math })
-const { editableDefinition, formatReportValue } = module.exports
+  { module: loadedModule, exports: loadedModule.exports, require, Intl, Number, Math })
+const { editableDefinition, formatReportValue } = loadedModule.exports
 
 test("report editor removes server-only fields while preserving cross-dataset scope and provenance", () => {
   const value = editableDefinition({ name: "Cross-source review", business_question: "What changed across channels?", reporting_timezone: "UTC", source_run_id: "run-1",
@@ -24,6 +24,41 @@ test("report editor removes server-only fields while preserving cross-dataset sc
 
 test("empty findings remain empty rather than silently adding all correlations", () => {
   assert.deepEqual(Array.from(editableDefinition({ included_findings: [] }).included_findings), [])
+})
+
+test("new reports automatically include findings without checkbox selection", () => {
+  assert.equal(editableDefinition({}).included_findings, null)
+  assert.equal(editableDefinition({ included_findings: null }).included_findings, null)
+})
+
+test("a fresh preview includes findings automatically and keeps the returned selection for saving", async () => {
+  const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  const ast = ts.createSourceFile("report-workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let declaration
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "calculate") declaration = node.getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(declaration)
+  const original = editableDefinition({ included_findings: [] })
+  let savedDefinition, report, view
+  const calculate = vm.runInNewContext(ts.transpileModule(`${declaration}\ncalculate`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText, {
+    definition: original, execute: async action => action(), editableDefinition,
+    request: async (path, options) => {
+      assert.equal(path, "/preview")
+      assert.equal(JSON.parse(options.body).included_findings, null)
+      return { definition: { ...original, included_findings: ["finding-1"] } }
+    },
+    setDefinition: value => { savedDefinition = value }, setReport: value => { report = value }, setView: value => { view = value },
+  })
+  await calculate()
+  assert.deepEqual(Array.from(savedDefinition.included_findings), ["finding-1"])
+  assert.equal(report.definition.included_findings[0], "finding-1")
+  assert.equal(view, "report")
+  assert.deepEqual(Array.from(original.included_findings), [])
 })
 
 test("currency display preserves zero and safely handles unavailable or invalid values", () => {
@@ -58,6 +93,10 @@ test("central decision form checks decision permissions and preserves the report
   assert.match(page, /review_date: createDecisionReviewDate/)
   assert.match(page, /payload = evidence\.decision_payload/)
   assert.match(page, /\.\.\.payload, priority: createDecisionPriority/)
+  assert.match(page, /if \(submissionInFlight\.current\) return/)
+  assert.match(page, /submissionRequest\.current\.key/)
+  assert.match(page, /router\.replace\(returnPath\)/)
+  assert.match(page, /if \(!saved\)/)
   const reports = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
   assert.doesNotMatch(reports, /createDecision|DecisionDialog|Create decision/)
 })

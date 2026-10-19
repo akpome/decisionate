@@ -120,6 +120,35 @@ test("manual creation omits empty metrics and invalid dataset ids", () => {
   }
 })
 
+test("manual creation never invents a review title or a placeholder decision", () => {
+  const href = new URL(buildCreateDecisionHref({ datasetId: 39 }), "https://decisionate.test")
+  assert.equal(href.searchParams.has("title"), false)
+  const handoff = loadSource("features/decisions/lib/decision-handoff.ts")
+  assert.equal(handoff.buildInsightDecisionPayload, undefined)
+  assert.equal(existsSync(path.join(webRoot, "features/decisions/lib/ai-decision-handoff.ts")), false)
+})
+
+test("legacy review placeholders are labelled honestly without rewriting saved data", () => {
+  const { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } = loadSource("features/decisions/lib/decision-title.ts")
+  for (const title of ["Review joined dataset evidence", "Review joined evidence: marketing.csv + revenue.csv", "Review generated insight"]) {
+    for (const action of [null, title, "Review the joined metrics and agree on the next action."]) {
+      const decision = { title, action }
+      assert.equal(isLegacyEvidencePlaceholder(decision), true)
+      assert.equal(getDecisionDisplayTitle(decision), "Decision action not recorded")
+      assert.equal(decision.title, title)
+      assert.equal(decision.action, action)
+    }
+  }
+  for (const decision of [
+    { title: "Review supplier contracts", action: "Compare renewal terms before signing" },
+    { title: "Review joined dataset evidence", action: "Move 10% of budget to campaign B" },
+    { title: "Pause the campaign", action: "Pause the campaign for one week" },
+  ]) {
+    assert.equal(isLegacyEvidencePlaceholder(decision), false)
+    assert.equal(getDecisionDisplayTitle(decision), decision.title)
+  }
+})
+
 test("creation and pending labels use the existing translation hook", () => {
   const { CreateDecisionButton: TranslatedButton } = loadSource(
     "features/decisions/components/create-decision-action.tsx", text => `translated:${text}`,

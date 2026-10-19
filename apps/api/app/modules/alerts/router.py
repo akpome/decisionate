@@ -1181,7 +1181,11 @@ def build_weekly_report_digest_for_workspace(
         branding=branding,
         report_definition=weekly_business_template(db, preference, workspace_id),
     )
-    digest.cross_dataset_report["decisions"] = decisions_for_report(db, workspace_id, {metric.dataset_id for metric in digest.metrics})
+    digest.cross_dataset_report["decision_report_id"] = preference.business_report_id if preference else None
+    digest.cross_dataset_report["decisions"] = decisions_for_report(
+        db, workspace_id, {metric.dataset_id for metric in digest.metrics},
+        preference.business_report_id if preference else None,
+    )
     return digest
 
 
@@ -1239,7 +1243,11 @@ async def build_weekly_report_digest_for_workspace_async(
         branding,
         weekly_business_template(db, preference, workspace_id),
     )
-    digest.cross_dataset_report["decisions"] = decisions_for_report(db, workspace_id, {metric.dataset_id for metric in digest.metrics})
+    digest.cross_dataset_report["decision_report_id"] = preference.business_report_id if preference else None
+    digest.cross_dataset_report["decisions"] = decisions_for_report(
+        db, workspace_id, {metric.dataset_id for metric in digest.metrics},
+        preference.business_report_id if preference else None,
+    )
     return digest
 
 

@@ -9,6 +9,7 @@ import {
     Suspense,
     useCallback,
     useEffect,
+    useRef,
     useState,
 } from "react"
 import { useUser } from "@clerk/nextjs"
@@ -218,6 +219,8 @@ function NewDecisionContent() {
         useState("")
     const [creatingDecision, setCreatingDecision] =
         useState(false)
+    const submissionInFlight = useRef(false)
+    const submissionRequest = useRef<{ signature: string; key: string } | null>(null)
     const [loadingDatasets, setLoadingDatasets] =
         useState(false)
     const [datasetLoadRetryKey, setDatasetLoadRetryKey] =
@@ -656,6 +659,7 @@ function NewDecisionContent() {
         event.preventDefault()
 
         if (!user?.id || !canCreateDecisions || creatingDecision) return
+        if (submissionInFlight.current) return
 
         const cleanTitle =
             createDecisionTitle.trim()
@@ -686,9 +690,11 @@ function NewDecisionContent() {
             return
         }
 
+        submissionInFlight.current = true
         setCreatingDecision(true)
         setCreateDecisionError("")
 
+        let saved = false
         try {
             let payload: DecisionCreatePayload
             if (reportEvidence.reportId) {
@@ -715,14 +721,21 @@ function NewDecisionContent() {
                         : undefined,
                 }
             }
+            const requestPayload = { ...payload, priority: createDecisionPriority, category: createDecisionCategory,
+                confidence_score: createDecisionConfidence || undefined }
+            const signature = JSON.stringify([user.id, activeWorkspaceId, requestPayload])
+            if (submissionRequest.current?.signature !== signature) {
+                submissionRequest.current = { signature, key: crypto.randomUUID() }
+            }
             await createDecision(
-                { ...payload, priority: createDecisionPriority, category: createDecisionCategory,
-                    confidence_score: createDecisionConfidence || undefined },
+                requestPayload,
                 user.id,
-                activeWorkspaceId
+                activeWorkspaceId,
+                submissionRequest.current.key
             )
 
-            router.push(returnPath)
+            saved = true
+            router.replace(returnPath)
         } catch (error) {
             console.error(error)
             setCreateDecisionError(
@@ -732,7 +745,10 @@ function NewDecisionContent() {
                 )
             )
         } finally {
-            setCreatingDecision(false)
+            if (!saved) {
+                setCreatingDecision(false)
+                submissionInFlight.current = false
+            }
         }
     }
 
