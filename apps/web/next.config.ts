@@ -4,10 +4,10 @@ const nextConfig: NextConfig = {
   // Keep the web container portable across Vercel, Railway, Cloud Run, ECS,
   // and any provider that can run a Node process.
   output: "standalone",
+  // Vercel limits custom deployment IDs to 32 characters; Git SHAs are 40.
   deploymentId:
     process.env.NEXT_DEPLOYMENT_ID ||
-    process.env.VERCEL_GIT_COMMIT_SHA ||
-    process.env.RAILWAY_GIT_COMMIT_SHA ||
+    (process.env.VERCEL_GIT_COMMIT_SHA || process.env.RAILWAY_GIT_COMMIT_SHA)?.slice(0, 32) ||
     undefined,
   async headers() {
     const noStalePwaAssetHeaders = [

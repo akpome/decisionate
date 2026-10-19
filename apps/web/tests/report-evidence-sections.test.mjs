@@ -149,16 +149,28 @@ test("archived, unrelated and unscoped legacy drafts cannot reappear in a report
 
 test("frontend deployments use the hosting commit id for version skew protection", () => {
   const source = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8")
+  const fullCommitSha = "2205b69d59becc4ada8a56458d84fc4023a14396"
+  const shortCommitSha = fullCommitSha.slice(0, 32)
   for (const [env, expected] of [
     [{}, undefined],
+    [{ NEXT_DEPLOYMENT_ID: "", VERCEL_GIT_COMMIT_SHA: "", RAILWAY_GIT_COMMIT_SHA: "" }, undefined],
     [{ NEXT_DEPLOYMENT_ID: "explicit-release", VERCEL_GIT_COMMIT_SHA: "web-commit" }, "explicit-release"],
     [{ VERCEL_GIT_COMMIT_SHA: "web-commit" }, "web-commit"],
     [{ RAILWAY_GIT_COMMIT_SHA: "container-commit" }, "container-commit"],
+    [{ VERCEL_GIT_COMMIT_SHA: fullCommitSha }, shortCommitSha],
+    [{ RAILWAY_GIT_COMMIT_SHA: fullCommitSha }, shortCommitSha],
+    [{ VERCEL_GIT_COMMIT_SHA: fullCommitSha, RAILWAY_GIT_COMMIT_SHA: "container-commit" }, shortCommitSha],
+    [{ NEXT_DEPLOYMENT_ID: "explicit-release", VERCEL_GIT_COMMIT_SHA: fullCommitSha }, "explicit-release"],
+    [{ NEXT_DEPLOYMENT_ID: "dpl_" + "a".repeat(28), VERCEL_GIT_COMMIT_SHA: fullCommitSha }, "dpl_" + "a".repeat(28)],
   ]) {
     const loaded = { exports: {} }
     vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText,
       { module: loaded, exports: loaded.exports, process: { env } })
     assert.equal(loaded.exports.default.deploymentId, expected)
+    if (expected) {
+      assert.ok(loaded.exports.default.deploymentId.length <= 32, "Vercel deployment IDs must not exceed 32 characters")
+      assert.match(loaded.exports.default.deploymentId, /^[a-zA-Z0-9_-]+$/)
+    }
   }
   const dockerfile = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8")
   for (const name of ["NEXT_DEPLOYMENT_ID", "VERCEL_GIT_COMMIT_SHA", "RAILWAY_GIT_COMMIT_SHA"]) {
