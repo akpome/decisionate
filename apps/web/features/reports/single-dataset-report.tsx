@@ -41,6 +41,7 @@ import {
 } from "@/app/dashboard/workspace-brand-mark"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { AnalysisNavigation } from "./analysis-navigation"
 import {
   MetricSelector,
   formatMetricLabel,
@@ -715,8 +716,11 @@ export default function SingleDatasetReport() {
   return (
     <div className="space-y-8">
       <div className="print:hidden">
+        <AnalysisNavigation active="dataset-reports" />
+      </div>
+      <div className="print:hidden">
         <DashboardPageHeader
-          title="Dataset inspection"
+          title="Dataset reports"
           actions={
             <button
               type="button"

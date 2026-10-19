@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronRight,
   FileText,
+  GitCompare,
   Home,
   LayoutDashboard,
   LineChart,
@@ -168,6 +169,11 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/dashboard/reports",
         label: "Reports",
         icon: <FileText size={18} />,
+      },
+      {
+        href: "/dashboard/relationships",
+        label: "Relationships",
+        icon: <GitCompare size={18} />,
       },
       {
         href: "/dashboard/insights",

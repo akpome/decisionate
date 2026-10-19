@@ -7,7 +7,9 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { correlationRequest, getMyOrganization, getOrganizationWorkspaces } from "@/lib/api"
 import { defaultWorkspaceBrand, getWorkspaceBrand, type WorkspaceBrand } from "@/lib/workspace-brand"
 import { WorkspaceBrandMark } from "@/app/dashboard/workspace-brand-mark"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 import { metricIdentity, type CatalogDataset } from "@/features/relationships/types"
+import { AnalysisNavigation } from "./analysis-navigation"
 import { editableDefinition, formatReportValue, type BusinessReport, type ReportDefinition, type ReportFinding } from "./types"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
@@ -32,6 +34,7 @@ async function hydrateCatalog(userId: string, workspaceId: string | undefined, c
 export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
   userId: string; workspaceId?: string; canManage: boolean; canSave: boolean
 }) {
+  const { t } = useDecisionateText()
   const [datasets, setDatasets] = useState<CatalogDataset[]>([])
   const [dateColumns, setDateColumns] = useState<Record<number, string>>({})
   const [nextOffset, setNextOffset] = useState<number | null>(null)
@@ -137,6 +140,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
     await execute(async () => {
       const result = await request<BusinessReport>("/preview", { method: "POST", body: JSON.stringify(definition) })
       setReport(result)
+      setView("report")
     })
   }
 
@@ -154,17 +158,18 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
     setReport(current => current ? { ...current, report_id: undefined } : null)
   }
 
-  if (loading) return <p role="status" className="py-8 text-sm text-gray-600">Loading cross-dataset reports...</p>
+  if (loading) return <div className="mx-auto min-w-0 max-w-[1500px] space-y-5"><AnalysisNavigation active="reports" /><p role="status" className="py-8 text-sm text-gray-600">Loading cross-dataset reports...</p></div>
   return <div className="mx-auto min-w-0 max-w-[1500px] space-y-5">
+    <AnalysisNavigation active="reports" />
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
       <h1 className="text-2xl font-semibold">Reports</h1>
-      <div role="tablist" aria-label="Report workspace" className="flex gap-1 rounded-md border border-gray-200 bg-white p-1">
+      <div role="tablist" aria-label="Report workspace" className="flex w-full min-w-0 gap-1 rounded-md border border-gray-200 bg-white p-1 sm:w-auto">
         {(["explore", "report"] as const).map(mode => <button key={mode} type="button" role="tab" tabIndex={view === mode ? 0 : -1} aria-selected={view === mode} aria-controls={`report-${mode}`} id={`tab-${mode}`} onClick={() => setView(mode)} onKeyDown={event => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
           event.preventDefault()
           const next = event.key === "Home" ? "explore" : event.key === "End" ? "report" : mode === "explore" ? "report" : "explore"
           setView(next); document.getElementById(`tab-${next}`)?.focus()
-        }} className={`inline-flex h-9 items-center gap-2 rounded px-4 text-sm ${view === mode ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`}>{mode === "explore" ? <ChartNoAxesCombined size={16} /> : <FileText size={16} />}{mode === "explore" ? "Explore" : "Report"}</button>)}
+        }} className={`inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded px-3 text-sm sm:flex-none ${view === mode ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`}>{mode === "explore" ? <ChartNoAxesCombined size={16} aria-hidden="true" className="shrink-0" /> : <FileText size={16} aria-hidden="true" className="shrink-0" />}<span className="min-w-0 break-words">{t(mode === "explore" ? "Build report" : "Report preview")}</span></button>)}
       </div>
     </header>
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
@@ -220,28 +225,23 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
               </div></details>
               <p className="text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets / {taskCount} tests</p>
               {taskCount > 1000 && <p className="text-sm text-amber-800">Report analysis exceeds the 1,000-test limit.</p>}
-              <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < 2 || taskCount > 1000 || definition.metrics.length > 25 || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}Analyze datasets</button>
-              <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-blue-700"><Link href="/dashboard/relationships/explorer" className="underline">Advanced matrix</Link><Link href="/dashboard/relationships" className="underline">Saved monitors</Link><Link href="/dashboard/reports/dataset" className="underline">Dataset inspection</Link></div>
+              <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < 2 || taskCount > 1000 || definition.metrics.length > 25 || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t("Preview report")}</button>
             </section>
           </div>
         </fieldset>
       </form>
-      {report && <>
-        <ReportOverview report={report} />
-        <MetricTrends report={report} />
-        <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Relationship findings"><h2 className="text-lg font-semibold">Relationship findings</h2>
-          {report.findings.length === 0 && <p className="text-sm text-gray-500">No cross-dataset relationships are available.</p>}
-          {report.findings.map(finding => <div key={finding.id} className="border-b border-gray-100 py-3"><label className="flex items-start gap-3"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0" disabled={busy} checked={selectedIds.includes(finding.id)} onChange={event => chooseFinding(finding.id, event.target.checked)} aria-label={`Include ${finding.metric_a.label} and ${finding.metric_b.label} in report`} /><span className="min-w-0"><Finding finding={finding} /></span></label></div>)}
-        </section>
-      </>}
     </section>
 
     <section role="tabpanel" id="report-report" aria-labelledby="tab-report" hidden={view !== "report"} className="space-y-6">
-      {!report ? <div className="border-y border-gray-200 py-12 text-center"><FileText className="mx-auto text-gray-400" size={32} /><h2 className="mt-3 text-lg font-medium">No report generated</h2><button type="button" className={`${button} mt-4`} onClick={() => setView("explore")}><ChartNoAxesCombined size={16} />Explore datasets</button></div> : <>
+      {!report ? <div className="border-y border-gray-200 py-12 text-center"><FileText className="mx-auto text-gray-400" size={32} /><h2 className="mt-3 text-lg font-medium">No report generated</h2><button type="button" className={`${button} mt-4`} onClick={() => setView("explore")}><ChartNoAxesCombined size={16} />{t("Build report")}</button></div> : <>
         <header className="border-b border-gray-200 pb-5"><div className="flex items-center gap-3"><WorkspaceBrandMark name={brand.name} logoUrl={brand.logoUrl} primaryColor={brand.primaryColor} className="h-10 w-10 rounded-md text-sm" /><span className="text-sm font-medium">{brand.name}</span></div><h2 className="mt-4 break-words text-2xl font-semibold">{report.name}</h2><p className="mt-2 break-words text-base text-gray-700">{report.business_question}</p><p className="mt-2 text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.grain} / {report.dataset_count} datasets / Generated {report.generated_at.slice(0, 10)}</p></header>
         <ReportOverview report={report} />
         <MetricTrends report={report} />
-        <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Combined findings</h3><Statements statements={report.observations} /><Statements statements={report.contrasts} />{report.findings.filter(item => selectedIds.includes(item.id)).map(finding => <div key={finding.id} className="border-b border-gray-100 py-3"><Finding finding={finding} /></div>)}</section>
+        <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Combined findings</h3><Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
+        <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Relationship findings"><h3 className="text-lg font-semibold">Relationship findings</h3>
+          {report.findings.length === 0 && <p className="text-sm text-gray-500">No cross-dataset relationships are available.</p>}
+          {report.findings.map(finding => <div key={finding.id} className={`border-b border-gray-100 py-3 ${selectedIds.includes(finding.id) ? "" : "print:hidden"}`}><label className="flex items-start gap-3"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0 print:hidden" disabled={busy} checked={selectedIds.includes(finding.id)} onChange={event => chooseFinding(finding.id, event.target.checked)} aria-label={`Include ${finding.metric_a.label} and ${finding.metric_b.label} in report`} /><span className="min-w-0"><Finding finding={finding} /></span></label></div>)}
+        </section>
         <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Follow-up actions</h3><Statements statements={report.recommendations} /></section>
         <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Decisions and outcomes</h3>{report.decisions.length === 0 ? <p className="text-sm text-gray-500">No linked decisions recorded.</p> : report.decisions.map(decision => <div key={decision.id} className="border-b border-gray-100 pb-3"><Link className="break-words font-medium text-blue-700 underline" href={`/dashboard/decisions/${decision.id}`}>{decision.title}</Link><p className="mt-1 text-xs text-gray-500">{decision.status} / Owner: {decision.owner_user_id}{decision.review_date ? ` / Review: ${decision.review_date.slice(0, 10)}` : ""}</p><p className="mt-2 text-sm">Expected: {decision.expected_outcome || "Not recorded"}</p><p className="mt-1 text-sm">Actual: {decision.actual_outcome || "Not yet recorded"}</p>{decision.change_percent !== null && <p className="mt-1 text-sm">Measured change: {decision.change_percent.toFixed(1)}%</p>}</div>)}</section>
         <section className="space-y-2 border-t border-gray-200 pt-5"><h3 className="text-base font-semibold">Evidence limitations</h3><p className="text-xs text-gray-500">Rule-based interpretation / Historical relationships: {report.history_window.start} to {report.history_window.end}</p><Statements statements={report.limitations} /></section>

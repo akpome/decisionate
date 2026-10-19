@@ -22,6 +22,7 @@ import { useActiveWorkspace } from "@/lib/use-active-workspace"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { CorrelationEntry } from "@/features/relationships/correlation-entry"
+import { AnalysisNavigation } from "@/features/reports/analysis-navigation"
 
 const aggregationOptions: Array<{
   value: DashboardValueAggregation
@@ -322,9 +323,9 @@ export default function RelationshipsPage() {
 
   return (
     <div className="space-y-7">
+      <AnalysisNavigation active="relationships" />
       <DashboardPageHeader
-        title="Cross-source relationships"
-        description="Choose two datasets and confirm how their metrics relate over shared periods."
+        title="Relationships"
         actions={
           <><CorrelationEntry key={`${user?.id}:${activeWorkspaceId}`} userId={user?.id} workspaceId={activeWorkspaceId} />
           <button
@@ -357,7 +358,7 @@ export default function RelationshipsPage() {
             <GitCompare size={19} />
           </div>
           <div>
-            <h2 className="text-lg font-semibold">{t("Define a relationship")}</h2>
+            <h2 className="text-lg font-semibold">{t("Compare two metrics")}</h2>
             <p className="mt-1 text-sm text-gray-500">
               {t("Decisionate calculates the relationship from aligned data. It does not imply that one metric caused the other.")}
             </p>
@@ -508,7 +509,7 @@ export default function RelationshipsPage() {
         />
       )}
 
-      <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
+      <section id="saved-relationships" className="scroll-mt-24 rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
         <div>
           <h2 className="text-lg font-semibold">{t("Saved relationships")}</h2>
           <p className="mt-1 text-sm text-gray-500">{t("Saved definitions are recalculated from the latest dataset contents when opened.")}</p>
