@@ -13,6 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db.database import Base
+from app.db.models import Dataset
 from app.modules.ai.schemas import AIAnalysis
 from app.modules.decisions import router
 from app.modules.decisions.activity_models import DecisionActivity
@@ -81,6 +82,99 @@ class DecisionDuplicateTests(unittest.TestCase):
                 definition=json.dumps(snapshot["definition"]), snapshot=json.dumps(snapshot)))
             db.commit()
             return first.id, second.id
+
+    def seed_legacy_pair(self):
+        context = (
+            "Joined evidence from 2 datasets on normalized month-year periods using sum aggregation. "
+            "Shared periods: 12 of 12 available (100.0%). Columns: marketing-demo.csv / ad_spend, "
+            "revenue-demo.csv / revenue. Latest shared period (2026-12-01): "
+            "marketing-demo.csv / ad_spend: 5800.0; revenue-demo.csv / revenue: 30100.0."
+        )
+        evidence = [{"dataset_id": identity, "file_name": name, "metric_column": metric, "label": metric, "column_type": "numeric"}
+                    for identity, name, metric in ((1, "marketing-demo.csv", "ad_spend"), (2, "revenue-demo.csv", "revenue"))]
+        shared = {
+            "action": "Review the joined metrics and agree on the next action.", "review_date": None,
+            "recommendation_text": "Review the joined metrics and agree on the next action.",
+            "recommendation_source": "rules", "recommendation_context": context,
+            "description": "\n\n".join((context, "Latest shared period: 2026-12-01.",
+                "Latest evidence: marketing-demo.csv / ad_spend: 5,800; revenue-demo.csv / revenue: 30,100.",
+                "Select an outcome metric in Decision Details only if this decision needs numeric outcome measurement.")),
+            "expected_outcome": "Agree on an action based on the joined evidence and measure the result by the review date.",
+            "evidence_metrics_json": json.dumps(evidence),
+        }
+        with self.Session() as db:
+            for identity, name in ((1, "marketing-demo.csv"), (2, "revenue-demo.csv")):
+                db.add(Dataset(id=identity, user_id="owner", workspace_id="workspace", file_name=name,
+                    source_type="csv", source_config="{}", file_path="unused.csv", row_count=12, column_count=5))
+            old = self.record(db, id=3, title="Review joined evidence: marketing-demo.csv + revenue-demo.csv", **shared)
+            selected = self.record(db, id=4, title="Review joined dataset evidence", metric_column="ad_spend", **shared)
+            definition = {"metrics": [{"dataset_id": 1, "metric_key": "ad_spend"}, {"dataset_id": 2, "metric_key": "revenue"}]}
+            db.add(BusinessReport(id="report-1", workspace_id="workspace", user_id="owner", name="Campaign report",
+                definition=json.dumps(definition), snapshot=json.dumps({"definition": definition})))
+            db.commit()
+            return old.id, selected.id
+
+    def test_screenshot_title_variants_keep_one_draft_and_preserve_its_ad_spend_selection(self):
+        old, selected = self.seed_legacy_pair()
+        self.repair(); self.repair()
+        portfolio = self.client.get("/decisions/", headers=self.headers).json()
+        self.assertEqual([item["id"] for item in portfolio], [selected])
+        self.assertEqual(portfolio[0]["metric_column"], "ad_spend")
+        report = self.client.get("/api/v2/business-reports/report-1", headers=self.headers).json()
+        self.assertEqual(report["decisions"], [])
+        self.assertEqual([item["id"] for item in report["decision_drafts"]], [selected])
+        for identity in (old, selected):
+            detail = self.client.get(f"/decisions/{identity}", headers=self.headers).json()
+            self.assertEqual(detail["id"], selected)
+            self.assertEqual(detail["metric_column"], "ad_spend")
+        options = self.client.get(f"/decisions/{old}/metric-options", headers=self.headers)
+        self.assertEqual(options.status_code, 200, options.text)
+        self.assertEqual(options.json()["decision_id"], selected)
+        self.assertEqual([item["metric_column"] for item in options.json()["metrics"]], ["ad_spend"])
+        with self.Session() as db:
+            self.assertEqual(db.query(Decision).count(), 2)
+            self.assertEqual(db.get(DecisionDuplicate, old).canonical_id, selected)
+            self.assertIsNone(db.get(Decision, old).metric_column)
+            self.assertEqual(db.get(Decision, old).title, "Review joined evidence: marketing-demo.csv + revenue-demo.csv")
+            self.assertEqual({item.decision_id for item in db.query(DecisionActivity)}, {selected})
+
+    def test_legacy_repair_preserves_real_actions_manual_work_and_different_evidence(self):
+        for changes in (
+            {"action": "Move 10% of budget to campaign B"}, {"notes": "Check customer mix first"},
+            {"actual_outcome": "Orders increased"}, {"outcome_baseline_value": 0}, {"review_date": datetime(2026, 11, 1)},
+            {"lessons_learned": "This action worked"}, {"assigned_user_id": "colleague"},
+            {"recommendation_context": "A different joined history"}, {"description": "My own reasoning"},
+            {"evidence_dataset_ids_json": "[1,2,9]"}, {"evidence_metrics_json": "[]"},
+            {"workspace_id": "another-workspace"}, {"clerk_user_id": "another-owner"},
+            {"status": "in_progress"}, {"status": "archived"},
+        ):
+            with self.subTest(changes=changes):
+                self.seed_legacy_pair()
+                with self.Session() as db:
+                    item = db.get(Decision, 4)
+                    for name, value in changes.items():
+                        setattr(item, name, value)
+                    db.commit()
+                self.repair()
+                with self.Session() as db:
+                    self.assertEqual(db.query(DecisionDuplicate).count(), 0)
+                    db.query(DecisionActivity).delete()
+                    db.query(Decision).delete()
+                    db.query(Dataset).delete()
+                    db.query(BusinessReport).delete()
+                    db.commit()
+
+    def test_conflicting_nonempty_legacy_outcome_choices_are_not_discarded(self):
+        self.seed_legacy_pair()
+        with self.Session() as db:
+            db.get(Decision, 3).metric_column = "revenue"
+            db.get(Decision, 3).outcome_dataset_id = 2
+            db.commit()
+        self.repair()
+        with self.Session() as db:
+            self.assertEqual(db.query(DecisionDuplicate).count(), 0)
+            self.assertEqual(db.get(Decision, 3).metric_column, "revenue")
+            self.assertEqual(db.get(Decision, 4).metric_column, "ad_spend")
 
     def test_existing_pair_is_one_record_in_both_report_and_portfolio_without_deleting_history(self):
         first, second = self.seed_pair()
