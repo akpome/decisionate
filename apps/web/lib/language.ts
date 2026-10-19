@@ -889,6 +889,8 @@ const frenchLandingTranslations: Record<string, string> = {
   "Selected evidence metrics are unavailable.": "Les métriques sélectionnées comme éléments probants sont indisponibles.",
   "No selected evidence metrics.": "Aucune métrique sélectionnée comme élément probant.",
   "Original evidence record": "Enregistrement original des éléments probants",
+  Description: "Description",
+  Context: "Contexte",
   "No selected metrics": "Aucune métrique sélectionnée",
   "The saved outcome metric is outside the selected evidence metrics.": "La métrique de résultat enregistrée ne fait pas partie des métriques sélectionnées comme éléments probants.",
   "No decision action was recorded.": "Aucune action de décision n'a été renseignée.",

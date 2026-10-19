@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
+import { decisionEvidenceHref } from "@/features/decisions/lib/report-metric-scope"
 import type { BusinessReport, ReportDecision, ReportFinding } from "./types"
 
 export function ReportRelationshipFindings({ report }: { report: BusinessReport }) {
@@ -34,23 +35,23 @@ export function ReportDecisions({ report }: { report: BusinessReport }) {
       <h3 className="text-lg font-semibold">Decisions and outcomes</h3>
       <Link className="text-sm text-blue-700 underline print:hidden" href="/dashboard/decisions">Manage decisions</Link>
     </div>
-    {active.length > 0 ? active.map(decision => <DecisionRow key={decision.id} decision={decision} />)
+    {active.length > 0 ? active.map(decision => <DecisionRow key={decision.id} decision={decision} report={report} />)
       : draft ? <div className="min-w-0 border-b border-gray-100 pb-3" aria-label="Existing decision draft">
         <p className="mb-1 text-xs font-medium text-amber-800">Earlier draft for these datasets</p>
-        <Link className="break-words font-medium text-blue-700 underline" href={`/dashboard/decisions/${draft.id}`}>Decision draft</Link>
+        <Link className="break-words font-medium text-blue-700 underline" href={decisionEvidenceHref(draft.id, report.definition.metrics)}>Decision draft</Link>
         <p className="mt-1 text-sm text-gray-600">Action not recorded.</p>
       </div>
         : <p className="text-sm text-gray-500">No active decisions linked to this report.</p>}
     {archived.length > 0 && <details className="min-w-0 border-t border-gray-100 pt-3 text-sm">
       <summary className="cursor-pointer text-gray-600">Archived decisions ({archived.length})</summary>
-      <div className="mt-3 space-y-3">{archived.map(decision => <DecisionRow key={decision.id} decision={decision} />)}</div>
+      <div className="mt-3 space-y-3">{archived.map(decision => <DecisionRow key={decision.id} decision={decision} report={report} />)}</div>
     </details>}
   </section>
 }
 
-function DecisionRow({ decision }: { decision: ReportDecision }) {
+function DecisionRow({ decision, report }: { decision: ReportDecision; report: BusinessReport }) {
   return <div className="min-w-0 border-b border-gray-100 pb-3">
-    <Link className="break-words font-medium text-blue-700 underline" href={`/dashboard/decisions/${decision.id}`}>{getDecisionDisplayTitle(decision)}</Link>
+    <Link className="break-words font-medium text-blue-700 underline" href={decisionEvidenceHref(decision.id, report.definition?.metrics || [])}>{getDecisionDisplayTitle(decision)}</Link>
     <p className="mt-1 text-xs text-gray-500">{decision.status} / Owner: {decision.owner_user_id}{decision.review_date ? ` / Review: ${decision.review_date.slice(0, 10)}` : ""}</p>
     <p className="mt-2 text-sm">Expected: {decision.expected_outcome || "Not recorded"}</p>
     <p className="mt-1 text-sm">Actual: {decision.actual_outcome || "Not yet recorded"}</p>

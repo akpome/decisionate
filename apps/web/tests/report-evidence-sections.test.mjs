@@ -14,7 +14,7 @@ function load(relativePath, imports = {}) {
   const source = readFileSync(new URL(relativePath, import.meta.url), "utf8")
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
-  } }).outputText, { module: loaded, exports: loaded.exports, require: name => imports[name] || require(name) })
+  } }).outputText, { module: loaded, exports: loaded.exports, URLSearchParams, require: name => imports[name] || require(name) })
   return loaded.exports
 }
 
@@ -22,6 +22,7 @@ const title = load("../features/decisions/lib/decision-title.ts")
 const { ReportRelationshipFindings, ReportDecisions } = load("../features/reports/report-evidence-sections.tsx", {
   "next/link": { __esModule: true, default: props => React.createElement("a", props) },
   "@/features/decisions/lib/decision-title": title,
+  "@/features/decisions/lib/report-metric-scope": load("../features/decisions/lib/report-metric-scope.ts"),
 })
 const finding = {
   id: "finding-1", metric_a: { dataset_label: "marketing-demo.csv", label: "Website visits" },
@@ -43,9 +44,9 @@ const renderFindings = (patch = {}) => renderToStaticMarkup(React.createElement(
   findings: [finding], included_findings: [finding.id], ...patch,
 } }))
 const renderDecisions = (patch = {}) => renderToStaticMarkup(React.createElement(ReportDecisions, { report: {
-  report_id: "report-1", definition: { metrics: [{ dataset_id: 1 }, { dataset_id: 2 }] }, decisions: [], ...patch,
+  report_id: "report-1", definition: { metrics: [{ dataset_id: 1, metric_key: "spend" }, { dataset_id: 2, metric_key: "orders" }] }, decisions: [], ...patch,
 } }))
-const decisionLinks = html => html.match(/href="\/dashboard\/decisions\/\d+"/g) || []
+const decisionLinks = html => html.match(/href="\/dashboard\/decisions\/\d+(?:\?[^"]*)?"/g) || []
 
 test("relationship findings are read-only results with no checkbox or print-only visibility", () => {
   const html = renderFindings()
@@ -121,7 +122,9 @@ test("one existing active source draft remains editable without inventing an act
   const html = renderDecisions({ report_id: undefined, decision_drafts: drafts })
   assert.equal(decisionLinks(html).length, 1)
   assert.match(html, /Earlier draft for these datasets/)
-  assert.match(html, /href="\/dashboard\/decisions\/1">Decision draft/)
+  assert.match(html, /href="\/dashboard\/decisions\/1\?evidence_metrics=[^"]+">Decision draft/)
+  const href = html.match(/href="([^\"]+)">Decision draft/)?.[1]
+  assert.deepEqual(JSON.parse(new URL(href, "https://decisionate.test").searchParams.get("evidence_metrics")), [[1, "spend"], [2, "orders"]])
   assert.match(html, /Action not recorded/)
   assert.doesNotMatch(html, /Review joined|Actual:|Expected:|No active decisions/)
 })

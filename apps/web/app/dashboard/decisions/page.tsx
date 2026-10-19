@@ -54,6 +54,7 @@ import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-p
 import { CreateDecisionLink } from "@/features/decisions/components/create-decision-action"
 import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
 import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
+import { decisionNarrativeText } from "@/features/decisions/lib/decision-evidence-text"
 import { AIAnalysisPanel } from "@/features/ai/components/analysis-panel"
 import { getAIRecommendationSource } from "@/features/decisions/lib/ai-recommendation-source"
 import {
@@ -2580,7 +2581,7 @@ function DecisionCard({
             )}
 
             <p className="mt-3 break-words text-sm text-gray-500 line-clamp-2">
-                {decision.description ||
+                {decisionNarrativeText(decision.description) ||
                     "No description provided."}
             </p>
 

@@ -54,6 +54,8 @@ import {
 } from "@/lib/decision-activity-style"
 import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
 import { DecisionEvidenceContext } from "@/features/decisions/components/decision-evidence-context"
+import { decisionNarrativeText } from "@/features/decisions/lib/decision-evidence-text"
+import { selectedDecisionEvidence } from "@/features/decisions/lib/report-metric-scope"
 import {
   hasAddedNotes,
   hasCapturedLearning,
@@ -228,6 +230,7 @@ export default function DecisionPage() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const evidenceSelection = searchParams.get("evidence_metrics")
   const { user } = useUser()
   const {
     activeWorkspaceId,
@@ -520,7 +523,7 @@ export default function DecisionPage() {
         }
 
         if (metricsResult.status === "fulfilled") {
-          setSelectedEvidenceMetrics(metricsResult.value.metrics)
+          setSelectedEvidenceMetrics(selectedDecisionEvidence(metricsResult.value.metrics, evidenceSelection))
           setMetricLoadError("")
         } else {
           const metricsUnavailable =
@@ -584,6 +587,7 @@ export default function DecisionPage() {
   }, [
     loadRetryKey,
     metricLoadRetryKey,
+    evidenceSelection,
     params.id,
     activeWorkspaceId,
     user?.id,
@@ -847,8 +851,9 @@ export default function DecisionPage() {
     setOriginalTitle(nextDecision.title ?? "")
     setAction(nextDecision.action ?? "")
     setOriginalAction(nextDecision.action ?? "")
-    setDescription(nextDecision.description ?? "")
-    setOriginalDescription(nextDecision.description ?? "")
+    const nextDescription = decisionNarrativeText(nextDecision.description)
+    setDescription(nextDescription)
+    setOriginalDescription(nextDescription)
     setMetricColumn(nextDecision.metric_column ?? "")
     setOriginalMetricColumn(nextDecision.metric_column ?? "")
     setOutcomeDatasetId(nextDecision.outcome_dataset_id ?? null)
@@ -1760,6 +1765,8 @@ export default function DecisionPage() {
       : decision.recommendation_source === "rules"
         ? "Rules-based analysis"
         : aiRecommendationSource
+  const recommendationText = decisionNarrativeText(decision.recommendation_text)
+  const decisionDescription = decisionNarrativeText(decision.description)
 
   return (
     <div className="space-y-6">
@@ -1787,7 +1794,7 @@ export default function DecisionPage() {
           title={getDecisionDisplayTitle(decision)}
           description={isLegacyEvidencePlaceholder(decision)
             ? "No decision action was recorded."
-            : decision.description || "No description provided."}
+            : decisionDescription || "No description provided."}
           actions={
             <div className="flex items-center gap-2">
               <Link
@@ -1876,7 +1883,8 @@ export default function DecisionPage() {
         </div>
       </DashboardCard>
 
-      {decision.recommendation_text && (
+      {(decision.recommendation_text || decision.recommendation_context ||
+        decisionDescription !== (decision.description ?? "") || selectedEvidenceMetrics.length > 0) && (
         <DashboardCard>
           <CardHeader
             title="Recommendation Evidence"
@@ -1890,14 +1898,9 @@ export default function DecisionPage() {
           />
 
           <div className="mt-4 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4">
-            <p className="text-sm leading-6 text-gray-800">
-              {decision.recommendation_text}
-            </p>
-
-            {decision.recommendation_context && (
-              <DecisionEvidenceContext context={decision.recommendation_context} metrics={selectedEvidenceMetrics}
-                loading={metricsLoading} unavailable={Boolean(metricLoadError)} />
-            )}
+            <DecisionEvidenceContext context={decision.recommendation_context} recommendationText={decision.recommendation_text}
+              description={decision.description} metrics={selectedEvidenceMetrics}
+              loading={metricsLoading} unavailable={Boolean(metricLoadError)} />
 
             {(decision.recommendation_source || recommendationSourceLabel) && (
               <p className="mt-2 text-xs text-gray-500">
@@ -2387,14 +2390,14 @@ export default function DecisionPage() {
             }
           />
 
-          {decision.recommendation_text && (
+          {recommendationText && (
             <div className="mt-4 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
                 Recommendation Under Review
               </p>
 
               <p className="mt-2 text-sm leading-6 text-[var(--decisionate-brand-primary-text)]">
-                {decision.recommendation_text}
+                {recommendationText}
               </p>
 
               {decision.recommendation_source && (

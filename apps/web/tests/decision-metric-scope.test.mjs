@@ -9,18 +9,22 @@ const ts = require("typescript")
 const React = require("react")
 const { renderToStaticMarkup } = require("react-dom/server")
 
-function load(relativePath) {
+function load(relativePath, imports = {}) {
   const loaded = { exports: {} }
   const source = readFileSync(new URL(relativePath, import.meta.url), "utf8")
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
-  } }).outputText, { module: loaded, exports: loaded.exports, require: name => name.includes("metric-selector")
-    ? { formatMetricLabel: column => column.replaceAll("_", " ") } : require(name) })
+  } }).outputText, { module: loaded, exports: loaded.exports, URLSearchParams, require: name => imports[name] || (name.includes("metric-selector")
+    ? { formatMetricLabel: column => column.replaceAll("_", " ") } : require(name)) })
   return loaded.exports
 }
 
-const { selectedReportMetrics } = load("../features/decisions/lib/report-metric-scope.ts")
-const { DecisionEvidenceContext } = load("../features/decisions/components/decision-evidence-context.tsx")
+const { selectedReportMetrics, selectedDecisionEvidence, decisionEvidenceHref } = load("../features/decisions/lib/report-metric-scope.ts")
+const narrative = load("../features/decisions/lib/decision-evidence-text.ts")
+const { decisionNarrativeText } = narrative
+const { DecisionEvidenceContext } = load("../features/decisions/components/decision-evidence-context.tsx", {
+  "../lib/decision-evidence-text": narrative,
+})
 const fields = [
   { dataset_id: 1, metric_key: "spend", label: "Spend" }, { dataset_id: 1, metric_key: "clicks", label: "Clicks" },
   { dataset_id: 2, metric_key: "orders", label: "Orders" }, { dataset_id: 2, metric_key: "sales", label: "Sales" },
@@ -102,4 +106,114 @@ test("selected metric requests use the decision id and workspace authorization w
   assert.equal(request.options.headers.Authorization, "Bearer test")
   assert.equal(request.options.headers["X-Workspace-Id"], "workspace")
   assert.equal(response.metrics.length, 2)
+})
+
+const joinedSummary = "Joined evidence from 2 datasets on normalized month-year periods using sum aggregation. Shared periods: 12 of 12 available (100.0%). Columns: marketing-demo.csv \u00b7 ad_spend, marketing-demo.csv \u00b7 website_visits, marketing-demo.csv \u00b7 leads, marketing-demo.csv \u00b7 customers, revenue-demo.csv \u00b7 revenue, revenue-demo.csv \u00b7 customers, revenue-demo.csv \u00b7 orders. Latest shared period (2026-12-01): marketing-demo.csv \u00b7 ad_spend: 5800.0; marketing-demo.csv \u00b7 website_visits: 26400.0; marketing-demo.csv \u00b7 leads: 745.0; marketing-demo.csv \u00b7 customers: 65.0; revenue-demo.csv \u00b7 revenue: 30100.0; revenue-demo.csv \u00b7 customers: 268.0; revenue-demo.csv \u00b7 orders: 189.0."
+const legacyDescription = [joinedSummary, "Latest shared period: 2026-12-01.",
+  "Latest evidence: marketing-demo.csv \u00b7 ad_spend: 5,800; marketing-demo.csv \u00b7 website_visits: 26,400; marketing-demo.csv \u00b7 leads: 745; revenue-demo.csv \u00b7 orders: 189.",
+  "Select an outcome metric in Decision Details only if this decision needs numeric outcome measurement."].join("\n\n")
+
+test("the exact legacy joined description is not used as a current metric summary", () => {
+  assert.equal(decisionNarrativeText(legacyDescription), "")
+  assert.equal(decisionNarrativeText(joinedSummary), "")
+  assert.equal(decisionNarrativeText(null), "")
+  assert.equal(decisionNarrativeText(undefined), "")
+})
+
+test("manual notes around a generated snapshot and unrelated authored prose are preserved", () => {
+  const before = "Budget test approved by the account owner."
+  const after = "Do not increase spend until the next review."
+  assert.equal(decisionNarrativeText([before, legacyDescription, after].join("\n\n")), `${before}\n\n${after}`)
+  assert.equal(decisionNarrativeText(legacyDescription.replaceAll("\n", "\r\n")), "")
+  for (const text of ["Latest evidence: customers asked for a longer trial.", "Columns: revenue and costs must be reviewed.", `Quoted evidence: ${joinedSummary}`]) {
+    assert.equal(decisionNarrativeText(text), text)
+  }
+})
+
+test("French metadata generated around the English backend snapshot is not left in the description", () => {
+  const text = [joinedSummary, "Derni\u00e8re p\u00e9riode commune : 2026-12-01.",
+    "Derniers \u00e9l\u00e9ments probants : website_visits: 26400.",
+    "S\u00e9lectionnez une m\u00e9trique de r\u00e9sultat dans les d\u00e9tails de la d\u00e9cision uniquement si cette d\u00e9cision n\u00e9cessite une mesure num\u00e9rique du r\u00e9sultat."].join("\n\n")
+  assert.equal(decisionNarrativeText(text), "")
+})
+
+test("all-field prose is archived, not rendered above the selected evidence or in the main recommendation", () => {
+  const html = render({ context: joinedSummary, recommendationText: joinedSummary, description: legacyDescription,
+    metrics: [{ dataset_id: 1, metric_column: "ad_spend", file_name: "marketing-demo.csv" }, { dataset_id: 2, metric_column: "orders", file_name: "revenue-demo.csv" }],
+  })
+  const active = html.replace(/<details[\s\S]*?<\/details>/g, "")
+  assert.match(active, /marketing-demo\.csv \/ ad spend/)
+  assert.match(active, /revenue-demo\.csv \/ orders/)
+  assert.doesNotMatch(active, /website_visits|website visits|customers|leads|26400|26,400|Joined evidence|Latest evidence|Select an outcome/)
+  assert.match(html, /website_visits/)
+  assert.match(html, /Original evidence record/)
+  assert.doesNotMatch(html, /<details[^>]*\bopen(?:=|\s|>)/)
+})
+
+test("description-only legacy evidence remains available even without a recommendation or selected metrics", () => {
+  const html = render({ context: null, recommendationText: null, description: legacyDescription, metrics: [] })
+  assert.match(html, /Original evidence record/)
+  assert.match(html, /website_visits/)
+  assert.doesNotMatch(html.replace(/<details[\s\S]*?<\/details>/g, ""), /website_visits|Joined evidence from/)
+  const source = readFileSync(new URL("../app/dashboard/decisions/[id]/page.tsx", import.meta.url), "utf8")
+  assert.match(source, /decisionDescription !== \(decision\.description \?\? ""\)/)
+})
+
+test("report links preserve the exact chosen references and can only narrow authorized metric options", () => {
+  const metrics = fields.map(item => ({ ...item, metric_column: item.metric_key }))
+  const href = new URL(decisionEvidenceHref(42, [fields[0], fields[2]]), "https://decisionate.test")
+  const selection = href.searchParams.get("evidence_metrics")
+  assert.equal(href.pathname, "/dashboard/decisions/42")
+  assert.deepEqual(JSON.parse(selection), [[1, "spend"], [2, "orders"]])
+  assert.deepEqual(Array.from(selectedDecisionEvidence(metrics, selection), item => item.metric_column), ["spend", "orders"])
+  assert.equal(selectedDecisionEvidence(metrics, JSON.stringify([[99, "spend"]])).length, 0)
+  assert.equal(selectedDecisionEvidence(metrics, null), metrics)
+  for (const invalid of ["", "not json", "{}", "[]", '[[true,"spend"]]', '[[-1,"spend"]]', '[[1,""]]', JSON.stringify(Array(26).fill([1, "spend"]))]) {
+    assert.equal(selectedDecisionEvidence(metrics, invalid).length, 0)
+  }
+  const sameNames = [{ dataset_id: 1, metric_column: "total" }, { dataset_id: 2, metric_column: "total" }]
+  assert.deepEqual(Array.from(selectedDecisionEvidence(sameNames, '[[2,"total"]]'), item => item.dataset_id), [2])
+})
+
+function detailFunction(name) {
+  const source = readFileSync(new URL("../app/dashboard/decisions/[id]/page.tsx", import.meta.url), "utf8")
+  const ast = ts.createSourceFile("page.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let declaration
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === name) declaration = node
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(declaration)
+  return ts.transpileModule(`${declaration.getText(ast)}\n${name}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+}
+
+test("loading the edit form does not put the generated all-column snapshot into its description", () => {
+  const values = {}
+  const names = ["Title", "OriginalTitle", "Action", "OriginalAction", "Description", "OriginalDescription", "MetricColumn", "OriginalMetricColumn", "OutcomeDatasetId", "OriginalOutcomeDatasetId"]
+  const bindings = { decisionNarrativeText, ...Object.fromEntries(names.map(name => [`set${name}`, value => { values[name] = value }])) }
+  const sync = vm.runInNewContext(detailFunction("syncDetailsFormFromDecision"), bindings)
+  const record = { title: "Budget test", action: "Keep spend steady", description: legacyDescription }
+  sync(record)
+  assert.equal(values.Description, "")
+  assert.equal(values.OriginalDescription, "")
+  assert.equal(values.Title, record.title)
+  assert.equal(record.description, legacyDescription)
+})
+
+test("saving a title-only change does not overwrite the stored original description", async () => {
+  let payload
+  const bindings = {
+    user: { id: "owner" }, decision: { id: 42, description: legacyDescription }, activeWorkspaceId: "workspace",
+    title: "Updated budget test", originalTitle: "Budget test", action: "Keep spend steady", originalAction: "Keep spend steady",
+    description: "", originalDescription: "", metricColumn: "", originalMetricColumn: "", outcomeDatasetId: null, originalOutcomeDatasetId: null,
+    detailsDecisionActivity: "details", setSavingSection() {}, setSaveError() {}, setDecision() {},
+    syncDetailsFormFromDecision() {}, loadActivities: async () => {}, showSectionSaved() {}, setDetailsSaved() {},
+    getSaveErrorMessage: error => error.message, console,
+    updateDecisionDetails: async (_id, value) => { payload = value; return { id: 42, description: legacyDescription } },
+  }
+  await vm.runInNewContext(detailFunction("handleSaveDetails"), bindings)()
+  assert.equal(payload.title, "Updated budget test")
+  assert.equal("description" in payload, false)
+  assert.equal(bindings.decision.description, legacyDescription)
 })
