@@ -1,0 +1,7146 @@
+{
+  "snapshot_commit": "21fce6900ae4ded2c6a7b4f1a87e38a9c06feac4",
+  "method": "Static TypeScript AST; route files are actual declarations, not proof of authenticated browser completion. data_calls are call-name candidates including local helpers, not a complete runtime network call graph. Wrapper pages delegate to their imported feature components.",
+  "routes": [
+    {
+      "route": "/",
+      "source": "apps/web/app/page.tsx",
+      "imports": [
+        {
+          "module": "@/components/landing/footer",
+          "names": [
+            "LandingFooter"
+          ]
+        },
+        {
+          "module": "@/components/landing/hero",
+          "names": [
+            "LandingHero"
+          ]
+        },
+        {
+          "module": "@/components/landing/navbar",
+          "names": [
+            "LandingNavbar"
+          ]
+        },
+        {
+          "module": "@/components/landing/landing.css",
+          "names": []
+        },
+        {
+          "module": "@/components/landing/landing-sections",
+          "names": [
+            "AgencySection",
+            "BusinessSection",
+            "FAQSection",
+            "FeaturesSection",
+            "FinalCTASection",
+            "IntegrationsSection",
+            "PricingSection"
+          ]
+        }
+      ],
+      "components": [
+        "LandingNavbar",
+        "LandingHero",
+        "BusinessSection",
+        "AgencySection",
+        "FeaturesSection",
+        "IntegrationsSection",
+        "PricingSection",
+        "FAQSection",
+        "FinalCTASection",
+        "LandingFooter"
+      ],
+      "data_calls": [],
+      "links_and_titles": [],
+      "audit": {
+        "dashboard_like": false,
+        "audience": "Public/auth/onboarding supporting route; outside dashboard transformation.",
+        "treatment": "keep unchanged",
+        "proposal": "No consolidation change proposed; preserve current behavior.",
+        "verification": "Statically enumerated; not functionally browser-tested in this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/auth/redirect",
+      "source": "apps/web/app/auth/redirect/page.tsx",
+      "imports": [
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useClerk",
+            "useUser"
+          ]
+        },
+        {
+          "module": "next/navigation",
+          "names": [
+            "useRouter"
+          ]
+        },
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useState"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "LoaderCircle",
+            "LogOut",
+            "RefreshCw"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "ApiError",
+            "getOrganizationWorkspaces",
+            "getPlatformAdminAccess"
+          ]
+        },
+        {
+          "module": "@/features/auth/lib/auth-redirects",
+          "names": [
+            "getDashboardReturnTo",
+            "getSafeReturnTo",
+            "getSignInUrl"
+          ]
+        },
+        {
+          "module": "@/features/auth/lib/auth-workspaces",
+          "names": [
+            "chooseAuthWorkspace",
+            "getAuthenticatedDestination"
+          ]
+        },
+        {
+          "module": "@/features/auth/lib/signup-consent",
+          "names": [
+            "writeSignupConsent"
+          ]
+        },
+        {
+          "module": "@/features/auth/lib/marketing-consent",
+          "names": [
+            "completeSignupMarketing"
+          ]
+        },
+        {
+          "module": "@/lib/workspace-context",
+          "names": [
+            "getActiveWorkspaceId",
+            "setActiveWorkspaceId"
+          ]
+        },
+        {
+          "module": "@/app/use-decisionate-language",
+          "names": [
+            "useDecisionateText"
+          ]
+        }
+      ],
+      "components": [
+        "LoaderCircle",
+        "RefreshCw",
+        "LogOut"
+      ],
+      "data_calls": [
+        {
+          "name": "getSafeReturnTo",
+          "line": 42
+        },
+        {
+          "name": "getSignInUrl",
+          "line": 45
+        },
+        {
+          "name": "getPlatformAdminAccess",
+          "line": 62
+        },
+        {
+          "name": "getOrganizationWorkspaces",
+          "line": 63
+        },
+        {
+          "name": "getDashboardReturnTo",
+          "line": 69
+        },
+        {
+          "name": "getAuthenticatedDestination",
+          "line": 70
+        },
+        {
+          "name": "getActiveWorkspaceId",
+          "line": 78
+        },
+        {
+          "name": "getAuthenticatedDestination",
+          "line": 83
+        },
+        {
+          "name": "getSignInUrl",
+          "line": 129
+        },
+        {
+          "name": "getSafeReturnTo",
+          "line": 129
+        }
+      ],
+      "links_and_titles": [],
+      "audit": {
+        "dashboard_like": false,
+        "audience": "Public/auth/onboarding supporting route; outside dashboard transformation.",
+        "treatment": "keep unchanged",
+        "proposal": "No consolidation change proposed; preserve current behavior.",
+        "verification": "Statically enumerated; not functionally browser-tested in this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard",
+      "source": "apps/web/app/dashboard/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "useCallback",
+            "useEffect",
+            "useMemo",
+            "useRef",
+            "useState"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useAuth",
+            "useUser"
+          ]
+        },
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "next/dynamic",
+          "names": [],
+          "default": "dynamic"
+        },
+        {
+          "module": "@/features/dashboard/components/dataset-selector",
+          "names": [
+            "DatasetSelector"
+          ]
+        },
+        {
+          "module": "@/features/relationships/correlation-widgets",
+          "names": [
+            "CorrelationWidgets"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/metric-selector",
+          "names": [
+            "formatMetricLabel",
+            "MetricSelector"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "getDatasetJoinCache",
+            "joinDatasets",
+            "AIAnalysis",
+            "DatasetAnomaliesResponse",
+            "DatasetJoinResult",
+            "DatasetSummary",
+            "DashboardPreferencePayload",
+            "OrganizationRecord",
+            "OrganizationWorkspaceRecord",
+            "getDatasetAIAnalysis",
+            "getDatasetAnomalies",
+            "getDatasetDetails",
+            "getDatasetShareLink",
+            "getDatasetShareStatus",
+            "getDatasets",
+            "getDatasetPreference",
+            "getDashboardPreference",
+            "getMyOrganization",
+            "getOrganizationWorkspaces",
+            "stopDatasetSharing",
+            "updateDatasetPreference"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/analysis-status",
+          "names": [
+            "AnalysisStatus"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/analysis-panel",
+          "names": [
+            "AIAnalysisPanel"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/lib/dashboard-session-context",
+          "names": [
+            "useDashboardSessionUserId"
+          ]
+        },
+        {
+          "module": "@/features/datasets/lib/source-config",
+          "names": [
+            "getDatasetSourceDetails"
+          ]
+        },
+        {
+          "module": "@/app/dashboard/workspace-brand-mark",
+          "names": [
+            "WorkspaceBrandMark"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/workspace-access-notice",
+          "names": [
+            "WorkspaceAccessNotice"
+          ]
+        },
+        {
+          "module": "@/lib/workspace-brand",
+          "names": [
+            "getWorkspaceBrand",
+            "WorkspaceBrand"
+          ]
+        },
+        {
+          "module": "@/features/dashboards/dashboard-registry",
+          "names": [
+            "dashboardRegistry",
+            "getDashboardAutoMetricMapping",
+            "getDashboardChartTitleFields",
+            "getDashboardMappingChartTitles",
+            "DashboardActionButton",
+            "DashboardChartTitleField",
+            "DashboardChartTitleKey",
+            "DashboardChartTitles",
+            "DashboardAggregation",
+            "DashboardValueAggregation",
+            "DashboardMetricMapping"
+          ]
+        },
+        {
+          "module": "@/features/dashboards/dashboard-definitions",
+          "names": [
+            "dashboardUsesDatasetMetricMapping",
+            "defaultDashboardKey",
+            "getDashboardDefinition",
+            "isDashboardKey"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/lib/chart-palette",
+          "names": [
+            "dashboardChartPalette"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/lib/summary-aggregation",
+          "names": [
+            "finalizeSummaryAggregation",
+            "getHistoricalDimensionWarning",
+            "getSummaryAggregationState",
+            "isInternalSummaryColumn",
+            "mergeSummaryAggregationState",
+            "SummaryAggregationState"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "Database",
+            "FileDown",
+            "Gauge",
+            "GitCompare",
+            "GitMerge",
+            "LineChartIcon",
+            "Maximize2",
+            "Settings2",
+            "Share2",
+            "Unlink",
+            "X"
+          ]
+        },
+        {
+          "module": "recharts",
+          "names": [
+            "Area",
+            "AreaChart",
+            "Bar",
+            "BarChart",
+            "CartesianGrid",
+            "Legend",
+            "Line",
+            "LineChart",
+            "ReferenceLine",
+            "ResponsiveContainer",
+            "Tooltip",
+            "XAxis",
+            "YAxis"
+          ]
+        }
+      ],
+      "components": [
+        "Link",
+        "GitCompare",
+        "DashboardActionButton",
+        "Unlink",
+        "Settings2",
+        "LineChartIcon",
+        "Database",
+        "GitMerge",
+        "AnalysisStatus",
+        "AIAnalysisPanel",
+        "DashboardIntelligenceCard",
+        "DashboardCard",
+        "CardHeader",
+        "IconBadge",
+        "Gauge",
+        "MetricSelectionRow",
+        "DatasetJoinPanel",
+        "DatasetSelector",
+        "DashboardChartTitlePanel",
+        "DashboardMetricMappingPanel",
+        "SelectedDashboard",
+        "WorkspaceAccessNotice",
+        "CorrelationWidgets",
+        "DashboardPrintPage",
+        "FileDown",
+        "Share2",
+        "MetricSelector",
+        "ExecutiveTemplate",
+        "PerformanceTemplate",
+        "ComparisonTemplate",
+        "WorkspaceBrandMark",
+        "ResponsiveContainer",
+        "MainChart",
+        "ChartEmptyState",
+        "TargetGauge",
+        "PrintMetricLine",
+        "ReportSection",
+        "SnapshotRow",
+        "DashboardControls",
+        "FullscreenChartArea",
+        "KpiCarousel",
+        "DashboardIntelligenceItem",
+        "CompactSelect",
+        "CartesianGrid",
+        "XAxis",
+        "YAxis",
+        "Tooltip",
+        "Legend",
+        "ReferenceLine",
+        "BarChart",
+        "Bar",
+        "AreaChart",
+        "Area",
+        "LineChart",
+        "Line",
+        "GaugeSegment",
+        "Maximize2",
+        "X",
+        "KpiCard",
+        "DashboardMappingSelect"
+      ],
+      "data_calls": [
+        {
+          "name": "getValidSelectedMetrics",
+          "line": 427
+        },
+        {
+          "name": "getSharedDashboardConfig",
+          "line": 574
+        },
+        {
+          "name": "getDatasets",
+          "line": 689
+        },
+        {
+          "name": "getDatasetPreference",
+          "line": 694
+        },
+        {
+          "name": "getDashboardPreference",
+          "line": 699
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 721
+        },
+        {
+          "name": "loadDashboardPreference",
+          "line": 733
+        },
+        {
+          "name": "getMyOrganization",
+          "line": 769
+        },
+        {
+          "name": "getOrganizationWorkspaces",
+          "line": 770
+        },
+        {
+          "name": "loadDashboardBrand",
+          "line": 794
+        },
+        {
+          "name": "getJoinedDatasetStorageKey",
+          "line": 866
+        },
+        {
+          "name": "getJoinedDatasetStorageKey",
+          "line": 916
+        },
+        {
+          "name": "getJoinedDatasetStorageKey",
+          "line": 984
+        },
+        {
+          "name": "updateDatasetPreference",
+          "line": 1146
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 1162
+        },
+        {
+          "name": "getDatasetDetails",
+          "line": 1220
+        },
+        {
+          "name": "getDatasetPreference",
+          "line": 1229
+        },
+        {
+          "name": "getDatasetJoinCache",
+          "line": 1233
+        },
+        {
+          "name": "getDatasetShareStatus",
+          "line": 1240
+        },
+        {
+          "name": "getJoinedDatasetStorageKey",
+          "line": 1270
+        },
+        {
+          "name": "getDashboardDefinition",
+          "line": 1333
+        },
+        {
+          "name": "getSavedDashboardMetricMapping",
+          "line": 1338
+        },
+        {
+          "name": "getSavedDashboardMetricMappings",
+          "line": 1339
+        },
+        {
+          "name": "getSavedDashboardChartTitles",
+          "line": 1349
+        },
+        {
+          "name": "getSelectedDashboardMetricColumns",
+          "line": 1360
+        },
+        {
+          "name": "getValidSelectedMetrics",
+          "line": 1362
+        },
+        {
+          "name": "getSelectedMetricsStorageKey",
+          "line": 1368
+        },
+        {
+          "name": "getSavedMetricTargets",
+          "line": 1401
+        },
+        {
+          "name": "getSavedPeriodFilter",
+          "line": 1407
+        },
+        {
+          "name": "getSavedAggregation",
+          "line": 1411
+        },
+        {
+          "name": "getSavedAggregationType",
+          "line": 1415
+        },
+        {
+          "name": "getSafeStartDate",
+          "line": 1426
+        },
+        {
+          "name": "getSelectedMetricsStorageKey",
+          "line": 1464
+        },
+        {
+          "name": "getSavedChartType",
+          "line": 1474
+        },
+        {
+          "name": "getSavedScaleMode",
+          "line": 1480
+        },
+        {
+          "name": "getSavedDashboardTemplate",
+          "line": 1494
+        },
+        {
+          "name": "getSavedDashboardText",
+          "line": 1501
+        },
+        {
+          "name": "getSavedDashboardText",
+          "line": 1509
+        },
+        {
+          "name": "buildDefaultTargets",
+          "line": 1523
+        },
+        {
+          "name": "getSelectedDashboardMetrics",
+          "line": 1524
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 1537
+        },
+        {
+          "name": "loadDataset",
+          "line": 1552
+        },
+        {
+          "name": "getDatasets",
+          "line": 1591
+        },
+        {
+          "name": "getDatasetPreference",
+          "line": 1596
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 1674
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 1700
+        },
+        {
+          "name": "loadDefaultDataset",
+          "line": 1714
+        },
+        {
+          "name": "updateDatasetPreference",
+          "line": 1816
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 1833
+        },
+        {
+          "name": "getSelectedDashboardMetrics",
+          "line": 1893
+        },
+        {
+          "name": "getDashboardMappingColumns",
+          "line": 1925
+        },
+        {
+          "name": "getDashboardNumericMappingColumns",
+          "line": 1932
+        },
+        {
+          "name": "getDashboardDimensionMappingColumns",
+          "line": 1939
+        },
+        {
+          "name": "getDashboardPeriodMetrics",
+          "line": 2084
+        },
+        {
+          "name": "getDashboardDefinition",
+          "line": 2119
+        },
+        {
+          "name": "getDashboardDefinition",
+          "line": 2144
+        },
+        {
+          "name": "getDashboardAutoMetricMapping",
+          "line": 2152
+        },
+        {
+          "name": "getDashboardDefinition",
+          "line": 2186
+        },
+        {
+          "name": "getDatasetAIAnalysis",
+          "line": 2217
+        },
+        {
+          "name": "loadMetricAIAnalysis",
+          "line": 2248
+        },
+        {
+          "name": "getDatasetAnomalies",
+          "line": 2294
+        },
+        {
+          "name": "loadDashboardAnomalies",
+          "line": 2323
+        },
+        {
+          "name": "getLatestValue",
+          "line": 2348
+        },
+        {
+          "name": "getTargetProgress",
+          "line": 2354
+        },
+        {
+          "name": "buildIndexedRows",
+          "line": 2376
+        },
+        {
+          "name": "getWorkspaceBrand",
+          "line": 2384
+        },
+        {
+          "name": "getSavedDashboardText",
+          "line": 2400
+        },
+        {
+          "name": "getSavedDashboardText",
+          "line": 2406
+        },
+        {
+          "name": "getDashboardDefinition",
+          "line": 2412
+        },
+        {
+          "name": "getDashboardAutoMetricMapping",
+          "line": 2423
+        },
+        {
+          "name": "getHistoricalDimensionWarning",
+          "line": 2428
+        },
+        {
+          "name": "getNextDashboardMetricMappings",
+          "line": 2440
+        },
+        {
+          "name": "getDashboardDefinition",
+          "line": 2445
+        },
+        {
+          "name": "getNextDashboardChartTitles",
+          "line": 2459
+        },
+        {
+          "name": "getValidSelectedMetrics",
+          "line": 2483
+        },
+        {
+          "name": "getValidSelectedMetrics",
+          "line": 2558
+        },
+        {
+          "name": "updateDatasetPreference",
+          "line": 2627
+        },
+        {
+          "name": "getSavedDashboardMetricMappings",
+          "line": 2667
+        },
+        {
+          "name": "getSavedDashboardChartTitles",
+          "line": 2671
+        },
+        {
+          "name": "getSavedDashboardMetricMapping",
+          "line": 2677
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 2687
+        },
+        {
+          "name": "saveDashboardViewPreference",
+          "line": 2746
+        },
+        {
+          "name": "getSelectedMetricsStorageKey",
+          "line": 2829
+        },
+        {
+          "name": "saveDashboardViewPreference",
+          "line": 2837
+        },
+        {
+          "name": "getSelectedMetricsStorageKey",
+          "line": 2860
+        },
+        {
+          "name": "saveDashboardViewPreference",
+          "line": 2868
+        },
+        {
+          "name": "getNextDashboardMetricMapping",
+          "line": 2874
+        },
+        {
+          "name": "getDatasetJoinCache",
+          "line": 2970
+        },
+        {
+          "name": "joinDatasets",
+          "line": 2991
+        },
+        {
+          "name": "saveDashboardViewPreference",
+          "line": 3010
+        },
+        {
+          "name": "getDatasetShareLink",
+          "line": 3013
+        },
+        {
+          "name": "buildDashboardShareUrl",
+          "line": 3020
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 3045
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 3104
+        },
+        {
+          "name": "getMetricColor",
+          "line": 3395
+        },
+        {
+          "name": "getMetricIndex",
+          "line": 3396
+        },
+        {
+          "name": "getDashboardMappingChartTitles",
+          "line": 3462
+        },
+        {
+          "name": "getDashboardChartTitleFields",
+          "line": 3477
+        },
+        {
+          "name": "getDashboardAutoMetricMapping",
+          "line": 3481
+        },
+        {
+          "name": "getNextDashboardChartTitle",
+          "line": 3657
+        },
+        {
+          "name": "getNextDashboardMetricMapping",
+          "line": 3691
+        },
+        {
+          "name": "getShareStatusClassName",
+          "line": 3809
+        },
+        {
+          "name": "getShareStatusMessage",
+          "line": 3813
+        },
+        {
+          "name": "getShareStatusClassName",
+          "line": 4117
+        },
+        {
+          "name": "getShareStatusMessage",
+          "line": 4121
+        },
+        {
+          "name": "getDashboardChartDescription",
+          "line": 4333
+        },
+        {
+          "name": "getDashboardDatasetDescription",
+          "line": 4398
+        },
+        {
+          "name": "getDashboardChartDescription",
+          "line": 4601
+        },
+        {
+          "name": "getDashboardDatasetDescription",
+          "line": 4616
+        },
+        {
+          "name": "getTargetInsight",
+          "line": 4670
+        },
+        {
+          "name": "getDashboardChartDescription",
+          "line": 4789
+        },
+        {
+          "name": "getDashboardIntelligenceImportance",
+          "line": 4932
+        },
+        {
+          "name": "getDashboardIntelligenceEvent",
+          "line": 4944
+        },
+        {
+          "name": "getDashboardIntelligenceMeaning",
+          "line": 4955
+        },
+        {
+          "name": "getDashboardDefaultRecommendation",
+          "line": 4968
+        },
+        {
+          "name": "getDashboardChartDescription",
+          "line": 5017
+        },
+        {
+          "name": "getDashboardDatasetDescription",
+          "line": 5127
+        },
+        {
+          "name": "getTargetInsight",
+          "line": 5178
+        },
+        {
+          "name": "getMetricColor",
+          "line": 5469
+        },
+        {
+          "name": "getMetricIndex",
+          "line": 5470
+        },
+        {
+          "name": "getMetricColor",
+          "line": 5491
+        },
+        {
+          "name": "getMetricIndex",
+          "line": 5492
+        },
+        {
+          "name": "getMetricColor",
+          "line": 5494
+        },
+        {
+          "name": "getMetricIndex",
+          "line": 5495
+        },
+        {
+          "name": "getMetricColor",
+          "line": 5521
+        },
+        {
+          "name": "getMetricIndex",
+          "line": 5522
+        },
+        {
+          "name": "getColorWithAlpha",
+          "line": 5644
+        },
+        {
+          "name": "getColorWithAlpha",
+          "line": 5648
+        },
+        {
+          "name": "getColorWithAlpha",
+          "line": 5674
+        },
+        {
+          "name": "getColorWithAlpha",
+          "line": 5715
+        },
+        {
+          "name": "getTargetStatus",
+          "line": 5777
+        },
+        {
+          "name": "getDashboardKpiSignal",
+          "line": 6216
+        },
+        {
+          "name": "getSavedDashboardChartTitles",
+          "line": 6522
+        },
+        {
+          "name": "getSavedDashboardMetricMapping",
+          "line": 6576
+        },
+        {
+          "name": "getDashboardDefinition",
+          "line": 6652
+        },
+        {
+          "name": "getFirstDatasetStartDate",
+          "line": 6855
+        },
+        {
+          "name": "getRowPeriodStartDate",
+          "line": 6879
+        },
+        {
+          "name": "getQueryDatasetId",
+          "line": 6918
+        },
+        {
+          "name": "getSavedDashboardTemplate",
+          "line": 6928
+        },
+        {
+          "name": "getSafeRatioPercent",
+          "line": 7018
+        },
+        {
+          "name": "getRowPeriodStartDate",
+          "line": 7042
+        },
+        {
+          "name": "getRowPeriodStartDate",
+          "line": 7114
+        },
+        {
+          "name": "getAggregationBucketDate",
+          "line": 7120
+        },
+        {
+          "name": "getSummaryAggregationState",
+          "line": 7132
+        },
+        {
+          "name": "getMonthIndex",
+          "line": 7252
+        },
+        {
+          "name": "getMonthIndex",
+          "line": 7279
+        },
+        {
+          "name": "getSummaryAggregationState",
+          "line": 7328
+        },
+        {
+          "name": "getSafeRatioPercent",
+          "line": 7409
+        },
+        {
+          "name": "getSafeRatioPercent",
+          "line": 7435
+        },
+        {
+          "name": "getGrowth",
+          "line": 7499
+        },
+        {
+          "name": "getGrowth",
+          "line": 7513
+        },
+        {
+          "name": "getDashboardAnomalyMetric",
+          "line": 7537
+        },
+        {
+          "name": "getTargetProgress",
+          "line": 7546
+        },
+        {
+          "name": "getExecutiveNarrative",
+          "line": 7566
+        },
+        {
+          "name": "getDashboardAnomalyMetric",
+          "line": 7573
+        },
+        {
+          "name": "getExecutiveNarrative",
+          "line": 7584
+        },
+        {
+          "name": "getDashboardAnomalyMetric",
+          "line": 7597
+        },
+        {
+          "name": "getTargetProgress",
+          "line": 7607
+        },
+        {
+          "name": "getDashboardAnomalyMetric",
+          "line": 7620
+        },
+        {
+          "name": "getTargetProgress",
+          "line": 7650
+        },
+        {
+          "name": "getDatasetSourceDetails",
+          "line": 7735
+        },
+        {
+          "name": "getSelectedDashboardMetrics",
+          "line": 8175
+        },
+        {
+          "name": "getSelectedDashboardMetrics",
+          "line": 8185
+        },
+        {
+          "name": "getDashboardNumericMappingColumns",
+          "line": 8215
+        },
+        {
+          "name": "getDashboardMappingColumns",
+          "line": 8218
+        },
+        {
+          "name": "getSelectedDashboardMetricColumns",
+          "line": 8227
+        },
+        {
+          "name": "getDashboardMappingColumns",
+          "line": 8242
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/reports\"",
+          "line": 3206
+        },
+        {
+          "attribute": "title",
+          "value": "{`Turn off public access for this ${dashboardShareTitle.toLowerCase()}.`}",
+          "line": 3223
+        },
+        {
+          "attribute": "title",
+          "value": "\"Show the Decisionate analysis and intelligence for this dashboard.\"",
+          "line": 3249
+        },
+        {
+          "attribute": "title",
+          "value": "\"Choose the dataset and analysis period for this dashboard.\"",
+          "line": 3263
+        },
+        {
+          "attribute": "title",
+          "value": "\"Show the Decisionate analysis and recommendation for this dashboard.\"",
+          "line": 3277
+        },
+        {
+          "attribute": "title",
+          "value": "{\n            canCompareDashboardData\n              ? \"Compare this dashboard's datasets\"\n              : \"Compare data is available on dataset-based dashboards with at least two datasets.\"\n          }",
+          "line": 3291
+        },
+        {
+          "attribute": "title",
+          "value": "\"Decisionate Analysis\"",
+          "line": 3342
+        },
+        {
+          "attribute": "title",
+          "value": "\"Metrics & Targets\"",
+          "line": 3380
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/datasets/${selectedDatasetId}`}",
+          "line": 3534
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/datasets\"",
+          "line": 3866
+        },
+        {
+          "attribute": "title",
+          "value": "{shareButtonTitle}",
+          "line": 3996
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/datasets/${selectedDatasetId}`}",
+          "line": 4071
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/datasets\"",
+          "line": 4234
+        },
+        {
+          "attribute": "title",
+          "value": "\"Performance Target\"",
+          "line": 4615
+        },
+        {
+          "attribute": "title",
+          "value": "{`${formatMetricName(\n              props.primaryMetric\n            )} Trend`}",
+          "line": 4681
+        },
+        {
+          "attribute": "title",
+          "value": "{`${formatMetricName(props.primaryMetric)} Trend`}",
+          "line": 4714
+        },
+        {
+          "attribute": "title",
+          "value": "{\n            selectedMetrics.length > 3\n              ? `${formatMetricName(primaryMetric)} + ${\n                  selectedMetrics.length - 1\n                } more`\n              : selectedMetrics.length > 1\n                ? selectedMetrics\n                    .map(formatMetricName)\n                    .join(\" vs \")\n                : `${formatMetricName(\n                    primaryMetric\n                  )} Performance`\n          }",
+          "line": 4809
+        },
+        {
+          "attribute": "title",
+          "value": "{\n              selectedMetrics.length > 1\n                ? selectedMetrics\n                    .map(formatMetricName)\n                    .join(\" vs \")\n                : `${formatMetricName(primaryMetric)} Performance`\n            }",
+          "line": 4852
+        },
+        {
+          "attribute": "title",
+          "value": "{\n              selectedMetrics.length > 3\n                ? `${formatMetricName(primaryMetric)} + ${\n                    selectedMetrics.length - 1\n                  } more`\n                : selectedMetrics.length > 1\n                  ? selectedMetrics\n                      .map(formatMetricName)\n                      .join(\" vs \")\n                  : `${formatMetricName(\n                      primaryMetric\n                    )} Performance`\n            }",
+          "line": 5044
+        },
+        {
+          "attribute": "title",
+          "value": "{\n                selectedMetrics.length > 1\n                  ? selectedMetrics\n                      .map(formatMetricName)\n                      .join(\" vs \")\n                  : `${formatMetricName(primaryMetric)} Performance`\n              }",
+          "line": 5087
+        },
+        {
+          "attribute": "title",
+          "value": "\"Target Snapshot\"",
+          "line": 5126
+        },
+        {
+          "attribute": "title",
+          "value": "{`View ${title} full screen`}",
+          "line": 6044
+        },
+        {
+          "attribute": "title",
+          "value": "\"Close full screen chart\"",
+          "line": 6076
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "workspace members; role-gated source controls",
+        "treatment": "reframe",
+        "proposal": "Lead with authorized cross-source status and saved reports; preserve current source views, preferences, joins, exports and sharing.",
+        "verification": "Full authenticated route not browser-verified; source inspected.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/action-needed",
+      "source": "apps/web/app/dashboard/action-needed/page.tsx",
+      "imports": [
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useState"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "AlertCircle",
+            "Calendar",
+            "LineChart",
+            "RefreshCw",
+            "Target"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "getDecisions",
+            "DecisionRecord"
+          ]
+        },
+        {
+          "module": "@/lib/decision-options",
+          "names": [
+            "formatDecisionLabel"
+          ]
+        },
+        {
+          "module": "@/lib/decision-outcomes",
+          "names": [
+            "hasPendingLearning",
+            "hasPendingOutcome"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/workspace-access-notice",
+          "names": [
+            "WorkspaceAccessNotice"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/features/decisions/lib/ai-recommendation-source",
+          "names": [
+            "getAIRecommendationSource"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/metric-selector",
+          "names": [
+            "formatMetricLabel"
+          ]
+        },
+        {
+          "module": "@/app/use-decisionate-language",
+          "names": [
+            "useDecisionateText"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "RefreshCw",
+        "AlertCircle",
+        "WorkspaceAccessNotice",
+        "Link",
+        "ActionNeededDecisionCard",
+        "Calendar",
+        "LineChart",
+        "Target"
+      ],
+      "data_calls": [
+        {
+          "name": "getVisibleActionNeededDecisions",
+          "line": 89
+        },
+        {
+          "name": "getDecisions",
+          "line": 134
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 154
+        },
+        {
+          "name": "loadActionNeeded",
+          "line": 167
+        },
+        {
+          "name": "getAIRecommendationSource",
+          "line": 354
+        },
+        {
+          "name": "getActionReasons",
+          "line": 392
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 482
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 512
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Action Needed\"",
+          "line": 184
+        },
+        {
+          "attribute": "title",
+          "value": "\"Refresh action needed decisions\"",
+          "line": 196
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/decisions\"",
+          "line": 275
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/decisions/${decision.id}?focus=next-action&source=action-needed`}",
+          "line": 360
+        },
+        {
+          "attribute": "title",
+          "value": "{aiRecommendationSource}",
+          "line": 423
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized workspace decision readers",
+        "treatment": "keep",
+        "proposal": "Preserve follow-up queue; link decisions without a second creation location.",
+        "verification": "Source inspected; browser not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/alerts",
+      "source": "apps/web/app/dashboard/alerts/page.tsx",
+      "imports": [
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useRef",
+            "useState"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "Bell",
+            "Save",
+            "Send",
+            "X"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "getDatasetRelationships",
+            "getWeeklyReportDeliveryConfig",
+            "getWeeklyReportDigest",
+            "getWeeklyReportPreference",
+            "sendWeeklyReportTestEmail",
+            "updateWeeklyReportPreference",
+            "DatasetRelationship",
+            "WeeklyReportDeliveryConfig",
+            "WeeklyReportDigest",
+            "WeeklyReportDigestMetric",
+            "WeeklyReportPreference"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/workspace-access-notice",
+          "names": [
+            "WorkspaceAccessNotice"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/metric-selector",
+          "names": [
+            "formatMetricLabel"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/analysis-panel",
+          "names": [
+            "AIAnalysisPanel"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "AlertsPageContent",
+        "Bell",
+        "WorkspaceAccessNotice",
+        "ReadOnlyNotificationSummary",
+        "Link",
+        "Save",
+        "Send",
+        "WeeklyReportDigestPreview",
+        "AIAnalysisPanel",
+        "X"
+      ],
+      "data_calls": [
+        {
+          "name": "getMetricOptionLabel",
+          "line": 177
+        },
+        {
+          "name": "getWeeklyReportPreference",
+          "line": 271
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 283
+        },
+        {
+          "name": "getDatasetRelationships",
+          "line": 329
+        },
+        {
+          "name": "getWeeklyReportDigest",
+          "line": 334
+        },
+        {
+          "name": "getWeeklyReportDeliveryConfig",
+          "line": 342
+        },
+        {
+          "name": "loadDatasetMetricOptions",
+          "line": 358
+        },
+        {
+          "name": "getWeeklyReportDigest",
+          "line": 390
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 439
+        },
+        {
+          "name": "loadPreference",
+          "line": 460
+        },
+        {
+          "name": "updateWeeklyReportDraft",
+          "line": 526
+        },
+        {
+          "name": "updateWeeklyReportPreference",
+          "line": 587
+        },
+        {
+          "name": "getWeeklyReportDigest",
+          "line": 603
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 623
+        },
+        {
+          "name": "updateWeeklyReportDraft",
+          "line": 651
+        },
+        {
+          "name": "updateWeeklyReportDraft",
+          "line": 665
+        },
+        {
+          "name": "updateWeeklyReportPreference",
+          "line": 707
+        },
+        {
+          "name": "getWeeklyReportDigest",
+          "line": 727
+        },
+        {
+          "name": "getWeeklyReportDigest",
+          "line": 734
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 758
+        },
+        {
+          "name": "sendWeeklyReportTestEmail",
+          "line": 787
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 799
+        },
+        {
+          "name": "updateWeeklyReportDraft",
+          "line": 958
+        },
+        {
+          "name": "updateWeeklyReportDraft",
+          "line": 985
+        },
+        {
+          "name": "updateWeeklyReportDraft",
+          "line": 1022
+        },
+        {
+          "name": "updateMetricTarget",
+          "line": 1099
+        },
+        {
+          "name": "updateWeeklyReportDraft",
+          "line": 1193
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Alerts\"",
+          "line": 82
+        },
+        {
+          "attribute": "title",
+          "value": "\"Alerts\"",
+          "line": 99
+        },
+        {
+          "attribute": "title",
+          "value": "\"Alerts & Notifications\"",
+          "line": 819
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/datasets\"",
+          "line": 1123
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/relationships\"",
+          "line": 1138
+        },
+        {
+          "attribute": "href",
+          "value": "{digest.decision_template_url}",
+          "line": 1381
+        },
+        {
+          "attribute": "title",
+          "value": "\"Alert analysis\"",
+          "line": 1391
+        },
+        {
+          "attribute": "title",
+          "value": "\"Remove metric from digest\"",
+          "line": 1424
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "workspace recipients/readers; manager-only settings/sends",
+        "treatment": "keep and qualify delivery",
+        "proposal": "Retain latest-complete-week cross-source engine and template safety; clarify acceptance status and retry/concurrency limits.",
+        "verification": "Source inspected; weekly unit/API baseline passed; no live sends.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/billing",
+      "source": "apps/web/app/dashboard/billing/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "Suspense",
+            "useEffect",
+            "useRef",
+            "useState"
+          ]
+        },
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "next/navigation",
+          "names": [
+            "useSearchParams"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "ArrowRight",
+            "CreditCard",
+            "ExternalLink",
+            "RefreshCw"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/features/billing/lib/ai-credit-purchases",
+          "names": [
+            "creditPurchaseMessage",
+            "creditPurchaseQuote"
+          ]
+        },
+        {
+          "module": "@/features/billing/lib/renewals",
+          "names": [
+            "renewalDateLabel",
+            "renewalStatusLabel",
+            "subscriptionPortalLabel"
+          ]
+        },
+        {
+          "module": "@/features/billing/lib/upgrade",
+          "names": [
+            "billingHeading",
+            "checkoutLabel",
+            "checkoutTotal",
+            "formatPrice",
+            "hasStartedTrial",
+            "needsSubscriptionManagement"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "confirmBillingCheckout",
+            "confirmAICreditTopup",
+            "createAICreditTopup",
+            "createBillingCheckout",
+            "createBillingPortal",
+            "getBillingStatus",
+            "refreshBillingSubscription",
+            "BillingStatus",
+            "AICreditPurchaseConfirmation"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/lib/workspace-context",
+          "names": [
+            "setActiveWorkspaceId"
+          ]
+        },
+        {
+          "module": "@/app/use-decisionate-language",
+          "names": [
+            "useDecisionateText"
+          ]
+        }
+      ],
+      "components": [
+        "Suspense",
+        "BillingPageContent",
+        "DashboardPageHeader",
+        "RefreshCw",
+        "Link",
+        "ArrowRight",
+        "ExternalLink",
+        "CreditCard"
+      ],
+      "data_calls": [
+        {
+          "name": "getBillingStatus",
+          "line": 142
+        },
+        {
+          "name": "refreshBillingSubscription",
+          "line": 148
+        },
+        {
+          "name": "getBillingStatus",
+          "line": 175
+        },
+        {
+          "name": "getBillingStatus",
+          "line": 200
+        },
+        {
+          "name": "load",
+          "line": 233
+        },
+        {
+          "name": "load",
+          "line": 244
+        },
+        {
+          "name": "createBillingPortal",
+          "line": 365
+        },
+        {
+          "name": "createAICreditTopup",
+          "line": 368
+        },
+        {
+          "name": "createBillingCheckout",
+          "line": 379
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Billing\"",
+          "line": 397
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/billing\"",
+          "line": 440
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/help\"",
+          "line": 458
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard\"",
+          "line": 470
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/help\"",
+          "line": 553
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/billing\"",
+          "line": 558
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard\"",
+          "line": 587
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/help\"",
+          "line": 731
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "workspace billing roles",
+        "treatment": "keep",
+        "proposal": "Preserve entitlement/renewal controls; restore consistent v2 server enforcement rather than changing prices.",
+        "verification": "Source located; billing checkout/renewal not executed.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/connections",
+      "source": "apps/web/app/dashboard/connections/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useState"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "@/features/datasets/components/data-source-connections",
+          "names": [
+            "DataSourceConnections",
+            "REQUIRED_CONNECTION_CONFIG_KEYS",
+            "DataSourceConnectionFeedback"
+          ]
+        },
+        {
+          "module": "@/features/datasets/components/data-source-panel",
+          "names": [
+            "DataSourcePanel"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "cancelOAuthAuthorization",
+            "createDataSourceConnection",
+            "deleteDataSourceConnection",
+            "getDataSourceConnections",
+            "getDatasetSources",
+            "refreshSageBusinesses",
+            "syncDataSourceConnection",
+            "startOAuthConnection",
+            "updateDataSourceConnectionSchedule",
+            "updateDataSourceConnection",
+            "DataSourceConnection",
+            "DataSourceConnectionSyncPayload",
+            "DatasetSourceOption"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/app/use-decisionate-language",
+          "names": [
+            "useDecisionateText"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "ConnectionsPageContent",
+        "DataSourcePanel",
+        "DataSourceConnections"
+      ],
+      "data_calls": [
+        {
+          "name": "getRequiredConnectionConfigKeys",
+          "line": 71
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 153
+        },
+        {
+          "name": "getDataSourceConnections",
+          "line": 298
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 307
+        },
+        {
+          "name": "createDataSourceConnection",
+          "line": 379
+        },
+        {
+          "name": "loadConnections",
+          "line": 399
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 402
+        },
+        {
+          "name": "deleteDataSourceConnection",
+          "line": 423
+        },
+        {
+          "name": "loadConnections",
+          "line": 438
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 441
+        },
+        {
+          "name": "updateConnection",
+          "line": 456
+        },
+        {
+          "name": "updateConnection",
+          "line": 469
+        },
+        {
+          "name": "loadConnections",
+          "line": 504
+        },
+        {
+          "name": "loadConnections",
+          "line": 522
+        },
+        {
+          "name": "loadConnections",
+          "line": 544
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 546
+        },
+        {
+          "name": "getCustomerFacingConnectionError",
+          "line": 555
+        },
+        {
+          "name": "getMissingRequiredConnectionConfigKeys",
+          "line": 570
+        },
+        {
+          "name": "getCustomerFacingConnectionError",
+          "line": 599
+        },
+        {
+          "name": "loadConnections",
+          "line": 625
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 628
+        },
+        {
+          "name": "refreshSageBusinesses",
+          "line": 649
+        },
+        {
+          "name": "loadConnections",
+          "line": 678
+        },
+        {
+          "name": "getCustomerFacingConnectionError",
+          "line": 683
+        },
+        {
+          "name": "updateDataSourceConnectionSchedule",
+          "line": 706
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 727
+        },
+        {
+          "name": "updateDataSourceConnection",
+          "line": 750
+        },
+        {
+          "name": "loadConnections",
+          "line": 768
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 771
+        },
+        {
+          "name": "getDatasetSources",
+          "line": 804
+        },
+        {
+          "name": "getDataSourceConnections",
+          "line": 808
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 821
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 835
+        },
+        {
+          "name": "loadInitialConnections",
+          "line": 853
+        },
+        {
+          "name": "getDataSourceConnections",
+          "line": 882
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Connections\"",
+          "line": 185
+        },
+        {
+          "attribute": "title",
+          "value": "\"Connections\"",
+          "line": 202
+        },
+        {
+          "attribute": "title",
+          "value": "\"Connections\"",
+          "line": 928
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "owners and explicit client workspace roles",
+        "treatment": "keep and repair permissions",
+        "proposal": "Preserve client-managed connections; fix OAuth guard consistency with an explicit operation matrix.",
+        "verification": "Source/backend guard audit only; live provider authorization not attempted.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/dashboards",
+      "source": "apps/web/app/dashboard/dashboards/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "useCallback",
+            "useEffect",
+            "useRef",
+            "useState"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "next/navigation",
+          "names": [
+            "useRouter"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "Check",
+            "ClipboardCheck",
+            "Database",
+            "LayoutDashboard",
+            "Unlink"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "getDashboardPreference",
+            "getAllDatasetSharingStatus",
+            "stopAllDatasetSharing",
+            "updateDashboardPreference"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/workspace-access-notice",
+          "names": [
+            "WorkspaceAccessNotice"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/app/use-decisionate-language",
+          "names": [
+            "useDecisionateText"
+          ]
+        },
+        {
+          "module": "@/features/dashboards/dashboard-definitions",
+          "names": [
+            "dashboardGroups",
+            "defaultDashboardKey",
+            "isDashboardKey",
+            "DashboardDefinition",
+            "DashboardPreviewTone"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "Unlink",
+        "WorkspaceAccessNotice",
+        "DashboardSelectionCard",
+        "DashboardPreview",
+        "Check",
+        "ClipboardCheck",
+        "Database",
+        "LayoutDashboard"
+      ],
+      "data_calls": [
+        {
+          "name": "getAllDatasetSharingStatus",
+          "line": 49
+        },
+        {
+          "name": "getDashboardPreference",
+          "line": 148
+        },
+        {
+          "name": "loadPreference",
+          "line": 180
+        },
+        {
+          "name": "loadWorkspaceSharingEnabled",
+          "line": 205
+        },
+        {
+          "name": "loadSharingStatus",
+          "line": 252
+        },
+        {
+          "name": "loadSharingStatus",
+          "line": 261
+        },
+        {
+          "name": "updateDashboardPreference",
+          "line": 326
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Dashboards\"",
+          "line": 425
+        },
+        {
+          "attribute": "title",
+          "value": "{stopAllSharingDescription}",
+          "line": 436
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "workspace users; owner configuration controls",
+        "treatment": "de-emphasize",
+        "proposal": "Keep all 14 saved templates as source/decision supporting views; clarify context and preserve selection/preferences.",
+        "verification": "All 14 declarations and shared renderer inspected; not 14 independent browser flows.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/datasets",
+      "source": "apps/web/app/dashboard/datasets/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useState"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "Link2",
+            "Plug",
+            "Plus",
+            "RefreshCw",
+            "Upload",
+            "X"
+          ]
+        },
+        {
+          "module": "@/features/datasets/components/connection-pull-widget",
+          "names": [
+            "ConnectionPullWidget"
+          ]
+        },
+        {
+          "module": "@/features/datasets/components/csv-upload",
+          "names": [
+            "CsvUpload"
+          ]
+        },
+        {
+          "module": "@/features/datasets/components/signed-url-import",
+          "names": [
+            "SignedUrlImport"
+          ]
+        },
+        {
+          "module": "@/features/datasets/components/dataset-list",
+          "names": [
+            "DatasetList"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "getDataSourceConnections",
+            "getDatasetSources",
+            "getDatasets",
+            "DataSourceConnection",
+            "DatasetSourceOption",
+            "DatasetSummary"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/workspace-access-notice",
+          "names": [
+            "WorkspaceAccessNotice"
+          ]
+        },
+        {
+          "module": "@/app/use-decisionate-language",
+          "names": [
+            "useDecisionateText"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "Link",
+        "Plug",
+        "X",
+        "Plus",
+        "WorkspaceAccessNotice",
+        "RefreshCw",
+        "Icon",
+        "CsvUpload",
+        "SignedUrlImport",
+        "ConnectionPullWidget",
+        "DatasetList"
+      ],
+      "data_calls": [
+        {
+          "name": "getDatasets",
+          "line": 83
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 93
+        },
+        {
+          "name": "getDatasets",
+          "line": 117
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 133
+        },
+        {
+          "name": "loadInitialData",
+          "line": 144
+        },
+        {
+          "name": "getDatasetSources",
+          "line": 179
+        },
+        {
+          "name": "getDataSourceConnections",
+          "line": 183
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 198
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 212
+        },
+        {
+          "name": "loadSourceData",
+          "line": 220
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Datasets\"",
+          "line": 237
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/connections\"",
+          "line": 239
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized workspace users; role-gated ingestion",
+        "treatment": "keep",
+        "proposal": "Preserve uploads, statuses and list; contextual Reports entry must respect catalog eligibility.",
+        "verification": "Source inspected; browser not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/datasets/[id]",
+      "source": "apps/web/app/dashboard/datasets/[id]/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useRef",
+            "useState"
+          ]
+        },
+        {
+          "module": "next/navigation",
+          "names": [
+            "useParams",
+            "useRouter"
+          ]
+        },
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useAuth"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "ArrowLeft",
+            "BarChart3",
+            "FileText",
+            "LineChart",
+            "RefreshCw",
+            "Sparkles"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/metric-card",
+          "names": [
+            "MetricCard"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dataset-selector",
+          "names": [
+            "DatasetSelector"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/metric-selector",
+          "names": [
+            "MetricSelector",
+            "formatMetricLabel"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/analysis-panel",
+          "names": [
+            "AIAnalysisPanel"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/analysis-status",
+          "names": [
+            "AnalysisStatus"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "getDatasetAIAnalysis",
+            "getDatasetDetails",
+            "AIAnalysis",
+            "DatasetMetricRecommendations"
+          ]
+        },
+        {
+          "module": "@/features/datasets/components/curated-metric-picker",
+          "names": [
+            "CuratedMetricPicker",
+            "getRecommendedMetricKeys"
+          ]
+        },
+        {
+          "module": "@/features/datasets/lib/metric-selection-save",
+          "names": [
+            "refreshDatasetMetrics",
+            "saveMetricSelectionWithRecovery"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/datasets/lib/source-config",
+          "names": [
+            "formatSourceValue",
+            "getDatasetSourceDetails"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "Link",
+        "ArrowLeft",
+        "DatasetSelector",
+        "LineChart",
+        "BarChart3",
+        "Sparkles",
+        "FileText",
+        "MetricSelector",
+        "AnalysisStatus",
+        "AIAnalysisPanel",
+        "AnalyticsField",
+        "MetricCard",
+        "CuratedMetricPicker",
+        "RefreshCw"
+      ],
+      "data_calls": [
+        {
+          "name": "getDatasetRouteId",
+          "line": 315
+        },
+        {
+          "name": "getDatasetDetails",
+          "line": 344
+        },
+        {
+          "name": "getSelectedMetricColumns",
+          "line": 358
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 370
+        },
+        {
+          "name": "loadDataset",
+          "line": 383
+        },
+        {
+          "name": "getDatasetRouteId",
+          "line": 400
+        },
+        {
+          "name": "getDatasetRouteId",
+          "line": 426
+        },
+        {
+          "name": "getPreviewNumericColumns",
+          "line": 448
+        },
+        {
+          "name": "getDatasetAIAnalysis",
+          "line": 531
+        },
+        {
+          "name": "loadMetricAIAnalysis",
+          "line": 562
+        },
+        {
+          "name": "getDatasetRouteId",
+          "line": 598
+        },
+        {
+          "name": "getDatasetSourceDetails",
+          "line": 616
+        },
+        {
+          "name": "getSelectedMetricColumns",
+          "line": 661
+        },
+        {
+          "name": "saveMetricSelectionWithRecovery",
+          "line": 689
+        },
+        {
+          "name": "refreshDatasetMetrics",
+          "line": 717
+        },
+        {
+          "name": "refreshDatasetMetrics",
+          "line": 740
+        },
+        {
+          "name": "saveMetricSelection",
+          "line": 755
+        },
+        {
+          "name": "saveMetricSelection",
+          "line": 761
+        },
+        {
+          "name": "saveMetricSelection",
+          "line": 766
+        },
+        {
+          "name": "saveMetricSelection",
+          "line": 772
+        },
+        {
+          "name": "getRecommendedMetricKeys",
+          "line": 1167
+        },
+        {
+          "name": "saveMetricSelection",
+          "line": 1168
+        },
+        {
+          "name": "saveMetricSelection",
+          "line": 1181
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "{dataset.file_name}",
+          "line": 791
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/datasets\"",
+          "line": 784
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/forecasts?dataset=${datasetId ?? \"\"}`}",
+          "line": 824
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard?dataset=${datasetId ?? \"\"}`}",
+          "line": 832
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/insights?dataset=${datasetId ?? \"\"}`}",
+          "line": 840
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/reports?dataset=${datasetId ?? \"\"}${effectiveSelectedMetric ? `&metric=${encodeURIComponent(effectiveSelectedMetric)}` : \"\"}`}",
+          "line": 848
+        },
+        {
+          "attribute": "title",
+          "value": "\"Dataset analysis\"",
+          "line": 938
+        },
+        {
+          "attribute": "title",
+          "value": "{formatMetricLabel(metric.column)}",
+          "line": 1004
+        },
+        {
+          "attribute": "title",
+          "value": "{\n                            metricField?.reason ??\n                            \"Include this column as a metric\"\n                          }",
+          "line": 1276
+        },
+        {
+          "attribute": "title",
+          "value": "{\n                                  displayValue !== previewValue\n                                    ? previewValue\n                                    : undefined\n                                }",
+          "line": 1316
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized dataset readers; data-manager selection controls",
+        "treatment": "reframe",
+        "proposal": "Keep schema, metrics, charts, selection provenance; explain eligibility and offer a verified pairing where available.",
+        "verification": "Source inspected; browser not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/decisions",
+      "source": "apps/web/app/dashboard/decisions/page.tsx",
+      "imports": [
+        {
+          "module": "@/lib/api",
+          "names": [
+            "getDecisionActivityFeed",
+            "getDecisionSummary",
+            "getDecisions",
+            "exportDecisions"
+          ]
+        },
+        {
+          "module": "@/lib/decision-activity-style",
+          "names": [
+            "getDecisionActivityBadgeClass",
+            "getDecisionActivityDotClass"
+          ]
+        },
+        {
+          "module": "@/lib/decision-options",
+          "names": [
+            "activeDecisionStatusOptions",
+            "allPortfolioLifecycle",
+            "archivedDecisionStatus",
+            "archivedPortfolioLifecycle",
+            "defaultPortfolioLifecycle",
+            "defaultDecisionSort",
+            "decisionCategoryOptions",
+            "decisionSortOptions",
+            "formatDecisionLabel"
+          ]
+        },
+        {
+          "module": "@/lib/decision-outcomes",
+          "names": [
+            "hasPendingLearning",
+            "hasPendingNotes",
+            "hasPendingOutcome",
+            "hasRecordedOutcome"
+          ]
+        },
+        {
+          "module": "@/lib/decision-health",
+          "names": [
+            "archivedDecisionHealthLabel",
+            "cancelledDecisionHealthLabel",
+            "getDecisionHealth",
+            "healthyDecisionHealthLabel",
+            "inProgressDecisionHealthLabel",
+            "needsReviewDecisionHealthLabel"
+          ]
+        },
+        {
+          "module": "@/lib/decision-health",
+          "names": [
+            "DecisionHealthLabel"
+          ]
+        },
+        {
+          "module": "@/lib/decision-options",
+          "names": [
+            "ActiveDecisionStatus"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/workspace-access-notice",
+          "names": [
+            "WorkspaceAccessNotice"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/features/decisions/components/create-decision-action",
+          "names": [
+            "CreateDecisionLink"
+          ]
+        },
+        {
+          "module": "@/features/decisions/lib/decision-handoff",
+          "names": [
+            "buildCreateDecisionHref"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/analysis-panel",
+          "names": [
+            "AIAnalysisPanel"
+          ]
+        },
+        {
+          "module": "@/features/decisions/lib/ai-recommendation-source",
+          "names": [
+            "getAIRecommendationSource"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/metric-selector",
+          "names": [
+            "formatMetricLabel"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "DecisionAttentionWorkflowState",
+            "DecisionCategory",
+            "DecisionActivityFeedItem",
+            "DecisionLearningWorkflowState",
+            "DecisionListLifecycle",
+            "DecisionNotesWorkflowState",
+            "DecisionOutcomeWorkflowState",
+            "DecisionReviewWorkflowState",
+            "DecisionListSort",
+            "DecisionRecord",
+            "DecisionSummary"
+          ]
+        },
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useRef",
+            "useState"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "Target",
+            "Calendar",
+            "Activity",
+            "ArrowRight",
+            "FolderOpen",
+            "Flag",
+            "FileText",
+            "Gauge",
+            "Lightbulb",
+            "LineChartIcon",
+            "BriefcaseBusiness",
+            "Search",
+            "RefreshCw",
+            "Link2",
+            "X",
+            "Download"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "CreateDecisionLink",
+        "WorkspaceAccessNotice",
+        "DashboardCard",
+        "CardHeader",
+        "IconBadge",
+        "Gauge",
+        "MetricCard",
+        "AIAnalysisPanel",
+        "RefreshCw",
+        "Activity",
+        "EmptyState",
+        "DecisionActivityRow",
+        "Download",
+        "BriefcaseBusiness",
+        "Search",
+        "X",
+        "Link2",
+        "DecisionCard",
+        "ArrowRight",
+        "Link",
+        "FolderOpen",
+        "LineChartIcon",
+        "Calendar",
+        "Flag",
+        "Target",
+        "Lightbulb",
+        "FileText"
+      ],
+      "data_calls": [
+        {
+          "name": "getDecisionPortfolioSearchParams",
+          "line": 169
+        },
+        {
+          "name": "getDecisionPortfolioSearchParams",
+          "line": 179
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 251
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 259
+        },
+        {
+          "name": "getInitialDecisionPortfolioText",
+          "line": 267
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 272
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 278
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 286
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 294
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 303
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 309
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 318
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 324
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 333
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 339
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 348
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 354
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 362
+        },
+        {
+          "name": "getInitialDecisionPortfolioOption",
+          "line": 365
+        },
+        {
+          "name": "getInitialDecisionPortfolioText",
+          "line": 376
+        },
+        {
+          "name": "getPortfolioSortLabel",
+          "line": 604
+        },
+        {
+          "name": "getDecisionSummary",
+          "line": 639
+        },
+        {
+          "name": "getDecisionActivityFeed",
+          "line": 645
+        },
+        {
+          "name": "getDecisions",
+          "line": 651
+        },
+        {
+          "name": "getDecisionPageErrorMessage",
+          "line": 703
+        },
+        {
+          "name": "getDecisionPageErrorMessage",
+          "line": 731
+        },
+        {
+          "name": "getDecisionSummary",
+          "line": 786
+        },
+        {
+          "name": "getDecisionActivityFeed",
+          "line": 819
+        },
+        {
+          "name": "getDecisionPageErrorMessage",
+          "line": 852
+        },
+        {
+          "name": "loadWorkspaceDecisionContext",
+          "line": 868
+        },
+        {
+          "name": "getDecisions",
+          "line": 924
+        },
+        {
+          "name": "loadPortfolioDecisions",
+          "line": 982
+        },
+        {
+          "name": "getDecisions",
+          "line": 1020
+        },
+        {
+          "name": "getDecisionPageErrorMessage",
+          "line": 1060
+        },
+        {
+          "name": "getDecisionActivityFeed",
+          "line": 1092
+        },
+        {
+          "name": "getDecisionPageErrorMessage",
+          "line": 1119
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 1144
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 1171
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 1173
+        },
+        {
+          "name": "getDecisionPageErrorMessage",
+          "line": 1316
+        },
+        {
+          "name": "buildCreateDecisionHref",
+          "line": 1421
+        },
+        {
+          "name": "getPortfolioFilterClass",
+          "line": 1658
+        },
+        {
+          "name": "getLoadMoreButtonClass",
+          "line": 2122
+        },
+        {
+          "name": "getDecisionActivityDotClass",
+          "line": 2364
+        },
+        {
+          "name": "getDecisionActivityBadgeClass",
+          "line": 2392
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 2439
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 2467
+        },
+        {
+          "name": "getDecisionHealth",
+          "line": 2522
+        },
+        {
+          "name": "getDecisionUpdatedLabel",
+          "line": 2526
+        },
+        {
+          "name": "getDecisionFollowUpActions",
+          "line": 2536
+        },
+        {
+          "name": "getAIRecommendationSource",
+          "line": 2545
+        },
+        {
+          "name": "getDecisionCardClass",
+          "line": 2552
+        },
+        {
+          "name": "getHealthBadgeClass",
+          "line": 2560
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 2784
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Decisions\"",
+          "line": 1417
+        },
+        {
+          "attribute": "href",
+          "value": "{buildCreateDecisionHref()}",
+          "line": 1421
+        },
+        {
+          "attribute": "title",
+          "value": "\"Action Queue\"",
+          "line": 1437
+        },
+        {
+          "attribute": "title",
+          "value": "\"Portfolio learning signal\"",
+          "line": 1484
+        },
+        {
+          "attribute": "title",
+          "value": "\"Recent Decision Activity\"",
+          "line": 1495
+        },
+        {
+          "attribute": "title",
+          "value": "\"No activity yet\"",
+          "line": 1557
+        },
+        {
+          "attribute": "title",
+          "value": "\"Export filtered decisions as CSV\"",
+          "line": 1604
+        },
+        {
+          "attribute": "title",
+          "value": "\"Export filtered decisions as JSON\"",
+          "line": 1614
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/decisions/${activityItem.decision_id}`}",
+          "line": 2428
+        },
+        {
+          "attribute": "href",
+          "value": "{decisionHref}",
+          "line": 2551
+        },
+        {
+          "attribute": "title",
+          "value": "{analysisSource}",
+          "line": 2646
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized users; creation limited by role",
+        "treatment": "keep",
+        "proposal": "Preserve sole creation destination and portfolio filters; retain linked reports and follow-up.",
+        "verification": "Source/CTA inventory; central form separately browser checked.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/decisions/[id]",
+      "source": "apps/web/app/dashboard/decisions/[id]/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useRef",
+            "useState",
+            "ReactNode"
+          ]
+        },
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "next/navigation",
+          "names": [
+            "useParams",
+            "useRouter",
+            "useSearchParams"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "ArrowLeft",
+            "Archive",
+            "Calendar",
+            "ClipboardList",
+            "FileText",
+            "HeartPulse",
+            "Lightbulb",
+            "Pencil",
+            "Target",
+            "X"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "ApiError",
+            "archiveDecision",
+            "deleteDecision",
+            "getDataset",
+            "getDatasetMetrics",
+            "getDecisionActivities",
+            "getDecision",
+            "getDecisionLifecycleAccess",
+            "getDecisionOutcomeAnalysis",
+            "getOrganizationMembers",
+            "measureDecisionOutcome",
+            "restoreDecision",
+            "updateDecisionDetails",
+            "updateDecisionOverview",
+            "updateDecisionNotes",
+            "updateDecisionOutcome",
+            "updateDecisionLearning",
+            "updateDecisionAssignee"
+          ]
+        },
+        {
+          "module": "@/lib/decision-activity-style",
+          "names": [
+            "getDecisionActivityDotClass",
+            "getDecisionActivityTitleClass"
+          ]
+        },
+        {
+          "module": "@/lib/decision-outcomes",
+          "names": [
+            "hasAddedNotes",
+            "hasCapturedLearning",
+            "hasPendingLearning",
+            "hasPendingOutcome",
+            "hasPlannedOutcome",
+            "hasRecordedOutcome"
+          ]
+        },
+        {
+          "module": "@/lib/decision-health",
+          "names": [
+            "archivedDecisionHealthLabel",
+            "cancelledDecisionHealthLabel",
+            "getDecisionHealth",
+            "healthyDecisionHealthLabel",
+            "inProgressDecisionHealthLabel",
+            "needsReviewDecisionHealthLabel"
+          ]
+        },
+        {
+          "module": "@/lib/decision-health",
+          "names": [
+            "DecisionHealthLabel"
+          ]
+        },
+        {
+          "module": "@/lib/decision-options",
+          "names": [
+            "archiveDecisionActivity",
+            "archivedDecisionStatus",
+            "decisionCategoryOptions",
+            "decisionConfidenceOptions",
+            "detailsDecisionActivity",
+            "defaultDecisionCategory",
+            "defaultDecisionPriority",
+            "defaultDecisionStatus",
+            "decisionOutcomeStatusOptions",
+            "decisionPriorityOptions",
+            "decisionStatusOptions",
+            "formatDecisionLabel",
+            "learningDecisionActivity",
+            "assigneeDecisionActivity",
+            "notesDecisionActivity",
+            "outcomeDecisionActivity",
+            "overviewDecisionActivity",
+            "restoreDecisionActivity"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/workspace-access-notice",
+          "names": [
+            "WorkspaceAccessNotice"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/features/datasets/lib/source-config",
+          "names": [
+            "getDatasetSourceDetails"
+          ]
+        },
+        {
+          "module": "@/features/decisions/lib/ai-recommendation-source",
+          "names": [
+            "getAIRecommendationSource"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/analysis-panel",
+          "names": [
+            "AIAnalysisPanel"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/analysis-status",
+          "names": [
+            "AnalysisStatus"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/metric-selector",
+          "names": [
+            "MetricSelector",
+            "formatMetricLabel"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "AIAnalysis",
+            "DatasetSummary",
+            "DecisionActivity",
+            "DecisionCategory",
+            "DecisionConfidenceScore",
+            "DecisionDetailsPayload",
+            "DecisionLifecycleAccess",
+            "DecisionOutcomePayload",
+            "DecisionOutcomeStatus",
+            "DecisionOverviewPayload",
+            "DecisionPriority",
+            "DecisionRecord",
+            "DecisionStatus",
+            "OrganizationMemberRecord"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardCard",
+        "Link",
+        "ArrowLeft",
+        "WorkspaceAccessNotice",
+        "DashboardPageHeader",
+        "Pencil",
+        "IconBadge",
+        "Target",
+        "Badge",
+        "CardHeader",
+        "Lightbulb",
+        "SavedBadge",
+        "Archive",
+        "SaveFeedback",
+        "ClipboardList",
+        "Field",
+        "MetricSelector",
+        "SectionSaveActions",
+        "X",
+        "HeartPulse",
+        "HealthLevelBadge",
+        "HealthItem",
+        "AnalysisStatus",
+        "AIAnalysisPanel",
+        "FileText",
+        "Calendar",
+        "TimelineEvent",
+        "FallbackTimeline",
+        "SaveButtonRow",
+        "SaveActionButton"
+      ],
+      "data_calls": [
+        {
+          "name": "getDecisionRouteId",
+          "line": 415
+        },
+        {
+          "name": "getDecision",
+          "line": 425
+        },
+        {
+          "name": "loadActivities",
+          "line": 464
+        },
+        {
+          "name": "getDataset",
+          "line": 479
+        },
+        {
+          "name": "getDatasetMetrics",
+          "line": 484
+        },
+        {
+          "name": "getDecisionLifecycleAccess",
+          "line": 489
+        },
+        {
+          "name": "getOrganizationMembers",
+          "line": 494
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 572
+        },
+        {
+          "name": "load",
+          "line": 580
+        },
+        {
+          "name": "getDecisionOutcomeAnalysis",
+          "line": 632
+        },
+        {
+          "name": "loadOutcomeAnalysis",
+          "line": 656
+        },
+        {
+          "name": "getDecisionActivities",
+          "line": 683
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 708
+        },
+        {
+          "name": "getDecisionActivities",
+          "line": 739
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 772
+        },
+        {
+          "name": "loadActivities",
+          "line": 796
+        },
+        {
+          "name": "updateDecisionDetails",
+          "line": 1012
+        },
+        {
+          "name": "loadActivities",
+          "line": 1023
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 1036
+        },
+        {
+          "name": "updateDecisionOverview",
+          "line": 1078
+        },
+        {
+          "name": "loadActivities",
+          "line": 1089
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 1102
+        },
+        {
+          "name": "getDateInputValueFromToday",
+          "line": 1116
+        },
+        {
+          "name": "updateDecisionNotes",
+          "line": 1127
+        },
+        {
+          "name": "loadActivities",
+          "line": 1138
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 1151
+        },
+        {
+          "name": "updateDecisionOutcome",
+          "line": 1194
+        },
+        {
+          "name": "loadActivities",
+          "line": 1207
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 1220
+        },
+        {
+          "name": "measureDecisionOutcome",
+          "line": 1236
+        },
+        {
+          "name": "loadActivities",
+          "line": 1242
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 1247
+        },
+        {
+          "name": "updateDecisionAssignee",
+          "line": 1263
+        },
+        {
+          "name": "loadActivities",
+          "line": 1273
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 1278
+        },
+        {
+          "name": "updateDecisionLearning",
+          "line": 1292
+        },
+        {
+          "name": "loadActivities",
+          "line": 1303
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 1316
+        },
+        {
+          "name": "loadActivities",
+          "line": 1405
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 1418
+        },
+        {
+          "name": "loadActivities",
+          "line": 1446
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 1459
+        },
+        {
+          "name": "deleteDecision",
+          "line": 1488
+        },
+        {
+          "name": "getSaveErrorMessage",
+          "line": 1498
+        },
+        {
+          "name": "getNextActionTarget",
+          "line": 1511
+        },
+        {
+          "name": "getNextAction",
+          "line": 1610
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 1628
+        },
+        {
+          "name": "getReviewUrgency",
+          "line": 1633
+        },
+        {
+          "name": "getDecisionHealth",
+          "line": 1642
+        },
+        {
+          "name": "getSectionSaveDisabled",
+          "line": 1654
+        },
+        {
+          "name": "getSectionSaveDisabled",
+          "line": 1665
+        },
+        {
+          "name": "getSectionSaveDisabled",
+          "line": 1674
+        },
+        {
+          "name": "getSectionSaveDisabled",
+          "line": 1682
+        },
+        {
+          "name": "getSectionSaveDisabled",
+          "line": 1690
+        },
+        {
+          "name": "getAIRecommendationSource",
+          "line": 1758
+        },
+        {
+          "name": "getReviewUrgencyClass",
+          "line": 1822
+        },
+        {
+          "name": "getArchiveButtonClass",
+          "line": 1962
+        },
+        {
+          "name": "getDatasetSourceDetails",
+          "line": 2036
+        },
+        {
+          "name": "getHealthIconClass",
+          "line": 2229
+        },
+        {
+          "name": "getHealthScoreDisplay",
+          "line": 2239
+        },
+        {
+          "name": "getHealthRequirementDisplay",
+          "line": 2247
+        },
+        {
+          "name": "getHealthProgressClass",
+          "line": 2261
+        },
+        {
+          "name": "getDecisionActivityDotClass",
+          "line": 2989
+        },
+        {
+          "name": "getDecisionActivityTitleClass",
+          "line": 2997
+        },
+        {
+          "name": "getSaveButtonClass",
+          "line": 3264
+        },
+        {
+          "name": "getHealthItemClass",
+          "line": 3338
+        },
+        {
+          "name": "getHealthBadgeClass",
+          "line": 3380
+        },
+        {
+          "name": "getDatasetSourceDetails",
+          "line": 3589
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 3605
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 3638
+        },
+        {
+          "name": "getReviewUrgency",
+          "line": 3730
+        },
+        {
+          "name": "getDecisionDateValue",
+          "line": 3731
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/decisions\"",
+          "line": 1552
+        },
+        {
+          "attribute": "href",
+          "value": "{backToDecisionsHref}",
+          "line": 1772
+        },
+        {
+          "attribute": "title",
+          "value": "{decision.title}",
+          "line": 1792
+        },
+        {
+          "attribute": "href",
+          "value": "\"#decision-title\"",
+          "line": 1797
+        },
+        {
+          "attribute": "title",
+          "value": "\"Edit decision title and details\"",
+          "line": 1799
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/datasets/${evidenceDataset.id}`}",
+          "line": 1836
+        },
+        {
+          "attribute": "title",
+          "value": "{evidenceDataset.label}",
+          "line": 1837
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/datasets/${decision.dataset_id}`}",
+          "line": 1847
+        },
+        {
+          "attribute": "title",
+          "value": "{decisionDatasetLabel}",
+          "line": 1848
+        },
+        {
+          "attribute": "title",
+          "value": "\"The dataset linked to this decision is unavailable.\"",
+          "line": 1856
+        },
+        {
+          "attribute": "title",
+          "value": "\"Recommendation Evidence\"",
+          "line": 1881
+        },
+        {
+          "attribute": "title",
+          "value": "\"Decision Lifecycle\"",
+          "line": 1917
+        },
+        {
+          "attribute": "title",
+          "value": "\"Decision Details\"",
+          "line": 2033
+        },
+        {
+          "attribute": "title",
+          "value": "\"Decision Health\"",
+          "line": 2225
+        },
+        {
+          "attribute": "title",
+          "value": "\"Outcome\"",
+          "line": 2274
+        },
+        {
+          "attribute": "title",
+          "value": "\"Learning\"",
+          "line": 2289
+        },
+        {
+          "attribute": "title",
+          "value": "\"Review\"",
+          "line": 2300
+        },
+        {
+          "attribute": "title",
+          "value": "\"Notes\"",
+          "line": 2313
+        },
+        {
+          "attribute": "title",
+          "value": "\"Confidence\"",
+          "line": 2324
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/action-needed\"",
+          "line": 2367
+        },
+        {
+          "attribute": "title",
+          "value": "\"Outcome Tracking\"",
+          "line": 2384
+        },
+        {
+          "attribute": "title",
+          "value": "\"Decision Overview\"",
+          "line": 2562
+        },
+        {
+          "attribute": "title",
+          "value": "\"Outcome review\"",
+          "line": 2812
+        },
+        {
+          "attribute": "title",
+          "value": "\"Notes\"",
+          "line": 2831
+        },
+        {
+          "attribute": "title",
+          "value": "\"Learning\"",
+          "line": 2886
+        },
+        {
+          "attribute": "title",
+          "value": "\"Decision Timeline\"",
+          "line": 2946
+        },
+        {
+          "attribute": "title",
+          "value": "{activity.message}",
+          "line": 2992
+        },
+        {
+          "attribute": "title",
+          "value": "\"Decision created\"",
+          "line": 3526
+        },
+        {
+          "attribute": "title",
+          "value": "\"Review scheduled\"",
+          "line": 3535
+        },
+        {
+          "attribute": "title",
+          "value": "\"Outcome recorded\"",
+          "line": 3546
+        },
+        {
+          "attribute": "title",
+          "value": "\"Learning captured\"",
+          "line": 3555
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized record readers; operation-specific edit/measure controls",
+        "treatment": "keep",
+        "proposal": "Preserve evidence, lifecycle, owners, outcomes and limitations.",
+        "verification": "Source inspected; browser not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/decisions/new",
+      "source": "apps/web/app/dashboard/decisions/new/page.tsx",
+      "imports": [
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "next/navigation",
+          "names": [
+            "useRouter",
+            "useSearchParams"
+          ]
+        },
+        {
+          "module": "react",
+          "names": [
+            "Suspense",
+            "useCallback",
+            "useEffect",
+            "useState"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "ArrowLeft",
+            "X"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "createDecision",
+            "correlationRequest",
+            "getDatasets",
+            "getDatasetMetrics",
+            "getDecisionTemplates",
+            "DatasetSummary",
+            "DecisionCategory",
+            "DecisionConfidenceScore",
+            "DecisionPriority",
+            "DecisionTemplate",
+            "DecisionCreatePayload"
+          ]
+        },
+        {
+          "module": "@/lib/decision-options",
+          "names": [
+            "decisionCategoryOptions",
+            "decisionConfidenceOptions",
+            "decisionPriorityOptions",
+            "defaultDecisionCategory",
+            "defaultDecisionPriority"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/datasets/lib/source-config",
+          "names": [
+            "getDatasetSourceDetails"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/metric-selector",
+          "names": [
+            "MetricSelector",
+            "formatMetricLabel"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/features/decisions/components/create-decision-action",
+          "names": [
+            "CreateDecisionButton"
+          ]
+        },
+        {
+          "module": "@/features/decisions/components/decision-report-evidence",
+          "names": [
+            "DecisionReportEvidence",
+            "useDecisionReportEvidence"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "Link",
+        "ArrowLeft",
+        "X",
+        "DashboardCard",
+        "DecisionReportEvidence",
+        "MetricSelector",
+        "CreateDecisionButton",
+        "Suspense",
+        "NewDecisionContent"
+      ],
+      "data_calls": [
+        {
+          "name": "getDatasetSourceDetails",
+          "line": 143
+        },
+        {
+          "name": "getDatasetSourceDetails",
+          "line": 155
+        },
+        {
+          "name": "getSafeReturnPath",
+          "line": 177
+        },
+        {
+          "name": "getCreateDecisionDatasetId",
+          "line": 181
+        },
+        {
+          "name": "getDateInputValueFromToday",
+          "line": 326
+        },
+        {
+          "name": "getDatasets",
+          "line": 368
+        },
+        {
+          "name": "getDecisionTemplates",
+          "line": 373
+        },
+        {
+          "name": "getDateInputValueFromToday",
+          "line": 427
+        },
+        {
+          "name": "getDecisionPageErrorMessage",
+          "line": 447
+        },
+        {
+          "name": "loadDecisionDatasets",
+          "line": 459
+        },
+        {
+          "name": "getCreateDecisionDatasetId",
+          "line": 481
+        },
+        {
+          "name": "getDatasetMetrics",
+          "line": 500
+        },
+        {
+          "name": "getDecisionPageErrorMessage",
+          "line": 543
+        },
+        {
+          "name": "loadDecisionMetrics",
+          "line": 556
+        },
+        {
+          "name": "getCreateDecisionDatasetId",
+          "line": 572
+        },
+        {
+          "name": "getCreateDecisionDatasetId",
+          "line": 615
+        },
+        {
+          "name": "getCreateDecisionDatasetId",
+          "line": 665
+        },
+        {
+          "name": "correlationRequest",
+          "line": 695
+        },
+        {
+          "name": "createDecision",
+          "line": 718
+        },
+        {
+          "name": "getDecisionPageErrorMessage",
+          "line": 729
+        },
+        {
+          "name": "getDateInputValueFromToday",
+          "line": 1151
+        },
+        {
+          "name": "getDateInputValueFromToday",
+          "line": 1170
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Create decision\"",
+          "line": 751
+        },
+        {
+          "attribute": "href",
+          "value": "{returnPath}",
+          "line": 744
+        },
+        {
+          "attribute": "title",
+          "value": "{\n                                    selectedDecisionDatasetLabel ??\n                                    \"Choose dataset\"\n                                }",
+          "line": 858
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/datasets/${selectedDecisionDataset.id}`}",
+          "line": 893
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/datasets\"",
+          "line": 1240
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "owner/member/approved managed_client; explicit clients denied",
+        "treatment": "keep and repair handoff",
+        "proposal": "Preserve central submit; add safe report query prefill and server outcome parity.",
+        "verification": "Synthetic current form browser baseline; no forms submitted.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/entity-matching",
+      "source": "apps/web/app/dashboard/entity-matching/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useMemo",
+            "useState"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "RefreshCw",
+            "RotateCcw",
+            "Save",
+            "UsersRound",
+            "X"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "getEntityMatchingMetadata",
+            "getDatasets",
+            "previewEntityMatching",
+            "runEntityMatching",
+            "DatasetSummary",
+            "EntityMatchingDatasetMetadata",
+            "EntityMatchingPreview",
+            "EntityMatchingRun",
+            "EntityType"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/workspace-access-notice",
+          "names": [
+            "WorkspaceAccessNotice"
+          ]
+        },
+        {
+          "module": "@/app/use-decisionate-language",
+          "names": [
+            "useDecisionateText"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "RefreshCw",
+        "WorkspaceAccessNotice",
+        "UsersRound",
+        "X",
+        "RotateCcw",
+        "Save",
+        "Summary",
+        "Link"
+      ],
+      "data_calls": [
+        {
+          "name": "getDatasets",
+          "line": 56
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 71
+        },
+        {
+          "name": "getEntityMatchingMetadata",
+          "line": 87
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 126
+        },
+        {
+          "name": "previewEntityMatching",
+          "line": 265
+        },
+        {
+          "name": "getMatchingKeyColumns",
+          "line": 268
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 272
+        },
+        {
+          "name": "getMatchingKeyColumns",
+          "line": 298
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 307
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Cross-source entity matching\"",
+          "line": 316
+        },
+        {
+          "attribute": "title",
+          "value": "\"Refresh datasets\"",
+          "line": 323
+        },
+        {
+          "attribute": "title",
+          "value": "{column}",
+          "line": 423
+        },
+        {
+          "attribute": "title",
+          "value": "{t(\"Unselect all metrics or columns\")}",
+          "line": 444
+        },
+        {
+          "attribute": "title",
+          "value": "{t(\"Reset metrics or columns to the default selection\")}",
+          "line": 454
+        },
+        {
+          "attribute": "title",
+          "value": "{column}",
+          "line": 476
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/datasets/${result.unified_dataset_id}`}",
+          "line": 526
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized workspace users; data-manager writes",
+        "treatment": "keep",
+        "proposal": "Retain exact identity matching, previews and canonical records; do not call it a general cardinality-safe SQL join.",
+        "verification": "Source and service inspected; browser not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/forecasts",
+      "source": "apps/web/app/dashboard/forecasts/page.tsx",
+      "imports": [
+        {
+          "module": "@/features/dashboard/components/forecast-chart",
+          "names": [
+            "ForecastChart"
+          ]
+        },
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useState"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "@/app/use-decisionate-language",
+          "names": [
+            "useDecisionateText"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "RefreshCw"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/recommendation-card",
+          "names": [
+            "RecommendationCard"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/forecast-summary-card",
+          "names": [
+            "ForecastSummaryCard"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "DatasetSummary",
+            "DecisionConfidenceScore",
+            "ForecastResponse",
+            "ForecastPeriodFilter",
+            "DashboardAggregation",
+            "DashboardValueAggregation",
+            "getDatasets",
+            "getDatasetMetrics",
+            "getForecast"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/workspace-access-notice",
+          "names": [
+            "WorkspaceAccessNotice"
+          ]
+        },
+        {
+          "module": "@/features/datasets/lib/source-config",
+          "names": [
+            "getDatasetSourceDetails"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dataset-selector",
+          "names": [
+            "DatasetSelector"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/metric-selector",
+          "names": [
+            "MetricSelector",
+            "formatMetricLabel"
+          ]
+        },
+        {
+          "module": "@/features/ai/lib/analysis-copy",
+          "names": [
+            "getAIAnalysisLearningContext",
+            "getAIAnalysisSourceLabel"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/analysis-panel",
+          "names": [
+            "AIAnalysisPanel"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "RefreshCw",
+        "DatasetSelector",
+        "MetricSelector",
+        "Link",
+        "WorkspaceAccessNotice",
+        "ForecastSummaryCard",
+        "RecommendationCard",
+        "AIAnalysisPanel",
+        "ForecastChart"
+      ],
+      "data_calls": [
+        {
+          "name": "getForecastPageErrorMessage",
+          "line": 58
+        },
+        {
+          "name": "getDatasetSourceDetails",
+          "line": 340
+        },
+        {
+          "name": "getDatasetSourceDetails",
+          "line": 346
+        },
+        {
+          "name": "getDatasets",
+          "line": 394
+        },
+        {
+          "name": "getInitialForecastDatasetId",
+          "line": 416
+        },
+        {
+          "name": "getForecastPageErrorMessage",
+          "line": 440
+        },
+        {
+          "name": "loadDefaultDataset",
+          "line": 452
+        },
+        {
+          "name": "getDatasetMetrics",
+          "line": 488
+        },
+        {
+          "name": "getForecastPageErrorMessage",
+          "line": 531
+        },
+        {
+          "name": "loadDatasetMetrics",
+          "line": 543
+        },
+        {
+          "name": "getForecast",
+          "line": 604
+        },
+        {
+          "name": "getForecastPageErrorMessage",
+          "line": 631
+        },
+        {
+          "name": "getForecastUnavailableMessage",
+          "line": 636
+        },
+        {
+          "name": "getForecastPageErrorMessage",
+          "line": 661
+        },
+        {
+          "name": "loadForecast",
+          "line": 674
+        },
+        {
+          "name": "getConservativeConfidence",
+          "line": 896
+        },
+        {
+          "name": "getAIAnalysisSourceLabel",
+          "line": 903
+        },
+        {
+          "name": "getAIAnalysisLearningContext",
+          "line": 909
+        },
+        {
+          "name": "getForecastModelQualityStatus",
+          "line": 1343
+        },
+        {
+          "name": "getForecastModelQualityStatus",
+          "line": 1347
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Forecasts\"",
+          "line": 983
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/datasets/${selectedDatasetId}`}",
+          "line": 1228
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/datasets\"",
+          "line": 1288
+        },
+        {
+          "attribute": "title",
+          "value": "{recommendationTitle}",
+          "line": 1371
+        },
+        {
+          "attribute": "title",
+          "value": "\"Forecast analysis\"",
+          "line": 1386
+        },
+        {
+          "attribute": "title",
+          "value": "{\n                  selectedDataset\n                    ? selectedDataset.file_name\n                    : forecast.file_name\n                }",
+          "line": 1411
+        },
+        {
+          "attribute": "title",
+          "value": "{selectedDatasetSource.label}",
+          "line": 1425
+        },
+        {
+          "attribute": "title",
+          "value": "{metricName}",
+          "line": 1433
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized workspace users",
+        "treatment": "reframe",
+        "proposal": "Retain forecasts as supporting predictions with model/caveat labels; no causal or automatic decision claims.",
+        "verification": "Source inspected; browser not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/help",
+      "source": "apps/web/app/dashboard/help/page.tsx",
+      "imports": [
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "ArrowRight",
+            "BookOpen",
+            "Bug",
+            "Check",
+            "CircleHelp",
+            "Lightbulb",
+            "LifeBuoy",
+            "MessageSquarePlus",
+            "Rocket",
+            "Send",
+            "Target",
+            "X"
+          ]
+        },
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useMemo",
+            "useState",
+            "FormEvent"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "submitSupportRequest"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "Rocket",
+        "Check",
+        "Link",
+        "ArrowRight",
+        "LifeBuoy",
+        "Bug",
+        "MessageSquarePlus",
+        "X",
+        "Send",
+        "Target",
+        "CircleHelp",
+        "BookOpen",
+        "Lightbulb"
+      ],
+      "data_calls": [],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Help & Support\"",
+          "line": 814
+        },
+        {
+          "attribute": "title",
+          "value": "{`${complete ? \"Mark\" : \"Mark as\"} ${item.title.toLowerCase()} ${complete ? \"incomplete\" : \"complete\"}`}",
+          "line": 854
+        },
+        {
+          "attribute": "href",
+          "value": "{item.id === \"decision\" ? \"/dashboard/decisions\" : item.href}",
+          "line": 873
+        },
+        {
+          "attribute": "title",
+          "value": "{item.description}",
+          "line": 874
+        },
+        {
+          "attribute": "title",
+          "value": "\"Open the support message form\"",
+          "line": 894
+        },
+        {
+          "attribute": "title",
+          "value": "\"Open the bug report form\"",
+          "line": 917
+        },
+        {
+          "attribute": "title",
+          "value": "\"Open the feature request form\"",
+          "line": 936
+        },
+        {
+          "attribute": "title",
+          "value": "\"Close support form\"",
+          "line": 973
+        },
+        {
+          "attribute": "title",
+          "value": "\"Decision intelligence workflow\"",
+          "line": 1068
+        },
+        {
+          "attribute": "title",
+          "value": "\"Decisionate reference guide\"",
+          "line": 1147
+        },
+        {
+          "attribute": "href",
+          "value": "{`#${chapter.id}`}",
+          "line": 1176
+        },
+        {
+          "attribute": "href",
+          "value": "\"#reference-guide\"",
+          "line": 1236
+        },
+        {
+          "attribute": "href",
+          "value": "\"#reference-account-workspaces\"",
+          "line": 1253
+        },
+        {
+          "attribute": "title",
+          "value": "\"Open workspace setup guidance\"",
+          "line": 1254
+        },
+        {
+          "attribute": "href",
+          "value": "\"#quick-start\"",
+          "line": 1273
+        },
+        {
+          "attribute": "title",
+          "value": "\"Open the Decisionate quick-start checklist\"",
+          "line": 1274
+        },
+        {
+          "attribute": "href",
+          "value": "\"/security\"",
+          "line": 1306
+        },
+        {
+          "attribute": "href",
+          "value": "\"/privacy\"",
+          "line": 1309
+        },
+        {
+          "attribute": "href",
+          "value": "\"/terms\"",
+          "line": 1312
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "workspace users",
+        "treatment": "align copy only",
+        "proposal": "Update terminology after approved navigation changes; do not invent unsupported behavior.",
+        "verification": "Source inspected; browser not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/insights",
+      "source": "apps/web/app/dashboard/insights/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useMemo",
+            "useState"
+          ]
+        },
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "RefreshCw"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dataset-selector",
+          "names": [
+            "DatasetSelector"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/features/relationships/correlation-widgets",
+          "names": [
+            "CorrelationInsights"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/metric-selector",
+          "names": [
+            "MetricSelector",
+            "formatMetricLabel"
+          ]
+        },
+        {
+          "module": "@/features/insights/components/insight-card",
+          "names": [
+            "InsightCard"
+          ]
+        },
+        {
+          "module": "@/features/insights/utils/generate-insights",
+          "names": [
+            "generateInsights"
+          ]
+        },
+        {
+          "module": "@/features/datasets/store/dataset-store",
+          "names": [
+            "DatasetRow"
+          ]
+        },
+        {
+          "module": "@/features/datasets/utils/dataset-analytics",
+          "names": [
+            "getNumericColumns"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/analysis-panel",
+          "names": [
+            "AIAnalysisPanel"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/analysis-status",
+          "names": [
+            "AnalysisStatus"
+          ]
+        },
+        {
+          "module": "@/features/ai/components/anomaly-detection-panel",
+          "names": [
+            "AnomalyDetectionPanel"
+          ]
+        },
+        {
+          "module": "@/features/insights/components/multi-metric-analysis-panel",
+          "names": [
+            "MultiMetricAnalysisPanel"
+          ]
+        },
+        {
+          "module": "@/features/insights/utils/generate-insights",
+          "names": [
+            "Insight"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "@/app/use-decisionate-language",
+          "names": [
+            "useDecisionateText"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "getDatasetAnomalies",
+            "getDatasetAIAnalysis",
+            "getDatasetDetails",
+            "getDatasets",
+            "AIAnalysis",
+            "DashboardAggregation",
+            "DashboardValueAggregation",
+            "DatasetAnomaliesResponse",
+            "DatasetMetricSummary",
+            "DatasetSummary"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/workspace-access-notice",
+          "names": [
+            "WorkspaceAccessNotice"
+          ]
+        },
+        {
+          "module": "@/features/datasets/lib/source-config",
+          "names": [
+            "getDatasetSourceDetails"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/lib/summary-aggregation",
+          "names": [
+            "aggregateSummaryAwareValues",
+            "isInternalSummaryColumn"
+          ]
+        }
+      ],
+      "components": [
+        "CorrelationInsights",
+        "DashboardPageHeader",
+        "RefreshCw",
+        "DatasetSelector",
+        "MetricSelector",
+        "Link",
+        "MultiMetricAnalysisPanel",
+        "WorkspaceAccessNotice",
+        "AnomalyDetectionPanel",
+        "AnalysisStatus",
+        "AIAnalysisPanel",
+        "InsightCard"
+      ],
+      "data_calls": [
+        {
+          "name": "getInsightDateColumn",
+          "line": 200
+        },
+        {
+          "name": "getFirstInsightDate",
+          "line": 205
+        },
+        {
+          "name": "buildInsightViewRows",
+          "line": 218
+        },
+        {
+          "name": "buildInsightRecords",
+          "line": 240
+        },
+        {
+          "name": "getMetricFilteredInsights",
+          "line": 258
+        },
+        {
+          "name": "getDatasetSourceDetails",
+          "line": 269
+        },
+        {
+          "name": "getDatasets",
+          "line": 320
+        },
+        {
+          "name": "getInitialInsightsDatasetId",
+          "line": 342
+        },
+        {
+          "name": "getInsightsPageErrorMessage",
+          "line": 364
+        },
+        {
+          "name": "loadDefaultDataset",
+          "line": 376
+        },
+        {
+          "name": "getDatasetDetails",
+          "line": 469
+        },
+        {
+          "name": "getInsightsPageErrorMessage",
+          "line": 487
+        },
+        {
+          "name": "loadDataset",
+          "line": 500
+        },
+        {
+          "name": "getDatasetAIAnalysis",
+          "line": 538
+        },
+        {
+          "name": "loadMetricAIAnalysis",
+          "line": 569
+        },
+        {
+          "name": "getDatasetAnomalies",
+          "line": 606
+        },
+        {
+          "name": "getInsightsPageErrorMessage",
+          "line": 627
+        },
+        {
+          "name": "loadAnomalies",
+          "line": 640
+        },
+        {
+          "name": "getInsightPeriodMonths",
+          "line": 1184
+        },
+        {
+          "name": "getNumericColumns",
+          "line": 1209
+        },
+        {
+          "name": "getInsightBucketDate",
+          "line": 1227
+        },
+        {
+          "name": "getGeneratedInsightType",
+          "line": 1281
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Insights\"",
+          "line": 665
+        },
+        {
+          "attribute": "href",
+          "value": "{`/dashboard/datasets/${selectedDatasetId}`}",
+          "line": 881
+        },
+        {
+          "attribute": "title",
+          "value": "\"Insight analysis\"",
+          "line": 972
+        },
+        {
+          "attribute": "href",
+          "value": "\"/dashboard/datasets\"",
+          "line": 993
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized workspace users",
+        "treatment": "reframe",
+        "proposal": "Keep source diagnostics, multi-metric analysis and saved correlation insights; link qualified cross-source report context.",
+        "verification": "Source inspected; browser not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/relationships",
+      "source": "apps/web/app/dashboard/relationships/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useMemo",
+            "useState"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "ChevronDown",
+            "GitCompare",
+            "RefreshCw",
+            "Save",
+            "Trash2"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "createDatasetRelationship",
+            "deleteDatasetRelationship",
+            "getDatasetJoinMetadata",
+            "getDatasetRelationships",
+            "getDatasets",
+            "previewDatasetRelationship",
+            "DatasetJoinMetadata",
+            "DatasetRelationship",
+            "DatasetRelationshipPayload",
+            "DatasetSummary",
+            "DashboardAggregation",
+            "DashboardValueAggregation"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/dashboard-page-header",
+          "names": [
+            "DashboardPageHeader"
+          ]
+        },
+        {
+          "module": "@/app/use-decisionate-language",
+          "names": [
+            "useDecisionateText"
+          ]
+        },
+        {
+          "module": "@/features/relationships/correlation-entry",
+          "names": [
+            "CorrelationEntry"
+          ]
+        }
+      ],
+      "components": [
+        "DashboardPageHeader",
+        "CorrelationEntry",
+        "RefreshCw",
+        "GitCompare",
+        "RelationshipSide",
+        "SelectField",
+        "ChevronDown",
+        "Save",
+        "RelationshipResult",
+        "Trash2",
+        "MetricStat"
+      ],
+      "data_calls": [
+        {
+          "name": "getDatasets",
+          "line": 146
+        },
+        {
+          "name": "getDatasetRelationships",
+          "line": 151
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 161
+        },
+        {
+          "name": "load",
+          "line": 168
+        },
+        {
+          "name": "getDatasetJoinMetadata",
+          "line": 191
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 199
+        },
+        {
+          "name": "loadMetadata",
+          "line": 206
+        },
+        {
+          "name": "buildPayload",
+          "line": 252
+        },
+        {
+          "name": "previewDatasetRelationship",
+          "line": 259
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 262
+        },
+        {
+          "name": "buildPayload",
+          "line": 270
+        },
+        {
+          "name": "createDatasetRelationship",
+          "line": 276
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 288
+        },
+        {
+          "name": "deleteDatasetRelationship",
+          "line": 308
+        },
+        {
+          "name": "getErrorMessage",
+          "line": 317
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Cross-source relationships\"",
+          "line": 326
+        },
+        {
+          "attribute": "title",
+          "value": "\"Refresh relationships\"",
+          "line": 334
+        },
+        {
+          "attribute": "title",
+          "value": "{t(\"Delete relationship\")}",
+          "line": 544
+        },
+        {
+          "attribute": "title",
+          "value": "\"Delete saved relationship\"",
+          "line": 668
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized workspace users; role-gated monitor writes",
+        "treatment": "reframe",
+        "proposal": "Label saved time-series monitors and temporal relationships distinctly from entity matching/keyed joins; retain bookmarks.",
+        "verification": "Source inspected; browser not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/relationships/explorer",
+      "source": "apps/web/app/dashboard/relationships/explorer/page.tsx",
+      "imports": [
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/features/relationships/correlation-explorer",
+          "names": [
+            "CorrelationExplorer"
+          ]
+        }
+      ],
+      "components": [
+        "CorrelationExplorer"
+      ],
+      "data_calls": [],
+      "links_and_titles": [],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized users in enabled correlation cohort",
+        "treatment": "keep as advanced",
+        "proposal": "Reuse existing advanced engine, evidence and report transfer; keep flags and limits.",
+        "verification": "Source inspected; no rollout changes or full route browser flow.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/reports",
+      "source": "apps/web/app/dashboard/reports/page.tsx",
+      "imports": [
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useUser"
+          ]
+        },
+        {
+          "module": "@/lib/use-active-workspace",
+          "names": [
+            "useActiveWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-access",
+          "names": [
+            "useWorkspaceAccess"
+          ]
+        },
+        {
+          "module": "@/features/reports/report-workspace",
+          "names": [
+            "ReportWorkspace"
+          ]
+        }
+      ],
+      "components": [
+        "ReportWorkspace"
+      ],
+      "data_calls": [],
+      "links_and_titles": [],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized workspace users; save/template role controls",
+        "treatment": "keep and align",
+        "proposal": "Retain ReportWorkspace; fix tri-state findings, eligibility explanations, lag budget, evidence display and decision navigation.",
+        "verification": "Synthetic real-component browser baseline at 320/390/1440.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/reports/dataset",
+      "source": "apps/web/app/dashboard/reports/dataset/page.tsx",
+      "imports": [],
+      "components": [],
+      "data_calls": [],
+      "links_and_titles": [],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "authorized workspace users",
+        "treatment": "keep as source detail",
+        "proposal": "Preserve single-dataset inspection compatibility route; add eligible cross-source entry only after catalog checks.",
+        "verification": "Wrapper and SingleDatasetReport inspected; browser not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/dashboard/settings",
+      "source": "apps/web/app/dashboard/settings/page.tsx",
+      "imports": [
+        {
+          "module": "@clerk/nextjs/server",
+          "names": [
+            "auth"
+          ]
+        },
+        {
+          "module": "next/navigation",
+          "names": [
+            "redirect"
+          ]
+        },
+        {
+          "module": "./settings-client",
+          "names": [
+            "SettingsClient"
+          ]
+        }
+      ],
+      "components": [
+        "SettingsClient"
+      ],
+      "data_calls": [],
+      "links_and_titles": [],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "workspace users; operation-specific settings rights",
+        "treatment": "keep",
+        "proposal": "Preserve agency/client/access/branding/email-preference boundaries.",
+        "verification": "SettingsClient wrapper/import located; full settings interaction not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/demo",
+      "source": "apps/web/app/demo/page.tsx",
+      "imports": [
+        {
+          "module": "@/app/share/dashboard/page",
+          "names": [],
+          "default": "SharedDashboardPage"
+        }
+      ],
+      "components": [
+        "SharedDashboardPage"
+      ],
+      "data_calls": [],
+      "links_and_titles": [],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "public sample-data visitors",
+        "treatment": "reframe sample presentation",
+        "proposal": "Keep SharedDashboardPage demo mode and label synthetic data; do not imply private production cross-source access.",
+        "verification": "Wrapper/shared renderer inspected; full demo flow not verified this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/onboarding",
+      "source": "apps/web/app/onboarding/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useState",
+            "FormEvent"
+          ]
+        },
+        {
+          "module": "next/navigation",
+          "names": [
+            "useRouter"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "useClerk",
+            "useUser"
+          ]
+        },
+        {
+          "module": "next/image",
+          "names": [],
+          "default": "Image"
+        },
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "ArrowLeft",
+            "ArrowRight",
+            "LoaderCircle",
+            "LogOut",
+            "RefreshCw"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "createOrganization",
+            "getOrganizationWorkspaces",
+            "OrganizationCreatePayload"
+          ]
+        },
+        {
+          "module": "@/app/theme-toggle",
+          "names": [
+            "ThemeToggle"
+          ]
+        },
+        {
+          "module": "@/app/use-decisionate-language",
+          "names": [
+            "useDecisionateText"
+          ]
+        },
+        {
+          "module": "@/features/auth/lib/auth-redirects",
+          "names": [
+            "getSafeReturnTo",
+            "getSignInUrl",
+            "getWorkspaceReturnTo"
+          ]
+        },
+        {
+          "module": "@/features/auth/lib/auth-workspaces",
+          "names": [
+            "chooseAuthWorkspace"
+          ]
+        },
+        {
+          "module": "@/lib/workspace-context",
+          "names": [
+            "getActiveWorkspaceId",
+            "setActiveWorkspaceId"
+          ]
+        }
+      ],
+      "components": [
+        "Link",
+        "Image",
+        "ThemeToggle",
+        "LogOut",
+        "LoaderCircle",
+        "RefreshCw",
+        "ArrowRight",
+        "ArrowLeft"
+      ],
+      "data_calls": [
+        {
+          "name": "createOrganization",
+          "line": 216
+        },
+        {
+          "name": "getWorkspaceReturnTo",
+          "line": 225
+        },
+        {
+          "name": "getOnboardingErrorMessage",
+          "line": 229
+        },
+        {
+          "name": "getSignInUrl",
+          "line": 242
+        },
+        {
+          "name": "getSafeReturnTo",
+          "line": 242
+        },
+        {
+          "name": "getOrganizationWorkspaces",
+          "line": 255
+        },
+        {
+          "name": "getActiveWorkspaceId",
+          "line": 257
+        },
+        {
+          "name": "getWorkspaceReturnTo",
+          "line": 262
+        },
+        {
+          "name": "getOnboardingErrorMessage",
+          "line": 268
+        },
+        {
+          "name": "getSignInUrl",
+          "line": 292
+        },
+        {
+          "name": "getSafeReturnTo",
+          "line": 292
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "href",
+          "value": "\"/\"",
+          "line": 285
+        }
+      ],
+      "audit": {
+        "dashboard_like": false,
+        "audience": "Public/auth/onboarding supporting route; outside dashboard transformation.",
+        "treatment": "keep unchanged",
+        "proposal": "No consolidation change proposed; preserve current behavior.",
+        "verification": "Statically enumerated; not functionally browser-tested in this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/platform-admin",
+      "source": "apps/web/app/platform-admin/page.tsx",
+      "imports": [
+        {
+          "module": "lucide-react",
+          "names": [
+            "Activity",
+            "BarChart3",
+            "BrainCircuit",
+            "Building2",
+            "CalendarDays",
+            "Coins",
+            "Copy",
+            "Database",
+            "Download",
+            "FileCheck2",
+            "Gauge",
+            "CheckCircle2",
+            "LogOut",
+            "Mail",
+            "RefreshCw",
+            "Send",
+            "Trash2",
+            "Users",
+            "Wrench",
+            "X"
+          ]
+        },
+        {
+          "module": "@clerk/nextjs",
+          "names": [
+            "UserButton",
+            "useClerk",
+            "useUser"
+          ]
+        },
+        {
+          "module": "react",
+          "names": [
+            "Fragment",
+            "useEffect",
+            "useState"
+          ]
+        },
+        {
+          "module": "@/features/marketing/marketing-admin",
+          "names": [
+            "MarketingAdmin"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "addPlatformAdminOrganizationInvite",
+            "addPlatformAdminAdministrators",
+            "addPlatformAdminMember",
+            "createPlatformAdminOrganization",
+            "deletePlatformAdminOrganization",
+            "deletePlatformAdminUser",
+            "getPlatformAdminAlertDeliveries",
+            "getPlatformAdminAccessDetails",
+            "getPlatformAdminAuditEvents",
+            "getPlatformAdminCreditSettings",
+            "getPlatformAdminEmailSettings",
+            "getPlatformAdminMaintenance",
+            "getPlatformAdminOrganizationInvites",
+            "getPlatformAdminOrganizationMembers",
+            "getPlatformAdminOrganizations",
+            "getPlatformAdminOverview",
+            "getPlatformAdminUsageActivity",
+            "getPlatformAdminUsers",
+            "linkPlatformAdminIdentity",
+            "removePlatformAdminOrganizationInvite",
+            "removePlatformAdminMember",
+            "PlatformAdminMember",
+            "PlatformAdminInvite",
+            "PlatformAdminAuditEvent",
+            "PlatformAdminAlertDelivery",
+            "PlatformAdminAccessDetails",
+            "PlatformAdminCreditSettings",
+            "PlatformAdminEmailSettings",
+            "MaintenanceNotice",
+            "PlatformAdminOrganization",
+            "PlatformAdminOverview",
+            "PlatformAdminUsage",
+            "PlatformAdminUser",
+            "updatePlatformAdminEmailSettings",
+            "updatePlatformAdminMaintenance",
+            "completePlatformAdminMaintenance",
+            "updatePlatformAdminOrganizationSubscription",
+            "updatePlatformAdminCreditSettings",
+            "updatePlatformAdminMemberRole"
+          ]
+        }
+      ],
+      "components": [
+        "CheckCircle2",
+        "Copy",
+        "LogOut",
+        "UserButton",
+        "RefreshCw",
+        "MetricCard",
+        "Users",
+        "Database",
+        "FileCheck2",
+        "BrainCircuit",
+        "Gauge",
+        "Mail",
+        "Activity",
+        "BarChart3",
+        "Building2",
+        "CalendarDays",
+        "Download",
+        "Coins",
+        "MarketingAdmin",
+        "Wrench",
+        "Send",
+        "Fragment",
+        "AdminReference",
+        "Trash2",
+        "X"
+      ],
+      "data_calls": [
+        {
+          "name": "getPlatformAdminAccessDetails",
+          "line": 529
+        },
+        {
+          "name": "getPlatformAdminOverview",
+          "line": 550
+        },
+        {
+          "name": "getPlatformAdminOrganizations",
+          "line": 566
+        },
+        {
+          "name": "getPlatformAdminAuditEvents",
+          "line": 583
+        },
+        {
+          "name": "getPlatformAdminAlertDeliveries",
+          "line": 612
+        },
+        {
+          "name": "getPlatformAdminUsers",
+          "line": 641
+        },
+        {
+          "name": "getPlatformAdminEmailSettings",
+          "line": 675
+        },
+        {
+          "name": "getPlatformAdminMaintenance",
+          "line": 720
+        },
+        {
+          "name": "getPlatformAdminCreditSettings",
+          "line": 757
+        },
+        {
+          "name": "getPlatformAdminUsageActivity",
+          "line": 873
+        },
+        {
+          "name": "updatePlatformAdminEmailSettings",
+          "line": 916
+        },
+        {
+          "name": "updatePlatformAdminMaintenance",
+          "line": 989
+        },
+        {
+          "name": "updatePlatformAdminCreditSettings",
+          "line": 1056
+        },
+        {
+          "name": "getPlatformAdminOverview",
+          "line": 1095
+        },
+        {
+          "name": "getPlatformAdminOrganizations",
+          "line": 1100
+        },
+        {
+          "name": "createPlatformAdminOrganization",
+          "line": 1127
+        },
+        {
+          "name": "refreshPlatformSummary",
+          "line": 1158
+        },
+        {
+          "name": "getPlatformAdminAuditEvents",
+          "line": 1178
+        },
+        {
+          "name": "getPlatformAdminUsageActivity",
+          "line": 1199
+        },
+        {
+          "name": "getPlatformAdminOrganizationMembers",
+          "line": 1243
+        },
+        {
+          "name": "getPlatformAdminOrganizationInvites",
+          "line": 1247
+        },
+        {
+          "name": "updatePlatformAdminOrganizationSubscription",
+          "line": 1297
+        },
+        {
+          "name": "refreshAuditEvents",
+          "line": 1315
+        },
+        {
+          "name": "updatePlatformAdminMemberRole",
+          "line": 1344
+        },
+        {
+          "name": "refreshAuditEvents",
+          "line": 1357
+        },
+        {
+          "name": "refreshPlatformSummary",
+          "line": 1397
+        },
+        {
+          "name": "refreshAuditEvents",
+          "line": 1398
+        },
+        {
+          "name": "deletePlatformAdminOrganization",
+          "line": 1473
+        },
+        {
+          "name": "getPlatformAdminOrganizations",
+          "line": 1478
+        },
+        {
+          "name": "refreshPlatformSummary",
+          "line": 1499
+        },
+        {
+          "name": "refreshAuditEvents",
+          "line": 1500
+        },
+        {
+          "name": "deletePlatformAdminUser",
+          "line": 1530
+        },
+        {
+          "name": "refreshPlatformSummary",
+          "line": 1540
+        },
+        {
+          "name": "getPlatformAdminOrganizations",
+          "line": 1542
+        },
+        {
+          "name": "refreshAuditEvents",
+          "line": 1544
+        },
+        {
+          "name": "getPlatformAdminUsers",
+          "line": 1584
+        },
+        {
+          "name": "refreshAuditEvents",
+          "line": 1591
+        },
+        {
+          "name": "refreshAuditEvents",
+          "line": 1627
+        },
+        {
+          "name": "refreshAuditEvents",
+          "line": 1663
+        },
+        {
+          "name": "refreshPlatformSummary",
+          "line": 1699
+        },
+        {
+          "name": "refreshAuditEvents",
+          "line": 1700
+        },
+        {
+          "name": "getCustomerAccountStatus",
+          "line": 1733
+        },
+        {
+          "name": "getCustomerAccountStatus",
+          "line": 1756
+        },
+        {
+          "name": "matchesSearch",
+          "line": 1824
+        },
+        {
+          "name": "matchesSearch",
+          "line": 1833
+        },
+        {
+          "name": "matchesSearch",
+          "line": 1843
+        },
+        {
+          "name": "matchesSearch",
+          "line": 1853
+        },
+        {
+          "name": "matchesSearch",
+          "line": 1863
+        },
+        {
+          "name": "refreshUsageActivity",
+          "line": 2430
+        },
+        {
+          "name": "getCustomerAccountStatus",
+          "line": 3331
+        },
+        {
+          "name": "refreshAuditEvents",
+          "line": 3990
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "{value}",
+          "line": 97
+        },
+        {
+          "attribute": "title",
+          "value": "{message}",
+          "line": 98
+        },
+        {
+          "attribute": "title",
+          "value": "{entry.user_id}",
+          "line": 2619
+        },
+        {
+          "attribute": "title",
+          "value": "{workspace.workspace_id}",
+          "line": 2669
+        },
+        {
+          "attribute": "title",
+          "value": "{event.workspace_id || undefined}",
+          "line": 2779
+        },
+        {
+          "attribute": "title",
+          "value": "{event.actor_user_id || undefined}",
+          "line": 2781
+        },
+        {
+          "attribute": "title",
+          "value": "{customer.primary_goal || undefined}",
+          "line": 3360
+        },
+        {
+          "attribute": "title",
+          "value": "{customer.provider_customer_id || undefined}",
+          "line": 3392
+        },
+        {
+          "attribute": "title",
+          "value": "{customer.provider_subscription_id || undefined}",
+          "line": 3395
+        },
+        {
+          "attribute": "title",
+          "value": "{customer.price_id || undefined}",
+          "line": 3398
+        },
+        {
+          "attribute": "title",
+          "value": "{organization.name}",
+          "line": 3521
+        },
+        {
+          "attribute": "title",
+          "value": "{`View members of ${organization.name}`}",
+          "line": 3550
+        },
+        {
+          "attribute": "title",
+          "value": "{`Delete ${organization.name}`}",
+          "line": 3562
+        },
+        {
+          "attribute": "title",
+          "value": "\"Cancel workspace deletion\"",
+          "line": 3611
+        },
+        {
+          "attribute": "title",
+          "value": "{platformUser.email || undefined}",
+          "line": 3896
+        },
+        {
+          "attribute": "title",
+          "value": "{profile.account_name}",
+          "line": 3909
+        },
+        {
+          "attribute": "title",
+          "value": "{name}",
+          "line": 3933
+        },
+        {
+          "attribute": "title",
+          "value": "{`Delete ${platformUser.email || platformUser.clerk_user_id}`}",
+          "line": 3943
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "platform administrators with operation-specific permissions",
+        "treatment": "keep",
+        "proposal": "Operational surface, not a customer dashboard rewrite; keep tables/statuses and clarify delivery vocabulary where touched.",
+        "verification": "Source inventory; no admin session or changes.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/privacy",
+      "source": "apps/web/app/privacy/page.tsx",
+      "imports": [
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "@/components/landing/policy-page",
+          "names": [
+            "PolicyPage",
+            "PolicySection"
+          ]
+        }
+      ],
+      "components": [
+        "PolicyPage",
+        "PolicySection",
+        "Link"
+      ],
+      "data_calls": [],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Privacy Policy\"",
+          "line": 24
+        },
+        {
+          "attribute": "title",
+          "value": "\"1. Scope and responsibility\"",
+          "line": 28
+        },
+        {
+          "attribute": "href",
+          "value": "\"mailto:support@decisionate.ca\"",
+          "line": 38
+        },
+        {
+          "attribute": "title",
+          "value": "\"2. Information we handle\"",
+          "line": 44
+        },
+        {
+          "attribute": "title",
+          "value": "\"3. Why we use information\"",
+          "line": 55
+        },
+        {
+          "attribute": "title",
+          "value": "\"4. Connected providers and Meta Ads\"",
+          "line": 80
+        },
+        {
+          "attribute": "title",
+          "value": "\"5. Workspace access and public sharing\"",
+          "line": 100
+        },
+        {
+          "attribute": "title",
+          "value": "\"6. AI processing\"",
+          "line": 117
+        },
+        {
+          "attribute": "title",
+          "value": "\"7. Service providers and transfers\"",
+          "line": 134
+        },
+        {
+          "attribute": "title",
+          "value": "\"8. Cookies and browser storage\"",
+          "line": 166
+        },
+        {
+          "attribute": "title",
+          "value": "\"9. Retention and deletion\"",
+          "line": 177
+        },
+        {
+          "attribute": "title",
+          "value": "\"10. Product exports and individual privacy rights\"",
+          "line": 209
+        },
+        {
+          "attribute": "href",
+          "value": "\"https://www.priv.gc.ca/en/privacy-topics/accessing-personal-information/obligations-for-organizations/02_05_d_54_ati_02/\"",
+          "line": 230
+        },
+        {
+          "attribute": "title",
+          "value": "\"11. Security, updates, and contact\"",
+          "line": 234
+        },
+        {
+          "attribute": "href",
+          "value": "\"/security\"",
+          "line": 238
+        },
+        {
+          "attribute": "href",
+          "value": "\"mailto:support@decisionate.ca\"",
+          "line": 244
+        }
+      ],
+      "audit": {
+        "dashboard_like": false,
+        "audience": "Public/auth/onboarding supporting route; outside dashboard transformation.",
+        "treatment": "keep unchanged",
+        "proposal": "No consolidation change proposed; preserve current behavior.",
+        "verification": "Statically enumerated; not functionally browser-tested in this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/security",
+      "source": "apps/web/app/security/page.tsx",
+      "imports": [
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "@/components/landing/policy-page",
+          "names": [
+            "PolicyPage",
+            "PolicySection"
+          ]
+        }
+      ],
+      "components": [
+        "PolicyPage",
+        "PolicySection",
+        "Link"
+      ],
+      "data_calls": [],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Security\"",
+          "line": 13
+        },
+        {
+          "attribute": "title",
+          "value": "\"1. Accounts and authentication\"",
+          "line": 17
+        },
+        {
+          "attribute": "title",
+          "value": "\"2. Workspace isolation and permissions\"",
+          "line": 32
+        },
+        {
+          "attribute": "title",
+          "value": "\"3. Connector credentials and imports\"",
+          "line": 49
+        },
+        {
+          "attribute": "title",
+          "value": "\"4. Production safeguards and storage\"",
+          "line": 67
+        },
+        {
+          "attribute": "title",
+          "value": "\"5. AI and payments\"",
+          "line": 84
+        },
+        {
+          "attribute": "title",
+          "value": "\"6. Monitoring and verification\"",
+          "line": 100
+        },
+        {
+          "attribute": "title",
+          "value": "\"7. Retention and deletion\"",
+          "line": 117
+        },
+        {
+          "attribute": "href",
+          "value": "\"/privacy\"",
+          "line": 137
+        },
+        {
+          "attribute": "href",
+          "value": "\"/terms\"",
+          "line": 138
+        },
+        {
+          "attribute": "title",
+          "value": "\"8. Exports and privacy requests\"",
+          "line": 142
+        },
+        {
+          "attribute": "title",
+          "value": "\"9. Reporting a security concern\"",
+          "line": 157
+        },
+        {
+          "attribute": "href",
+          "value": "\"mailto:support@decisionate.ca?subject=Decisionate%20security%20concern\"",
+          "line": 159
+        }
+      ],
+      "audit": {
+        "dashboard_like": false,
+        "audience": "Public/auth/onboarding supporting route; outside dashboard transformation.",
+        "treatment": "keep unchanged",
+        "proposal": "No consolidation change proposed; preserve current behavior.",
+        "verification": "Statically enumerated; not functionally browser-tested in this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/share/dashboard",
+      "source": "apps/web/app/share/dashboard/page.tsx",
+      "imports": [
+        {
+          "module": "react",
+          "names": [
+            "useEffect",
+            "useMemo",
+            "useRef",
+            "useState",
+            "CSSProperties"
+          ]
+        },
+        {
+          "module": "recharts",
+          "names": [
+            "Area",
+            "AreaChart",
+            "Bar",
+            "BarChart",
+            "CartesianGrid",
+            "Legend",
+            "Line",
+            "LineChart",
+            "ReferenceLine",
+            "ResponsiveContainer",
+            "Tooltip",
+            "XAxis",
+            "YAxis"
+          ]
+        },
+        {
+          "module": "lucide-react",
+          "names": [
+            "Maximize2",
+            "X"
+          ]
+        },
+        {
+          "module": "@/lib/api",
+          "names": [
+            "getPublicDemoDashboard",
+            "getPublicSharedDashboard",
+            "DashboardAggregation",
+            "DashboardValueAggregation",
+            "DecisionSummary",
+            "DatasetJoinResult",
+            "PublicDemoDashboardResponse",
+            "PublicDemoDatasetOption"
+          ]
+        },
+        {
+          "module": "@/features/datasets/lib/source-config",
+          "names": [
+            "getDatasetSourceDetails"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/components/metric-selector",
+          "names": [
+            "formatMetricLabel"
+          ]
+        },
+        {
+          "module": "@/app/dashboard/workspace-brand-mark",
+          "names": [
+            "WorkspaceBrandMark"
+          ]
+        },
+        {
+          "module": "@/lib/workspace-brand",
+          "names": [
+            "defaultWorkspaceBrand",
+            "getBrandColorWithAlpha",
+            "getBrandSurfaceTextColor",
+            "getReadableBrandTextColor",
+            "getWorkspaceBrandFromPayload",
+            "WorkspaceBrand"
+          ]
+        },
+        {
+          "module": "@/lib/use-workspace-browser-brand",
+          "names": [
+            "useWorkspaceBrowserBrand"
+          ]
+        },
+        {
+          "module": "@/features/dashboards/dashboard-registry",
+          "names": [
+            "dashboardRegistry",
+            "getDashboardAutoMetricMapping",
+            "getDashboardMappingChartTitles",
+            "DashboardChartTitles",
+            "DashboardMetricMapping"
+          ]
+        },
+        {
+          "module": "@/features/dashboards/dashboard-definitions",
+          "names": [
+            "dashboardUsesDatasetMetricMapping",
+            "dashboardDefinitions",
+            "defaultDashboardKey",
+            "getDashboardDefinition",
+            "isDashboardKey"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/lib/chart-palette",
+          "names": [
+            "dashboardChartPalette"
+          ]
+        },
+        {
+          "module": "@/features/dashboard/lib/summary-aggregation",
+          "names": [
+            "finalizeSummaryAggregation",
+            "getHistoricalDimensionWarning",
+            "getSummaryAggregationState",
+            "mergeSummaryAggregationState",
+            "SummaryAggregationState"
+          ]
+        }
+      ],
+      "components": [
+        "SharedDashboardContent",
+        "DemoPrimaryControls",
+        "DemoModeBanner",
+        "SharedPageShell",
+        "SharedCard",
+        "SelectedDashboard",
+        "SharedDashboardControls",
+        "WorkspaceBrandMark",
+        "KpiGrid",
+        "MainChartCard",
+        "TargetKpiCard",
+        "KpiCard",
+        "ResponsiveContainer",
+        "MainChart",
+        "CardHeader",
+        "Maximize2",
+        "X",
+        "TargetGauge",
+        "SnapshotRow",
+        "DemoMetricMappingPanel",
+        "CartesianGrid",
+        "XAxis",
+        "YAxis",
+        "Tooltip",
+        "Legend",
+        "ReferenceLine",
+        "BarChart",
+        "Bar",
+        "AreaChart",
+        "Area",
+        "LineChart",
+        "Line",
+        "GaugeSegment"
+      ],
+      "data_calls": [
+        {
+          "name": "updateSearchParams",
+          "line": 296
+        },
+        {
+          "name": "getSharedDashboardConfig",
+          "line": 313
+        },
+        {
+          "name": "getSharedBrandStorageKey",
+          "line": 320
+        },
+        {
+          "name": "getQueryDatasetId",
+          "line": 416
+        },
+        {
+          "name": "getSavedDashboardTemplate",
+          "line": 429
+        },
+        {
+          "name": "getSharedBrandStorageKey",
+          "line": 438
+        },
+        {
+          "name": "getPublicDemoDashboard",
+          "line": 510
+        },
+        {
+          "name": "getPublicSharedDashboard",
+          "line": 515
+        },
+        {
+          "name": "getPublicDemoDashboard",
+          "line": 525
+        },
+        {
+          "name": "getSavedDashboardMetricMapping",
+          "line": 569
+        },
+        {
+          "name": "buildDemoJoinedDatasetResult",
+          "line": 581
+        },
+        {
+          "name": "getValidSavedSelectedMetrics",
+          "line": 607
+        },
+        {
+          "name": "getValidSavedSelectedMetrics",
+          "line": 612
+        },
+        {
+          "name": "getSavedSelectedMetrics",
+          "line": 621
+        },
+        {
+          "name": "getSavedPeriodFilter",
+          "line": 629
+        },
+        {
+          "name": "getSavedAggregation",
+          "line": 633
+        },
+        {
+          "name": "getSavedAggregationType",
+          "line": 637
+        },
+        {
+          "name": "getWorkspaceBrandFromPayload",
+          "line": 647
+        },
+        {
+          "name": "getSavedChartType",
+          "line": 679
+        },
+        {
+          "name": "getSavedScaleMode",
+          "line": 684
+        },
+        {
+          "name": "getSavedDashboardTemplate",
+          "line": 692
+        },
+        {
+          "name": "getSavedDashboardText",
+          "line": 698
+        },
+        {
+          "name": "getSavedDashboardText",
+          "line": 705
+        },
+        {
+          "name": "getDatasetStartDate",
+          "line": 720
+        },
+        {
+          "name": "getSafeStartDate",
+          "line": 726
+        },
+        {
+          "name": "getSavedMetricTargets",
+          "line": 736
+        },
+        {
+          "name": "loadSharedDashboard",
+          "line": 762
+        },
+        {
+          "name": "getDashboardDefinition",
+          "line": 778
+        },
+        {
+          "name": "getSavedDashboardText",
+          "line": 785
+        },
+        {
+          "name": "getSharedDashboardTitle",
+          "line": 787
+        },
+        {
+          "name": "getReadableBrandTextColor",
+          "line": 829
+        },
+        {
+          "name": "getReadableBrandTextColor",
+          "line": 833
+        },
+        {
+          "name": "getDashboardAutoMetricMapping",
+          "line": 869
+        },
+        {
+          "name": "getHistoricalDimensionWarning",
+          "line": 874
+        },
+        {
+          "name": "getSharedDashboardMetrics",
+          "line": 885
+        },
+        {
+          "name": "getLatestValue",
+          "line": 929
+        },
+        {
+          "name": "getTargetProgress",
+          "line": 934
+        },
+        {
+          "name": "buildIndexedRows",
+          "line": 941
+        },
+        {
+          "name": "getDashboardMappingColumns",
+          "line": 960
+        },
+        {
+          "name": "getDashboardAutoMetricMapping",
+          "line": 966
+        },
+        {
+          "name": "updateDemoQuery",
+          "line": 994
+        },
+        {
+          "name": "updateDemoQuery",
+          "line": 1015
+        },
+        {
+          "name": "getDashboardMappingChartTitles",
+          "line": 1032
+        },
+        {
+          "name": "getDatasetSourceDetails",
+          "line": 1128
+        },
+        {
+          "name": "getDashboardDatasetDescription",
+          "line": 1136
+        },
+        {
+          "name": "getSavedDashboardText",
+          "line": 1142
+        },
+        {
+          "name": "getSharedDashboardChartDescription",
+          "line": 1674
+        },
+        {
+          "name": "getSharedBrandStyle",
+          "line": 1978
+        },
+        {
+          "name": "getDemoDatasetRows",
+          "line": 2420
+        },
+        {
+          "name": "getDemoDateKey",
+          "line": 2425
+        },
+        {
+          "name": "getDemoDatasetId",
+          "line": 2458
+        },
+        {
+          "name": "getDemoDatasetId",
+          "line": 2478
+        },
+        {
+          "name": "getDemoDatasetId",
+          "line": 2498
+        },
+        {
+          "name": "getBrandColorWithAlpha",
+          "line": 2543
+        },
+        {
+          "name": "getBrandColorWithAlpha",
+          "line": 2548
+        },
+        {
+          "name": "getReadableBrandTextColor",
+          "line": 2553
+        },
+        {
+          "name": "getBrandSurfaceTextColor",
+          "line": 2557
+        },
+        {
+          "name": "getBrandColorWithAlpha",
+          "line": 2562
+        },
+        {
+          "name": "getBrandColorWithAlpha",
+          "line": 2567
+        },
+        {
+          "name": "getReadableBrandTextColor",
+          "line": 2572
+        },
+        {
+          "name": "getMetricColor",
+          "line": 2733
+        },
+        {
+          "name": "getMetricIndex",
+          "line": 2734
+        },
+        {
+          "name": "getMetricColor",
+          "line": 2756
+        },
+        {
+          "name": "getMetricIndex",
+          "line": 2757
+        },
+        {
+          "name": "getMetricColor",
+          "line": 2760
+        },
+        {
+          "name": "getMetricIndex",
+          "line": 2761
+        },
+        {
+          "name": "getMetricColor",
+          "line": 2788
+        },
+        {
+          "name": "getMetricIndex",
+          "line": 2789
+        },
+        {
+          "name": "getTargetStatus",
+          "line": 2896
+        },
+        {
+          "name": "getQueryDatasetId",
+          "line": 3053
+        },
+        {
+          "name": "getSavedDashboardTemplate",
+          "line": 3072
+        },
+        {
+          "name": "getValidSavedSelectedMetrics",
+          "line": 3180
+        },
+        {
+          "name": "getRowPeriodStartDate",
+          "line": 3439
+        },
+        {
+          "name": "getRowPeriodStartDate",
+          "line": 3463
+        },
+        {
+          "name": "getRowPeriodStartDate",
+          "line": 3541
+        },
+        {
+          "name": "getAggregationBucketDate",
+          "line": 3547
+        },
+        {
+          "name": "getSummaryAggregationState",
+          "line": 3559
+        },
+        {
+          "name": "getMonthIndex",
+          "line": 3685
+        },
+        {
+          "name": "getSafeRatioPercent",
+          "line": 3719
+        },
+        {
+          "name": "getSummaryAggregationState",
+          "line": 3741
+        },
+        {
+          "name": "getSafeRatioPercent",
+          "line": 3810
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "{chartTitle}",
+          "line": 1740
+        },
+        {
+          "attribute": "title",
+          "value": "{`View ${chartTitle} full screen`}",
+          "line": 1751
+        },
+        {
+          "attribute": "title",
+          "value": "\"Close full screen chart\"",
+          "line": 1810
+        },
+        {
+          "attribute": "title",
+          "value": "\"Target KPI\"",
+          "line": 1846
+        },
+        {
+          "attribute": "title",
+          "value": "\"Reset joined demo data\"",
+          "line": 1956
+        },
+        {
+          "attribute": "title",
+          "value": "{formatMetricName(metric)}",
+          "line": 2110
+        }
+      ],
+      "audit": {
+        "dashboard_like": true,
+        "audience": "public viewers possessing existing authorized share context",
+        "treatment": "keep and restrict",
+        "proposal": "Reuse authorized public payload only; no private report catalog or cross-tenant aggregation.",
+        "verification": "Sharing renderer and public route declarations inspected; no public-share mutation.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/sign-in/[[...sign-in]]",
+      "source": "apps/web/app/sign-in/[[...sign-in]]/page.tsx",
+      "imports": [
+        {
+          "module": "@/app/auth-card",
+          "names": [
+            "AuthCard"
+          ]
+        },
+        {
+          "module": "next/headers",
+          "names": [
+            "headers"
+          ]
+        },
+        {
+          "module": "@/features/auth/components/auth-layout",
+          "names": [
+            "AuthLayout"
+          ]
+        },
+        {
+          "module": "@/features/auth/lib/auth-redirects",
+          "names": [
+            "getAuthRequestOrigin",
+            "getSafeReturnTo"
+          ]
+        }
+      ],
+      "components": [
+        "AuthLayout",
+        "AuthCard"
+      ],
+      "data_calls": [
+        {
+          "name": "getSafeReturnTo",
+          "line": 12
+        },
+        {
+          "name": "getAuthRequestOrigin",
+          "line": 12
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Sign in\"",
+          "line": 14
+        }
+      ],
+      "audit": {
+        "dashboard_like": false,
+        "audience": "Public/auth/onboarding supporting route; outside dashboard transformation.",
+        "treatment": "keep unchanged",
+        "proposal": "No consolidation change proposed; preserve current behavior.",
+        "verification": "Statically enumerated; not functionally browser-tested in this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/sign-up/[[...sign-up]]",
+      "source": "apps/web/app/sign-up/[[...sign-up]]/page.tsx",
+      "imports": [
+        {
+          "module": "@/app/auth-card",
+          "names": [
+            "AuthCard"
+          ]
+        },
+        {
+          "module": "next/headers",
+          "names": [
+            "headers"
+          ]
+        },
+        {
+          "module": "@/features/auth/components/auth-layout",
+          "names": [
+            "AuthLayout"
+          ]
+        },
+        {
+          "module": "@/features/auth/lib/auth-redirects",
+          "names": [
+            "getAuthRequestOrigin",
+            "getSafeReturnTo"
+          ]
+        }
+      ],
+      "components": [
+        "AuthLayout",
+        "AuthCard"
+      ],
+      "data_calls": [
+        {
+          "name": "getSafeReturnTo",
+          "line": 10
+        },
+        {
+          "name": "getAuthRequestOrigin",
+          "line": 10
+        }
+      ],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Create your account\"",
+          "line": 12
+        }
+      ],
+      "audit": {
+        "dashboard_like": false,
+        "audience": "Public/auth/onboarding supporting route; outside dashboard transformation.",
+        "treatment": "keep unchanged",
+        "proposal": "No consolidation change proposed; preserve current behavior.",
+        "verification": "Statically enumerated; not functionally browser-tested in this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    },
+    {
+      "route": "/terms",
+      "source": "apps/web/app/terms/page.tsx",
+      "imports": [
+        {
+          "module": "next/link",
+          "names": [],
+          "default": "Link"
+        },
+        {
+          "module": "@/components/landing/policy-page",
+          "names": [
+            "PolicyPage",
+            "PolicySection"
+          ]
+        }
+      ],
+      "components": [
+        "PolicyPage",
+        "PolicySection",
+        "Link"
+      ],
+      "data_calls": [],
+      "links_and_titles": [
+        {
+          "attribute": "title",
+          "value": "\"Terms of Service\"",
+          "line": 13
+        },
+        {
+          "attribute": "title",
+          "value": "\"1. Using Decisionate\"",
+          "line": 17
+        },
+        {
+          "attribute": "href",
+          "value": "\"/privacy\"",
+          "line": 29
+        },
+        {
+          "attribute": "title",
+          "value": "\"2. Workspaces and access\"",
+          "line": 33
+        },
+        {
+          "attribute": "title",
+          "value": "\"3. Your data and connected providers\"",
+          "line": 51
+        },
+        {
+          "attribute": "title",
+          "value": "\"4. Analysis and AI\"",
+          "line": 74
+        },
+        {
+          "attribute": "title",
+          "value": "\"5. Trials and paid subscriptions\"",
+          "line": 91
+        },
+        {
+          "attribute": "title",
+          "value": "\"6. Monthly and annual renewal\"",
+          "line": 108
+        },
+        {
+          "attribute": "title",
+          "value": "\"7. Retention, deletion, and exports\"",
+          "line": 134
+        },
+        {
+          "attribute": "title",
+          "value": "\"8. Acceptable use and service availability\"",
+          "line": 164
+        },
+        {
+          "attribute": "title",
+          "value": "\"9. Intellectual property and limitations\"",
+          "line": 180
+        },
+        {
+          "attribute": "title",
+          "value": "\"10. Contact\"",
+          "line": 191
+        },
+        {
+          "attribute": "href",
+          "value": "\"mailto:support@decisionate.ca\"",
+          "line": 194
+        }
+      ],
+      "audit": {
+        "dashboard_like": false,
+        "audience": "Public/auth/onboarding supporting route; outside dashboard transformation.",
+        "treatment": "keep unchanged",
+        "proposal": "No consolidation change proposed; preserve current behavior.",
+        "verification": "Statically enumerated; not functionally browser-tested in this pass.",
+        "implementation_status": "not changed; awaiting document audit approval"
+      }
+    }
+  ],
+  "dashboard_templates": [
+    {
+      "key": "general-business",
+      "name": "General Business Overview",
+      "category": "Executive",
+      "dataBasis": "dataset",
+      "componentKey": "generalBusiness"
+    },
+    {
+      "key": "marketing-performance",
+      "name": "Marketing Performance",
+      "category": "Growth",
+      "dataBasis": "dataset",
+      "componentKey": "marketingPerformance"
+    },
+    {
+      "key": "sales-performance",
+      "name": "Sales Performance",
+      "category": "Revenue",
+      "dataBasis": "dataset",
+      "componentKey": "salesPerformance"
+    },
+    {
+      "key": "decision-performance",
+      "name": "Decision Performance",
+      "category": "Operations",
+      "dataBasis": "decision-records",
+      "componentKey": "decisionPerformance"
+    },
+    {
+      "key": "retail-performance",
+      "name": "Retail Performance",
+      "category": "Industry",
+      "dataBasis": "dataset",
+      "componentKey": "retailPerformance"
+    },
+    {
+      "key": "restaurant-performance",
+      "name": "Restaurant Performance",
+      "category": "Industry",
+      "dataBasis": "dataset",
+      "componentKey": "restaurantPerformance"
+    },
+    {
+      "key": "hotels-hospitality-performance",
+      "name": "Hotels & Hospitality Performance",
+      "category": "Industry",
+      "dataBasis": "dataset",
+      "componentKey": "hotelHospitality"
+    },
+    {
+      "key": "professional-services",
+      "name": "Professional Services",
+      "category": "Industry",
+      "dataBasis": "dataset",
+      "componentKey": "professionalServices"
+    },
+    {
+      "key": "healthcare-practice",
+      "name": "Healthcare Practice",
+      "category": "Industry",
+      "dataBasis": "dataset",
+      "componentKey": "healthcarePractice"
+    },
+    {
+      "key": "real-estate",
+      "name": "Real Estate",
+      "category": "Industry",
+      "dataBasis": "dataset",
+      "componentKey": "realEstate"
+    },
+    {
+      "key": "nonprofit-performance",
+      "name": "Nonprofit Performance",
+      "category": "Industry",
+      "dataBasis": "dataset",
+      "componentKey": "nonprofitPerformance"
+    },
+    {
+      "key": "construction-performance",
+      "name": "Construction Performance",
+      "category": "Industry",
+      "dataBasis": "dataset",
+      "componentKey": "constructionPerformance"
+    },
+    {
+      "key": "law-firm-performance",
+      "name": "Law Firm Performance",
+      "category": "Industry",
+      "dataBasis": "dataset",
+      "componentKey": "lawFirmPerformance"
+    },
+    {
+      "key": "auto-repair-shop-performance",
+      "name": "Auto Repair Shop Performance",
+      "category": "Industry",
+      "dataBasis": "dataset",
+      "componentKey": "autoRepairPerformance"
+    }
+  ],
+  "approval_gate": {
+    "specification": "Decisionate_Codex_MVP_Consolidation_v2.docx",
+    "status": "audit checkpoint; approval required before PR 1 or broad navigation/deletion",
+    "application_files_changed": false
+  },
+  "baseline": {
+    "api": {
+      "command": "PYTHONDONTWRITEBYTECODE=1 APP_ENV=development DATABASE_URL=sqlite:///:memory: .venv/bin/python -B -m unittest tests.test_business_reports tests.test_multi_metric_correlation tests.test_metric_selection tests.test_connector_row_schema tests.test_weekly_report_preferences",
+      "tests": 127,
+      "status": "passed",
+      "scope": "Isolated in-memory databases and mocked external paths; rerun outside restricted sandbox after initial HTTP tests stalled."
+    },
+    "web": {
+      "command": "npm test",
+      "test_files": 22,
+      "status": "passed"
+    },
+    "browser": {
+      "widths": [
+        320,
+        390,
+        1440
+      ],
+      "surfaces": [
+        "Reports explore",
+        "Saved report",
+        "Central Decisions form with selected report"
+      ],
+      "screenshots_folder": "/tmp/decisionate-mvp-audit",
+      "horizontal_overflow": false,
+      "page_errors": [],
+      "post_requests": 0,
+      "report_to_central_decision_links": 0,
+      "scope": "Real components; synthetic in-memory routes and mocked identity, not full authenticated application, role matrix, physical Android or production."
+    },
+    "production": "Not checked; no live sends, migrations, flags, commit, push or deployment."
+  }
+}

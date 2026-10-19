@@ -1,0 +1,4811 @@
+{
+  "snapshot_commit": "21fce6900ae4ded2c6a7b4f1a87e38a9c06feac4",
+  "snapshot_date": "2026-10-18",
+  "method": "Static Python AST inspection; no application imports, database connections, secret values, or production probes. Routes and columns are code declarations, not runtime availability or a complete migration description. Router imports, router-owned prefixes, and explicit main.py mounts were resolved statically, including the Decisions module attribute mount. Environment entries contain example-file variable names only, no values; repeated declarations are retained.",
+  "source_files_parsed": 129,
+  "summary": {
+    "http_route_declarations": 185,
+    "mounted_method_path_pairs": 185,
+    "sqlalchemy_table_declarations": 52,
+    "column_attributes": 576,
+    "example_environment_entries": {
+      "apps/api/.env.example": 253,
+      "apps/web/.env.example": 4
+    },
+    "example_environment_unique_names": {
+      "apps/api/.env.example": 252,
+      "apps/web/.env.example": 4
+    },
+    "unresolved_route_declarations": 0
+  },
+  "route_declarations": [
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/"
+      ],
+      "handler": "root",
+      "source": "apps/api/app/main.py",
+      "line": 1806
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/health"
+      ],
+      "handler": "health",
+      "source": "apps/api/app/main.py",
+      "line": 1813
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/ready"
+      ],
+      "handler": "readiness",
+      "source": "apps/api/app/main.py",
+      "line": 1870
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/ai/status"
+      ],
+      "handler": "get_ai_status",
+      "source": "apps/api/app/modules/ai/router.py",
+      "line": 22
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/alerts/weekly-report"
+      ],
+      "handler": "get_weekly_report_preference",
+      "source": "apps/api/app/modules/alerts/router.py",
+      "line": 1550
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/alerts/weekly-report/digest"
+      ],
+      "handler": "get_weekly_report_digest",
+      "source": "apps/api/app/modules/alerts/router.py",
+      "line": 1580
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/alerts/weekly-report/delivery-config"
+      ],
+      "handler": "get_weekly_report_delivery_config",
+      "source": "apps/api/app/modules/alerts/router.py",
+      "line": 1615
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/alerts/weekly-report/delivery-history"
+      ],
+      "handler": "get_weekly_report_delivery_history",
+      "source": "apps/api/app/modules/alerts/router.py",
+      "line": 1684
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/alerts/weekly-report/send"
+      ],
+      "handler": "send_weekly_report_now",
+      "source": "apps/api/app/modules/alerts/router.py",
+      "line": 1723
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/alerts/weekly-report/send-test"
+      ],
+      "handler": "send_weekly_report_test_email",
+      "source": "apps/api/app/modules/alerts/router.py",
+      "line": 1840
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/alerts/weekly-report/send-due"
+      ],
+      "handler": "send_due_weekly_reports",
+      "source": "apps/api/app/modules/alerts/router.py",
+      "line": 1956
+    },
+    {
+      "method": "PUT",
+      "paths_mounted_in_main": [
+        "/alerts/weekly-report"
+      ],
+      "handler": "update_weekly_report_preference",
+      "source": "apps/api/app/modules/alerts/router.py",
+      "line": 2130
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/billing/access"
+      ],
+      "handler": "get_billing_access",
+      "source": "apps/api/app/modules/billing/router.py",
+      "line": 149
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/billing"
+      ],
+      "handler": "get_billing_status",
+      "source": "apps/api/app/modules/billing/router.py",
+      "line": 188
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/billing/ai-credits/topup"
+      ],
+      "handler": "create_ai_credit_topup",
+      "source": "apps/api/app/modules/billing/router.py",
+      "line": 390
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/billing/ai-credits/topup/confirm"
+      ],
+      "handler": "confirm_ai_credit_topup",
+      "source": "apps/api/app/modules/billing/router.py",
+      "line": 461
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/billing/lifecycle/send-due"
+      ],
+      "handler": "send_due_billing_lifecycle_notifications_route",
+      "source": "apps/api/app/modules/billing/router.py",
+      "line": 512
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/billing/checkout"
+      ],
+      "handler": "create_billing_checkout",
+      "source": "apps/api/app/modules/billing/router.py",
+      "line": 531
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/billing/portal"
+      ],
+      "handler": "create_billing_portal",
+      "source": "apps/api/app/modules/billing/router.py",
+      "line": 673
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/billing/refresh"
+      ],
+      "handler": "refresh_billing_subscription",
+      "source": "apps/api/app/modules/billing/router.py",
+      "line": 716
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/billing/checkout/confirm"
+      ],
+      "handler": "confirm_billing_checkout",
+      "source": "apps/api/app/modules/billing/router.py",
+      "line": 735
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/billing/webhook"
+      ],
+      "handler": "billing_webhook",
+      "source": "apps/api/app/modules/billing/router.py",
+      "line": 772
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-capabilities"
+      ],
+      "handler": "capabilities",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 44
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-analyses/catalog"
+      ],
+      "handler": "catalogue",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 50
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-analyses"
+      ],
+      "handler": "create",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 73
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-analyses"
+      ],
+      "handler": "analyses",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 81
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-analyses/{analysis_id}"
+      ],
+      "handler": "analysis_detail",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 95
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-analyses/{analysis_id}/runs"
+      ],
+      "handler": "rerun",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 104
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-runs/{run_id}"
+      ],
+      "handler": "run_detail",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 113
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-runs/{run_id}/cancel"
+      ],
+      "handler": "cancel",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 120
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-runs/{run_id}/relationships"
+      ],
+      "handler": "relationships",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 133
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-runs/{run_id}/matrix"
+      ],
+      "handler": "matrix",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 149
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-results/{result_id}"
+      ],
+      "handler": "relationship_detail",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 172
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-results/{result_id}/evidence"
+      ],
+      "handler": "save_evidence",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 181
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-insights"
+      ],
+      "handler": "insights",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 210
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-widgets"
+      ],
+      "handler": "save_widget",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 223
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-widgets"
+      ],
+      "handler": "widgets",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 256
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/api/v2/correlation-widgets/{widget_id}"
+      ],
+      "handler": "remove_widget",
+      "source": "apps/api/app/modules/correlation/router.py",
+      "line": 304
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/"
+      ],
+      "handler": "create_dataset",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 3512
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/upload"
+      ],
+      "handler": "upload_dataset",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 3559
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/import-url"
+      ],
+      "handler": "import_dataset_from_signed_url",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 3639
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/ingestion-jobs/{job_id}"
+      ],
+      "handler": "get_ingestion_job",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 3684
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/"
+      ],
+      "handler": "get_datasets",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 3727
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/sources"
+      ],
+      "handler": "get_dataset_sources",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 3775
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/analytics/status"
+      ],
+      "handler": "get_analytics_status",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 3786
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/join/metadata"
+      ],
+      "handler": "get_dataset_join_metadata",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 3795
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/multi-metric-analysis"
+      ],
+      "handler": "analyze_multiple_dataset_metrics",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 3869
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/entity-matching/metadata"
+      ],
+      "handler": "get_entity_matching_metadata",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 4058
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/entity-matching/preview"
+      ],
+      "handler": "preview_entity_matching",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 4136
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/entity-matching/run"
+      ],
+      "handler": "run_entity_matching",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 4182
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/entities"
+      ],
+      "handler": "get_canonical_entities",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 4397
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/join/cache"
+      ],
+      "handler": "get_dataset_join_cache",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 4432
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/datasets/join/cache"
+      ],
+      "handler": "delete_dataset_join_cache",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 4587
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/join"
+      ],
+      "handler": "join_datasets",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 4691
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/relationships/preview"
+      ],
+      "handler": "preview_dataset_relationship",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 4990
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/relationships"
+      ],
+      "handler": "get_dataset_relationships",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 5018
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/relationships"
+      ],
+      "handler": "create_dataset_relationship",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 5085
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/datasets/relationships/{relationship_id}"
+      ],
+      "handler": "delete_dataset_relationship",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 5138
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/source-connections"
+      ],
+      "handler": "get_source_connections",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 5218
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/source-connections"
+      ],
+      "handler": "create_source_connection",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 5318
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/datasets/source-connections/{connection_id}"
+      ],
+      "handler": "update_source_connection",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 5425
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/datasets/source-connections/{connection_id}"
+      ],
+      "handler": "delete_source_connection",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 5681
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/datasets/source-connections/{connection_id}/schedule"
+      ],
+      "handler": "update_source_connection_schedule",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 5726
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/source-connections/sync-due"
+      ],
+      "handler": "sync_due_source_connections",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 10439
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/source-connections/{connection_id}/sync"
+      ],
+      "handler": "sync_source_connection",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 10509
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/metric-recommendations"
+      ],
+      "handler": "dataset_metric_recommendations",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 10586
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/metric-selection"
+      ],
+      "handler": "update_dataset_metric_selection",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 10604
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}"
+      ],
+      "handler": "get_dataset",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 10763
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/analytics"
+      ],
+      "handler": "get_dataset_analytics",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 10799
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/preview"
+      ],
+      "handler": "dataset_preview",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 10832
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/metrics"
+      ],
+      "handler": "dataset_metrics",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 10864
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/insights"
+      ],
+      "handler": "dataset_insights",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 10895
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/chart-data"
+      ],
+      "handler": "dataset_chart_data",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 10946
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/anomalies"
+      ],
+      "handler": "dataset_anomalies",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 10977
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/details"
+      ],
+      "handler": "dataset_details",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 11098
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/ai-analysis"
+      ],
+      "handler": "dataset_ai_analysis",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 11220
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/datasets/share/all"
+      ],
+      "handler": "stop_all_dataset_sharing",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 11341
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/share/status/all"
+      ],
+      "handler": "get_all_dataset_sharing_status",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 11412
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/share"
+      ],
+      "handler": "create_dataset_share_link",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 11468
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/share/status"
+      ],
+      "handler": "get_dataset_share_status",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 11525
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}/share"
+      ],
+      "handler": "stop_dataset_sharing",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 11574
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/datasets/{dataset_id}"
+      ],
+      "handler": "delete_dataset",
+      "source": "apps/api/app/modules/datasets/router.py",
+      "line": 11636
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/decisions/templates"
+      ],
+      "handler": "get_decision_templates",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 1130
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/decisions/"
+      ],
+      "handler": "create_decision",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 1138
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/decisions/"
+      ],
+      "handler": "get_decisions",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 1291
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/decisions/export"
+      ],
+      "handler": "export_decisions",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 1478
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/decisions/summary"
+      ],
+      "handler": "get_decision_summary",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 1729
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/decisions/activities"
+      ],
+      "handler": "get_decision_activity_feed",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2052
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}"
+      ],
+      "handler": "update_decision",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2134
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/overview"
+      ],
+      "handler": "update_decision_overview",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2227
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/details"
+      ],
+      "handler": "update_decision_details",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2379
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/activities"
+      ],
+      "handler": "get_decision_activities",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2513
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/archive"
+      ],
+      "handler": "archive_decision",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2571
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/restore"
+      ],
+      "handler": "restore_decision",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2626
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}"
+      ],
+      "handler": "delete_decision",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2678
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/lifecycle-access"
+      ],
+      "handler": "get_decision_lifecycle_access",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2748
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}"
+      ],
+      "handler": "get_decision",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2802
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/outcome-analysis"
+      ],
+      "handler": "get_decision_outcome_analysis",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2834
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/assignee"
+      ],
+      "handler": "update_decision_assignee",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 2980
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/notes"
+      ],
+      "handler": "update_decision_notes",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 3067
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/outcome"
+      ],
+      "handler": "update_decision_outcome",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 3128
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/outcome/measure"
+      ],
+      "handler": "measure_decision_outcome",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 3235
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/learning"
+      ],
+      "handler": "update_decision_learning",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 3313
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/review-date"
+      ],
+      "handler": "update_review_date",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 3378
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/priority"
+      ],
+      "handler": "update_decision_priority",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 3439
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/category"
+      ],
+      "handler": "update_decision_category",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 3502
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/decisions/{decision_id}/confidence"
+      ],
+      "handler": "update_decision_confidence",
+      "source": "apps/api/app/modules/decisions/router.py",
+      "line": 3565
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/public/demo"
+      ],
+      "handler": "get_demo_dashboard",
+      "source": "apps/api/app/modules/demo_dashboard.py",
+      "line": 793
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/forecasting/test"
+      ],
+      "handler": "test_forecasting",
+      "source": "apps/api/app/modules/forecasting/router.py",
+      "line": 93
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/forecasting/{dataset_id}"
+      ],
+      "handler": "get_forecast",
+      "source": "apps/api/app/modules/forecasting/router.py",
+      "line": 98
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/maintenance/active"
+      ],
+      "handler": "get_active_maintenance_notice",
+      "source": "apps/api/app/modules/maintenance.py",
+      "line": 47
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/marketing/consent"
+      ],
+      "handler": "consent_request",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 82
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/marketing/preferences"
+      ],
+      "handler": "preferences",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 87
+    },
+    {
+      "method": "PUT",
+      "paths_mounted_in_main": [
+        "/marketing/preferences"
+      ],
+      "handler": "update_preferences",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 96
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/marketing/activity"
+      ],
+      "handler": "product_activity",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 111
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/marketing/unsubscribe"
+      ],
+      "handler": "unsubscribe_confirmation",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 147
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/marketing/unsubscribe"
+      ],
+      "handler": "unsubscribe",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 158
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/marketing/webhook"
+      ],
+      "handler": "webhook",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 167
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/marketing/reconcile"
+      ],
+      "handler": "reconcile",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 205
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/marketing/admin"
+      ],
+      "handler": "marketing_support",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 221
+    },
+    {
+      "method": "PUT",
+      "paths_mounted_in_main": [
+        "/marketing/admin/settings"
+      ],
+      "handler": "update_sender",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 244
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/marketing/admin/jobs/{job_id}/retry"
+      ],
+      "handler": "retry_job",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 262
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/marketing/admin/emails/{message_id}/preview"
+      ],
+      "handler": "email_preview",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 274
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/marketing/admin/contacts/{contact_id}/test"
+      ],
+      "handler": "queue_internal_test",
+      "source": "apps/api/app/modules/marketing/router.py",
+      "line": 287
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/oauth/connections/{connection_id}/start"
+      ],
+      "handler": "start_oauth_connection",
+      "source": "apps/api/app/modules/oauth/router.py",
+      "line": 432
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/oauth/connections/{connection_id}/sage-businesses"
+      ],
+      "handler": "refresh_sage_businesses",
+      "source": "apps/api/app/modules/oauth/router.py",
+      "line": 513
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/oauth/connections/{connection_id}/authorization"
+      ],
+      "handler": "cancel_oauth_authorization",
+      "source": "apps/api/app/modules/oauth/router.py",
+      "line": 604
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/oauth/callback"
+      ],
+      "handler": "oauth_callback",
+      "source": "apps/api/app/modules/oauth/router.py",
+      "line": 1169
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/oauth/callback"
+      ],
+      "handler": "woocommerce_oauth_callback",
+      "source": "apps/api/app/modules/oauth/router.py",
+      "line": 1177
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/organizations/workspaces"
+      ],
+      "handler": "get_accessible_workspaces",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 1387
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/organizations/"
+      ],
+      "handler": "create_organization",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 1541
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/organizations/client-workspaces"
+      ],
+      "handler": "create_client_workspace",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 1712
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/organizations/client-workspaces/{organization_id}"
+      ],
+      "handler": "delete_client_workspace",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 1877
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/organizations/me"
+      ],
+      "handler": "get_my_organization",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 1930
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/organizations/agency-owner-access"
+      ],
+      "handler": "update_agency_owner_access",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 1971
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/organizations/members"
+      ],
+      "handler": "get_organization_members",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2031
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/organizations/members"
+      ],
+      "handler": "add_organization_member",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2072
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/organizations/invites"
+      ],
+      "handler": "get_organization_invites",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2227
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/organizations/invites"
+      ],
+      "handler": "add_organization_invite",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2265
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/organizations/members/{member_id}"
+      ],
+      "handler": "update_organization_member_role",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2372
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/organizations/invites/{invite_id}"
+      ],
+      "handler": "remove_organization_invite",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2449
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/organizations/members/{member_id}"
+      ],
+      "handler": "remove_organization_member",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2495
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/organizations/me"
+      ],
+      "handler": "update_my_organization",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2545
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/organizations/preferences/dashboard"
+      ],
+      "handler": "get_dashboard_preference",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2609
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/organizations/preferences/dashboard"
+      ],
+      "handler": "update_dashboard_preference",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2635
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/organizations/preferences/dataset"
+      ],
+      "handler": "get_dataset_preference",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2677
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/organizations/preferences/dataset"
+      ],
+      "handler": "update_dataset_preference",
+      "source": "apps/api/app/modules/organizations/router.py",
+      "line": 2705
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/access"
+      ],
+      "handler": "get_platform_admin_access",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 765
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/maintenance"
+      ],
+      "handler": "get_platform_admin_maintenance",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 1038
+    },
+    {
+      "method": "PUT",
+      "paths_mounted_in_main": [
+        "/admin/maintenance"
+      ],
+      "handler": "update_platform_admin_maintenance",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 1057
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/admin/maintenance/complete"
+      ],
+      "handler": "complete_platform_admin_maintenance",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 1134
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/email-settings"
+      ],
+      "handler": "get_platform_admin_email_settings",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 1190
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/admin/email-settings"
+      ],
+      "handler": "update_platform_admin_email_settings",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 1199
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/credit-settings"
+      ],
+      "handler": "get_platform_admin_credit_settings",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 1283
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/admin/credit-settings"
+      ],
+      "handler": "update_platform_admin_credit_settings",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 1292
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/overview"
+      ],
+      "handler": "get_platform_admin_overview",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 1669
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/admin/administrators"
+      ],
+      "handler": "add_platform_admin_administrators",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 1814
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/organizations"
+      ],
+      "handler": "get_platform_admin_organizations",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 1957
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/admin/organizations"
+      ],
+      "handler": "create_platform_admin_organization",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 2515
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/admin/organizations/{organization_id}/subscription"
+      ],
+      "handler": "update_platform_admin_subscription",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 2633
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/admin/organizations/{organization_id}/delete"
+      ],
+      "handler": "delete_platform_admin_organization",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 2707
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/users"
+      ],
+      "handler": "get_platform_admin_users",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 2776
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/admin/users/delete"
+      ],
+      "handler": "delete_platform_admin_user",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 3017
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/admin/identity-links"
+      ],
+      "handler": "link_platform_admin_identity",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 3080
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/organizations/{organization_id}/members"
+      ],
+      "handler": "get_platform_admin_organization_members",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 3175
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/audit-events"
+      ],
+      "handler": "get_platform_admin_audit_events",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 3674
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/alert-deliveries"
+      ],
+      "handler": "get_platform_admin_alert_deliveries",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 3720
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/usage-activity"
+      ],
+      "handler": "get_platform_admin_usage_activity",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 3795
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/admin/organizations/{organization_id}/invites"
+      ],
+      "handler": "get_platform_admin_organization_invites",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 4161
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/admin/organizations/{organization_id}/invites"
+      ],
+      "handler": "add_platform_admin_organization_invite",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 4204
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/admin/organizations/{organization_id}/invites/{invite_id}"
+      ],
+      "handler": "remove_platform_admin_organization_invite",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 4275
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/admin/organizations/{organization_id}/members"
+      ],
+      "handler": "add_platform_admin_member",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 4317
+    },
+    {
+      "method": "PATCH",
+      "paths_mounted_in_main": [
+        "/admin/organizations/{organization_id}/members/{member_id}"
+      ],
+      "handler": "update_platform_admin_member_role",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 4412
+    },
+    {
+      "method": "DELETE",
+      "paths_mounted_in_main": [
+        "/admin/organizations/{organization_id}/members/{member_id}"
+      ],
+      "handler": "remove_platform_admin_member",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 4486
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/public/dashboard/{dataset_id}"
+      ],
+      "handler": "get_public_shared_dashboard",
+      "source": "apps/api/app/modules/public_dashboard.py",
+      "line": 513
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/business-reports/catalog"
+      ],
+      "handler": "catalog",
+      "source": "apps/api/app/modules/reports/router.py",
+      "line": 79
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/business-reports/from-run/{run_id}"
+      ],
+      "handler": "from_run",
+      "source": "apps/api/app/modules/reports/router.py",
+      "line": 97
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/api/v2/business-reports/preview"
+      ],
+      "handler": "preview",
+      "source": "apps/api/app/modules/reports/router.py",
+      "line": 108
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/api/v2/business-reports"
+      ],
+      "handler": "save",
+      "source": "apps/api/app/modules/reports/router.py",
+      "line": 114
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/business-reports"
+      ],
+      "handler": "reports",
+      "source": "apps/api/app/modules/reports/router.py",
+      "line": 128
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/business-reports/weekly-preview"
+      ],
+      "handler": "weekly_preview",
+      "source": "apps/api/app/modules/reports/router.py",
+      "line": 141
+    },
+    {
+      "method": "GET",
+      "paths_mounted_in_main": [
+        "/api/v2/business-reports/{report_id}"
+      ],
+      "handler": "detail",
+      "source": "apps/api/app/modules/reports/router.py",
+      "line": 150
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/api/v2/business-reports/{report_id}/decision-evidence"
+      ],
+      "handler": "decision_evidence",
+      "source": "apps/api/app/modules/reports/router.py",
+      "line": 159
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/api/v2/business-reports/{report_id}/weekly"
+      ],
+      "handler": "weekly_template",
+      "source": "apps/api/app/modules/reports/router.py",
+      "line": 187
+    },
+    {
+      "method": "POST",
+      "paths_mounted_in_main": [
+        "/support/requests"
+      ],
+      "handler": "create_support_request",
+      "source": "apps/api/app/modules/support/router.py",
+      "line": 88
+    }
+  ],
+  "sqlalchemy_table_declarations": [
+    {
+      "table": "ai_credit_purchases",
+      "model": "AICreditPurchase",
+      "source": "apps/api/app/db/models.py",
+      "line": 1649,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "provider_session_id",
+          "database_column": "provider_session_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "credit_packs",
+          "database_column": "credit_packs"
+        },
+        {
+          "attribute": "credits",
+          "database_column": "credits"
+        },
+        {
+          "attribute": "amount_total",
+          "database_column": "amount_total"
+        },
+        {
+          "attribute": "currency",
+          "database_column": "currency"
+        },
+        {
+          "attribute": "fulfilled_at",
+          "database_column": "fulfilled_at"
+        }
+      ]
+    },
+    {
+      "table": "ai_usage_events",
+      "model": "AIUsageEvent",
+      "source": "apps/api/app/db/models.py",
+      "line": 1197,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "actor_user_id",
+          "database_column": "actor_user_id"
+        },
+        {
+          "attribute": "operation",
+          "database_column": "operation"
+        },
+        {
+          "attribute": "provider",
+          "database_column": "provider"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "period_start",
+          "database_column": "period_start"
+        },
+        {
+          "attribute": "estimated_tokens",
+          "database_column": "estimated_tokens"
+        },
+        {
+          "attribute": "prompt_tokens",
+          "database_column": "prompt_tokens"
+        },
+        {
+          "attribute": "completion_tokens",
+          "database_column": "completion_tokens"
+        },
+        {
+          "attribute": "total_tokens",
+          "database_column": "total_tokens"
+        },
+        {
+          "attribute": "estimated_credits",
+          "database_column": "estimated_credits"
+        },
+        {
+          "attribute": "topup_credits_reserved",
+          "database_column": "topup_credits_reserved"
+        },
+        {
+          "attribute": "credits",
+          "database_column": "credits"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "app_users",
+      "model": "AppUser",
+      "source": "apps/api/app/db/models.py",
+      "line": 21,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "email",
+          "database_column": "email"
+        },
+        {
+          "attribute": "display_name",
+          "database_column": "display_name"
+        },
+        {
+          "attribute": "first_name",
+          "database_column": "first_name"
+        },
+        {
+          "attribute": "last_name",
+          "database_column": "last_name"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "auth_identities",
+      "model": "AuthIdentity",
+      "source": "apps/api/app/db/models.py",
+      "line": 65,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "provider",
+          "database_column": "provider"
+        },
+        {
+          "attribute": "subject",
+          "database_column": "subject"
+        },
+        {
+          "attribute": "email",
+          "database_column": "email"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "last_seen_at",
+          "database_column": "last_seen_at"
+        }
+      ]
+    },
+    {
+      "table": "billing_webhook_events",
+      "model": "BillingWebhookEvent",
+      "source": "apps/api/app/db/models.py",
+      "line": 1662,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "provider",
+          "database_column": "provider"
+        },
+        {
+          "attribute": "provider_event_id",
+          "database_column": "provider_event_id"
+        },
+        {
+          "attribute": "event_type",
+          "database_column": "event_type"
+        },
+        {
+          "attribute": "processed_at",
+          "database_column": "processed_at"
+        }
+      ]
+    },
+    {
+      "table": "business_reports",
+      "model": "BusinessReport",
+      "source": "apps/api/app/modules/reports/models.py",
+      "line": 9,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "name",
+          "database_column": "name"
+        },
+        {
+          "attribute": "definition",
+          "database_column": "definition"
+        },
+        {
+          "attribute": "snapshot",
+          "database_column": "snapshot"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "canonical_entities",
+      "model": "CanonicalEntity",
+      "source": "apps/api/app/db/models.py",
+      "line": 468,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "entity_type",
+          "database_column": "entity_type"
+        },
+        {
+          "attribute": "canonical_key",
+          "database_column": "canonical_key"
+        },
+        {
+          "attribute": "display_name",
+          "database_column": "display_name"
+        },
+        {
+          "attribute": "attributes",
+          "database_column": "attributes"
+        },
+        {
+          "attribute": "source_count",
+          "database_column": "source_count"
+        },
+        {
+          "attribute": "match_count",
+          "database_column": "match_count"
+        },
+        {
+          "attribute": "confidence",
+          "database_column": "confidence"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "correlation_analyses",
+      "model": "CorrelationAnalysis",
+      "source": "apps/api/app/modules/correlation/models.py",
+      "line": 13,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "name",
+          "database_column": "name"
+        },
+        {
+          "attribute": "definition",
+          "database_column": "definition"
+        },
+        {
+          "attribute": "request_hash",
+          "database_column": "request_hash"
+        },
+        {
+          "attribute": "creation_key",
+          "database_column": "creation_key"
+        },
+        {
+          "attribute": "latest_successful_run_id",
+          "database_column": "latest_successful_run_id"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "correlation_analysis_metrics",
+      "model": "CorrelationMetric",
+      "source": "apps/api/app/modules/correlation/models.py",
+      "line": 27,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "analysis_id",
+          "database_column": "analysis_id"
+        },
+        {
+          "attribute": "dataset_id",
+          "database_column": "dataset_id"
+        },
+        {
+          "attribute": "metric_key",
+          "database_column": "metric_key"
+        },
+        {
+          "attribute": "position",
+          "database_column": "position"
+        }
+      ]
+    },
+    {
+      "table": "correlation_events",
+      "model": "CorrelationEvent",
+      "source": "apps/api/app/modules/correlation/models.py",
+      "line": 111,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "analysis_id",
+          "database_column": "analysis_id"
+        },
+        {
+          "attribute": "run_id",
+          "database_column": "run_id"
+        },
+        {
+          "attribute": "event",
+          "database_column": "event"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "correlation_insights",
+      "model": "CorrelationInsight",
+      "source": "apps/api/app/modules/correlation/models.py",
+      "line": 122,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "result_id",
+          "database_column": "result_id"
+        },
+        {
+          "attribute": "evidence",
+          "database_column": "evidence"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "correlation_results",
+      "model": "CorrelationResult",
+      "source": "apps/api/app/modules/correlation/models.py",
+      "line": 65,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "run_id",
+          "database_column": "run_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "metric_a",
+          "database_column": "metric_a"
+        },
+        {
+          "attribute": "metric_b",
+          "database_column": "metric_b"
+        },
+        {
+          "attribute": "lead_metric",
+          "database_column": "lead_metric"
+        },
+        {
+          "attribute": "lag",
+          "database_column": "lag"
+        },
+        {
+          "attribute": "coefficient",
+          "database_column": "coefficient"
+        },
+        {
+          "attribute": "observations",
+          "database_column": "observations"
+        },
+        {
+          "attribute": "p_value",
+          "database_column": "p_value"
+        },
+        {
+          "attribute": "adjusted_p_value",
+          "database_column": "adjusted_p_value"
+        },
+        {
+          "attribute": "score",
+          "database_column": "score"
+        },
+        {
+          "attribute": "selected",
+          "database_column": "selected"
+        },
+        {
+          "attribute": "eligible",
+          "database_column": "eligible"
+        },
+        {
+          "attribute": "reliability",
+          "database_column": "reliability"
+        },
+        {
+          "attribute": "flags",
+          "database_column": "flags"
+        },
+        {
+          "attribute": "evidence",
+          "database_column": "evidence"
+        }
+      ]
+    },
+    {
+      "table": "correlation_run_requests",
+      "model": "CorrelationRunRequest",
+      "source": "apps/api/app/modules/correlation/models.py",
+      "line": 90,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "analysis_id",
+          "database_column": "analysis_id"
+        },
+        {
+          "attribute": "request_key",
+          "database_column": "request_key"
+        },
+        {
+          "attribute": "run_id",
+          "database_column": "run_id"
+        }
+      ]
+    },
+    {
+      "table": "correlation_runs",
+      "model": "CorrelationRun",
+      "source": "apps/api/app/modules/correlation/models.py",
+      "line": 37,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "analysis_id",
+          "database_column": "analysis_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "identity_hash",
+          "database_column": "identity_hash"
+        },
+        {
+          "attribute": "definition",
+          "database_column": "definition"
+        },
+        {
+          "attribute": "watermark",
+          "database_column": "watermark"
+        },
+        {
+          "attribute": "engine_version",
+          "database_column": "engine_version"
+        },
+        {
+          "attribute": "code_version",
+          "database_column": "code_version"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "phase",
+          "database_column": "phase"
+        },
+        {
+          "attribute": "completed_pairs",
+          "database_column": "completed_pairs"
+        },
+        {
+          "attribute": "prepared_metrics",
+          "database_column": "prepared_metrics"
+        },
+        {
+          "attribute": "total_pairs",
+          "database_column": "total_pairs"
+        },
+        {
+          "attribute": "attempts",
+          "database_column": "attempts"
+        },
+        {
+          "attribute": "cancel_requested",
+          "database_column": "cancel_requested"
+        },
+        {
+          "attribute": "worker_token",
+          "database_column": "worker_token"
+        },
+        {
+          "attribute": "error_code",
+          "database_column": "error_code"
+        },
+        {
+          "attribute": "summary",
+          "database_column": "summary"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "started_at",
+          "database_column": "started_at"
+        },
+        {
+          "attribute": "heartbeat_at",
+          "database_column": "heartbeat_at"
+        },
+        {
+          "attribute": "completed_at",
+          "database_column": "completed_at"
+        }
+      ]
+    },
+    {
+      "table": "correlation_widgets",
+      "model": "CorrelationWidget",
+      "source": "apps/api/app/modules/correlation/models.py",
+      "line": 99,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "analysis_id",
+          "database_column": "analysis_id"
+        },
+        {
+          "attribute": "dashboard_key",
+          "database_column": "dashboard_key"
+        },
+        {
+          "attribute": "widget_type",
+          "database_column": "widget_type"
+        },
+        {
+          "attribute": "configuration",
+          "database_column": "configuration"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "dashboard_shares",
+      "model": "DashboardShare",
+      "source": "apps/api/app/db/models.py",
+      "line": 525,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "dataset_id",
+          "database_column": "dataset_id"
+        },
+        {
+          "attribute": "dashboard_key",
+          "database_column": "dashboard_key"
+        },
+        {
+          "attribute": "share_token",
+          "database_column": "share_token"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "data_ingestion_jobs",
+      "model": "DataIngestionJob",
+      "source": "apps/api/app/db/models.py",
+      "line": 664,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "connection_id",
+          "database_column": "connection_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "parent_job_id",
+          "database_column": "parent_job_id"
+        },
+        {
+          "attribute": "object_type",
+          "database_column": "object_type"
+        },
+        {
+          "attribute": "job_type",
+          "database_column": "job_type"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "request_payload",
+          "database_column": "request_payload"
+        },
+        {
+          "attribute": "result_payload",
+          "database_column": "result_payload"
+        },
+        {
+          "attribute": "error_message",
+          "database_column": "error_message"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "started_at",
+          "database_column": "started_at"
+        },
+        {
+          "attribute": "completed_at",
+          "database_column": "completed_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "data_source_connections",
+      "model": "DataSourceConnection",
+      "source": "apps/api/app/db/models.py",
+      "line": 567,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "source_type",
+          "database_column": "source_type"
+        },
+        {
+          "attribute": "display_name",
+          "database_column": "display_name"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "connection_config",
+          "database_column": "connection_config"
+        },
+        {
+          "attribute": "last_synced_at",
+          "database_column": "last_synced_at"
+        },
+        {
+          "attribute": "authorization_error",
+          "database_column": "authorization_error"
+        },
+        {
+          "attribute": "authorization_error_at",
+          "database_column": "authorization_error_at"
+        },
+        {
+          "attribute": "authorization_notification_error",
+          "database_column": "authorization_notification_error"
+        },
+        {
+          "attribute": "authorization_notification_sent_at",
+          "database_column": "authorization_notification_sent_at"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "dataset_analyses",
+      "model": "DatasetAnalysis",
+      "source": "apps/api/app/db/models.py",
+      "line": 224,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "dataset_id",
+          "database_column": "dataset_id"
+        },
+        {
+          "attribute": "connection_id",
+          "database_column": "connection_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "result_payload",
+          "database_column": "result_payload"
+        },
+        {
+          "attribute": "error_message",
+          "database_column": "error_message"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "started_at",
+          "database_column": "started_at"
+        },
+        {
+          "attribute": "completed_at",
+          "database_column": "completed_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "dataset_join_caches",
+      "model": "DatasetJoinCache",
+      "source": "apps/api/app/db/models.py",
+      "line": 299,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "dashboard_key",
+          "database_column": "dashboard_key"
+        },
+        {
+          "attribute": "dataset_ids",
+          "database_column": "dataset_ids"
+        },
+        {
+          "attribute": "definition",
+          "database_column": "definition"
+        },
+        {
+          "attribute": "result",
+          "database_column": "result"
+        },
+        {
+          "attribute": "source_fingerprint",
+          "database_column": "source_fingerprint"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "dataset_relationships",
+      "model": "DatasetRelationship",
+      "source": "apps/api/app/db/models.py",
+      "line": 366,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "name",
+          "database_column": "name"
+        },
+        {
+          "attribute": "left_dataset_id",
+          "database_column": "left_dataset_id"
+        },
+        {
+          "attribute": "left_date_column",
+          "database_column": "left_date_column"
+        },
+        {
+          "attribute": "left_metric",
+          "database_column": "left_metric"
+        },
+        {
+          "attribute": "right_dataset_id",
+          "database_column": "right_dataset_id"
+        },
+        {
+          "attribute": "right_date_column",
+          "database_column": "right_date_column"
+        },
+        {
+          "attribute": "right_metric",
+          "database_column": "right_metric"
+        },
+        {
+          "attribute": "period",
+          "database_column": "period"
+        },
+        {
+          "attribute": "aggregation",
+          "database_column": "aggregation"
+        },
+        {
+          "attribute": "method",
+          "database_column": "method"
+        },
+        {
+          "attribute": "lag_mode",
+          "database_column": "lag_mode"
+        },
+        {
+          "attribute": "lag_periods",
+          "database_column": "lag_periods"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "datasets",
+      "model": "Dataset",
+      "source": "apps/api/app/db/models.py",
+      "line": 151,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "file_name",
+          "database_column": "file_name"
+        },
+        {
+          "attribute": "file_path",
+          "database_column": "file_path"
+        },
+        {
+          "attribute": "storage_provider",
+          "database_column": "storage_provider"
+        },
+        {
+          "attribute": "source_type",
+          "database_column": "source_type"
+        },
+        {
+          "attribute": "source_config",
+          "database_column": "source_config"
+        },
+        {
+          "attribute": "row_count",
+          "database_column": "row_count"
+        },
+        {
+          "attribute": "column_count",
+          "database_column": "column_count"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "share_token",
+          "database_column": "share_token"
+        }
+      ]
+    },
+    {
+      "table": "decision_activities",
+      "model": "DecisionActivity",
+      "source": "apps/api/app/modules/decisions/activity_models.py",
+      "line": 20,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "decision_id",
+          "database_column": "decision_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "actor_user_id",
+          "database_column": "actor_user_id"
+        },
+        {
+          "attribute": "activity_type",
+          "database_column": "activity_type"
+        },
+        {
+          "attribute": "decision_title",
+          "database_column": "decision_title"
+        },
+        {
+          "attribute": "message",
+          "database_column": "message"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "decisions",
+      "model": "Decision",
+      "source": "apps/api/app/modules/decisions/models.py",
+      "line": 27,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "clerk_user_id",
+          "database_column": "clerk_user_id"
+        },
+        {
+          "attribute": "assigned_user_id",
+          "database_column": "assigned_user_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "dataset_id",
+          "database_column": "dataset_id"
+        },
+        {
+          "attribute": "metric_column",
+          "database_column": "metric_column"
+        },
+        {
+          "attribute": "outcome_dataset_id",
+          "database_column": "outcome_dataset_id"
+        },
+        {
+          "attribute": "evidence_dataset_ids_json",
+          "database_column": "evidence_dataset_ids"
+        },
+        {
+          "attribute": "evidence_metrics_json",
+          "database_column": "evidence_metrics"
+        },
+        {
+          "attribute": "recommendation_text",
+          "database_column": "recommendation_text"
+        },
+        {
+          "attribute": "recommendation_source",
+          "database_column": "recommendation_source"
+        },
+        {
+          "attribute": "recommendation_context",
+          "database_column": "recommendation_context"
+        },
+        {
+          "attribute": "title",
+          "database_column": "title"
+        },
+        {
+          "attribute": "action",
+          "database_column": "action"
+        },
+        {
+          "attribute": "description",
+          "database_column": "description"
+        },
+        {
+          "attribute": "notes",
+          "database_column": "notes"
+        },
+        {
+          "attribute": "expected_outcome",
+          "database_column": "expected_outcome"
+        },
+        {
+          "attribute": "actual_outcome",
+          "database_column": "actual_outcome"
+        },
+        {
+          "attribute": "outcome_baseline_value",
+          "database_column": "outcome_baseline_value"
+        },
+        {
+          "attribute": "outcome_measured_value",
+          "database_column": "outcome_measured_value"
+        },
+        {
+          "attribute": "outcome_delta_percent",
+          "database_column": "outcome_delta_percent"
+        },
+        {
+          "attribute": "outcome_measured_at",
+          "database_column": "outcome_measured_at"
+        },
+        {
+          "attribute": "outcome_status",
+          "database_column": "outcome_status"
+        },
+        {
+          "attribute": "lessons_learned",
+          "database_column": "lessons_learned"
+        },
+        {
+          "attribute": "review_date",
+          "database_column": "review_date"
+        },
+        {
+          "attribute": "priority",
+          "database_column": "priority"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        },
+        {
+          "attribute": "category",
+          "database_column": "category"
+        },
+        {
+          "attribute": "confidence_score",
+          "database_column": "confidence_score"
+        }
+      ]
+    },
+    {
+      "table": "entity_identities",
+      "model": "EntityIdentity",
+      "source": "apps/api/app/db/models.py",
+      "line": 495,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "canonical_entity_id",
+          "database_column": "canonical_entity_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "entity_type",
+          "database_column": "entity_type"
+        },
+        {
+          "attribute": "dataset_id",
+          "database_column": "dataset_id"
+        },
+        {
+          "attribute": "source_type",
+          "database_column": "source_type"
+        },
+        {
+          "attribute": "source_row_key",
+          "database_column": "source_row_key"
+        },
+        {
+          "attribute": "source_field",
+          "database_column": "source_field"
+        },
+        {
+          "attribute": "source_value",
+          "database_column": "source_value"
+        },
+        {
+          "attribute": "match_method",
+          "database_column": "match_method"
+        },
+        {
+          "attribute": "confidence",
+          "database_column": "confidence"
+        },
+        {
+          "attribute": "reviewed",
+          "database_column": "reviewed"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "ingestion_worker_heartbeats",
+      "model": "IngestionWorkerHeartbeat",
+      "source": "apps/api/app/db/models.py",
+      "line": 656,
+      "columns": [
+        {
+          "attribute": "name",
+          "database_column": "name"
+        },
+        {
+          "attribute": "last_seen_at",
+          "database_column": "last_seen_at"
+        },
+        {
+          "attribute": "job_id",
+          "database_column": "job_id"
+        }
+      ]
+    },
+    {
+      "table": "marketing_consent_events",
+      "model": "MarketingConsentEvent",
+      "source": "apps/api/app/modules/marketing/models.py",
+      "line": 46,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "contact_id",
+          "database_column": "contact_id"
+        },
+        {
+          "attribute": "revision",
+          "database_column": "revision"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "source",
+          "database_column": "source"
+        },
+        {
+          "attribute": "actor_user_id",
+          "database_column": "actor_user_id"
+        },
+        {
+          "attribute": "text_version",
+          "database_column": "text_version"
+        },
+        {
+          "attribute": "evidence_reference",
+          "database_column": "evidence_reference"
+        },
+        {
+          "attribute": "consent_text",
+          "database_column": "consent_text"
+        },
+        {
+          "attribute": "sender_identity",
+          "database_column": "sender_identity"
+        },
+        {
+          "attribute": "mailing_address",
+          "database_column": "mailing_address"
+        },
+        {
+          "attribute": "reply_to",
+          "database_column": "reply_to"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "marketing_contacts",
+      "model": "MarketingContact",
+      "source": "apps/api/app/modules/marketing/models.py",
+      "line": 19,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "email",
+          "database_column": "email"
+        },
+        {
+          "attribute": "first_name",
+          "database_column": "first_name"
+        },
+        {
+          "attribute": "source",
+          "database_column": "source"
+        },
+        {
+          "attribute": "email_verified_at",
+          "database_column": "email_verified_at"
+        },
+        {
+          "attribute": "marketing_status",
+          "database_column": "marketing_status"
+        },
+        {
+          "attribute": "consent_at",
+          "database_column": "consent_at"
+        },
+        {
+          "attribute": "consent_source",
+          "database_column": "consent_source"
+        },
+        {
+          "attribute": "consent_text_version",
+          "database_column": "consent_text_version"
+        },
+        {
+          "attribute": "unsubscribed_at",
+          "database_column": "unsubscribed_at"
+        },
+        {
+          "attribute": "suppression_reason",
+          "database_column": "suppression_reason"
+        },
+        {
+          "attribute": "primary_workspace_id",
+          "database_column": "primary_workspace_id"
+        },
+        {
+          "attribute": "revision",
+          "database_column": "revision"
+        },
+        {
+          "attribute": "resubscribe_revision",
+          "database_column": "resubscribe_revision"
+        },
+        {
+          "attribute": "provider_contact_id",
+          "database_column": "provider_contact_id"
+        },
+        {
+          "attribute": "provider_checked_at",
+          "database_column": "provider_checked_at"
+        },
+        {
+          "attribute": "synced_revision",
+          "database_column": "synced_revision"
+        },
+        {
+          "attribute": "last_successful_sync_at",
+          "database_column": "last_successful_sync_at"
+        },
+        {
+          "attribute": "sync_error",
+          "database_column": "sync_error"
+        },
+        {
+          "attribute": "deleted_at",
+          "database_column": "deleted_at"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "marketing_dataset_states",
+      "model": "MarketingDatasetState",
+      "source": "apps/api/app/modules/marketing/models.py",
+      "line": 70,
+      "columns": [
+        {
+          "attribute": "dataset_id",
+          "database_column": "dataset_id"
+        },
+        {
+          "attribute": "ready_at",
+          "database_column": "ready_at"
+        }
+      ]
+    },
+    {
+      "table": "marketing_emails",
+      "model": "MarketingEmail",
+      "source": "apps/api/app/modules/marketing/models.py",
+      "line": 103,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "contact_id",
+          "database_column": "contact_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "sequence_instance",
+          "database_column": "sequence_instance"
+        },
+        {
+          "attribute": "message_type",
+          "database_column": "message_type"
+        },
+        {
+          "attribute": "template_version",
+          "database_column": "template_version"
+        },
+        {
+          "attribute": "is_test",
+          "database_column": "is_test"
+        },
+        {
+          "attribute": "due_at",
+          "database_column": "due_at"
+        },
+        {
+          "attribute": "trial_deadline",
+          "database_column": "trial_deadline"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "attempts",
+          "database_column": "attempts"
+        },
+        {
+          "attribute": "reason",
+          "database_column": "reason"
+        },
+        {
+          "attribute": "provider_message_id",
+          "database_column": "provider_message_id"
+        },
+        {
+          "attribute": "first_attempt_at",
+          "database_column": "first_attempt_at"
+        },
+        {
+          "attribute": "submitted_at",
+          "database_column": "submitted_at"
+        },
+        {
+          "attribute": "payload",
+          "database_column": "payload"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "marketing_jobs",
+      "model": "MarketingJob",
+      "source": "apps/api/app/modules/marketing/models.py",
+      "line": 88,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "dedupe_key",
+          "database_column": "dedupe_key"
+        },
+        {
+          "attribute": "job_type",
+          "database_column": "job_type"
+        },
+        {
+          "attribute": "entity_id",
+          "database_column": "entity_id"
+        },
+        {
+          "attribute": "revision",
+          "database_column": "revision"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "attempts",
+          "database_column": "attempts"
+        },
+        {
+          "attribute": "next_attempt_at",
+          "database_column": "next_attempt_at"
+        },
+        {
+          "attribute": "error",
+          "database_column": "error"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "completed_at",
+          "database_column": "completed_at"
+        }
+      ]
+    },
+    {
+      "table": "marketing_link_visits",
+      "model": "MarketingLinkVisit",
+      "source": "apps/api/app/modules/marketing/models.py",
+      "line": 134,
+      "columns": [
+        {
+          "attribute": "message_id",
+          "database_column": "message_id"
+        },
+        {
+          "attribute": "contact_id",
+          "database_column": "contact_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "visited_at",
+          "database_column": "visited_at"
+        }
+      ]
+    },
+    {
+      "table": "marketing_memberships",
+      "model": "MarketingMembership",
+      "source": "apps/api/app/modules/marketing/models.py",
+      "line": 76,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "contact_id",
+          "database_column": "contact_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "role",
+          "database_column": "role"
+        },
+        {
+          "attribute": "onboarding_recipient",
+          "database_column": "onboarding_recipient"
+        },
+        {
+          "attribute": "billing_recipient",
+          "database_column": "billing_recipient"
+        },
+        {
+          "attribute": "eligible",
+          "database_column": "eligible"
+        }
+      ]
+    },
+    {
+      "table": "marketing_settings",
+      "model": "MarketingSettings",
+      "source": "apps/api/app/modules/marketing/models.py",
+      "line": 7,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "sender_identity",
+          "database_column": "sender_identity"
+        },
+        {
+          "attribute": "mailing_address",
+          "database_column": "mailing_address"
+        },
+        {
+          "attribute": "reply_to",
+          "database_column": "reply_to"
+        },
+        {
+          "attribute": "from_email",
+          "database_column": "from_email"
+        },
+        {
+          "attribute": "from_name",
+          "database_column": "from_name"
+        },
+        {
+          "attribute": "reconciliation_contact_cursor",
+          "database_column": "reconciliation_contact_cursor"
+        },
+        {
+          "attribute": "reconciliation_user_cursor",
+          "database_column": "reconciliation_user_cursor"
+        }
+      ]
+    },
+    {
+      "table": "marketing_webhooks",
+      "model": "MarketingWebhook",
+      "source": "apps/api/app/modules/marketing/models.py",
+      "line": 125,
+      "columns": [
+        {
+          "attribute": "event_id",
+          "database_column": "event_id"
+        },
+        {
+          "attribute": "event_type",
+          "database_column": "event_type"
+        },
+        {
+          "attribute": "payload",
+          "database_column": "payload"
+        },
+        {
+          "attribute": "received_at",
+          "database_column": "received_at"
+        },
+        {
+          "attribute": "processed_at",
+          "database_column": "processed_at"
+        }
+      ]
+    },
+    {
+      "table": "marketing_workspaces",
+      "model": "MarketingWorkspace",
+      "source": "apps/api/app/modules/marketing/models.py",
+      "line": 63,
+      "columns": [
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "first_data_ready_at",
+          "database_column": "first_data_ready_at"
+        },
+        {
+          "attribute": "last_meaningful_activity_at",
+          "database_column": "last_meaningful_activity_at"
+        }
+      ]
+    },
+    {
+      "table": "oauth_connection_states",
+      "model": "OAuthConnectionState",
+      "source": "apps/api/app/db/models.py",
+      "line": 756,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "state_token",
+          "database_column": "state_token"
+        },
+        {
+          "attribute": "connection_id",
+          "database_column": "connection_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "source_type",
+          "database_column": "source_type"
+        },
+        {
+          "attribute": "code_verifier",
+          "database_column": "code_verifier"
+        },
+        {
+          "attribute": "expires_at",
+          "database_column": "expires_at"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "oauth_credentials",
+      "model": "OAuthCredential",
+      "source": "apps/api/app/db/models.py",
+      "line": 811,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "connection_id",
+          "database_column": "connection_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "source_type",
+          "database_column": "source_type"
+        },
+        {
+          "attribute": "access_token_encrypted",
+          "database_column": "access_token_encrypted"
+        },
+        {
+          "attribute": "refresh_token_encrypted",
+          "database_column": "refresh_token_encrypted"
+        },
+        {
+          "attribute": "token_type",
+          "database_column": "token_type"
+        },
+        {
+          "attribute": "scope",
+          "database_column": "scope"
+        },
+        {
+          "attribute": "provider_account_id",
+          "database_column": "provider_account_id"
+        },
+        {
+          "attribute": "expires_at",
+          "database_column": "expires_at"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "organization_invites",
+      "model": "OrganizationInvite",
+      "source": "apps/api/app/db/models.py",
+      "line": 999,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "organization_id",
+          "database_column": "organization_id"
+        },
+        {
+          "attribute": "email",
+          "database_column": "email"
+        },
+        {
+          "attribute": "role",
+          "database_column": "role"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "organization_members",
+      "model": "OrganizationMember",
+      "source": "apps/api/app/db/models.py",
+      "line": 968,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "organization_id",
+          "database_column": "organization_id"
+        },
+        {
+          "attribute": "clerk_user_id",
+          "database_column": "clerk_user_id"
+        },
+        {
+          "attribute": "role",
+          "database_column": "role"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "organizations",
+      "model": "Organization",
+      "source": "apps/api/app/db/models.py",
+      "line": 881,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "name",
+          "database_column": "name"
+        },
+        {
+          "attribute": "logo_url",
+          "database_column": "logo_url"
+        },
+        {
+          "attribute": "primary_color",
+          "database_column": "primary_color"
+        },
+        {
+          "attribute": "accent_color",
+          "database_column": "accent_color"
+        },
+        {
+          "attribute": "report_display_name",
+          "database_column": "report_display_name"
+        },
+        {
+          "attribute": "business_type",
+          "database_column": "business_type"
+        },
+        {
+          "attribute": "country",
+          "database_column": "country"
+        },
+        {
+          "attribute": "industry",
+          "database_column": "industry"
+        },
+        {
+          "attribute": "company_size",
+          "database_column": "company_size"
+        },
+        {
+          "attribute": "agency_client_count",
+          "database_column": "agency_client_count"
+        },
+        {
+          "attribute": "role",
+          "database_column": "role"
+        },
+        {
+          "attribute": "primary_goal",
+          "database_column": "primary_goal"
+        },
+        {
+          "attribute": "agency_owner_access_enabled",
+          "database_column": "agency_owner_access_enabled"
+        },
+        {
+          "attribute": "owner_user_id",
+          "database_column": "owner_user_id"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "platform_admin_audit_events",
+      "model": "PlatformAdminAuditEvent",
+      "source": "apps/api/app/modules/platform_admin.py",
+      "line": 126,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "admin_user_id",
+          "database_column": "admin_user_id"
+        },
+        {
+          "attribute": "organization_id",
+          "database_column": "organization_id"
+        },
+        {
+          "attribute": "target_user_id",
+          "database_column": "target_user_id"
+        },
+        {
+          "attribute": "target_email",
+          "database_column": "target_email"
+        },
+        {
+          "attribute": "action",
+          "database_column": "action"
+        },
+        {
+          "attribute": "details",
+          "database_column": "details"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "platform_admin_roles",
+      "model": "PlatformAdminRole",
+      "source": "apps/api/app/db/models.py",
+      "line": 117,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "user_id",
+          "database_column": "user_id"
+        },
+        {
+          "attribute": "granted_by_user_id",
+          "database_column": "granted_by_user_id"
+        },
+        {
+          "attribute": "permissions",
+          "database_column": "permissions"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "platform_billing_settings",
+      "model": "PlatformBillingSettings",
+      "source": "apps/api/app/db/models.py",
+      "line": 1487,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "free_ai_credits",
+          "database_column": "free_ai_credits"
+        },
+        {
+          "attribute": "professional_ai_credits",
+          "database_column": "professional_ai_credits"
+        },
+        {
+          "attribute": "agency_ai_credits",
+          "database_column": "agency_ai_credits"
+        },
+        {
+          "attribute": "agency_growth_ai_credits",
+          "database_column": "agency_growth_ai_credits"
+        },
+        {
+          "attribute": "agency_pro_ai_credits",
+          "database_column": "agency_pro_ai_credits"
+        },
+        {
+          "attribute": "enterprise_ai_credits",
+          "database_column": "enterprise_ai_credits"
+        },
+        {
+          "attribute": "additional_client_workspace_ai_credits",
+          "database_column": "additional_client_workspace_ai_credits"
+        },
+        {
+          "attribute": "ai_credit_pack_size",
+          "database_column": "ai_credit_pack_size"
+        },
+        {
+          "attribute": "professional_monthly_price_cents",
+          "database_column": "professional_monthly_price_cents"
+        },
+        {
+          "attribute": "professional_annual_price_cents",
+          "database_column": "professional_annual_price_cents"
+        },
+        {
+          "attribute": "agency_monthly_price_cents",
+          "database_column": "agency_monthly_price_cents"
+        },
+        {
+          "attribute": "agency_annual_price_cents",
+          "database_column": "agency_annual_price_cents"
+        },
+        {
+          "attribute": "additional_client_workspace_monthly_price_cents",
+          "database_column": "additional_client_workspace_monthly_price_cents"
+        },
+        {
+          "attribute": "additional_client_workspace_annual_price_cents",
+          "database_column": "additional_client_workspace_annual_price_cents"
+        },
+        {
+          "attribute": "ai_credit_pack_price_cents",
+          "database_column": "ai_credit_pack_price_cents"
+        },
+        {
+          "attribute": "ai_credit_topup_price_cents",
+          "database_column": "ai_credit_topup_price_cents"
+        },
+        {
+          "attribute": "professional_price_id",
+          "database_column": "professional_price_id"
+        },
+        {
+          "attribute": "professional_annual_price_id",
+          "database_column": "professional_annual_price_id"
+        },
+        {
+          "attribute": "agency_price_id",
+          "database_column": "agency_price_id"
+        },
+        {
+          "attribute": "agency_annual_price_id",
+          "database_column": "agency_annual_price_id"
+        },
+        {
+          "attribute": "client_workspace_addon_price_id",
+          "database_column": "client_workspace_addon_price_id"
+        },
+        {
+          "attribute": "client_workspace_addon_annual_price_id",
+          "database_column": "client_workspace_addon_annual_price_id"
+        },
+        {
+          "attribute": "ai_credit_pack_price_id",
+          "database_column": "ai_credit_pack_price_id"
+        },
+        {
+          "attribute": "ai_credit_topup_price_id",
+          "database_column": "ai_credit_topup_price_id"
+        },
+        {
+          "attribute": "updated_by_user_id",
+          "database_column": "updated_by_user_id"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "platform_email_settings",
+      "model": "PlatformEmailSettings",
+      "source": "apps/api/app/db/models.py",
+      "line": 1337,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "provider",
+          "database_column": "provider"
+        },
+        {
+          "attribute": "resend_api_key",
+          "database_column": "resend_api_key"
+        },
+        {
+          "attribute": "resend_from_email",
+          "database_column": "resend_from_email"
+        },
+        {
+          "attribute": "resend_from_name",
+          "database_column": "resend_from_name"
+        },
+        {
+          "attribute": "smtp_host",
+          "database_column": "smtp_host"
+        },
+        {
+          "attribute": "smtp_port",
+          "database_column": "smtp_port"
+        },
+        {
+          "attribute": "smtp_username",
+          "database_column": "smtp_username"
+        },
+        {
+          "attribute": "smtp_password",
+          "database_column": "smtp_password"
+        },
+        {
+          "attribute": "smtp_from_email",
+          "database_column": "smtp_from_email"
+        },
+        {
+          "attribute": "smtp_from_name",
+          "database_column": "smtp_from_name"
+        },
+        {
+          "attribute": "smtp_use_tls",
+          "database_column": "smtp_use_tls"
+        },
+        {
+          "attribute": "smtp_use_ssl",
+          "database_column": "smtp_use_ssl"
+        },
+        {
+          "attribute": "updated_by_user_id",
+          "database_column": "updated_by_user_id"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "platform_maintenance_notices",
+      "model": "PlatformMaintenanceNotice",
+      "source": "apps/api/app/db/models.py",
+      "line": 1423,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "message",
+          "database_column": "message"
+        },
+        {
+          "attribute": "scheduled_at",
+          "database_column": "scheduled_at"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "created_by_user_id",
+          "database_column": "created_by_user_id"
+        },
+        {
+          "attribute": "ended_at",
+          "database_column": "ended_at"
+        },
+        {
+          "attribute": "ended_by_user_id",
+          "database_column": "ended_by_user_id"
+        },
+        {
+          "attribute": "announcement_email_sent_at",
+          "database_column": "announcement_email_sent_at"
+        },
+        {
+          "attribute": "completion_email_sent_at",
+          "database_column": "completion_email_sent_at"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "usage_activity_events",
+      "model": "UsageActivityEvent",
+      "source": "apps/api/app/db/models.py",
+      "line": 1286,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "actor_user_id",
+          "database_column": "actor_user_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "route",
+          "database_column": "route"
+        },
+        {
+          "attribute": "method",
+          "database_column": "method"
+        },
+        {
+          "attribute": "status_code",
+          "database_column": "status_code"
+        },
+        {
+          "attribute": "duration_ms",
+          "database_column": "duration_ms"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "user_preferences",
+      "model": "UserPreference",
+      "source": "apps/api/app/db/models.py",
+      "line": 1888,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "clerk_user_id",
+          "database_column": "clerk_user_id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "selected_dataset_id",
+          "database_column": "selected_dataset_id"
+        },
+        {
+          "attribute": "selected_metric",
+          "database_column": "selected_metric"
+        },
+        {
+          "attribute": "metric_targets",
+          "database_column": "metric_targets"
+        },
+        {
+          "attribute": "dashboard_preferences",
+          "database_column": "dashboard_preferences"
+        },
+        {
+          "attribute": "dashboard_dataset_ids",
+          "database_column": "dashboard_dataset_ids"
+        },
+        {
+          "attribute": "dashboard_views",
+          "database_column": "dashboard_views"
+        },
+        {
+          "attribute": "selected_dashboard",
+          "database_column": "selected_dashboard"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        }
+      ]
+    },
+    {
+      "table": "weekly_report_delivery_logs",
+      "model": "WeeklyReportDeliveryLog",
+      "source": "apps/api/app/db/models.py",
+      "line": 1834,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "recipient_emails",
+          "database_column": "recipient_emails"
+        },
+        {
+          "attribute": "subject",
+          "database_column": "subject"
+        },
+        {
+          "attribute": "delivered_count",
+          "database_column": "delivered_count"
+        },
+        {
+          "attribute": "metrics_count",
+          "database_column": "metrics_count"
+        },
+        {
+          "attribute": "error",
+          "database_column": "error"
+        },
+        {
+          "attribute": "attempted_at",
+          "database_column": "attempted_at"
+        }
+      ]
+    },
+    {
+      "table": "weekly_report_preferences",
+      "model": "WeeklyReportPreference",
+      "source": "apps/api/app/db/models.py",
+      "line": 1695,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "enabled",
+          "database_column": "enabled"
+        },
+        {
+          "attribute": "cadence",
+          "database_column": "cadence"
+        },
+        {
+          "attribute": "delivery_day",
+          "database_column": "delivery_day"
+        },
+        {
+          "attribute": "recipient_emails",
+          "database_column": "recipient_emails"
+        },
+        {
+          "attribute": "metric_focus",
+          "database_column": "metric_focus"
+        },
+        {
+          "attribute": "business_report_id",
+          "database_column": "business_report_id"
+        },
+        {
+          "attribute": "metric_targets",
+          "database_column": "metric_targets"
+        },
+        {
+          "attribute": "relationship_focus",
+          "database_column": "relationship_focus"
+        },
+        {
+          "attribute": "include_recommendations",
+          "database_column": "include_recommendations"
+        },
+        {
+          "attribute": "sender_name",
+          "database_column": "sender_name"
+        },
+        {
+          "attribute": "sender_email",
+          "database_column": "sender_email"
+        },
+        {
+          "attribute": "reply_to_email",
+          "database_column": "reply_to_email"
+        },
+        {
+          "attribute": "subject_prefix",
+          "database_column": "subject_prefix"
+        },
+        {
+          "attribute": "smtp_host",
+          "database_column": "smtp_host"
+        },
+        {
+          "attribute": "smtp_port",
+          "database_column": "smtp_port"
+        },
+        {
+          "attribute": "smtp_username",
+          "database_column": "smtp_username"
+        },
+        {
+          "attribute": "smtp_password",
+          "database_column": "smtp_password"
+        },
+        {
+          "attribute": "smtp_use_tls",
+          "database_column": "smtp_use_tls"
+        },
+        {
+          "attribute": "smtp_use_ssl",
+          "database_column": "smtp_use_ssl"
+        },
+        {
+          "attribute": "last_sent_at",
+          "database_column": "last_sent_at"
+        },
+        {
+          "attribute": "last_send_status",
+          "database_column": "last_send_status"
+        },
+        {
+          "attribute": "last_send_error",
+          "database_column": "last_send_error"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    },
+    {
+      "table": "workspace_request_budgets",
+      "model": "WorkspaceRequestBudget",
+      "source": "apps/api/app/db/models.py",
+      "line": 648,
+      "columns": [
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "window_started_at",
+          "database_column": "window_started_at"
+        },
+        {
+          "attribute": "request_count",
+          "database_column": "request_count"
+        }
+      ]
+    },
+    {
+      "table": "workspace_subscriptions",
+      "model": "WorkspaceSubscription",
+      "source": "apps/api/app/db/models.py",
+      "line": 1045,
+      "columns": [
+        {
+          "attribute": "id",
+          "database_column": "id"
+        },
+        {
+          "attribute": "workspace_id",
+          "database_column": "workspace_id"
+        },
+        {
+          "attribute": "provider",
+          "database_column": "provider"
+        },
+        {
+          "attribute": "provider_customer_id",
+          "database_column": "provider_customer_id"
+        },
+        {
+          "attribute": "provider_subscription_id",
+          "database_column": "provider_subscription_id"
+        },
+        {
+          "attribute": "provider_addon_subscription_item_id",
+          "database_column": "provider_addon_subscription_item_id"
+        },
+        {
+          "attribute": "price_id",
+          "database_column": "price_id"
+        },
+        {
+          "attribute": "plan",
+          "database_column": "plan"
+        },
+        {
+          "attribute": "billing_interval",
+          "database_column": "billing_interval"
+        },
+        {
+          "attribute": "status",
+          "database_column": "status"
+        },
+        {
+          "attribute": "current_period_end",
+          "database_column": "current_period_end"
+        },
+        {
+          "attribute": "current_period_start",
+          "database_column": "current_period_start"
+        },
+        {
+          "attribute": "payment_due_at",
+          "database_column": "payment_due_at"
+        },
+        {
+          "attribute": "ai_credit_period_start",
+          "database_column": "ai_credit_period_start"
+        },
+        {
+          "attribute": "ai_grace_credit_limit",
+          "database_column": "ai_grace_credit_limit"
+        },
+        {
+          "attribute": "provider_checked_at",
+          "database_column": "provider_checked_at"
+        },
+        {
+          "attribute": "canceled_at",
+          "database_column": "canceled_at"
+        },
+        {
+          "attribute": "cancel_at_period_end",
+          "database_column": "cancel_at_period_end"
+        },
+        {
+          "attribute": "lifecycle_notice_key",
+          "database_column": "lifecycle_notice_key"
+        },
+        {
+          "attribute": "lifecycle_notice_at",
+          "database_column": "lifecycle_notice_at"
+        },
+        {
+          "attribute": "data_purged_at",
+          "database_column": "data_purged_at"
+        },
+        {
+          "attribute": "additional_client_workspaces",
+          "database_column": "additional_client_workspaces"
+        },
+        {
+          "attribute": "ai_credits_used",
+          "database_column": "ai_credits_used"
+        },
+        {
+          "attribute": "ai_recurring_credits_used",
+          "database_column": "ai_recurring_credits_used"
+        },
+        {
+          "attribute": "additional_ai_credit_packs",
+          "database_column": "additional_ai_credit_packs"
+        },
+        {
+          "attribute": "ai_credit_topup_credits",
+          "database_column": "ai_credit_topup_credits"
+        },
+        {
+          "attribute": "ai_credit_low_notice_key",
+          "database_column": "ai_credit_low_notice_key"
+        },
+        {
+          "attribute": "created_at",
+          "database_column": "created_at"
+        },
+        {
+          "attribute": "updated_at",
+          "database_column": "updated_at"
+        }
+      ]
+    }
+  ],
+  "example_environment_variable_names": {
+    "apps/api/.env.example": [
+      "DATABASE_URL",
+      "APP_ENV",
+      "DATASET_UPLOAD_DIR",
+      "CORS_ALLOWED_ORIGINS",
+      "OBJECT_STORAGE_PROVIDER",
+      "OBJECT_STORAGE_BUCKET",
+      "OBJECT_STORAGE_ENDPOINT",
+      "OBJECT_STORAGE_ACCESS_KEY",
+      "OBJECT_STORAGE_SECRET_KEY",
+      "OBJECT_STORAGE_REGION",
+      "AI_PROVIDER",
+      "AI_API_KEY",
+      "AI_MODEL",
+      "AI_API_URL",
+      "OPENAI_API_KEY",
+      "OPENAI_MODEL",
+      "OPENAI_API_URL",
+      "AI_REQUEST_TIMEOUT_SECONDS",
+      "AI_MAX_OUTPUT_TOKENS",
+      "AI_ANALYSIS_CACHE_TTL_SECONDS",
+      "SMTP_HOST",
+      "SMTP_PORT",
+      "SMTP_FROM_EMAIL",
+      "SMTP_FROM_NAME",
+      "SMTP_USERNAME",
+      "SMTP_PASSWORD",
+      "SMTP_USE_TLS",
+      "SMTP_USE_SSL",
+      "SMTP_TIMEOUT_SECONDS",
+      "EMAIL_PROVIDER",
+      "RESEND_API_KEY",
+      "RESEND_API_URL",
+      "RESEND_FROM_EMAIL",
+      "RESEND_FROM_NAME",
+      "ALERTS_SCHEDULER_SECRET",
+      "CONNECTORS_SCHEDULER_SECRET",
+      "BILLING_SCHEDULER_SECRET",
+      "SCHEDULED_JOBS",
+      "SCHEDULER_TIMEOUT_SECONDS",
+      "BILLING_SCHEDULER_TIMEOUT_SECONDS",
+      "BILLING_GRACE_PERIOD_DAYS",
+      "BILLING_ENFORCEMENT_ENABLED",
+      "BILLING_PROVIDER",
+      "INGESTION_EXECUTION_MODE",
+      "INGESTION_JOB_TIMEOUT_SECONDS",
+      "INGESTION_JOB_MEMORY_MB",
+      "WORKSPACE_REQUESTS_PER_MINUTE",
+      "DATABASE_STATEMENT_TIMEOUT_MS",
+      "DATABASE_LOCK_TIMEOUT_MS",
+      "STRIPE_SECRET_KEY",
+      "STRIPE_API_URL",
+      "STRIPE_PROFESSIONAL_PRICE_ID",
+      "STRIPE_PROFESSIONAL_ANNUAL_PRICE_ID",
+      "STRIPE_AGENCY_PRICE_ID",
+      "STRIPE_AGENCY_ANNUAL_PRICE_ID",
+      "STRIPE_CLIENT_WORKSPACE_ADDON_PRICE_ID",
+      "STRIPE_CLIENT_WORKSPACE_ADDON_ANNUAL_PRICE_ID",
+      "STRIPE_AI_CREDIT_PACK_PRICE_ID",
+      "STRIPE_AI_CREDIT_TOPUP_PRICE_ID",
+      "STRIPE_WEBHOOK_SECRET",
+      "DECISIONATE_WEB_APP_URL",
+      "DECISIONATE_FREE_AI_CREDITS",
+      "DECISIONATE_PROFESSIONAL_AI_CREDITS",
+      "DECISIONATE_AGENCY_AI_CREDITS",
+      "DECISIONATE_AGENCY_CLIENT_AI_CREDITS",
+      "DECISIONATE_ADDITIONAL_CLIENT_WORKSPACE_AI_CREDITS",
+      "DECISIONATE_AI_CREDIT_PACK_SIZE",
+      "DECISIONATE_API_URL",
+      "ALERTS_SCHEDULER_TIMEOUT_SECONDS",
+      "ANALYTICS_ENGINE",
+      "ANALYTICS_STORAGE_FORMAT",
+      "ANALYTICS_STORAGE_DIR",
+      "DUCKDB_DATABASE_PATH",
+      "CACHE_PROVIDER",
+      "REDIS_URL",
+      "SENTRY_DSN",
+      "SENTRY_TRACES_SAMPLE_RATE",
+      "GOOGLE_ANALYTICS_CLIENT_ID",
+      "GOOGLE_ANALYTICS_CLIENT_SECRET",
+      "GOOGLE_ANALYTICS_OAUTH_AUTHORIZATION_URL",
+      "GOOGLE_ANALYTICS_OAUTH_TOKEN_URL",
+      "GOOGLE_ANALYTICS_OAUTH_SCOPES",
+      "GOOGLE_ANALYTICS_SCOPE",
+      "GOOGLE_SEARCH_CONSOLE_CLIENT_ID",
+      "GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET",
+      "GOOGLE_SEARCH_CONSOLE_API_BASE_URL",
+      "GOOGLE_SEARCH_CONSOLE_OAUTH_AUTHORIZATION_URL",
+      "GOOGLE_SEARCH_CONSOLE_OAUTH_TOKEN_URL",
+      "GOOGLE_SEARCH_CONSOLE_OAUTH_SCOPES",
+      "GOOGLE_BUSINESS_PROFILE_CLIENT_ID",
+      "GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET",
+      "GOOGLE_BUSINESS_PROFILE_API_BASE_URL",
+      "GOOGLE_BUSINESS_PROFILE_PERFORMANCE_API_BASE_URL",
+      "GOOGLE_BUSINESS_PROFILE_OAUTH_AUTHORIZATION_URL",
+      "GOOGLE_BUSINESS_PROFILE_OAUTH_TOKEN_URL",
+      "GOOGLE_BUSINESS_PROFILE_OAUTH_SCOPES",
+      "GOOGLE_ADS_CLIENT_ID",
+      "GOOGLE_ADS_CLIENT_SECRET",
+      "GOOGLE_ADS_DEVELOPER_TOKEN",
+      "GOOGLE_ADS_API_BASE_URL",
+      "GOOGLE_ADS_API_VERSION",
+      "GOOGLE_ADS_OAUTH_AUTHORIZATION_URL",
+      "GOOGLE_ADS_OAUTH_TOKEN_URL",
+      "GOOGLE_ADS_OAUTH_SCOPES",
+      "AUTH_PROVIDER",
+      "DECISIONATE_PLATFORM_ADMIN_USER_IDS",
+      "DECISIONATE_PLATFORM_ADMIN_EMAILS",
+      "OAUTH_TOKEN_ENCRYPTION_KEY",
+      "OAUTH_CALLBACK_URL",
+      "SHOPIFY_CLIENT_ID",
+      "SHOPIFY_CLIENT_SECRET",
+      "SHOPIFY_API_VERSION",
+      "SHOPIFY_API_BASE_URL_TEMPLATE",
+      "SHOPIFY_GRAPHQL_API_URL_TEMPLATE",
+      "SHOPIFY_OAUTH_AUTHORIZATION_URL_TEMPLATE",
+      "SHOPIFY_OAUTH_TOKEN_URL_TEMPLATE",
+      "SHOPIFY_INITIAL_SYNC_DAYS",
+      "SHOPIFY_INITIAL_BACKFILL_ENABLED",
+      "SHOPIFY_INITIAL_BACKFILL_DAYS",
+      "SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS",
+      "SHOPIFY_REQUIRE_ALL_ORDERS_ACCESS",
+      "SHOPIFY_OAUTH_SCOPES",
+      "QUICKBOOKS_CLIENT_ID",
+      "QUICKBOOKS_CLIENT_SECRET",
+      "QUICKBOOKS_API_BASE_URL",
+      "QUICKBOOKS_API_VERSION",
+      "QUICKBOOKS_OAUTH_AUTHORIZATION_URL",
+      "QUICKBOOKS_OAUTH_TOKEN_URL",
+      "QUICKBOOKS_OAUTH_REVOCATION_URL",
+      "QUICKBOOKS_OAUTH_SCOPES",
+      "FRESHBOOKS_CLIENT_ID",
+      "FRESHBOOKS_CLIENT_SECRET",
+      "FRESHBOOKS_API_BASE_URL_TEMPLATE",
+      "FRESHBOOKS_IDENTITY_API_URL",
+      "FRESHBOOKS_PROJECTS_API_BASE_URL_TEMPLATE",
+      "FRESHBOOKS_BUSINESS_API_BASE_URL_TEMPLATE",
+      "FRESHBOOKS_OAUTH_AUTHORIZATION_URL",
+      "FRESHBOOKS_OAUTH_TOKEN_URL",
+      "FRESHBOOKS_OAUTH_SCOPES",
+      "SAGE_CLIENT_ID",
+      "SAGE_CLIENT_SECRET",
+      "SAGE_API_BASE_URL",
+      "SAGE_BUSINESS_HEADER",
+      "SAGE_BUSINESSES_API_URL",
+      "SAGE_OAUTH_AUTHORIZATION_URL",
+      "SAGE_OAUTH_TOKEN_URL",
+      "SAGE_OAUTH_SCOPES",
+      "HUBSPOT_CLIENT_ID",
+      "HUBSPOT_CLIENT_SECRET",
+      "HUBSPOT_API_BASE_URL",
+      "HUBSPOT_CRM_API_VERSION",
+      "HUBSPOT_OAUTH_AUTHORIZATION_URL",
+      "HUBSPOT_OAUTH_TOKEN_URL",
+      "HUBSPOT_OAUTH_SCOPES",
+      "SALESFORCE_CLIENT_ID",
+      "SALESFORCE_CLIENT_SECRET",
+      "SALESFORCE_OAUTH_AUTHORIZATION_URL",
+      "SALESFORCE_OAUTH_TOKEN_URL",
+      "SALESFORCE_OAUTH_SCOPES",
+      "SALESFORCE_API_VERSION",
+      "META_ADS_APP_ID",
+      "META_ADS_APP_SECRET",
+      "META_ADS_API_BASE_URL",
+      "META_ADS_GRAPH_VERSION",
+      "META_ADS_TIME_INCREMENT",
+      "META_ADS_OAUTH_AUTHORIZATION_URL",
+      "META_ADS_OAUTH_TOKEN_URL",
+      "META_ADS_OAUTH_CONFIG_ID",
+      "META_ADS_OAUTH_SCOPES",
+      "SQUARE_CLIENT_ID",
+      "SQUARE_CLIENT_SECRET",
+      "SQUARE_API_BASE_URL",
+      "SQUARE_API_VERSION",
+      "SQUARE_OAUTH_AUTHORIZATION_URL",
+      "SQUARE_OAUTH_TOKEN_URL",
+      "SQUARE_OAUTH_SCOPES",
+      "LIGHTSPEED_CLIENT_ID",
+      "LIGHTSPEED_CLIENT_SECRET",
+      "LIGHTSPEED_API_BASE_URL_TEMPLATE",
+      "LIGHTSPEED_OAUTH_AUTHORIZATION_URL",
+      "LIGHTSPEED_OAUTH_TOKEN_URL",
+      "LIGHTSPEED_OAUTH_SCOPES",
+      "LIGHTSPEED_X_CLIENT_ID",
+      "LIGHTSPEED_X_CLIENT_SECRET",
+      "LIGHTSPEED_X_API_BASE_URL_TEMPLATE",
+      "LIGHTSPEED_X_API_VERSION",
+      "LIGHTSPEED_X_OAUTH_AUTHORIZATION_URL",
+      "LIGHTSPEED_X_OAUTH_TOKEN_URL_TEMPLATE",
+      "LIGHTSPEED_X_OAUTH_SCOPES",
+      "LIGHTSPEED_K_CLIENT_ID",
+      "LIGHTSPEED_K_CLIENT_SECRET",
+      "LIGHTSPEED_K_API_BASE_URL",
+      "LIGHTSPEED_K_OAUTH_AUTHORIZATION_URL",
+      "LIGHTSPEED_K_OAUTH_TOKEN_URL",
+      "LIGHTSPEED_K_OAUTH_SCOPES",
+      "LIGHTSPEED_O_CLIENT_ID",
+      "LIGHTSPEED_O_CLIENT_SECRET",
+      "LIGHTSPEED_O_API_BASE_URL",
+      "LIGHTSPEED_O_OAUTH_AUTHORIZATION_URL",
+      "LIGHTSPEED_O_OAUTH_TOKEN_URL",
+      "LIGHTSPEED_O_OAUTH_SCOPES",
+      "XERO_CLIENT_ID",
+      "XERO_CLIENT_SECRET",
+      "XERO_API_BASE_URL",
+      "XERO_CONNECTIONS_API_URL",
+      "XERO_OAUTH_AUTHORIZATION_URL",
+      "XERO_OAUTH_TOKEN_URL",
+      "XERO_OAUTH_SCOPES",
+      "ZOHO_BOOKS_CLIENT_ID",
+      "ZOHO_BOOKS_CLIENT_SECRET",
+      "ZOHO_BOOKS_API_BASE_URL",
+      "ZOHO_BOOKS_OAUTH_AUTHORIZATION_URL",
+      "ZOHO_BOOKS_OAUTH_TOKEN_URL",
+      "ZOHO_BOOKS_OAUTH_SCOPES",
+      "CONNECTORS_SCHEDULER_SECRET",
+      "CONNECTORS_SCHEDULER_TIMEOUT_SECONDS",
+      "CURATED_METRIC_DEFAULTS_BACKEND",
+      "CURATED_METRIC_DEFAULTS_UI",
+      "CURATED_METRIC_DEFAULTS_NEW_DATASETS",
+      "CURATED_METRIC_DEFAULTS_EXISTING_PROMPT",
+      "CURATED_METRIC_DEFAULTS_DIAGNOSTICS",
+      "CURATED_METRIC_DEFAULTS_INTERNAL_USERS",
+      "CURATED_METRIC_DEFAULTS_ROLLOUT",
+      "MULTI_METRIC_CORRELATION_API",
+      "MULTI_METRIC_CORRELATION_UI",
+      "MULTI_METRIC_CORRELATION_INTERNAL_USERS",
+      "MULTI_METRIC_CORRELATION_ROLLOUT",
+      "CORRELATION_DASHBOARD_WIDGETS",
+      "CORRELATION_LAG_MATRIX",
+      "CORRELATION_AI_EXPLANATIONS",
+      "CORRELATION_WORKER_ENABLED",
+      "CORRELATION_MAX_LAG",
+      "CORRELATION_REPORTING_TIMEZONE",
+      "CORRELATION_JOB_TIMEOUT_SECONDS",
+      "CORRELATION_JOB_MEMORY_MB",
+      "MARKETING_ENABLED",
+      "MARKETING_SEND_ENABLED",
+      "MARKETING_TEST_MODE",
+      "MARKETING_WELCOME_ENABLED",
+      "MARKETING_INCOMPLETE_SETUP_ENABLED",
+      "MARKETING_TRIAL_ENDING_ENABLED",
+      "MARKETING_TEST_RECIPIENTS",
+      "MARKETING_ACTIVATION_CUTOFF",
+      "MARKETING_SCHEDULER_SECRET",
+      "MARKETING_UNSUBSCRIBE_SECRET",
+      "RESEND_WEBHOOK_SECRET",
+      "MARKETING_SEGMENT_IDS",
+      "MARKETING_INACTIVITY_DAYS",
+      "MARKETING_WELCOME_WINDOW_HOURS",
+      "MARKETING_SETUP_DELAY_HOURS",
+      "MARKETING_TRIAL_REMINDER_HOURS",
+      "MARKETING_TRIAL_MIN_NOTICE_HOURS",
+      "MARKETING_FREQUENCY_CAP_HOURS"
+    ],
+    "apps/web/.env.example": [
+      "NEXT_PUBLIC_API_URL",
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+      "CLERK_SECRET_KEY",
+      "NEXT_PUBLIC_ENABLE_API_BEARER_AUTH"
+    ]
+  },
+  "source_file_sha256": {
+    "apps/api/app/configuration.py": "5a8837199abdb1283790ee351413fd1271d7161ff3550810c2199918b8cc88be",
+    "apps/api/app/db/database.py": "67e68b034f6215d90d762e3e705b52597a398af17369bdb5ce12d9cde2df581d",
+    "apps/api/app/db/dependencies.py": "b80d2be2ad87942e17d47970de93ad941d5adec705858423c2d0e8bb214dc72c",
+    "apps/api/app/db/models.py": "0f0c176a62325556f75195a2f704d049457ae58b640c484a92d0a8a89375e307",
+    "apps/api/app/infrastructure/__init__.py": "abc8979deb3967c944f99b694abf5a66bd24cc5dd7224e86fd32f03335046a8e",
+    "apps/api/app/infrastructure/cache.py": "4aad3d4542fc7f0b541c6caa2cb2b44f69c1d7760b07f8abff66d97566ae226c",
+    "apps/api/app/infrastructure/email_branding.py": "e053019dc5a947981d7c38cdc7905a6ce5cc2a99fb913e33e12e807f57a9de2c",
+    "apps/api/app/infrastructure/ingestion_jobs.py": "34ca39534f9ea95f030b72033582214bf3b66404ae70fbe8ce6aa81a1329d43e",
+    "apps/api/app/infrastructure/ingestion_worker.py": "8697cfd15823cdb8159eb0059673f64f804a06a0ff7e0b882ee56785590ae792",
+    "apps/api/app/infrastructure/monitoring.py": "5630b8ac0e8d0cc3c3619c0fda9408c73a5342630ecb3aa8398e881fad94a2f5",
+    "apps/api/app/infrastructure/object_storage.py": "f9c669adaa4ffe2f93f978b810ce1e7d72c53a7280ee196d3c3a1645c6409116",
+    "apps/api/app/infrastructure/readiness.py": "146504ebaa341e8c345211af8b1094c8b99655e9e6b9ffc16fbb32864d5aa69f",
+    "apps/api/app/main.py": "2f3acbe108dc917ad6c55682a74d32782225040709c455f0e06f95576ba33ec6",
+    "apps/api/app/modules/ai/__init__.py": "e912f1bfd50d516c3e28a894c638cf0453c10b1764e00a9cc31f59c464cdd352",
+    "apps/api/app/modules/ai/credits.py": "8b282448dc7a5fbb515fd2e39f6ff0beaeec641ee14a8b4c71d2d6d3da1fa3b0",
+    "apps/api/app/modules/ai/learning.py": "8c0be4fb2b71df1823d024ae1d3bb9d0a297a0ea646e6429bb75b0b19a3d2dd6",
+    "apps/api/app/modules/ai/recommendation_ranking.py": "9a74c42aa39043ca06ba7b254b8d6b8fb9005fa0578310c3ad80c6263b08fdfe",
+    "apps/api/app/modules/ai/router.py": "59cb0eafc4da4d174943bc531f594cec855098b1c6ecee00d3c6db530bd915cb",
+    "apps/api/app/modules/ai/schemas.py": "fb4aa15dd9a41d7d2d78de6b466d69edb09bb509afdb13b15f1e8531a9defb1a",
+    "apps/api/app/modules/ai/service.py": "c7fe093f6aa26bd7c31272ec0ff32146fe1e2713ef0aad124fc8cf91054a2b35",
+    "apps/api/app/modules/alerts/__init__.py": "8ed18a416f3a268238469b28b50dcb65f7dcc8f45baec573b8db8cfb11b394f9",
+    "apps/api/app/modules/alerts/email_delivery.py": "cf0064ce9ead1241e6e38847bdb72dc9c8129ee07f6964f257606ca85323a69c",
+    "apps/api/app/modules/alerts/router.py": "c7504770285c0b978624390e194575984da9cc4cd7dd78a46768b0a91a176064",
+    "apps/api/app/modules/alerts/schemas.py": "9fc35cabe10d43d70f5e846471d5be0ce8d05c835df239e81b554175da704edb",
+    "apps/api/app/modules/auth_context.py": "4b9576a774cba0b3613876c0981c9da82bfed384ac7030aa94c4f3e32839d78e",
+    "apps/api/app/modules/billing/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/api/app/modules/billing/ai_credit_purchases.py": "78da9a045b0e4122b2cdd5250de12bf6200b19d8f42533eaa241c2484675b0a2",
+    "apps/api/app/modules/billing/data_retention.py": "2f867540e8de42df00ecbe57e187dd3c434da96eb095b0dc066ac5b8aecf8510",
+    "apps/api/app/modules/billing/lifecycle.py": "aca2b921dbe9d85a616e65aab543b5d1e7115a759a6cdf7fb8db437861567a4d",
+    "apps/api/app/modules/billing/notifications.py": "6d1c317f7c7bd11b040edcb5c55dbe20763738a8a0b174b270f9edff310a1663",
+    "apps/api/app/modules/billing/renewals.py": "57d41ac75c4cfc4fcd6083b055dd5bf13c270d9aeab67e32606494d2b2ca05ff",
+    "apps/api/app/modules/billing/router.py": "8d221fef447571563ab7d11335dd56eba86657e9cd62718fcfa21b18abad50fc",
+    "apps/api/app/modules/billing/schemas.py": "b8a7cffeb06a4bf10c9dcc92832a867e029b74cefe5565ba30be6b15f10ce371",
+    "apps/api/app/modules/billing/service.py": "e057fc86426ebddfc5d53110b51cd7ccda1cf0d76c9c1e470db466a9f03643a2",
+    "apps/api/app/modules/correlation/__init__.py": "387578171aa941231ac994d9248c8fdb0181e005840cbbef9d5ba8e0d08f1696",
+    "apps/api/app/modules/correlation/catalog.py": "3c2091098e2b3c49b8d5cf7ab4dc64a711b6b7872c9ba3e6395ab58dca899b03",
+    "apps/api/app/modules/correlation/cleanup.py": "4f53f37cb9f92329bee30c7cb3155cf16ce6f8329db81406aeaff3f807ed2238",
+    "apps/api/app/modules/correlation/engine.py": "2b8994052d70fba806011574c6941a7a8088744a52c4de6c603805cba2701ded",
+    "apps/api/app/modules/correlation/models.py": "a6ed5faa0f4555ec6e7417324abcc94c8460d79f296e096e041de64adcad84d4",
+    "apps/api/app/modules/correlation/router.py": "4df3b9fd5f3828a8359b6cf36ddd9680ede69ca047ff85908992f6d616942bd3",
+    "apps/api/app/modules/correlation/schemas.py": "53aecf3da97cc564ef4c3c1c58b7873e6889811c41e72829b54d87e055f457be",
+    "apps/api/app/modules/correlation/service.py": "2cbe5734cf4c3d204274ff29d6a110f37edebbcc647a63309b6413ea86c07243",
+    "apps/api/app/modules/correlation/worker.py": "42ff686cc69260a055ba08a4a07299537f7e2b9dc2ed0cf906720a4c58df24fe",
+    "apps/api/app/modules/datasets/repositories/dataset_repository.py": "6662b31a94acc9120e599169f0334716ea9b354605152da0266ea19079abe2e8",
+    "apps/api/app/modules/datasets/responses.py": "9a5b40d543b9ee408bc2d6c191708d2bf4725bc1f0aad3f567a47262c579d249",
+    "apps/api/app/modules/datasets/router.py": "769d10e6da0bf3c6eb5640193226d685024f5dd4719195bbb92f6ccb22ba7770",
+    "apps/api/app/modules/datasets/schemas.py": "a35a02df1d03749b2eb4b08630eb0c7cfc705eeb16a80095761160815913c240",
+    "apps/api/app/modules/datasets/services/analytics_adapters.py": "a82bf175126919fc05760230826f2e1dfe1b1700337c05a7d23ad73974eab833",
+    "apps/api/app/modules/datasets/services/analytics_engine.py": "077aea696d34f47b5d8d2e01e2d5abb01c9071e69b0db223b28ab40d48ab306e",
+    "apps/api/app/modules/datasets/services/analytics_storage.py": "8f72d371ad5e9e7b2c24580cac274c062e4bd0ce274303bcf07e37c738f72c6f",
+    "apps/api/app/modules/datasets/services/anomalies.py": "176520c7328074a5935aaaef0ac996af75a3a213156405cc6b6a3cc4a0d46365",
+    "apps/api/app/modules/datasets/services/auth.py": "be05863d67661b1c3b3939d9cf75cbef152b6ce08f757c3208769d4b3b6e0521",
+    "apps/api/app/modules/datasets/services/authorization_notifications.py": "f883b30a708dc372604d99d2c1c0a6b18344096bf2945ff5b56b270d2125cbe1",
+    "apps/api/app/modules/datasets/services/charts.py": "3116ddc600860037e89b2e36cd94f827e9e6ed4c3b4ec04818bd682cefe98dfa",
+    "apps/api/app/modules/datasets/services/connector_schema.py": "ada557ae9b6f439b8471e928ada9892897105c27f7a2dd9c71525f5ba9e1e804",
+    "apps/api/app/modules/datasets/services/connectors.py": "082f1cfefdf8a8e4692853670769a1baf81edceb062b3a042f50f4dd6ca220b7",
+    "apps/api/app/modules/datasets/services/curated_metric_analytics.py": "ce20c61f6b557f0435a45220b0de8e2f2a61dadcba374b73f9177d0d96d01d03",
+    "apps/api/app/modules/datasets/services/dataset_loader.py": "bbea27fcd477f9773d78f138253983d575fd2a2847921a32a8f5136bf662831d",
+    "apps/api/app/modules/datasets/services/deduplication.py": "10f1d1591ad9dbeef95ebbd82f60a37778c91afa73f5afb874396d5e2ba8446a",
+    "apps/api/app/modules/datasets/services/entity_resolution.py": "1c20e3e8b81aaf25c626057bf5d6f51a3bdc46293874854f7d8af4c8c6e0acbc",
+    "apps/api/app/modules/datasets/services/file_loader.py": "c83afca4f7fb818beaddd71cb7adb4f964ad6a58473ac9e7478ea6089e5bf3c3",
+    "apps/api/app/modules/datasets/services/google_analytics.py": "82ae282a392720e2d220ece404cfb2ade4f65c51e8fcf2843ec7274ca62f261a",
+    "apps/api/app/modules/datasets/services/insights.py": "de8c8e05d90f04946761c746ee456890a75e80514ae905bc94469253ae15bacc",
+    "apps/api/app/modules/datasets/services/join_cache.py": "67492a13de67f73be62e25ac4208e0b29e10427440269b72da22a6d5b2c76e0e",
+    "apps/api/app/modules/datasets/services/joins.py": "e865bc436f4672e61d38e2e0acc32c625d7e988da00fdeeab57bcce24ddef77f",
+    "apps/api/app/modules/datasets/services/metric_objectives.py": "78a114803b2ce3b9bba2fdaed2eff824b8b638151a18fb4d8e94b67695de955c",
+    "apps/api/app/modules/datasets/services/metric_policy.py": "bca71407fb06be04bead2c01f222b3ecbc1957ce9af1cdda6f74599291d20e36",
+    "apps/api/app/modules/datasets/services/metric_recommendations.py": "f00386bc10bb319d42b49937945f5af9ad2c06fc572d1620d3c35b9325f0efd4",
+    "apps/api/app/modules/datasets/services/metric_registry.py": "4ae9cf69f271b5fe0a0a632d8fe912eaf17e6021e51dd3617fcd2f6d3e3d2d35",
+    "apps/api/app/modules/datasets/services/metric_selection.py": "d5cf30a73fef34f14f62f2e9d51a71f71f10c59415fdee00404187c8b4f5211d",
+    "apps/api/app/modules/datasets/services/metrics.py": "05ff1893d82182a595d21823e32ac811c35ebc7b90ead03379a3b6da8e933237",
+    "apps/api/app/modules/datasets/services/multi_metric_analysis.py": "3b364b4ed8ae903ecb28167815b34daab51b407800f3ac71418e68aa4d589662",
+    "apps/api/app/modules/datasets/services/numeric.py": "b119cdb0aa2412105a0e4bc124a2cb33081083c3db6f4af689d03a89b9159a18",
+    "apps/api/app/modules/datasets/services/ownership.py": "cdf4ebe2d24da16e772b60b00f6c7d069e6e1156bb22b554efeb11c1488beba0",
+    "apps/api/app/modules/datasets/services/preview.py": "bff8d2120df2dccc8debcc04af7d3cb41ee17d95b78b54c20e27d3e6391eb0da",
+    "apps/api/app/modules/datasets/services/receipt_metrics.py": "566dba2e997794d55f50db1e5a908c4c165d68f0ba6f5b3df2f16a3bb3922641",
+    "apps/api/app/modules/datasets/services/relationships.py": "1d4e4ce6a6491e8ecb2dc8c2fccbb33a6d18aa38ee7dca3e88511a3731e2d594",
+    "apps/api/app/modules/datasets/services/retention.py": "8946aa60134ba9c44f62b3726828bbd8471311a94d0df11a58de5da6b1887ef4",
+    "apps/api/app/modules/datasets/services/salesforce_metrics.py": "b8a8c38d2ffe89a72fa4d67d3ac11ff71e8d1d5b754e1d7ca89402a4565cc159",
+    "apps/api/app/modules/datasets/services/scheduling.py": "40203ae9681e92a0d07e4a598a2d97be84e76c7e66ed73ea386f1d4c107fdf23",
+    "apps/api/app/modules/datasets/services/serialization.py": "16781002cdcd4ff3ede0af6bedfb9b5b1724e2ba6d4487e81c40fb1c979c0225",
+    "apps/api/app/modules/datasets/services/source_metadata.py": "52dbc8fc7ba8a2b535ddf06884125bf21381308bd61acff98d4b76e85d4725b5",
+    "apps/api/app/modules/datasets/services/sources.py": "a5e6877d18f8693ce41aab106690f8089d85eeb1dc6499cc3ae3440bf48d985b",
+    "apps/api/app/modules/datasets/services/summary_query.py": "5a972ef9df779b484b7167542dc37d9e31fd059dba4b886a38cc64861fe8de9b",
+    "apps/api/app/modules/decisions/activity_models.py": "3921594abe6c37e902a71e51f44dc049db6a34dc7b3a1af64661fd118099dab9",
+    "apps/api/app/modules/decisions/models.py": "dddac4c6bc5d569624b0dfd95b980bd49c36db83649afd6271d86e4b14b1319e",
+    "apps/api/app/modules/decisions/outcome_measurement.py": "ac7d06ca978af2e48dd9bb1a27186ef495a78f65f270ec33be89145e8a3148c1",
+    "apps/api/app/modules/decisions/router.py": "63e87b8deadbdd80471e7d24ed4123b259a3ebd30207ed0c4ec823cfda0e8875",
+    "apps/api/app/modules/decisions/schemas.py": "5419a79725e843a07fc011b91020776bfde5a9bf043f51261fd71f964c78bd00",
+    "apps/api/app/modules/decisions/templates.py": "80662ee0f8d461cd145c03793991fa6dbed72aa0c1b00399a6692ff1a7a2a666",
+    "apps/api/app/modules/demo_dashboard.py": "1fd5166218e4df63c82ad0a3ac54d535450d678117e556666eb659e28dfe67cb",
+    "apps/api/app/modules/forecasting/router.py": "7346d9f10268be9d4951232601a4e5eeba1f1bbe4480c4580ce828291379b693",
+    "apps/api/app/modules/forecasting/services.py": "625073a3a536809b419ab52348f4864d2a4ab0f94440b1e92e07dea4b9d4c3a3",
+    "apps/api/app/modules/identity/__init__.py": "9b37aa53bcd7f1e4ee47f1f0ea21462ef8d560053a209bed060e31c359f77f5a",
+    "apps/api/app/modules/identity/clerk.py": "d7a49d0c7be090bd5759d0a5a0c85bf248a30e3779d067bea74196e38900f874",
+    "apps/api/app/modules/identity/service.py": "8db70184b8757a218e5bfa34aadb35b10506b888dd8eda7f035aba2dc2ac7a09",
+    "apps/api/app/modules/maintenance.py": "7ba67cd86e80277774cd1a821c803b4c4eb458a14c6780fce910ef1401bfa38a",
+    "apps/api/app/modules/marketing/__init__.py": "7c420cb82c6d8c1eaf0824879cd267a42efd9bdcfbb7d74efec563703abd16f4",
+    "apps/api/app/modules/marketing/config.py": "089681ca86246fc90e636568a388affd4c4ef624be4374ef7278888df9a5b379",
+    "apps/api/app/modules/marketing/hooks.py": "a2c30890cd65e0160799a4b053c9ab5e4dd1a9be92aa2f6cd9b60b9f64ca9999",
+    "apps/api/app/modules/marketing/models.py": "f04dde016237eb39b32109985c1a659720ec279d948cd031b55bf363565c8563",
+    "apps/api/app/modules/marketing/provider.py": "e7968ce50cfbf1ec2d2756bb1f0ff91669913d48bab0773ab3f3e1df693c13f9",
+    "apps/api/app/modules/marketing/router.py": "a707f91c17b08448f6466fb708200cda8f0c8e9fbab602a5d5f0a2696a938974",
+    "apps/api/app/modules/marketing/service.py": "37744b3e40af8c93a0bbe27bd512af00ddd3182a21c5d13cc86d1f1752411b14",
+    "apps/api/app/modules/marketing/templates.py": "9f021c7e3e9e9c390a2157a01a4a182d1e475ef260c97e095bb7a970361b9cfc",
+    "apps/api/app/modules/marketing/worker.py": "8a3b6f4ba4e5ce22f28c38aea87d55927577d330221c155c3fb007aa272e0f07",
+    "apps/api/app/modules/oauth/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "apps/api/app/modules/oauth/router.py": "20ba2c22e3bfc5b9a657d616724fad9ed52ead9a1d1313848c3eea84c3ab642e",
+    "apps/api/app/modules/oauth/service.py": "a756254208ccbff31a924fb44f4c72025d236c16d4ea7762e5aca8990552ce2e",
+    "apps/api/app/modules/organizations/branding.py": "dabcb645cd80a94427e54bbeef19eb219de56773b3382b760e5448efdac13252",
+    "apps/api/app/modules/organizations/router.py": "f3a23713858126501573e28ebedde78db01474d477e42d346595470096943222",
+    "apps/api/app/modules/organizations/schemas.py": "25f199d61c08b8f2796c9c88830052ce2fca0310560424a2eccb4781a452c4c4",
+    "apps/api/app/modules/platform_admin.py": "6145f52bc042193c6aaed1a4c0475d435d9868e7935ed4e4b42f7d32a3f59535",
+    "apps/api/app/modules/public_dashboard.py": "5a55c2e14840aa427827ad6ef2d052da5345ee452c04f1ec27e5297b45abe98c",
+    "apps/api/app/modules/reports/__init__.py": "69e3d0c1856a0fd7da51b31be35d95dc4e12cdf73c0c914b57d4c724aabd6f43",
+    "apps/api/app/modules/reports/cleanup.py": "6216b7598bfd15e50abb3817e1ba159e60aab16511c3aeb4b35ca7137240f36c",
+    "apps/api/app/modules/reports/models.py": "1d8bd5c637873e0b5b452bbd9dca6b38dc1930f5fa5860087e1b2cba3d5ef15d",
+    "apps/api/app/modules/reports/router.py": "c87991b01ce7ff34ee8c3b32a2d64b8f290be240e9d640db4942794d014f6ed4",
+    "apps/api/app/modules/reports/schemas.py": "9c419de9eaa446ee8c6e82cd51049afa77bb023e920731df70cb06bd2e95a0c2",
+    "apps/api/app/modules/reports/service.py": "9bf0a9a3612954188806d513a8e16d71fe32715aebf299a7d2a111c3d7374965",
+    "apps/api/app/modules/support/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/api/app/modules/support/router.py": "c892bccd03eaf81613f416886198fbc401fbb38d48b6aa7a4a8b8b0beab6bddf",
+    "apps/api/app/modules/support/schemas.py": "1bbc081e18040b83649dd67aaaf539e6f518a08389e399e57cf957f451f2d790",
+    "apps/api/app/modules/usage_activity.py": "9bbc59858fd27e4759db5a157efa5d690bb86a482b9b71dd4a2fece586ea3f9e",
+    "apps/api/app/security/__init__.py": "b745b38ffb51edf8168fe7ca4073138ee91689823445556252a5ede6e5b1b1a3",
+    "apps/api/app/security/config.py": "585b59f52c99322b575f9c2d73749d6acdc4cb88122821a830cff9e13ce3994b",
+    "apps/api/app/security/rate_limits.py": "987a5a662a9040db76a3da49e8d264fbc488f0b4d38bce7b2e4c5a7c571e1dfa",
+    "apps/api/app/security/request_limits.py": "ec30d220781e499a269f7ea761c745868200f8c4a3b2a68e23fbdb48fdeba7f0",
+    "apps/api/app/security/secrets.py": "bc44802531ed76fd881f5fb4b41636d1f26d2316200a7542b818a3f63203241e"
+  },
+  "scope_notes": [
+    "SQLAlchemy declarations are not a database introspection or migration audit.",
+    "Only statically declared HTTP decorator routes are inventoried; framework-generated documentation/OpenAPI endpoints and externally deployed routes are not listed.",
+    "Mounted paths resolve source declarations, not effective reverse-proxy routing or live route availability.",
+    "Environment names come only from the named example files, not all environment reads in application code or live deployment configuration.",
+    "Source hashes identify the local inspected files; snapshot commit does not certify that every working-tree file is committed."
+  ]
+}
