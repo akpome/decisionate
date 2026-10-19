@@ -242,6 +242,26 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=definition()).status_code, 200)
         self.assertEqual(self.client.get("/api/v2/business-reports/catalog?dataset_id=3").json()["datasets"], [])
 
+    def test_catalog_explains_empty_metrics_without_changing_saved_selection(self):
+        with self.Session() as db:
+            dataset = db.get(Dataset, 1)
+            dataset.source_config = "{}"
+            db.commit()
+        response = self.client.get("/api/v2/business-reports/catalog?dataset_id=1")
+        self.assertEqual(response.status_code, 200)
+        entry = response.json()["datasets"][0]
+        self.assertEqual(entry["metrics"], [])
+        self.assertEqual(entry["metric_issues"], [{"code": "selection_not_saved"}])
+        with self.Session() as db:
+            self.assertEqual(db.get(Dataset, 1).source_config, "{}")
+
+    def test_catalog_keeps_unavailable_datasets_distinct_from_empty_metric_selection(self):
+        with patch.object(router, "load_dataframe_from_dataset", side_effect=OSError("Private storage detail")):
+            response = self.client.get("/api/v2/business-reports/catalog?dataset_id=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["datasets"][0]["error_code"], "dataset_unavailable")
+        self.assertNotIn("Private storage detail", response.text)
+
     def test_cross_dataset_validation_and_scope_are_enforced(self):
         payload = definition(); payload["metrics"][1]["dataset_id"] = 3
         self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=payload).status_code, 403)

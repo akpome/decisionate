@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Search } from "lucide-react"
+import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { correlationRequest, getMyOrganization, getOrganizationWorkspaces } from "@/lib/api"
 import { defaultWorkspaceBrand, getWorkspaceBrand, type WorkspaceBrand } from "@/lib/workspace-brand"
 import { WorkspaceBrandMark } from "@/app/dashboard/workspace-brand-mark"
 import { useDecisionateText } from "@/app/use-decisionate-language"
-import { metricIdentity, type CatalogDataset } from "@/features/relationships/types"
+import type { CatalogDataset } from "@/features/relationships/types"
 import { AnalysisNavigation } from "./analysis-navigation"
+import { ReportMetricPicker, reportDateColumn } from "./report-metric-picker"
 import { editableDefinition, formatReportValue, type BusinessReport, type ReportDefinition, type ReportFinding } from "./types"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
@@ -42,7 +43,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
   const [definition, setDefinition] = useState<ReportDefinition>(() => editableDefinition({}))
   const [report, setReport] = useState<BusinessReport | null>(null)
   const [view, setView] = useState<"explore" | "report">("explore")
-  const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -117,7 +117,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
   function toggleMetric(dataset: CatalogDataset, key: string) {
     const metric = dataset.metrics.find(item => item.metric_key === key)!
     const existing = definition.metrics.find(item => item.dataset_id === dataset.dataset_id && item.metric_key === key)
-    const dateColumn = dateColumns[dataset.dataset_id] || definition.metrics.find(item => item.dataset_id === dataset.dataset_id)?.date_column || dataset.date_columns[0]
+    const dateColumn = reportDateColumn(dataset, definition.metrics, dateColumns)
     const metrics = existing ? definition.metrics.filter(item => item !== existing) : [...definition.metrics, {
       dataset_id: dataset.dataset_id, metric_key: key, date_column: dateColumn, aggregation: metric.aggregation,
     }]
@@ -199,20 +199,13 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave }: {
             <label className="block text-xs font-medium text-gray-700">Business question<input className={input} required minLength={8} maxLength={1000} value={definition.business_question} onChange={event => edit({ business_question: event.target.value })} /></label>
           </div>
           <div className="grid min-w-0 gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <section aria-label="Datasets and metrics" className="min-w-0">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-semibold">Datasets and metrics</h2><label className="relative block w-full max-w-xs"><Search size={15} className="absolute left-3 top-3 text-gray-400" /><input aria-label="Search datasets and metrics" className={`${input} mt-0 pl-9`} type="search" value={search} onChange={event => setSearch(event.target.value)} /></label></div>
-              <div className="max-h-[420px] space-y-1 overflow-y-auto pr-1">
-                {datasets.filter(dataset => `${dataset.dataset_label} ${dataset.metrics.map(item => item.label).join(" ")}`.toLowerCase().includes(search.toLowerCase())).map(dataset => <fieldset key={dataset.dataset_id} className="min-w-0 border-b border-gray-100 py-3">
-                  <legend className="max-w-full break-words text-sm font-semibold">{dataset.dataset_label} <span className="font-normal text-gray-500">/ {dataset.connector}</span></legend>
-                  {dataset.date_columns.length > 0 && <label className="mt-2 block max-w-sm text-xs text-gray-500">Date column<select className={input} value={dateColumns[dataset.dataset_id] || definition.metrics.find(item => item.dataset_id === dataset.dataset_id)?.date_column || dataset.date_columns[0]} onChange={event => { setDateColumns(current => ({ ...current, [dataset.dataset_id]: event.target.value })); edit({ metrics: definition.metrics.map(item => item.dataset_id === dataset.dataset_id ? { ...item, date_column: event.target.value } : item) }) }}>{dataset.date_columns.map(column => <option key={column}>{column}</option>)}</select></label>}
-                  {dataset.error_code && <p className="py-2 text-sm text-amber-800">Dataset unavailable</p>}
-                  {!dataset.error_code && dataset.metrics.length === 0 && <Link href={`/dashboard/datasets/${dataset.dataset_id}`} className="inline-block py-2 text-sm text-blue-700 underline">Review dataset metric selection</Link>}
-                  <div className="mt-2 grid min-w-0 gap-x-4 gap-y-2 sm:grid-cols-2">{dataset.metrics.map(metric => <label key={metric.metric_key} className="flex min-w-0 items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0" disabled={!dataset.date_columns.length || definition.metrics.length >= 25 && !definition.metrics.some(item => metricIdentity(item) === metricIdentity(metric))} checked={definition.metrics.some(item => metricIdentity(item) === metricIdentity(metric))} onChange={() => toggleMetric(dataset, metric.metric_key)} /><span className="min-w-0 break-words">{metric.label}<span className="block text-xs text-gray-500">{metric.currency || metric.unit} / {metric.aggregation}</span></span></label>)}</div>
-                </fieldset>)}
-              </div>
+            <div className="min-w-0">
+              <ReportMetricPicker datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
+                setDateColumns(current => ({ ...current, [dataset.dataset_id]: column }))
+                edit({ metrics: definition.metrics.map(item => item.dataset_id === dataset.dataset_id ? { ...item, date_column: column } : item) })
+              }} />
               {nextOffset !== null && <button type="button" className={`${button} mt-3`} onClick={() => void execute(async () => { const result = await request<{ datasets: CatalogDataset[]; next_offset: number | null }>(`/catalog?offset=${nextOffset}`); setDatasets(current => mergeCatalog(current, result.datasets)); setNextOffset(result.next_offset) })}>Load more datasets</button>}
-              {datasets.length === 0 && <Link href="/dashboard/datasets" className="text-sm text-blue-700 underline">Open datasets</Link>}
-            </section>
+            </div>
             <section className="min-w-0 space-y-4" aria-label="Analysis settings">
               <h2 className="text-base font-semibold">Analysis settings</h2>
               <div className="grid grid-cols-2 gap-3"><label className="block text-xs text-gray-600">Start<input className={input} type="date" required max={definition.date_range.end || undefined} value={definition.date_range.start} onChange={event => edit({ date_range: { ...definition.date_range, start: event.target.value } })} /></label><label className="block text-xs text-gray-600">End<input className={input} type="date" required min={definition.date_range.start || undefined} value={definition.date_range.end} onChange={event => edit({ date_range: { ...definition.date_range, end: event.target.value } })} /></label></div>

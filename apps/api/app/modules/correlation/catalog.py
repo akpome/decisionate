@@ -25,15 +25,27 @@ def reporting_timezone():
 def metric_catalog(dataset, frame):
     profile = build_metric_selection_profile(dataset, frame)
     dates = [field["column"] for field in profile["fields"] if field["role"] == "time" and field["column"] in frame]
-    selected = set(get_dataset_selected_metric_columns(dataset) or [])
+    saved_selection = get_dataset_selected_metric_columns(dataset)
+    selected = set(saved_selection or [])
+    issues = []
+    if saved_selection is None:
+        issues.append({"code": "selection_not_saved"})
+    elif not selected:
+        issues.append({"code": "no_metrics_selected"})
     policy = frame_policy(frame)
     if dataset.source_type in IMPLEMENTED_CONNECTOR_TYPES and not policy:
         # Legacy line-expanded connector selections are not proof of safe grain.
+        issues.append({"code": "transaction_policy_required"})
         selected = set()
+    for key in sorted(selected - set(frame.columns)):
+        issues.append({"metric_key": key, "code": "column_unavailable"})
     metrics = []
     for field in profile["fields"]:
         key = field["column"]
-        if key not in frame or key not in selected or is_identifier_column(key):
+        if key not in frame or key not in selected:
+            continue
+        if is_identifier_column(key):
+            issues.append({"metric_key": key, "code": "identifier_field"})
             continue
         descriptor = policy["descriptors"].get(key) if policy else None
         registry = field.get("registry")
@@ -47,16 +59,20 @@ def metric_catalog(dataset, frame):
             aggregation = registry["aggregation"]
             unit, currency, components = registry.get("unit", "number"), None, []
             if unit in {"ratio", "percentage", "percent", "rate"} or is_summary_dataframe(frame):
+                issues.append({"metric_key": key, "code": "formula_required" if unit in {"ratio", "percentage", "percent", "rate"} else "summary_policy_required"})
                 continue
         else:
+            issues.append({"metric_key": key, "code": "formula_required" if registry and registry.get("derived") else "aggregation_unconfirmed"})
             continue
         if unit == "currency" and not policy and "currency" in frame:
             currencies = frame.loc[frame[key].notna(), "currency"].astype("string").str.strip().str.upper()
             if currencies.isna().any() or currencies.nunique() != 1 or not currencies.str.fullmatch(r"[A-Z]{3}").all():
+                issues.append({"metric_key": key, "code": "currency_unresolved"})
                 continue
             currency = currencies.iloc[0]
         values = pd.to_numeric(frame[key], errors="coerce").replace([float("inf"), -float("inf")], float("nan"))
         if values.notna().sum() < 2:
+            issues.append({"metric_key": key, "code": "insufficient_values"})
             continue
         metrics.append({
             "dataset_id": dataset.id, "metric_key": key, "label": key.replace("_", " "),
@@ -70,8 +86,13 @@ def metric_catalog(dataset, frame):
         parsed = _parse_dates(frame[column], reference_year=_infer_explicit_year(frame[column])).dropna()
         if not parsed.empty:
             availability[column] = {"start": str(parsed.min().date()), "end": str(parsed.max().date())}
+    if not dates:
+        issues.append({"code": "date_field_missing"})
+    elif not availability:
+        issues.append({"code": "date_values_unavailable"})
     return {"dataset_id": dataset.id, "dataset_label": dataset.file_name, "connector": dataset.source_type,
             "date_columns": dates, "availability": availability, "metrics": metrics,
+            "metric_issues": issues,
             "freshness": config_for(dataset).get("end_date"), "timezone": reporting_timezone()}
 
 
