@@ -125,6 +125,20 @@ test("a deliberately changed action gets a new submission key", async () => {
   assert.notEqual(form.calls[0][3], form.calls[1][3])
 })
 
+test("fresh random default names get separate requests while a retry retains the same name and key", async () => {
+  const first = submission(() => { throw new Error("Response lost after saving") })
+  first.bindings.createDecisionTitle = `Decision (${randomUUID()})`
+  await first.submit()
+  await first.submit()
+  assert.equal(first.calls[0][0].title, first.calls[1][0].title)
+  assert.equal(first.calls[0][3], first.calls[1][3])
+  const next = submission()
+  next.bindings.createDecisionTitle = `Decision (${randomUUID()})`
+  await next.submit()
+  assert.notEqual(first.calls[0][0].title, next.calls[0][0].title)
+  assert.notEqual(first.calls[0][3], next.calls[0][3])
+})
+
 test("report evidence is a draft payload, not a second decision creation", async () => {
   const form = submission()
   form.bindings.reportEvidence = { reportId: "report-1", report: { status: "ready" }, loadingReport: false }

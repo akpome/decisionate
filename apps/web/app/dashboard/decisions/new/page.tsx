@@ -55,6 +55,7 @@ import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-p
 import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 import { DecisionReportEvidence, useDecisionReportEvidence } from "@/features/decisions/components/decision-report-evidence"
 import { decisionCreationKey } from "@/features/decisions/lib/creation-request"
+import { decisionDraftId, defaultDecisionTitle } from "@/features/decisions/lib/default-decision-title"
 
 type DecisionDatasetOption = Pick<
     DatasetSummary,
@@ -222,6 +223,8 @@ function NewDecisionContent() {
         useState(false)
     const submissionInFlight = useRef(false)
     const submissionRequest = useRef<{ signature: string; key: string } | null>(null)
+    const draftIdentity = useRef<string | null>(null)
+    const generatedTitle = useRef<string | null>(null)
     const [loadingDatasets, setLoadingDatasets] =
         useState(false)
     const [datasetLoadRetryKey, setDatasetLoadRetryKey] =
@@ -278,14 +281,23 @@ function NewDecisionContent() {
         !creatingDecision &&
         canCreateDecisions
 
+    const applyDefaultDecisionTitle = useCallback((prefix = "Decision", replace = false) => {
+        if (!draftIdentity.current) draftIdentity.current = decisionDraftId()
+        const previous = generatedTitle.current
+        const next = defaultDecisionTitle(draftIdentity.current, prefix)
+        generatedTitle.current = next
+        setCreateDecisionTitle(current => replace || !current || current === previous ? next : current)
+    }, [])
+
     const applyDecisionTemplate = useCallback(
         (
             template: DecisionTemplate | undefined,
-            metric = initialMetric
+            metric = initialMetric,
+            replaceTitle = false
         ) => {
         if (!template) {
             setSelectedTemplateSlug("")
-            setCreateDecisionTitle("")
+            applyDefaultDecisionTitle("Decision", replaceTitle)
             setCreateDecisionAction("")
             setCreateDecisionDescription("")
             setCreateDecisionExpectedOutcome("")
@@ -297,11 +309,12 @@ function NewDecisionContent() {
         }
 
         setSelectedTemplateSlug(template.slug)
-        setCreateDecisionTitle(
+        applyDefaultDecisionTitle(
             applyDecisionTemplateTokens(
                 template.title_template,
                 metric
-            )
+            ),
+            replaceTitle
         )
         setCreateDecisionAction(
             applyDecisionTemplateTokens(
@@ -332,7 +345,7 @@ function NewDecisionContent() {
             )
         )
         },
-        [initialMetric]
+        [initialMetric, applyDefaultDecisionTitle]
     )
 
     useEffect(() => {
@@ -360,6 +373,7 @@ function NewDecisionContent() {
 
         async function loadDecisionDatasets() {
             try {
+                if (!draftIdentity.current) applyDefaultDecisionTitle()
                 setLoadingDatasets(true)
                 setCreateDecisionError("")
                 setDecisionDatasets([])
@@ -474,6 +488,7 @@ function NewDecisionContent() {
         initialMetric,
         initialTemplateSlug,
         applyDecisionTemplate,
+        applyDefaultDecisionTitle,
         loadingWorkspaceAccess,
         user?.id,
         user?.primaryEmailAddress?.emailAddress,
@@ -649,7 +664,8 @@ function NewDecisionContent() {
             )
         applyDecisionTemplate(
             template,
-            selectedMetric || initialMetric
+            selectedMetric || initialMetric,
+            true
         )
         setCreateDecisionError("")
     }

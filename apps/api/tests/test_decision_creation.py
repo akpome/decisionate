@@ -2,6 +2,7 @@ import ast
 from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
+from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -89,6 +90,28 @@ class DecisionCreationTests(unittest.TestCase):
         self.assertNotEqual(first.json()["id"], second.json()["id"])
         with self.Session() as db:
             self.assertEqual(db.query(Decision).count(), 2)
+
+    def test_unique_default_titles_keep_new_decisions_distinct_without_disabling_retries(self):
+        titles = [f"Decision ({uuid4()})" for _ in range(2)]
+        records = []
+        for index, title in enumerate(titles):
+            body = payload(title=title)
+            first = self.create(key=f"draft-{index}", body=body)
+            retry = self.create(key=f"draft-{index}", body=body)
+            self.assertEqual(first.status_code, 200, first.text)
+            self.assertEqual(retry.json()["id"], first.json()["id"])
+            self.assertEqual(first.json()["title"], title)
+            records.append(first.json()["id"])
+        self.assertNotEqual(*records)
+        from app.modules.decisions.duplicates import reconcile_duplicate_decisions
+        from app.modules.decisions.models import DecisionDuplicate
+        with self.engine.begin() as connection:
+            reconcile_duplicate_decisions(connection)
+        with self.Session() as db:
+            self.assertEqual(db.query(Decision).count(), 2)
+            self.assertEqual(db.query(DecisionActivity).count(), 2)
+            self.assertEqual(db.query(DecisionDuplicate).count(), 0)
+            self.assertEqual([db.get(Decision, identity).title for identity in records], titles)
 
     def test_older_clients_without_a_request_key_do_not_create_duplicate_actions(self):
         first = self.create(key=None)
