@@ -63,6 +63,7 @@ from app.modules.datasets.services.relationships import (
 from app.modules.decisions.models import Decision
 from app.modules.reports.models import BusinessReport
 from app.modules.reports.service import build_report, complete_week, decisions_for_report, scoped_frame
+from app.modules.reports.catalog import prepare_report_source
 from app.modules.correlation.catalog import metric_catalog, reporting_timezone
 from app.modules.decisions.templates import build_decision_template_url
 
@@ -664,8 +665,9 @@ def build_weekly_report_digest(
             dataframe = load_dataframe_from_dataset(
                 dataset
             )
-            catalog = metric_catalog(dataset, dataframe)
-            report_frames[int(dataset.id)] = (dataset, dataframe)
+            report_dataset, dataframe = prepare_report_source(dataset, dataframe)
+            catalog = metric_catalog(report_dataset, dataframe)
+            report_frames[int(dataset.id)] = (report_dataset, dataframe)
             dataset_metrics = [{"column": metric["metric_key"], "unit": metric["unit"], "currency": metric.get("currency")} for metric in catalog["metrics"]]
         except Exception:
             unavailable_datasets.append(
@@ -852,6 +854,7 @@ def build_weekly_report_digest(
 
 
 def build_weekly_cross_dataset_report(frames, preference, template=None, unavailable=None, relationships=None):
+    frames = {identity: prepare_report_source(*pair) for identity, pair in frames.items()}
     references, warnings = [], [f"Dataset unavailable: {name}." for name in (unavailable or [])]
     if template:
         references = template["metrics"]

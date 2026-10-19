@@ -35,6 +35,7 @@ test("search has a visible label and placeholder and metrics appear before date 
   assert.match(html, /htmlFor="report-metric-search"|for="report-metric-search"/)
   assert.match(html, />Search datasets and metrics</)
   assert.match(html, /placeholder="Dataset or metric name"/)
+  assert.doesNotMatch(html.match(/<label[^>]*for="report-metric-search"[^>]*>.*?<\/label>/)?.[0] || "", /<input|<button/)
   assert.equal((html.match(/type="checkbox"/g) || []).length, 2)
   assert.doesNotMatch(html, /<select|Date field|Selected metrics/)
 })
@@ -57,7 +58,7 @@ test("multiple valid date fields remain configurable after selection", () => {
 })
 
 test("empty selection, unsaved selection and calculation issues are not conflated", () => {
-  for (const [code, message] of [["selection_not_saved", "Metric selection not saved."], ["no_metrics_selected", "No metrics selected for this dataset."], ["transaction_policy_required", "Transaction totals are not configured for analysis."]]) {
+  for (const [code, message] of [["selection_not_saved", "Metric selection not saved."], ["no_eligible_defaults", "No supported metric defaults match this dataset."], ["no_metrics_selected", "No metrics selected for this dataset."], ["transaction_policy_required", "Transaction totals are not configured for analysis."]]) {
     const html = render({ datasets: [dataset({ metrics: [], metric_issues: [{ code }] })] })
     assert.ok(html.includes(message))
     assert.match(html, /No report-ready metrics/)

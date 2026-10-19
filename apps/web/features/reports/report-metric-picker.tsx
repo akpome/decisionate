@@ -8,6 +8,7 @@ import { metricIdentity, type CatalogDataset, type CatalogMetricIssue, type Metr
 
 const issueLabels: Record<string, string> = {
   selection_not_saved: "Metric selection not saved.",
+  no_eligible_defaults: "No supported metric defaults match this dataset.",
   no_metrics_selected: "No metrics selected for this dataset.",
   transaction_policy_required: "Transaction totals are not configured for analysis.",
   column_unavailable: "Saved column no longer available.",
@@ -54,14 +55,14 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   return <section aria-label={t("Datasets and metrics")} className="min-w-0">
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
       <h2 className="text-base font-semibold">{t("Datasets and metrics")}</h2>
-      <label className="block w-full max-w-sm text-xs font-medium text-gray-600" htmlFor="report-metric-search">
-        {t("Search datasets and metrics")}
-        <span className="relative mt-1 flex items-center">
+      <div className="w-full max-w-sm">
+        <label className="block text-xs font-medium text-gray-600" htmlFor="report-metric-search">{t("Search datasets and metrics")}</label>
+        <div className="relative mt-1 flex items-center">
           <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 text-gray-400" />
           <input id="report-metric-search" className="min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white py-2 pl-9 pr-11 text-sm text-gray-950 [&::-webkit-search-cancel-button]:appearance-none" type="search" placeholder={t("Dataset or metric name")} value={search} onChange={event => setSearch(event.target.value)} />
           {search && <button type="button" className="absolute right-0 inline-flex h-10 w-10 items-center justify-center text-gray-500 hover:text-gray-950" aria-label={t("Clear search")} title={t("Clear search")} onClick={() => setSearch("")}><X size={16} aria-hidden="true" /></button>}
-        </span>
-      </label>
+        </div>
+      </div>
     </div>
     <div className="max-h-[480px] space-y-1 overflow-y-auto pr-1">
       {visible.map(dataset => {

@@ -12,6 +12,7 @@ from app.modules.correlation.engine import adjust_bh, compute_pair, metric_id
 from app.modules.datasets.services.curated_metric_analytics import aggregate_metric, frame_policy
 from app.modules.datasets.services.joins import _bucket_dates, _infer_explicit_year, _parse_dates
 from app.modules.datasets.services.numeric import coerce_numeric_series
+from .catalog import prepare_report_source
 
 
 def finite(value):
@@ -104,6 +105,7 @@ def prepare_report_series(frames, references, definition):
 
 def build_report(frames, definition, *, unavailable=None):
     """Frames must already be authorized; source data and selections are never changed."""
+    frames = {identity: prepare_report_source(dataset, frame) for identity, (dataset, frame) in frames.items()}
     window, grain, references = definition["date_range"], definition["grain"], definition["metrics"]
     zone = definition.get("reporting_timezone") or reporting_timezone()
     previous = previous_window(window)

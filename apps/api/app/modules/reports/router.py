@@ -6,13 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.db.database import SessionLocal
 from app.db.models import Dataset, WeeklyReportPreference
-from app.modules.correlation.catalog import metric_catalog, reporting_timezone
+from app.modules.correlation.catalog import reporting_timezone
 from app.modules.correlation.engine import metric_id
 from app.modules.correlation.service import allowed_run, authorize_datasets, dataset_scope, encode
 from app.modules.auth_context import is_client_workspace_role
 from app.modules.datasets.services.auth import get_user_id, get_workspace_id, get_workspace_role, require_workspace_data_manager
 from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
 from .models import BusinessReport
+from .catalog import report_metric_catalog
 from .schemas import ReportDecision, ReportDefinition
 from .service import build_report, decisions_for_report
 
@@ -85,7 +86,7 @@ def catalog(request: Request, db=Depends(database), offset: int = Query(0, ge=0)
     result = []
     for dataset in datasets:
         try:
-            result.append(metric_catalog(dataset, load_dataframe_from_dataset(dataset)))
+            result.append(report_metric_catalog(dataset, load_dataframe_from_dataset(dataset)))
         except Exception:
             logger.warning("Report catalogue dataset %s unavailable", dataset.id, exc_info=True)
             result.append({"dataset_id": dataset.id, "dataset_label": dataset.file_name, "connector": dataset.source_type,

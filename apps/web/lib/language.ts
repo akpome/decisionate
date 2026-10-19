@@ -805,6 +805,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "Unavailable metrics": "Indicateurs indisponibles",
   "Dataset temporarily unavailable.": "Jeu de données temporairement indisponible.",
   "Metric selection not saved.": "La sélection des indicateurs n'est pas enregistrée.",
+  "No supported metric defaults match this dataset.": "Aucun indicateur par défaut pris en charge ne correspond à ce jeu de données.",
   "No metrics selected for this dataset.": "Aucun indicateur sélectionné pour ce jeu de données.",
   "Transaction totals are not configured for analysis.": "Les totaux des transactions ne sont pas configurés pour l'analyse.",
   "Saved column no longer available.": "La colonne enregistrée n'est plus disponible.",

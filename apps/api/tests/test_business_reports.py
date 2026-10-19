@@ -242,7 +242,7 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=definition()).status_code, 200)
         self.assertEqual(self.client.get("/api/v2/business-reports/catalog?dataset_id=3").json()["datasets"], [])
 
-    def test_catalog_explains_empty_metrics_without_changing_saved_selection(self):
+    def test_catalog_exposes_defaults_without_changing_saved_selection(self):
         with self.Session() as db:
             dataset = db.get(Dataset, 1)
             dataset.source_config = "{}"
@@ -250,10 +250,44 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         response = self.client.get("/api/v2/business-reports/catalog?dataset_id=1")
         self.assertEqual(response.status_code, 200)
         entry = response.json()["datasets"][0]
-        self.assertEqual(entry["metrics"], [])
-        self.assertEqual(entry["metric_issues"], [{"code": "selection_not_saved"}])
+        self.assertEqual([metric["metric_key"] for metric in entry["metrics"]], ["spend"])
+        self.assertEqual(entry["metric_issues"], [])
         with self.Session() as db:
             self.assertEqual(db.get(Dataset, 1).source_config, "{}")
+
+    def test_unsaved_csv_defaults_work_through_preview_snapshot_and_weekly_template(self):
+        with self.Session() as db:
+            for identity in (1, 2):
+                db.get(Dataset, identity).source_config = "{}"
+            db.commit()
+        response = self.client.post("/api/v2/business-reports/preview", json=definition())
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "ready")
+        saved = self.save()
+        response = self.client.post(f"/api/v2/business-reports/{saved['report_id']}/weekly")
+        self.assertEqual(response.status_code, 200, response.text)
+        with self.Session() as db:
+            for identity in (1, 2):
+                self.assertEqual(db.get(Dataset, identity).source_config, "{}")
+
+    def test_legacy_connector_defaults_are_selectable_and_previewable_from_the_same_catalog(self):
+        frame = pd.DataFrame({"date": pd.date_range("2026-01-01", periods=90), "quantity": [2.] * 90,
+                              "unit_price": [10.] * 90, "line_total": [20.] * 90, "currency": ["CAD"] * 90})
+        self.frames[1] = self.frames[1][0], frame
+        with self.Session() as db:
+            dataset = db.get(Dataset, 1)
+            dataset.source_type = "xero"
+            dataset.source_config = '{"resource":"invoices"}'
+            db.commit()
+        response = self.client.get("/api/v2/business-reports/catalog?dataset_id=1")
+        self.assertEqual(response.status_code, 200, response.text)
+        metric = next(item for item in response.json()["datasets"][0]["metrics"] if item["metric_key"] == "line_total")
+        payload = definition(); payload["metrics"][0].update(metric_key=metric["metric_key"], aggregation=metric["aggregation"])
+        response = self.client.post("/api/v2/business-reports/preview", json=payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["metrics"][0]["value"], 140.)
+        with self.Session() as db:
+            self.assertEqual(db.get(Dataset, 1).source_config, '{"resource":"invoices"}')
 
     def test_catalog_keeps_unavailable_datasets_distinct_from_empty_metric_selection(self):
         with patch.object(router, "load_dataframe_from_dataset", side_effect=OSError("Private storage detail")):
