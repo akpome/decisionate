@@ -35,7 +35,7 @@ export function formatReportValue(value: number | null, currency?: string | null
 }
 
 export function editableDefinition(value: Partial<ReportDefinition>): ReportDefinition {
-  return { name: value.name || "Cross-dataset business review", business_question: value.business_question || "",
+  return { name: value.name ?? "", business_question: value.business_question || "",
     metrics: value.metrics || [], method: value.method || "spearman", grain: value.grain || "daily",
     date_range: value.date_range || { start: "", end: "" }, advanced: false,
     filters: { minimum_abs_coefficient: value.filters?.minimum_abs_coefficient ?? .3, minimum_observations: Math.max(30, value.filters?.minimum_observations ?? 30) },

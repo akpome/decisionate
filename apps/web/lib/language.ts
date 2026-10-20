@@ -759,6 +759,8 @@ const frenchLandingTranslations: Record<string, string> = {
   "Dataset list could not be loaded. Your selections are unchanged.": "La liste des jeux de données n'a pas pu être chargée. Vos sélections sont inchangées.",
   "Saved reports could not be loaded.": "Les rapports enregistrés n'ont pas pu être chargés.",
   "Delete saved report": "Supprimer le rapport enregistré",
+  "Edit this report name to suit your analysis.": "Modifiez le nom de ce rapport pour l'adapter à votre analyse.",
+  "Edit this decision name to suit your analysis.": "Modifiez le nom de cette décision pour l'adapter à votre analyse.",
   "Linked decisions and datasets will be kept. If this is the weekly template, weekly delivery will be paused.": "Les décisions liées et les jeux de données seront conservés. Si ce rapport est le modèle hebdomadaire, l'envoi sera suspendu.",
   "Remove the weekly report template and pause weekly delivery? The saved report and linked decisions will be kept.": "Supprimer le modèle hebdomadaire et suspendre l'envoi ? Le rapport enregistré et les décisions liées seront conservés.",
   "Weekly report template could not be loaded.": "Le modèle de rapport hebdomadaire n'a pas pu être chargé.",

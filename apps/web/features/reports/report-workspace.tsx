@@ -15,6 +15,7 @@ import { ReportMetricPicker, reportDateColumn } from "./report-metric-picker"
 import { loadReportCatalogPage } from "./report-catalog-loading"
 import { editableDefinition, formatReportValue, type BusinessReport, type ReportDefinition } from "./types"
 import { ReportDecisions, ReportRelationshipFindings } from "./report-evidence-sections"
+import { defaultReportName, isDefaultReportName, reportDraftName } from "./default-report-name"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
@@ -43,6 +44,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const { t } = useDecisionateText()
   const router = useRouter()
   const openingDraft = useRef(false)
+  const draftName = useRef("")
   const managementAction = useRef(false)
   const deletedReports = useRef(new Set<string>())
   const routeController = useRef<AbortController | null>(null)
@@ -112,6 +114,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     async function load() {
       try {
         const params = new URLSearchParams(window.location.search)
+        if (!params.get("report") && !params.get("weekly")) {
+          if (!draftName.current) draftName.current = reportDraftName()
+          setDefinition(current => ({ ...current, name: current.name || draftName.current }))
+        }
         if (params.get("report")) {
           const result = await correlationRequest<BusinessReport>(userId, `/business-reports/${encodeURIComponent(params.get("report")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
@@ -125,7 +131,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         } else if (params.get("run")) {
           const result = await correlationRequest<ReportDefinition>(userId, `/business-reports/from-run/${encodeURIComponent(params.get("run")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
-          setDefinition(editableDefinition(result))
+          setDefinition(editableDefinition({ ...result, name: draftName.current }))
           void addSelectedDatasets(result)
         } else if (params.get("dataset")) {
           const identity = Number(params.get("dataset"))
@@ -137,7 +143,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             const metric = dataset?.metrics.find(item => item.metric_key === params.get("metric")) || dataset?.metrics[0]
             const dateColumn = dataset?.date_columns[0]
             if (metric && dateColumn) {
-              setDefinition(editableDefinition({ metrics: [{ dataset_id: identity, metric_key: metric.metric_key, date_column: dateColumn, aggregation: metric.aggregation }], date_range: dataset.availability[dateColumn] }))
+              setDefinition(current => editableDefinition({ ...current, metrics: [{ dataset_id: identity, metric_key: metric.metric_key, date_column: dateColumn, aggregation: metric.aggregation }], date_range: dataset.availability[dateColumn] }))
             }
           }
         }
@@ -161,7 +167,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
 
   function edit(patch: Partial<ReportDefinition>) {
     const analysisChanged = ["metrics", "date_range", "grain", "method", "filters", "lag"].some(key => key in patch)
-    setDefinition(current => ({ ...current, ...patch, ...(analysisChanged ? { included_findings: null } : {}) }))
+    const nextName = report?.report_id && !("name" in patch) && isDefaultReportName(definition.name) ? defaultReportName() : null
+    setDefinition(current => ({ ...current, ...(nextName ? { name: nextName } : {}), ...patch, ...(analysisChanged ? { included_findings: null } : {}) }))
     setReport(null); setError(""); setMessage("")
   }
 
@@ -323,7 +330,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       <form onSubmit={event => { event.preventDefault(); void calculate() }}>
         <fieldset disabled={busy} className="min-w-0 space-y-5">
           <div className="grid min-w-0 gap-4 md:grid-cols-2">
-            <label className="block text-xs font-medium text-gray-700">Report name<input className={input} required maxLength={120} value={definition.name} onChange={event => edit({ name: event.target.value })} /></label>
+            <div className="min-w-0"><label htmlFor="report-name" className="block text-xs font-medium text-gray-700">Report name</label><input id="report-name" aria-describedby="report-name-hint" className={input} required maxLength={120} value={definition.name} onChange={event => edit({ name: event.target.value })} /><p id="report-name-hint" className="mt-1 text-xs text-gray-500">{t("Edit this report name to suit your analysis.")}</p></div>
             <label className="block text-xs font-medium text-gray-700">Business question<input className={input} required minLength={8} maxLength={1000} value={definition.business_question} onChange={event => edit({ business_question: event.target.value })} /></label>
           </div>
           <div className="grid min-w-0 gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">

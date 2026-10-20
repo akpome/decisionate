@@ -2060,6 +2060,7 @@ export default function DecisionPage() {
             <input
               id="decision-title"
               aria-label="Decision title"
+              aria-describedby="decision-name-hint"
               value={title}
               disabled={decisionIsReadOnly || isArchivedDecision}
               onChange={(e) => {
@@ -2069,6 +2070,9 @@ export default function DecisionPage() {
               }}
               className={inputClass}
             />
+            <p id="decision-name-hint" className="mt-1 text-xs text-gray-500">
+              Edit this decision name to suit your analysis.
+            </p>
           </Field>
 
           <Field label="Outcome metric">

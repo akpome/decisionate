@@ -863,6 +863,7 @@ function NewDecisionContent() {
 
                             <input
                                 id="decision-title"
+                                aria-describedby="decision-name-hint"
                                 required
                                 minLength={reportEvidence.reportId ? 3 : 1}
                                 maxLength={200}
@@ -876,6 +877,9 @@ function NewDecisionContent() {
                                 placeholder="e.g. Increase retention campaign budget"
                                 className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
                             />
+                            <p id="decision-name-hint" className="mt-1 text-xs text-gray-500">
+                                Edit this decision name to suit your analysis.
+                            </p>
                         </div>
 
                         {!reportEvidence.reportId && <div className="min-w-0">
