@@ -14,7 +14,7 @@ from app.modules.datasets.services.curated_metric_analytics import aggregate_met
 from app.modules.datasets.services.joins import _bucket_dates, _infer_explicit_year, _parse_dates
 from app.modules.datasets.services.numeric import coerce_numeric_series
 from .catalog import prepare_report_source
-from app.modules.decisions.titles import is_legacy_evidence_placeholder
+from .decision_drafts import is_report_decision_draft
 from app.modules.decisions.duplicates import canonical_decisions
 
 
@@ -285,7 +285,7 @@ def decisions_for_report(db, workspace, dataset_ids, report_id=None):
             context = {}
         if context.get("report_id") != report_id:
             continue
-        if is_legacy_evidence_placeholder(item.title, item.action):
+        if is_report_decision_draft(item):
             continue
         result.append(report_decision_record(item, report_id))
         if len(result) == 20:
@@ -294,7 +294,7 @@ def decisions_for_report(db, workspace, dataset_ids, report_id=None):
 
 
 def report_decision_record(item, report_id=None):
-    return {"id": item.id, "report_id": report_id, "title": item.title, "action": item.action, "status": item.status,
+    return {"id": item.id, "report_id": report_id, "is_draft": is_report_decision_draft(item), "title": item.title, "action": item.action, "status": item.status,
             "owner_user_id": item.owner_user_id, "expected_outcome": item.expected_outcome,
             "actual_outcome": item.actual_outcome, "outcome_status": item.outcome_status,
             "review_date": item.review_date.isoformat() if item.review_date else None,
@@ -308,12 +308,12 @@ def legacy_decision_drafts(db, workspace, dataset_ids, report_id=None):
 
     if len(dataset_ids) < 2:
         return []
-    query = db.query(Decision).filter(Decision.workspace_id == workspace, Decision.status != "archived", canonical_decisions())
+    query = db.query(Decision).filter(Decision.workspace_id == workspace, Decision.status == "planned", canonical_decisions())
     query = query.order_by(func.coalesce(Decision.updated_at, Decision.created_at).desc(), Decision.id.desc())
     for item in query.yield_per(100):
         # A source-only draft is not a report link or a completed decision.
         evidence_ids = {item.dataset_id, *(item.evidence_dataset_ids or [])}
-        if evidence_ids != dataset_ids or not is_legacy_evidence_placeholder(item.title, item.action):
+        if evidence_ids != dataset_ids or not is_report_decision_draft(item):
             continue
         try:
             context = json.loads(item.recommendation_context or "{}")

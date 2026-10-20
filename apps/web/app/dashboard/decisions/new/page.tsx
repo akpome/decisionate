@@ -237,7 +237,8 @@ function NewDecisionContent() {
         useState("")
     const [reportOutcome, setReportOutcome] = useState("")
     const reportEvidence = useDecisionReportEvidence(
-        user?.id, activeWorkspaceId, !loadingWorkspaceAccess && canCreateDecisions
+        user?.id, activeWorkspaceId, !loadingWorkspaceAccess && canCreateDecisions,
+        searchParams.get("report") || ""
     )
     const reportOutcomeMetric = reportEvidence.report?.metrics.find(metric => metric.id === reportOutcome && metric.value !== null)
 

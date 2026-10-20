@@ -12,7 +12,7 @@ export type ReportFinding = {
   history_window: { start: string; end: string }; evidence: { period: string; a: number; b: number }[]
 }
 export type ReportDecision = {
-  report_id?: string | null; action?: string | null; evidence_dataset_ids?: number[]
+  report_id?: string | null; action?: string | null; evidence_dataset_ids?: number[]; is_draft?: boolean
   id: number; title: string; status: string; owner_user_id: string; expected_outcome: string | null
   actual_outcome: string | null; outcome_status: string | null; review_date: string | null
   baseline: number | null; measured_value: number | null; change_percent: number | null

@@ -12,13 +12,13 @@ type LoadState<T> = { key: string; data: T; loading: boolean; error: string }
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
 const message = (error: unknown) => error instanceof Error ? error.message : "Report evidence is unavailable."
 
-export function useDecisionReportEvidence(userId: string | undefined, workspaceId: string | undefined, enabled: boolean) {
+export function useDecisionReportEvidence(userId: string | undefined, workspaceId: string | undefined, enabled: boolean, initialReportId = "") {
   const scope = JSON.stringify([userId, workspaceId])
   const [choice, setChoice] = useState({ scope: "", id: "" })
   const [retry, setRetry] = useState(0)
   const [history, setHistory] = useState<LoadState<SavedReport[]>>({ key: "", data: [], loading: false, error: "" })
   const [detail, setDetail] = useState<LoadState<BusinessReport | null>>({ key: "", data: null, loading: false, error: "" })
-  const reportId = choice.scope === scope ? choice.id : ""
+  const reportId = choice.scope === scope ? choice.id : initialReportId
   const detailKey = JSON.stringify([scope, reportId])
 
   useEffect(() => {

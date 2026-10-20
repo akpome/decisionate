@@ -157,6 +157,34 @@ test("a current report-linked decision suppresses the older source-only draft", 
   assert.doesNotMatch(html, /Decision draft|Earlier draft/)
 })
 
+test("renaming a report draft does not hide it or show it as a completed action", () => {
+  const html = renderDecisions({ decision_drafts: [{ ...legacy[0], title: "Decision (random-id)", is_draft: true, report_id: "report-1", evidence_dataset_ids: [1, 2] }] })
+  assert.equal(decisionLinks(html).length, 1)
+  assert.match(html, /Decision draft/)
+  assert.doesNotMatch(html, /No active decisions|Expected:|Actual:/)
+})
+
+test("an owner without an existing draft gets one central-form handoff and no invented decision", () => {
+  const opened = []
+  const props = { report: { status: "ready", report_id: "report-1", definition: { metrics: [] }, decisions: [] }, onOpenDraft: async id => { opened.push(id) } }
+  const html = renderToStaticMarkup(React.createElement(ReportDecisions, props))
+  assert.match(html, /Decision draft/)
+  assert.doesNotMatch(html, /No active decisions|Expected:|Actual:|Create decision/)
+  const buttons = []
+  function visit(node) {
+    if (!node || typeof node !== "object") return
+    if (node.type === "button") buttons.push(node)
+    React.Children.forEach(node.props?.children, visit)
+  }
+  visit(ReportDecisions(props))
+  assert.equal(buttons.length, 1)
+  buttons[0].props.onClick()
+  assert.deepEqual(opened, [undefined])
+  assert.equal(decisionLinks(html).length, 0)
+  assert.match(renderToStaticMarkup(React.createElement(ReportDecisions, { ...props, report: { ...props.report, status: "insufficient" } })), /<button[^>]*disabled=""/)
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(ReportDecisions, { report: props.report })), /<button|Decision draft/)
+})
+
 test("archived, unrelated and unscoped legacy drafts cannot reappear in a report", () => {
   const drafts = [
     { ...legacy[2], evidence_dataset_ids: [1, 2] },

@@ -15,12 +15,12 @@ export function ReportRelationshipFindings({ report }: { report: BusinessReport 
 }
 
 export function ReportDecisions({ report, onOpenDraft, busy = false }: {
-  report: BusinessReport; onOpenDraft?: (decisionId: number) => Promise<void>; busy?: boolean
+  report: BusinessReport; onOpenDraft?: (decisionId?: number) => Promise<void>; busy?: boolean
 }) {
   const seen = new Set<number>()
   const reportId = report.report_id || report.decision_report_id
   const decisions = reportId ? report.decisions.filter(decision => {
-    if (decision.report_id !== reportId || seen.has(decision.id) || isLegacyEvidencePlaceholder(decision)) return false
+    if (decision.report_id !== reportId || seen.has(decision.id) || (decision.is_draft ?? isLegacyEvidencePlaceholder(decision))) return false
     seen.add(decision.id)
     return true
   }) : []
@@ -28,7 +28,7 @@ export function ReportDecisions({ report, onOpenDraft, busy = false }: {
   const archived = decisions.filter(decision => decision.status === "archived")
   const datasetIds = new Set(report.definition?.metrics.map(metric => metric.dataset_id) || [])
   const draft = active.length === 0 ? (report.decision_drafts || []).find(decision =>
-    decision.status !== "archived" && isLegacyEvidencePlaceholder(decision) &&
+    decision.status === "planned" && (decision.is_draft ?? isLegacyEvidencePlaceholder(decision)) &&
     (!decision.report_id || decision.report_id === reportId) && datasetIds.size >= 2 &&
     new Set(decision.evidence_dataset_ids).size === datasetIds.size &&
     decision.evidence_dataset_ids?.every(identity => datasetIds.has(identity))
@@ -45,7 +45,10 @@ export function ReportDecisions({ report, onOpenDraft, busy = false }: {
           : <Link className="break-words font-medium text-blue-700 underline" href={decisionEvidenceHref(draft.id, report.definition.metrics)}>Decision draft</Link>}
         <p className="mt-1 text-sm text-gray-600">Action not recorded.</p>
       </div>
-        : <p className="text-sm text-gray-500">No active decisions linked to this report.</p>}
+        : onOpenDraft ? <div className="min-w-0 border-b border-gray-100 pb-3" aria-label="Decision draft">
+          <button type="button" disabled={busy || report.status !== "ready"} onClick={() => void onOpenDraft()} title={report.status !== "ready" ? "Resolve cross-dataset coverage before opening a decision draft" : "Open decision draft"} className="inline-flex min-h-10 items-center gap-1 font-medium text-blue-700 underline disabled:opacity-50"><ArrowUpRight size={16} aria-hidden="true" />Decision draft</button>
+          <p className="mt-1 text-sm text-gray-600">Action not recorded.</p>
+        </div> : <p className="text-sm text-gray-500">No active decisions linked to this report.</p>}
     {archived.length > 0 && <details className="min-w-0 border-t border-gray-100 pt-3 text-sm">
       <summary className="cursor-pointer text-gray-600">Archived decisions ({archived.length})</summary>
       <div className="mt-3 space-y-3">{archived.map(decision => <DecisionRow key={decision.id} decision={decision} report={report} />)}</div>

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save } from "lucide-react"
+import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Trash2 } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { correlationRequest, getMyOrganization, getOrganizationWorkspaces } from "@/lib/api"
 import { defaultWorkspaceBrand, getWorkspaceBrand, type WorkspaceBrand } from "@/lib/workspace-brand"
@@ -21,6 +21,7 @@ const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2
 const button = `${command} border-gray-300 bg-white`
 const primaryButton = `${command} border-blue-700 bg-blue-700 text-white`
 type SavedReport = { report_id: string; name: string; created_at: string }
+type WeeklyTemplate = { report_id: string | null; name: string | null; enabled: boolean }
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Report unavailable. Your selections have been preserved."
 
 const mergeCatalog = (current: CatalogDataset[], added: CatalogDataset[]) => [...new Map([...current, ...added].map(item => [item.dataset_id, item])).values()]
@@ -42,6 +43,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const { t } = useDecisionateText()
   const router = useRouter()
   const openingDraft = useRef(false)
+  const managementAction = useRef(false)
+  const deletedReports = useRef(new Set<string>())
   const routeController = useRef<AbortController | null>(null)
   const [datasets, setDatasets] = useState<CatalogDataset[]>([])
   const [dateColumns, setDateColumns] = useState<Record<number, string>>({})
@@ -52,6 +55,9 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [catalogError, setCatalogError] = useState(false)
   const [historyError, setHistoryError] = useState(false)
   const [historyReload, setHistoryReload] = useState(0)
+  const [weeklyTemplate, setWeeklyTemplate] = useState<WeeklyTemplate | null>(null)
+  const [templateError, setTemplateError] = useState(false)
+  const [templateReload, setTemplateReload] = useState(0)
   const [saved, setSaved] = useState<SavedReport[]>([])
   const [definition, setDefinition] = useState<ReportDefinition>(() => editableDefinition({}))
   const [report, setReport] = useState<BusinessReport | null>(null)
@@ -80,10 +86,18 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   useEffect(() => {
     const controller = new AbortController()
     void correlationRequest<SavedReport[]>(userId, "/business-reports", { signal: controller.signal }, workspaceId)
-      .then(history => { if (!controller.signal.aborted) setSaved(current => [...new Map([...history, ...current].map(item => [item.report_id, item])).values()]) })
+      .then(history => { if (!controller.signal.aborted) setSaved(current => [...new Map([...history, ...current].filter(item => !deletedReports.current.has(item.report_id)).map(item => [item.report_id, item])).values()]) })
       .catch(() => { if (!controller.signal.aborted) setHistoryError(true) })
     return () => controller.abort()
   }, [userId, workspaceId, historyReload])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void correlationRequest<WeeklyTemplate>(userId, "/business-reports/weekly-template", { signal: controller.signal }, workspaceId)
+      .then(value => { if (!controller.signal.aborted) { setWeeklyTemplate(value); setTemplateError(false) } })
+      .catch(() => { if (!controller.signal.aborted) setTemplateError(true) })
+    return () => controller.abort()
+  }, [userId, workspaceId, templateReload])
 
   useEffect(() => {
     let current = true
@@ -191,16 +205,69 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     return result
   }
 
-  async function openDecisionDraft(decisionId: number) {
+  async function openDecisionDraft(decisionId?: number) {
     if (!canEditDecisions || !canSave || busy || openingDraft.current) return
     openingDraft.current = true
     try {
       await execute(async () => {
-        const snapshot = await saveSnapshot()
+        const linkedReportId = decisionId === undefined ? null : report?.decision_drafts?.find(item => item.id === decisionId)?.report_id
+        const snapshot = linkedReportId ? { report_id: linkedReportId } : await saveSnapshot()
+        if (decisionId === undefined) {
+          const query = new URLSearchParams({ report: snapshot.report_id!, returnTo: `/dashboard/reports?report=${snapshot.report_id}` })
+          router.push(`/dashboard/decisions/new?${query}`)
+          return
+        }
         const result = await request<{ decision_id: number }>(`/${snapshot.report_id}/decision-drafts/${decisionId}/evidence`, { method: "POST" })
         router.push(`/dashboard/decisions/${result.decision_id}`)
       })
     } finally { openingDraft.current = false }
+  }
+
+  async function saveWeeklyTemplate() {
+    if (!canManage || busy || managementAction.current) return
+    managementAction.current = true
+    try {
+      await execute(async () => {
+        const value = await saveSnapshot()
+        const result = await request<{ enabled: boolean }>(`/${value.report_id}/weekly`, { method: "POST" })
+        setWeeklyTemplate({ report_id: value.report_id!, name: value.name, enabled: result.enabled })
+        setTemplateReload(current => current + 1)
+        setMessage("Weekly report template saved. Existing recipients and sending preferences are unchanged.")
+      })
+    } finally { managementAction.current = false }
+  }
+
+  async function deleteSavedReport() {
+    const identity = report?.report_id
+    if (!identity || !canManage || busy || managementAction.current) return
+    if (!window.confirm(`${t("Delete saved report")}: "${report.name}"?\n${t("Linked decisions and datasets will be kept. If this is the weekly template, weekly delivery will be paused.")}`)) return
+    managementAction.current = true
+    try {
+      await execute(async () => {
+        const result = await request<{ weekly_template_removed: boolean }>(`/${encodeURIComponent(identity)}`, { method: "DELETE" })
+        deletedReports.current.add(identity)
+        setSaved(current => current.filter(item => item.report_id !== identity))
+        setReport(null); setView("explore")
+        window.history.replaceState(null, "", "/dashboard/reports")
+        if (result.weekly_template_removed) setWeeklyTemplate({ report_id: null, name: null, enabled: false })
+        setTemplateReload(current => current + 1)
+        setMessage(result.weekly_template_removed ? "Saved report deleted and weekly delivery paused. Linked decisions and datasets were kept." : "Saved report deleted. Linked decisions and datasets were kept.")
+      })
+    } finally { managementAction.current = false }
+  }
+
+  async function removeWeeklyTemplate() {
+    const identity = weeklyTemplate?.report_id
+    if (!identity || !canManage || busy || managementAction.current) return
+    if (!window.confirm(t("Remove the weekly report template and pause weekly delivery? The saved report and linked decisions will be kept."))) return
+    managementAction.current = true
+    try {
+      await execute(async () => {
+        const result = await request<WeeklyTemplate>(`/weekly-template?report_id=${encodeURIComponent(identity)}`, { method: "DELETE" })
+        setWeeklyTemplate(result)
+        setMessage("Weekly report template removed and delivery paused. The saved report and linked decisions were kept.")
+      })
+    } finally { managementAction.current = false; setTemplateReload(current => current + 1) }
   }
 
   if (loading) return <div className="mx-auto min-w-0 max-w-[1500px] space-y-5"><AnalysisNavigation active="reports" /><p role="status" className="py-8 text-sm text-gray-600">Loading cross-dataset reports...</p></div>
@@ -220,7 +287,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {message && <p role="status" className="text-sm text-green-800">{message}</p>}
     <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
-      <label className="block w-full max-w-md text-xs text-gray-600">Saved reports<select className={input} disabled={busy} value={report?.report_id || ""} onChange={event => {
+      <div className="flex w-full max-w-md items-end gap-2"><label className="block min-w-0 flex-1 text-xs text-gray-600">Saved reports<select className={input} disabled={busy} value={report?.report_id || ""} onChange={event => {
         const id = event.target.value
         if (!id) return
         void execute(async () => {
@@ -233,17 +300,24 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             .catch(() => { if (!signal.aborted) setCatalogError(true) })
         })
       }}><option value="">Unsaved analysis</option>{saved.map(item => <option key={item.report_id} value={item.report_id}>{item.name} / {item.created_at.slice(0, 10)}</option>)}</select></label>
+        {canManage && report?.report_id && <button type="button" className={`${button} text-red-700`} disabled={busy} title={t("Delete saved report")} aria-label={t("Delete saved report")} onClick={() => void deleteSavedReport()}><Trash2 size={16} /></button>}
+      </div>
       <div className="flex flex-wrap gap-2">
         <button type="button" className={button} disabled={busy || catalogBusy} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>
         {report && <>
           <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id)} onClick={() => void execute(async () => { await saveSnapshot(); setMessage("Report snapshot saved.") })}><Save size={16} />Save snapshot</button>
-          <button type="button" className={button} disabled={busy || !canManage} onClick={() => void execute(async () => { const value = await saveSnapshot(); await request(`/${value.report_id}/weekly`, { method: "POST" }); setMessage("Weekly report template saved. Existing recipients and sending preferences are unchanged.") })}><CalendarDays size={16} />Use for weekly report</button>
+          <button type="button" className={button} disabled={busy || !canManage || weeklyTemplate?.report_id === report.report_id && Boolean(report.report_id)} onClick={() => void saveWeeklyTemplate()}><CalendarDays size={16} />{weeklyTemplate?.report_id === report.report_id && report.report_id ? "Weekly template selected" : "Use for weekly report"}</button>
           {view === "report" && <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>}
         </>}
         <Link href="/dashboard/alerts" className={button}><CalendarDays size={16} />Weekly delivery</Link>
       </div>
     </div>
     {historyError && <div className="flex flex-wrap items-center gap-3 text-sm text-amber-900"><p role="alert">{t("Saved reports could not be loaded.")}</p><button type="button" className={button} onClick={() => { setHistoryError(false); setHistoryReload(value => value + 1) }}><RefreshCw size={16} />{t("Retry")}</button></div>}
+    {templateError && <div className="flex flex-wrap items-center gap-3 text-sm text-amber-900"><p role="alert">{t("Weekly report template could not be loaded.")}</p><button type="button" className={button} title={t("Retry weekly report template")} aria-label={t("Retry weekly report template")} onClick={() => setTemplateReload(value => value + 1)}><RefreshCw size={16} /></button></div>}
+    {weeklyTemplate?.report_id && <section aria-label="Weekly report template" className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
+      <div className="min-w-0"><h2 className="text-xs font-medium text-gray-600">{t("Weekly report template")}</h2><Link className="mt-1 block break-words text-sm font-medium text-blue-700 underline" href={`/dashboard/reports?report=${encodeURIComponent(weeklyTemplate.report_id)}`}>{weeklyTemplate.name || t("Unavailable saved report")}</Link><p className="mt-1 text-xs text-gray-500">{t(weeklyTemplate.enabled ? "Weekly delivery enabled" : "Weekly delivery paused")}</p></div>
+      {canManage && <button type="button" className={`${button} text-red-700`} disabled={busy} title={t("Remove weekly report template")} aria-label={t("Remove weekly report template")} onClick={() => void removeWeeklyTemplate()}><Trash2 size={16} /></button>}
+    </section>}
 
     <section role="tabpanel" id="report-explore" aria-labelledby="tab-explore" hidden={view !== "explore"} className="space-y-6 print:hidden">
       <form onSubmit={event => { event.preventDefault(); void calculate() }}>

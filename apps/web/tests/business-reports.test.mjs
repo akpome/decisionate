@@ -115,7 +115,7 @@ function draftHandoff(overrides = {}) {
   const handler = vm.runInNewContext(ts.transpileModule(`${declaration}\nopenDecisionDraft`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    canEditDecisions: true, canSave: true, busy: false, openingDraft,
+    canEditDecisions: true, canSave: true, busy: false, openingDraft, report: null, URLSearchParams,
     execute: async action => { try { await action() } catch (error) { errors.push(error.message) } },
     saveSnapshot: async () => { calls.push("save"); return { report_id: "report-1" } },
     request: async (path, init) => { calls.push([path, init.method]); return { decision_id: 4 } },
@@ -137,6 +137,23 @@ test("double clicking the draft cannot submit multiple handoffs or create a deci
   await Promise.all([handler(3), handler(3), handler(3)])
   assert.equal(calls.length, 3)
   assert.equal(calls.filter(item => Array.isArray(item)).length, 1)
+})
+
+test("a prepared draft opens the central form with this report without inserting a decision", async () => {
+  const { handler, calls } = draftHandoff()
+  await handler()
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0], "save")
+  const url = new URL(calls[1], "https://decisionate.test")
+  assert.equal(url.pathname, "/dashboard/decisions/new")
+  assert.equal(url.searchParams.get("report"), "report-1")
+  assert.equal(url.searchParams.get("returnTo"), "/dashboard/reports?report=report-1")
+})
+
+test("an existing weekly-template draft keeps its original report instead of rebinding its evidence", async () => {
+  const { handler, calls } = draftHandoff({ report: { decision_drafts: [{ id: 3, report_id: "template-report" }] } })
+  await handler(3)
+  assert.deepEqual(calls, [["/template-report/decision-drafts/3/evidence", "POST"], "/dashboard/decisions/4"])
 })
 
 test("a failed save or binding keeps the user in the report and permits retry", async () => {

@@ -13,7 +13,7 @@ from app.modules.auth_context import is_client_workspace_role
 from app.modules.datasets.services.auth import get_user_id, get_workspace_id, get_workspace_role, require_workspace_data_manager
 from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
 from app.modules.decisions.metric_scope import selected_report_metrics
-from app.modules.decisions.titles import is_legacy_evidence_placeholder
+from .decision_drafts import is_report_decision_draft
 from .models import BusinessReport
 from .catalog import report_metric_catalog
 from .schemas import ReportDecision, ReportDefinition
@@ -34,8 +34,9 @@ def identity(request):
     return user, get_workspace_id(request, user)
 
 
-def allowed_report(db, report_id, user, workspace):
-    report = db.get(BusinessReport, report_id)
+def allowed_report(db, report_id, user, workspace, *, for_update=False):
+    report = (db.query(BusinessReport).filter_by(id=report_id, workspace_id=workspace).with_for_update().first()
+              if for_update else db.get(BusinessReport, report_id))
     if report is None or report.workspace_id != workspace:
         raise HTTPException(404, "Report not found")
     definition = json.loads(report.definition)
@@ -158,6 +159,38 @@ async def weekly_preview(request: Request, db=Depends(database)):
     return digest.cross_dataset_report
 
 
+@router.get("/weekly-template")
+def weekly_template_status(request: Request, db=Depends(database)):
+    _, workspace = identity(request)
+    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).first()
+    report_id = preference.business_report_id if preference else None
+    name = db.query(BusinessReport.name).filter_by(id=report_id, workspace_id=workspace).scalar() if report_id else None
+    return {"report_id": report_id, "name": name,
+            "enabled": bool(preference.enabled) if preference else False}
+
+
+def clear_weekly_template(preference):
+    preference.business_report_id = None
+    preference.metric_focus = None
+    # Removing the selected template must not silently send a different report.
+    preference.enabled = 0
+
+
+@router.delete("/weekly-template")
+def remove_weekly_template(request: Request, report_id: str = Query(..., min_length=1, max_length=120), db=Depends(database)):
+    _, workspace = identity(request)
+    require_workspace_data_manager(request)
+    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
+    if preference and preference.enabled and not preference.business_report_id:
+        raise HTTPException(409, "The weekly template has changed. Refresh before removing it.")
+    if preference and preference.business_report_id:
+        if preference.business_report_id != report_id:
+            raise HTTPException(409, "The weekly template has changed. Refresh before removing it.")
+        clear_weekly_template(preference)
+        db.commit()
+    return {"report_id": None, "name": None, "enabled": bool(preference.enabled) if preference else False}
+
+
 @router.get("/{report_id}")
 def detail(report_id: str, request: Request, db=Depends(database)):
     user, workspace = identity(request)
@@ -165,6 +198,22 @@ def detail(report_id: str, request: Request, db=Depends(database)):
     snapshot = json.loads(report.snapshot)
     attach_report_decisions(snapshot, db, workspace, {item["dataset_id"] for item in snapshot["definition"]["metrics"]}, report.id)
     return {**snapshot, "report_id": report.id}
+
+
+@router.delete("/{report_id}")
+def delete_report(report_id: str, request: Request, db=Depends(database)):
+    _, workspace = identity(request)
+    require_workspace_data_manager(request)
+    report = db.query(BusinessReport).filter_by(id=report_id, workspace_id=workspace).with_for_update().first()
+    if report is None:
+        raise HTTPException(404, "Report not found")
+    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
+    removed_template = bool(preference and preference.business_report_id == report.id)
+    if removed_template:
+        clear_weekly_template(preference)
+    db.delete(report)
+    db.commit()
+    return {"report_id": report_id, "deleted": True, "weekly_template_removed": removed_template}
 
 
 def report_decision_evidence(report):
@@ -219,13 +268,7 @@ def bind_draft_evidence(report_id: str, decision_id: int, request: Request, db=D
     decision = get_accessible_decision_or_404(db, decision_id, user, workspace)
     db.refresh(decision, with_for_update=True)
     ensure_decision_is_editable(decision)
-    recorded = any(str(value or "").strip() for value in (
-        decision.actual_outcome, decision.outcome_status, decision.lessons_learned,
-    )) or any(value is not None for value in (
-        decision.outcome_baseline_value, decision.outcome_measured_value,
-        decision.outcome_delta_percent, decision.outcome_measured_at,
-    ))
-    if decision.status != "planned" or recorded or not is_legacy_evidence_placeholder(decision.title, decision.action):
+    if decision.status != "planned" or not is_report_decision_draft(decision):
         raise HTTPException(409, "Only an unrecorded decision draft can adopt report evidence")
     _, metrics, evidence, descriptors = report_decision_evidence(report)
     sources = list(dict.fromkeys(item["dataset_id"] for item in metrics))
@@ -235,6 +278,8 @@ def bind_draft_evidence(report_id: str, decision_id: int, request: Request, db=D
         previous = json.loads(decision.recommendation_context or "{}")
     except (TypeError, ValueError):
         previous = None
+    if isinstance(previous, dict) and previous.get("report_id") and previous["report_id"] != report.id:
+        raise HTTPException(409, "This draft is already linked to another saved report. Open it from that report.")
     # Keep the original legacy evidence, but never use its wider cache as the selection.
     evidence["original_evidence"] = previous["original_evidence"] if isinstance(previous, dict) and "original_evidence" in previous else {
         "recommendation_context": decision.recommendation_context,
@@ -265,9 +310,9 @@ def bind_draft_evidence(report_id: str, decision_id: int, request: Request, db=D
 def weekly_template(report_id: str, request: Request, db=Depends(database)):
     user, workspace = identity(request)
     require_workspace_data_manager(request)
-    report = allowed_report(db, report_id, user, workspace)
+    report = allowed_report(db, report_id, user, workspace, for_update=True)
     definition = json.loads(report.definition)
-    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).first()
+    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
     if preference is None:
         preference = WeeklyReportPreference(workspace_id=workspace, enabled=0)
         db.add(preference)

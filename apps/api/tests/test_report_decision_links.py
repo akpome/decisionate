@@ -133,6 +133,36 @@ class ReportDecisionLinkTests(unittest.TestCase):
             self.assertEqual(report["decisions"], [])
             self.assertEqual([item["id"] for item in report["decision_drafts"]], [draft.id])
 
+    def test_renamed_report_drafts_remain_visible_without_adopting_other_reports(self):
+        with self.Session() as db:
+            draft = self.add(db, title="Decision (a7696942-dcc0-4f3b-a5f3-dc9eca5ab8cc)", action=None)
+            draft.recommendation_context = json.dumps({"evidence_kind": "business_report", "report_id": "report-1"})
+            db.commit()
+            report = {}
+            attach_report_decisions(report, db, "workspace", {1, 2}, "report-1")
+            self.assertEqual(report["decisions"], [])
+            self.assertEqual([item["id"] for item in report["decision_drafts"]], [draft.id])
+            self.assertTrue(report["decision_drafts"][0]["is_draft"])
+            attach_report_decisions(report, db, "workspace", {1, 2}, "report-2")
+            self.assertEqual(report["decision_drafts"], [])
+            self.assertEqual(db.query(Decision).count(), 1)
+
+    def test_renamed_unbound_joined_draft_is_not_lost_after_its_title_is_edited(self):
+        with self.Session() as db:
+            draft = self.add(db, title="A uniquely named draft", action="Review the joined metrics and agree on the next action.")
+            db.commit()
+            self.assertEqual([item["id"] for item in legacy_decision_drafts(db, "workspace", {1, 2}, "report-1")], [draft.id])
+
+    def test_recorded_outcomes_are_never_treated_as_an_editable_unrecorded_draft(self):
+        with self.Session() as db:
+            draft = self.add(db, title="Review joined dataset evidence", action=None, report_id="report-1")
+            draft.outcome_measured_value = 0
+            db.commit()
+            report = {}
+            attach_report_decisions(report, db, "workspace", {1, 2}, "report-1")
+            self.assertEqual(report["decision_drafts"], [])
+            self.assertEqual([item["id"] for item in report["decisions"]], [draft.id])
+
     def test_actual_preview_save_and_detail_routes_return_the_same_existing_draft(self):
         BusinessReport.__table__.create(self.engine)
         frames = fixture()

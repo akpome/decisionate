@@ -95,6 +95,26 @@ class ReportDraftEvidenceTests(unittest.TestCase):
             self.assertEqual(db.query(DecisionActivity).count(), 1)
             self.assertEqual(db.query(Decision).count(), 1)
 
+    def test_renamed_draft_can_adopt_selected_report_evidence(self):
+        with self.Session() as db:
+            db.get(Decision, self.decision_id).title = "Decision (552fd6dc-9c30-447d-85eb-e361c8c82777)"
+            db.commit()
+        response = self.bind()
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.options(), [(1, "spend"), (2, "net_sales")])
+
+    def test_a_draft_bound_to_one_report_cannot_be_overwritten_by_another_report(self):
+        self.assertEqual(self.bind().status_code, 200)
+        with self.Session() as db:
+            current = db.get(BusinessReport, self.report_id)
+            another = BusinessReport(workspace_id="workspace", user_id="owner", name="Another report", definition=current.definition, snapshot=current.snapshot)
+            db.add(another); db.commit(); another_id = another.id
+        self.assertEqual(self.bind(report_id=another_id).status_code, 409)
+        with self.Session() as db:
+            context = json.loads(db.get(Decision, self.decision_id).recommendation_context)
+            self.assertEqual(context["report_id"], self.report_id)
+            self.assertEqual(db.query(DecisionActivity).count(), 1)
+
     def test_report_metrics_are_restored_when_the_legacy_draft_has_no_metric_cache(self):
         with self.Session() as db:
             item = db.get(Decision, self.decision_id)
