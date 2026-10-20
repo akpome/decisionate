@@ -1,6 +1,5 @@
 import json
 import logging
-from itertools import combinations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -18,6 +17,7 @@ from .models import BusinessReport
 from .catalog import report_metric_catalog
 from .schemas import ReportDecision, ReportDefinition
 from .service import attach_report_decisions, build_report
+from .relationships import report_test_count
 
 
 router = APIRouter(prefix="/api/v2/business-reports", tags=["business-reports"])
@@ -48,11 +48,9 @@ def generate(db, payload, user, workspace):
     source_run = allowed_run(db, payload.source_run_id, user, workspace)[0] if payload.source_run_id else None
     if len(payload.metrics) > 25 or payload.lag.maximum > 12:
         raise HTTPException(400, "Reports support at most 25 metrics and 12 lag periods")
-    pairs = sum(left.dataset_id != right.dataset_id for left, right in combinations(payload.metrics, 2))
-    lag_count = len({0, *range(payload.lag.minimum, payload.lag.maximum + 1)}) if payload.lag.enabled else 1
-    if pairs * lag_count > 1000:
-        raise HTTPException(400, "Reduce the report's metrics or lag window to at most 1,000 pair-lag tests. Larger analyses remain available in the advanced matrix.")
     definition = payload.model_dump(mode="json")
+    if report_test_count(definition) > 1000:
+        raise HTTPException(400, "Reduce the report's metrics or lag window to at most 1,000 pair-lag tests. Larger analyses remain available in the advanced matrix.")
     definition["reporting_timezone"] = reporting_timezone()
     datasets = authorize_datasets(db, user, workspace, [item.dataset_id for item in payload.metrics])
     frames, unavailable = {}, []

@@ -16,6 +16,8 @@ import { loadReportCatalogPage } from "./report-catalog-loading"
 import { editableDefinition, formatReportValue, type BusinessReport, type ReportDefinition } from "./types"
 import { ReportDecisions, ReportRelationshipFindings } from "./report-evidence-sections"
 import { defaultReportName, isDefaultReportName, reportDraftName } from "./default-report-name"
+import { reportPairDirections, reportPairKey, reportTestCount } from "./pair-directions"
+import { ReportPairDirections } from "./report-pair-directions"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
@@ -71,8 +73,9 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [brand, setBrand] = useState<WorkspaceBrand>(defaultWorkspaceBrand)
   const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
   const datasetCount = new Set(definition.metrics.map(metric => metric.dataset_id)).size
-  const pairCount = definition.metrics.reduce((count, metric, index) => count + definition.metrics.slice(index + 1).filter(other => other.dataset_id !== metric.dataset_id).length, 0)
-  const taskCount = pairCount * (definition.lag.enabled ? definition.lag.maximum + 1 : 1)
+  const taskCount = reportTestCount(definition.metrics, definition.pair_directions, definition.lag)
+  const showPairDirections = definition.lag.enabled && definition.pair_directions.length > 0
+  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < 2 || taskCount > 1000 || definition.metrics.length > 25 || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t("Preview report")}</button>
 
   useEffect(() => {
     const controller = new AbortController()
@@ -166,9 +169,12 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   }
 
   function edit(patch: Partial<ReportDefinition>) {
-    const analysisChanged = ["metrics", "date_range", "grain", "method", "filters", "lag"].some(key => key in patch)
+    const analysisChanged = ["metrics", "date_range", "grain", "method", "filters", "lag", "pair_directions"].some(key => key in patch)
     const nextName = report?.report_id && !("name" in patch) && isDefaultReportName(definition.name) ? defaultReportName() : null
-    setDefinition(current => ({ ...current, ...(nextName ? { name: nextName } : {}), ...patch, ...(analysisChanged ? { included_findings: null } : {}) }))
+    setDefinition(current => {
+      const next = { ...current, ...(nextName ? { name: nextName } : {}), ...patch, ...(analysisChanged ? { included_findings: null } : {}) }
+      return { ...next, pair_directions: reportPairDirections(next.metrics, next.pair_directions) }
+    })
     setReport(null); setError(""); setMessage("")
   }
 
@@ -349,13 +355,14 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
                 <label className="block text-xs text-gray-600">Correlation method<select className={input} value={definition.method} onChange={event => edit({ method: event.target.value as ReportDefinition["method"] })}><option value="spearman">Spearman</option><option value="pearson">Pearson</option></select></label>
                 <label className="block text-xs text-gray-600">Minimum historical observations<input className={input} type="number" min={30} max={3653} required value={definition.filters.minimum_observations} onChange={event => edit({ filters: { ...definition.filters, minimum_observations: Number(event.target.value) } })} /></label>
                 <label className="flex gap-2 text-sm"><input className="h-4 w-4" type="checkbox" checked={definition.lag.enabled} onChange={event => edit({ lag: { ...definition.lag, enabled: event.target.checked } })} />Evaluate timing</label>
-                {definition.lag.enabled && <><label className="block text-xs text-gray-600">Maximum lag<input className={input} type="number" min={0} max={12} required value={definition.lag.maximum} onChange={event => edit({ lag: { ...definition.lag, maximum: Number(event.target.value) } })} /></label><label className="block text-xs text-gray-600">Direction<select className={input} value={definition.lag.direction} onChange={event => edit({ lag: { ...definition.lag, direction: event.target.value } })}><option value="a_leads_b">Earlier selected metric leads</option><option value="b_leads_a">Later selected metric leads</option></select></label></>}
+                {definition.lag.enabled && <label className="block text-xs text-gray-600">Maximum lag<input className={input} type="number" min={definition.lag.minimum} max={12} required value={definition.lag.maximum} onChange={event => edit({ lag: { ...definition.lag, maximum: Number(event.target.value) } })} /></label>}
               </div></details>
               <p className="text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets / {taskCount} tests</p>
               {taskCount > 1000 && <p className="text-sm text-amber-800">Report analysis exceeds the 1,000-test limit.</p>}
-              <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < 2 || taskCount > 1000 || definition.metrics.length > 25 || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t("Preview report")}</button>
+              {!showPairDirections && previewButton}
             </section>
           </div>
+          {showPairDirections && <><ReportPairDirections pairs={definition.pair_directions} datasets={datasets} onChange={(pair, direction) => edit({ pair_directions: definition.pair_directions.map(item => reportPairKey(item) === reportPairKey(pair) ? { ...item, direction } : item) })} /><div className="ml-auto w-full sm:max-w-80">{previewButton}</div></>}
         </fieldset>
       </form>
     </section>

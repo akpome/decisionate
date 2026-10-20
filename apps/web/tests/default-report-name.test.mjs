@@ -9,6 +9,9 @@ const require = createRequire(import.meta.url), ts = require("typescript")
 const source = readFileSync(new URL("../features/reports/default-report-name.ts", import.meta.url), "utf8")
 const workspace = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
 const namePattern = /^Report \([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\)$/
+const pairs = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/reports/pair-directions.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
+  { module: pairs, exports: pairs.exports })
 
 function draft(url = "https://decisionate.test/dashboard/reports") {
   const changes = []
@@ -66,7 +69,7 @@ function editor({ name = draft().defaultReportName(), saved = false } = {}) {
   visit(ast)
   const state = { definition: { name, metrics: [], included_findings: ["finding-1"] }, report: saved ? { report_id: "report-1" } : null }
   const bindings = {
-    definition: state.definition, report: state.report, ...draft(),
+    definition: state.definition, report: state.report, ...draft(), ...pairs.exports,
     setDefinition: update => { state.definition = update(state.definition); bindings.definition = state.definition },
     setReport: value => { state.report = value; bindings.report = value }, setError: () => {}, setMessage: () => {},
   }

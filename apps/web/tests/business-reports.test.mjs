@@ -6,10 +6,13 @@ import test from "node:test"
 
 const require = createRequire(import.meta.url)
 const ts = require("typescript")
+const pairModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/reports/pair-directions.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText,
+  { module: pairModule, exports: pairModule.exports })
 const loadedModule = { exports: {} }
 const source = readFileSync(new URL("../features/reports/types.ts", import.meta.url), "utf8")
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText,
-  { module: loadedModule, exports: loadedModule.exports, require, Intl, Number, Math })
+  { module: loadedModule, exports: loadedModule.exports, require: name => name === "./pair-directions" ? pairModule.exports : require(name), Intl, Number, Math })
 const { editableDefinition, formatReportValue } = loadedModule.exports
 
 test("report editor removes server-only fields while preserving cross-dataset scope and provenance", () => {

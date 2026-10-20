@@ -9,12 +9,13 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from app.modules.correlation.catalog import metric_catalog, normalize_dates, prepare_series, reporting_timezone
-from app.modules.correlation.engine import adjust_bh, compute_pair, metric_id
+from app.modules.correlation.engine import adjust_bh, metric_id
 from app.modules.datasets.services.curated_metric_analytics import aggregate_metric, frame_policy
 from app.modules.datasets.services.joins import _bucket_dates, _infer_explicit_year, _parse_dates
 from app.modules.datasets.services.numeric import coerce_numeric_series
 from .catalog import prepare_report_source
 from .decision_drafts import is_report_decision_draft
+from .relationships import compute_report_pair, direction_lookup, report_test_count
 from app.modules.decisions.duplicates import canonical_decisions
 
 
@@ -108,6 +109,8 @@ def prepare_report_series(frames, references, definition):
 
 def build_report(frames, definition, *, unavailable=None):
     """Frames must already be authorized; source data and selections are never changed."""
+    if report_test_count(definition) > 1000:
+        raise ValueError("Reports support at most 1,000 pair-lag tests")
     frames = {identity: prepare_report_source(dataset, frame) for identity, (dataset, frame) in frames.items()}
     window, grain, references = definition["date_range"], definition["grain"], definition["metrics"]
     zone = definition.get("reporting_timezone") or reporting_timezone()
@@ -184,11 +187,11 @@ def build_report(frames, definition, *, unavailable=None):
         # Retain missing calendar buckets so the existing shift primitive moves
         # exactly k calendar periods, then discards unavailable pairs, not dates.
         historical[identity] = points.set_index("period").reindex(history_periods).rename_axis("period").reset_index()
-    rows = []
+    rows, directions = [], direction_lookup(definition)
     for left, right in combinations(usable, 2):
         if left["dataset_id"] == right["dataset_id"]:
             continue
-        rows.extend(compute_pair(metadata[metric_id(left)], metadata[metric_id(right)], historical, relationship_definition))
+        rows.extend(compute_report_pair(metadata[metric_id(left)], metadata[metric_id(right)], historical, relationship_definition, directions))
     adjusted = adjust_bh([row["p_value"] for row in rows])
     findings = []
     for row, adjusted_p in zip(rows, adjusted):

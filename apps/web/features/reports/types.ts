@@ -1,6 +1,7 @@
 import type { CorrelationDefinition, CorrelationMetric } from "@/features/relationships/types"
+import { reportPairDirections, type ReportPairDirection } from "./pair-directions"
 
-export type ReportDefinition = CorrelationDefinition & { business_question: string; included_findings: string[] | null; source_run_id?: string | null }
+export type ReportDefinition = CorrelationDefinition & { business_question: string; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[] }
 export type ReportMetric = CorrelationMetric & {
   value: number | null; previous_value: number | null; change: number | null; change_percent: number | null
   observations: number; expected_periods: number; warnings: string[]; trend: { period: string; value: number | null }[]
@@ -40,5 +41,6 @@ export function editableDefinition(value: Partial<ReportDefinition>): ReportDefi
     date_range: value.date_range || { start: "", end: "" }, advanced: false,
     filters: { minimum_abs_coefficient: value.filters?.minimum_abs_coefficient ?? .3, minimum_observations: Math.max(30, value.filters?.minimum_observations ?? 30) },
     lag: value.lag ? { ...value.lag, minimum: Math.min(12, value.lag.minimum), maximum: Math.min(12, value.lag.maximum) } : { enabled: false, minimum: 0, maximum: 12, direction: "a_leads_b" },
-    included_findings: value.included_findings ?? null, source_run_id: value.source_run_id ?? null }
+    included_findings: value.included_findings ?? null, source_run_id: value.source_run_id ?? null,
+    pair_directions: reportPairDirections(value.metrics || [], value.pair_directions, value.pair_directions == null && value.lag ? value.lag.direction === "b_leads_a" ? "b_leads_a" : "a_leads_b" : undefined) }
 }

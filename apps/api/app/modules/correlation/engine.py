@@ -60,7 +60,17 @@ def normalized_evidence(aligned):
     return [{"period": str(row.period.date()), "a": float(row.left_value), "b": float(row.right_value)} for row in frame.itertuples(index=False)]
 
 
-def compute_pair(left, right, series, definition):
+def select_best_pair(rows):
+    for row in rows:
+        row["selected"] = False
+    if rows:
+        candidates = [row for row in rows if row["eligible"]]
+        chosen = max(candidates, key=lambda row: (row["score"], row["observations"], -row["lag"]), default=rows[0])
+        chosen["selected"] = True
+    return rows
+
+
+def compute_pair(left, right, series, definition, *, include_zero=True):
     a, b = metric_id(left), metric_id(right)
     aligned = series[a].rename(columns={"value": "left_value"}).merge(
         series[b].rename(columns={"value": "right_value"}), on="period", how="inner",
@@ -69,6 +79,8 @@ def compute_pair(left, right, series, definition):
     if lag["direction"] == "b_leads_a":
         aligned[["left_value", "right_value"]] = aligned[["right_value", "left_value"]]
     lags = sorted({0, *range(lag["minimum"], lag["maximum"] + 1)}) if lag["enabled"] else [0]
+    if not include_zero:
+        lags = [value for value in lags if value > 0]
     rows = []
     minimum = definition["filters"]["minimum_observations"]
     for shift in lags:
@@ -111,7 +123,4 @@ def compute_pair(left, right, series, definition):
             "score": abs(coefficient) if eligible else 0.0,
             "evidence": evidence, "selected": False,
         })
-    candidates = [row for row in rows if row["eligible"]]
-    chosen = max(candidates, key=lambda row: (row["score"], row["observations"], -row["lag"]), default=rows[0])
-    chosen["selected"] = True
-    return rows
+    return select_best_pair(rows)
