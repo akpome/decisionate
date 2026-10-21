@@ -18,6 +18,7 @@ import {
   formatMetricLabel,
 } from "@/features/dashboard/components/metric-selector"
 import { InsightCard } from "@/features/insights/components/insight-card"
+import { InsightScopeTabs, type InsightScope } from "@/features/insights/components/insight-scope-tabs"
 import {
   generateInsights,
 } from "@/features/insights/utils/generate-insights"
@@ -119,6 +120,7 @@ function getInitialInsightsDatasetId() {
 
 export default function InsightsPage() {
   const { t } = useDecisionateText()
+  const [scope, setScope] = useState<InsightScope>("single")
   const [selectedDatasetId, setSelectedDatasetId] =
     useState<number | undefined>(undefined)
   const [datasets, setDatasets] =
@@ -659,11 +661,11 @@ export default function InsightsPage() {
 
   return (
     <div className="space-y-8">
-      <CorrelationInsights key={`${user?.id}:${activeWorkspaceId}`} userId={user?.id} workspaceId={activeWorkspaceId} />
+      <InsightScopeTabs scope={scope} onChange={setScope} />
+      <section role="tabpanel" id="insights-single" aria-labelledby="insight-tab-single" hidden={scope !== "single"} className="min-w-0 space-y-8">
       <div>
         <DashboardPageHeader
-          title="Insights"
-          description="Review generated patterns for one dataset or analyze selected metrics across multiple datasets."
+          title="Single dataset insight"
           actions={
             <button
             type="button"
@@ -890,16 +892,6 @@ export default function InsightsPage() {
             )}
           </p>
         </section>
-
-        <MultiMetricAnalysisPanel
-          datasets={datasets}
-          userId={user?.id}
-          workspaceId={activeWorkspaceId}
-          startDate={startDate}
-          periodFilter={periodFilter}
-          grouping={aggregation}
-          defaultAggregation={aggregationType}
-        />
       </div>
 
       {pageError && (
@@ -1035,6 +1027,11 @@ export default function InsightsPage() {
           )}
         </div>
       )}
+      </section>
+      <section role="tabpanel" id="insights-multi" aria-labelledby="insight-tab-multi" hidden={scope !== "multi"} className="min-w-0 space-y-6">
+        <MultiMetricAnalysisPanel key={`analysis:${user?.id}:${activeWorkspaceId}`} datasets={datasets} userId={user?.id} workspaceId={activeWorkspaceId} datasetsLoading={datasetsLoading || !user?.id} datasetsError={datasets.length === 0 ? pageError : ""} onRetryDatasets={() => setDatasetLoadRetryKey(value => value + 1)} />
+        <CorrelationInsights key={`relationships:${user?.id}:${activeWorkspaceId}`} userId={user?.id} workspaceId={activeWorkspaceId} />
+      </section>
     </div>
   )
 }
