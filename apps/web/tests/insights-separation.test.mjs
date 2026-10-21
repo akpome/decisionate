@@ -67,6 +67,12 @@ test("tabs support mouse selection, arrow keys, Home and End with focus followin
   assert.equal(changed.length, count)
 })
 
+test("Insights opens multi dataset analysis by default while keeping both tabs available", () => {
+  const source = read("../app/dashboard/insights/page.tsx")
+  assert.match(source, /const \[scope, setScope\] = useState<InsightScope>\("multi"\)/)
+  assert.match(source, /<InsightScopeTabs scope=\{scope\} onChange=\{setScope\}/)
+})
+
 test("single and multi results, controls and errors belong to separate persistent tab panels", () => {
   const source = read("../app/dashboard/insights/page.tsx")
   const ast = ts.createSourceFile("page.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)

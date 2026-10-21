@@ -91,7 +91,10 @@ test("main Reports route opens the combined workspace while dataset inspection r
   const page = readFileSync(new URL("../app/dashboard/reports/page.tsx", import.meta.url), "utf8")
   const inspection = readFileSync(new URL("../app/dashboard/reports/dataset/page.tsx", import.meta.url), "utf8")
   assert.match(page, /ReportWorkspace/)
+  assert.doesNotMatch(page, /SingleDatasetReport|single-dataset-report|redirect\(/)
   assert.match(page, /canCreateDecisions/)
+  const workspace = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  assert.match(workspace, /<AnalysisNavigation active="reports"/)
   assert.match(inspection, /single-dataset-report/)
 })
 

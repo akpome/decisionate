@@ -120,7 +120,7 @@ function getInitialInsightsDatasetId() {
 
 export default function InsightsPage() {
   const { t } = useDecisionateText()
-  const [scope, setScope] = useState<InsightScope>("single")
+  const [scope, setScope] = useState<InsightScope>("multi")
   const [selectedDatasetId, setSelectedDatasetId] =
     useState<number | undefined>(undefined)
   const [datasets, setDatasets] =
