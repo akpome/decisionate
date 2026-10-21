@@ -22,7 +22,7 @@ export function ReportPairDirections({ pairs, datasets, onChange }: {
       <h3 className="text-sm font-semibold">{t("Relationship directions")}</h3>
       {(pairs.length > 6 || search) && <div className="w-full max-w-sm"><label htmlFor="report-pair-search" className="text-xs text-gray-600">{t("Search metric pairs")}</label><div className="relative mt-1"><Search size={15} className="pointer-events-none absolute left-3 top-3 text-gray-400" aria-hidden="true" /><input id="report-pair-search" type="search" value={search} onChange={event => setSearch(event.target.value)} className="min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm" /></div></div>}
     </div>
-    <div tabIndex={0} className="max-h-80 overflow-y-scroll overscroll-contain pr-2 [scrollbar-color:var(--color-gray-400)_var(--color-gray-100)] [scrollbar-gutter:stable] [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-blue-600">
+    <div>
       {visible.map(({ pair, left, right }) => {
         const first = `${left.dataset} / ${left.metric}`, second = `${right.dataset} / ${right.metric}`
         const firstLabel = left.metric === right.metric ? first : left.metric
