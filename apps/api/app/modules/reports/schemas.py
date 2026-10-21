@@ -14,7 +14,12 @@ class ReportMetricKey(StrictModel):
 class ReportPairDirection(StrictModel):
     metric_a: ReportMetricKey
     metric_b: ReportMetricKey
-    direction: Literal["a_leads_b", "b_leads_a", "both", "same_period"]
+    direction: Literal["a_leads_b", "b_leads_a", "same_period"]
+
+    @field_validator("direction", mode="before")
+    @classmethod
+    def normalize_legacy_direction(cls, value):
+        return "same_period" if value == "both" else value
 
 
 class ReportDefinition(AnalysisCreate):

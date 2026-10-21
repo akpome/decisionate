@@ -764,7 +764,6 @@ const frenchLandingTranslations: Record<string, string> = {
   "Search metric pairs": "Rechercher des paires d'indicateurs",
   "Timing comparison": "Comparaison temporelle",
   "Same-period comparison only": "Comparaison de la même période uniquement",
-  "Test both directions": "Tester les deux sens",
   "{metric} leads": "{metric} précède",
   "No matching metric pairs.": "Aucune paire d'indicateurs correspondante.",
   "Edit this decision name to suit your analysis.": "Modifiez le nom de cette décision pour l'adapter à votre analyse.",

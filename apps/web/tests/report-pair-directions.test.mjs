@@ -21,13 +21,13 @@ const metrics = [key(1, "spend"), key(2, "revenue"), key(4, "clicks")].map(item 
 const lag = { enabled: true, minimum: 0, maximum: 3, direction: "a_leads_b" }
 const json = value => JSON.parse(JSON.stringify(value))
 
-test("new reports use named pair choices rather than assigning direction by selection order", () => {
+test("new report pairs default to a single same-period test regardless of selection order", () => {
   const first = reportPairDirections(metrics, [])
   const reverse = reportPairDirections([...metrics].reverse(), [])
   assert.deepEqual(json(first), json(reverse))
   assert.equal(first.length, 3)
-  assert.ok(first.every(pair => pair.direction === "both"))
-  assert.equal(reportTestCount(metrics, first, lag), 21)
+  assert.ok(first.every(pair => pair.direction === "same_period"))
+  assert.equal(reportTestCount(metrics, first, lag), 3)
 })
 
 test("a middle metric can independently follow both neighbours", () => {
@@ -43,13 +43,13 @@ test("reversed endpoints preserve which actual metric leads", () => {
 })
 
 test("removing metrics prunes stale pairs while keeping retained choices and defaults for new pairs", () => {
-  const configured = reportPairDirections(metrics, []).map(pair => ({ ...pair, direction: "same_period" }))
+  const configured = reportPairDirections(metrics, []).map(pair => ({ ...pair, direction: "a_leads_b" }))
   const pruned = reportPairDirections(metrics.slice(0, 2), configured)
   assert.equal(pruned.length, 1)
-  assert.equal(pruned[0].direction, "same_period")
+  assert.equal(pruned[0].direction, "a_leads_b")
   const expanded = reportPairDirections(metrics, pruned)
-  assert.equal(expanded[0].direction, "same_period")
-  assert.equal(expanded.filter(pair => pair.direction === "both").length, 2)
+  assert.equal(expanded[0].direction, "a_leads_b")
+  assert.equal(expanded.filter(pair => pair.direction === "same_period").length, 2)
 })
 
 test("legacy report direction is translated without changing its original selection-order meaning", () => {
@@ -57,19 +57,33 @@ test("legacy report direction is translated without changing its original select
   assert.ok(definition.pair_directions.every(pair => pair.direction === "b_leads_a"))
   assert.equal(reportTestCount(definition.metrics, definition.pair_directions, lag), 12)
   assert.equal(reportTestCount(metrics, null, lag), 12)
-  assert.ok(editableDefinition({ metrics, pair_directions: [] }).pair_directions.every(pair => pair.direction === "both"))
+  assert.ok(editableDefinition({ metrics, pair_directions: [] }).pair_directions.every(pair => pair.direction === "same_period"))
+})
+
+test("saved bidirectional settings reopen as same-period without changing explicit leaders or the snapshot", () => {
+  const configured = [
+    { metric_a: key(4, "clicks"), metric_b: key(2, "revenue"), direction: "both" },
+    { metric_a: key(2, "revenue"), metric_b: key(1, "spend"), direction: "b_leads_a" },
+  ]
+  const original = structuredClone(configured)
+  const edited = editableDefinition({ metrics, pair_directions: configured, lag })
+  assert.equal(edited.pair_directions.find(pair => pair.metric_a.dataset_id === 2).direction, "same_period")
+  assert.equal(edited.pair_directions[0].direction, "a_leads_b")
+  assert.equal(reportTestCount(metrics, configured, lag), 6)
+  assert.deepEqual(configured, original)
 })
 
 test("unique-test estimates agree with the backend for mixed modes and lag bounds", () => {
-  const mixed = reportPairDirections(metrics, []).map((pair, index) => ({ ...pair, direction: ["a_leads_b", "same_period", "both"][index] }))
-  assert.equal(reportTestCount(metrics, mixed, lag), 12)
+  const mixed = reportPairDirections(metrics, []).map((pair, index) => ({ ...pair, direction: ["a_leads_b", "same_period", "b_leads_a"][index] }))
+  assert.equal(reportTestCount(metrics, mixed, lag), 9)
   assert.equal(reportTestCount(metrics, mixed, { ...lag, enabled: false }), 3)
   assert.equal(reportTestCount(metrics, [], { ...lag, maximum: 0 }), 3)
-  assert.equal(reportTestCount(metrics, [], { ...lag, minimum: 2 }), 15)
+  assert.equal(reportTestCount(metrics, [], { ...lag, minimum: 2 }), 3)
+  assert.equal(reportTestCount(metrics, mixed, { ...lag, minimum: 2 }), 7)
   const large = Array.from({ length: 25 }, (_, index) => ({ ...metrics[0], dataset_id: index + 1 }))
-  assert.equal(reportTestCount(large, [], { ...lag, maximum: 12 }), 7500)
-  const onlySamePeriod = reportPairDirections(large, []).map(pair => ({ ...pair, direction: "same_period" }))
-  assert.equal(reportTestCount(large, onlySamePeriod, { ...lag, maximum: 12 }), 300)
+  assert.equal(reportTestCount(large, [], { ...lag, maximum: 12 }), 300)
+  const directed = reportPairDirections(large, []).map(pair => ({ ...pair, direction: "a_leads_b" }))
+  assert.equal(reportTestCount(large, directed, { ...lag, maximum: 12 }), 3900)
 })
 
 test("metrics from the same dataset do not create a pair and structural keys avoid delimiter collisions", () => {
@@ -77,7 +91,7 @@ test("metrics from the same dataset do not create a pair and structural keys avo
   assert.notEqual(reportPairKey({ metric_a: key(1, "a|2:b"), metric_b: key(3, "c") }), reportPairKey({ metric_a: key(1, "a"), metric_b: key(2, "b|3:c") }))
 })
 
-test("pair controls use actual metric and dataset names and offer all four timing modes", () => {
+test("pair controls offer same-period by default and two named lead directions only", () => {
   const { ReportPairDirections } = load("../features/reports/report-pair-directions.tsx", {
     "react": { ...React, useState: () => ["", () => {}] }, "./pair-directions": pairs,
     "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: value => value }) },
@@ -85,8 +99,8 @@ test("pair controls use actual metric and dataset names and offer all four timin
   const datasets = metrics.map(metric => ({ dataset_id: metric.dataset_id, dataset_label: `Source ${metric.dataset_id}`, metrics: [{ ...metric, label: metric.metric_key }] }))
   const opened = [], props = { pairs: reportPairDirections(metrics, []), datasets, onChange: (...value) => opened.push(value) }
   const html = renderToStaticMarkup(React.createElement(ReportPairDirections, props))
-  for (const label of ["spend leads", "revenue leads", "clicks leads", "Source 1", "Source 2", "Source 4", "Test both directions", "Same-period comparison only"]) assert.ok(html.includes(label))
-  assert.doesNotMatch(html, /Earlier selected|Later selected/)
+  for (const label of ["spend leads", "revenue leads", "clicks leads", "Source 1", "Source 2", "Source 4", "Same-period comparison only"]) assert.ok(html.includes(label))
+  assert.doesNotMatch(html, /Earlier selected|Later selected|Test both directions|value="both"/)
   assert.doesNotMatch(html, /overflow-y-|max-h-|tabindex=/)
   assert.doesNotMatch(html, /md:grid-cols/)
   const selects = []
@@ -97,6 +111,10 @@ test("pair controls use actual metric and dataset names and offer all four timin
   }
   visit(ReportPairDirections(props))
   assert.equal(selects.length, 3)
+  for (const select of selects) {
+    assert.equal(select.props.value, "same_period")
+    assert.deepEqual(React.Children.toArray(select.props.children).map(option => option.props.value), ["same_period", "a_leads_b", "b_leads_a"])
+  }
   selects[2].props.onChange({ target: { value: "b_leads_a" } })
   assert.equal(opened[0][0].metric_a.dataset_id, 2)
   assert.equal(opened[0][1], "b_leads_a")

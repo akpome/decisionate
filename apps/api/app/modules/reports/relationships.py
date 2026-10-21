@@ -2,7 +2,7 @@
 
 from itertools import combinations
 
-from app.modules.correlation.engine import compute_pair, select_best_pair
+from app.modules.correlation.engine import compute_pair
 
 
 def metric_key(reference):
@@ -13,15 +13,22 @@ def pair_key(left, right):
     return frozenset((metric_key(left), metric_key(right)))
 
 
+def normalize_pair_directions(configured):
+    if configured is None:
+        return None
+    # Existing snapshots stay intact; only settings used for a new run are normalized.
+    return [{**item, "direction": "same_period" if item["direction"] == "both" else item["direction"]} for item in configured]
+
+
 def direction_lookup(definition):
-    return {pair_key(item["metric_a"], item["metric_b"]): item for item in definition.get("pair_directions") or []}
+    return {pair_key(item["metric_a"], item["metric_b"]): item for item in normalize_pair_directions(definition.get("pair_directions")) or []}
 
 
 def pair_direction(left, right, definition, lookup):
     policy = lookup.get(pair_key(left, right))
     if policy is None:
         # Older reports keep their original, selection-ordered direction.
-        return definition["lag"]["direction"] if definition.get("pair_directions") is None else "both"
+        return definition["lag"]["direction"] if definition.get("pair_directions") is None else "same_period"
     mode = policy["direction"]
     if metric_key(policy["metric_a"]) != metric_key(left):
         mode = {"a_leads_b": "b_leads_a", "b_leads_a": "a_leads_b"}.get(mode, mode)
@@ -36,19 +43,13 @@ def report_test_count(definition):
         if left["dataset_id"] == right["dataset_id"]:
             continue
         mode = pair_direction(left, right, definition, lookup)
-        count += 1 + (0 if mode == "same_period" else positive * (2 if mode == "both" else 1))
+        count += 1 + (0 if mode == "same_period" else positive)
     return count
 
 
 def compute_report_pair(left, right, series, definition, lookup):
     mode = pair_direction(left, right, definition, lookup)
-    if mode == "both" and metric_key(right) < metric_key(left):
-        left, right = right, left
     lag = definition["lag"]
     policy = {**definition, "lag": {**lag, "enabled": lag["enabled"] and mode != "same_period",
                                    "direction": mode if mode in {"a_leads_b", "b_leads_a"} else "a_leads_b"}}
-    rows = compute_pair(left, right, series, policy)
-    if mode == "both" and lag["enabled"]:
-        reverse = {**policy, "lag": {**policy["lag"], "direction": "b_leads_a"}}
-        rows.extend(compute_pair(left, right, series, reverse, include_zero=False))
-    return select_best_pair(rows)
+    return compute_pair(left, right, series, policy)

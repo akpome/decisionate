@@ -31,7 +31,6 @@ export function ReportPairDirections({ pairs, datasets, onChange }: {
           { value: "same_period", label: t("Same-period comparison only") },
           { value: "a_leads_b", label: t("{metric} leads").replace("{metric}", firstLabel) },
           { value: "b_leads_a", label: t("{metric} leads").replace("{metric}", secondLabel) },
-          { value: "both", label: t("Test both directions") },
         ]
         return <div key={reportPairKey(pair)} className="grid min-w-0 gap-2 border-t border-gray-100 py-3">
           <div className="min-w-0 space-y-1 text-sm"><p className="break-words"><span className="text-gray-500">{left.dataset}</span> / <span className="font-medium">{left.metric}</span></p><p className="break-words"><span className="text-gray-500">{right.dataset}</span> / <span className="font-medium">{right.metric}</span></p></div>

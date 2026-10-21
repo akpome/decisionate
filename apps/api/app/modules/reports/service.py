@@ -15,7 +15,7 @@ from app.modules.datasets.services.joins import _bucket_dates, _infer_explicit_y
 from app.modules.datasets.services.numeric import coerce_numeric_series
 from .catalog import prepare_report_source
 from .decision_drafts import is_report_decision_draft
-from .relationships import compute_report_pair, direction_lookup, report_test_count
+from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, report_test_count
 from app.modules.decisions.duplicates import canonical_decisions
 
 
@@ -109,6 +109,7 @@ def prepare_report_series(frames, references, definition):
 
 def build_report(frames, definition, *, unavailable=None):
     """Frames must already be authorized; source data and selections are never changed."""
+    definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
     if report_test_count(definition) > 1000:
         raise ValueError("Reports support at most 1,000 pair-lag tests")
     frames = {identity: prepare_report_source(dataset, frame) for identity, (dataset, frame) in frames.items()}
