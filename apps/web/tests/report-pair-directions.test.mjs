@@ -124,6 +124,33 @@ test("pair controls offer same-period by default and two named lead directions o
   assert.match(ambiguous, /Source 2 \/ Total leads/)
 })
 
+test("report dates stay in a nonshrinking row outside the settings scroll area", () => {
+  const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  const tree = ts.createSourceFile("report-workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const elements = []
+  function visit(node) {
+    if (ts.isJsxElement(node)) elements.push(node)
+    ts.forEachChild(node, visit)
+  }
+  visit(tree)
+  const attribute = (node, name) => node.openingElement.attributes.properties.find(item => item.name?.text === name)?.initializer?.text
+  const settings = elements.find(node => node.openingElement.tagName.getText(tree) === "section" && attribute(node, "aria-label") === "Analysis settings")
+  assert.ok(settings)
+  const children = settings.children.filter(ts.isJsxElement)
+  const scroll = children.find(node => attribute(node, "className")?.includes("report-builder-scroll"))
+  const dates = children.find(node => node.getText(tree).includes('type="date"'))
+  assert.ok(scroll)
+  assert.ok(dates)
+  assert.match(attribute(dates, "className"), /\bshrink-0\b/)
+  assert.ok(dates.end < scroll.pos)
+  assert.equal((dates.getText(tree).match(/type="date"/g) || []).length, 2)
+  assert.match(dates.getText(tree), /max=\{definition\.date_range\.end \|\| undefined\}/)
+  assert.match(dates.getText(tree), /min=\{definition\.date_range\.start \|\| undefined\}/)
+  assert.doesNotMatch(scroll.getText(tree), /type="date"/)
+  assert.match(scroll.getText(tree), /Group by/)
+  assert.match(scroll.getText(tree), /Relationship analysis/)
+})
+
 test("the builder renders pair directions only for timing and invalidates results on policy changes", () => {
   const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
   assert.match(source, /const taskCount = reportTestCount/)
