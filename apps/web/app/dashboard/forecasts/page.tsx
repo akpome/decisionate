@@ -12,6 +12,7 @@ import { RecommendationCard }
   from "@/features/dashboard/components/recommendation-card"
 import { ForecastSummaryCard }
   from "@/features/dashboard/components/forecast-summary-card"
+import { ForecastBasis } from "@/features/dashboard/components/forecast-basis"
 
 import { type DatasetSummary, type DecisionConfidenceScore, type ForecastResponse, type ForecastPeriodFilter, type DashboardAggregation, type DashboardValueAggregation, getDatasets, getDatasetMetrics, getForecast } from "@/lib/api";
 import {
@@ -166,7 +167,7 @@ function formatForecastPeriodLabel(
     "2y": "2 years",
     "3y": "3 years",
     "5y": "5 years",
-    all: "all available data",
+    all: "up to 3 years of history",
   }
 
   return labels[period]
@@ -221,7 +222,7 @@ function getForecastModelQualityStatus(
 
   if (reliability === "limited") {
     return {
-      label: "Limited reliability: no holdout validation",
+      label: "Limited validation history or coverage",
       className: "border-amber-200 bg-amber-50 text-amber-800",
     }
   }
@@ -292,6 +293,7 @@ export default function ForecastsPage() {
     useState<DashboardValueAggregation>("sum")
   const [startDate, setStartDate] =
     useState("")
+  const [seasonalBusiness, setSeasonalBusiness] = useState(false)
 
   const [loading, setLoading] =
     useState(false)
@@ -379,6 +381,7 @@ export default function ForecastsPage() {
         setAggregation("monthly")
         setAggregationType("sum")
         setStartDate("")
+        setSeasonalBusiness(false)
         setDatasetMetricColumns([])
         setMetricsDatasetId(undefined)
         setMetricsLoadFailedDatasetId(
@@ -597,6 +600,7 @@ export default function ForecastsPage() {
     async function loadForecast() {
       try {
         setLoading(true)
+        setForecast(null)
         setPageError("")
         setForecastUnavailableMessage("")
 
@@ -611,6 +615,7 @@ export default function ForecastsPage() {
               periodFilter,
               aggregation,
               aggregationType,
+              seasonalBusiness,
             }
           )
 
@@ -690,6 +695,7 @@ export default function ForecastsPage() {
     forecastRefreshVersion,
     periodFilter,
     startDate,
+    seasonalBusiness,
   ])
 
   // Chart data preparation: combines historical values with forecasted periods.
@@ -922,6 +928,7 @@ export default function ForecastsPage() {
     setAggregation("monthly")
     setAggregationType("sum")
     setStartDate("")
+    setSeasonalBusiness(false)
     setDatasetMetricColumns([])
     setMetricsDatasetId(undefined)
     setMetricsLoadFailedDatasetId(undefined)
@@ -1118,6 +1125,7 @@ export default function ForecastsPage() {
               <span className="block">{t("Start date")}</span>
               <input
                 type="date"
+                aria-label={t("Start date")}
                 value={startDate}
                 disabled={!selectedDataset || loading}
                 onChange={event =>
@@ -1131,6 +1139,7 @@ export default function ForecastsPage() {
               <span className="block">{t("Period")}</span>
               <select
                 value={periodFilter}
+                aria-label={t("Period")}
                 disabled={!selectedDataset || loading}
                 onChange={event =>
                   setPeriodFilter(
@@ -1145,8 +1154,7 @@ export default function ForecastsPage() {
                 <option value="1y">{t("1 year")}</option>
                 <option value="2y">{t("2 years")}</option>
                 <option value="3y">{t("3 years")}</option>
-                <option value="5y">{t("5 years")}</option>
-                <option value="all">{t("All data")}</option>
+                <option value="all">{t("Up to 3 years")}</option>
               </select>
             </label>
 
@@ -1154,6 +1162,7 @@ export default function ForecastsPage() {
               <span className="block">{t("Group by")}</span>
               <select
                 value={aggregation}
+                aria-label={t("Group by")}
                 disabled={!selectedDataset || loading}
                 onChange={event =>
                   setAggregation(
@@ -1173,6 +1182,7 @@ export default function ForecastsPage() {
               <span className="block">{t("Aggregate")}</span>
               <select
                 value={aggregationType}
+                aria-label={t("Aggregate")}
                 disabled={!selectedDataset || loading}
                 onChange={event =>
                   setAggregationType(
@@ -1204,11 +1214,24 @@ export default function ForecastsPage() {
             </button>
 
             <p className="col-span-full truncate text-xs text-gray-500">
-              Showing {formatForecastPeriodLabel(periodFilter)} from {formatForecastStartDate(startDate)}
+              {periodFilter === "all" && !startDate
+                ? "History: latest 3 years available"
+                : `Window: ${formatForecastPeriodLabel(periodFilter)} from ${formatForecastStartDate(startDate)}`}
               {` • grouped ${formatForecastAggregationLabel(aggregation)}`}
               {` • ${formatForecastValueAggregationLabel(aggregationType)}`}
             </p>
           </div>
+
+          <label className="mt-4 flex w-fit items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={seasonalBusiness}
+              disabled={!selectedDataset || loading}
+              onChange={event => setSeasonalBusiness(event.target.checked)}
+              className="h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
+            />
+            {t("Business has seasonal activity")}
+          </label>
 
           <p className="mt-3 max-w-full break-words text-sm text-gray-500">
             {selectedDataset ? (
@@ -1353,7 +1376,7 @@ export default function ForecastsPage() {
                   ? `Compared ${forecast.forecast.model_quality.candidate_count} models · `
                   : ""}
                 Selected model: {forecast.forecast.model_quality.method.replaceAll("_", " ")} · {forecast.forecast.model_quality.validation_periods > 0
-                  ? `${forecast.forecast.model_quality.validation_periods}-period holdout`
+                  ? `${forecast.forecast.model_quality.validation_periods} ${forecast.forecast.seasonality?.validation_method === "rolling_origin" ? "rolling-origin validation observations" : "holdout observations"}`
                   : "No holdout validation"}
                 {forecast.forecast.model_quality.mae !== null
                   ? ` · MAE ${forecast.forecast.model_quality.mae.toLocaleString()}`
@@ -1364,6 +1387,8 @@ export default function ForecastsPage() {
               </span>
             </div>
           )}
+
+          <ForecastBasis basis={forecast.forecast.seasonality} />
 
           {forecast?.forecast?.recommendation && (
             <div className="mt-5 border-t pt-5">

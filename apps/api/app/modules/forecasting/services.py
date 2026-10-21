@@ -2,6 +2,7 @@ import warnings
 
 import pandas as pd
 import numpy as np
+from statsmodels.regression.linear_model import OLS
 
 from app.modules.decisions.schemas import (
     DecisionConfidenceScore,
@@ -25,6 +26,9 @@ from app.modules.datasets.services.serialization import (
 )
 from app.modules.datasets.services.summary_query import (
     aggregate_summary_aware_dataframe,
+)
+from app.modules.datasets.services.seasonal_baseline import (
+    FREQUENCIES, LOOKBACK_YEARS, historical_start, _baseline, _fit_predict, _supports,
 )
 
 
@@ -417,7 +421,7 @@ def prepare_forecast_dataframe(
     )
 
     for column, numeric_series in numeric_columns:
-        grouped_series = (
+        grouped_values = (
             numeric_series.loc[
                 scoped_dataframe.index
             ]
@@ -425,7 +429,11 @@ def prepare_forecast_dataframe(
                 buckets,
                 sort=True,
             )
-            .agg(aggregation_function)
+        )
+        grouped_series = (
+            grouped_values.sum(min_count=1)
+            if aggregation_function == "sum"
+            else grouped_values.agg(aggregation_function)
         )
         grouped_dataframe[column] = (
             grouped_series.reindex(
@@ -443,6 +451,8 @@ def build_model_forecast(
     values: list[float],
     method: str,
     forecast_count: int,
+    dates=None,
+    target_dates=None,
 ):
     if not values or forecast_count <= 0:
         return []
@@ -463,6 +473,13 @@ def build_model_forecast(
             np.mean(numeric_values[-window:]),
             forecast_count,
         )
+    elif dates is not None and target_dates is not None:
+        # Missing calendar periods must not compress the regression's time axis.
+        elapsed = np.asarray((dates - dates[0]).days, dtype=float)
+        future = np.asarray((target_dates - dates[0]).days, dtype=float)
+        scale = max(float(np.max(np.abs(numeric_values))), 1e-12)
+        result = OLS(numeric_values / scale, np.column_stack([np.ones(len(dates)), elapsed])).fit()
+        forecast_values = result.predict(np.column_stack([np.ones(len(future)), future])) * scale
     else:
         train_x = np.arange(len(numeric_values))
         slope, intercept = np.polyfit(
@@ -477,12 +494,102 @@ def build_model_forecast(
         forecast_values = slope * future_x + intercept
 
     return [
-        round(
-            to_finite_forecast_number(value) or 0.0,
-            2,
-        )
+        float(f"{to_finite_forecast_number(value) or 0.0:.12g}")
         for value in forecast_values
     ]
+
+
+def build_calendar_forecast(frame, date_column, value_column, grain, seasonal):
+    dates = pd.DatetimeIndex(pd.to_datetime(frame[date_column], utc=True)).tz_localize(None)
+    values = frame[value_column].tolist()
+    quality = evaluate_forecast_model(values, dates if grain in FREQUENCIES else None)
+    periods = build_forecast_period_labels(dates.tolist(), 3)
+    forecasts = build_model_forecast(values, quality["method"], 3)
+    details = {
+        "requested": seasonal, "status": "not_requested" if not seasonal else "insufficient_history",
+        "seasonalities": [], "lookback_years": LOOKBACK_YEARS,
+        "history_start": str(dates.min().date()), "history_end": str(dates.max().date()),
+        "observations": len(values), "validation_method": "holdout", "validation_horizon": quality["validation_periods"],
+        "warnings": [],
+    }
+    if grain not in FREQUENCIES or dates.has_duplicates:
+        if seasonal:
+            details["warnings"].append("Seasonal forecasting requires unique daily, weekly, monthly or quarterly periods. A non-seasonal forecast was used.")
+        quality["reliability"] = "limited"
+        return forecasts, periods, quality, details
+
+    history = pd.Series(values, index=dates)
+    future = pd.date_range(dates.max(), periods=4, freq=FREQUENCIES[grain])[1:]
+    if grain == "daily" and len(history) >= 56 and len(dates.dayofweek.unique()) < 7:
+        future = pd.date_range(dates.max() + pd.Timedelta(days=1), periods=21, freq="D")
+        future = future[future.dayofweek.isin(dates.dayofweek.unique())][:3]
+        details["warnings"].append("Daily projections follow observed weekdays; unobserved weekdays are not assumed to have zero activity.")
+    periods = [str(value.date()) for value in future]
+    expected_dates = pd.date_range(dates.min(), dates.max(), freq=FREQUENCIES[grain])
+    missing = len(expected_dates.difference(dates))
+    if missing:
+        details["warnings"].append(f"{missing} calendar periods have no usable measurement. Missing periods were not filled with zeros.")
+    floor = pd.Timestamp(historical_start(dates.max()))
+    baseline = _baseline(history, future[0], grain, seasonal, 1 if grain == "quarterly" else 3, floor)
+    if baseline is None:
+        if seasonal:
+            details["warnings"].append("Not enough history or calendar coverage to validate seasonal patterns. Annual patterns need at least two annual cycles plus validation observations. A non-seasonal forecast was used.")
+        quality["reliability"] = "limited"
+        forecasts = build_model_forecast(values, quality["method"], 3, dates, future)
+        return forecasts, periods, quality, details
+
+    # All candidate models see exactly the same two chronological validation folds.
+    size = baseline["calibration_observations"]
+    calibration = history.iloc[-size:]
+    folds = np.array_split(np.arange(size), 2)
+    candidates = []
+    for method in ("linear_regression", "last_value", "moving_average"):
+        errors = []
+        for fold in folds:
+            held_out = calibration.iloc[fold]
+            train = history.loc[history.index < held_out.index.min()]
+            prediction = build_model_forecast(train.tolist(), method, len(held_out), train.index, held_out.index)
+            errors.extend(held_out.to_numpy() - prediction)
+        errors = np.asarray(errors)
+        loss = float(np.median(np.abs(errors)) + .2 * np.quantile(np.abs(errors), .9))
+        candidates.append((loss, method, errors))
+    best = min(candidates, key=lambda candidate: candidate[0])
+    errors = baseline["validation_errors"]
+    loss = float(np.median(np.abs(errors)) + .2 * np.quantile(np.abs(errors), .9))
+    use_baseline = loss < best[0] * (.9 if baseline["seasonalities"] else 1.)
+    if use_baseline:
+        try:
+            prediction = _fit_predict(baseline["train"], future, baseline["seasonalities"], grain)
+            forecasts = [float(f"{value:.12g}") for value in prediction]
+            method = "seasonal_calendar_regression" if baseline["seasonalities"] else "robust_calendar_trend"
+            details["seasonalities"] = list(baseline["seasonalities"])
+            details["history_start"] = str(baseline["train"].index.min().date())
+            details["observations"] = len(baseline["train"])
+        except (ValueError, np.linalg.LinAlgError, ZeroDivisionError, FloatingPointError):
+            use_baseline = False
+            details["warnings"].append("The validated calendar model could not project these periods. A non-seasonal forecast was used.")
+    if not use_baseline:
+        _, method, errors = best
+        forecasts = build_model_forecast(values, method, 3, dates, future)
+    score = score_forecast_predictions((calibration.to_numpy() - errors).tolist(), calibration.tolist())
+    horizon = max(len(fold) for fold in folds)
+    quality = {"method": method, "candidate_count": 3 + baseline["candidate_count"],
+               "validation_periods": size, **score,
+               "reliability": get_forecast_model_reliability(size, score["mape"])}
+    details.update(validation_method="rolling_origin", validation_horizon=horizon)
+    if seasonal:
+        details["status"] = "applied" if details["seasonalities"] else "not_supported"
+        if not baseline["annual_validated"]:
+            details["warnings"].append("Annual seasonality requires at least two annual cycles plus validation observations and adequate calendar coverage within the three-year window.")
+        if not details["seasonalities"]:
+            details["warnings"].append("Seasonal patterns did not improve past-only validation enough; a non-seasonal model was retained.")
+        details["warnings"].append("Recurring calendar patterns do not model changing holidays, promotions or structural business changes. Projections are not guaranteed outcomes.")
+    if horizon < len(future):
+        quality["reliability"] = "limited"
+        details["warnings"].append(f"Validation covered up to {horizon} future periods, shorter than the three-period forecast.")
+    if not _supports(history, future[0], grain, ()):
+        quality["reliability"] = "limited"
+    return forecasts, periods, quality, details
 
 
 def score_forecast_predictions(
@@ -534,6 +641,7 @@ def score_forecast_predictions(
 
 def evaluate_forecast_model(
     values: list[float],
+    dates=None,
 ):
     holdout_periods = min(
         3,
@@ -568,6 +676,8 @@ def evaluate_forecast_model(
             train_values,
             method,
             holdout_periods,
+            dates[:train_count] if dates is not None else None,
+            dates[train_count:] if dates is not None else None,
         )
         score = score_forecast_predictions(
             predictions,
@@ -626,6 +736,7 @@ def generate_forecast(
     aggregation: str | None = None,
     aggregation_type: str | None = None,
     actor_user_id: str | None = None,
+    seasonal_business: bool = False,
 ):
     if not isinstance(
         dataframe,
@@ -645,10 +756,33 @@ def generate_forecast(
         date_column,
         start_date,
         period_filter,
-        aggregation,
-        aggregation_type,
     )
 
+    if dataframe.empty:
+        return {"error": "Not enough data"}
+
+    # The selected range defines the forecast origin; old observations expire on
+    # each run, before aggregation so a bucket cannot pull in out-of-window rows.
+    anchor = dataframe[date_column].max()
+    floor = pd.Timestamp(historical_start(anchor), tz="UTC")
+    dataframe = dataframe.loc[dataframe[date_column] >= floor]
+    partial_buckets = set()
+    period_code = {"weekly": "W-SUN", "monthly": "M", "quarterly": "Q"}.get(aggregation)
+    if period_code:
+        raw_dates = dataframe[date_column].dt.tz_localize(None).dt.normalize()
+        buckets = raw_dates.dt.to_period(period_code)
+        # Period-labelled exports (e.g. monthly totals on the first) are already
+        # comparable. Transaction-level edge buckets may cover only part of a period.
+        if not raw_dates.eq(buckets.dt.start_time).all():
+            if raw_dates.min() > buckets.min().start_time:
+                partial_buckets.add(buckets.min().start_time)
+            if raw_dates.max() < buckets.max().end_time.normalize():
+                partial_buckets.add(buckets.max().start_time)
+    dataframe = prepare_forecast_dataframe(
+        dataframe, date_column, aggregation=aggregation, aggregation_type=aggregation_type,
+    )
+    grouped_dates = pd.to_datetime(dataframe[date_column], utc=True)
+    dataframe = dataframe.loc[(grouped_dates >= floor) & ~grouped_dates.dt.tz_localize(None).isin(partial_buckets)]
     if dataframe.empty:
         return {"error": "Not enough data"}
 
@@ -744,26 +878,23 @@ def generate_forecast(
     if len(values) < 2:
         return {"error": "Not enough data"}
 
-    model_quality = evaluate_forecast_model(
-        values,
+    forecasts, forecast_periods, model_quality, seasonality = build_calendar_forecast(
+        working_dataframe, date_column, value_column, aggregation, seasonal_business,
     )
-    forecasts = build_model_forecast(
-        values,
-        model_quality["method"],
-        3,
-    )
-
-    forecast_periods = build_forecast_period_labels(
-        working_dataframe[date_column].tolist(),
-        len(forecasts),
-    )
+    if partial_buckets:
+        seasonality["warnings"].append("Edge periods not fully spanned by the observed date range were excluded from training. Projections start after the last retained historical period.")
     summary = build_forecast_summary(
         values,
         forecasts,
         forecast_periods,
     )
     recommendation = apply_model_quality_to_recommendation(
-        generate_recommendation(forecasts),
+        build_recommendation(
+            title="Plan for seasonal variation",
+            message="The projection includes validated recurring calendar patterns.",
+            reason="Use the seasonal outlook for capacity and cash-flow planning. A recurring peak or trough alone does not justify changing investment.",
+            confidence=MEDIUM_DECISION_CONFIDENCE,
+        ) if seasonality["seasonalities"] else generate_recommendation(forecasts),
         model_quality,
     )
     ai_facts = {
@@ -777,6 +908,8 @@ def generate_forecast(
         "forecast_periods": forecast_periods,
         "summary": summary,
         "model_quality": model_quality,
+        "seasonality": seasonality,
+        "interpretation_constraints": "A recurring calendar peak or trough alone is not evidence of a structural trend, anomaly, causal effect or investment return.",
     }
 
     if learning_context:
@@ -790,10 +923,12 @@ def generate_forecast(
             recommendation["reason"],
         ],
         fallback_risks=(
-            ["The forecast indicates a declining trend."]
+            ["The projection is below the latest observation; recurring calendar effects may explain the difference."]
+            if summary["direction"] == "decrease" and seasonality["seasonalities"]
+            else ["The forecast indicates a declining trend."]
             if summary["direction"] == "decrease"
             else []
-        ),
+        ) + seasonality["warnings"],
         workspace_id=workspace_id,
         actor_user_id=actor_user_id,
     )
@@ -821,22 +956,18 @@ def generate_forecast(
                 ),
             }
 
+    historical = working_dataframe[[date_column, value_column]].tail(12).copy()
+    historical[date_column] = pd.to_datetime(historical[date_column], utc=True).dt.strftime("%Y-%m-%d")
     return {
         "date_column": date_column,
         "value_column": value_column,
-        "historical": dataframe_to_json_records(
-            working_dataframe[
-                [
-                    date_column,
-                    value_column,
-                ]
-            ].tail(12)
-        ),
+        "historical": dataframe_to_json_records(historical),
         "available_metrics": numeric_columns,
         "forecast": forecasts,
         "forecast_periods": forecast_periods,
         "summary": summary,
         "model_quality": model_quality,
+        "seasonality": seasonality,
         "recommendation": recommendation,
         "ai_analysis": ai_analysis,
     }

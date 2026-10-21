@@ -926,6 +926,7 @@ export type ForecastQueryOptions = {
   periodFilter?: ForecastPeriodFilter
   aggregation?: DashboardAggregation
   aggregationType?: DashboardValueAggregation
+  seasonalBusiness?: boolean
 }
 
 export type DashboardPreferencePayload = {
@@ -1666,6 +1667,7 @@ export type ForecastResponse = {
         | "good"
     }
     available_metrics?: string[]
+    seasonality?: ForecastSeasonality
     recommendation: {
       title: string
       reason: string
@@ -1673,6 +1675,19 @@ export type ForecastResponse = {
     }
     ai_analysis?: AIAnalysis
   }
+}
+
+export type ForecastSeasonality = {
+  requested: boolean
+  status: "applied" | "not_requested" | "insufficient_history" | "not_supported"
+  seasonalities: string[]
+  lookback_years: number
+  history_start: string
+  history_end: string
+  observations: number
+  validation_method: "holdout" | "rolling_origin"
+  validation_horizon: number
+  warnings: string[]
 }
 
 
@@ -6776,6 +6791,7 @@ export async function getForecast(
     )
   }
 
+  queryParams.set("seasonal_business", String(options?.seasonalBusiness ?? false))
   const query = queryParams.toString()
   const forecastQuery = query ? `?${query}` : ""
   const cacheKey =
@@ -6805,7 +6821,11 @@ export async function getForecast(
         )
       }
 
-      return response.json()
+      const result: ForecastResponse = await response.json()
+      if (options?.seasonalBusiness && !result.forecast.seasonality?.requested) {
+        throw new Error("Seasonal forecasting is not available from this API yet. Please try again shortly.")
+      }
+      return result
     }
   )
 }

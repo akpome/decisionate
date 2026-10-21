@@ -133,6 +133,47 @@ Method references:
 - [Fourier terms for long seasonal periods](https://otexts.com/fpp3/dhr.html)
 - [NIST scale measures and robust alternatives](https://itl.nist.gov/div898/handbook/eda/section3/eda356.htm)
 
+## Season-Aware Forecasts
+
+`GET /forecasting/{dataset_id}` also accepts `seasonal_business` (default false).
+Forecasts and report anomalies share the same calendar-baseline implementation
+in `datasets/services/seasonal_baseline.py`; their scoring purposes remain
+distinct. Forecasts return point projections, not the anomaly detector's bands
+or purported confidence intervals.
+
+The existing forecast date window chooses the forecast origin. At most three
+calendar years ending at its latest observation are eligible for training;
+older observations are excluded before aggregation, never deleted. A saved
+historical date window does not silently pull in later observations. Period
+labels follow the requested daily, weekly, monthly or quarterly calendar rather
+than extrapolating an arbitrary last-row gap. Edge buckets not fully spanned by
+the observed transaction date range are excluded; period-labelled exports are retained.
+Missing measurements are not zero-filled. Daily business-day projections follow
+observed weekdays and disclose this restriction.
+
+When sufficient coverage exists, two chronological validation folds compare the
+calendar baselines with linear, last-value and moving-average alternatives on
+the same held-out observations. Seasonal terms need at least a 10% improvement
+over the best non-seasonal alternative to be selected. Annual candidates require
+two preceding cycles plus validation history within the three-year cap. Daily
+data can use weekday patterns even when annual history is not yet sufficient.
+The model is refit on each request. Insufficient history, unsupported seasonal
+patterns and fitting failures retain an explicitly limited or non-seasonal
+forecast. Quarterly validation may cover fewer periods ahead than the projection;
+this is disclosed and reliability is capped.
+
+The Forecasts page has the same opt-in seasonal-business checkbox and displays
+the actual training dates, count, validation horizon, selected calendar patterns
+and warnings. The option participates in the scoped API cache key and resets on
+dataset/workspace changes. Seasonal peaks alone do not produce an investment
+increase recommendation. Holidays, promotions, structural changes and causal
+effects are not inferred by this calendar regression.
+
+Method references are the Statsmodels and forecasting-textbook sources above.
+`tests.test_seasonal_forecasts` covers calendar projections, opt-in behavior,
+past-only validation, rolling expiry, partial/missing periods, fallback behavior
+and the route contract. Web tests cover basis rendering and cache separation.
+
 ## Storage and Access
 
 The API lives at `/api/v2/business-reports` and is available independently of the

@@ -177,7 +177,7 @@ class ReportAnomalyTests(unittest.TestCase):
         self.assertEqual(result["baselines"][0], changed["baselines"][0])
 
     def test_failed_model_fitting_returns_a_limitation_not_a_false_success(self):
-        with patch("app.modules.reports.anomalies.RLM", side_effect=ValueError("Cannot fit")):
+        with patch("app.modules.datasets.services.seasonal_baseline.RLM", side_effect=ValueError("Cannot fit")):
             result = self.detect(series())
         self.assertEqual(result["status"], "insufficient_history")
         self.assertEqual(result["evaluated_observations"], 0)

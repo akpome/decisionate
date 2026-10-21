@@ -123,6 +123,7 @@ async def get_forecast(
         "min",
         "max",
     ] = Query("sum"),
+    seasonal_business: bool = Query(False),
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -182,6 +183,7 @@ async def get_forecast(
             aggregation,
             aggregation_type,
             user_id,
+            seasonal_business,
         )
 
         if "error" in forecast:
