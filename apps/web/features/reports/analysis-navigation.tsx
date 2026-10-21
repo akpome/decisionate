@@ -1,20 +1,19 @@
 "use client"
 
 import Link from "next/link"
-import { FileText, GitCompare, Table2 } from "lucide-react"
+import { FileText, Table2 } from "lucide-react"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 
 const destinations = [
-  { key: "reports", href: "/dashboard/reports", label: "Reports", icon: FileText },
-  { key: "relationships", href: "/dashboard/relationships", label: "Relationships", icon: GitCompare },
-  { key: "dataset-reports", href: "/dashboard/reports/dataset", label: "Dataset reports", icon: Table2 },
+  { key: "dataset-reports", href: "/dashboard/reports/dataset", label: "Single dataset report", icon: Table2 },
+  { key: "reports", href: "/dashboard/reports", label: "Multi dataset report", icon: FileText },
 ] as const
 
 export function AnalysisNavigation({ active }: { active: typeof destinations[number]["key"] }) {
   const { t } = useDecisionateText()
 
   return (
-    <nav aria-label={t("Analysis navigation")} className="flex min-w-0 border-b border-gray-200 print:hidden">
+    <nav aria-label={t("Report navigation")} className="flex min-w-0 border-b border-gray-200 print:hidden">
       {destinations.map(({ key, href, label, icon: Icon }) => (
         <Link
           key={key}

@@ -287,7 +287,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   return <div className="mx-auto min-w-0 max-w-[1500px] space-y-5">
     <AnalysisNavigation active="reports" />
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
-      <h1 className="text-2xl font-semibold">Reports</h1>
+      <h1 className="text-2xl font-semibold">{t("Multi dataset report")}</h1>
       <div role="tablist" aria-label="Report workspace" className="flex w-full min-w-0 gap-1 rounded-md border border-gray-200 bg-white p-1 sm:w-auto">
         {(["explore", "report"] as const).map(mode => <button key={mode} type="button" role="tab" tabIndex={view === mode ? 0 : -1} aria-selected={view === mode} aria-controls={`report-${mode}`} id={`tab-${mode}`} onClick={() => setView(mode)} onKeyDown={event => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return

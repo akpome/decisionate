@@ -22,7 +22,6 @@ import { useActiveWorkspace } from "@/lib/use-active-workspace"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { CorrelationEntry } from "@/features/relationships/correlation-entry"
-import { AnalysisNavigation } from "@/features/reports/analysis-navigation"
 
 const aggregationOptions: Array<{
   value: DashboardValueAggregation
@@ -323,7 +322,6 @@ export default function RelationshipsPage() {
 
   return (
     <div className="space-y-7">
-      <AnalysisNavigation active="relationships" />
       <DashboardPageHeader
         title="Relationships"
         actions={

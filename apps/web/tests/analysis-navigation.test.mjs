@@ -39,19 +39,20 @@ function navigation(translate = text => text) {
   }).AnalysisNavigation
 }
 
-const paths = ["/dashboard/reports", "/dashboard/relationships", "/dashboard/reports/dataset"]
+const paths = ["/dashboard/reports/dataset", "/dashboard/reports"]
 
-test("analysis destinations have visible names and preserve existing routes", () => {
+test("report navigation has only single and multi dataset reports on existing routes", () => {
   const html = renderToStaticMarkup(React.createElement(navigation(), { active: "reports" }))
-  assert.match(html, /<nav aria-label="Analysis navigation"/)
+  assert.match(html, /<nav aria-label="Report navigation"/)
   for (const path of paths) assert.ok(html.includes(`href="${path}"`))
-  for (const label of ["Reports", "Relationships", "Dataset reports"]) assert.ok(html.includes(`>${label}</span>`))
-  assert.doesNotMatch(html, /Advanced matrix|Saved monitors|Dataset inspection/)
-  assert.equal((html.match(/<a /g) ?? []).length, 3)
+  for (const label of ["Single dataset report", "Multi dataset report"]) assert.ok(html.includes(`>${label}</span>`))
+  assert.doesNotMatch(html, /Relationships|\/dashboard\/relationships|Advanced matrix|Saved monitors|Dataset inspection/)
+  assert.equal((html.match(/<a /g) ?? []).length, 2)
+  assert.ok(html.indexOf("Single dataset report") < html.indexOf("Multi dataset report"))
 })
 
-test("each analysis view marks exactly one real navigation link as current", () => {
-  for (const [index, active] of ["reports", "relationships", "dataset-reports"].entries()) {
+test("each report view marks exactly one real navigation link as current", () => {
+  for (const [index, active] of ["dataset-reports", "reports"].entries()) {
     const html = renderToStaticMarkup(React.createElement(navigation(), { active }))
     assert.equal((html.match(/aria-current="page"/g) ?? []).length, 1)
     assert.ok(html.includes(`href="${paths[index]}" aria-current="page"`))
@@ -60,7 +61,7 @@ test("each analysis view marks exactly one real navigation link as current", () 
 })
 
 test("navigation remains touch sized, keyboard accessible and shrinkable", () => {
-  const html = renderToStaticMarkup(React.createElement(navigation(), { active: "relationships" }))
+  const html = renderToStaticMarkup(React.createElement(navigation(), { active: "reports" }))
   assert.match(html, /min-h-14/)
   assert.match(html, /min-w-0/)
   assert.match(html, /break-words/)
@@ -68,13 +69,12 @@ test("navigation remains touch sized, keyboard accessible and shrinkable", () =>
   assert.match(html, /sm:flex-row/)
 })
 
-test("French analysis labels use the existing translation dictionary", () => {
+test("French report labels use the existing translation dictionary", () => {
   const { getLandingText } = compile("../lib/language.ts")
-  const html = renderToStaticMarkup(React.createElement(navigation(text => getLandingText("fr", text)), { active: "relationships" }))
-  assert.match(html, /aria-label="Navigation d&#x27;analyse"/)
-  assert.match(html, />Rapports</)
-  assert.match(html, />Relations</)
-  assert.match(html, />Rapports par jeu de données</)
+  const html = renderToStaticMarkup(React.createElement(navigation(text => getLandingText("fr", text)), { active: "reports" }))
+  assert.match(html, /aria-label="Navigation des rapports"/)
+  assert.match(html, />Rapport sur un seul jeu de données</)
+  assert.match(html, />Rapport sur plusieurs jeux de données</)
   for (const label of ["Build report", "Report preview", "Compare two metrics", "Compare multiple metrics"]) {
     assert.notEqual(getLandingText("fr", label), label)
   }
@@ -87,18 +87,20 @@ test("Relationships is directly discoverable in the Analysis sidebar", () => {
   assert.ok(analysis.indexOf('label: "Reports"') < analysis.indexOf('label: "Relationships"'))
 })
 
-test("report builder, relationship views and dataset reports share navigation", () => {
+test("both report views share navigation while Relationships stays a separate sidebar destination", () => {
   for (const [path, active] of [
     ["../features/reports/report-workspace.tsx", "reports"],
-    ["../app/dashboard/relationships/page.tsx", "relationships"],
-    ["../features/relationships/correlation-explorer.tsx", "relationships"],
     ["../features/reports/single-dataset-report.tsx", "dataset-reports"],
   ]) {
     const source = read(path)
     assert.ok(source.includes(`<AnalysisNavigation active="${active}" />`), path)
     assert.doesNotMatch(source, /Advanced matrix|Saved monitors|Dataset inspection/)
   }
+  for (const path of ["../app/dashboard/relationships/page.tsx", "../features/relationships/correlation-explorer.tsx"]) {
+    assert.doesNotMatch(read(path), /AnalysisNavigation/)
+  }
   const report = read("../features/reports/report-workspace.tsx")
+  assert.match(report, /<h1[^>]*>\{t\("Multi dataset report"\)\}<\/h1>/)
   assert.match(report, /"Build report" : "Report preview"/)
   assert.match(report, /t\("Preview report"\)/)
   assert.doesNotMatch(report, /href="\/dashboard\/relationships\/explorer"/)
@@ -112,7 +114,7 @@ test("multi-metric comparison remains gated and saved links target the right sec
   assert.match(explorer, /if \(!capabilities\?\.ui\)/)
   assert.match(explorer, /href="\/dashboard\/relationships#saved-relationships"/)
   assert.match(read("../app/dashboard/relationships/page.tsx"), /id="saved-relationships"/)
-  assert.match(read("../features/reports/single-dataset-report.tsx"), /title="Dataset reports"/)
+  assert.match(read("../features/reports/single-dataset-report.tsx"), /title="Single dataset report"/)
 })
 
 test("report setup and results are separate and preview opens the result view", () => {

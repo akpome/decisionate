@@ -5,7 +5,6 @@ import Link from "next/link"
 import { ChevronLeft, ChevronRight, Grid2X2, List, Play, RefreshCw, Save, Search, StopCircle } from "lucide-react"
 import { correlationRequest } from "@/lib/api"
 import { dashboardDefinitions } from "@/features/dashboards/dashboard-definitions"
-import { AnalysisNavigation } from "@/features/reports/analysis-navigation"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { RelationshipMatrix } from "./relationship-matrix"
 import { RelationshipEvidence } from "./relationship-detail"
@@ -179,12 +178,11 @@ export function CorrelationExplorer({ userId, workspaceId }: { userId: string; w
     })
   }
 
-  if (loading) return <div className="min-w-0 space-y-6"><AnalysisNavigation active="relationships" /><p role="status" className="py-8 text-sm text-gray-500">Loading relationship analysis...</p></div>
-  if (!capabilities?.ui) return <div className="min-w-0 space-y-6"><AnalysisNavigation active="relationships" /><h1 className="text-2xl font-semibold">{t("Compare multiple metrics")}</h1><p role="status" className="my-4 text-sm text-gray-600">{error || "Relationship analysis is not enabled for this workspace."}</p><Link href="/dashboard/relationships" className="text-sm text-blue-700 underline">{t("Compare two metrics")}</Link></div>
+  if (loading) return <div className="min-w-0 space-y-6"><p role="status" className="py-8 text-sm text-gray-500">Loading relationship analysis...</p></div>
+  if (!capabilities?.ui) return <div className="min-w-0 space-y-6"><h1 className="text-2xl font-semibold">{t("Compare multiple metrics")}</h1><p role="status" className="my-4 text-sm text-gray-600">{error || "Relationship analysis is not enabled for this workspace."}</p><Link href="/dashboard/relationships" className="text-sm text-blue-700 underline">{t("Compare two metrics")}</Link></div>
   const runMetrics = run?.definition.metrics ?? []
   const visibleDatasets = datasets.filter(dataset => !search || `${dataset.dataset_label} ${dataset.connector} ${dataset.metrics.map(metric => metric.label).join(" ")}`.toLowerCase().includes(search.toLowerCase()))
   return <div className="min-w-0 space-y-6">
-    <AnalysisNavigation active="relationships" />
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 pb-4"><h1 className="text-2xl font-semibold">{t("Compare multiple metrics")}</h1><div className="flex flex-wrap gap-x-4 gap-y-2"><Link href={run ? `/dashboard/reports?run=${run.run_id}` : "/dashboard/reports"} className="inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline">{t(run ? "Build report from results" : "Build report")}</Link><Link href="/dashboard/relationships#saved-relationships" className="inline-flex min-h-10 items-center text-sm text-blue-700 underline">{t("Saved relationships")}</Link></div></header>
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {message && <p role="status" className="text-sm text-green-800">{message} <Link className="underline" href={message.startsWith("Insight") ? "/dashboard/insights" : "/dashboard"}>Open {message.startsWith("Insight") ? "insights" : "dashboard"}</Link></p>}

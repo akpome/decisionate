@@ -720,7 +720,7 @@ export default function SingleDatasetReport() {
       </div>
       <div className="print:hidden">
         <DashboardPageHeader
-          title="Dataset reports"
+          title="Single dataset report"
           actions={
             <button
               type="button"
