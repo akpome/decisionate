@@ -88,7 +88,7 @@ export function DecisionReportEvidence({ evidence, outcome, onReportChange, onOu
       <p className="break-words text-sm font-medium">{report.business_question}</p>
       <p className="text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.dataset_count} datasets / <Link href={`/dashboard/reports?report=${encodeURIComponent(evidence.reportId)}`} className="text-blue-700 underline">View saved report</Link></p>
       <ul className="space-y-1 text-xs text-gray-600">{report.metrics.map(metric => <li key={metric.id} className="break-words">{metric.dataset_label} / {metric.label}</li>)}</ul>
-      {report.status !== "ready" && <p role="alert" className="text-sm text-amber-800">Resolve cross-dataset coverage before using this report as decision evidence.</p>}
+      {report.status !== "ready" && <p role="alert" className="text-sm text-amber-800">Resolve report coverage before using this report as decision evidence.</p>}
       {report.warnings.map((warning, index) => <p key={index} className="break-words text-xs text-amber-800">{warning}</p>)}
       <div>
         <label htmlFor="decision-report-outcome" className="block text-xs font-medium text-gray-600">Outcome metric</label>

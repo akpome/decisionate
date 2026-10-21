@@ -63,7 +63,7 @@ from app.modules.datasets.services.relationships import (
 )
 from app.modules.decisions.models import Decision
 from app.modules.reports.models import BusinessReport
-from app.modules.reports.service import attach_report_decisions, build_report, complete_week, report_anomalies, scoped_frame
+from app.modules.reports.service import attach_report_decisions, build_report, complete_week, report_analysis_facts, report_anomalies, scoped_frame
 from app.modules.reports.catalog import prepare_report_source
 from app.modules.reports.relationships import metric_key
 from app.modules.reports.schemas import MINIMUM_REPORT_OBSERVATIONS
@@ -785,18 +785,10 @@ def build_weekly_report_digest(
         if learning_context:
             ai_facts["historical_decision_learning"] = learning_context
 
-        ai_facts["cross_dataset_report"] = {
-            key: cross_report[key] for key in ("business_question", "window", "previous_window", "history_window", "status", "observations", "contrasts", "warnings", "limitations")
-        }
-        ai_facts["cross_dataset_report"]["metrics"] = [{key: value for key, value in item.items() if key != "trend"} for item in cross_report["metrics"]]
-        ai_facts["cross_dataset_report"]["findings"] = [{key: value for key, value in item.items() if key != "evidence"}
-            for item in cross_report["findings"] if item["id"] in cross_report["included_findings"]][:10]
+        report_facts = report_analysis_facts(cross_report)
+        ai_facts["cross_dataset_report"] = {key: value for key, value in report_facts.items() if key != "anomaly_analysis"}
         ai_facts["limitations"] = cross_report["limitations"]
-        ai_facts["anomaly_analysis"] = {
-            **{key: value for key, value in cross_report["anomaly_analysis"].items() if key != "metrics"},
-            "metrics": [{key: value for key, value in item.items() if key not in {"baselines", "anomalies"}}
-                        | {"anomalies": item["anomalies"][:7]} for item in cross_report["anomaly_analysis"]["metrics"]],
-        }
+        ai_facts["anomaly_analysis"] = report_facts["anomaly_analysis"]
         ai_facts["reporting_window"] = cross_report["window"]
 
         ai_analysis = generate_structured_analysis(
@@ -909,7 +901,7 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
     if template and template.get("grain", "daily") != "daily" and lag.get("enabled"):
         warnings.append(f"The saved report tests {template['grain']} lag periods. Weekly reviews use daily periods, so that lag is not reused; review timing in the original report.")
         lag = {**lag, "enabled": False}
-    definition = {**(template or {}), "name": (template or {}).get("name", "Weekly cross-dataset review"),
+    definition = {**(template or {}), "scope": "multi", "name": (template or {}).get("name", "Weekly cross-dataset review"),
                   "seasonal_business": (template or {}).get("seasonal_business", False),
                   "business_question": (template or {}).get("business_question", "What changed across the selected datasets, and which changes deserve investigation?"),
                   "metrics": references, "date_range": complete_week(), "grain": "daily",
@@ -1282,7 +1274,8 @@ def validate_weekly_report_digest_for_delivery(
             detail="Weekly KPI email notifications are not enabled",
         )
 
-    if digest.cross_dataset_report is not None and digest.cross_dataset_report.get("status") != "ready":
+    if digest.cross_dataset_report is not None and (digest.cross_dataset_report.get("status") != "ready"
+                                                  or digest.cross_dataset_report.get("dataset_count", 0) < 2):
         raise HTTPException(400, "Weekly reports require usable metrics from at least two datasets in the latest complete week. Review report coverage and selections.")
 
     if not digest.recipient_emails:

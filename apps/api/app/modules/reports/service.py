@@ -135,6 +135,7 @@ def report_anomalies(frames, references, definition, metadata, *, anchor=None):
 def build_report(frames, definition, *, unavailable=None, history_anchor=None):
     """Frames must already be authorized; source data and selections are never changed."""
     definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
+    single = definition.get("scope", "multi") == "single"
     if report_test_count(definition) > 1000:
         raise ValueError("Reports support at most 1,000 pair-lag tests")
     frames = {identity: prepare_report_source(dataset, frame) for identity, (dataset, frame) in frames.items()}
@@ -206,7 +207,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None):
     history = {"start": historical_start(history_anchor) if history_anchor else str(min(date.fromisoformat(window["start"]), date.fromisoformat(window["end"]) - timedelta(days=89))), "end": window["end"]}
     relationship_definition = {**actual_definition, "date_range": history,
                                "filters": {**definition["filters"], "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, definition["filters"]["minimum_observations"])}}
-    historical = prepare_report_series(frames, usable, relationship_definition) if usable else {}
+    historical = prepare_report_series(frames, usable, relationship_definition) if usable and not single else {}
     history_periods = period_index(history, grain)
     for identity, points in list(historical.items()):
         points["value"] = pd.to_numeric(points["value"], errors="coerce").replace([float("inf"), -float("inf")], float("nan"))
@@ -258,7 +259,10 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None):
             raise ValueError("A selected finding is not part of this analysis")
     selected = [finding for finding in findings if requested is None or finding["id"] in requested]
     dataset_count = len({metric["dataset_id"] for metric in metrics if metric["value"] is not None})
-    if dataset_count < 2:
+    required_datasets = 1 if single else 2
+    if single and dataset_count < 1:
+        warnings.append("The selected dataset has no usable observations in the report window.")
+    elif not single and dataset_count < 2:
         warnings.append("Cross-dataset coverage is insufficient: at least two datasets need usable observations in the report window.")
     if any(metric["warnings"] for metric in metrics):
         warnings.append("Some metrics have incomplete coverage or no previous-period baseline. Review the metric-level warnings before acting.")
@@ -277,27 +281,48 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None):
     if any(finding["eligible"] for finding in selected):
         actions.append("Validate promising relationships with segmentation or a controlled experiment; define the expected outcome and review date before acting.")
     if not actions:
-        actions.append("Collect comparable history across the selected datasets before drawing a relationship conclusion.")
+        actions.append("Compare the selected metrics with their previous-period baselines and business targets before acting." if single else
+                       "Collect comparable history across the selected datasets before drawing a relationship conclusion.")
     anomalies = report_anomalies(frames, references, actual_definition, metadata, anchor=history_anchor)
     if anomalies["anomaly_count"]:
         actions.append("Investigate the unusual selected-metric changes against their expected ranges; check source quality, seasonal context and operational events before acting.")
     selected_ids = [finding["id"] for finding in selected]
     return {"name": definition["name"], "business_question": definition["business_question"],
             "definition": {**definition, "included_findings": selected_ids},
-            "report_version": "cross_dataset_report.v1",
+            "report_version": "single_dataset_report.v1" if single else "cross_dataset_report.v1",
             "window": window, "previous_window": previous, "history_window": history, "grain": grain,
-            "dataset_count": dataset_count, "status": "ready" if dataset_count >= 2 else "limited_coverage",
+            "dataset_count": dataset_count, "status": "ready" if dataset_count >= required_datasets else "limited_coverage",
             "analysis_source": "deterministic", "generated_at": datetime.now(timezone.utc).isoformat(),
             "metrics": metrics, "findings": findings, "included_findings": selected_ids,
             "anomaly_analysis": anomalies,
             "observations": observations, "contrasts": contrasts[:5], "recommendations": actions, "warnings": warnings,
-            "limitations": ["Association does not establish causation. Shared seasonality and other channels may explain co-movement.",
+            "limitations": ["Missing observations remain unavailable and are not zero-filled.",
+                            "An unusual change is not proof of its cause. Check source quality and business context.",
+                            "No attribution, currency conversion, profit or ROAS is inferred from unrelated totals."] if single else
+                           ["Association does not establish causation. Shared seasonality and other channels may explain co-movement.",
                             "Report lag tests use calendar-aligned periods. Missing observations remain unavailable and are not zero-filled.",
                             "No attribution, currency conversion, profit or ROAS is inferred from unrelated totals.",
                             "Time-series autocorrelation and shared seasonal patterns can overstate statistical significance.",
                             "Different datasets can contain duplicated or mathematically related measures; a cross-dataset correlation is not automatically independent evidence.",
                             "Significance is adjusted across tested pairs and lags, but is not a causal or out-of-sample validation."],
             "decisions": []}
+
+
+def report_analysis_facts(report):
+    """Bounded selected evidence, without raw rows, training arrays or trend series."""
+    facts = {key: report[key] for key in ("business_question", "window", "previous_window", "history_window", "status",
+                                        "observations", "contrasts", "warnings", "limitations")}
+    facts["metrics"] = [{key: value for key, value in item.items() if key != "trend"} for item in report["metrics"]]
+    facts["findings"] = [{key: value for key, value in item.items() if key != "evidence"}
+                         for item in report["findings"] if item["id"] in report["included_findings"]][:10]
+    analysis = report.get("anomaly_analysis")
+    if analysis:
+        facts["anomaly_analysis"] = {
+            **{key: value for key, value in analysis.items() if key != "metrics"},
+            "metrics": [{key: value for key, value in item.items() if key not in {"baselines", "anomalies"}}
+                        | {"anomalies": item["anomalies"][:7]} for item in analysis["metrics"]],
+        }
+    return facts
 
 
 def decisions_for_report(db, workspace, dataset_ids, report_id=None):

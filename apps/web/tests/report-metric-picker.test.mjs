@@ -30,6 +30,13 @@ const render = (updates = {}) => renderToStaticMarkup(React.createElement(Report
   datasets: [dataset()], metrics: [], dateColumns: {}, onToggleMetric() {}, onDateColumnChange() {}, ...updates,
 }))
 
+test("a single report at the metric limit can switch sources without widening a multi report's limit", () => {
+  const metrics = Array.from({ length: 25 }, (_, index) => reference(`metric_${index}`))
+  const datasets = [dataset({ dataset_id: 2, metrics: [metric("sales", 2)] })]
+  assert.doesNotMatch(render({ metrics, datasets, singleDataset: true }), /disabled=""/)
+  assert.match(render({ metrics, datasets }), /disabled=""/)
+})
+
 test("search has a visible label and placeholder and metrics appear before date settings", () => {
   const html = render()
   assert.match(html, /htmlFor="report-metric-search"|for="report-metric-search"/)

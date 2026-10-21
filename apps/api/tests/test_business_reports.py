@@ -56,6 +56,43 @@ class BusinessReportEngineTests(unittest.TestCase):
         patcher.start(); self.addCleanup(patcher.stop)
         self.frames = fixture()
 
+    def test_single_and_multi_reports_share_metric_and_anomaly_calculations(self):
+        multi = build_report(self.frames, definition(seasonal_business=True))
+        single = build_report({1: self.frames[1]}, definition(scope="single", metrics=definition()["metrics"][:1], seasonal_business=True))
+        self.assertEqual(single["metrics"], multi["metrics"][:1])
+        self.assertEqual(single["anomaly_analysis"]["metrics"], multi["anomaly_analysis"]["metrics"][:1])
+        self.assertEqual(single["status"], "ready")
+        self.assertEqual(single["findings"], [])
+        self.assertFalse(any("cross-dataset" in item.lower() for item in single["warnings"]))
+
+    def test_single_scope_cannot_weaken_multi_report_or_advanced_correlation_contracts(self):
+        from app.modules.correlation.schemas import AnalysisCreate
+
+        reference = definition()["metrics"][0]
+        self.assertEqual(definition(scope="single", metrics=[reference])["scope"], "single")
+        for updates in ({"metrics": [reference]}, {"scope": "single"}, {"scope": "single", "metrics": [reference, reference]},
+                        {"scope": "single", "metrics": [reference], "lag": {"enabled": True}}):
+            with self.assertRaises(ValidationError):
+                definition(**updates)
+        with self.assertRaises(ValidationError):
+            AnalysisCreate(name="Single source", metrics=[reference], date_range=definition()["date_range"])
+
+    def test_single_report_missing_source_is_limited_not_successful(self):
+        result = build_report({}, definition(scope="single", metrics=definition()["metrics"][:1]))
+        self.assertEqual(result["status"], "limited_coverage")
+        self.assertEqual(result["metrics"], [])
+        self.assertIn("no usable observations", result["warnings"][0])
+
+    def test_weekly_report_forces_multi_scope_and_cannot_send_a_single_source(self):
+        preference = WeeklyReportPreferenceResponse(enabled=True, cadence="weekly", delivery_day="monday", recipient_emails=["owner@example.test"], metric_focus=["1:spend"], include_recommendations=False)
+        template = definition(scope="single", metrics=definition()["metrics"][:1])
+        with patch("app.modules.alerts.router.complete_week", return_value=definition()["date_range"]):
+            result = build_weekly_cross_dataset_report({1: self.frames[1]}, preference, template)
+        self.assertEqual(result["definition"]["scope"], "multi")
+        self.assertEqual(result["status"], "limited_coverage")
+        with self.assertRaises(HTTPException):
+            validate_weekly_report_digest_for_delivery(SimpleNamespace(enabled=True, cross_dataset_report={**result, "status": "ready"}))
+
     def test_report_observation_defaults_and_validation_are_report_specific(self):
         from app.modules.correlation.schemas import ResultFilters
 
@@ -265,6 +302,84 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         response = self.client.post("/api/v2/business-reports", json=definition())
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
+
+    def test_single_report_preview_save_reopen_and_decision_evidence_use_selected_metrics_only(self):
+        payload = definition(scope="single", metrics=definition()["metrics"][:1], seasonal_business=True)
+        preview = self.client.post("/api/v2/business-reports/preview", json=payload)
+        self.assertEqual(preview.status_code, 200, preview.text)
+        saved_response = self.client.post("/api/v2/business-reports", json=payload)
+        self.assertEqual(saved_response.status_code, 201, saved_response.text)
+        saved = saved_response.json()
+        self.assertEqual(saved["definition"]["scope"], "single")
+        self.assertEqual(saved["metrics"], preview.json()["metrics"])
+        self.frames[1][1]["spend"] = 1e9
+        reopened = self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()
+        self.assertEqual(reopened["metrics"], saved["metrics"])
+        self.assertEqual(reopened["anomaly_analysis"], saved["anomaly_analysis"])
+        with self.Session() as db:
+            _, metrics, evidence, descriptors = router.report_decision_evidence(db.get(BusinessReport, saved["report_id"]))
+            self.assertEqual([metric["id"] for metric in metrics], ["1:spend"])
+            self.assertEqual(len(evidence["metrics"]), 1)
+            self.assertEqual(len(descriptors), 1)
+            self.assertEqual(db.query(Decision).count(), 0)
+
+    def test_single_template_is_rejected_without_changing_weekly_preferences(self):
+        original = self.save()
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/{original['report_id']}/weekly").status_code, 200)
+        payload = definition(scope="single", metrics=definition()["metrics"][:1])
+        saved = self.client.post("/api/v2/business-reports", json=payload).json()
+        response = self.client.post(f"/api/v2/business-reports/{saved['report_id']}/weekly")
+        self.assertEqual(response.status_code, 400, response.text)
+        with self.Session() as db:
+            preference = db.query(WeeklyReportPreference).one()
+            self.assertEqual(preference.business_report_id, original["report_id"])
+            self.assertFalse(preference.enabled)
+
+    def test_single_scope_still_authorizes_sources_before_loading_them(self):
+        payload = definition(scope="single", metrics=[{**definition()["metrics"][0], "dataset_id": 3}])
+        with patch.object(router, "load_dataframe_from_dataset") as load:
+            self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=payload).status_code, 403)
+            load.assert_not_called()
+
+    def test_report_interpretation_is_opt_in_selected_scoped_and_saved_without_recomputing_on_read(self):
+        analysis = {"source": "rules", "summary": "Selected metric interpretation", "confidence": "low", "recommendations": [], "risks": []}
+        payload = definition(scope="single", metrics=definition()["metrics"][:1])
+        with patch.object(router, "generate_structured_analysis", return_value=analysis) as ai:
+            self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=payload).status_code, 200)
+            ai.assert_not_called()
+            payload["include_ai_analysis"] = True
+            response = self.client.post("/api/v2/business-reports", json=payload)
+            self.assertEqual(response.status_code, 201, response.text)
+            saved = response.json()
+            facts = ai.call_args.kwargs["facts"]
+            self.assertEqual([metric["id"] for metric in facts["metrics"]], ["1:spend"])
+            self.assertNotIn("trend", facts["metrics"][0])
+            self.assertNotIn("baselines", facts["anomaly_analysis"]["metrics"][0])
+            self.assertEqual(ai.call_args.kwargs["workspace_id"], "owner")
+            self.assertEqual(ai.call_args.kwargs["actor_user_id"], "owner")
+            reopened = self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()
+            self.assertEqual(reopened["ai_analysis"], analysis)
+            self.assertTrue(reopened["definition"]["include_ai_analysis"])
+            self.assertEqual(ai.call_count, 1)
+
+    def test_denied_report_never_reaches_ai_or_source_loading(self):
+        payload = definition(scope="single", metrics=[{**definition()["metrics"][0], "dataset_id": 3}], include_ai_analysis=True)
+        with patch.object(router, "generate_structured_analysis") as ai, patch.object(router, "load_dataframe_from_dataset") as load:
+            self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=payload).status_code, 403)
+            ai.assert_not_called(); load.assert_not_called()
+
+    def test_legacy_saved_report_without_scope_retains_snapshot_and_weekly_template(self):
+        saved = self.save()
+        with self.Session() as db:
+            record = db.get(BusinessReport, saved["report_id"])
+            value, snapshot = json.loads(record.definition), json.loads(record.snapshot)
+            value.pop("scope", None); snapshot["definition"].pop("scope", None)
+            record.definition, record.snapshot = json.dumps(value), json.dumps(snapshot)
+            db.commit()
+        reopened = self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()
+        self.assertEqual(reopened["metrics"], saved["metrics"])
+        self.assertNotIn("scope", reopened["definition"])
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/{saved['report_id']}/weekly").status_code, 200)
 
     def test_core_reports_are_not_hidden_behind_correlation_rollout_flags(self):
         response = self.client.get("/api/v2/business-reports/catalog")

@@ -21,7 +21,6 @@ import {
 import { useActiveWorkspace } from "@/lib/use-active-workspace"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { useDecisionateText } from "@/app/use-decisionate-language"
-import { CorrelationEntry } from "@/features/relationships/correlation-entry"
 
 const aggregationOptions: Array<{
   value: DashboardValueAggregation
@@ -325,7 +324,6 @@ export default function RelationshipsPage() {
       <DashboardPageHeader
         title="Relationships"
         actions={
-          <><CorrelationEntry key={`${user?.id}:${activeWorkspaceId}`} userId={user?.id} workspaceId={activeWorkspaceId} />
           <button
             type="button"
             onClick={() => window.location.reload()}
@@ -335,7 +333,6 @@ export default function RelationshipsPage() {
             <RefreshCw size={16} />
             {t("Refresh")}
           </button>
-          </>
         }
       />
 

@@ -105,6 +105,14 @@ queued; confirm the ingestion job's terminal result too.
 
 ## What runs
 
+The former advanced-correlation worker has been retired. Do not deploy
+`scripts/run_correlation_worker.py`; it has been removed. Reports calculates
+relationships through the API and does not need a dedicated correlation worker.
+Do not remove the ingestion worker or the scheduler as part of this retirement.
+For an existing correlation-worker service, follow the
+[retirement sequence](MULTI_METRIC_CORRELATION.md#railway-cleanup) before deploying
+the new revision to that service.
+
 The combined runner calls these protected endpoints in order:
 
 | Job | Endpoint | Purpose |

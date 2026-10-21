@@ -1,7 +1,9 @@
 import type { CorrelationDefinition, CorrelationMetric } from "@/features/relationships/types"
+import type { AIAnalysis } from "@/lib/api"
 import { reportPairDirections, type ReportPairDirection } from "./pair-directions"
 
-export type ReportDefinition = CorrelationDefinition & { business_question: string; seasonal_business: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[] }
+export type ReportScope = "single" | "multi"
+export type ReportDefinition = CorrelationDefinition & { scope: ReportScope; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[] }
 export type ReportAnomalyMetric = {
   metric_id: string; dataset_id: number; dataset_label: string; metric_key: string; label: string
   unit?: string | null; currency?: string | null; status: "ready" | "limited_history" | "insufficient_history" | "unavailable"
@@ -42,6 +44,7 @@ export type BusinessReport = {
   observations: string[]; contrasts: string[]; recommendations: string[]; warnings: string[]; limitations: string[]
   decisions: ReportDecision[]; decision_drafts?: ReportDecision[]
   anomaly_analysis?: ReportAnomalyAnalysis
+  ai_analysis?: AIAnalysis | null
   source_analysis?: { run_id: string; engine_version: string; computed_at: string | null; note: string }
 }
 
@@ -52,8 +55,9 @@ export function formatReportValue(value: number | null, currency?: string | null
 }
 
 export function editableDefinition(value: Partial<ReportDefinition>): ReportDefinition {
-  return { name: value.name ?? "", business_question: value.business_question || "",
+  return { name: value.name ?? "", business_question: value.business_question || "", scope: value.scope ?? "multi",
     seasonal_business: value.seasonal_business ?? false,
+    include_ai_analysis: value.include_ai_analysis ?? false,
     metrics: value.metrics || [], method: value.method || "spearman", grain: value.grain || "daily",
     date_range: value.date_range || { start: "", end: "" }, advanced: false,
     filters: { minimum_abs_coefficient: value.filters?.minimum_abs_coefficient ?? .3, minimum_observations: Math.max(24, value.filters?.minimum_observations ?? 24) },

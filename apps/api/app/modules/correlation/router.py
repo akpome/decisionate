@@ -1,18 +1,13 @@
 import json
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.db.database import SessionLocal
 from app.db.models import utc_now
 from app.modules.datasets.services.auth import get_user_id, get_workspace_id, require_workspace_data_manager
-from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
-from app.modules.datasets.services.ownership import verify_dataset_owner
-from app.db.models import Dataset
-from .catalog import metric_catalog
 from .engine import metric_id
 from .models import CorrelationAnalysis, CorrelationInsight, CorrelationResult, CorrelationRun, CorrelationWidget
-from .schemas import AnalysisCreate, EvidenceCreate, WidgetCreate
-from .service import allowed_analysis, allowed_run, card, create_analysis, dataset_scope, encode, enqueue, event, flags, run_response, snapshot, authorize_datasets
+from .service import allowed_analysis, allowed_run, card, event, run_response, snapshot, authorize_datasets
 
 
 router = APIRouter(prefix="/api/v2", tags=["correlation-v2"])
@@ -28,58 +23,36 @@ def identity(request):
     return user, get_workspace_id(request, user)
 
 
-def enabled(request):
-    user, workspace = identity(request)
-    if not flags(user)["api"]:
-        raise HTTPException(404, "Multi-metric correlation is not enabled")
-    return user, workspace
+def retired(request):
+    identity(request)
+    raise HTTPException(410, "The advanced relationship explorer has been retired. Use Reports for multi dataset analysis.")
 
 
 def completed(run):
     if run.status != "completed":
-        raise HTTPException(409, "Results are available after the run completes")
+        raise HTTPException(409, "This historical analysis has no completed results. Use Reports for a new analysis.")
 
 
 @router.get("/correlation-capabilities")
 def capabilities(request: Request):
-    user, _ = identity(request)
-    return {**flags(user), "guided_limit": 25, "advanced_limit": 50}
+    identity(request)
+    return {"api": False, "ui": False, "widgets": False, "lag": False, "ai": False,
+            "retired": True, "replacement_url": "/dashboard/reports", "guided_limit": 25, "advanced_limit": 0}
 
 
-@router.get("/correlation-analyses/catalog")
-def catalogue(request: Request, db=Depends(database), offset: int = Query(0, ge=0), dataset_id: int | None = Query(None, ge=1)):
-    user, workspace = enabled(request)
-    query = db.query(Dataset).filter(dataset_scope(user, workspace))
-    if dataset_id:
-        dataset = db.get(Dataset, dataset_id)
-        if dataset is None:
-            raise HTTPException(404, "Dataset not found")
-        verify_dataset_owner(dataset, user, workspace)
-        query = query.filter(Dataset.id == dataset_id)
-    datasets = query.order_by(Dataset.id).offset(offset).limit(25).all()
-    results = []
-    for dataset in datasets:
-        try:
-            results.append(metric_catalog(dataset, load_dataframe_from_dataset(dataset)))
-        except HTTPException as error:
-            if error.status_code in {403, 401}:
-                raise
-            results.append({"dataset_id": dataset.id, "dataset_label": dataset.file_name, "connector": dataset.source_type,
-                            "date_columns": [], "metrics": [], "availability": {}, "error_code": "dataset_unavailable"})
-    return {"datasets": results, "next_offset": offset + 25 if len(datasets) == 25 else None}
+@router.get("/correlation-analyses/catalog", deprecated=True)
+def catalogue(request: Request):
+    retired(request)
 
 
-@router.post("/correlation-analyses", status_code=202)
-def create(request: Request, payload: AnalysisCreate, db=Depends(database), idempotency_key: str | None = Header(None, max_length=120, alias="Idempotency-Key")):
-    user, workspace = enabled(request)
-    run = create_analysis(db, payload, user, workspace, idempotency_key)
-    db.commit()
-    return run_response(run)
+@router.post("/correlation-analyses", deprecated=True)
+def create(request: Request):
+    retired(request)
 
 
 @router.get("/correlation-analyses")
 def analyses(request: Request, db=Depends(database)):
-    user, workspace = enabled(request)
+    user, workspace = identity(request)
     result = []
     for item in db.query(CorrelationAnalysis).filter_by(workspace_id=workspace).order_by(CorrelationAnalysis.created_at.desc()).limit(100):
         try:
@@ -93,32 +66,28 @@ def analyses(request: Request, db=Depends(database)):
 
 @router.get("/correlation-analyses/{analysis_id}")
 def analysis_detail(analysis_id: str, request: Request, db=Depends(database)):
-    user, workspace = enabled(request)
+    user, workspace = identity(request)
     item = allowed_analysis(db, analysis_id, user, workspace)
     runs = db.query(CorrelationRun).filter_by(analysis_id=item.id).order_by(CorrelationRun.created_at.desc()).limit(20).all()
     return {"analysis_id": item.id, "name": item.name, "definition": json.loads(item.definition),
             "latest_successful_run_id": item.latest_successful_run_id, "runs": [run_response(run) for run in runs]}
 
 
-@router.post("/correlation-analyses/{analysis_id}/runs", status_code=202)
-def rerun(analysis_id: str, request: Request, db=Depends(database), idempotency_key: str | None = Header(None, max_length=120, alias="Idempotency-Key")):
-    user, workspace = enabled(request)
-    item = allowed_analysis(db, analysis_id, user, workspace)
-    run = enqueue(db, item, user, idempotency_key=idempotency_key)
-    db.commit()
-    return run_response(run)
+@router.post("/correlation-analyses/{analysis_id}/runs", deprecated=True)
+def rerun(analysis_id: str, request: Request):
+    retired(request)
 
 
 @router.get("/correlation-runs/{run_id}")
 def run_detail(run_id: str, request: Request, db=Depends(database)):
-    user, workspace = enabled(request)
+    user, workspace = identity(request)
     run, _ = allowed_run(db, run_id, user, workspace)
     return run_response(run)
 
 
 @router.post("/correlation-runs/{run_id}/cancel")
 def cancel(run_id: str, request: Request, db=Depends(database)):
-    user, workspace = enabled(request)
+    user, workspace = identity(request)
     run, analysis = allowed_run(db, run_id, user, workspace)
     if run.status in {"queued", "running"}:
         run.cancel_requested = True
@@ -131,7 +100,7 @@ def cancel(run_id: str, request: Request, db=Depends(database)):
 
 @router.get("/correlation-runs/{run_id}/relationships")
 def relationships(run_id: str, request: Request, db=Depends(database), offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100), minimum_abs_coefficient: float = Query(0, ge=0, le=1), include_insufficient: bool = False, outcome_metric: str | None = None):
-    user, workspace = enabled(request)
+    user, workspace = identity(request)
     run, _ = allowed_run(db, run_id, user, workspace)
     completed(run)
     query = db.query(CorrelationResult).filter_by(run_id=run.id, selected=True)
@@ -147,7 +116,7 @@ def relationships(run_id: str, request: Request, db=Depends(database), offset: i
 
 @router.get("/correlation-runs/{run_id}/matrix")
 def matrix(run_id: str, request: Request, db=Depends(database)):
-    user, workspace = enabled(request)
+    user, workspace = identity(request)
     run, _ = allowed_run(db, run_id, user, workspace)
     completed(run)
     definition = json.loads(run.definition)
@@ -170,40 +139,16 @@ def accessible_result(db, result_id, user, workspace):
 
 @router.get("/correlation-results/{result_id}")
 def relationship_detail(result_id: str, request: Request, db=Depends(database)):
-    user, workspace = enabled(request)
+    user, workspace = identity(request)
     result, run, _ = accessible_result(db, result_id, user, workspace)
     profile = db.query(CorrelationResult).filter_by(run_id=run.id, metric_a=result.metric_a, metric_b=result.metric_b).order_by(CorrelationResult.lag).all()
     return {**card(result, run), "evidence": json.loads(result.evidence),
             "lag_profile": [{"lag": item.lag, "coefficient": item.coefficient, "n": item.observations, "eligible": item.eligible} for item in profile]}
 
 
-@router.post("/correlation-results/{result_id}/evidence")
-def save_evidence(result_id: str, request: Request, payload: EvidenceCreate, db=Depends(database)):
-    user, workspace = enabled(request)
-    result, run, analysis = accessible_result(db, result_id, user, workspace)
-    if not result.eligible:
-        raise HTTPException(400, "This relationship has insufficient evidence")
-    evidence = card(result, run)
-    link = f"/dashboard/relationships/explorer?run={run.id}&result={result.id}"
-    if payload.kind == "insight":
-        insight = db.query(CorrelationInsight).filter_by(workspace_id=workspace, result_id=result.id).first()
-        if not insight:
-            insight = CorrelationInsight(workspace_id=workspace, user_id=user, result_id=result.id, evidence=encode(evidence))
-            db.add(insight)
-            event(db, analysis, user, "insight_created", run.id)
-            db.commit()
-        return {"insight_id": insight.id, "evidence_url": link, "evidence": evidence}
-    event(db, analysis, user, "decision_evidence_requested", run.id)
-    db.commit()
-    a, b = evidence["metric_a"], evidence["metric_b"]
-    return {"evidence_url": link, "decision_payload": {
-        "dataset_id": b["dataset_id"], "metric_column": b["metric_key"], "outcome_dataset_id": b["dataset_id"],
-        "evidence_dataset_ids": list(dict.fromkeys([a["dataset_id"], b["dataset_id"]])),
-        "evidence_metrics": [{"dataset_id": item["dataset_id"], "file_name": item["dataset_label"], "metric_column": item["metric_key"], "label": item["label"], "column_type": "numeric"} for item in (a, b)],
-        "title": "Investigate observed metric relationship", "description": "Association does not establish causation. Evidence: " + link,
-        "recommendation_source": "rules", "recommendation_context": encode(evidence),
-        "expected_outcome": "Validate the observed association before choosing an action.",
-    }}
+@router.post("/correlation-results/{result_id}/evidence", deprecated=True)
+def save_evidence(result_id: str, request: Request):
+    retired(request)
 
 
 @router.get("/correlation-insights")
@@ -219,42 +164,14 @@ def insights(request: Request, db=Depends(database)):
     return result
 
 
-@router.post("/correlation-widgets", status_code=201)
-def save_widget(request: Request, payload: WidgetCreate, db=Depends(database)):
-    user, workspace = enabled(request)
-    require_workspace_data_manager(request)
-    if not flags(user)["widgets"]:
-        raise HTTPException(404, "Correlation widget creation is not enabled")
-    analysis = allowed_analysis(db, payload.analysis_id, user, workspace)
-    run = db.get(CorrelationRun, analysis.latest_successful_run_id) if analysis.latest_successful_run_id else None
-    if run is None:
-        raise HTTPException(400, "A successful run is required")
-    if not db.query(CorrelationResult).filter_by(run_id=run.id, selected=True, eligible=True).first():
-        raise HTTPException(400, "A run with eligible relationships is required")
-    if db.query(CorrelationWidget).filter_by(workspace_id=workspace, dashboard_key=payload.dashboard_key).count() >= 50:
-        raise HTTPException(429, "This dashboard already has 50 relationship widgets")
-    config = {"pinned_run_id": run.id}
-    identities = {metric_id(item) for item in json.loads(run.definition)["metrics"]}
-    if payload.widget_type == "saved_relationship":
-        row, selected_run, selected_analysis = accessible_result(db, payload.result_id, user, workspace)
-        if selected_analysis.id != analysis.id or not row.eligible:
-            raise HTTPException(400, "Choose an eligible relationship from this analysis")
-        config.update(metric_a=row.metric_a, metric_b=row.metric_b, pinned_run_id=selected_run.id)
-    elif payload.widget_type == "outcome_drivers":
-        if payload.outcome_metric not in identities:
-            raise HTTPException(400, "Choose an outcome in this analysis")
-        config["outcome_metric"] = payload.outcome_metric
-    widget = CorrelationWidget(workspace_id=workspace, user_id=user, analysis_id=analysis.id,
-                               dashboard_key=payload.dashboard_key, widget_type=payload.widget_type, configuration=encode(config))
-    db.add(widget)
-    event(db, analysis, user, "widget_saved", run.id)
-    db.commit()
-    return {"widget_id": widget.id}
+@router.post("/correlation-widgets", deprecated=True)
+def save_widget(request: Request):
+    retired(request)
 
 
 @router.get("/correlation-widgets")
 def widgets(request: Request, db=Depends(database), dashboard_key: str = Query("general-business", max_length=120)):
-    # Existing saved widgets remain readable during flag rollback.
+    # Saved evidence remains readable after retirement, without queue polling or refresh.
     user, workspace = identity(request)
     result = []
     for widget in db.query(CorrelationWidget).filter_by(workspace_id=workspace, dashboard_key=dashboard_key).order_by(CorrelationWidget.created_at).limit(50):
@@ -293,7 +210,7 @@ def widgets(request: Request, db=Depends(database), dashboard_key: str = Query("
             item["coefficient_change"] = row.coefficient - previous.coefficient if previous else None
             cards.append(item)
         result.append({"widget_id": widget.id, "widget_type": widget.widget_type, "analysis_id": analysis.id, "name": analysis.name,
-                       "updating": bool(latest and latest.status in {"queued", "running"}),
+                       "updating": False, "retired": True,
                        "last_refresh_status": latest.status if latest else None,
                        "stale": bool(chosen and snapshot(current_sources) != json.loads(chosen.watermark)),
                        "cards": cards})

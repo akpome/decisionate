@@ -31,10 +31,10 @@ export function ReportAnomalies({ analysis }: { analysis?: ReportAnomalyAnalysis
           <p className="text-xs leading-5 text-gray-600">Assessed: {metric.evaluated_observations}/{metric.observations} observed periods / Missing: {metric.missing_observations} / Units: {metric.currency || metric.unit || "number"}{metric.evaluated_observations > 0 ? ` / Baseline: trend${metric.seasonalities.length ? ` + ${metric.seasonalities.join(" + ")}` : " only"}` : ""}</p>
           {metric.warnings.map(warning => <p key={warning} className="break-words text-xs leading-5 text-amber-800">{warning}</p>)}
           {metric.anomalies.length > 0 && <div className="max-h-80 overflow-auto" tabIndex={0} role="region" aria-label={`${metric.label} unusual changes`}>
-            <table className="w-full min-w-[600px] text-left text-sm">
-              <thead className="sticky top-0 bg-gray-50 text-xs text-gray-600"><tr>{["Period", "Change", "Actual", "Expected", "Expected range", "Deviation"].map(label => <th key={label} scope="col" className="px-3 py-2 font-medium">{label}</th>)}</tr></thead>
+            <table className="w-full min-w-[760px] text-left text-sm [overflow-wrap:normal]">
+              <thead className="sticky top-0 bg-gray-50 text-xs text-gray-600"><tr>{["Period", "Change", "Actual", "Expected", "Expected range", "Deviation"].map(label => <th key={label} scope="col" className="whitespace-nowrap px-3 py-2 font-medium">{label}</th>)}</tr></thead>
               <tbody>{metric.anomalies.map(point => <tr key={point.period} className="border-b border-gray-100">
-                <td className="whitespace-nowrap px-3 py-2">{point.period}</td><td className="px-3 py-2">{point.direction === "high" ? "Above expected" : "Below expected"}</td>
+                <td className="whitespace-nowrap px-3 py-2">{point.period}</td><td className="whitespace-nowrap px-3 py-2">{point.direction === "high" ? "Above expected" : "Below expected"}</td>
                 <td className="whitespace-nowrap px-3 py-2">{evidenceValue(point.value, metric.currency)}</td><td className="whitespace-nowrap px-3 py-2">{evidenceValue(point.expected, metric.currency)}</td>
                 <td className="whitespace-nowrap px-3 py-2">{evidenceValue(point.lower, metric.currency)} to {evidenceValue(point.upper, metric.currency)}</td>
                 <td className="whitespace-nowrap px-3 py-2">{evidenceValue(point.deviation, metric.currency)}{point.deviation_percent !== null ? ` (${point.deviation_percent.toFixed(1)}%)` : ""}</td>

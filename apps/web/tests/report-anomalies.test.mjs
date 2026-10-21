@@ -33,7 +33,7 @@ test("anomaly findings name the selected metric and disclose actual, expected, r
   for (const value of ["Advertising / Spend", "Above expected", "2026-10-13", "Actual", "Expected range", "Deviation", "50.0%", "annual + weekly", "residual mad", "14 past-only validation observations"]) assert.ok(html.includes(value), value)
   assert.match(html, /aria-label="Selected metric anomaly results"/)
   assert.match(html, /scope="col"/)
-  assert.match(html, /min-w-\[600px\]/)
+  assert.match(html, /min-w-\[760px\]/)
   assert.doesNotMatch(html, /<input|Create decision|checkbox/)
 })
 
@@ -85,6 +85,13 @@ test("both report tabs and weekly delivery use the shared anomaly display", () =
   assert.match(workspace, /checked=\{definition.seasonal_business\}/)
   assert.match(workspace, /edit\(\{ seasonal_business: event.target.checked \}\)/)
   assert.match(workspace, /<ReportAnomalies analysis=\{report.anomaly_analysis\}/)
-  assert.match(single, /<DatasetReportAnomalies[^>]+metric=\{effectiveSelectedMetric\}[^>]+seasonal=\{seasonalBusiness\}/)
+  assert.match(single, /<ReportPage scope="single"/)
   assert.match(weekly, /<ReportAnomalies analysis=\{digest.cross_dataset_report.anomaly_analysis\}/)
+})
+
+test("anomaly table labels remain readable inside their mobile horizontal scroll region", () => {
+  const source = readFileSync(new URL("../features/reports/report-anomalies.tsx", import.meta.url), "utf8")
+  assert.match(source, /min-w-\[760px\].*\[overflow-wrap:normal\]/)
+  assert.match(source, /scope="col" className="whitespace-nowrap/)
+  assert.match(source, /overflow-auto.*tabIndex=\{0\} role="region"/)
 })

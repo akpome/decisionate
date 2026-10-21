@@ -8,7 +8,6 @@ import {
 import { UserButton, useUser } from "@clerk/nextjs"
 import {
   AlertCircle,
-  BarChart3,
   Bell,
   CreditCard,
   Database,
@@ -174,11 +173,6 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/dashboard/relationships",
         label: "Relationships",
         icon: <GitCompare size={18} />,
-      },
-      {
-        href: "/dashboard/insights",
-        label: "Insights",
-        icon: <BarChart3 size={18} />,
       },
       {
         href: "/dashboard/forecasts",

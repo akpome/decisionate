@@ -46,7 +46,7 @@ export function ReportDecisions({ report, onOpenDraft, busy = false }: {
         <p className="mt-1 text-sm text-gray-600">Action not recorded.</p>
       </div>
         : onOpenDraft ? <div className="min-w-0 border-b border-gray-100 pb-3" aria-label="Decision draft">
-          <button type="button" disabled={busy || report.status !== "ready"} onClick={() => void onOpenDraft()} title={report.status !== "ready" ? "Resolve cross-dataset coverage before opening a decision draft" : "Open decision draft"} className="inline-flex min-h-10 items-center gap-1 font-medium text-blue-700 underline disabled:opacity-50"><ArrowUpRight size={16} aria-hidden="true" />Decision draft</button>
+          <button type="button" disabled={busy || report.status !== "ready"} onClick={() => void onOpenDraft()} title={report.status !== "ready" ? "Resolve report coverage before opening a decision draft" : "Open decision draft"} className="inline-flex min-h-10 items-center gap-1 font-medium text-blue-700 underline disabled:opacity-50"><ArrowUpRight size={16} aria-hidden="true" />Decision draft</button>
           <p className="mt-1 text-sm text-gray-600">Action not recorded.</p>
         </div> : <p className="text-sm text-gray-500">No active decisions linked to this report.</p>}
     {archived.length > 0 && <details className="min-w-0 border-t border-gray-100 pt-3 text-sm">

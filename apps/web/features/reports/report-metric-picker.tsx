@@ -39,7 +39,7 @@ export function filterReportDatasets(datasets: CatalogDataset[], search: string)
   })
 }
 
-export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, footer }: {
+export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, footer, singleDataset = false }: {
   datasets: CatalogDataset[]
   metrics: MetricRef[]
   dateColumns: Record<number, string>
@@ -49,6 +49,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   error?: boolean
   onRetry?: () => void
   footer?: ReactNode
+  singleDataset?: boolean
 }) {
   const { t } = useDecisionateText()
   const [search, setSearch] = useState("")
@@ -87,7 +88,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
               {dataset.metrics.map(metric => {
                 const checked = selected.has(metricIdentity(metric))
                 return <label key={metric.metric_key} className="flex min-h-11 min-w-0 items-start gap-3 py-2 text-sm">
-                  <input type="checkbox" className="mt-1 h-4 w-4 shrink-0" disabled={!checked && (!usableDate || metrics.length >= 25)} checked={checked} onChange={() => onToggleMetric(dataset, metric.metric_key)} />
+                  <input type="checkbox" className="mt-1 h-4 w-4 shrink-0" disabled={!checked && (!usableDate || (singleDataset ? count : metrics.length) >= 25)} checked={checked} onChange={() => onToggleMetric(dataset, metric.metric_key)} />
                   <span className="min-w-0 break-words">{metric.label}<span className="block text-xs text-gray-500">{metric.currency || metric.unit} / {metric.aggregation}</span></span>
                 </label>
               })}

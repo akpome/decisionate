@@ -19,7 +19,7 @@ import {
   FileText,
   LineChart,
   RefreshCw,
-  Sparkles,
+  Table2,
 } from "lucide-react"
 import { MetricCard } from "@/features/dashboard/components/metric-card"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
@@ -837,11 +837,11 @@ export default function DatasetDetailsPage() {
             </Link>
 
             <Link
-              href={`/dashboard/insights?dataset=${datasetId ?? ""}`}
+              href={`/dashboard/reports/dataset?dataset=${datasetId ?? ""}${effectiveSelectedMetric ? `&metric=${encodeURIComponent(effectiveSelectedMetric)}` : ""}`}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
             >
-              <Sparkles size={16} />
-              Insights
+              <Table2 size={16} />
+              Single dataset report
             </Link>
 
             <Link

@@ -72,15 +72,3 @@ class AnalysisCreate(StrictModel):
         if not self.name.strip():
             raise ValueError("An analysis name is required")
         return self
-
-
-class WidgetCreate(StrictModel):
-    analysis_id: str
-    dashboard_key: str = Field(default="general-business", min_length=1, max_length=120)
-    widget_type: Literal["top_relationships", "outcome_drivers", "saved_relationship"]
-    result_id: str | None = None
-    outcome_metric: str | None = None
-
-
-class EvidenceCreate(StrictModel):
-    kind: Literal["insight", "decision"]

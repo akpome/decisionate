@@ -1,12 +1,8 @@
-"use client"
+import { redirect } from "next/navigation"
+import { legacyRelationshipDestination } from "@/features/reports/legacy-relationship-destination"
 
-import { useUser } from "@clerk/nextjs"
-import { useActiveWorkspace } from "@/lib/use-active-workspace"
-import { CorrelationExplorer } from "@/features/relationships/correlation-explorer"
-
-export default function RelationshipExplorerPage() {
-  const { user } = useUser()
-  const { activeWorkspaceId } = useActiveWorkspace(user?.id)
-  if (!user?.id) return <p role="status" className="text-sm text-gray-500">Loading workspace...</p>
-  return <CorrelationExplorer key={`${user.id}:${activeWorkspaceId}`} userId={user.id} workspaceId={activeWorkspaceId} />
+export default async function RetiredExplorerPage({ searchParams }: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  redirect(legacyRelationshipDestination(await searchParams))
 }

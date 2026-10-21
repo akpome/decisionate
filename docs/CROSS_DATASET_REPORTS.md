@@ -2,6 +2,39 @@
 
 ## Product Flow
 
+Reports is the unified analysis workspace. Insights is no longer a separate
+sidebar destination or calculation workflow: metric findings, seasonal anomalies,
+cross-source relationships, follow-up actions and decision links appear in the
+report preview. Old `/dashboard/insights` links redirect to Reports; dataset/metric
+links open the single-dataset view, while saved-report, weekly and advanced-run
+identities take precedence and remain intact. Saved relationship insights remain
+available below the multi-dataset workspace with their original evidence links.
+
+Both report tabs use `ReportWorkspace` and the business-reports engine/catalogue.
+Single-dataset definitions explicitly set `scope: single`; legacy definitions
+without a scope remain multi-dataset. Single reports allow one or more approved
+metrics from exactly one source, use the same period comparisons and seasonal
+anomaly engine, and omit cross-source relationship controls. Selecting another
+source replaces the single report's previous metrics. Advanced correlation still
+requires at least two sources. Forecasts and saved relationship monitors remain
+separate, unchanged workflows.
+
+Weekly templates and delivery remain cross-dataset only. A single-dataset report
+cannot replace an existing weekly template or enable delivery. Its snapshot and
+selected decision evidence can still be saved. Existing report snapshots,
+weekly recipients, seasonal settings and decision links are not migrated or
+recomputed when opening a saved report. Saving a new report continues to validate
+and calculate against current authorized source data; it is not a client-uploaded
+or trusted preview snapshot. Legacy Insights APIs remain for backward compatibility
+but are no longer used by either Reports tab.
+
+AI interpretation is optional (off by default), uses existing provider/credit
+controls and deterministic fallback, and is stored in the saved snapshot when
+requested. Interactive and weekly narratives share a bounded evidence projection:
+selected metrics, included relationship findings and anomaly summaries only, with
+no raw source rows, trend arrays or fitted baseline arrays. The narrative does not
+change the deterministic analysis, expand metric selection or create decisions.
+
 `/dashboard/reports` is the main business-review workspace. Explore selects a
 business question, approved metrics from at least two datasets, date columns,
 reporting dates and grouping. Report presents the same analysis as a shareable,
@@ -22,11 +55,14 @@ choose its outcome metric, or create a manual dataset-linked decision. Analysis
 pages display evidence and existing decisions, without creation buttons or
 one-click recommendation-to-decision handlers.
 
-Single-dataset inspection remains at `/dashboard/reports/dataset`. Existing
-relationship monitors and advanced matrices remain available from Explore.
-Completed advanced analyses can seed a report while preserving a link to the
-original run. The new report recalculates its inputs; it is not a reproduction
-of the original run's frozen results.
+Single-dataset analysis remains at `/dashboard/reports/dataset`. The basic
+two-metric relationship monitors remain under Relationships. The separate
+advanced explorer, its rollout flags and dedicated worker have been retired.
+Historical runs and saved findings remain readable at `/dashboard/reports/evidence`;
+old explorer links redirect there. Completed historical analyses can seed a new
+report within its existing limits, preserving a link to the original evidence.
+The new report recalculates its inputs; it is not a reproduction of the original
+run's frozen results. See [retirement and deployment cleanup](MULTI_METRIC_CORRELATION.md).
 
 ## Evidence Rules
 
@@ -52,8 +88,9 @@ of the original run's frozen results.
   snapshots retain their original unavailable significance. Even significant
   findings are historical associations, not proof of causation, attribution,
   conversion delays, profit or ROAS.
-- Guided reports are bounded to 25 metrics, 12 lag periods and 1,000 pair-lag
-  tests. Larger studies use the existing asynchronous advanced matrix.
+- Reports are bounded to 25 metrics, 12 lag periods and 1,000 pair-lag tests.
+  Larger studies must be narrowed or split into separate reports; no separate
+  advanced queue is available.
 
 ## Weekly Delivery
 
@@ -176,8 +213,8 @@ and the route contract. Web tests cover basis rendering and cache separation.
 
 ## Storage and Access
 
-The API lives at `/api/v2/business-reports` and is available independently of the
-advanced correlation rollout flags. Every source and saved snapshot is checked
+The API lives at `/api/v2/business-reports` and requires no correlation rollout
+flags or dedicated correlation worker. Every source and saved snapshot is checked
 against the authenticated active workspace, including on subsequent reads.
 Saving shared reports requires an existing writable workspace role; selecting
 weekly templates requires the existing workspace data-manager permission.

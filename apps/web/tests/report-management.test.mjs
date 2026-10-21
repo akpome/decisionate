@@ -26,7 +26,7 @@ function management(name, overrides = {}) {
   const handler = vm.runInNewContext(ts.transpileModule(`${functions.get(name)}\n${name}`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    canManage: true, busy: false, report: state.report, weeklyTemplate: state.template, managementAction, deletedReports,
+    single: false, canManage: true, busy: false, report: state.report, weeklyTemplate: state.template, managementAction, deletedReports,
     t: value => value, encodeURIComponent,
     window: { confirm: () => true, history: { replaceState: (...args) => calls.push(["history", ...args]) } },
     execute: async action => { try { await action() } catch (error) { errors.push(error.message) } },
@@ -68,6 +68,12 @@ test("template removal leaves saved reports and the open snapshot intact", async
   assert.equal(state.template.report_id, null)
   assert.equal(state.template.enabled, false)
   assert.equal(managementAction.current, false)
+})
+
+test("deleting a single report retains its source mode in the URL", async () => {
+  const { handler, calls } = management("deleteSavedReport", { single: true })
+  await handler()
+  assert.deepEqual(calls[1], ["history", null, "", "/dashboard/reports/dataset"])
 })
 
 test("cancelled, read-only and busy deletion attempts do not change reports or templates", async () => {

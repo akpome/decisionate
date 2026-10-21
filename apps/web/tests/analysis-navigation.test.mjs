@@ -88,33 +88,28 @@ test("Relationships is directly discoverable in the Analysis sidebar", () => {
 })
 
 test("both report views share navigation while Relationships stays a separate sidebar destination", () => {
-  for (const [path, active] of [
-    ["../features/reports/report-workspace.tsx", "reports"],
-    ["../features/reports/single-dataset-report.tsx", "dataset-reports"],
-  ]) {
+  for (const path of ["../features/reports/report-workspace.tsx", "../features/reports/single-dataset-report.tsx"]) {
     const source = read(path)
-    assert.ok(source.includes(`<AnalysisNavigation active="${active}" />`), path)
     assert.doesNotMatch(source, /Advanced matrix|Saved monitors|Dataset inspection/)
   }
-  for (const path of ["../app/dashboard/relationships/page.tsx", "../features/relationships/correlation-explorer.tsx"]) {
+  assert.match(read("../features/reports/single-dataset-report.tsx"), /<ReportPage scope="single"/)
+  for (const path of ["../app/dashboard/relationships/page.tsx", "../app/dashboard/relationships/explorer/page.tsx"]) {
     assert.doesNotMatch(read(path), /AnalysisNavigation/)
   }
   const report = read("../features/reports/report-workspace.tsx")
-  assert.match(report, /<h1[^>]*>\{t\("Multi dataset report"\)\}<\/h1>/)
+  assert.match(report, /<AnalysisNavigation active=\{single \? "dataset-reports" : "reports"\}/)
+  assert.match(report, /<h1[^>]*>\{t\(single \? "Single dataset report" : "Multi dataset report"\)\}<\/h1>/)
   assert.match(report, /"Build report" : "Report preview"/)
   assert.match(report, /t\("Preview report"\)/)
   assert.doesNotMatch(report, /href="\/dashboard\/relationships\/explorer"/)
 })
 
-test("multi-metric comparison remains gated and saved links target the right section", () => {
-  const entry = read("../features/relationships/correlation-entry.tsx")
-  assert.match(entry, /if \(!available\) return null/)
-  assert.match(entry, /t\("Compare multiple metrics"\)/)
-  const explorer = read("../features/relationships/correlation-explorer.tsx")
-  assert.match(explorer, /if \(!capabilities\?\.ui\)/)
-  assert.match(explorer, /href="\/dashboard\/relationships#saved-relationships"/)
-  assert.match(read("../app/dashboard/relationships/page.tsx"), /id="saved-relationships"/)
-  assert.match(read("../features/reports/single-dataset-report.tsx"), /title="Single dataset report"/)
+test("advanced comparison is removed while the basic saved relationships remain available", () => {
+  const relationships = read("../app/dashboard/relationships/page.tsx")
+  assert.doesNotMatch(relationships, /CorrelationEntry|Compare multiple metrics/)
+  assert.match(relationships, /id="saved-relationships"/)
+  assert.match(read("../app/dashboard/relationships/explorer/page.tsx"), /redirect\(legacyRelationshipDestination\(await searchParams\)\)/)
+  assert.match(read("../features/reports/single-dataset-report.tsx"), /scope="single"/)
 })
 
 test("report setup and results are separate and preview opens the result view", () => {

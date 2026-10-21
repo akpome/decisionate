@@ -54,10 +54,10 @@ const gettingStartedItems = [
   },
   {
     id: "analysis",
-    title: "Review an insight or forecast",
+    title: "Analyze selected metrics",
     description: "Use evidence from the data to understand what is changing.",
-    href: "/dashboard/insights",
-    action: "Open insights",
+    href: "/dashboard/reports",
+    action: "Open reports",
   },
   {
     id: "decision",
@@ -349,24 +349,24 @@ const referenceChapters: ReferenceChapter[] = [
   },
   {
     id: "reference-analysis",
-    title: "7. Insights, forecasts, and reports",
+    title: "7. Analysis, reports, and forecasts",
     summary:
-      "Analysis pages turn selected data into evidence. Each page has its own dataset context and should be configured deliberately rather than assuming a selection from another page.",
+      "Reports contains the analysis workflow: choose metrics and settings once, review the findings, and save a report snapshot. Forecasts remains a separate forward-looking workflow.",
     howTos: [
       {
-        title: "Generate an insight",
+        title: "Analyze metrics and findings",
         steps: [
-          "Open Analysis -> Insights.",
-          "Select the dataset and, when needed, a specific numeric metric. Insights can also support selected metrics across datasets where that panel is available.",
-          "Set the date range, grouping period, and aggregation controls. Use All data when the question requires the full available history.",
-          "Review the generated patterns, anomaly findings, AI analysis, confidence, recommendations, and risks.",
+          "Open Analysis -> Reports. Multi dataset report opens by default; Single dataset report uses the same analysis engine for one source.",
+          "Select the approved metrics needed to answer your business question. Multi dataset reports require metrics from at least two datasets.",
+          "Set the date range, grouping period, seasonal-business setting, and any relationship directions, then preview the report.",
+          "Review metric movements, seasonal anomaly findings, relationship evidence, coverage, and limitations together in the report preview.",
           "Treat recommendations as prompts for review. Create decisions from the Decisions page after confirming the source data and business context.",
         ],
       },
       {
         title: "Review anomaly findings",
         steps: [
-          "Open Analysis -> Insights and select the dataset, metric, date range, period, and aggregation that represent the operating question.",
+          "Open Analysis -> Reports, select metrics and dates, and enable Business has seasonal activity when appropriate. Preview the report to assess every selected metric with the shared anomaly engine.",
           "Review any anomaly finding alongside the underlying chart and time periods. Confirm that the finding is not caused by an incomplete connector sync, a date change, a join, or a source-schema change.",
           "Record the business response as a decision when action is needed. Include the suspected cause, the expected result, and the date on which the result will be reviewed.",
           "After the review period, record the actual outcome and lesson learned so the evidence can be used in later recommendation context.",
@@ -385,9 +385,9 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Build a report",
         steps: [
-          "Open Analysis -> Reports and select a dataset from the report selector.",
-          "Select an optional metric focus and configure the report date, period, grouping, and aggregation.",
-          "Review the KPI snapshot, narrative insight, chart-backed summary, recommendations, and source details.",
+          "Open Analysis -> Reports and configure the selected datasets and metrics in Build report.",
+          "Rename the report to suit your analysis, enter a business question, and preview the findings. Save snapshot stores the generated report; reopening a snapshot preserves its analysis.",
+          "Use a saved multi dataset report as the weekly template. This does not enable delivery or change recipients. Weekly reports use the latest completed week and a rolling three-year history, not the manual report dates.",
           "Use the report as a review package. Reports are not a replacement for recording the business decision and expected outcome.",
         ],
       },

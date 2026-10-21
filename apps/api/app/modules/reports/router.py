@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.db.database import SessionLocal
 from app.db.models import Dataset, WeeklyReportPreference
+from app.modules.ai.service import generate_structured_analysis
 from app.modules.correlation.catalog import metric_catalog, reporting_timezone
 from app.modules.correlation.engine import metric_id
 from app.modules.correlation.service import allowed_run, authorize_datasets, dataset_scope, encode
@@ -21,7 +22,7 @@ from .decision_drafts import is_report_decision_draft
 from .models import BusinessReport
 from .catalog import prepare_report_source, report_metric_catalog
 from .schemas import ReportDecision, ReportDefinition
-from .service import attach_report_decisions, build_report, report_anomalies, report_dates
+from .service import attach_report_decisions, build_report, report_analysis_facts, report_anomalies, report_dates
 from .relationships import report_test_count
 
 
@@ -55,7 +56,7 @@ def generate(db, payload, user, workspace):
         raise HTTPException(400, "Reports support at most 25 metrics and 12 lag periods")
     definition = payload.model_dump(mode="json")
     if report_test_count(definition) > 1000:
-        raise HTTPException(400, "Reduce the report's metrics or lag window to at most 1,000 pair-lag tests. Larger analyses remain available in the advanced matrix.")
+        raise HTTPException(400, "Reduce the report's metrics or lag window to at most 1,000 pair-lag tests.")
     definition["reporting_timezone"] = reporting_timezone()
     datasets = authorize_datasets(db, user, workspace, [item.dataset_id for item in payload.metrics])
     frames, unavailable = {}, []
@@ -78,6 +79,15 @@ def generate(db, payload, user, workspace):
                                      "definition": json.loads(source_run.definition),
                                      "computed_at": source_run.completed_at.isoformat() if source_run.completed_at else None,
                                      "note": "This report recalculates the selected sources. The original analysis run remains available for comparison."}
+    if payload.include_ai_analysis:
+        result["ai_analysis"] = generate_structured_analysis(
+            context="business report selected-metric interpretation",
+            facts=report_analysis_facts(result),
+            fallback_summary=" ".join(result["observations"] + result["contrasts"]) or "No comparable metric movements are available. Review coverage and baseline warnings.",
+            fallback_recommendations=result["recommendations"],
+            fallback_risks=result["warnings"] + result["limitations"],
+            workspace_id=workspace, actor_user_id=user,
+        )
     attach_report_decisions(result, db, workspace, {item["dataset_id"] for item in result["definition"]["metrics"]})
     return result["definition"], result
 
@@ -271,7 +281,7 @@ def report_decision_evidence(report):
     except ValueError as error:
         raise HTTPException(400, "The saved report's selected metrics are unavailable. Generate a new report.") from error
     if not metrics or snapshot["status"] != "ready":
-        raise HTTPException(400, "Resolve cross-dataset coverage before using this report as decision evidence")
+        raise HTTPException(400, "Resolve report coverage before using this report as decision evidence")
     metric_ids = {item["id"] for item in metrics}
     findings = [{key: value for key, value in item.items() if key != "evidence"}
                 for item in snapshot["findings"] if item["id"] in snapshot["included_findings"]
@@ -361,6 +371,8 @@ def weekly_template(report_id: str, request: Request, db=Depends(database)):
     report = allowed_report(db, report_id, user, workspace, for_update=True)
     definition = json.loads(report.definition)
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
+    if definition.get("scope", "multi") != "multi" or len({item["dataset_id"] for item in definition["metrics"]}) < 2:
+        raise HTTPException(400, "Weekly reports require a multi dataset report template")
     if preference is None:
         preference = WeeklyReportPreference(workspace_id=workspace, enabled=0)
         db.add(preference)

@@ -90,11 +90,11 @@ test("reports default to 24 historical observations while retaining higher saved
 test("main Reports route opens the combined workspace while dataset inspection remains available", () => {
   const page = readFileSync(new URL("../app/dashboard/reports/page.tsx", import.meta.url), "utf8")
   const inspection = readFileSync(new URL("../app/dashboard/reports/dataset/page.tsx", import.meta.url), "utf8")
-  assert.match(page, /ReportWorkspace/)
+  assert.match(page, /ReportPage/)
   assert.doesNotMatch(page, /SingleDatasetReport|single-dataset-report|redirect\(/)
-  assert.match(page, /canCreateDecisions/)
+  assert.match(readFileSync(new URL("../features/reports/report-page.tsx", import.meta.url), "utf8"), /canCreateDecisions/)
   const workspace = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
-  assert.match(workspace, /<AnalysisNavigation active="reports"/)
+  assert.match(workspace, /<AnalysisNavigation active=\{single \? "dataset-reports" : "reports"\}/)
   assert.match(inspection, /single-dataset-report/)
 })
 
@@ -203,6 +203,6 @@ test("read-only and busy report views cannot mutate a draft", async () => {
     await handler(3)
     assert.deepEqual(calls, [])
   }
-  const page = readFileSync(new URL("../app/dashboard/reports/page.tsx", import.meta.url), "utf8")
+  const page = readFileSync(new URL("../features/reports/report-page.tsx", import.meta.url), "utf8")
   assert.match(page, /canEditDecisions=\{access\.canCreateDecisions\}/)
 })

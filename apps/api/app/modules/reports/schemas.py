@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from app.modules.correlation.schemas import AnalysisCreate, LagPolicy, ResultFilters, StrictModel
+from app.modules.correlation.schemas import AnalysisCreate, LagPolicy, MetricRef, ResultFilters, StrictModel
 
 
 MINIMUM_REPORT_OBSERVATIONS = 24
@@ -30,13 +30,34 @@ class ReportPairDirection(StrictModel):
 
 
 class ReportDefinition(AnalysisCreate):
+    scope: Literal["single", "multi"] = "multi"
+    metrics: list[MetricRef] = Field(min_length=1, max_length=25)
     seasonal_business: bool = False
+    include_ai_analysis: bool = False
     filters: ReportFilters = Field(default_factory=ReportFilters)
     lag: LagPolicy = Field(default_factory=lambda: LagPolicy(maximum=12))
     business_question: str = Field(min_length=8, max_length=1000)
     included_findings: list[str] | None = Field(default=None, max_length=300)
     source_run_id: str | None = Field(default=None, max_length=80)
     pair_directions: list[ReportPairDirection] | None = Field(default=None, max_length=300)
+
+    @model_validator(mode="after")
+    def check_metrics(self):
+        # Override only the report contract; advanced correlation still requires two sources.
+        identities = {(item.dataset_id, item.metric_key) for item in self.metrics}
+        if len(identities) != len(self.metrics):
+            raise ValueError("Select each dataset metric only once")
+        datasets = {item.dataset_id for item in self.metrics}
+        if self.scope == "single":
+            if len(datasets) != 1:
+                raise ValueError("Single dataset reports require exactly one dataset")
+            if self.lag.enabled or self.pair_directions:
+                raise ValueError("Relationship timing is only available for multi dataset reports")
+        elif len(datasets) < 2:
+            raise ValueError("Select metrics from at least two datasets")
+        if not self.name.strip():
+            raise ValueError("An analysis name is required")
+        return self
 
     @model_validator(mode="after")
     def check_pair_directions(self):
