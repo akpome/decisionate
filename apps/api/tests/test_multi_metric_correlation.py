@@ -190,8 +190,9 @@ class CorrelationWorkflowTests(unittest.TestCase):
             self.assertEqual(cell["coefficient"], by_id[cell["result_id"]]["coefficient"])
         detail = self.client.get(f"/api/v2/correlation-results/{rows['items'][0]['result_id']}").json()
         self.assertEqual(len(detail["evidence"]), 40)
-        self.assertEqual(detail["reliability"], "exploratory")
-        self.assertIsNone(detail["adjusted_p_value"])
+        self.assertEqual(detail["reliability"], "reliable")
+        self.assertIsNotNone(detail["adjusted_p_value"])
+        self.assertLessEqual(detail["adjusted_p_value"], .05)
 
     def test_enqueue_does_not_load_observations_and_creation_is_idempotent(self):
         with patch.object(router, "load_dataframe_from_dataset", side_effect=AssertionError("Request loaded data")):

@@ -14,6 +14,7 @@ from app.modules.datasets.services.curated_metric_analytics import aggregate_met
 from app.modules.datasets.services.joins import _bucket_dates, _infer_explicit_year, _parse_dates
 from app.modules.datasets.services.numeric import coerce_numeric_series
 from .catalog import prepare_report_source
+from .anomalies import anomaly_summary, detect_report_metric, historical_start
 from .decision_drafts import is_report_decision_draft
 from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, report_test_count
 from .schemas import MINIMUM_REPORT_OBSERVATIONS
@@ -108,7 +109,30 @@ def prepare_report_series(frames, references, definition):
     return result
 
 
-def build_report(frames, definition, *, unavailable=None):
+def report_anomalies(frames, references, definition, metadata, *, anchor=None):
+    window = definition["date_range"]
+    start = historical_start(anchor or window["start"])
+    history_definition = {**definition, "date_range": {"start": start, "end": window["end"]}}
+    available = [reference for reference in references if metric_id(reference) in metadata]
+    points = prepare_report_series(frames, available, history_definition) if available else {}
+    periods = period_index(history_definition["date_range"], definition["grain"])
+    results = []
+    for reference in references:
+        key = metric_id(reference)
+        if key not in points:
+            descriptor = {**reference, "id": key, "dataset_label": f"Dataset {reference['dataset_id']}", "label": reference["metric_key"]}
+            empty = pd.DataFrame({"period": pd.DatetimeIndex([]), "value": pd.Series(dtype=float)})
+            missing = detect_report_metric(empty, descriptor, window, definition["grain"], definition.get("seasonal_business", False), anchor)
+            missing["warnings"] = ["The selected dataset is unavailable; this metric could not be assessed."]
+            results.append(missing)
+            continue
+        values = points[key].set_index("period").reindex(periods).rename_axis("period").reset_index()
+        results.append(detect_report_metric(values, metadata[key], window, definition["grain"],
+                                            definition.get("seasonal_business", False), anchor))
+    return anomaly_summary(results, definition.get("seasonal_business", False), window, anchor)
+
+
+def build_report(frames, definition, *, unavailable=None, history_anchor=None):
     """Frames must already be authorized; source data and selections are never changed."""
     definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
     if report_test_count(definition) > 1000:
@@ -177,9 +201,9 @@ def build_report(frames, definition, *, unavailable=None):
                         "trend": [{"period": str(period.date()), "value": finite(value)}
                                   for period, value in points.set_index("period").value.reindex(expected).items()]})
 
-    # Weekly movement is described over one week, but relationships use at least
-    # a 90-day historical window. Seven observations are not a reliable lag study.
-    history = {"start": str(min(date.fromisoformat(window["start"]), date.fromisoformat(window["end"]) - timedelta(days=89))), "end": window["end"]}
+    # Relationship history is separate from the reporting window: interactive
+    # reports use at least 90 days; scheduled reviews use a rolling three years.
+    history = {"start": historical_start(history_anchor) if history_anchor else str(min(date.fromisoformat(window["start"]), date.fromisoformat(window["end"]) - timedelta(days=89))), "end": window["end"]}
     relationship_definition = {**actual_definition, "date_range": history,
                                "filters": {**definition["filters"], "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, definition["filters"]["minimum_observations"])}}
     historical = prepare_report_series(frames, usable, relationship_definition) if usable else {}
@@ -254,6 +278,9 @@ def build_report(frames, definition, *, unavailable=None):
         actions.append("Validate promising relationships with segmentation or a controlled experiment; define the expected outcome and review date before acting.")
     if not actions:
         actions.append("Collect comparable history across the selected datasets before drawing a relationship conclusion.")
+    anomalies = report_anomalies(frames, references, actual_definition, metadata, anchor=history_anchor)
+    if anomalies["anomaly_count"]:
+        actions.append("Investigate the unusual selected-metric changes against their expected ranges; check source quality, seasonal context and operational events before acting.")
     selected_ids = [finding["id"] for finding in selected]
     return {"name": definition["name"], "business_question": definition["business_question"],
             "definition": {**definition, "included_findings": selected_ids},
@@ -262,6 +289,7 @@ def build_report(frames, definition, *, unavailable=None):
             "dataset_count": dataset_count, "status": "ready" if dataset_count >= 2 else "limited_coverage",
             "analysis_source": "deterministic", "generated_at": datetime.now(timezone.utc).isoformat(),
             "metrics": metrics, "findings": findings, "included_findings": selected_ids,
+            "anomaly_analysis": anomalies,
             "observations": observations, "contrasts": contrasts[:5], "recommendations": actions, "warnings": warnings,
             "limitations": ["Association does not establish causation. Shared seasonality and other channels may explain co-movement.",
                             "Report lag tests use calendar-aligned periods. Missing observations remain unavailable and are not zero-filled.",

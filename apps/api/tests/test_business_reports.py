@@ -283,6 +283,45 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         self.assertEqual(reopened.status_code, 200, reopened.text)
         self.assertEqual(reopened.json()["definition"]["filters"]["minimum_observations"], 24)
 
+    def test_seasonality_setting_and_anomaly_snapshot_survive_save_and_reopen(self):
+        payload = definition(seasonal_business=True)
+        response = self.client.post("/api/v2/business-reports", json=payload)
+        self.assertEqual(response.status_code, 201, response.text)
+        saved = response.json()
+        self.assertTrue(saved["definition"]["seasonal_business"])
+        self.assertTrue(saved["anomaly_analysis"]["seasonal_business"])
+        self.frames[1][1]["spend"] = 1e9
+        reopened = self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()
+        self.assertEqual(reopened["anomaly_analysis"], saved["anomaly_analysis"])
+        response = self.client.post(f"/api/v2/business-reports/{saved['report_id']}/weekly")
+        self.assertEqual(response.status_code, 200, response.text)
+        with self.Session() as db:
+            from app.modules.alerts.router import weekly_business_template
+            preference = db.query(WeeklyReportPreference).filter_by(workspace_id="owner").one()
+            self.assertTrue(weekly_business_template(db, preference, "owner")["seasonal_business"])
+
+    def test_single_dataset_anomaly_endpoint_respects_scope_selection_and_window(self):
+        response = self.client.get("/api/v2/business-reports/dataset-anomalies/1?metric=spend&aggregation=daily&start_date=2026-03-01&period_filter=1m&seasonal_business=true")
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertEqual(result["window"], {"start": "2026-03-01", "end": "2026-03-31"})
+        self.assertTrue(result["seasonal_business"])
+        self.assertEqual([item["metric_id"] for item in result["metrics"]], ["1:spend"])
+        counted = self.client.get("/api/v2/business-reports/dataset-anomalies/1?metric=spend&aggregation=daily&aggregation_type=count").json()
+        self.assertEqual(counted["metrics"][0]["unit"], "count")
+        self.assertIsNone(counted["metrics"][0]["currency"])
+        self.assertEqual(self.client.get("/api/v2/business-reports/dataset-anomalies/1?metric=private_metric").status_code, 400)
+        with patch.object(router, "load_dataframe_from_dataset") as load:
+            self.assertEqual(self.client.get("/api/v2/business-reports/dataset-anomalies/3").status_code, 403)
+            self.assertEqual(self.client.get("/api/v2/business-reports/dataset-anomalies/1?aggregation=invalid").status_code, 422)
+            load.assert_not_called()
+
+    def test_single_dataset_anomaly_endpoint_handles_unavailable_data_without_exposing_storage(self):
+        with patch.object(router, "load_dataframe_from_dataset", side_effect=OSError("private-storage-key")):
+            response = self.client.get("/api/v2/business-reports/dataset-anomalies/1")
+        self.assertEqual(response.status_code, 503, response.text)
+        self.assertNotIn("private-storage-key", response.text)
+
     def test_minimum_below_24_is_rejected_before_reading_source_files(self):
         payload = definition()
         payload["filters"]["minimum_observations"] = 23

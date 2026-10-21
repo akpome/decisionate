@@ -1,7 +1,22 @@
 import type { CorrelationDefinition, CorrelationMetric } from "@/features/relationships/types"
 import { reportPairDirections, type ReportPairDirection } from "./pair-directions"
 
-export type ReportDefinition = CorrelationDefinition & { business_question: string; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[] }
+export type ReportDefinition = CorrelationDefinition & { business_question: string; seasonal_business: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[] }
+export type ReportAnomalyMetric = {
+  metric_id: string; dataset_id: number; dataset_label: string; metric_key: string; label: string
+  unit?: string | null; currency?: string | null; status: "ready" | "limited_history" | "insufficient_history" | "unavailable"
+  aggregation?: string; grain?: string
+  observations: number; evaluated_observations: number; missing_observations: number; anomaly_count: number
+  seasonal_requested: boolean; seasonalities: string[]; method: string[]; warnings: string[]
+  history_window: { start: string; end: string }
+  baselines: { start: string; end: string; history_start: string; history_end: string; observations: number; calibration_observations: number; seasonalities: string[]; method: string; spread: number }[]
+  anomalies: { period: string; value: number; expected: number; lower: number; upper: number; deviation: number; deviation_percent: number | null; score: number | null; direction: "high" | "low"; seasonalities: string[] }[]
+}
+export type ReportAnomalyAnalysis = {
+  engine_version: string; lookback_years: number; seasonal_business: boolean; anchor_date: string | null
+  window: { start: string; end: string }; anomaly_count: number; threshold: number
+  metrics: ReportAnomalyMetric[]; limitations: string[]
+}
 export type ReportMetric = CorrelationMetric & {
   value: number | null; previous_value: number | null; change: number | null; change_percent: number | null
   observations: number; expected_periods: number; warnings: string[]; trend: { period: string; value: number | null }[]
@@ -26,6 +41,7 @@ export type BusinessReport = {
   metrics: ReportMetric[]; findings: ReportFinding[]; included_findings: string[]
   observations: string[]; contrasts: string[]; recommendations: string[]; warnings: string[]; limitations: string[]
   decisions: ReportDecision[]; decision_drafts?: ReportDecision[]
+  anomaly_analysis?: ReportAnomalyAnalysis
   source_analysis?: { run_id: string; engine_version: string; computed_at: string | null; note: string }
 }
 
@@ -37,6 +53,7 @@ export function formatReportValue(value: number | null, currency?: string | null
 
 export function editableDefinition(value: Partial<ReportDefinition>): ReportDefinition {
   return { name: value.name ?? "", business_question: value.business_question || "",
+    seasonal_business: value.seasonal_business ?? false,
     metrics: value.metrics || [], method: value.method || "spearman", grain: value.grain || "daily",
     date_range: value.date_range || { start: "", end: "" }, advanced: false,
     filters: { minimum_abs_coefficient: value.filters?.minimum_abs_coefficient ?? .3, minimum_observations: Math.max(24, value.filters?.minimum_observations ?? 24) },

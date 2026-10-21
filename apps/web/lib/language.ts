@@ -413,6 +413,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "Connected sources": "Sources connectées",
   "Metric mapping": "Mappage des métriques",
   "Relationship analysis": "Analyse des relations",
+  "Business has seasonal activity": "L'activité de l'entreprise est saisonnière",
   "Alert monitor": "Surveillance des alertes",
   "New decision": "Nouvelle décision",
   "Outcome review": "Révision du résultat",

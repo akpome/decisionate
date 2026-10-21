@@ -42,6 +42,7 @@ import {
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { AnalysisNavigation } from "./analysis-navigation"
+import { DatasetReportAnomalies } from "./dataset-report-anomalies"
 import {
   MetricSelector,
   formatMetricLabel,
@@ -214,6 +215,7 @@ export default function SingleDatasetReport() {
     useState<DashboardValueAggregation>("sum")
   const [startDate, setStartDate] =
     useState("")
+  const [seasonalBusiness, setSeasonalBusiness] = useState(false)
   const [loadingDatasets, setLoadingDatasets] =
     useState(true)
   const [loadingReport, setLoadingReport] =
@@ -428,6 +430,7 @@ export default function SingleDatasetReport() {
         setAggregation("monthly")
         setAggregationType("sum")
         setStartDate("")
+        setSeasonalBusiness(false)
 
         const [datasetsResult] =
           await Promise.allSettled([
@@ -916,6 +919,7 @@ export default function SingleDatasetReport() {
               {` • ${formatReportValueAggregationLabel(aggregationType)}`}
             </p>
           </div>
+          <label className="mt-4 flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={seasonalBusiness} onChange={event => setSeasonalBusiness(event.target.checked)} />{t("Business has seasonal activity")}</label>
 
           <p className="mt-3 max-w-full break-words text-sm text-gray-500">
             {dataset ? (
@@ -1035,6 +1039,7 @@ export default function SingleDatasetReport() {
             insights={topInsights}
             selectedMetric={effectiveSelectedMetric}
           />
+          {user?.id && selectedDatasetId && <DatasetReportAnomalies userId={user.id} workspaceId={activeWorkspaceId} datasetId={selectedDatasetId} metric={effectiveSelectedMetric} startDate={startDate} period={periodFilter} aggregation={aggregation} aggregationType={aggregationType} seasonal={seasonalBusiness} refresh={reportRefreshVersion} />}
 
           <ReportFooter
             dataset={dataset}

@@ -18,6 +18,7 @@ import { ReportDecisions, ReportRelationshipFindings } from "./report-evidence-s
 import { defaultReportName, isDefaultReportName, reportDraftName } from "./default-report-name"
 import { reportPairDirections, reportPairKey, reportTestCount } from "./pair-directions"
 import { ReportPairDirections } from "./report-pair-directions"
+import { ReportAnomalies } from "./report-anomalies"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
@@ -169,7 +170,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   }
 
   function edit(patch: Partial<ReportDefinition>) {
-    const analysisChanged = ["metrics", "date_range", "grain", "method", "filters", "lag", "pair_directions"].some(key => key in patch)
+    const analysisChanged = ["metrics", "date_range", "grain", "method", "filters", "lag", "pair_directions", "seasonal_business"].some(key => key in patch)
     const nextName = report?.report_id && !("name" in patch) && isDefaultReportName(definition.name) ? defaultReportName() : null
     setDefinition(current => {
       const next = { ...current, ...(nextName ? { name: nextName } : {}), ...patch, ...(analysisChanged ? { included_findings: null } : {}) }
@@ -349,6 +350,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
               <div className="grid shrink-0 grid-cols-2 gap-3"><label className="block text-xs text-gray-600">Start<input className={input} type="date" required max={definition.date_range.end || undefined} value={definition.date_range.start} onChange={event => edit({ date_range: { ...definition.date_range, start: event.target.value } })} /></label><label className="block text-xs text-gray-600">End<input className={input} type="date" required min={definition.date_range.start || undefined} value={definition.date_range.end} onChange={event => edit({ date_range: { ...definition.date_range, end: event.target.value } })} /></label></div>
               <div role="group" aria-label="Analysis settings" tabIndex={0} className="report-builder-scroll space-y-4 pr-2 focus-visible:outline-2 focus-visible:outline-blue-600">
                 <label className="block text-xs text-gray-600">Group by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{["daily", "weekly", "monthly", "quarterly"].map(value => <option key={value}>{value}</option>)}</select></label>
+                <label className="flex items-start gap-2 text-sm"><input className="mt-0.5 h-4 w-4 shrink-0" type="checkbox" checked={definition.seasonal_business} onChange={event => edit({ seasonal_business: event.target.checked })} />{t("Business has seasonal activity")}</label>
                 <section aria-label="Relationship analysis" className="border-y border-gray-100 py-3"><h3 className="text-sm font-medium">{t("Relationship analysis")}</h3><div className="mt-3 space-y-3">
                   <label className="block text-xs text-gray-600">Correlation method<select className={input} value={definition.method} onChange={event => edit({ method: event.target.value as ReportDefinition["method"] })}><option value="spearman">Spearman</option><option value="pearson">Pearson</option></select></label>
                   <label className="block text-xs text-gray-600">Minimum historical observations<input className={input} type="number" min={24} max={3653} required value={definition.filters.minimum_observations} onChange={event => edit({ filters: { ...definition.filters, minimum_observations: Number(event.target.value) } })} /></label>
@@ -371,6 +373,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         <header className="border-b border-gray-200 pb-5"><div className="flex items-center gap-3"><WorkspaceBrandMark name={brand.name} logoUrl={brand.logoUrl} primaryColor={brand.primaryColor} className="h-10 w-10 rounded-md text-sm" /><span className="text-sm font-medium">{brand.name}</span></div><h2 className="mt-4 break-words text-2xl font-semibold">{report.name}</h2><p className="mt-2 break-words text-base text-gray-700">{report.business_question}</p><p className="mt-2 text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.grain} / {report.dataset_count} datasets / Generated {report.generated_at.slice(0, 10)}</p></header>
         <ReportOverview report={report} />
         <MetricTrends report={report} />
+        <ReportAnomalies analysis={report.anomaly_analysis} />
         <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Combined findings</h3><Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
         <ReportRelationshipFindings report={report} />
         <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Follow-up actions</h3><Statements statements={report.recommendations} /></section>

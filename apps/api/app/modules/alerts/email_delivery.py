@@ -427,6 +427,36 @@ def send_platform_system_email(
         ) from error
 
 
+def report_anomaly_lines(report):
+    analysis = report.get("anomaly_analysis")
+    if not analysis:
+        return ["Anomaly detection was not recorded in this report."]
+    lines = [f"Rolling history: up to {analysis['lookback_years']} years. Seasonal adjustment: "
+             + ("enabled when supported." if analysis["seasonal_business"] else "off.")]
+    for metric in analysis["metrics"]:
+        label = f"{metric['dataset_label']} / {metric['label']}"
+        status = metric["status"].replace("_", " ")
+        outcome = (f"{metric['anomaly_count']} unusual changes" if metric["anomaly_count"] else "No unusual changes detected") if metric["evaluated_observations"] else "Not assessed"
+        lines.append(f"{label}: {outcome} ({status}); assessed {metric['evaluated_observations']}/{metric['observations']} observed periods.")
+        if metric["baselines"]:
+            baseline = metric["baselines"][-1]
+            lines.append(f"Baseline: trend" + (" + " + " + ".join(metric["seasonalities"]) if metric["seasonalities"] else " only")
+                         + f"; {baseline['method'].replace('_', ' ')}; history {baseline['history_start']} to {baseline['history_end']}.")
+        unit = metric.get("currency") or metric.get("unit") or "number"
+        for point in metric["anomalies"]:
+            lines.append(f"{point['period']}: {'above' if point['direction'] == 'high' else 'below'} expected. "
+                         f"Actual: {format_anomaly_number(point['value'])}; expected: {format_anomaly_number(point['expected'])}; "
+                         f"expected range: {format_anomaly_number(point['lower'])} to {format_anomaly_number(point['upper'])}; "
+                         f"deviation: {format_anomaly_number(point['deviation'])} ({unit}).")
+        lines.extend("Limitation: " + warning for warning in metric["warnings"])
+    lines.extend(analysis["limitations"])
+    return lines
+
+
+def format_anomaly_number(value):
+    return f"{value:.4e}" if value is not None and 0 < abs(value) < .01 else format_digest_number(value)
+
+
 def build_weekly_report_email_text(
     digest: WeeklyReportDigestResponse,
 ) -> str:
@@ -445,6 +475,7 @@ def build_weekly_report_email_text(
                         f"Coverage: {report['status']}"]
         review_lines.extend(report["observations"])
         review_lines.extend(report["contrasts"])
+        review_lines.extend(["", "Unusual changes (anomaly detection)", *report_anomaly_lines(report), "", "Relationship findings"])
         review_lines.extend(item["interpretation"] for item in report["findings"] if item["id"] in report["included_findings"])
         review_lines.extend("Warning: " + warning for warning in report["warnings"])
         review_lines.extend(f"Decision: {item['title']} ({item['status']}). Expected: {item['expected_outcome'] or 'Not recorded'}. Actual: {item['actual_outcome'] or 'Not yet recorded'}."
@@ -775,6 +806,10 @@ def build_weekly_report_email_html(
             f'compared with {escape_html(report["previous_window"]["start"])} to {escape_html(report["previous_window"]["end"])}</p>'
             '<ul style="padding-left:20px;">'
             + "".join(f'<li style="margin-bottom:8px;">{escape_html(statement)}</li>' for statement in statements)
+            + '</ul></section>'
+            + '<section style="margin-top:24px;color:#334155;font-size:14px;line-height:1.6;">'
+            + '<h2 style="font-size:18px;margin:0 0 10px;">Unusual changes (anomaly detection)</h2><ul style="padding-left:20px;">'
+            + "".join(f'<li style="margin-bottom:8px;">{escape_html(line)}</li>' for line in report_anomaly_lines(report))
             + '</ul></section>'
         )
     if digest.ai_analysis:

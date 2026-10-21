@@ -30,6 +30,7 @@ class ReportPairDirection(StrictModel):
 
 
 class ReportDefinition(AnalysisCreate):
+    seasonal_business: bool = False
     filters: ReportFilters = Field(default_factory=ReportFilters)
     lag: LagPolicy = Field(default_factory=lambda: LagPolicy(maximum=12))
     business_question: str = Field(min_length=8, max_length=1000)

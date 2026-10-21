@@ -7,6 +7,7 @@ import re
 from datetime import datetime
 from datetime import timezone
 from datetime import date, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter
 from fastapi import HTTPException
@@ -62,7 +63,7 @@ from app.modules.datasets.services.relationships import (
 )
 from app.modules.decisions.models import Decision
 from app.modules.reports.models import BusinessReport
-from app.modules.reports.service import attach_report_decisions, build_report, complete_week, scoped_frame
+from app.modules.reports.service import attach_report_decisions, build_report, complete_week, report_anomalies, scoped_frame
 from app.modules.reports.catalog import prepare_report_source
 from app.modules.reports.relationships import metric_key
 from app.modules.reports.schemas import MINIMUM_REPORT_OBSERVATIONS
@@ -791,6 +792,11 @@ def build_weekly_report_digest(
         ai_facts["cross_dataset_report"]["findings"] = [{key: value for key, value in item.items() if key != "evidence"}
             for item in cross_report["findings"] if item["id"] in cross_report["included_findings"]][:10]
         ai_facts["limitations"] = cross_report["limitations"]
+        ai_facts["anomaly_analysis"] = {
+            **{key: value for key, value in cross_report["anomaly_analysis"].items() if key != "metrics"},
+            "metrics": [{key: value for key, value in item.items() if key not in {"baselines", "anomalies"}}
+                        | {"anomalies": item["anomalies"][:7]} for item in cross_report["anomaly_analysis"]["metrics"]],
+        }
         ai_facts["reporting_window"] = cross_report["window"]
 
         ai_analysis = generate_structured_analysis(
@@ -881,6 +887,7 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
     if len(references) > 25:
         warnings.append("Weekly review is limited to the first 25 selected metrics; narrow the selection for complete coverage.")
         references = references[:25]
+    requested_references = list(references)
     valid_references = []
     for reference in references:
         pair = frames.get(reference["dataset_id"])
@@ -903,6 +910,7 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
         warnings.append(f"The saved report tests {template['grain']} lag periods. Weekly reviews use daily periods, so that lag is not reused; review timing in the original report.")
         lag = {**lag, "enabled": False}
     definition = {**(template or {}), "name": (template or {}).get("name", "Weekly cross-dataset review"),
+                  "seasonal_business": (template or {}).get("seasonal_business", False),
                   "business_question": (template or {}).get("business_question", "What changed across the selected datasets, and which changes deserve investigation?"),
                   "metrics": references, "date_range": complete_week(), "grain": "daily",
                   "method": (template or {}).get("method", "spearman"),
@@ -913,7 +921,15 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
         definition["pair_directions"] = [pair for pair in definition["pair_directions"]
                                          if metric_key(pair["metric_a"]) in selected_keys and metric_key(pair["metric_b"]) in selected_keys]
     selected_frames = {key: value for key, value in frames.items() if any(item["dataset_id"] == key for item in references)}
-    result = build_report(selected_frames, definition, unavailable=warnings)
+    anchor = datetime.now(ZoneInfo(reporting_timezone())).date()
+    result = build_report(selected_frames, definition, unavailable=warnings, history_anchor=anchor)
+    evaluated = {item["metric_id"] for item in result["anomaly_analysis"]["metrics"]}
+    omitted = [item for item in requested_references if f"{item['dataset_id']}:{item['metric_key']}" not in evaluated]
+    if omitted:
+        unavailable_metrics = report_anomalies({}, omitted, {**definition, "reporting_timezone": reporting_timezone()}, {}, anchor=anchor)["metrics"]
+        for metric in unavailable_metrics:
+            metric["warnings"] = ["The selected metric or its dataset is unavailable under the current policy; it could not be assessed."]
+        result["anomaly_analysis"]["metrics"].extend(unavailable_metrics)
     selection = template.get("included_findings") if template else None
     if selection is not None:
         selected_pairs = {"|".join(key.split("|")[:2]) for key in selection}

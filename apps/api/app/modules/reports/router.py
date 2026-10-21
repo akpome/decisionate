@@ -1,22 +1,27 @@
 import json
 import logging
+from datetime import date
+from typing import Literal
+
+import pandas as pd
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.db.database import SessionLocal
 from app.db.models import Dataset, WeeklyReportPreference
-from app.modules.correlation.catalog import reporting_timezone
+from app.modules.correlation.catalog import metric_catalog, reporting_timezone
 from app.modules.correlation.engine import metric_id
 from app.modules.correlation.service import allowed_run, authorize_datasets, dataset_scope, encode
 from app.modules.auth_context import is_client_workspace_role
 from app.modules.datasets.services.auth import get_user_id, get_workspace_id, get_workspace_role, require_workspace_data_manager
 from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
+from app.modules.forecasting.services import prepare_forecast_dataframe
 from app.modules.decisions.metric_scope import selected_report_metrics
 from .decision_drafts import is_report_decision_draft
 from .models import BusinessReport
-from .catalog import report_metric_catalog
+from .catalog import prepare_report_source, report_metric_catalog
 from .schemas import ReportDecision, ReportDefinition
-from .service import attach_report_decisions, build_report
+from .service import attach_report_decisions, build_report, report_anomalies, report_dates
 from .relationships import report_test_count
 
 
@@ -113,6 +118,51 @@ def from_run(run_id: str, request: Request, db=Depends(database)):
     definition["source_run_id"] = run.id
     definition["lag"]["maximum"] = min(12, definition["lag"]["maximum"])
     return definition
+
+
+@router.get("/dataset-anomalies/{dataset_id}")
+def single_dataset_anomalies(
+    dataset_id: int, request: Request, db=Depends(database), metric: str | None = Query(None, max_length=200),
+    start_date: date | None = None, period_filter: Literal["all", "1m", "1q", "6m", "1y", "2y", "3y", "5y"] = "all",
+    aggregation: Literal["daily", "weekly", "monthly", "quarterly"] = "monthly",
+    aggregation_type: Literal["sum", "avg", "min", "max", "count"] = "sum", seasonal_business: bool = False,
+):
+    user, workspace = identity(request)
+    dataset = authorize_datasets(db, user, workspace, [dataset_id])[dataset_id]
+    try:
+        dataset, frame = prepare_report_source(dataset, load_dataframe_from_dataset(dataset))
+        catalog = metric_catalog(dataset, frame)
+        selected = [item for item in catalog["metrics"] if not metric or item["metric_key"] == metric]
+        if not selected or not catalog["date_columns"]:
+            raise HTTPException(400, "No approved selected metric with a usable date field is available for anomaly detection.")
+        if len(selected) > 25:
+            raise HTTPException(400, "Choose a metric to assess; reports support at most 25 selected metrics.")
+        column, zone = catalog["date_columns"][0], reporting_timezone()
+        normalized = frame.copy()
+        normalized[column] = report_dates(frame, column, zone)
+        scoped = prepare_forecast_dataframe(normalized, column, str(start_date) if start_date else None, period_filter)
+        dates = pd.to_datetime(scoped[column], errors="coerce").dropna()
+        if dates.empty:
+            raise HTTPException(400, "No dated observations are available in this reporting window.")
+        definition = {"date_range": {"start": str(dates.min().date()), "end": str(dates.max().date())},
+                      "grain": aggregation, "reporting_timezone": zone, "seasonal_business": seasonal_business}
+        references, metadata = [], {}
+        for item in selected:
+            reference = {"dataset_id": dataset_id, "metric_key": item["metric_key"], "date_column": column,
+                         "aggregation": "policy" if item["aggregation"] == "policy" else aggregation_type}
+            key = metric_id(reference)
+            references.append(reference)
+            metadata[key] = {**item, **reference, "id": key, "dataset_label": dataset.file_name}
+            if reference["aggregation"] == "count":
+                metadata[key].update(unit="count", currency=None)
+        return report_anomalies({dataset_id: (dataset, frame)}, references, definition, metadata)
+    except HTTPException:
+        raise
+    except (ValueError, KeyError) as error:
+        raise HTTPException(400, "Anomaly detection is unavailable for the selected metric and date policy.") from error
+    except Exception as error:
+        logger.warning("Report anomaly dataset %s unavailable", dataset_id, exc_info=True)
+        raise HTTPException(503, "Anomaly detection is temporarily unavailable. Try again shortly.") from error
 
 
 @router.post("/preview")

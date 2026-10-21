@@ -33,7 +33,8 @@ of the original run's frozen results.
 - Only server-approved, saved metric selections are eligible. Date columns and
   aggregation policies are checked again on calculation.
 - Values use the metric's approved aggregation, including distinct counts and
-  component-weighted ratios. Different units have separate charts. Currency is
+  component-weighted ratios. The combined trend chart uses an explicitly labelled
+  indexed scale; KPI values keep their original units. Currency is
   labelled, never converted or assumed equivalent.
 - Previous-period comparisons use the immediately preceding equal-length date
   window. Incomplete coverage withholds changes; zero baselines withhold
@@ -41,13 +42,14 @@ of the original run's frozen results.
   not zero. Sparse transaction dates are therefore explicitly flagged rather
   than interpreted as proven zero-sales days.
 - Relationships use at least 90 calendar days ending at the report's end date,
-  at least 30 matched observations, and cross-dataset pairs only. Longer report
+  at least 24 matched observations, and cross-dataset pairs only. Longer report
   windows use the longer history. Monthly or quarterly studies may require a
   longer window to meet the observation threshold.
 - New report lags shift calendar buckets before dropping missing pairs. Legacy
   saved analyses retain their existing shared-period lag convention.
-- Adjusted significance covers every tested pair and lag. Without the optional
-  statistical dependency, significance remains unavailable. Even significant
+- Adjusted significance covers every tested pair and lag. The installed SciPy
+  backend supplies significance for eligible inputs; older coefficients-only
+  snapshots retain their original unavailable significance. Even significant
   findings are historical associations, not proof of causation, attribution,
   conversion delays, profit or ROAS.
 - Guided reports are bounded to 25 metrics, 12 lag periods and 1,000 pair-lag
@@ -61,7 +63,9 @@ Alerts continues to manage delivery preferences and manual previews.
 
 Weekly values cover the latest complete Monday-Sunday week in the platform
 reporting timezone, compared with the preceding complete week. Relationships
-use the longer historical window. Saved templates preserve the selected finding
+use a rolling historical window capped at three calendar years, anchored to the
+current run date. Manual report dates do not constrain scheduled reporting or
+its historical context. Saved templates preserve the selected finding
 pairs even if the best current lag changes. A lag configured in weekly, monthly
 or quarterly units is not silently reused as days: daily reviews disable that
 lag with a warning and retain the original report for timing analysis.
@@ -71,9 +75,63 @@ misleading single-source report. Existing KPI targets remain visible without
 assuming that an increase is always an improvement.
 
 Both HTML and plain-text emails include the question, windows, movements,
-selected relationship evidence, limitations and decision follow-up. Existing
+per-metric anomaly findings, selected relationship evidence, limitations and decision follow-up. Existing
 agency branding, logo rules, recipients, provider and delivery safeguards are
 preserved. Review links open `/dashboard/reports?weekly=1`.
+
+## Selected-Metric Anomalies
+
+Anomaly detection runs automatically for each selected metric, independently of
+correlation eligibility or lag settings. Both report tabs show anomaly evidence;
+the single-dataset route uses the same detector and selected metric/date policy.
+The `seasonal_business` checkbox defaults to false. It is stored in a report's
+JSON definition and reused by its weekly template without changing recipients,
+delivery permissions or the sending switch. No database migration is needed.
+
+For each evaluated block, the detector uses only preceding observations inside
+a rolling three-calendar-year maximum lookback. A complete weekly report is
+held out of its own baseline. Longer manual reports are assessed chronologically
+in bounded blocks, with no future observations available to a block's fit.
+Historical data older than the cap is excluded, not deleted. Saved anomaly
+evidence is immutable along with its report snapshot.
+
+Statsmodels robust linear regression fits trend and, when enabled, weekday
+effects and annual calendar Fourier terms. Daily data can support weekly and annual components; coarser
+grains can support annual components. Leap-year annual phase is calendar based.
+This approach accepts observed timestamps without filling missing measurements.
+Coverage is checked against observed weekdays for daily business calendars;
+absent weekends are not invented as trading days or zero activity. Weekly
+baselines do not score a weekday they have never observed.
+Annual candidates require at least two preceding cycles plus validation history
+and adequate coverage; having a three-year cap alone is not proof of reliability.
+Past-only holdout errors select the model and compare full-cap and recent-history
+trend baselines. Seasonal terms must improve held-out error, rather than being
+forced onto every metric of a seasonal business.
+Long daily reports reuse the selected candidate family for up to four blocks
+between model-selection passes, while still refitting and recalibrating each
+block independently on preceding data. Weekly reports always select afresh.
+
+Thresholds use median-centred, normally scaled MAD of historical prediction
+errors, with sample-standard-deviation and constant-residual fallbacks. They are
+exploratory detection bands, not guaranteed confidence intervals or causal
+conclusions. The assessed values cannot inflate their own error scale. Missing
+measurements are neither zero-filled nor labelled anomalies. Stale, sparse,
+unavailable or short histories get explicit per-metric limitations, and missing
+annual support is disclosed even when a shorter-cycle baseline is usable.
+
+Report previews, weekly previews and both email alternatives include dates,
+actual values, expected values/ranges and deviations. Ordinary period changes
+remain separate from anomaly findings. Per-block training dates, observation
+counts, validation counts and scale methods are retained in the saved evidence.
+AI receives bounded anomaly summaries, not raw training frames or baseline arrays.
+Unavailable anomaly evidence does not prevent delivery of an otherwise valid
+cross-dataset review. No connector history is fabricated or automatically
+backfilled beyond what its stored data actually contains.
+
+Method references:
+- [Statsmodels robust linear models](https://www.statsmodels.org/stable/rlm.html)
+- [Fourier terms for long seasonal periods](https://otexts.com/fpp3/dhr.html)
+- [NIST scale measures and robust alternatives](https://itl.nist.gov/div898/handbook/eda/section3/eda356.htm)
 
 ## Storage and Access
 
@@ -98,6 +156,10 @@ ratios, currencies, calendar lag, scope, immutable snapshots, changed policies,
 decision evidence and weekly template/preview behavior. Existing weekly,
 relationship, permissions and email-branding suites provide regression coverage.
 The web tests cover the report definition contract and decision handoff.
+`tests.test_report_anomalies` covers seasonality, spikes/drops, trend, zero spread,
+missing/stale history, expired/future data, weekly date independence and escaped
+email alternatives. The workflow suite covers seasonal template persistence,
+single-dataset scope enforcement and unchanged saved anomaly snapshots.
 
 Production rollout still requires a deployed API and web build, PostgreSQL
 bootstrap verification, and a preview of a current two-source weekly report.
