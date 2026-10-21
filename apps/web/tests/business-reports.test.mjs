@@ -76,8 +76,15 @@ test("legacy analysis transfer respects report safety limits", () => {
   const value = editableDefinition({ lag: { enabled: true, minimum: 0, maximum: 50, direction: "b_leads_a" }, filters: { minimum_observations: 4, minimum_abs_coefficient: 0 } })
   assert.equal(value.lag.maximum, 12)
   assert.equal(value.lag.direction, "b_leads_a")
-  assert.equal(value.filters.minimum_observations, 30)
+  assert.equal(value.filters.minimum_observations, 24)
   assert.equal(value.filters.minimum_abs_coefficient, 0)
+})
+
+test("reports default to 24 historical observations while retaining higher saved settings", () => {
+  assert.equal(editableDefinition({}).filters.minimum_observations, 24)
+  for (const minimum of [24, 30, 48, 3653]) {
+    assert.equal(editableDefinition({ filters: { minimum_observations: minimum } }).filters.minimum_observations, minimum)
+  }
 })
 
 test("main Reports route opens the combined workspace while dataset inspection remains available", () => {

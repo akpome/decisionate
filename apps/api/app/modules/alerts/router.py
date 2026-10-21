@@ -65,6 +65,7 @@ from app.modules.reports.models import BusinessReport
 from app.modules.reports.service import attach_report_decisions, build_report, complete_week, scoped_frame
 from app.modules.reports.catalog import prepare_report_source
 from app.modules.reports.relationships import metric_key
+from app.modules.reports.schemas import MINIMUM_REPORT_OBSERVATIONS
 from app.modules.correlation.catalog import metric_catalog, reporting_timezone
 from app.modules.decisions.templates import build_decision_template_url
 
@@ -906,7 +907,7 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
                   "metrics": references, "date_range": complete_week(), "grain": "daily",
                   "method": (template or {}).get("method", "spearman"),
                   "lag": lag,
-                  "filters": {"minimum_abs_coefficient": .3, "minimum_observations": 30}, "included_findings": None}
+                  "filters": {"minimum_abs_coefficient": .3, "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, (template or {}).get("filters", {}).get("minimum_observations", MINIMUM_REPORT_OBSERVATIONS))}, "included_findings": None}
     if definition.get("pair_directions") is not None:
         selected_keys = {metric_key(item) for item in references}
         definition["pair_directions"] = [pair for pair in definition["pair_directions"]

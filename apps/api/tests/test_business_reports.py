@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -54,6 +55,36 @@ class BusinessReportEngineTests(unittest.TestCase):
         patcher = patch.dict("os.environ", FLAGS)
         patcher.start(); self.addCleanup(patcher.stop)
         self.frames = fixture()
+
+    def test_report_observation_defaults_and_validation_are_report_specific(self):
+        from app.modules.correlation.schemas import ResultFilters
+
+        self.assertEqual(definition()["filters"]["minimum_observations"], 24)
+        self.assertEqual(definition(filters={"minimum_abs_coefficient": .5})["filters"]["minimum_observations"], 24)
+        self.assertEqual(ResultFilters().minimum_observations, 30)
+        for minimum in (24, 30, 48, 3653):
+            self.assertEqual(definition(filters={"minimum_observations": minimum})["filters"]["minimum_observations"], minimum)
+        for minimum in (23, 3654):
+            with self.assertRaises(ValidationError):
+                definition(filters={"minimum_observations": minimum})
+
+    def test_relationship_eligibility_uses_24_observations_without_a_hidden_30_floor(self):
+        window = {"start": "2026-01-01", "end": "2026-01-24"}
+        for observations in (23, 24):
+            sources = {identity: (dataset, frame.iloc[:observations].copy()) for identity, (dataset, frame) in self.frames.items()}
+            finding = build_report(sources, definition(date_range=window))["findings"][0]
+            self.assertEqual(finding["observations"], observations)
+            self.assertEqual(finding["eligible"], observations == 24)
+            self.assertEqual("insufficient_overlap" in finding["warnings"], observations < 24)
+        higher = build_report(sources, definition(date_range=window, filters={"minimum_observations": 30}))["findings"][0]
+        self.assertFalse(higher["eligible"])
+
+    def test_weekly_reports_default_to_24_and_preserve_a_templates_higher_minimum(self):
+        preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=["1:spend", "2:net_sales"], include_recommendations=True)
+        for template, expected in ((None, 24), (definition(), 24), (definition(filters={"minimum_observations": 48}), 48)):
+            with patch("app.modules.alerts.router.complete_week", return_value=definition()["date_range"]):
+                report = build_weekly_cross_dataset_report(self.frames, preference, template)
+            self.assertEqual(report["definition"]["filters"]["minimum_observations"], expected)
 
     def test_complete_week_and_equal_previous_window_exclude_partial_week(self):
         self.assertEqual(complete_week(date(2026, 4, 1)), {"start": "2026-03-23", "end": "2026-03-29"})
@@ -241,6 +272,24 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         self.assertEqual(len(response.json()["datasets"]), 2)
         self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=definition()).status_code, 200)
         self.assertEqual(self.client.get("/api/v2/business-reports/catalog?dataset_id=3").json()["datasets"], [])
+
+    def test_preview_save_and_reopen_preserve_24_observations(self):
+        payload = definition()
+        preview = self.client.post("/api/v2/business-reports/preview", json=payload)
+        self.assertEqual(preview.status_code, 200, preview.text)
+        self.assertEqual(preview.json()["definition"]["filters"]["minimum_observations"], 24)
+        saved = self.save()
+        reopened = self.client.get(f"/api/v2/business-reports/{saved['report_id']}")
+        self.assertEqual(reopened.status_code, 200, reopened.text)
+        self.assertEqual(reopened.json()["definition"]["filters"]["minimum_observations"], 24)
+
+    def test_minimum_below_24_is_rejected_before_reading_source_files(self):
+        payload = definition()
+        payload["filters"]["minimum_observations"] = 23
+        with patch.object(router, "load_dataframe_from_dataset") as load:
+            response = self.client.post("/api/v2/business-reports/preview", json=payload)
+        self.assertEqual(response.status_code, 422, response.text)
+        load.assert_not_called()
 
     def test_catalog_exposes_defaults_without_changing_saved_selection(self):
         with self.Session() as db:

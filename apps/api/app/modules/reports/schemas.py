@@ -3,7 +3,14 @@ from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from app.modules.correlation.schemas import AnalysisCreate, LagPolicy, StrictModel
+from app.modules.correlation.schemas import AnalysisCreate, LagPolicy, ResultFilters, StrictModel
+
+
+MINIMUM_REPORT_OBSERVATIONS = 24
+
+
+class ReportFilters(ResultFilters):
+    minimum_observations: int = Field(default=MINIMUM_REPORT_OBSERVATIONS, ge=MINIMUM_REPORT_OBSERVATIONS, le=3653)
 
 
 class ReportMetricKey(StrictModel):
@@ -23,6 +30,7 @@ class ReportPairDirection(StrictModel):
 
 
 class ReportDefinition(AnalysisCreate):
+    filters: ReportFilters = Field(default_factory=ReportFilters)
     lag: LagPolicy = Field(default_factory=lambda: LagPolicy(maximum=12))
     business_question: str = Field(min_length=8, max_length=1000)
     included_findings: list[str] | None = Field(default=None, max_length=300)

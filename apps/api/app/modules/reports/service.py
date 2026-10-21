@@ -16,6 +16,7 @@ from app.modules.datasets.services.numeric import coerce_numeric_series
 from .catalog import prepare_report_source
 from .decision_drafts import is_report_decision_draft
 from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, report_test_count
+from .schemas import MINIMUM_REPORT_OBSERVATIONS
 from app.modules.decisions.duplicates import canonical_decisions
 
 
@@ -180,7 +181,7 @@ def build_report(frames, definition, *, unavailable=None):
     # a 90-day historical window. Seven observations are not a reliable lag study.
     history = {"start": str(min(date.fromisoformat(window["start"]), date.fromisoformat(window["end"]) - timedelta(days=89))), "end": window["end"]}
     relationship_definition = {**actual_definition, "date_range": history,
-                               "filters": {**definition["filters"], "minimum_observations": max(30, definition["filters"]["minimum_observations"])}}
+                               "filters": {**definition["filters"], "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, definition["filters"]["minimum_observations"])}}
     historical = prepare_report_series(frames, usable, relationship_definition) if usable else {}
     history_periods = period_index(history, grain)
     for identity, points in list(historical.items()):
