@@ -356,13 +356,13 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
                 <label className="block text-xs text-gray-600">Minimum historical observations<input className={input} type="number" min={30} max={3653} required value={definition.filters.minimum_observations} onChange={event => edit({ filters: { ...definition.filters, minimum_observations: Number(event.target.value) } })} /></label>
                 <label className="flex gap-2 text-sm"><input className="h-4 w-4" type="checkbox" checked={definition.lag.enabled} onChange={event => edit({ lag: { ...definition.lag, enabled: event.target.checked } })} />Evaluate timing</label>
                 {definition.lag.enabled && <label className="block text-xs text-gray-600">Maximum lag<input className={input} type="number" min={definition.lag.minimum} max={12} required value={definition.lag.maximum} onChange={event => edit({ lag: { ...definition.lag, maximum: Number(event.target.value) } })} /></label>}
+                {showPairDirections && <ReportPairDirections pairs={definition.pair_directions} datasets={datasets} onChange={(pair, direction) => edit({ pair_directions: definition.pair_directions.map(item => reportPairKey(item) === reportPairKey(pair) ? { ...item, direction } : item) })} />}
               </div></details>
               <p className="text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets / {taskCount} tests</p>
               {taskCount > 1000 && <p className="text-sm text-amber-800">Report analysis exceeds the 1,000-test limit.</p>}
-              {!showPairDirections && previewButton}
+              {previewButton}
             </section>
           </div>
-          {showPairDirections && <><ReportPairDirections pairs={definition.pair_directions} datasets={datasets} onChange={(pair, direction) => edit({ pair_directions: definition.pair_directions.map(item => reportPairKey(item) === reportPairKey(pair) ? { ...item, direction } : item) })} /><div className="ml-auto w-full sm:max-w-80">{previewButton}</div></>}
         </fieldset>
       </form>
     </section>

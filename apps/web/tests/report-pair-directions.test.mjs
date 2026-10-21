@@ -87,6 +87,12 @@ test("pair controls use actual metric and dataset names and offer all four timin
   const html = renderToStaticMarkup(React.createElement(ReportPairDirections, props))
   for (const label of ["spend leads", "revenue leads", "clicks leads", "Source 1", "Source 2", "Source 4", "Test both directions", "Same-period comparison only"]) assert.ok(html.includes(label))
   assert.doesNotMatch(html, /Earlier selected|Later selected/)
+  assert.match(html, /max-h-80 overflow-y-scroll overscroll-contain/)
+  assert.match(html, /tabindex="0"/)
+  assert.match(html, /\[scrollbar-gutter:stable\]/)
+  assert.match(html, /\[scrollbar-width:thin\]/)
+  assert.match(html, /\[scrollbar-color:var\(--color-gray-400\)_var\(--color-gray-100\)\]/)
+  assert.doesNotMatch(html, /md:grid-cols/)
   const selects = []
   function visit(node) {
     if (!node || typeof node !== "object") return
@@ -108,7 +114,14 @@ test("the builder renders pair directions only for timing and invalidates result
   const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
   assert.match(source, /const taskCount = reportTestCount/)
   assert.match(source, /const showPairDirections = definition\.lag\.enabled && definition\.pair_directions\.length > 0/)
-  assert.match(source, /showPairDirections && <><ReportPairDirections/)
+  const settings = source.slice(source.indexOf('aria-label="Analysis settings"'), source.indexOf('id="report-report"'))
+  assert.match(settings, /showPairDirections && <ReportPairDirections/)
+  assert.ok(settings.indexOf("Maximum lag") < settings.indexOf("<ReportPairDirections"))
+  assert.ok(settings.indexOf("<ReportPairDirections") < settings.indexOf("</details>"))
+  assert.ok(settings.indexOf("</details>") < settings.indexOf("{previewButton}"))
+  assert.ok(settings.indexOf("{previewButton}") < settings.indexOf("</section>"))
+  assert.equal((source.match(/<ReportPairDirections /g) || []).length, 1)
+  assert.equal((source.match(/\{previewButton\}/g) || []).length, 1)
   assert.match(source, /"filters", "lag", "pair_directions"/)
   assert.doesNotMatch(source, /Earlier selected metric leads|Later selected metric leads/)
   const translations = readFileSync(new URL("../lib/language.ts", import.meta.url), "utf8")

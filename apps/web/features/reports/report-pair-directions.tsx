@@ -17,12 +17,12 @@ export function ReportPairDirections({ pairs, datasets, onChange }: {
   }
   const rows = pairs.map(pair => ({ pair, left: describe(pair.metric_a), right: describe(pair.metric_b) }))
   const visible = rows.filter(({ left, right }) => `${left.dataset} ${left.metric} ${right.dataset} ${right.metric}`.toLowerCase().includes(search.trim().toLowerCase()))
-  return <section aria-label={t("Relationship directions")} className="min-w-0 border-b border-gray-200 pb-5">
+  return <section aria-label={t("Relationship directions")} className="min-w-0">
     <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-      <h2 className="text-base font-semibold">{t("Relationship directions")}</h2>
+      <h3 className="text-sm font-semibold">{t("Relationship directions")}</h3>
       {(pairs.length > 6 || search) && <div className="w-full max-w-sm"><label htmlFor="report-pair-search" className="text-xs text-gray-600">{t("Search metric pairs")}</label><div className="relative mt-1"><Search size={15} className="pointer-events-none absolute left-3 top-3 text-gray-400" aria-hidden="true" /><input id="report-pair-search" type="search" value={search} onChange={event => setSearch(event.target.value)} className="min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm" /></div></div>}
     </div>
-    <div className="max-h-[480px] overflow-y-auto pr-1">
+    <div tabIndex={0} className="max-h-80 overflow-y-scroll overscroll-contain pr-2 [scrollbar-color:var(--color-gray-400)_var(--color-gray-100)] [scrollbar-gutter:stable] [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-blue-600">
       {visible.map(({ pair, left, right }) => {
         const first = `${left.dataset} / ${left.metric}`, second = `${right.dataset} / ${right.metric}`
         const firstLabel = left.metric === right.metric ? first : left.metric
@@ -33,7 +33,7 @@ export function ReportPairDirections({ pairs, datasets, onChange }: {
           { value: "b_leads_a", label: t("{metric} leads").replace("{metric}", secondLabel) },
           { value: "both", label: t("Test both directions") },
         ]
-        return <div key={reportPairKey(pair)} className="grid min-w-0 gap-3 border-t border-gray-100 py-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        return <div key={reportPairKey(pair)} className="grid min-w-0 gap-2 border-t border-gray-100 py-3">
           <div className="min-w-0 space-y-1 text-sm"><p className="break-words"><span className="text-gray-500">{left.dataset}</span> / <span className="font-medium">{left.metric}</span></p><p className="break-words"><span className="text-gray-500">{right.dataset}</span> / <span className="font-medium">{right.metric}</span></p></div>
           <label className="block min-w-0 text-xs text-gray-600">{t("Timing comparison")}<select aria-label={`${t("Timing comparison")}: ${first} / ${second}`} title={options.find(option => option.value === pair.direction)?.label} value={pair.direction} onChange={event => onChange(pair, event.target.value as PairDirection)} className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950">{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         </div>
