@@ -98,6 +98,24 @@ test("main Reports route opens the combined workspace while dataset inspection r
   assert.match(inspection, /single-dataset-report/)
 })
 
+test("multi dataset Reports fills the available shell width during loading and after data loads", () => {
+  const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  const ast = ts.createSourceFile("report-workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const roots = []
+  function visit(node) {
+    if (ts.isReturnStatement(node) && node.expression && ts.isJsxElement(node.expression) && node.expression.children.some(child => ts.isJsxSelfClosingElement(child) && child.tagName.getText(ast) === "AnalysisNavigation")) roots.push(node.expression)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.equal(roots.length, 2)
+  for (const root of roots) {
+    const classes = root.openingElement.attributes.properties.find(attribute => attribute.name?.text === "className")?.initializer?.text
+    assert.match(classes, /\bw-full\b/)
+    assert.match(classes, /\bmin-w-0\b/)
+    assert.doesNotMatch(classes, /max-w-|mx-auto/)
+  }
+})
+
 test("central decision form checks decision permissions and preserves the report evidence handoff", () => {
   const page = readFileSync(new URL("../app/dashboard/decisions/new/page.tsx", import.meta.url), "utf8")
   assert.match(page, /if \(!user\?\.id \|\| !canCreateDecisions \|\| creatingDecision\) return/)

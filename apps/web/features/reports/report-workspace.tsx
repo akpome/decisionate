@@ -283,8 +283,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     } finally { managementAction.current = false; setTemplateReload(current => current + 1) }
   }
 
-  if (loading) return <div className="mx-auto min-w-0 max-w-[1500px] space-y-5"><AnalysisNavigation active="reports" /><p role="status" className="py-8 text-sm text-gray-600">Loading cross-dataset reports...</p></div>
-  return <div className="mx-auto min-w-0 max-w-[1500px] space-y-5">
+  if (loading) return <div className="min-w-0 w-full space-y-5"><AnalysisNavigation active="reports" /><p role="status" className="py-8 text-sm text-gray-600">Loading cross-dataset reports...</p></div>
+  return <div className="min-w-0 w-full space-y-5">
     <AnalysisNavigation active="reports" />
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
       <h1 className="text-2xl font-semibold">{t("Multi dataset report")}</h1>
