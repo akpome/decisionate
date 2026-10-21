@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Trash2 } from "lucide-react"
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { correlationRequest, getMyOrganization, getOrganizationWorkspaces } from "@/lib/api"
 import { defaultWorkspaceBrand, getWorkspaceBrand, type WorkspaceBrand } from "@/lib/workspace-brand"
 import { WorkspaceBrandMark } from "@/app/dashboard/workspace-brand-mark"
@@ -13,7 +12,8 @@ import type { CatalogDataset } from "@/features/relationships/types"
 import { AnalysisNavigation } from "./analysis-navigation"
 import { ReportMetricPicker, reportDateColumn } from "./report-metric-picker"
 import { loadReportCatalogPage } from "./report-catalog-loading"
-import { editableDefinition, formatReportValue, type BusinessReport, type ReportDefinition } from "./types"
+import { editableDefinition, type BusinessReport, type ReportDefinition } from "./types"
+import { MetricTrends } from "./report-metric-trends"
 import { ReportDecisions, ReportRelationshipFindings } from "./report-evidence-sections"
 import { defaultReportName, isDefaultReportName, reportDraftName } from "./default-report-name"
 import { reportPairDirections, reportPairKey, reportTestCount } from "./pair-directions"
@@ -387,28 +387,4 @@ function Statements({ statements }: { statements: string[] }) {
 
 function ReportOverview({ report }: { report: BusinessReport }) {
   return <section aria-label="Report coverage" className="space-y-2 border-b border-gray-200 pb-4"><div className="flex flex-wrap items-center gap-x-5 gap-y-2"><h2 className="text-base font-semibold">{report.status === "ready" ? "Cross-dataset coverage available" : "Limited cross-dataset coverage"}</h2><span className="text-xs text-gray-500">Previous period: {report.previous_window.start} to {report.previous_window.end}</span></div>{report.source_analysis && <p className="text-xs leading-5 text-gray-600">{report.source_analysis.note} <Link href={`/dashboard/relationships/explorer?run=${encodeURIComponent(report.source_analysis.run_id)}`} className="text-blue-700 underline">Original analysis</Link> / {report.source_analysis.engine_version}</p>}{report.warnings.length > 0 && <div className="border-l-2 border-amber-500 pl-3"><Statements statements={report.warnings} /></div>}</section>
-}
-
-export function MetricTrends({ report }: { report: BusinessReport }) {
-  return <section className={`grid min-w-0 gap-4 md:grid-cols-2 ${report.metrics.length >= 3 ? "xl:grid-cols-3" : ""}`} aria-label="Metric comparisons">
-    {report.metrics.map(metric => <article key={metric.id} className="min-w-0 rounded-md border border-gray-200 bg-white p-4">
-      <h3 className="break-words text-sm font-semibold">{metric.label}</h3>
-      <p className="mt-1 break-words text-xs text-gray-500">{metric.dataset_label} / {metric.currency || metric.unit} / {metric.aggregation}</p>
-      <p className="mt-3 break-words text-2xl font-semibold tabular-nums">{formatReportValue(metric.value, metric.currency)}</p>
-      <p className="mt-1 text-sm text-gray-600">{metric.change_percent === null ? "Percentage change unavailable" : `${metric.change_percent >= 0 ? "+" : ""}${metric.change_percent.toFixed(1)}% versus previous period`}</p>
-      <p className="mt-1 text-xs text-gray-500">Previous: {formatReportValue(metric.previous_value, metric.currency)} / Coverage: {metric.observations}/{metric.expected_periods}</p>
-      <div className="mt-4 h-36 min-w-0" role="img" aria-label={`${metric.label} trend from ${report.window.start} to ${report.window.end}`}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={metric.trend}>
-            <CartesianGrid stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="period" hide />
-            <YAxis hide domain={["auto", "auto"]} />
-            <Tooltip formatter={(value) => formatReportValue(typeof value === "number" ? value : Number(value), metric.currency)} />
-            <Line type="linear" dataKey="value" stroke="#2563eb" strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      {metric.warnings.length > 0 && <details className="mt-2 text-xs text-amber-800"><summary className="cursor-pointer">Coverage notes</summary><Statements statements={metric.warnings} /></details>}
-    </article>)}
-  </section>
 }
