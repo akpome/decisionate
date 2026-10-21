@@ -14,7 +14,7 @@ import { ForecastSummaryCard }
   from "@/features/dashboard/components/forecast-summary-card"
 import { ForecastBasis } from "@/features/dashboard/components/forecast-basis"
 
-import { type DatasetSummary, type DecisionConfidenceScore, type ForecastResponse, type ForecastPeriodFilter, type DashboardAggregation, type DashboardValueAggregation, getDatasets, getDatasetMetrics, getForecast } from "@/lib/api";
+import { ApiError, type DatasetSummary, type DecisionConfidenceScore, type ForecastResponse, type ForecastPeriodFilter, type DashboardAggregation, type DashboardValueAggregation, getDatasets, getDatasetMetrics, getForecast } from "@/lib/api";
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -55,6 +55,9 @@ function getForecastPageErrorMessage(
 function getForecastUnavailableMessage(
   error: unknown
 ) {
+  if (error instanceof ApiError && error.status === 503) {
+    return error.message
+  }
   const message =
     getForecastPageErrorMessage(
       error,
@@ -1327,12 +1330,21 @@ export default function ForecastsPage() {
             className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
           >
             <p className="font-medium">
-              Forecast unavailable for this dataset
+              Forecast unavailable
             </p>
 
             <p className="mt-1">
               {forecastUnavailableMessage}
             </p>
+            <button
+              type="button"
+              onClick={refreshForecast}
+              title={t("Retry forecast")}
+              aria-label={t("Retry forecast")}
+              className="mt-3 inline-flex h-9 w-9 items-center justify-center rounded-md border border-amber-300 transition hover:bg-amber-100"
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+            </button>
           </div>
         )}
 

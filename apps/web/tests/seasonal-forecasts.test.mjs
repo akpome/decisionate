@@ -49,16 +49,21 @@ test("forecast warnings are escaped rather than rendered as markup", () => {
 const apiSource = readFileSync(new URL("../lib/api.ts", import.meta.url), "utf8")
 const ast = ts.createSourceFile("api.ts", apiSource, ts.ScriptTarget.Latest, true)
 const forecastFunction = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "getForecast")
+const apiErrorClass = ast.statements.find(node => ts.isClassDeclaration(node) && node.name?.text === "ApiError")
+const { ApiError } = load(apiErrorClass.getText(ast))
+const { ApiReadCache } = load(readFileSync(new URL("../lib/api-read-cache.ts", import.meta.url), "utf8"))
 function client(legacy = false) {
-  const requests = [], cache = new Map()
+  const requests = [], cache = new ApiReadCache()
+  let legacyResponse = legacy
   const { getForecast } = load(forecastFunction.getText(ast), {
+    ApiError,
     API_URL: "https://sample.test", cleanPositiveIntegerId: value => value,
     getWorkspaceCacheIdentity: (user, workspace) => `${user}:${workspace}`,
     workspaceHeaders: async (user, workspace) => ({ "X-User": user, "X-Workspace": workspace }),
-    getCachedRead: (key, loader) => { if (!cache.has(key)) cache.set(key, loader()); return cache.get(key) },
-    apiFetch: async (url, init) => { requests.push({ url, init }); return { ok: true, json: async () => ({ url, forecast: legacy ? {} : { seasonality: { requested: new URL(url).searchParams.get("seasonal_business") === "true" } } }) } },
+    getCachedRead: (key, loader) => cache.get(key, loader, 10000),
+    apiFetch: async (url, init) => { requests.push({ url, init }); return { ok: true, json: async () => ({ url, forecast: legacyResponse ? {} : { seasonality: { requested: new URL(url).searchParams.get("seasonal_business") === "true" } } }) } },
   })
-  return { getForecast, requests }
+  return { getForecast, requests, setLegacyResponse: value => { legacyResponse = value } }
 }
 
 test("forecast query sends seasonality explicitly and keeps ordinary controls", async () => {
@@ -84,6 +89,26 @@ test("seasonal cache entries cannot replace non-seasonal or other-workspace fore
 
 test("an older API cannot silently satisfy a seasonal request with a non-seasonal forecast", async () => {
   const { getForecast } = client(true)
-  await assert.rejects(getForecast(1, "alice", "revenue", "workspace", { seasonalBusiness: true }), /Seasonal forecasting is not available/)
+  await assert.rejects(getForecast(1, "alice", "revenue", "workspace", { seasonalBusiness: true }), error => error instanceof ApiError && error.status === 503 && /temporarily unavailable/.test(error.message))
   assert.ok(await getForecast(1, "alice", "revenue", "workspace", { seasonalBusiness: false }))
+})
+
+test("Retry can recover the same cached seasonal request after the API is upgraded", async () => {
+  const { getForecast, requests, setLegacyResponse } = client(true)
+  await assert.rejects(getForecast(1, "alice", "revenue", "workspace", { seasonalBusiness: true }), /temporarily unavailable/)
+  setLegacyResponse(false)
+  const result = await getForecast(1, "alice", "revenue", "workspace", { seasonalBusiness: true })
+  assert.equal(result.forecast.seasonality.requested, true)
+  assert.equal(requests.length, 2)
+})
+
+const pageSource = readFileSync(new URL("../app/dashboard/forecasts/page.tsx", import.meta.url), "utf8")
+const pageAst = ts.createSourceFile("page.tsx", pageSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+const helpers = pageAst.statements.filter(node => ts.isFunctionDeclaration(node) && ["getForecastPageErrorMessage", "getForecastUnavailableMessage"].includes(node.name?.text))
+const { getForecastUnavailableMessage } = load(helpers.map(node => node.getText(pageAst)).join("\n") + "\nexport { getForecastUnavailableMessage }", { ApiError, Error })
+
+test("expected service rollout failures use the unavailable state rather than the console-error path", () => {
+  const error = new ApiError("Seasonal forecasting is temporarily unavailable. Please try again shortly.", 503)
+  assert.equal(getForecastUnavailableMessage(error), error.message)
+  assert.equal(getForecastUnavailableMessage(new Error("Unexpected failure")), "")
 })

@@ -415,6 +415,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "Relationship analysis": "Analyse des relations",
   "Business has seasonal activity": "L'activité de l'entreprise est saisonnière",
   "Up to 3 years": "Jusqu'à 3 ans",
+  "Retry forecast": "Réessayer la prévision",
   "Alert monitor": "Surveillance des alertes",
   "New decision": "Nouvelle décision",
   "Outcome review": "Révision du résultat",

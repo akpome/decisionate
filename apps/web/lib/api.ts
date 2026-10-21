@@ -6823,7 +6823,7 @@ export async function getForecast(
 
       const result: ForecastResponse = await response.json()
       if (options?.seasonalBusiness && !result.forecast.seasonality?.requested) {
-        throw new Error("Seasonal forecasting is not available from this API yet. Please try again shortly.")
+        throw new ApiError("Seasonal forecasting is temporarily unavailable. Please try again shortly.", 503)
       }
       return result
     }
