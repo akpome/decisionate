@@ -57,7 +57,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   const issueText = (issue: CatalogMetricIssue) => t(issueLabels[issue.code] || "Metric unavailable for this analysis.")
 
   return <section aria-label={t("Datasets and metrics")} className="report-builder-section">
-    <div className="mb-4 flex shrink-0 flex-wrap items-end justify-between gap-3">
+    <div className="mb-4 shrink-0 space-y-4">
       <h2 className="text-base font-semibold">{t("Datasets and metrics")}</h2>
       <div className="w-full max-w-sm">
         <label className="block text-xs font-medium text-gray-600" htmlFor="report-metric-search">{t("Search datasets and metrics")}</label>
@@ -104,8 +104,8 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
           {!pending && (unavailable || !dataset.metrics.length || !usableDate || metricIssues.length > 0) && <Link href={`/dashboard/datasets/${dataset.dataset_id}`} className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline">{t("Review dataset")}</Link>}
         </fieldset>
       })}
+      {visible.length === 0 && (datasets.length > 0 || !loading && !error) && <div className="border-y border-gray-200 py-8 text-sm text-gray-600"><p role="status">{t(datasets.length ? "No matching datasets or metrics." : "No datasets available.")}</p>{datasets.length === 0 && <Link href="/dashboard/datasets" className="mt-2 inline-flex min-h-10 items-center font-medium text-blue-700 underline">{t("Open datasets")}</Link>}</div>}
     </div>
-    {visible.length === 0 && (datasets.length > 0 || !loading && !error) && <div className="shrink-0 border-y border-gray-200 py-8 text-sm text-gray-600"><p role="status">{t(datasets.length ? "No matching datasets or metrics." : "No datasets available.")}</p>{datasets.length === 0 && <Link href="/dashboard/datasets" className="mt-2 inline-flex min-h-10 items-center font-medium text-blue-700 underline">{t("Open datasets")}</Link>}</div>}
     {footer && <div className="mt-3 shrink-0">{footer}</div>}
   </section>
 }

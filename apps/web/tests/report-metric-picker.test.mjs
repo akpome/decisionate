@@ -40,7 +40,7 @@ test("search has a visible label and placeholder and metrics appear before date 
   assert.doesNotMatch(html, /<select|Date field|Selected metrics/)
 })
 
-test("both report sections share one height cap with internal keyboard-accessible scrolling", () => {
+test("both report sections have identical fixed minimum and maximum heights with internal scrolling", () => {
   const html = render()
   const report = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8")
@@ -51,14 +51,26 @@ test("both report sections share one height cap with internal keyboard-accessibl
   const sectionStyle = css.match(/\.report-builder-section\s*\{([^}]+)\}/)?.[1] || ""
   assert.match(sectionStyle, /display:\s*flex/)
   assert.match(sectionStyle, /flex-direction:\s*column/)
-  assert.match(sectionStyle, /min-height:\s*0/)
+  assert.match(sectionStyle, /(?:^|;)\s*height:\s*40rem/)
+  assert.match(sectionStyle, /min-height:\s*40rem/)
   assert.match(sectionStyle, /max-height:\s*40rem/)
-  assert.doesNotMatch(sectionStyle, /(?:^|;)\s*height:/)
   const scrollStyle = css.match(/\.report-builder-scroll\s*\{([^}]+)\}/)?.[1] || ""
   assert.match(scrollStyle, /overflow-y:\s*auto/)
+  assert.match(scrollStyle, /flex:\s*1/)
   assert.match(scrollStyle, /min-height:\s*0/)
   assert.match(scrollStyle, /scrollbar-gutter:\s*stable/)
   assert.doesNotMatch(source, /max-h-\[480px\]/)
+})
+
+test("the dataset heading has its own top row above search to align with Analysis settings", () => {
+  const html = render()
+  assert.match(html, /class="mb-4 shrink-0 space-y-4"><h2 class="text-base font-semibold">Datasets and metrics<\/h2><div/)
+  assert.doesNotMatch(html, /items-end justify-between/)
+})
+
+test("empty states remain in the scroll area rather than being pushed to the bottom", () => {
+  const html = render({ datasets: [] })
+  assert.match(html, /class="report-builder-scroll [^"]*"><div[^>]*><p role="status">No datasets available\./)
 })
 
 test("catalog pagination stays inside the section and outside its scroll area", () => {

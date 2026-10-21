@@ -158,11 +158,13 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 0;
+  height: 40rem;
+  min-height: 40rem;
   max-height: 40rem;
 }
 
 .report-builder-scroll {
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
