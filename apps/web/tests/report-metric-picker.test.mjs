@@ -40,6 +40,33 @@ test("search has a visible label and placeholder and metrics appear before date 
   assert.doesNotMatch(html, /<select|Date field|Selected metrics/)
 })
 
+test("both report sections share one height cap with internal keyboard-accessible scrolling", () => {
+  const html = render()
+  const report = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8")
+  assert.match(html, /<section[^>]*class="report-builder-section"/)
+  assert.match(html, /role="group"[^>]*tabindex="0"[^>]*class="report-builder-scroll /)
+  assert.match(report, /<section className="report-builder-section gap-4" aria-label="Analysis settings"/)
+  assert.match(report, /role="group" aria-label="Analysis settings" tabIndex=\{0\} className="report-builder-scroll /)
+  const sectionStyle = css.match(/\.report-builder-section\s*\{([^}]+)\}/)?.[1] || ""
+  assert.match(sectionStyle, /display:\s*flex/)
+  assert.match(sectionStyle, /flex-direction:\s*column/)
+  assert.match(sectionStyle, /min-height:\s*0/)
+  assert.match(sectionStyle, /max-height:\s*40rem/)
+  assert.doesNotMatch(sectionStyle, /(?:^|;)\s*height:/)
+  const scrollStyle = css.match(/\.report-builder-scroll\s*\{([^}]+)\}/)?.[1] || ""
+  assert.match(scrollStyle, /overflow-y:\s*auto/)
+  assert.match(scrollStyle, /min-height:\s*0/)
+  assert.match(scrollStyle, /scrollbar-gutter:\s*stable/)
+  assert.doesNotMatch(source, /max-h-\[480px\]/)
+})
+
+test("catalog pagination stays inside the section and outside its scroll area", () => {
+  const html = render({ footer: React.createElement("button", { type: "button" }, "Load more datasets") })
+  assert.match(html, /<div class="mt-3 shrink-0"><button type="button">Load more datasets<\/button><\/div><\/section>$/)
+  assert.match(readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8"), /footer=\{nextOffset !== null && <button/)
+})
+
 test("selecting a metric reveals its date and range without a redundant one-option selector", () => {
   const html = render({ metrics: [reference()] })
   assert.match(html, /Selected metrics.*1/)

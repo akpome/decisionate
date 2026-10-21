@@ -339,27 +339,26 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             <div className="min-w-0"><label htmlFor="report-name" className="block text-xs font-medium text-gray-700">Report name</label><input id="report-name" aria-describedby="report-name-hint" className={input} required maxLength={120} value={definition.name} onChange={event => edit({ name: event.target.value })} /><p id="report-name-hint" className="mt-1 text-xs text-gray-500">{t("Edit this report name to suit your analysis.")}</p></div>
             <label className="block text-xs font-medium text-gray-700">Business question<input className={input} required minLength={8} maxLength={1000} value={definition.business_question} onChange={event => edit({ business_question: event.target.value })} /></label>
           </div>
-          <div className="grid min-w-0 gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="min-w-0">
-              <ReportMetricPicker datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} loading={catalogBusy} error={catalogError} onRetry={refreshCatalog} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
-                setDateColumns(current => ({ ...current, [dataset.dataset_id]: column }))
-                edit({ metrics: definition.metrics.map(item => item.dataset_id === dataset.dataset_id ? { ...item, date_column: column } : item) })
-              }} />
-              {nextOffset !== null && <button type="button" className={`${button} mt-3`} disabled={busy || catalogBusy} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>}
-            </div>
-            <section className="min-w-0 space-y-4" aria-label="Analysis settings">
-              <h2 className="text-base font-semibold">Analysis settings</h2>
-              <div className="grid grid-cols-2 gap-3"><label className="block text-xs text-gray-600">Start<input className={input} type="date" required max={definition.date_range.end || undefined} value={definition.date_range.start} onChange={event => edit({ date_range: { ...definition.date_range, start: event.target.value } })} /></label><label className="block text-xs text-gray-600">End<input className={input} type="date" required min={definition.date_range.start || undefined} value={definition.date_range.end} onChange={event => edit({ date_range: { ...definition.date_range, end: event.target.value } })} /></label></div>
-              <label className="block text-xs text-gray-600">Group by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{["daily", "weekly", "monthly", "quarterly"].map(value => <option key={value}>{value}</option>)}</select></label>
-              <details className="border-y border-gray-100 py-3"><summary className="cursor-pointer text-sm font-medium">Relationship analysis</summary><div role="region" aria-label={t("Relationship analysis")} tabIndex={0} className="mt-3 max-h-96 space-y-3 overflow-y-auto overscroll-contain pr-2 [scrollbar-color:var(--color-gray-400)_var(--color-gray-100)] [scrollbar-gutter:stable] [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-blue-600">
-                <label className="block text-xs text-gray-600">Correlation method<select className={input} value={definition.method} onChange={event => edit({ method: event.target.value as ReportDefinition["method"] })}><option value="spearman">Spearman</option><option value="pearson">Pearson</option></select></label>
-                <label className="block text-xs text-gray-600">Minimum historical observations<input className={input} type="number" min={30} max={3653} required value={definition.filters.minimum_observations} onChange={event => edit({ filters: { ...definition.filters, minimum_observations: Number(event.target.value) } })} /></label>
-                <label className="flex gap-2 text-sm"><input className="h-4 w-4" type="checkbox" checked={definition.lag.enabled} onChange={event => edit({ lag: { ...definition.lag, enabled: event.target.checked } })} />Evaluate timing</label>
-                {definition.lag.enabled && <label className="block text-xs text-gray-600">Maximum lag<input className={input} type="number" min={definition.lag.minimum} max={12} required value={definition.lag.maximum} onChange={event => edit({ lag: { ...definition.lag, maximum: Number(event.target.value) } })} /></label>}
-                {showPairDirections && <ReportPairDirections pairs={definition.pair_directions} datasets={datasets} onChange={(pair, direction) => edit({ pair_directions: definition.pair_directions.map(item => reportPairKey(item) === reportPairKey(pair) ? { ...item, direction } : item) })} />}
-              </div></details>
-              <p className="text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets / {taskCount} tests</p>
-              {taskCount > 1000 && <p className="text-sm text-amber-800">Report analysis exceeds the 1,000-test limit.</p>}
+          <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <ReportMetricPicker datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} loading={catalogBusy} error={catalogError} onRetry={refreshCatalog} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
+              setDateColumns(current => ({ ...current, [dataset.dataset_id]: column }))
+              edit({ metrics: definition.metrics.map(item => item.dataset_id === dataset.dataset_id ? { ...item, date_column: column } : item) })
+            }} footer={nextOffset !== null && <button type="button" className={button} disabled={busy || catalogBusy} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>} />
+            <section className="report-builder-section gap-4" aria-label="Analysis settings">
+              <h2 className="shrink-0 text-base font-semibold">Analysis settings</h2>
+              <div role="group" aria-label="Analysis settings" tabIndex={0} className="report-builder-scroll space-y-4 pr-2 focus-visible:outline-2 focus-visible:outline-blue-600">
+                <div className="grid grid-cols-2 gap-3"><label className="block text-xs text-gray-600">Start<input className={input} type="date" required max={definition.date_range.end || undefined} value={definition.date_range.start} onChange={event => edit({ date_range: { ...definition.date_range, start: event.target.value } })} /></label><label className="block text-xs text-gray-600">End<input className={input} type="date" required min={definition.date_range.start || undefined} value={definition.date_range.end} onChange={event => edit({ date_range: { ...definition.date_range, end: event.target.value } })} /></label></div>
+                <label className="block text-xs text-gray-600">Group by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{["daily", "weekly", "monthly", "quarterly"].map(value => <option key={value}>{value}</option>)}</select></label>
+                <details className="border-y border-gray-100 py-3"><summary className="cursor-pointer text-sm font-medium">Relationship analysis</summary><div className="mt-3 space-y-3">
+                  <label className="block text-xs text-gray-600">Correlation method<select className={input} value={definition.method} onChange={event => edit({ method: event.target.value as ReportDefinition["method"] })}><option value="spearman">Spearman</option><option value="pearson">Pearson</option></select></label>
+                  <label className="block text-xs text-gray-600">Minimum historical observations<input className={input} type="number" min={30} max={3653} required value={definition.filters.minimum_observations} onChange={event => edit({ filters: { ...definition.filters, minimum_observations: Number(event.target.value) } })} /></label>
+                  <label className="flex gap-2 text-sm"><input className="h-4 w-4" type="checkbox" checked={definition.lag.enabled} onChange={event => edit({ lag: { ...definition.lag, enabled: event.target.checked } })} />Evaluate timing</label>
+                  {definition.lag.enabled && <label className="block text-xs text-gray-600">Maximum lag<input className={input} type="number" min={definition.lag.minimum} max={12} required value={definition.lag.maximum} onChange={event => edit({ lag: { ...definition.lag, maximum: Number(event.target.value) } })} /></label>}
+                  {showPairDirections && <ReportPairDirections pairs={definition.pair_directions} datasets={datasets} onChange={(pair, direction) => edit({ pair_directions: definition.pair_directions.map(item => reportPairKey(item) === reportPairKey(pair) ? { ...item, direction } : item) })} />}
+                </div></details>
+              </div>
+              <p className="shrink-0 text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets / {taskCount} tests</p>
+              {taskCount > 1000 && <p className="shrink-0 text-sm text-amber-800">Report analysis exceeds the 1,000-test limit.</p>}
               {previewButton}
             </section>
           </div>
