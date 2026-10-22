@@ -5,6 +5,10 @@ dedicated correlation worker have been removed. Reports is the only active
 multi-dataset analysis builder. The basic two-metric Relationships page and
 saved relationship monitors are unchanged.
 
+Reports now has its own execution-only analysis worker. This does not restore
+the retired explorer, its queue, rollout flags or alternative analysis rules.
+See [Reports worker deployment](railway-scheduling.md#persistent-reports-analysis-worker).
+
 ## Preserved Evidence
 
 - Existing analysis/run/result tables are retained; no records are migrated,

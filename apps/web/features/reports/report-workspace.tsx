@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Trash2 } from "lucide-react"
+import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Square, Trash2 } from "lucide-react"
 import { correlationRequest, getMyOrganization, getOrganizationWorkspaces } from "@/lib/api"
 import { defaultWorkspaceBrand, getWorkspaceBrand, type WorkspaceBrand } from "@/lib/workspace-brand"
 import { WorkspaceBrandMark } from "@/app/dashboard/workspace-brand-mark"
@@ -22,6 +22,7 @@ import { reportPairDirections, reportPairKey, reportTestCount } from "./pair-dir
 import { ReportPairDirections } from "./report-pair-directions"
 import { ReportAnomalies } from "./report-anomalies"
 import { historicalEvidenceHref } from "./legacy-relationship-destination"
+import { analysisPhaseLabel, waitForAnalysis, type AnalysisJob } from "./analysis-jobs"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
@@ -50,6 +51,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const { t } = useDecisionateText()
   const router = useRouter()
   const openingDraft = useRef(false)
+  const analysisSubmission = useRef(false)
   const draftName = useRef("")
   const managementAction = useRef(false)
   const deletedReports = useRef(new Set<string>())
@@ -72,6 +74,9 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [view, setView] = useState<"explore" | "report">("explore")
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [analysisJob, setAnalysisJob] = useState<AnalysisJob | null>(null)
+  const [recentJobs, setRecentJobs] = useState<AnalysisJob[]>([])
+  const [analysisHistoryReload, setAnalysisHistoryReload] = useState(0)
   const [error, setError] = useState("")
   const [message, setMessage] = useState("")
   const [brand, setBrand] = useState<WorkspaceBrand>(defaultWorkspaceBrand)
@@ -81,6 +86,14 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const taskCount = reportTestCount(definition.metrics, definition.pair_directions, definition.lag)
   const showPairDirections = definition.lag.enabled && definition.pair_directions.length > 0
   const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < (single ? 1 : 2) || taskCount > 1000 || definition.metrics.length > 25 || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t("Preview report")}</button>
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void correlationRequest<{ jobs: AnalysisJob[] }>(userId, "/business-reports/jobs", { signal: controller.signal }, workspaceId)
+      .then(value => { if (!controller.signal.aborted) setRecentJobs(value.jobs.filter(job => ["report", "weekly_preview"].includes(job.kind))) })
+      .catch(() => { /* A history lookup must not prevent a new analysis. */ })
+    return () => controller.abort()
+  }, [userId, workspaceId, analysisHistoryReload])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -126,13 +139,39 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           if (!draftName.current) draftName.current = reportDraftName()
           setDefinition(current => ({ ...current, name: current.name || draftName.current }))
         }
-        if (params.get("report")) {
+        if (params.get("job")) {
+          setBusy(true)
+          setLoading(false)
+          try {
+            let restored = false
+            const value = await waitForAnalysis<BusinessReport | { cross_dataset_report: BusinessReport }>(
+              (path, init) => correlationRequest(userId, `/business-reports${path}`, init, workspaceId),
+              params.get("job")!, { signal: controller.signal, onUpdate: job => { if (current) {
+                setAnalysisJob({ ...job, result: null })
+                if (job.definition && !restored) {
+                  restored = true
+                  setDefinition(editableDefinition(job.definition))
+                  void addSelectedDatasets(job.definition)
+                }
+              } } },
+            )
+            if (!current) return
+            const result = "cross_dataset_report" in value ? value.cross_dataset_report : value
+            setReport(result); setDefinition(editableDefinition(result.definition)); setView("report")
+            void addSelectedDatasets(result.definition)
+          } finally { if (current) setBusy(false) }
+        } else if (params.get("report")) {
           const result = await correlationRequest<BusinessReport>(userId, `/business-reports/${encodeURIComponent(params.get("report")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
           setReport(result); setDefinition(editableDefinition(result.definition)); setView("report")
           void addSelectedDatasets(result.definition)
         } else if (params.get("weekly")) {
-          const result = await correlationRequest<BusinessReport>(userId, "/business-reports/weekly-preview", { signal: controller.signal }, workspaceId)
+          const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, { ...init, signal: controller.signal }, workspaceId)
+          const job = await request<AnalysisJob>("/weekly-jobs", { method: "POST" })
+          if (!current) return
+          setAnalysisJob(job); setBusy(true); setLoading(false)
+          window.history.replaceState(null, "", `${window.location.pathname}?job=${encodeURIComponent(job.job_id)}`)
+          const result = await waitForAnalysis<BusinessReport>(request, job.job_id, { signal: controller.signal, onUpdate: value => { if (current) setAnalysisJob(value) } })
           if (!current) return
           setReport(result); setDefinition(editableDefinition(result.definition)); setView("report")
           void addSelectedDatasets(result.definition)
@@ -156,7 +195,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           }
         }
       } catch (value) { if (current) setError(errorMessage(value)) }
-      finally { if (current) setLoading(false) }
+      finally { if (current) { setLoading(false); setBusy(false); setAnalysisHistoryReload(value => value + 1) } }
       try {
         const organization = await getMyOrganization(userId)
         const workspaces = await getOrganizationWorkspaces(userId)
@@ -181,6 +220,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       return { ...next, pair_directions: reportPairDirections(next.metrics, next.pair_directions) }
     })
     setReport(null); setError(""); setMessage("")
+    setAnalysisJob(null)
+    if (new URLSearchParams(window.location.search).has("job")) window.history.replaceState(null, "", window.location.pathname)
   }
 
   function toggleMetric(dataset: CatalogDataset, key: string) {
@@ -203,23 +244,36 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
 
   async function execute(action: () => Promise<void>) {
     setBusy(true); setError(""); setMessage("")
-    try { await action() } catch (value) { setError(errorMessage(value)) } finally { setBusy(false) }
+    try { await action() } catch (value) {
+      if (errorMessage(value) === "Analysis cancelled") setMessage("Analysis cancelled.")
+      else if (!routeController.current?.signal.aborted) setError(errorMessage(value))
+    } finally { setBusy(false); setAnalysisHistoryReload(value => value + 1) }
   }
 
   async function calculate() {
-    await execute(async () => {
-      const result = await request<BusinessReport>("/preview", { method: "POST", body: JSON.stringify({ ...definition, included_findings: null }) })
+    if (analysisSubmission.current || busy) return
+    analysisSubmission.current = true
+    try { await execute(async () => {
+      const signal = routeController.current?.signal
+      const job = await request<AnalysisJob>("/jobs", { method: "POST", signal, headers: { "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ ...definition, included_findings: null }) })
+      signal?.throwIfAborted()
+      setAnalysisJob(job)
+      setRecentJobs(current => [job, ...current.filter(item => item.job_id !== job.job_id)])
+      window.history.replaceState(null, "", `${window.location.pathname}?job=${encodeURIComponent(job.job_id)}`)
+      const result = await waitForAnalysis<BusinessReport>(request, job.job_id, { signal, onUpdate: setAnalysisJob })
+      signal?.throwIfAborted()
       setDefinition(editableDefinition(result.definition))
       setReport(result)
       setView("report")
-    })
+    }) } finally { analysisSubmission.current = false }
   }
 
   async function saveSnapshot() {
     if (report?.report_id) return report
-    const result = await request<BusinessReport>("", { method: "POST", body: JSON.stringify(definition) })
+    if (!report?.analysis_job_id) throw new Error("Generate a report preview before saving.")
+    const result = await request<BusinessReport>(`/jobs/${encodeURIComponent(report.analysis_job_id)}/save`, { method: "POST" })
     setReport(result)
-    setSaved(current => [{ report_id: result.report_id!, name: result.name, created_at: result.generated_at }, ...current])
+    setSaved(current => [{ report_id: result.report_id!, name: result.name, created_at: result.generated_at }, ...current.filter(item => item.report_id !== result.report_id)])
     window.history.replaceState(null, "", `/dashboard/reports?report=${result.report_id}`)
     return result
   }
@@ -304,7 +358,17 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       </div>
     </header>
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-    {message && <p role="status" className="text-sm text-green-800">{message}</p>}
+    {message && <p role="status" className="text-sm text-green-800">{t(message)}</p>}
+    {recentJobs.length > 0 && <label className="block w-full max-w-md text-xs text-gray-600 print:hidden">{t("Recent analyses")}
+      <select className={input} disabled={busy} value={analysisJob?.job_id || ""} onChange={event => {
+        if (event.target.value) window.location.assign(`${window.location.pathname}?job=${encodeURIComponent(event.target.value)}`)
+      }}><option value="">{t("Choose an analysis")}</option>{recentJobs.map(job => <option key={job.job_id} value={job.job_id}>{job.definition?.name || t("Weekly report")} / {t(analysisPhaseLabel(job.job_id === analysisJob?.job_id ? analysisJob.phase : job.phase))}</option>)}</select>
+    </label>}
+    {analysisJob && ["queued", "running"].includes(analysisJob.status) && <div className="flex flex-wrap items-center justify-between gap-3 border-y border-gray-200 py-3 print:hidden">
+      <p role="status" className="flex items-center gap-2 text-sm"><LoaderCircle size={16} className="shrink-0 animate-spin" />{t(analysisPhaseLabel(analysisJob.phase))}</p>
+      {!busy && <button type="button" className={button} onClick={() => window.location.reload()}><RefreshCw size={16} />{t("Reconnect")}</button>}
+      <button type="button" className={button} onClick={() => void request<AnalysisJob>(`/jobs/${encodeURIComponent(analysisJob.job_id)}/cancel`, { method: "POST" }).then(setAnalysisJob).catch(value => setError(errorMessage(value)))}><Square size={14} />{t("Cancel analysis")}</button>
+    </div>}
     <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
       <div className="flex w-full max-w-md items-end gap-2"><label className="block min-w-0 flex-1 text-xs text-gray-600">Saved reports<select className={input} disabled={busy} value={report?.report_id || ""} onChange={event => {
         const id = event.target.value

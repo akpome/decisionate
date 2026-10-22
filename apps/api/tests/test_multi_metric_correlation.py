@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db.database import Base
-from app.db.models import Dataset, utc_now
+from app.db.models import Dataset, IngestionWorkerHeartbeat, utc_now
 from app.modules.correlation import router
 from app.modules.correlation.catalog import prepare_series
 from app.modules.correlation.engine import adjust_bh, compute_pair, metric_id, metric_pairs
@@ -133,6 +133,7 @@ class RetiredExplorerTests(unittest.TestCase):
         self.definition = AnalysisCreate(**definition()).model_dump(mode="json")
         self.definition["reporting_timezone"] = "UTC"
         with self.Session() as db:
+            db.add(IngestionWorkerHeartbeat(name="reports-analysis", last_seen_at=utc_now()))
             for identity in range(1, 4):
                 key = "spend" if identity == 1 else "revenue"
                 frame = pd.DataFrame({"date": pd.date_range("2026-01-01", periods=40), key: [float(day * identity + day % 7) for day in range(40)]})
@@ -176,6 +177,14 @@ class RetiredExplorerTests(unittest.TestCase):
                                   ("get_workspace_id", lambda req, user: req.headers.get("X-Workspace-Id", "owner")),
                                   ("require_workspace_data_manager", lambda req: None)):
                 item = patch.object(module, target, value); item.start(); self.addCleanup(item.stop)
+        from app.modules.reports import jobs
+        from app.infrastructure import analysis_worker
+        for module in (jobs, analysis_worker):
+            item = patch.object(module, "SessionLocal", self.Session); item.start(); self.addCleanup(item.stop)
+        async def drain_job(identity, user, workspace):
+            analysis_worker.execute_job(identity)
+            return await jobs.wait_for_job(identity, user, workspace, timeout=.1)
+        item = patch.object(reports_router, "wait_for_job", drain_job); item.start(); self.addCleanup(item.stop)
         app = FastAPI(); app.include_router(router.router); app.include_router(reports_router.router)
         self.client = TestClient(app); self.addCleanup(self.client.close)
 

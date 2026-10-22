@@ -72,6 +72,7 @@ function editor({ name = draft().defaultReportName(), saved = false } = {}) {
     definition: state.definition, report: state.report, ...draft(), ...pairs.exports,
     setDefinition: update => { state.definition = update(state.definition); bindings.definition = state.definition },
     setReport: value => { state.report = value; bindings.report = value }, setError: () => {}, setMessage: () => {},
+    setAnalysisJob: () => {}, URLSearchParams, window: { location: { search: "" } },
   }
   const edit = vm.runInNewContext(ts.transpileModule(`${declaration}\nedit`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, bindings)
   return { state, edit }

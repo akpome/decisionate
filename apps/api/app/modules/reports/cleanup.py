@@ -5,7 +5,7 @@ import json
 from sqlalchemy import inspect
 
 from app.db.models import WeeklyReportPreference
-from .models import BusinessReport
+from .models import BusinessReport, ReportAnalysisJob
 
 
 def delete_reports(db, identities):
@@ -18,6 +18,11 @@ def delete_reports(db, identities):
 
 
 def cleanup_source(db, dataset_id):
+    if inspect(db.connection()).has_table(ReportAnalysisJob.__tablename__):
+        identities = [identity for identity, sources in db.query(ReportAnalysisJob.id, ReportAnalysisJob.sources)
+                      if str(dataset_id) in json.loads(sources)]
+        if identities:
+            db.query(ReportAnalysisJob).filter(ReportAnalysisJob.id.in_(identities)).delete(synchronize_session=False)
     if not inspect(db.connection()).has_table(BusinessReport.__tablename__):
         return
     identities = []
@@ -29,5 +34,7 @@ def cleanup_source(db, dataset_id):
 
 
 def cleanup_workspace(db, workspace_id):
+    if inspect(db.connection()).has_table(ReportAnalysisJob.__tablename__):
+        db.query(ReportAnalysisJob).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(BusinessReport.__tablename__):
         delete_reports(db, [row.id for row in db.query(BusinessReport.id).filter_by(workspace_id=workspace_id)])

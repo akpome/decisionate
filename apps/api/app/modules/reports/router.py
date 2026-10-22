@@ -24,6 +24,9 @@ from .catalog import prepare_report_source, report_metric_catalog
 from .schemas import ReportDecision, ReportDefinition
 from .service import attach_report_decisions, build_report, report_analysis_facts, report_anomalies, report_dates
 from .relationships import report_test_count
+from .jobs import (allowed_job, cancel_job, enqueue, enqueue_report, enqueue_weekly, job_response,
+                   save_completed_job, wait_for_job, worker_ready)
+from .models import ReportAnalysisJob
 
 
 router = APIRouter(prefix="/api/v2/business-reports", tags=["business-reports"])
@@ -50,7 +53,7 @@ def allowed_report(db, report_id, user, workspace, *, for_update=False):
     return report
 
 
-def generate(db, payload, user, workspace):
+def generate(db, payload, user, workspace, progress=None):
     source_run = allowed_run(db, payload.source_run_id, user, workspace)[0] if payload.source_run_id else None
     if len(payload.metrics) > 25 or payload.lag.maximum > 12:
         raise HTTPException(400, "Reports support at most 25 metrics and 12 lag periods")
@@ -70,6 +73,8 @@ def generate(db, payload, user, workspace):
         except Exception:
             logger.warning("Report dataset %s unavailable", key, exc_info=True)
             unavailable.append(f"Dataset unavailable: {dataset.file_name}.")
+    if progress:
+        progress("computing")
     try:
         result = build_report(frames, definition, unavailable=unavailable)
     except (ValueError, KeyError) as error:
@@ -80,6 +85,8 @@ def generate(db, payload, user, workspace):
                                      "computed_at": source_run.completed_at.isoformat() if source_run.completed_at else None,
                                      "note": "This report recalculates the selected sources. The original analysis run remains available for comparison."}
     if payload.include_ai_analysis:
+        if progress:
+            progress("interpreting")
         result["ai_analysis"] = generate_structured_analysis(
             context="business report selected-metric interpretation",
             facts=report_analysis_facts(result),
@@ -131,13 +138,23 @@ def from_run(run_id: str, request: Request, db=Depends(database)):
 
 
 @router.get("/dataset-anomalies/{dataset_id}")
-def single_dataset_anomalies(
+async def single_dataset_anomalies(
     dataset_id: int, request: Request, db=Depends(database), metric: str | None = Query(None, max_length=200),
     start_date: date | None = None, period_filter: Literal["all", "1m", "1q", "6m", "1y", "2y", "3y", "5y"] = "all",
     aggregation: Literal["daily", "weekly", "monthly", "quarterly"] = "monthly",
     aggregation_type: Literal["sum", "avg", "min", "max", "count"] = "sum", seasonal_business: bool = False,
 ):
     user, workspace = identity(request)
+    datasets = authorize_datasets(db, user, workspace, [dataset_id])
+    definition = {"dataset_id": dataset_id, "metric": metric, "start_date": str(start_date) if start_date else None,
+                  "period_filter": period_filter, "aggregation": aggregation, "aggregation_type": aggregation_type,
+                  "seasonal_business": seasonal_business}
+    job = enqueue(db, user, workspace, "dataset_anomalies", definition, datasets)
+    return await wait_for_job(job.id, user, workspace)
+
+
+def calculate_dataset_anomalies(db, dataset_id, user, workspace, metric=None, start_date=None, period_filter="all",
+                               aggregation="monthly", aggregation_type="sum", seasonal_business=False):
     dataset = authorize_datasets(db, user, workspace, [dataset_id])[dataset_id]
     try:
         dataset, frame = prepare_report_source(dataset, load_dataframe_from_dataset(dataset))
@@ -175,24 +192,84 @@ def single_dataset_anomalies(
         raise HTTPException(503, "Anomaly detection is temporarily unavailable. Try again shortly.") from error
 
 
-@router.post("/preview")
-def preview(request: Request, payload: ReportDefinition, db=Depends(database)):
+@router.post("/jobs", status_code=202)
+def create_job(request: Request, payload: ReportDefinition, db=Depends(database)):
     user, workspace = identity(request)
-    return generate(db, payload, user, workspace)[1]
+    return job_response(enqueue_report(db, payload, user, workspace, request.headers.get("Idempotency-Key")))
 
 
-@router.post("", status_code=201)
-def save(request: Request, payload: ReportDefinition, db=Depends(database)):
+@router.get("/jobs")
+def active_jobs(request: Request, db=Depends(database)):
     user, workspace = identity(request)
+    result = []
+    for job in db.query(ReportAnalysisJob).filter_by(workspace_id=workspace, user_id=user).order_by(ReportAnalysisJob.created_at.desc()).limit(10):
+        try:
+            allowed_job(db, job.id, user, workspace)
+            result.append(job_response(job))
+        except HTTPException:
+            continue
+    return {"jobs": result, "worker_ready": worker_ready(db)}
+
+
+@router.get("/jobs/{job_id}")
+def job_status(job_id: str, request: Request, db=Depends(database)):
+    user, workspace = identity(request)
+    job = allowed_job(db, job_id, user, workspace)
+    response = job_response(job, include_result=True)
+    if response["result"] is not None and job.saved_report_id:
+        saved = detail(job.saved_report_id, request, db)
+        if job.kind == "weekly_preview" and "cross_dataset_report" in response["result"]:
+            response["result"]["cross_dataset_report"] = saved
+        else:
+            response["result"] = saved
+    return response
+
+
+@router.post("/jobs/{job_id}/cancel")
+def cancel_analysis(job_id: str, request: Request, db=Depends(database)):
+    user, workspace = identity(request)
+    return cancel_job(db, allowed_job(db, job_id, user, workspace, for_update=True))
+
+
+def require_report_writer(request):
     role = get_workspace_role(request)
     if role not in {"owner", "member", "managed_client"} and not is_client_workspace_role(role):
         raise HTTPException(403, "Read-only users cannot save shared reports")
-    definition, result = generate(db, payload, user, workspace)
-    report = BusinessReport(workspace_id=workspace, user_id=user, name=payload.name,
-                            definition=encode(definition), snapshot=encode(result))
-    db.add(report)
-    db.commit()
-    return {**result, "report_id": report.id}
+
+
+@router.post("/jobs/{job_id}/save", status_code=201)
+def save_job(job_id: str, request: Request, db=Depends(database)):
+    user, workspace = identity(request)
+    require_report_writer(request)
+    return save_completed_job(db, job_id, user, workspace)
+
+
+@router.post("/weekly-jobs", status_code=202)
+def weekly_job(request: Request, send: bool = False, include_ai_analysis: bool = False, report_only: bool = True, db=Depends(database)):
+    from app.modules.alerts.router import require_weekly_report_manager
+
+    user, workspace = identity(request)
+    if send or not report_only:
+        require_weekly_report_manager(get_workspace_role(request))
+    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).first()
+    return job_response(enqueue_weekly(db, user, workspace, preference, send=send, include_ai=include_ai_analysis,
+                                     request_key=request.headers.get("Idempotency-Key"), report_only=report_only))
+
+
+@router.post("/preview", deprecated=True)
+async def preview(request: Request, payload: ReportDefinition, db=Depends(database)):
+    user, workspace = identity(request)
+    job = enqueue_report(db, payload, user, workspace, request.headers.get("Idempotency-Key"))
+    return await wait_for_job(job.id, user, workspace)
+
+
+@router.post("", status_code=201, deprecated=True)
+async def save(request: Request, payload: ReportDefinition, db=Depends(database)):
+    user, workspace = identity(request)
+    require_report_writer(request)
+    job = enqueue_report(db, payload, user, workspace, request.headers.get("Idempotency-Key"))
+    await wait_for_job(job.id, user, workspace)
+    return save_completed_job(db, job.id, user, workspace)
 
 
 @router.get("")
@@ -210,11 +287,10 @@ def reports(request: Request, db=Depends(database)):
 
 @router.get("/weekly-preview")
 async def weekly_preview(request: Request, db=Depends(database)):
-    from app.modules.alerts.router import build_weekly_report_digest_for_workspace_async
     user, workspace = identity(request)
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).first()
-    digest = await build_weekly_report_digest_for_workspace_async(db, user, workspace, preference, include_ai_analysis=False)
-    return digest.cross_dataset_report
+    job = enqueue_weekly(db, user, workspace, preference, include_ai=False, report_only=True)
+    return await wait_for_job(job.id, user, workspace)
 
 
 @router.get("/weekly-template")
@@ -269,6 +345,7 @@ def delete_report(report_id: str, request: Request, db=Depends(database)):
     removed_template = bool(preference and preference.business_report_id == report.id)
     if removed_template:
         clear_weekly_template(preference)
+    db.query(ReportAnalysisJob).filter_by(saved_report_id=report.id).delete(synchronize_session=False)
     db.delete(report)
     db.commit()
     return {"report_id": report_id, "deleted": True, "weekly_template_removed": removed_template}

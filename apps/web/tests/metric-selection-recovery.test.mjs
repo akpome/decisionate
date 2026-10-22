@@ -198,6 +198,7 @@ function apiHarness(fetch) {
   }
   const availability = []
   const api = compile("../lib/api.ts", {
+    "@/features/reports/analysis-jobs": {},
     "@/lib/api-read-cache": compile("../lib/api-read-cache.ts", {}),
     "@/lib/workspace-context": { getActiveWorkspaceId: () => "workspace-1", notifyWorkspaceAccessChanged: () => {} },
     "@/features/dashboards/dashboard-definitions": {},

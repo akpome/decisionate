@@ -159,6 +159,7 @@ class WeeklyReportSchedulerWorkspaceResult(BaseModel):
     status: str
     delivered_count: int = 0
     detail: str | None = None
+    job_id: str | None = None
 
 
 class WeeklyReportSchedulerResponse(BaseModel):
@@ -168,4 +169,5 @@ class WeeklyReportSchedulerResponse(BaseModel):
     sent_count: int
     skipped_count: int
     failed_count: int
+    queued_count: int = 0
     results: list[WeeklyReportSchedulerWorkspaceResult]

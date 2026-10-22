@@ -12,7 +12,7 @@ from app.modules.decisions.models import Decision, DecisionDuplicate
 from app.modules.decisions.titles import is_legacy_evidence_placeholder
 from app.modules.reports.service import attach_report_decisions, decisions_for_report, legacy_decision_drafts
 from app.modules.reports import router as reports_router
-from app.modules.reports.models import BusinessReport
+from app.modules.reports.models import BusinessReport, ReportAnalysisJob
 from app.modules.reports.schemas import ReportDefinition
 from app.modules.alerts import router as alerts_router
 from tests.test_business_reports import definition, fixture
@@ -165,6 +165,7 @@ class ReportDecisionLinkTests(unittest.TestCase):
 
     def test_actual_preview_save_and_detail_routes_return_the_same_existing_draft(self):
         BusinessReport.__table__.create(self.engine)
+        ReportAnalysisJob.__table__.create(self.engine)
         frames = fixture()
         with self.Session() as db:
             self.add(db, title="Review joined evidence: a.csv + b.csv", action=None)
@@ -176,8 +177,16 @@ class ReportDecisionLinkTests(unittest.TestCase):
                  patch.object(reports_router, "authorize_datasets", return_value={identity: value[0] for identity, value in frames.items()}), \
                  patch.object(reports_router, "load_dataframe_from_dataset", side_effect=lambda dataset: frames[dataset.id][1].copy()):
                 payload = ReportDefinition(**definition())
-                preview = reports_router.preview(None, payload, db)
-                saved = reports_router.save(None, payload, db)
+                result = reports_router.generate(db, payload, "owner", "workspace")[1]
+                job = ReportAnalysisJob(workspace_id="workspace", user_id="owner", kind="report", request_key="test",
+                    definition=json.dumps(result["definition"]), sources="{}", status="succeeded", result=json.dumps(result))
+                db.add(job); db.commit()
+                async def completed(*args):
+                    return result
+                with patch.object(reports_router, "enqueue_report", return_value=job), patch.object(reports_router, "wait_for_job", completed):
+                    request = SimpleNamespace(headers={})
+                    preview = asyncio.run(reports_router.preview(request, payload, db))
+                    saved = asyncio.run(reports_router.save(request, payload, db))
                 detail = reports_router.detail(saved["report_id"], None, db)
             for response in (preview, saved, detail):
                 self.assertEqual(response["decisions"], [])
@@ -199,6 +208,15 @@ class ReportDecisionLinkTests(unittest.TestCase):
                 stack.enter_context(patch.object(alerts_router, name, return_value=value))
             stack.enter_context(patch.object(alerts_router.asyncio, "to_thread", inline))
             if asynchronous:
+                from app.modules.reports import jobs
+                from app.modules.alerts.schemas import WeeklyReportDigestResponse
+                async def completed(*args):
+                    value = alerts_router.build_weekly_report_digest_for_workspace(db, "owner", "workspace", preference, include_ai_analysis=False)
+                    return WeeklyReportDigestResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[],
+                        metric_focus=[], subject="", preview_text="", dataset_count=2, metrics=[], recommendations=[],
+                        unavailable_datasets=[], cross_dataset_report=value.cross_dataset_report).model_dump(mode="json")
+                stack.enter_context(patch.object(jobs, "enqueue_weekly", return_value=SimpleNamespace(id="weekly-job")))
+                stack.enter_context(patch.object(jobs, "wait_for_job", completed))
                 return asyncio.run(alerts_router.build_weekly_report_digest_for_workspace_async(db, "owner", "workspace", preference, include_ai_analysis=False))
             return alerts_router.build_weekly_report_digest_for_workspace(db, "owner", "workspace", preference)
 

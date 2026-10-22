@@ -103,11 +103,76 @@ and sync-disabled connections. API `/ready` returns `503` when its heartbeat
 is missing or stale. A successful cron response only confirms that work was
 queued; confirm the ingestion job's terminal result too.
 
-## What runs
+## Persistent Reports Analysis Worker
+
+Reports previews, selected-metric anomaly checks, weekly previews and weekly
+delivery now execute outside the API. Create a **separate persistent service**
+using the API image and `apps/api` root, with this start command:
+
+```text
+python scripts/run_analysis_worker.py
+```
+
+Run one replica, enable automatic restart, and configure no HTTP healthcheck or
+cron schedule. Share the API's PostgreSQL, object storage, encryption, auth,
+monitoring, reporting timezone and applicable AI/email configuration. Production
+files must be in the same shared object storage, not on the API container's local
+disk. No Redis broker or advanced-correlation rollout flags are needed.
+
+Worker-only optional resource limits (defaults shown):
+
+```text
+ANALYSIS_JOB_TIMEOUT_SECONDS=900
+ANALYSIS_JOB_MEMORY_MB=2048
+```
+
+Each job runs in a separate Linux subprocess with a deadline, address-space cap,
+restricted numeric-library threads and parent-death protection. An independent
+PostgreSQL advisory lock prevents duplicate consumers during deployment overlap;
+the new service waits for the existing owner. It does not share the ingestion
+queue, lock or heartbeat. Three queued/running analyses per workspace provide
+backpressure, and scheduling gives waiting workspaces a turn.
+
+The API validates permissions and queues immutable settings and source-version
+fingerprints. The worker checks access and revisions before and after analysis;
+changed data or weekly preferences require a new preview. Saving a completed
+preview is idempotent and does not recompute, accept client-provided evidence or
+create decisions. Current aggregation, lag, significance and seasonal anomaly
+rules remain unchanged. Forecasts and the basic Relationships page are not moved.
+
+The report URL retains its job identity so reloads can reconnect. Status and
+cancellation are under `/api/v2/business-reports/jobs/{job_id}`. Cancelling a job
+stops its subprocess; closing the browser only stops polling. Old preview/save
+HTTP contracts wait up to 45 seconds for worker output and are deprecated;
+new clients use submission/status/save endpoints rather than long HTTP requests.
+
+The alerts scheduler now returns `queued_count` and per-workspace `job_id` values.
+A successful cron invocation means work was queued, **not** that mail was sent.
+Confirm terminal job status and Alerts delivery history. Scheduled delivery has
+one durable claim per workspace and completed reporting week, independent of
+template edits. Worker retries are bounded to one restart of safe computation;
+AI work and external sending are not blindly replayed. Interrupted/partially
+accepted email delivery requires provider-log reconciliation before a deliberate
+manual resend. SMTP cannot guarantee exactly-once external delivery. A changed
+reporting week prevents a delayed job from sending an obsolete weekly report.
+
+Completed interactive jobs expire after seven days (save the snapshot to retain
+it). Weekly-send claims expire after 90 days. Source/workspace deletion removes
+associated jobs and stored results along with existing report cleanup.
+Deleting a saved report also removes its originating temporary analysis result.
+
+Deploy the analysis worker from this revision **before** switching the API and
+web frontend. In production, `/ready` requires both `ingestion_worker_ready` and
+`analysis_worker_ready`. A missing analysis heartbeat rejects new analysis with
+HTTP 503 rather than falling back to expensive API computation. Verify with a
+report preview and saved snapshot; do not send production email as a deployment
+smoke test.
+
+## What Runs
 
 The former advanced-correlation worker has been retired. Do not deploy
-`scripts/run_correlation_worker.py`; it has been removed. Reports calculates
-relationships through the API and does not need a dedicated correlation worker.
+`scripts/run_correlation_worker.py`; it has been removed. The new Reports analysis
+worker above runs the unified Reports engine, not that retired product/workflow.
 Do not remove the ingestion worker or the scheduler as part of this retirement.
 For an existing correlation-worker service, follow the
 [retirement sequence](MULTI_METRIC_CORRELATION.md#railway-cleanup) before deploying
@@ -118,7 +183,7 @@ The combined runner calls these protected endpoints in order:
 | Job | Endpoint | Purpose |
 | --- | --- | --- |
 | `connectors` | `POST /datasets/source-connections/sync-due` | Queues due connector syncs for the worker |
-| `alerts` | `POST /alerts/weekly-report/send-due` | Sends enabled weekly reports due for the current day |
+| `alerts` | `POST /alerts/weekly-report/send-due` | Queues enabled weekly reports due for the current day |
 | `billing` | `POST /billing/lifecycle/send-due` | Sends subscription lifecycle notices and applies due data-retention actions |
 
 The runner continues if one job fails, prints a JSON result for each job, and
@@ -182,7 +247,7 @@ raise the capacity limit to hide an unhealthy worker.
 ## Verify the setup
 
 1. Deploy the API with the selected scheduler secrets configured.
-2. Start the persistent worker and confirm API `/ready` returns `200`.
+2. Start both persistent workers and confirm API `/ready` returns `200`.
 3. Deploy the scheduler service with the command above.
 4. Trigger one manual scheduler run if Railway provides a manual run action.
 5. Open the scheduler service logs and confirm each selected job reports

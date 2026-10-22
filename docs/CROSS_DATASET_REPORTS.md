@@ -23,9 +23,9 @@ Weekly templates and delivery remain cross-dataset only. A single-dataset report
 cannot replace an existing weekly template or enable delivery. Its snapshot and
 selected decision evidence can still be saved. Existing report snapshots,
 weekly recipients, seasonal settings and decision links are not migrated or
-recomputed when opening a saved report. Saving a new report continues to validate
-and calculate against current authorized source data; it is not a client-uploaded
-or trusted preview snapshot. Legacy Insights APIs remain for backward compatibility
+recomputed when opening a saved report. New calculations validate current source
+access and run in the separate Reports analysis worker. Saving reuses its frozen,
+server-generated preview result, not client-uploaded evidence. Legacy Insights APIs remain for backward compatibility
 but are no longer used by either Reports tab.
 
 AI interpretation is optional (off by default), uses existing provider/credit
@@ -221,11 +221,23 @@ weekly templates requires the existing workspace data-manager permission.
 
 Bootstrap adds `business_reports` and nullable
 `weekly_report_preferences.business_report_id` through the existing serialized
-schema initialization. Source data, existing saved relationships and connector
-selections are not migrated or rewritten. No additional worker is required for
-the bounded synchronous report path, and no scheduler start command changes.
+schema initialization. It also adds `report_analysis_jobs` for the separate
+PostgreSQL-backed analysis worker. Source data, existing saved relationships and
+connector selections are not migrated or rewritten. Deploy
+`python scripts/run_analysis_worker.py` as a persistent service, independently
+of ingestion. The scheduler start command does not change; its weekly endpoint
+now queues delivery. See [worker setup and deployment order](railway-scheduling.md#persistent-reports-analysis-worker).
 Deleting a source removes snapshots that reference it and clears their weekly
-template links. Workspace deletion and expiry purges remove its report data.
+template links. Workspace deletion and expiry purges remove its report data and
+analysis jobs. Job execution and subsequent result reads recheck source access.
+
+`POST /jobs` returns HTTP 202 and a job identity; `GET /jobs/{id}` reports its
+phase and completed result. `POST /jobs/{id}/cancel` stops queued/running work,
+and `POST /jobs/{id}/save` persists the completed snapshot exactly once. Reloads
+reconnect using the job URL. The worker rejects source revisions changing during
+calculation instead of mixing different versions into a report. Queued weekly
+jobs freeze their reporting date, preserve the three-year seasonal lookback,
+and cannot silently use changed preferences or send an expired reporting week.
 
 ## Verification
 
@@ -240,5 +252,5 @@ email alternatives. The workflow suite covers seasonal template persistence,
 single-dataset scope enforcement and unchanged saved anomaly snapshots.
 
 Production rollout still requires a deployed API and web build, PostgreSQL
-bootstrap verification, and a preview of a current two-source weekly report.
+bootstrap verification, a healthy analysis worker, and a preview of a current two-source weekly report.
 No production email should be triggered merely to verify deployment.

@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from sqlalchemy import Column, DateTime, String, Text
+from sqlalchemy import Column, DateTime, Integer, String, Text
 
 from app.db.database import Base
 from app.db.models import utc_now
@@ -15,3 +15,24 @@ class BusinessReport(Base):
     definition = Column(Text, nullable=False)
     snapshot = Column(Text, nullable=False)
     created_at = Column(DateTime, nullable=False, default=utc_now)
+
+
+class ReportAnalysisJob(Base):
+    __tablename__ = "report_analysis_jobs"
+    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
+    workspace_id = Column(String, nullable=False, index=True)
+    user_id = Column(String, nullable=False, index=True)
+    kind = Column(String, nullable=False)
+    request_key = Column(String, nullable=False, unique=True)
+    definition = Column(Text, nullable=False)
+    sources = Column(Text, nullable=False)
+    status = Column(String, nullable=False, default="queued", index=True)
+    phase = Column(String, nullable=False, default="queued")
+    attempts = Column(Integer, nullable=False, default=0)
+    result = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    error_status = Column(Integer, nullable=True)
+    saved_report_id = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utc_now, index=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)

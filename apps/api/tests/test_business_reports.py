@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db.database import Base
-from app.db.models import Dataset, WeeklyReportPreference
+from app.db.models import Dataset, IngestionWorkerHeartbeat, WeeklyReportPreference, utc_now
 from app.modules.reports import router
 from app.modules.reports.schemas import ReportDefinition
 from app.modules.reports.models import BusinessReport
@@ -283,6 +283,7 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         self.Session = sessionmaker(bind=self.engine)
         self.addCleanup(self.engine.dispose)
         with self.Session() as db:
+            db.add(IngestionWorkerHeartbeat(name="reports-analysis", last_seen_at=utc_now()))
             for identity, (dataset, frame) in self.frames.items():
                 db.add(Dataset(id=identity, user_id="owner", workspace_id="owner", file_name=dataset.file_name,
                                file_path="unused.csv", source_type="csv", source_config=dataset.source_config,
@@ -295,6 +296,16 @@ class BusinessReportWorkflowTests(unittest.TestCase):
                                   ("require_workspace_data_manager", lambda request: None),
                                   ("load_dataframe_from_dataset", lambda dataset: self.frames[dataset.id][1].copy())):
             p = patch.object(router, name, replacement); p.start(); self.addCleanup(p.stop)
+        from app.modules.reports import jobs
+        from app.infrastructure import analysis_worker
+        for module in (jobs, analysis_worker):
+            p = patch.object(module, "SessionLocal", self.Session); p.start(); self.addCleanup(p.stop)
+        # Legacy HTTP clients wait for the queue; this test harness explicitly
+        # drains it instead of starting a service for every API test.
+        async def drain_job(identity, user, workspace):
+            analysis_worker.execute_job(identity)
+            return await jobs.wait_for_job(identity, user, workspace, timeout=.1)
+        p = patch.object(router, "wait_for_job", drain_job); p.start(); self.addCleanup(p.stop)
         app = FastAPI(); app.include_router(router.router)
         self.client = TestClient(app); self.addCleanup(self.client.close)
 

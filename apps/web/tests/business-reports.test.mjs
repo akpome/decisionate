@@ -50,10 +50,18 @@ test("a fresh preview includes findings automatically and keeps the returned sel
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, {
     definition: original, execute: async action => action(), editableDefinition,
-    request: async (path, options) => {
-      assert.equal(path, "/preview")
-      assert.equal(JSON.parse(options.body).included_findings, null)
+    crypto: { randomUUID: () => "request-1" }, setAnalysisJob: () => {}, routeController: { current: null },
+    analysisSubmission: { current: false }, busy: false,
+    setRecentJobs: () => {},
+    window: { location: { pathname: "/dashboard/reports" }, history: { replaceState() {} } }, encodeURIComponent,
+    waitForAnalysis: async (request, identity) => {
+      assert.equal(identity, "job-1")
       return { definition: { ...original, included_findings: ["finding-1"] } }
+    },
+    request: async (path, options) => {
+      assert.equal(path, "/jobs")
+      assert.equal(JSON.parse(options.body).included_findings, null)
+      return { job_id: "job-1", status: "queued" }
     },
     setDefinition: value => { savedDefinition = value }, setReport: value => { report = value }, setView: value => { view = value },
   })

@@ -249,6 +249,7 @@ test("admin access distinguishes ordinary users from failed or expired authoriza
   let status = 200
   let allowed = true
   const api = load("../lib/api.ts", {
+    "@/features/reports/analysis-jobs": {},
     "@/lib/api-read-cache": cache,
     "@/lib/workspace-context": { getActiveWorkspaceId: userId => userId },
     "@/features/dashboards/dashboard-definitions": {},

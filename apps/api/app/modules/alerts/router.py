@@ -632,6 +632,7 @@ def build_weekly_report_digest(
     include_ai_analysis: bool = True,
     branding: dict | None = None,
     report_definition: dict | None = None,
+    analysis_date: date | None = None,
 ) -> WeeklyReportDigestResponse:
     branding = branding or {}
     clean_brand_name = clean_weekly_report_brand_name(
@@ -719,7 +720,7 @@ def build_weekly_report_digest(
             }
             available_digest_metrics.append(metric_record)
 
-    cross_report = build_weekly_cross_dataset_report(report_frames, preference, report_definition, unavailable_datasets, relationship_results)
+    cross_report = build_weekly_cross_dataset_report(report_frames, preference, report_definition, unavailable_datasets, relationship_results, analysis_date=analysis_date)
     digest_metrics = [
         {"dataset_id": metric["dataset_id"], "dataset_name": metric["dataset_label"], "column": metric["metric_key"],
          "total": metric["value"], "previous_value": metric["previous_value"], "change_percent": metric["change_percent"],
@@ -853,7 +854,7 @@ def build_weekly_report_digest(
     )
 
 
-def build_weekly_cross_dataset_report(frames, preference, template=None, unavailable=None, relationships=None):
+def build_weekly_cross_dataset_report(frames, preference, template=None, unavailable=None, relationships=None, *, analysis_date=None):
     frames = {identity: prepare_report_source(*pair) for identity, pair in frames.items()}
     references, warnings = [], [f"Dataset unavailable: {name}." for name in (unavailable or [])]
     if template:
@@ -904,7 +905,7 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
     definition = {**(template or {}), "scope": "multi", "name": (template or {}).get("name", "Weekly cross-dataset review"),
                   "seasonal_business": (template or {}).get("seasonal_business", False),
                   "business_question": (template or {}).get("business_question", "What changed across the selected datasets, and which changes deserve investigation?"),
-                  "metrics": references, "date_range": complete_week(), "grain": "daily",
+                  "metrics": references, "date_range": complete_week(analysis_date) if analysis_date else complete_week(), "grain": "daily",
                   "method": (template or {}).get("method", "spearman"),
                   "lag": lag,
                   "filters": {"minimum_abs_coefficient": .3, "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, (template or {}).get("filters", {}).get("minimum_observations", MINIMUM_REPORT_OBSERVATIONS))}, "included_findings": None}
@@ -913,7 +914,7 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
         definition["pair_directions"] = [pair for pair in definition["pair_directions"]
                                          if metric_key(pair["metric_a"]) in selected_keys and metric_key(pair["metric_b"]) in selected_keys]
     selected_frames = {key: value for key, value in frames.items() if any(item["dataset_id"] == key for item in references)}
-    anchor = datetime.now(ZoneInfo(reporting_timezone())).date()
+    anchor = analysis_date or datetime.now(ZoneInfo(reporting_timezone())).date()
     result = build_report(selected_frames, definition, unavailable=warnings, history_anchor=anchor)
     evaluated = {item["metric_id"] for item in result["anomaly_analysis"]["metrics"]}
     omitted = [item for item in requested_references if f"{item['dataset_id']}:{item['metric_key']}" not in evaluated]
@@ -1157,6 +1158,8 @@ def build_weekly_report_digest_for_workspace(
     user_id: str,
     workspace_id: str,
     preference: WeeklyReportPreference | None,
+    include_ai_analysis: bool = True,
+    analysis_date: date | None = None,
 ) -> WeeklyReportDigestResponse:
     preference_response = build_weekly_report_preference_response(
         preference
@@ -1189,11 +1192,13 @@ def build_weekly_report_digest_for_workspace(
                 datasets,
             ),
             learning_scope="dataset",
-        ),
+        ) if include_ai_analysis else None,
         workspace_id,
         relationship_results,
         branding=branding,
         report_definition=weekly_business_template(db, preference, workspace_id),
+        include_ai_analysis=include_ai_analysis,
+        analysis_date=analysis_date,
     )
     digest.cross_dataset_report["decision_report_id"] = preference.business_report_id if preference else None
     attach_report_decisions(
@@ -1204,65 +1209,14 @@ def build_weekly_report_digest_for_workspace(
 
 
 async def build_weekly_report_digest_for_workspace_async(
-    db,
-    user_id: str,
-    workspace_id: str,
-    preference: WeeklyReportPreference | None,
+    db, user_id: str, workspace_id: str, preference: WeeklyReportPreference | None,
     include_ai_analysis: bool = True,
 ) -> WeeklyReportDigestResponse:
-    preference_response = build_weekly_report_preference_response(
-        preference
-    )
-    datasets = get_alert_datasets(
-        db,
-        workspace_id,
-    )
-    preference_response = build_weekly_report_preference_response(
-        preference
-    )
-    branding = get_weekly_report_branding(
-        db,
-        workspace_id,
-    )
-    learning_context = None
-    if include_ai_analysis:
-        learning_context = (
-            build_workspace_decision_learning_context(
-                db,
-                user_id,
-                workspace_id,
-                base_filter=build_weekly_report_learning_filter(
-                    preference_response,
-                    datasets,
-                ),
-                learning_scope="dataset",
-            )
-        )
-    relationship_results = build_weekly_report_relationships(
-        db,
-        preference_response,
-        datasets,
-        workspace_id,
-    )
+    from app.modules.reports.jobs import enqueue_weekly, wait_for_job
 
-    digest = await asyncio.to_thread(
-        build_weekly_report_digest,
-        preference_response,
-        datasets,
-        branding["brand_name"],
-        learning_context,
-        workspace_id,
-        relationship_results,
-        include_ai_analysis,
-        branding,
-        weekly_business_template(db, preference, workspace_id),
-    )
-    digest.cross_dataset_report["decision_report_id"] = preference.business_report_id if preference else None
-    attach_report_decisions(
-        digest.cross_dataset_report, db, workspace_id, {metric.dataset_id for metric in digest.metrics},
-        preference.business_report_id if preference else None,
-    )
-    return digest
+    job = enqueue_weekly(db, user_id, workspace_id, preference, include_ai=include_ai_analysis)
+    value = await wait_for_job(job.id, user_id, workspace_id)
+    return WeeklyReportDigestResponse.model_validate(value)
 
 
 def validate_weekly_report_digest_for_delivery(
@@ -1742,121 +1696,18 @@ async def get_weekly_report_delivery_history(
         db.close()
 
 
-@router.post(
-    "/weekly-report/send",
-    response_model=WeeklyReportDeliveryResponse,
-)
-async def send_weekly_report_now(
-    request: Request,
-):
-    auth_context = get_auth_context(
-        request,
-    )
-    require_weekly_report_manager(
-        auth_context.workspace_role
-    )
+@router.post("/weekly-report/send", response_model=WeeklyReportDeliveryResponse, deprecated=True)
+async def send_weekly_report_now(request: Request):
+    from app.modules.reports.jobs import enqueue_weekly, wait_for_job
 
-    db = SessionLocal()
-
-    try:
-        preference = get_weekly_report_preference_record(
-            db,
-            auth_context.workspace_id,
-        )
-        digest = None
-        try:
-            digest = await build_weekly_report_digest_for_workspace_async(
-                db,
-                auth_context.user_id,
-                auth_context.workspace_id,
-                preference,
-            )
-            validate_weekly_report_digest_for_delivery(
-                digest
-            )
-            delivery_result = await asyncio.to_thread(
-                send_weekly_report_email,
-                digest,
-            )
-            sent_at = get_utc_now()
-            update_weekly_report_delivery_status(
-                preference,
-                "sent",
-                sent_at=sent_at,
-            )
-            db.commit()
-            record_weekly_report_delivery_log(
-                db,
-                auth_context.workspace_id,
-                "sent",
-                delivery_result["recipients"],
-                digest.subject,
-                delivery_result["delivered_count"],
-                len(digest.metrics),
-            )
-
-            return build_weekly_report_delivery_response(
-                auth_context.workspace_id,
-                digest,
-                delivery_result["delivered_count"],
-                delivery_result["recipients"],
-                sent_at,
-            )
-        except HTTPException as error:
-            failure_recipients, delivered_count = (
-                get_weekly_report_delivery_failure_details(
-                    error,
-                    digest,
-                )
-            )
-            update_weekly_report_delivery_status(
-                preference,
-                "failed",
-                str(error.detail),
-            )
-            db.commit()
-            record_weekly_report_delivery_log(
-                db,
-                auth_context.workspace_id,
-                "failed",
-                failure_recipients,
-                digest.subject if digest else "",
-                delivered_count=delivered_count,
-                error=str(error.detail),
-                metrics_count=len(digest.metrics) if digest else 0,
-            )
-            raise error
-        except Exception:
-            logger.exception(
-                "Manual weekly report failed for workspace %s",
-                auth_context.workspace_id,
-            )
-            db.rollback()
-            failure_detail = (
-                "Weekly report could not be generated or sent."
-            )
-            update_weekly_report_delivery_status(
-                preference,
-                "failed",
-                failure_detail,
-            )
-            db.commit()
-            record_weekly_report_delivery_log(
-                db,
-                auth_context.workspace_id,
-                "failed",
-                digest.recipient_emails if digest else [],
-                digest.subject if digest else "",
-                error=failure_detail,
-                metrics_count=len(digest.metrics) if digest else 0,
-            )
-            raise HTTPException(
-                status_code=502,
-                detail=failure_detail,
-            ) from None
-
-    finally:
-        db.close()
+    auth = get_auth_context(request)
+    require_weekly_report_manager(auth.workspace_role)
+    with SessionLocal() as db:
+        preference = get_weekly_report_preference_record(db, auth.workspace_id)
+        job = enqueue_weekly(db, auth.user_id, auth.workspace_id, preference, send=True,
+                             request_key=request.headers.get("Idempotency-Key"))
+        identity = job.id
+    return await wait_for_job(identity, auth.user_id, auth.workspace_id)
 
 
 @router.post(
@@ -1975,178 +1826,40 @@ async def send_weekly_report_test_email(
         db.close()
 
 
-@router.post(
-    "/weekly-report/send-due",
-    response_model=WeeklyReportSchedulerResponse,
-)
-async def send_due_weekly_reports(
-    request: Request,
-):
-    require_alerts_scheduler_secret(
-        request
-    )
+@router.post("/weekly-report/send-due", response_model=WeeklyReportSchedulerResponse)
+def send_due_weekly_reports(request: Request):
+    from app.modules.reports.jobs import enqueue_weekly
 
+    require_alerts_scheduler_secret(request)
     current_time = get_utc_now()
-    delivery_day = get_delivery_day_for_time(
-        current_time
-    )
-    db = SessionLocal()
-
-    try:
-        preferences = (
-            db.query(WeeklyReportPreference)
-            .filter(
-                WeeklyReportPreference.enabled == 1,
-                WeeklyReportPreference.delivery_day == delivery_day,
-            )
-            .all()
-        )
-        results = []
-
+    delivery_day = get_delivery_day_for_time(current_time)
+    results = []
+    with SessionLocal() as db:
+        preferences = db.query(WeeklyReportPreference).filter_by(enabled=1, delivery_day=delivery_day).all()
         for preference in preferences:
-            workspace_id = preference.workspace_id
-            digest = None
-
-            if was_weekly_report_sent_today(
-                preference,
-                current_time,
-            ):
-                results.append({
-                    "workspace_id": workspace_id,
-                    "status": "skipped",
-                    "detail": "Already sent today",
-                })
-                record_weekly_report_delivery_log(
-                    db,
-                    workspace_id,
-                    "skipped",
-                )
+            workspace = preference.workspace_id
+            if was_weekly_report_sent_today(preference, current_time):
+                results.append({"workspace_id": workspace, "status": "skipped", "detail": "Already sent today"})
                 continue
-
             try:
-                digest = await build_weekly_report_digest_for_workspace_async(
-                    db,
-                    workspace_id,
-                    workspace_id,
-                    preference,
-                )
-                validate_weekly_report_digest_for_delivery(
-                    digest
-                )
-                delivery_result = await asyncio.to_thread(
-                    send_weekly_report_email,
-                    digest,
-                )
-                sent_at = get_utc_now()
-                update_weekly_report_delivery_status(
-                    preference,
-                    "sent",
-                    sent_at=sent_at,
-                )
-                db.commit()
-                record_weekly_report_delivery_log(
-                    db,
-                    workspace_id,
-                    "sent",
-                    delivery_result["recipients"],
-                    digest.subject,
-                    delivery_result["delivered_count"],
-                    len(digest.metrics),
-                )
-                results.append({
-                    "workspace_id": workspace_id,
-                    "status": "sent",
-                    "delivered_count": delivery_result[
-                        "delivered_count"
-                    ],
-                })
+                job = enqueue_weekly(db, workspace, workspace, preference, send=True, scheduled=True)
+                status = "queued" if job.status in {"queued", "running"} else "sent" if job.status == "succeeded" else "skipped" if job.status == "cancelled" else "failed"
+                results.append({"workspace_id": workspace, "status": status, "job_id": job.id, "detail": job.error})
             except HTTPException as error:
-                failure_recipients, delivered_count = (
-                    get_weekly_report_delivery_failure_details(
-                        error,
-                        digest,
-                    )
-                )
-                update_weekly_report_delivery_status(
-                    preference,
-                    "failed",
-                    str(error.detail),
-                )
-                db.commit()
-                record_weekly_report_delivery_log(
-                    db,
-                    workspace_id,
-                    "failed",
-                    failure_recipients,
-                    digest.subject if digest else "",
-                    delivered_count=delivered_count,
-                    error=str(error.detail),
-                    metrics_count=len(digest.metrics) if digest else 0,
-                )
-                results.append({
-                    "workspace_id": workspace_id,
-                    "status": "failed",
-                    "delivered_count": delivered_count,
-                    "detail": str(error.detail),
-                })
-            except Exception:
-                logger.exception(
-                    "Scheduled weekly report failed for workspace %s",
-                    workspace_id,
-                )
                 db.rollback()
-                failure_detail = (
-                    "Weekly report could not be generated or sent."
-                )
-                update_weekly_report_delivery_status(
-                    preference,
-                    "failed",
-                    failure_detail,
-                )
-                db.commit()
-                record_weekly_report_delivery_log(
-                    db,
-                    workspace_id,
-                    "failed",
-                    digest.recipient_emails if digest else [],
-                    digest.subject if digest else "",
-                    error=failure_detail,
-                    metrics_count=len(digest.metrics) if digest else 0,
-                )
-                results.append({
-                    "workspace_id": workspace_id,
-                    "status": "failed",
-                    "detail": failure_detail,
-                })
-
-        sent_count = len([
-            result
-            for result in results
-            if result["status"] == "sent"
-        ])
-        skipped_count = len([
-            result
-            for result in results
-            if result["status"] == "skipped"
-        ])
-        failed_count = len([
-            result
-            for result in results
-            if result["status"] == "failed"
-        ])
-
+                results.append({"workspace_id": workspace, "status": "deferred" if error.status_code == 429 else "failed",
+                                "detail": str(error.detail)})
+            except Exception:
+                db.rollback()
+                logger.exception("Weekly report enqueue failed", extra={"workspace_id": workspace})
+                results.append({"workspace_id": workspace, "status": "failed", "detail": "Weekly report could not be queued."})
         return WeeklyReportSchedulerResponse(
-            status="processed",
-            delivery_day=delivery_day,
-            processed_count=len(results),
-            sent_count=sent_count,
-            skipped_count=skipped_count,
-            failed_count=failed_count,
-            results=results,
+            status="processed", delivery_day=delivery_day, processed_count=len(results),
+            sent_count=sum(item["status"] == "sent" for item in results),
+            queued_count=sum(item["status"] == "queued" for item in results),
+            skipped_count=sum(item["status"] in {"skipped", "deferred"} for item in results),
+            failed_count=sum(item["status"] == "failed" for item in results), results=results,
         )
-
-    finally:
-        db.close()
 
 
 @router.put(

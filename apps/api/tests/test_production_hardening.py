@@ -348,6 +348,10 @@ class ProductionQueueTests(unittest.TestCase):
             with self.sessions() as db:
                 db.add(IngestionWorkerHeartbeat(name="ingestion", last_seen_at=utc_now()))
                 db.commit()
+            self.assertFalse(readiness.check_service_readiness()["ready"])
+            with self.sessions() as db:
+                db.add(IngestionWorkerHeartbeat(name="reports-analysis", last_seen_at=utc_now()))
+                db.commit()
             self.assertTrue(readiness.check_service_readiness()["ready"])
             with self.sessions() as db:
                 db.get(IngestionWorkerHeartbeat, "ingestion").last_seen_at = utc_now() - timedelta(seconds=60)

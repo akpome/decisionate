@@ -3,6 +3,7 @@ import {
   notifyWorkspaceAccessChanged,
 } from "@/lib/workspace-context"
 import type { BusinessReport } from "@/features/reports/types"
+import { waitForAnalysis, type AnalysisJob } from "@/features/reports/analysis-jobs"
 import { ApiReadCache } from "@/lib/api-read-cache"
 import {
   dashboardUsesDatasetMetricMapping,
@@ -4050,31 +4051,9 @@ export async function getWeeklyReportDigest(
     includeAIAnalysis?: boolean
   }
 ): Promise<WeeklyReportDigest> {
-  const query =
-    options?.includeAIAnalysis === false
-      ? "?include_ai_analysis=false"
-      : ""
-  const response =
-    await apiFetch(
-      `${API_URL}/alerts/weekly-report/digest${query}`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
-      },
-      apiRequestTimeoutMs,
-      options?.notifyAvailability !== false
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load weekly report preview"
-    )
-  }
-
-  return response.json()
+  const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
+  const job = await request<AnalysisJob>(`/weekly-jobs?report_only=false&include_ai_analysis=${options?.includeAIAnalysis !== false}`, { method: "POST" })
+  return waitForAnalysis<WeeklyReportDigest>(request, job.job_id)
 }
 
 export async function getWeeklyReportDeliveryConfig(
@@ -4999,26 +4978,9 @@ export async function sendWeeklyReportNow(
   userId: string,
   workspaceId?: string
 ): Promise<WeeklyReportDeliveryResult> {
-  const response =
-    await apiFetch(
-      `${API_URL}/alerts/weekly-report/send`,
-      {
-        method: "POST",
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to send weekly KPI email"
-    )
-  }
-
-  return response.json()
+  const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
+  const job = await request<AnalysisJob>("/weekly-jobs?send=true&include_ai_analysis=true", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() } })
+  return waitForAnalysis<WeeklyReportDeliveryResult>(request, job.job_id)
 }
 
 export async function sendWeeklyReportTestEmail(
