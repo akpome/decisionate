@@ -188,7 +188,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             setDatasets(existing => mergeCatalog(existing, selectedDataset.datasets))
             const dataset = selectedDataset.datasets[0]
             const metric = dataset?.metrics.find(item => item.metric_key === params.get("metric")) || dataset?.metrics[0]
-            const dateColumn = dataset?.date_columns[0]
+            const dateColumn = dataset && reportDateColumn(dataset, [], {})
             if (metric && dateColumn) {
               setDefinition(current => editableDefinition({ ...current, metrics: [{ dataset_id: identity, metric_key: metric.metric_key, date_column: dateColumn, aggregation: metric.aggregation }], date_range: dataset.availability[dateColumn] }))
             }

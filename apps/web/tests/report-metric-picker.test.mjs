@@ -37,14 +37,18 @@ test("a single report at the metric limit can switch sources without widening a 
   assert.match(render({ metrics, datasets }), /disabled=""/)
 })
 
-test("search has a visible label and placeholder and metrics appear before date settings", () => {
+test("search and date selection are visibly labelled before any metrics are selected", () => {
   const html = render()
   assert.match(html, /htmlFor="report-metric-search"|for="report-metric-search"/)
   assert.match(html, />Search datasets and metrics</)
   assert.match(html, /placeholder="Dataset or metric name"/)
   assert.doesNotMatch(html.match(/<label[^>]*for="report-metric-search"[^>]*>.*?<\/label>/)?.[0] || "", /<input|<button/)
   assert.equal((html.match(/type="checkbox"/g) || []).length, 2)
-  assert.doesNotMatch(html, /<select|Date field|Selected metrics/)
+  assert.match(html, /for="report-date-column-1"[^>]*>Date column<\/label>/)
+  assert.match(html, /<select id="report-date-column-1"/)
+  assert.match(html, /<option value="date" selected="">date<\/option>/)
+  assert.ok(html.indexOf('<select id="report-date-column-1"') < html.indexOf('type="checkbox"'))
+  assert.doesNotMatch(html, /Selected metrics/)
 })
 
 test("both report sections have identical fixed minimum and maximum heights with internal scrolling", () => {
@@ -86,21 +90,48 @@ test("catalog pagination stays inside the section and outside its scroll area", 
   assert.match(readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8"), /footer=\{nextOffset !== null && <button/)
 })
 
-test("selecting a metric reveals its date and range without a redundant one-option selector", () => {
+test("a single date column remains a preselected selector with its available range", () => {
   const html = render({ metrics: [reference()] })
   assert.match(html, /Selected metrics.*1/)
-  assert.match(html, /Date field/)
+  assert.match(html, /Date column/)
   assert.match(html, /2026-01-01 \/ 2026-03-31/)
-  assert.doesNotMatch(html, /<select/)
-  assert.ok(html.indexOf('type="checkbox"') < html.indexOf("Date field"))
+  assert.equal((html.match(/<select/g) || []).length, 1)
+  assert.match(html, /<option value="date" selected="">date<\/option>/)
 })
 
-test("multiple valid date fields remain configurable after selection", () => {
-  const html = render({ datasets: [dataset({ date_columns: ["date", "paid_date"], availability: {
+test("multiple valid date fields are configurable before and after metric selection", () => {
+  const datasets = [dataset({ date_columns: ["date", "paid_date"], availability: {
     date: { start: "2026-01-01", end: "2026-03-31" }, paid_date: { start: "2026-01-02", end: "2026-04-01" },
-  } })], metrics: [reference()] })
-  assert.match(html, /<select/)
-  assert.match(html, /<option value="paid_date"|<option>paid_date</)
+  } })]
+  for (const metrics of [[], [reference()]]) {
+    const html = render({ datasets, metrics })
+    assert.match(html, /<select/)
+    assert.match(html, /<option value="date" selected="">date<\/option>/)
+    assert.match(html, /<option value="paid_date">paid_date<\/option>/)
+  }
+})
+
+test("date defaults skip unusable columns without offering them for analysis", () => {
+  const html = render({ datasets: [dataset({ date_columns: ["empty_date", "date"] })] })
+  assert.match(html, /<option value="date" selected="">date<\/option>/)
+  assert.doesNotMatch(html, /value="empty_date"/)
+})
+
+test("a date chosen before metric selection is preselected and shows its own range", () => {
+  const html = render({ dateColumns: { 1: "paid_date" }, datasets: [dataset({ date_columns: ["date", "paid_date"], availability: {
+    date: { start: "2026-01-01", end: "2026-03-31" }, paid_date: { start: "2026-01-02", end: "2026-04-01" },
+  } })] })
+  assert.match(html, /<option value="paid_date" selected="">paid_date<\/option>/)
+  assert.match(html, /2026-01-02 \/ 2026-04-01/)
+  assert.doesNotMatch(html, /Selected metrics/)
+})
+
+test("each dataset gets a separately labelled date selector", () => {
+  const html = render({ datasets: [dataset(), dataset({ dataset_id: 2, dataset_label: "Orders.csv", metrics: [metric("orders", 2)] })] })
+  for (const identity of [1, 2]) {
+    assert.match(html, new RegExp(`for="report-date-column-${identity}"[^>]*>Date column<\\/label>`))
+    assert.match(html, new RegExp(`<select id="report-date-column-${identity}"`))
+  }
 })
 
 test("empty selection, unsaved selection and calculation issues are not conflated", () => {
@@ -185,11 +216,14 @@ test("search filters names, connector types and metric names without changing se
   assert.equal(filterReportDatasets(data, " ").length, 2)
 })
 
-test("date defaults prefer usable values and preserve deliberate selections", () => {
+test("date defaults prefer usable values and restored report selections over older overrides", () => {
   const data = dataset({ date_columns: ["empty_date", "date"] })
   assert.equal(reportDateColumn(data, [], {}), "date")
   assert.equal(reportDateColumn(data, [reference("spend", "paid_date")], {}), "paid_date")
-  assert.equal(reportDateColumn(data, [reference()], { 1: "override" }), "override")
+  assert.equal(reportDateColumn(data, [], { 1: "override" }), "override")
+  assert.equal(reportDateColumn(data, [reference()], { 1: "override" }), "date")
+  assert.equal(reportDateColumn(data, [], { 2: "override" }), "date")
+  assert.equal(reportDateColumn(dataset({ date_columns: [], availability: {} }), [], {}), "")
 })
 
 test("report builder uses the picker and still clears calculated results on edits", () => {

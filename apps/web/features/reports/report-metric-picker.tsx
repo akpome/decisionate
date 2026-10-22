@@ -23,7 +23,7 @@ const issueLabels: Record<string, string> = {
 }
 
 export function reportDateColumn(dataset: CatalogDataset, metrics: MetricRef[], overrides: Record<number, string>) {
-  return overrides[dataset.dataset_id] || metrics.find(metric => metric.dataset_id === dataset.dataset_id)?.date_column || dataset.date_columns.find(column => dataset.availability[column]) || dataset.date_columns[0] || ""
+  return metrics.find(metric => metric.dataset_id === dataset.dataset_id)?.date_column || overrides[dataset.dataset_id] || dataset.date_columns.find(column => dataset.availability[column]) || dataset.date_columns[0] || ""
 }
 
 function isReady(dataset: CatalogDataset) {
@@ -84,6 +84,14 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
         return <fieldset key={dataset.dataset_id} className="min-w-0 border-b border-gray-200 py-4">
           <legend className="max-w-full break-words text-sm font-semibold">{dataset.dataset_label}<span className="ml-2 text-xs font-normal text-gray-500">{dataset.connector}</span></legend>
           {pending ? <p className="mt-2 text-sm text-gray-600">{t("Loading metrics...")}</p> : unavailable ? <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><p className="text-amber-800">{t("Dataset temporarily unavailable.")}</p>{onRetry && <button type="button" disabled={loading} onClick={onRetry} className="inline-flex min-h-10 items-center gap-2 font-medium text-blue-700 underline disabled:opacity-50"><RefreshCw size={16} aria-hidden="true" />{t("Retry")}</button>}</div> : <>
+            {dataset.metrics.length > 0 && dates.length > 0 && <div className="mt-3 min-w-0 max-w-sm">
+              <label htmlFor={`report-date-column-${dataset.dataset_id}`} className="block text-xs font-medium text-gray-600">{t("Date column")}</label>
+              <select id={`report-date-column-${dataset.dataset_id}`} className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950" value={dateColumn} onChange={event => onDateColumnChange(dataset, event.target.value)}>
+                {!usableDate && <option value={dateColumn} disabled>{t("Selected date field unavailable.")}</option>}
+                {dates.map(column => <option key={column} value={column}>{column}</option>)}
+              </select>
+              {dataset.availability[dateColumn] && <p className="mt-1 text-xs text-gray-500">{dataset.availability[dateColumn].start} / {dataset.availability[dateColumn].end}</p>}
+            </div>}
             {dataset.metrics.length > 0 ? <div className="mt-2 grid min-w-0 gap-x-4 gap-y-1 sm:grid-cols-2">
               {dataset.metrics.map(metric => {
                 const checked = selected.has(metricIdentity(metric))
@@ -96,11 +104,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
             {datasetIssues.map(issue => <p key={issue.code} className="mt-2 text-sm text-amber-800">{issueText(issue)}</p>)}
             {!usableDate && !datasetIssues.some(issue => ["date_field_missing", "date_values_unavailable"].includes(issue.code)) && <p className="mt-2 text-sm text-amber-800">{t(dates.length ? "Selected date field unavailable." : "No usable date values.")}</p>}
             {metricIssues.length > 0 && <details className="mt-2 text-sm"><summary className="min-h-10 cursor-pointer py-2 font-medium text-gray-600">{t("Unavailable metrics")} ({metricIssues.length})</summary><ul className="space-y-2 border-l-2 border-amber-200 pl-3 text-gray-600">{metricIssues.map(issue => <li key={`${issue.metric_key}:${issue.code}`} className="break-words"><span className="font-medium">{issue.metric_key}</span>: {issueText(issue)}</li>)}</ul></details>}
-            {count > 0 && <div className="mt-3 border-t border-gray-100 pt-3">
-              <p className="mb-2 text-xs font-medium text-blue-800">{t("Selected metrics")}: {count}</p>
-              {dates.length > 1 || dates.length === 1 && !usableDate ? <label className="block max-w-sm text-xs text-gray-600">{t("Date field")}<select className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950" value={dateColumn} onChange={event => onDateColumnChange(dataset, event.target.value)}>{!usableDate && <option value={dateColumn} disabled>{t("Selected date field unavailable.")}</option>}{dates.map(column => <option key={column}>{column}</option>)}</select></label> : dates.length === 1 && <p className="break-words text-xs text-gray-600">{t("Date field")}: <span className="font-medium">{dates[0]}</span></p>}
-              {dataset.availability[dateColumn] && <p className="mt-1 text-xs text-gray-500">{dataset.availability[dateColumn].start} / {dataset.availability[dateColumn].end}</p>}
-            </div>}
+            {count > 0 && <p className="mt-3 border-t border-gray-100 pt-3 text-xs font-medium text-blue-800">{t("Selected metrics")}: {count}</p>}
           </>}
           {!pending && (unavailable || !dataset.metrics.length || !usableDate || metricIssues.length > 0) && <Link href={`/dashboard/datasets/${dataset.dataset_id}`} className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline">{t("Review dataset")}</Link>}
         </fieldset>
