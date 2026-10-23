@@ -273,8 +273,12 @@ from app.modules.datasets.services.retention import (
     has_expired_connector_month,
 )
 from app.modules.datasets.services.connector_history import (
-    HISTORY_POLICY_VERSION, HISTORY_VERSION_KEY, HISTORY_NEXT_END_KEY,
+    HISTORY_POLICY_VERSION, HISTORY_VERSION_KEY, HISTORY_NEXT_END_KEY, HISTORY_START_KEY,
     prepare_history, next_history_chunk, advance_history,
+)
+from app.modules.datasets.services.connector_range_sync import (
+    RANGE_SYNC_KEY, RANGE_SYNC_JOB_TYPE, MAX_UNCHUNKED_SYNC_DAYS,
+    range_sync_pending, new_range_sync, next_range_sync_chunk, advance_range_sync,
 )
 from app.modules.datasets.services.auth import (
     get_user_id,
@@ -295,9 +299,6 @@ logger = logging.getLogger(__name__)
 
 INITIAL_CONNECTOR_SYNC_DAYS = 60
 INITIAL_CONNECTOR_BACKFILL_MONTHS = 36
-SHOPIFY_INITIAL_SYNC_DAYS_DEFAULT = 60
-SHOPIFY_INITIAL_BACKFILL_ENABLED_DEFAULT = False
-SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS_DEFAULT = 60
 INITIAL_CONNECTOR_SYNC_COMPLETED_KEY = "_initial_connector_sync_completed"
 INITIAL_CONNECTOR_SYNC_STATUS_KEY = "_initial_connector_sync_status"
 INITIAL_CONNECTOR_SYNC_MESSAGE_KEY = "_initial_connector_sync_message"
@@ -333,81 +334,32 @@ CONNECTOR_INCREMENTAL_LOOKBACK_DAYS_BY_SOURCE = {
 }
 
 
-def _read_boolean_environment_value(name: str, default: bool) -> bool:
-    raw_value = os.getenv(name)
-    if raw_value is None or not str(raw_value).strip():
-        return default
-    return str(raw_value).strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-
-
-def _read_positive_integer_environment_value(
-    name: str,
-    default: int | None,
-) -> int | None:
-    raw_value = os.getenv(name)
-    if raw_value is None or not str(raw_value).strip():
-        return default
-    try:
-        value = int(str(raw_value).strip())
-    except (TypeError, ValueError):
-        return default
-    return value if value > 0 else None
-
-
 def get_initial_connector_sync_days(source_type: str | None = None) -> int:
-    if source_type == "shopify":
-        return (
-            _read_positive_integer_environment_value(
-                "SHOPIFY_INITIAL_SYNC_DAYS",
-                SHOPIFY_INITIAL_SYNC_DAYS_DEFAULT,
-            )
-            or SHOPIFY_INITIAL_SYNC_DAYS_DEFAULT
-        )
     return INITIAL_CONNECTOR_SYNC_DAYS
 
 
 def initial_connector_backfill_enabled(source_type: str | None = None) -> bool:
-    if source_type == "shopify":
-        return _read_boolean_environment_value(
-            "SHOPIFY_INITIAL_BACKFILL_ENABLED",
-            SHOPIFY_INITIAL_BACKFILL_ENABLED_DEFAULT,
-        )
     return True
 
 
 def get_initial_connector_backfill_days(
     source_type: str | None = None,
 ) -> int | None:
-    if source_type != "shopify":
-        return None
-    return _read_positive_integer_environment_value("SHOPIFY_INITIAL_BACKFILL_DAYS", None)
+    return None
 
 
 def get_initial_connector_backfill_months(
     source_type: str | None = None,
-) -> int | None:
-    if source_type == "shopify":
-        if get_initial_connector_backfill_days(source_type):
-            return None
-        return _read_positive_integer_environment_value("SHOPIFY_INITIAL_BACKFILL_MONTHS", INITIAL_CONNECTOR_BACKFILL_MONTHS)
+) -> int:
     return INITIAL_CONNECTOR_BACKFILL_MONTHS
 
 
 def get_connector_max_custom_date_range_days(
     source_type: str | None = None,
 ) -> int | None:
-    if source_type != "shopify":
-        return None
-    configured_days = _read_positive_integer_environment_value(
-        "SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS",
-        SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS_DEFAULT,
-    )
-    return configured_days
+    return None
+
+
 CONNECTOR_DEDUP_KEYS = {
     "hubspot": ["record_id"],
     "stripe": ["charge_id"],
@@ -2041,6 +1993,7 @@ def build_source_connection_response(
     analysis_job=None,
     ingestion_children=None,
 ):
+    retention_end_date = date.today()
     source_type = normalize_dataset_source_type(
         connection.source_type
     )
@@ -2247,6 +2200,8 @@ def build_source_connection_response(
             connection
         ).isoformat(),
         "initial_sync_days": get_initial_connector_sync_days(source_type),
+        "retention_start_date": connector_retention_cutoff_date(retention_end_date).isoformat(),
+        "retention_end_date": retention_end_date.isoformat(),
         "initial_backfill_days": get_initial_connector_backfill_days(
             source_type
         ),
@@ -3255,6 +3210,23 @@ def enqueue_connector_ingestion_job(
 
     ensure_workspace_queue_capacity(db, connection.workspace_id or connection.user_id)
 
+    if job_type not in {
+        INITIAL_CONNECTOR_INITIAL_JOB_TYPE, INITIAL_CONNECTOR_BACKFILL_JOB_TYPE,
+        RANGE_SYNC_JOB_TYPE,
+    }:
+        start, end = get_incremental_sync_window(connection, payload)
+        start = max(start, connector_retention_cutoff_date())
+        end = min(end, date.today())
+        if (end - start).days + 1 > MAX_UNCHUNKED_SYNC_DAYS:
+            plan = prepare_connector_range_sync(connection, payload, start, end)
+            start, end = next_range_sync_chunk(plan)
+            payload = payload.model_copy(update={"advanced_date_range": True, "start_date": start, "end_date": end})
+            job_type = RANGE_SYNC_JOB_TYPE
+        elif payload.advanced_date_range:
+            config = parse_schedule_config(connection.connection_config)
+            if config.pop(RANGE_SYNC_KEY, None) is not None:
+                connection.connection_config = json.dumps(config, sort_keys=True)
+
     configured_resource_types = []
     if payload.resource_type is None:
         configured_resource_types = get_configured_connector_resource_types(
@@ -3307,6 +3279,139 @@ def enqueue_connector_ingestion_job(
     if launch:
         launch_connector_ingestion_job(background_tasks, parent.id)
     return parent
+
+
+def prepare_connector_range_sync(connection, payload, start, end):
+    config = parse_schedule_config(connection.connection_config)
+    plan = config.get(RANGE_SYNC_KEY)
+    reuse = (
+        range_sync_pending(config)
+        and plan.get("start_date") == start.isoformat()
+        and plan.get("end_date") == end.isoformat()
+        and plan.get("resource_type") == payload.resource_type
+    )
+    if reuse:
+        try:
+            next_range_sync_chunk(plan)
+        except (KeyError, TypeError, ValueError):
+            reuse = False
+    if not reuse:
+        plan = new_range_sync(
+            start, end, payload.resource_type,
+            connection.last_synced_at.isoformat() if connection.last_synced_at else None,
+            utc_now().isoformat(),
+        )
+    config[RANGE_SYNC_KEY] = plan
+    connection.connection_config = json.dumps(config, sort_keys=True)
+    return plan
+
+
+def bound_connector_range_job(db, connection, job, payload):
+    """Bound both new range jobs and large requests queued by older versions."""
+    if job.job_type in {INITIAL_CONNECTOR_INITIAL_JOB_TYPE, INITIAL_CONNECTOR_BACKFILL_JOB_TYPE}:
+        return payload
+    if job.job_type != RANGE_SYNC_JOB_TYPE:
+        start, end = get_incremental_sync_window(connection, payload)
+        start = max(start, connector_retention_cutoff_date())
+        end = min(end, date.today())
+        if end < start:
+            raise ConnectorNoData("No retained dates remain in the selected import range.")
+        if (end - start).days + 1 <= MAX_UNCHUNKED_SYNC_DAYS:
+            if payload.start_date is not None or payload.end_date is not None:
+                return payload.model_copy(update={"start_date": start, "end_date": end})
+            return payload
+        prepare_connector_range_sync(connection, payload, start, end)
+        job.job_type = RANGE_SYNC_JOB_TYPE
+    plan = parse_schedule_config(connection.connection_config).get(RANGE_SYNC_KEY)
+    if not isinstance(plan, dict):
+        raise ConnectorUnavailable("The date-range import checkpoint is missing. Submit the range again.")
+    chunk = next_range_sync_chunk(plan)
+    if chunk is None:
+        raise ConnectorNoData("No retained dates remain in the selected import range.")
+    start, end = chunk
+    payload = payload.model_copy(update={
+        "advanced_date_range": True, "start_date": start, "end_date": end,
+        "resource_type": plan.get("resource_type"),
+    })
+    job.request_payload = serialize_sync_payload(payload)
+    for child in db.query(DataIngestionJob).filter_by(parent_job_id=job.id).all():
+        child.request_payload = serialize_sync_payload(payload.model_copy(update={"resource_type": child.object_type}))
+    db.commit()
+    return payload
+
+
+def restore_connector_range_watermark(connection, *, failed=False):
+    config = parse_schedule_config(connection.connection_config)
+    plan = config.get(RANGE_SYNC_KEY)
+    if not isinstance(plan, dict):
+        return
+    if failed:
+        plan["status"] = "failed"
+        connection.connection_config = json.dumps(config, sort_keys=True)
+    value = plan.get("completed_watermark" if plan.get("status") == "complete" else "recent_synced_at")
+    try:
+        connection.last_synced_at = datetime.fromisoformat(value) if value else None
+    except (TypeError, ValueError):
+        # Unknown coverage must not become a fabricated recent-sync watermark.
+        connection.last_synced_at = None
+
+
+def queue_connector_range_sync(background_tasks, connection_id):
+    with SessionLocal() as db:
+        connection = db.get(DataSourceConnection, connection_id)
+        if not connection:
+            return False
+        lock_workspace_queue(db, connection.workspace_id or connection.user_id)
+        lock_connection_for_enqueue(db, connection)
+        db.refresh(connection)
+        config = parse_schedule_config(connection.connection_config)
+        if not range_sync_pending(config) or get_active_ingestion_job(db, connection.id):
+            return False
+        plan = config[RANGE_SYNC_KEY]
+        try:
+            chunk = next_range_sync_chunk(plan)
+        except (KeyError, TypeError, ValueError):
+            plan["status"] = "failed"
+            connection.connection_config = json.dumps(config, sort_keys=True)
+            db.commit()
+            logger.warning("Invalid connector date-range checkpoint; resubmit the selected range", extra={"connection_id": connection.id})
+            return False
+        if chunk is None:
+            plan["status"] = "complete"
+            connection.connection_config = json.dumps(config, sort_keys=True)
+            restore_connector_range_watermark(connection)
+            db.commit()
+            return False
+        start, end = chunk
+        job = enqueue_connector_ingestion_job(
+            db, connection, DataSourceConnectionSync(
+                advanced_date_range=True, start_date=start, end_date=end,
+                resource_type=plan.get("resource_type"),
+            ), None, job_type=RANGE_SYNC_JOB_TYPE, launch=False,
+        )
+        launch_connector_ingestion_job(background_tasks, job.id)
+        return True
+
+
+def complete_connector_range_chunk(db, connection, payload):
+    lock_workspace_queue(db, connection.workspace_id or connection.user_id)
+    lock_connection_for_enqueue(db, connection)
+    db.refresh(connection)
+    config = parse_schedule_config(connection.connection_config)
+    plan = config[RANGE_SYNC_KEY]
+    if next_range_sync_chunk(plan) is not None:
+        plan = advance_range_sync(plan, payload.start_date, payload.end_date)
+    else:
+        plan = {**plan, "status": "complete"}
+    config[RANGE_SYNC_KEY] = plan
+    connection.connection_config = json.dumps(config, sort_keys=True)
+    restore_connector_range_watermark(connection)
+    db.commit()
+    if plan["status"] != "complete":
+        try:
+            queue_connector_range_sync(None, connection.id)
+        except WorkspaceIngestionQueueFull:
+            logger.info("Date-range import deferred until workspace queue capacity is available", extra={"connection_id": connection.id})
 
 
 def enqueue_file_ingestion_job(
@@ -5867,14 +5972,9 @@ def get_initial_connector_backfill_window(
         days=get_initial_connector_sync_days(source_type) - 1
     )
     backfill_end_date = initial_start_date - timedelta(days=1)
-    backfill_months = get_initial_connector_backfill_months(source_type)
-    if backfill_months is not None:
-        backfill_start_date = subtract_calendar_months(end_date, backfill_months)
-    else:
-        backfill_days = get_initial_connector_backfill_days(source_type)
-        backfill_start_date = backfill_end_date - timedelta(
-            days=(backfill_days or 1) - 1
-        )
+    backfill_start_date = subtract_calendar_months(
+        end_date, get_initial_connector_backfill_months(source_type)
+    )
     return max(backfill_start_date, connector_retention_cutoff_date(end_date)), backfill_end_date
 
 
@@ -5904,34 +6004,24 @@ def initial_connector_backfill_is_required(connection) -> bool:
     if connection.last_synced_at is None and HISTORY_NEXT_END_KEY not in connection_config:
         return False
     try:
-        return (connection_config.get(HISTORY_VERSION_KEY) != HISTORY_POLICY_VERSION
-                or get_initial_connector_sync_status(connection) in {INITIAL_CONNECTOR_SYNC_FAILED, INITIAL_CONNECTOR_SYNC_BACKFILL}
-                or HISTORY_NEXT_END_KEY in connection_config and next_history_chunk(connection_config) is not None)
-    except (KeyError, ValueError):
+        return (
+            connection_config.get(HISTORY_VERSION_KEY) != HISTORY_POLICY_VERSION
+            or get_initial_connector_sync_status(connection) in {
+                INITIAL_CONNECTOR_SYNC_FAILED, INITIAL_CONNECTOR_SYNC_BACKFILL,
+            }
+            or date.fromisoformat(connection_config[HISTORY_START_KEY])
+            > get_initial_connector_backfill_window(source_type=connection.source_type)[0]
+            or HISTORY_NEXT_END_KEY in connection_config
+            and next_history_chunk(connection_config) is not None
+        )
+    except (KeyError, TypeError, ValueError):
         return True
 
 
 def get_initial_connector_earliest_date(connection) -> date:
-    source_type = getattr(connection, "source_type", None)
-    if not initial_connector_backfill_enabled(source_type):
-        return date.today() - timedelta(
-            days=get_initial_connector_sync_days(source_type) - 1
-        )
-    connection_config = parse_schedule_config(
-        getattr(connection, "connection_config", None)
-    )
-    configured_start = connection_config.get(
-        "_initial_connector_backfill_start_date"
-    )
-    try:
-        if connection_config.get(HISTORY_VERSION_KEY) == HISTORY_POLICY_VERSION:
-            return max(date.fromisoformat(str(configured_start)), connector_retention_cutoff_date())
-        return get_initial_connector_backfill_window(source_type=source_type)[0]
-    except (TypeError, ValueError):
-        start_date, _end_date = get_initial_connector_backfill_window(
-            source_type=source_type,
-        )
-        return start_date
+    return get_initial_connector_backfill_window(
+        source_type=getattr(connection, "source_type", None)
+    )[0]
 
 
 def get_incremental_sync_window(
@@ -5997,21 +6087,7 @@ def validate_advanced_sync_window(
             status_code=422,
             detail="Advanced sync requires both a start date and an end date",
         )
-    max_custom_days = get_connector_max_custom_date_range_days(source_type)
-    if max_custom_days is not None:
-        earliest_date = max(
-            earliest_date,
-            today - timedelta(days=max_custom_days - 1),
-        )
     if start_date < earliest_date:
-        if max_custom_days is not None:
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    f"{source_type or 'Connector'} advanced sync cannot "
-                    f"cover more than {max_custom_days} days"
-                ),
-            )
         raise HTTPException(
             status_code=422,
             detail=f"Advanced sync cannot start before {earliest_date.isoformat()}",
@@ -8767,6 +8843,8 @@ def _persist_ingestion_job_failure(
     )
     if connection and mark_authorization_failure:
         mark_connection_authorization_failed(connection, error)
+    if connection and job.job_type == RANGE_SYNC_JOB_TYPE:
+        restore_connector_range_watermark(connection, failed=True)
     if connection and job.job_type in {
         INITIAL_CONNECTOR_INITIAL_JOB_TYPE,
         INITIAL_CONNECTOR_BACKFILL_JOB_TYPE,
@@ -8973,6 +9051,7 @@ def run_connector_parent_ingestion_job(job_id: int):
     connection = None
     initial_sync_required = False
     initial_backfill_job = False
+    range_sync_job = False
     try:
         job = (
             db.query(DataIngestionJob)
@@ -9015,6 +9094,9 @@ def run_connector_parent_ingestion_job(job_id: int):
                 "Connector ingestion request is invalid"
             ) from error
         payload = DataSourceConnectionSync(**payload_data)
+        range_sync_job = job.job_type == RANGE_SYNC_JOB_TYPE
+        payload = bound_connector_range_job(db, connection, job, payload)
+        range_sync_job = job.job_type == RANGE_SYNC_JOB_TYPE
         initial_import_job = (
             job.job_type == INITIAL_CONNECTOR_INITIAL_JOB_TYPE
         )
@@ -9099,6 +9181,8 @@ def run_connector_parent_ingestion_job(job_id: int):
                     for child in failed_children
                 )
             )
+            if range_sync_job:
+                restore_connector_range_watermark(connection, failed=True)
             if initial_sync_required or initial_backfill_job:
                 if initial_backfill_job:
                     recent = parse_schedule_config(connection.connection_config).get("_initial_connector_recent_synced_at")
@@ -9130,7 +9214,9 @@ def run_connector_parent_ingestion_job(job_id: int):
             status,
             result=result,
         )
-        if initial_backfill_job:
+        if range_sync_job:
+            complete_connector_range_chunk(db, connection, payload)
+        elif initial_backfill_job:
             complete_connector_backfill_chunk(db, connection, payload)
         elif initial_sync_required:
             if initial_connector_backfill_enabled(connection.source_type):
@@ -9143,13 +9229,16 @@ def run_connector_parent_ingestion_job(job_id: int):
                 db.commit()
                 queue_connector_initial_analysis(None, connection.id)
     except ConnectorNoData as error:
-        if connection and initial_backfill_job:
+        if connection and (initial_backfill_job or range_sync_job):
             for child in db.query(DataIngestionJob).filter_by(parent_job_id=job_id).all():
                 child.status = INGESTION_JOB_NO_DATA
                 child.completed_at = utc_now()
             _set_ingestion_job_result(db, job_id, INGESTION_JOB_NO_DATA,
                                       result={"connection_id": connection.id, "datasets": [], "message": str(error)})
-            complete_connector_backfill_chunk(db, connection, payload)
+            if range_sync_job:
+                complete_connector_range_chunk(db, connection, payload)
+            else:
+                complete_connector_backfill_chunk(db, connection, payload)
         else:
             _persist_ingestion_job_failure(db, job_id, error)
     except (
@@ -9187,6 +9276,7 @@ def run_connector_ingestion_job(job_id: int):
     connection = None
     initial_sync_required = False
     initial_backfill_job = False
+    range_sync_job = False
     try:
         job = (
             db.query(DataIngestionJob)
@@ -9229,6 +9319,9 @@ def run_connector_ingestion_job(job_id: int):
                 "Connector ingestion request is invalid"
             ) from error
         payload = DataSourceConnectionSync(**payload_data)
+        range_sync_job = job.job_type == RANGE_SYNC_JOB_TYPE
+        payload = bound_connector_range_job(db, connection, job, payload)
+        range_sync_job = job.job_type == RANGE_SYNC_JOB_TYPE
         initial_import_job = (
             job.job_type == INITIAL_CONNECTOR_INITIAL_JOB_TYPE
         )
@@ -9302,7 +9395,10 @@ def run_connector_ingestion_job(job_id: int):
             sync_results,
         )
 
-        if initial_backfill_job:
+        if range_sync_job:
+            _set_ingestion_job_result(db, job_id, INGESTION_JOB_SUCCEEDED, result=result)
+            complete_connector_range_chunk(db, connection, payload)
+        elif initial_backfill_job:
             _set_ingestion_job_result(
                 db,
                 job_id,
@@ -9337,7 +9433,13 @@ def run_connector_ingestion_job(job_id: int):
                 result=result,
             )
     except ConnectorNoData as error:
-        if initial_sync_required and connection:
+        if range_sync_job and connection:
+            db.rollback()
+            _set_ingestion_job_result(db, job_id, INGESTION_JOB_NO_DATA, result={
+                "connection_id": connection.id, "datasets": [], "message": str(error),
+            })
+            complete_connector_range_chunk(db, connection, payload)
+        elif initial_sync_required and connection:
             db.rollback()
             _set_ingestion_job_result(
                 db,
@@ -9879,17 +9981,18 @@ def prepare_connector_history(connection):
     if config.get(HISTORY_VERSION_KEY) == HISTORY_POLICY_VERSION:
         try:
             next_history_chunk(config)
-        except (KeyError, ValueError):
+        except (KeyError, TypeError, ValueError):
             config.pop(HISTORY_VERSION_KEY, None)
             config.pop("_initial_connector_backfill_start_date", None)
-    if config.get(HISTORY_VERSION_KEY) != HISTORY_POLICY_VERSION:
-        start, end = get_initial_connector_backfill_window(source_type=connection.source_type)
-        config = prepare_history(config, start, end,
-                                 completed=get_initial_connector_sync_status(connection) == INITIAL_CONNECTOR_SYNC_COMPLETE)
-        config["_initial_connector_recent_synced_at"] = connection.last_synced_at.isoformat() if connection.last_synced_at else None
-        config.pop(CONNECTOR_ANALYSIS_STATUS_KEY, None)
-        connection.connection_config = json.dumps(config, sort_keys=True)
-    return config
+    start, end = get_initial_connector_backfill_window(source_type=connection.source_type)
+    completed = get_initial_connector_sync_status(connection) == INITIAL_CONNECTOR_SYNC_COMPLETE
+    prepared = prepare_history(config, start, end, completed=completed)
+    if prepared != config:
+        if completed or config.get(HISTORY_VERSION_KEY) != HISTORY_POLICY_VERSION:
+            prepared["_initial_connector_recent_synced_at"] = connection.last_synced_at.isoformat() if connection.last_synced_at else None
+        prepared.pop(CONNECTOR_ANALYSIS_STATUS_KEY, None)
+        connection.connection_config = json.dumps(prepared, sort_keys=True)
+    return prepared
 
 
 def bound_connector_backfill_job(db, connection, job):
@@ -10276,6 +10379,13 @@ def queue_due_source_connection(
         )
     ):
         return None
+
+    if range_sync_pending(parse_schedule_config(connection.connection_config)):
+        active_job = get_active_ingestion_job(db, connection.id)
+        if active_job:
+            return {"connection_id": connection.id, "status": "ingestion_in_progress", "job_id": active_job.id}
+        if queue_connector_range_sync(background_tasks, connection.id):
+            return {"connection_id": connection.id, "status": "ingestion_queued"}
 
     if initial_connector_backfill_is_required(connection):
         if queue_connector_initial_backfill(background_tasks, connection.id):

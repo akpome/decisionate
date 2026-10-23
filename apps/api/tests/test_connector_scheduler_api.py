@@ -1,7 +1,7 @@
 import json
 import types
 import unittest
-from datetime import timedelta
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from fastapi import BackgroundTasks, HTTPException, Request
@@ -136,6 +136,8 @@ class ConnectorSchedulerQueueTests(unittest.TestCase):
                 last_synced_at=utc_now() - timedelta(days=2),
                 connection_config=json.dumps({
                     routes.HISTORY_VERSION_KEY: routes.HISTORY_POLICY_VERSION,
+                    routes.HISTORY_START_KEY: routes.connector_retention_cutoff_date().isoformat(),
+                    routes.HISTORY_NEXT_END_KEY: (routes.connector_retention_cutoff_date() - timedelta(days=1)).isoformat(),
                     routes.INITIAL_CONNECTOR_SYNC_STATUS_KEY: routes.INITIAL_CONNECTOR_SYNC_COMPLETE,
                     routes.CONNECTOR_ANALYSIS_STATUS_KEY: routes.CONNECTOR_ANALYSIS_COMPLETE,
                     **config,
@@ -228,6 +230,24 @@ class ConnectorSchedulerQueueTests(unittest.TestCase):
         self.assertEqual(result["results"][1]["status"], "initial_backfill_queued")
         with self.sessions() as db:
             self.assertEqual(db.query(DataIngestionJob).filter_by(workspace_id="workspace-b").count(), 1)
+
+    def test_completed_shopify_recent_import_is_extended_by_the_scheduler(self):
+        identity = self.add_connection(_sync_enabled=False)
+        with self.sessions() as db:
+            connection = db.get(DataSourceConnection, identity)
+            connection.source_type = "shopify"
+            connection.connection_config = json.dumps({
+                routes.INITIAL_CONNECTOR_SYNC_STATUS_KEY: routes.INITIAL_CONNECTOR_SYNC_COMPLETE,
+                "_sync_enabled": False,
+            })
+            db.commit()
+        result = self.schedule()
+        self.assertEqual(result["results"][0]["status"], "initial_backfill_queued")
+        with self.sessions() as db:
+            job = db.query(DataIngestionJob).filter_by(connection_id=identity).one()
+            self.assertEqual(job.job_type, routes.INITIAL_CONNECTOR_BACKFILL_JOB_TYPE)
+            payload = json.loads(job.request_payload)
+            self.assertLessEqual((date.fromisoformat(payload["end_date"]) - date.fromisoformat(payload["start_date"])).days + 1, 30)
 
     def test_manual_enqueue_still_rejects_a_full_workspace(self):
         connection_id = self.add_connection()

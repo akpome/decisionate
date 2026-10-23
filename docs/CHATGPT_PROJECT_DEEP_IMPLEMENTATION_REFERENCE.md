@@ -470,7 +470,7 @@ Where one discovered account is eligible, it can be selected automatically. Wher
 
 Sage country codes represented in the source are CA, US, DE, ES, FR, GB, IE. These refer to the implemented Sage Cloud Accounting integration, not all products sold under the Sage brand.
 
-Shopify's read_all_orders is conditional on explicit feature support and provider approval; read_orders alone must not be presented as unrestricted historical access.
+Shopify follows the shared initial 60-day import and chunked three-year history policy. Older orders require provider-approved and granted read_all_orders access; read_orders alone must not be presented as unrestricted historical access.
 
 Zoho duplicate/previously consumed code recovery checks existing connected credentials before returning success. It is not permission to accept every failed exchange as a valid connection.
 

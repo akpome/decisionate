@@ -23,6 +23,9 @@ def backfill_chunk_days():
 def prepare_history(config, start, end, *, completed=False):
     config = dict(config)
     if config.get(HISTORY_VERSION_KEY) == HISTORY_POLICY_VERSION:
+        # Extend shorter saved plans without replaying their completed chunks.
+        if date.fromisoformat(config[HISTORY_START_KEY]) > start:
+            config[HISTORY_START_KEY] = start.isoformat()
         return config
     previous_start = config.get(HISTORY_START_KEY)
     if completed and previous_start:

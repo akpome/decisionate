@@ -700,6 +700,8 @@ export type DataSourceConnection = {
   initial_backfill_days?: number | null
   initial_backfill_months?: number | null
   advanced_sync_max_days?: number | null
+  retention_start_date?: string | null
+  retention_end_date?: string | null
   analysis_status?:
     | "pending"
     | "running"

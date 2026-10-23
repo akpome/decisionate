@@ -29,6 +29,7 @@ from app.db.models import DataSourceConnection
 from app.db.models import OAuthCredential
 from app.modules.oauth.service import (
     OAUTH_PROVIDERS,
+    SHOPIFY_ALL_ORDERS_SCOPE,
     OAuthProviderUnavailable,
     OAuthTokenExchangeError,
     decrypt_token,
@@ -2596,6 +2597,21 @@ def load_shopify_dataframe(
             "SHOPIFY_API_VERSION is required for the Shopify connector"
         )
     graphql_url = shopify_graphql_url(shop_domain, api_version)
+    if start_date is None or start_date < date.today() - timedelta(days=59):
+        credential = db.query(OAuthCredential).filter(
+            OAuthCredential.connection_id == connection.id,
+            OAuthCredential.source_type == "shopify",
+        ).first()
+        granted_scopes = (
+            set(str(credential.scope or "").replace(",", " ").split())
+            if credential else set()
+        )
+        if SHOPIFY_ALL_ORDERS_SCOPE not in granted_scopes:
+            raise ConnectorUnavailable(
+                "Shopify orders older than 60 days require approved "
+                "read_all_orders access. Configure the approved all-orders "
+                "OAuth scope, reconnect Shopify, and retry the historical import."
+            )
     order_query = shopify_order_query(start_date, end_date)
     rows = []
     complete_document_items = True

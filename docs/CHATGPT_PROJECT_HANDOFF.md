@@ -1103,7 +1103,7 @@ The complete commit index below covers the whole reachable history, including wo
 - Sage regional/account/business selection, token recovery, full attributes, deduplication.
 - Lightspeed cursor pagination, token-refresh serialization, incomplete-sale handling, and line items.
 - Advanced bounded sync dates and recovery controls.
-- Shopify history limited to actual standard access window.
+- Shopify uses the shared chunked three-year history policy; older orders require approved and granted all-orders access.
 - Billing price administration and persisted top-up credits.
 - Client invitation authorization and admin performance bounds.
 

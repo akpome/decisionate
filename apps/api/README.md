@@ -356,18 +356,34 @@ Google Business Profile imports accessible locations and daily profile
 performance metrics from Google Search and Maps. Configure the OAuth settings,
 enable the Business Profile Information and Performance APIs in Google Cloud,
 and request Google Business Profile API access if the project has zero quota.
+Connector recovery dates span the retained three-calendar-year window. A manual
+or scheduled import covering more than 90 inclusive days runs newest-first in
+durable chunks, using `CONNECTOR_BACKFILL_CHUNK_DAYS` (default 30, maximum 30).
+Only one chunk per connection is queued at a time, and each continuation joins
+the end of the worker queue. Successful and legitimately empty chunks save
+progress; failures retry the current window without skipping dates. All objects
+in a multi-object connection must finish a chunk before it advances. Historical
+recovery does not move the recent incremental-sync watermark forward.
+
 Shopify imports order-level sales and line items through the versioned GraphQL Admin API.
 Configure `SHOPIFY_API_VERSION` and either
 `SHOPIFY_GRAPHQL_API_URL_TEMPLATE` or the compatible
 `SHOPIFY_API_BASE_URL_TEMPLATE`. The adapter requests only order and line-item fields,
-does not request customer email or address fields, and defaults to a 60-day initial
-sync with no historical backfill. Manual Shopify date-range syncs are limited to
-60 days. These windows remain configurable through
-`SHOPIFY_INITIAL_SYNC_DAYS`, `SHOPIFY_INITIAL_BACKFILL_ENABLED`,
-`SHOPIFY_INITIAL_BACKFILL_DAYS`, and `SHOPIFY_INITIAL_BACKFILL_MONTHS`.
-The default OAuth request uses `read_orders` only, so all-orders access and its
-associated Shopify review can be enabled later with
-`SHOPIFY_REQUIRE_ALL_ORDERS_ACCESS=true`.
+does not request customer email or address fields, and uses the same history
+policy as the other connectors: a 60-day initial import followed by newest-first
+background chunks covering three total calendar years, with rolling three-year
+retention. `CONNECTOR_BACKFILL_CHUNK_DAYS` bounds each background chunk to 1-30
+days (default 30). Manual recovery can cover the retained three-year window;
+there is no separate Shopify date-range cap. Existing shorter saved history
+plans extend without discarding their completed-chunk checkpoint.
+Shopify still requires approval and a granted `read_all_orders` scope alongside
+`read_orders` for orders older than 60 days. Once Shopify approves that access,
+set `SHOPIFY_REQUIRE_ALL_ORDERS_ACCESS=true`, include both `read_orders` and
+`read_all_orders` in `SHOPIFY_OAUTH_SCOPES`, and reconnect so the token actually
+grants them. Historical imports without that grant fail with an actionable error
+and retain their checkpoint; they are not recorded as empty completed history.
+The initial recent import remains available with `read_orders` alone.
+See [Shopify access scopes](https://shopify.dev/docs/api/usage/access-scopes).
 Square imports order-level sales from the selected location and requires the
 `ORDERS_READ` OAuth permission. To connect WooCommerce, the workspace owner
 enters the client's HTTPS store URL, selects Connect with OAuth, and the client

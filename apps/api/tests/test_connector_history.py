@@ -51,6 +51,21 @@ class ConnectorHistoryPolicyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             history.advance_history(updated, today, today)
 
+    def test_short_current_plan_extends_without_replaying_completed_chunks(self):
+        today = date.today()
+        old_start = today - timedelta(days=90)
+        config = history.prepare_history({}, old_start, today - timedelta(days=60))
+        config = history.advance_history(config, *history.next_history_chunk(config))
+        for completed in [False, True]:
+            with self.subTest(completed=completed):
+                extended = history.prepare_history(
+                    config, retention.connector_retention_cutoff_date(today), today - timedelta(days=60),
+                    completed=completed,
+                )
+                self.assertEqual(extended[history.HISTORY_START_KEY], retention.connector_retention_cutoff_date(today).isoformat())
+                self.assertEqual(extended[history.HISTORY_NEXT_END_KEY], config[history.HISTORY_NEXT_END_KEY])
+                self.assertEqual(extended[history.HISTORY_END_KEY], config[history.HISTORY_END_KEY])
+
     def test_aged_backfills_never_request_deleted_dates(self):
         config = history.prepare_history({}, date(2020, 1, 1), date(2020, 2, 1))
         self.assertIsNone(history.next_history_chunk(config, as_of=date(2026, 10, 22)))
@@ -112,6 +127,70 @@ class ConnectorHistoryQueueTests(unittest.TestCase):
         self.assertEqual(before[history.HISTORY_NEXT_END_KEY], after[history.HISTORY_NEXT_END_KEY])
         self.assertTrue(routes.queue_connector_initial_backfill(None, self.identity))
         self.assertEqual(self.read()[1][-1][2], jobs[0][2])
+
+    def test_shopify_previously_completed_recent_import_queues_shared_backfill(self):
+        with self.sessions() as db:
+            connection = db.get(DataSourceConnection, self.identity)
+            connection.source_type = "shopify"
+            connection.connection_config = json.dumps({routes.INITIAL_CONNECTOR_SYNC_STATUS_KEY: "complete"})
+            db.commit()
+            self.assertTrue(routes.initial_connector_backfill_is_required(connection))
+        self.assertTrue(routes.queue_connector_initial_backfill(None, self.identity))
+        config, jobs, watermark = self.read()
+        self.assertEqual(config[history.HISTORY_START_KEY], retention.connector_retention_cutoff_date().isoformat())
+        self.assertEqual(config[routes.INITIAL_CONNECTOR_SYNC_STATUS_KEY], "backfill")
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(date.fromisoformat(jobs[0][2]["end_date"]), date.today() - timedelta(days=60))
+        self.assertLessEqual((date.fromisoformat(jobs[0][2]["end_date"]) - date.fromisoformat(jobs[0][2]["start_date"])).days + 1, 30)
+        self.assertEqual(watermark, self.watermark)
+
+    def test_shopify_connection_response_advertises_the_shared_history_policy(self):
+        with self.sessions() as db:
+            connection = db.get(DataSourceConnection, self.identity)
+            connection.source_type = "shopify"
+            response = routes.build_source_connection_response(connection)
+        self.assertEqual(response["initial_sync_days"], 60)
+        self.assertEqual(response["initial_backfill_months"], 36)
+        self.assertIsNone(response["initial_backfill_days"])
+        self.assertIsNone(response["advanced_sync_max_days"])
+        self.assertEqual(response["initial_sync_earliest_date"], retention.connector_retention_cutoff_date().isoformat())
+        self.assertEqual(response["retention_start_date"], retention.connector_retention_cutoff_date().isoformat())
+        self.assertEqual(response["retention_end_date"], date.today().isoformat())
+
+    def test_shopify_completed_short_current_plan_resumes_at_older_missing_dates(self):
+        old_start = date.today() - timedelta(days=90)
+        config = history.prepare_history({}, old_start, date.today() - timedelta(days=60))
+        config[history.HISTORY_NEXT_END_KEY] = (old_start - timedelta(days=1)).isoformat()
+        config[routes.INITIAL_CONNECTOR_SYNC_STATUS_KEY] = "complete"
+        config[routes.CONNECTOR_ANALYSIS_STATUS_KEY] = "complete"
+        with self.sessions() as db:
+            connection = db.get(DataSourceConnection, self.identity)
+            connection.source_type = "shopify"
+            connection.connection_config = json.dumps(config)
+            db.commit()
+            self.assertTrue(routes.initial_connector_backfill_is_required(connection))
+        routes.queue_connector_initial_backfill(None, self.identity)
+        extended, jobs, _ = self.read()
+        self.assertEqual(extended[history.HISTORY_START_KEY], retention.connector_retention_cutoff_date().isoformat())
+        self.assertNotIn(routes.CONNECTOR_ANALYSIS_STATUS_KEY, extended)
+        self.assertEqual(jobs[0][2]["end_date"], (old_start - timedelta(days=1)).isoformat())
+
+    def test_shopify_permission_failure_does_not_complete_or_advance_backfill(self):
+        with self.sessions() as db:
+            db.get(DataSourceConnection, self.identity).source_type = "shopify"
+            db.commit()
+        routes.queue_connector_initial_backfill(None, self.identity)
+        before, jobs, _ = self.read()
+        with patch.object(routes, "run_data_source_sync_with_oauth_retry", side_effect=ConnectorUnavailable(
+            "Shopify historical orders require read_all_orders access. Reconnect Shopify."
+        )):
+            routes.run_connector_ingestion_job(jobs[0][0])
+        config, jobs, watermark = self.read()
+        self.assertEqual(jobs[0][1], "failed")
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(config[routes.INITIAL_CONNECTOR_SYNC_STATUS_KEY], "failed")
+        self.assertEqual(config[history.HISTORY_NEXT_END_KEY], before[history.HISTORY_NEXT_END_KEY])
+        self.assertEqual(watermark, self.watermark)
 
     def test_empty_chunk_advances_and_does_not_end_the_whole_backfill(self):
         routes.queue_connector_initial_backfill(None, self.identity)

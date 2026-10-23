@@ -120,54 +120,21 @@ function subtractCalendarMonths(value: Date, months: number) {
   return result
 }
 
-function getAdvancedSyncDateBounds(
-  connection: DataSourceConnection
-) {
-  const today = new Date()
+function getAdvancedSyncDateBounds(connection?: DataSourceConnection) {
+  const serverToday = connection?.retention_end_date
+    ? new Date(`${connection.retention_end_date}T12:00:00`)
+    : new Date()
+  const today = Number.isNaN(serverToday.getTime()) ? new Date() : serverToday
+  const serverEarliest = connection?.retention_start_date
+    ? new Date(`${connection.retention_start_date}T12:00:00`)
+    : subtractCalendarMonths(today, 36)
+  const earliest = Number.isNaN(serverEarliest.getTime())
+    ? subtractCalendarMonths(today, 36)
+    : serverEarliest
   const defaultStart = new Date(today)
   defaultStart.setDate(today.getDate() - 1)
-  const initialSyncDays = connection.initial_sync_days ?? 60
-  const initialStart = new Date(today)
-  initialStart.setDate(today.getDate() - initialSyncDays + 1)
-  const backfillEnd = new Date(initialStart)
-  backfillEnd.setDate(initialStart.getDate() - 1)
-  const fallbackEarliest = connection.initial_backfill_months
-    ? subtractCalendarMonths(
-        today,
-        connection.initial_backfill_months
-      )
-    : connection.initial_backfill_days
-      ? new Date(
-          backfillEnd.getTime() -
-            (connection.initial_backfill_days - 1) *
-              24 *
-              60 *
-              60 *
-              1000
-        )
-      : subtractCalendarMonths(today, 36)
-  const configuredEarliest = connection.initial_sync_earliest_date
-    ? new Date(`${connection.initial_sync_earliest_date}T00:00:00`)
-    : fallbackEarliest
-  const earliest = Number.isNaN(configuredEarliest.getTime())
-    ? fallbackEarliest
-    : configuredEarliest
-  const maxCustomDateRangeDays = connection.advanced_sync_max_days
-  const policyEarliest =
-    maxCustomDateRangeDays && maxCustomDateRangeDays > 0
-      ? new Date(today)
-      : null
-  if (policyEarliest && maxCustomDateRangeDays) {
-    policyEarliest.setDate(
-      today.getDate() - maxCustomDateRangeDays + 1
-    )
-  }
   return {
-    min: formatDateInputValue(
-      policyEarliest && policyEarliest > earliest
-        ? policyEarliest
-        : earliest
-    ),
+    min: formatDateInputValue(earliest),
     max: formatDateInputValue(today),
     defaultStart: formatDateInputValue(defaultStart),
   }
@@ -1103,8 +1070,10 @@ function DataSourceConnectionRow({
             className="mt-2 break-words text-xs text-amber-700"
             role="status"
           >
-            {connection.ingestion_job.error_message ||
-              `No ${connection.source_label} data was found for the selected period.`}
+            {connection.ingestion_job?.job_type === "connector_range_sync"
+              ? t("No data was returned for the latest import chunk.")
+              : connection.ingestion_job.error_message ||
+                `No ${connection.source_label} data was found for the selected period.`}
           </p>
         )}
 

@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from datetime import date, timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -17,7 +18,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
-from app.db.models import DataIngestionJob, Dataset, DataSourceConnection
+from app.db.models import DataIngestionJob, Dataset, DataSourceConnection, utc_now
 from app.modules.datasets import router as routes
 from app.modules.datasets.schemas import DataSourceConnectionSync
 
@@ -192,3 +193,71 @@ with ingestion_worker.engine.connect() as connection:
             job = db.query(DataIngestionJob).filter_by(connection_id=connection_id).one()
             payload = DataSourceConnectionSync(**json.loads(job.request_payload))
             self.assertLessEqual((payload.end_date - payload.start_date).days + 1, 30)
+
+    def test_concurrent_range_continuations_queue_only_one_chunk(self):
+        with self.sessions() as db:
+            connection = DataSourceConnection(
+                user_id=self.workspace, workspace_id=self.workspace, source_type="meta_ads", display_name="Range",
+                last_synced_at=utc_now(), connection_config=json.dumps({routes.RANGE_SYNC_KEY: routes.new_range_sync(
+                    date.today() - timedelta(days=90), date.today(), None, utc_now().isoformat(), utc_now().isoformat(),
+                )}),
+            )
+            db.add(connection)
+            db.commit()
+            identity = connection.id
+        barrier = threading.Barrier(2)
+        outcomes = []
+
+        def enqueue():
+            barrier.wait(timeout=5)
+            outcomes.append(routes.queue_connector_range_sync(None, identity))
+
+        with patch.object(routes, "SessionLocal", self.sessions), patch.object(routes, "durable_ingestion_enabled", return_value=True):
+            threads = [threading.Thread(target=enqueue) for _ in range(2)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=10)
+                self.assertFalse(thread.is_alive())
+        self.assertCountEqual(outcomes, [True, False])
+        with self.sessions() as db:
+            self.assertEqual(db.query(DataIngestionJob).filter_by(connection_id=identity).count(), 1)
+
+    def test_range_progress_and_continuations_survive_separate_worker_processes(self):
+        with self.sessions() as db:
+            connection = DataSourceConnection(
+                user_id=self.workspace, workspace_id=self.workspace, source_type="meta_ads", display_name="Range",
+                last_synced_at=utc_now() - timedelta(days=1), connection_config="{}",
+            )
+            db.add(connection)
+            db.commit()
+            identity = connection.id
+            with patch.object(routes, "durable_ingestion_enabled", return_value=True):
+                job = routes.enqueue_connector_ingestion_job(db, connection, DataSourceConnectionSync(
+                    advanced_date_range=True, start_date=date.today() - timedelta(days=90), end_date=date.today(),
+                ), None, job_type="manual_connector_sync", launch=False)
+                current = job.id
+        script = """
+import sys
+from unittest.mock import patch
+from app.infrastructure.ingestion_worker import execute_job
+from app.modules.datasets import router as routes
+def fetch(db, connection, payload):
+    assert 1 <= (payload.end_date - payload.start_date).days + 1 <= 30
+    return []
+with patch.object(routes, "get_dataset_source", return_value=None), patch.object(routes, "purge_expired_connector_dataset", return_value=None), patch.object(routes, "run_data_source_sync_with_oauth_retry", side_effect=fetch), patch.object(routes, "_build_connector_sync_job_result", return_value={"datasets": []}):
+    execute_job(int(sys.argv[1]))
+"""
+        for completed_chunks in (1, 2):
+            result = subprocess.run(
+                [sys.executable, "-B", "-c", script, str(current)], cwd=API_ROOT,
+                env=self.environment, capture_output=True, text=True, timeout=45,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with self.sessions() as db:
+                self.assertEqual(db.get(DataIngestionJob, current).status, "succeeded")
+                pending = db.query(DataIngestionJob).filter_by(connection_id=identity, status="queued", parent_job_id=None).one()
+                self.assertGreater(pending.id, current)
+                current = pending.id
+                plan = json.loads(db.get(DataSourceConnection, identity).connection_config)[routes.RANGE_SYNC_KEY]
+                self.assertEqual(plan["next_end_date"], (date.today() - timedelta(days=30 * completed_chunks)).isoformat())

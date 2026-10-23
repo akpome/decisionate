@@ -24,6 +24,12 @@ def make_connection(source_type, config):
     )
 
 
+def make_shopify_db(scope="read_orders,read_all_orders"):
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(scope=scope)
+    return db
+
+
 class NewConnectorTests(unittest.TestCase):
     def test_default_initial_import_policy_is_60_days_with_three_total_years(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -43,7 +49,7 @@ class NewConnectorTests(unittest.TestCase):
         self.assertEqual(backfill_end, date(2026, 7, 29))
         self.assertEqual(backfill_start, date(2023, 9, 27))
 
-    def test_shopify_defaults_use_60_days_without_backfill(self):
+    def test_shopify_uses_shared_initial_import_and_three_year_backfill(self):
         with patch.dict(os.environ, {}, clear=True):
             start_date, end_date = (
                 datasets_router.get_incremental_sync_window(
@@ -62,107 +68,90 @@ class NewConnectorTests(unittest.TestCase):
             )
 
         self.assertEqual((end_date - start_date).days + 1, 60)
-        self.assertFalse(
+        self.assertTrue(
             datasets_router.initial_connector_backfill_enabled("shopify")
         )
         self.assertEqual(
             datasets_router.get_initial_connector_earliest_date(connection),
-            date.today() - timedelta(days=59),
+            datasets_router.connector_retention_cutoff_date(),
+        )
+        self.assertEqual(
+            datasets_router.get_initial_connector_backfill_window(source_type="shopify"),
+            datasets_router.get_initial_connector_backfill_window(),
         )
 
-    def test_shopify_initial_sync_policy_is_60_days_without_backfill(self):
-        connection = SimpleNamespace(
-            source_type="shopify",
-            last_synced_at=None,
-            connection_config=json.dumps({}),
-        )
+    def test_all_connector_sources_share_the_same_history_policy(self):
+        for source_type in datasets_router.IMPLEMENTED_CONNECTOR_TYPES | {"google_analytics"}:
+            with self.subTest(source_type=source_type):
+                self.assertEqual(datasets_router.get_initial_connector_sync_days(source_type), 60)
+                self.assertTrue(datasets_router.initial_connector_backfill_enabled(source_type))
+                self.assertEqual(datasets_router.get_initial_connector_backfill_months(source_type), 36)
+                self.assertIsNone(datasets_router.get_initial_connector_backfill_days(source_type))
+                self.assertIsNone(datasets_router.get_connector_max_custom_date_range_days(source_type))
 
-        with patch.dict(
-            os.environ,
-            {
-                "SHOPIFY_INITIAL_SYNC_DAYS": "60",
-                "SHOPIFY_INITIAL_BACKFILL_ENABLED": "false",
-                "SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS": "60",
-            },
-            clear=False,
-        ):
-            start_date, end_date = datasets_router.get_incremental_sync_window(
-                connection,
-                SimpleNamespace(start_date=None, end_date=None),
-            )
-
-            self.assertEqual((end_date - start_date).days + 1, 60)
-            self.assertEqual(
-                datasets_router.get_initial_connector_earliest_date(
-                    connection
-                ),
-                date.today() - timedelta(days=59),
-            )
-            self.assertFalse(
-                datasets_router.initial_connector_backfill_is_required(
-                    connection
-                )
-            )
-
-    def test_shopify_custom_sync_is_limited_to_60_days(self):
+    def test_shopify_custom_sync_accepts_the_full_retained_history(self):
         today = date.today()
-        with patch.dict(
-            os.environ,
-            {
-                "SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS": "60",
-            },
-            clear=False,
-        ):
-            datasets_router.validate_advanced_sync_window(
-                DataSourceConnectionSync(
-                    advanced_date_range=True,
-                    start_date=today - timedelta(days=59),
-                    end_date=today,
-                ),
-                source_type="shopify",
-            )
+        datasets_router.validate_advanced_sync_window(
+            DataSourceConnectionSync(
+                advanced_date_range=True,
+                start_date=datasets_router.connector_retention_cutoff_date(today),
+                end_date=today,
+            ),
+            source_type="shopify",
+        )
 
-            with self.assertRaisesRegex(
-                HTTPException,
-                "cannot cover more than 60 days",
-            ):
+    def test_shopify_custom_sync_rejects_expired_and_future_dates(self):
+        today = date.today()
+        cutoff = datasets_router.connector_retention_cutoff_date(today)
+        for start, end in [(cutoff - timedelta(days=1), today), (cutoff, today + timedelta(days=1))]:
+            with self.subTest(start=start, end=end), self.assertRaises(HTTPException) as raised:
                 datasets_router.validate_advanced_sync_window(
-                    DataSourceConnectionSync(
-                        advanced_date_range=True,
-                        start_date=today - timedelta(days=60),
-                        end_date=today,
-                    ),
+                    DataSourceConnectionSync(advanced_date_range=True, start_date=start, end_date=end),
                     source_type="shopify",
                 )
+            self.assertEqual(raised.exception.status_code, 422)
 
-    def test_shopify_initial_policy_can_restore_previous_behavior(self):
-        connection = SimpleNamespace(
-            source_type="shopify",
-            last_synced_at=None,
-            connection_config=json.dumps({}),
+    def test_shopify_saved_shorter_plan_does_not_restrict_recovery_window(self):
+        connection = make_connection("shopify", {
+            datasets_router.HISTORY_VERSION_KEY: datasets_router.HISTORY_POLICY_VERSION,
+            datasets_router.HISTORY_START_KEY: (date.today() - timedelta(days=90)).isoformat(),
+        })
+        self.assertEqual(
+            datasets_router.get_initial_connector_earliest_date(connection),
+            datasets_router.connector_retention_cutoff_date(),
         )
 
-        with patch.dict(
-            os.environ,
-            {
-                "SHOPIFY_INITIAL_SYNC_DAYS": "90",
-                "SHOPIFY_INITIAL_BACKFILL_ENABLED": "true",
-                "SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS": "0",
-            },
-            clear=False,
-        ):
-            start_date, end_date = datasets_router.get_incremental_sync_window(
-                connection,
-                SimpleNamespace(start_date=None, end_date=None),
-            )
+    def test_shopify_historical_import_requires_an_actual_all_orders_grant(self):
+        for scope in [None, "", "read_orders"]:
+            with self.subTest(scope=scope), patch.object(connectors, "get_oauth_access_token", return_value="token"), patch.object(
+                connectors, "connector_json_post_request"
+            ) as request, patch.dict(os.environ, {
+                "SHOPIFY_API_VERSION": "2026-07",
+                "SHOPIFY_API_BASE_URL_TEMPLATE": "https://{shop_domain}/admin/api/{api_version}",
+            }), self.assertRaisesRegex(connectors.ConnectorUnavailable, "read_all_orders.*reconnect"):
+                connectors.load_shopify_dataframe(
+                    make_shopify_db(scope), make_connection("shopify", {"shop_domain": "store.myshopify.com"}),
+                    date.today() - timedelta(days=60), date.today(),
+                )
+            request.assert_not_called()
 
-            self.assertEqual((end_date - start_date).days + 1, 90)
-            self.assertEqual(
-                datasets_router.get_connector_max_custom_date_range_days(
-                    "shopify"
-                ),
-                None,
+    def test_shopify_recent_initial_import_works_without_all_orders_access(self):
+        db = make_shopify_db("read_orders")
+        with patch.object(connectors, "get_oauth_access_token", return_value="token"), patch.object(
+            connectors, "connector_json_post_request", return_value={"data": {"orders": {
+                "nodes": [], "pageInfo": {"hasNextPage": False, "endCursor": None},
+            }}}
+        ) as request, patch.dict(os.environ, {
+            "SHOPIFY_API_VERSION": "2026-07",
+            "SHOPIFY_API_BASE_URL_TEMPLATE": "https://{shop_domain}/admin/api/{api_version}",
+        }):
+            dataframe, _ = connectors.load_shopify_dataframe(
+                db, make_connection("shopify", {"shop_domain": "store.myshopify.com"}),
+                date.today() - timedelta(days=59), date.today(),
             )
+        self.assertTrue(dataframe.empty)
+        request.assert_called_once()
+        db.query.assert_not_called()
 
     def test_initial_connector_backfill_starts_after_the_60_day_window(self):
         backfill_start, backfill_end = (
@@ -1499,9 +1488,9 @@ class NewConnectorTests(unittest.TestCase):
             clear=False,
         ):
             dataframe, report = connectors.load_shopify_dataframe(
-                None,
+                make_shopify_db(),
                 make_connection("shopify", {"shop_domain": "store.myshopify.com"}),
-                date(2026, 9, 1),
+                date(2024, 9, 1),
                 date(2026, 9, 30),
             )
 
@@ -1535,7 +1524,7 @@ class NewConnectorTests(unittest.TestCase):
         query = requests[0][2]["variables"]["query"]
         self.assertEqual(
             query,
-            "updated_at:>='2026-09-01T00:00:00Z' "
+            "updated_at:>='2024-09-01T00:00:00Z' "
             "updated_at:<'2026-10-01T00:00:00Z'",
         )
         self.assertNotIn("email", requests[0][2]["query"])
@@ -1572,7 +1561,7 @@ class NewConnectorTests(unittest.TestCase):
                 "Shopify app access is not approved for protected customer data",
             ):
                 connectors.load_shopify_dataframe(
-                    None,
+                    make_shopify_db(),
                     make_connection(
                         "shopify",
                         {"shop_domain": "store.myshopify.com"},
@@ -1662,7 +1651,7 @@ class NewConnectorTests(unittest.TestCase):
             clear=False,
         ):
             dataframe, _report = connectors.load_shopify_dataframe(
-                None,
+                make_shopify_db(),
                 make_connection(
                     "shopify",
                     {"shop_domain": "store.myshopify.com"},

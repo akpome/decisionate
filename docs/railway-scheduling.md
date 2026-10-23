@@ -126,6 +126,19 @@ windows, using their existing deduplication rules. Previously queued monolithic
 backfills are bounded before provider I/O. Backfill does not advance the recent
 incremental watermark and therefore cannot skip fresh activity.
 
+Manual recovery accepts up to three calendar years. Manual imports and stale
+scheduled imports spanning more than 90 inclusive days use the same bounded
+chunk size, one root job at a time, newest-first. Continuations join the end of
+the queue rather than keeping one worker subprocess busy for the entire range.
+The selected range and its cursor are persisted separately from the initial
+history checkpoint. Empty chunks advance; failures and worker restarts retain
+the current cursor. The scheduler resumes pending ranges even if automatic
+recurring sync is disabled. Resubmitting the same range resumes its checkpoint;
+submitting a different explicit range replaces the pending range once no job
+is active. Older-only recovery preserves the existing incremental watermark;
+a range reaching today advances it to the submission time only after completion,
+so fresh activity after submission remains eligible for incremental sync.
+
 Monthly Parquet revisions are merged one month at a time, rather than loading
 the entire retained raw history into pandas for every chunk. Existing provider
 identity, complete-line-item and Search Console fallback merge rules remain in
@@ -142,10 +155,16 @@ Uploaded files, decisions and frozen report snapshots are not connector raw
 history and are not deleted by this rule. Provider backup/versioning policies
 remain separate from live storage deletion.
 
-Provider history limits still apply. Shopify backfill remains disabled until
-approved older-order access is configured (`SHOPIFY_INITIAL_BACKFILL_ENABLED`
-and the corresponding approved scopes). Once enabled, its default target is
-three total years; explicit shorter day/month overrides remain supported.
+Provider history limits still apply. Shopify follows the shared 60-day initial
+import and chunked three-year history policy, with no separate backfill switch
+or recovery date cap. Existing shorter plans extend at their saved checkpoint.
+Orders older than 60 days still require Shopify-approved `read_all_orders`
+access alongside `read_orders`. After approval, configure
+`SHOPIFY_REQUIRE_ALL_ORDERS_ACCESS=true` and
+`SHOPIFY_OAUTH_SCOPES=read_orders,read_all_orders` on the API and worker, then
+reconnect Shopify. A token without the grant blocks historical import with an actionable
+error and an unchanged checkpoint, rather than completing an empty backfill;
+the initial recent import still works with `read_orders` alone.
 See [Shopify access scopes](https://shopify.dev/docs/api/usage/access-scopes).
 No provider data or unavailable historical observations are fabricated.
 

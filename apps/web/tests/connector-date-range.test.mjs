@@ -31,8 +31,14 @@ test("date range defaults span three total calendar years rather than adding his
   const minimum = [expected.getFullYear(), String(expected.getMonth() + 1).padStart(2, "0"), String(expected.getDate()).padStart(2, "0")].join("-")
   assert.equal(bounds({}).min, minimum)
   assert.equal(bounds({ initial_sync_days: 60, initial_backfill_months: 36 }).min, minimum)
-  assert.equal(bounds({ initial_sync_earliest_date: "2025-01-01" }).min, "2025-01-01")
-  assert.ok(bounds({ advanced_sync_max_days: 60 }).min > minimum)
+  assert.equal(bounds({ source_type: "shopify", initial_sync_days: 60, initial_backfill_months: 36, initial_backfill_days: null, advanced_sync_max_days: null }).min, minimum)
+  assert.equal(bounds({ initial_sync_earliest_date: "2025-01-01", initial_backfill_months: 24 }).min, minimum)
+  assert.equal(bounds({ advanced_sync_max_days: 60 }).min, minimum)
+  const serverWindow = bounds({ retention_start_date: "2021-02-28", retention_end_date: "2024-02-29" })
+  assert.equal(serverWindow.min, "2021-02-28")
+  assert.equal(serverWindow.max, "2024-02-29")
+  assert.equal(serverWindow.defaultStart, "2024-02-28")
+  assert.equal(bounds({ retention_start_date: "invalid", retention_end_date: "invalid" }).min, minimum)
 })
 
 function elements(node, predicate) {

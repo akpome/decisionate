@@ -5,7 +5,7 @@ import unittest
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import sqlalchemy
@@ -856,9 +856,13 @@ class ConnectorSmokeTests(unittest.TestCase):
                 ("xero", {"tenant_id": tenant_id}),
             ]
 
+            db = MagicMock()
+            db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+                scope="read_orders,read_all_orders",
+            )
             for source_type, config in cases:
                 dataframe, report = connectors.load_connector_dataframe(
-                    None,
+                    db,
                     make_connection(source_type, config),
                     datetime(2026, 1, 1, tzinfo=UTC).date(),
                     datetime(2026, 1, 31, tzinfo=UTC).date(),
