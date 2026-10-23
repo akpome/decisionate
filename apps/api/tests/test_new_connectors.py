@@ -31,11 +31,11 @@ def make_shopify_db(scope="read_orders,read_all_orders"):
 
 
 class NewConnectorTests(unittest.TestCase):
-    def test_default_initial_import_policy_is_60_days_with_three_total_years(self):
+    def test_default_initial_import_policy_is_90_days_with_three_total_years(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(
                 datasets_router.get_initial_connector_sync_days(),
-                60,
+                90,
             )
             self.assertTrue(
                 datasets_router.initial_connector_backfill_enabled()
@@ -46,7 +46,7 @@ class NewConnectorTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual(backfill_end, date(2026, 7, 29))
+        self.assertEqual(backfill_end, date(2026, 6, 29))
         self.assertEqual(backfill_start, date(2023, 9, 27))
 
     def test_shopify_uses_shared_initial_import_and_three_year_backfill(self):
@@ -67,7 +67,7 @@ class NewConnectorTests(unittest.TestCase):
                 connection_config=json.dumps({}),
             )
 
-        self.assertEqual((end_date - start_date).days + 1, 60)
+        self.assertEqual((end_date - start_date).days + 1, 90)
         self.assertTrue(
             datasets_router.initial_connector_backfill_enabled("shopify")
         )
@@ -83,11 +83,29 @@ class NewConnectorTests(unittest.TestCase):
     def test_all_connector_sources_share_the_same_history_policy(self):
         for source_type in datasets_router.IMPLEMENTED_CONNECTOR_TYPES | {"google_analytics"}:
             with self.subTest(source_type=source_type):
-                self.assertEqual(datasets_router.get_initial_connector_sync_days(source_type), 60)
+                self.assertEqual(datasets_router.get_initial_connector_sync_days(source_type), 90)
                 self.assertTrue(datasets_router.initial_connector_backfill_enabled(source_type))
                 self.assertEqual(datasets_router.get_initial_connector_backfill_months(source_type), 36)
                 self.assertIsNone(datasets_router.get_initial_connector_backfill_days(source_type))
                 self.assertIsNone(datasets_router.get_connector_max_custom_date_range_days(source_type))
+
+    def test_all_connectors_initial_window_is_90_inclusive_days_without_a_backfill_gap(self):
+        for source_type in datasets_router.IMPLEMENTED_CONNECTOR_TYPES | {"google_analytics"}:
+            with self.subTest(source_type=source_type):
+                connection = SimpleNamespace(source_type=source_type, last_synced_at=None, connection_config="{}")
+                start, end = datasets_router.get_incremental_sync_window(connection, DataSourceConnectionSync())
+                history_start, history_end = datasets_router.get_initial_connector_backfill_window(end, source_type)
+                self.assertEqual((end - start).days + 1, 90)
+                self.assertEqual(end, date.today())
+                self.assertEqual(history_end + timedelta(days=1), start)
+                self.assertEqual(history_start, datasets_router.connector_retention_cutoff_date(end))
+
+    def test_initial_window_boundary_handles_leap_days_and_year_changes(self):
+        for today in [date(2024, 2, 29), date(2026, 1, 1), date(2026, 9, 27)]:
+            with self.subTest(today=today):
+                start, end = datasets_router.get_initial_connector_backfill_window(today)
+                self.assertEqual(end, today - timedelta(days=90))
+                self.assertEqual(start, datasets_router.connector_retention_cutoff_date(today))
 
     def test_shopify_custom_sync_accepts_the_full_retained_history(self):
         today = date.today()
@@ -131,11 +149,11 @@ class NewConnectorTests(unittest.TestCase):
             }), self.assertRaisesRegex(connectors.ConnectorUnavailable, "read_all_orders.*reconnect"):
                 connectors.load_shopify_dataframe(
                     make_shopify_db(scope), make_connection("shopify", {"shop_domain": "store.myshopify.com"}),
-                    date.today() - timedelta(days=60), date.today(),
+                    date.today() - timedelta(days=89), date.today(),
                 )
             request.assert_not_called()
 
-    def test_shopify_recent_initial_import_works_without_all_orders_access(self):
+    def test_shopify_explicit_60_day_import_works_without_all_orders_access(self):
         db = make_shopify_db("read_orders")
         with patch.object(connectors, "get_oauth_access_token", return_value="token"), patch.object(
             connectors, "connector_json_post_request", return_value={"data": {"orders": {
@@ -153,14 +171,32 @@ class NewConnectorTests(unittest.TestCase):
         request.assert_called_once()
         db.query.assert_not_called()
 
-    def test_initial_connector_backfill_starts_after_the_60_day_window(self):
+    def test_shopify_90_day_initial_import_works_with_approved_all_orders_access(self):
+        db = make_shopify_db()
+        with patch.object(connectors, "get_oauth_access_token", return_value="token"), patch.object(
+            connectors, "connector_json_post_request", return_value={"data": {"orders": {
+                "nodes": [], "pageInfo": {"hasNextPage": False, "endCursor": None},
+            }}}
+        ) as request, patch.dict(os.environ, {
+            "SHOPIFY_API_VERSION": "2026-07",
+            "SHOPIFY_API_BASE_URL_TEMPLATE": "https://{shop_domain}/admin/api/{api_version}",
+        }):
+            dataframe, _ = connectors.load_shopify_dataframe(
+                db, make_connection("shopify", {"shop_domain": "store.myshopify.com"}),
+                date.today() - timedelta(days=89), date.today(),
+            )
+        self.assertTrue(dataframe.empty)
+        request.assert_called_once()
+        db.query.assert_called_once()
+
+    def test_initial_connector_backfill_starts_after_the_90_day_window(self):
         backfill_start, backfill_end = (
             datasets_router.get_initial_connector_backfill_window(
                 date(2026, 9, 27)
             )
         )
 
-        self.assertEqual(backfill_end, date(2026, 7, 29))
+        self.assertEqual(backfill_end, date(2026, 6, 29))
         self.assertEqual(backfill_start, date(2023, 9, 27))
 
     def test_initial_connector_sync_status_is_stored_in_connection_config(self):

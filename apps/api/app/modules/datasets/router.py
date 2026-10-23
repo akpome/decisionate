@@ -273,7 +273,7 @@ from app.modules.datasets.services.retention import (
     has_expired_connector_month,
 )
 from app.modules.datasets.services.connector_history import (
-    HISTORY_POLICY_VERSION, HISTORY_VERSION_KEY, HISTORY_NEXT_END_KEY, HISTORY_START_KEY,
+    HISTORY_POLICY_VERSION, HISTORY_VERSION_KEY, HISTORY_NEXT_END_KEY, HISTORY_START_KEY, HISTORY_END_KEY,
     prepare_history, next_history_chunk, advance_history,
 )
 from app.modules.datasets.services.connector_range_sync import (
@@ -298,7 +298,7 @@ from app.modules.oauth.service import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-INITIAL_CONNECTOR_SYNC_DAYS = 60
+INITIAL_CONNECTOR_SYNC_DAYS = 90
 INITIAL_CONNECTOR_BACKFILL_MONTHS = 36
 INITIAL_CONNECTOR_SYNC_COMPLETED_KEY = "_initial_connector_sync_completed"
 INITIAL_CONNECTOR_SYNC_STATUS_KEY = "_initial_connector_sync_status"
@@ -9991,6 +9991,11 @@ def prepare_connector_history(connection):
             config.pop(HISTORY_VERSION_KEY, None)
             config.pop("_initial_connector_backfill_start_date", None)
     start, end = get_initial_connector_backfill_window(source_type=connection.source_type)
+    # Preserve the boundary recorded before a deployment changed the initial window.
+    try:
+        end = max(end, date.fromisoformat(config.get(HISTORY_END_KEY)))
+    except (TypeError, ValueError):
+        pass
     completed = get_initial_connector_sync_status(connection) == INITIAL_CONNECTOR_SYNC_COMPLETE
     prepared = prepare_history(config, start, end, completed=completed)
     if prepared != config:

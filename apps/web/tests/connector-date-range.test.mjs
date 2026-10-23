@@ -30,8 +30,9 @@ test("date range defaults span three total calendar years rather than adding his
   expected.setDate(Math.min(today.getDate(), new Date(expected.getFullYear(), expected.getMonth() + 1, 0).getDate()))
   const minimum = [expected.getFullYear(), String(expected.getMonth() + 1).padStart(2, "0"), String(expected.getDate()).padStart(2, "0")].join("-")
   assert.equal(bounds({}).min, minimum)
+  assert.equal(bounds({ initial_sync_days: 90, initial_backfill_months: 36 }).min, minimum)
   assert.equal(bounds({ initial_sync_days: 60, initial_backfill_months: 36 }).min, minimum)
-  assert.equal(bounds({ source_type: "shopify", initial_sync_days: 60, initial_backfill_months: 36, initial_backfill_days: null, advanced_sync_max_days: null }).min, minimum)
+  assert.equal(bounds({ source_type: "shopify", initial_sync_days: 90, initial_backfill_months: 36, initial_backfill_days: null, advanced_sync_max_days: null }).min, minimum)
   assert.equal(bounds({ initial_sync_earliest_date: "2025-01-01", initial_backfill_months: 24 }).min, minimum)
   assert.equal(bounds({ advanced_sync_max_days: 60 }).min, minimum)
   const serverWindow = bounds({ retention_start_date: "2021-02-28", retention_end_date: "2024-02-29" })
@@ -47,7 +48,7 @@ function elements(node, predicate) {
   return [...(predicate(node) ? [node] : []), ...elements(node.props.children, predicate)]
 }
 
-function harness(sourceType = "meta_ads") {
+function harness(sourceType = "meta_ads", connectionOverrides = {}) {
   let hooks = [], cursor = 0, focusCount = 0
   const parentHooks = [], rowHooks = [], calls = []
   const loaded = { exports: {} }
@@ -80,6 +81,7 @@ function harness(sourceType = "meta_ads") {
     id: 1, source_type: sourceType, source_label: sourceType, display_name: sourceType,
     status: "connected", has_config: true, initial_sync_status: "complete",
     configured_config_keys: loaded.exports.REQUIRED_CONNECTION_CONFIG_KEYS[sourceType] ?? [],
+    ...connectionOverrides,
   }
   const props = {
     connections: [connection],
@@ -112,10 +114,16 @@ function harness(sourceType = "meta_ads") {
     close: () => buttons().find(button => button.props["aria-label"] === "Close advanced date range"),
     focusCount: () => focusCount,
     alerts: () => elements(render(), node => node.props.role === "alert"),
+    statuses: () => elements(render(), node => node.props.role === "status").map(node => node.props.children),
   }
 }
 
 for (const sourceType of connectorTypes) {
+  test(`${sourceType}: initial import progress defaults to 90 days`, () => {
+    const view = harness(sourceType, { initial_sync_status: "initial", ingestion_job: { status: "running", job_type: "initial_connector_sync" } })
+    assert.ok(view.statuses().some(text => typeof text === "string" && text.includes("most recent 90 days")))
+  })
+
   test(`${sourceType}: date range has an accessible close button and preserves dates when reopened`, () => {
     const view = harness(sourceType)
     view.open()
@@ -151,6 +159,11 @@ for (const sourceType of connectorTypes) {
     assert.deepEqual(view.fields().map(field => field.props.value), [from, to])
   })
 }
+
+test("initial import progress respects an explicit server window during rolling deployment", () => {
+  const view = harness("meta_ads", { initial_sync_status: "initial", initial_sync_days: 60, ingestion_job: { status: "running", job_type: "initial_connector_sync" } })
+  assert.ok(view.statuses().some(text => typeof text === "string" && text.includes("most recent 60 days")))
+})
 
 test("Escape dismisses the range and returns focus to its trigger without syncing", () => {
   const view = harness()

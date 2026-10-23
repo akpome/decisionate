@@ -1014,7 +1014,7 @@ function DataSourceConnectionRow({
             role="status"
           >
             {t(
-              `Initial import is running. The most recent ${connection.initial_sync_days ?? 60} days will appear first, followed by historical data in the background.`
+              `Initial import is running. The most recent ${connection.initial_sync_days ?? 90} days will appear first, followed by historical data in the background.`
             )}
           </p>
         )}

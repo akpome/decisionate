@@ -72,7 +72,7 @@ class ConnectorAnalysisTests(unittest.TestCase):
         self.assertEqual(result["dataset_id"], 42)
         self.assertEqual(
             result["history_window"]["initial_sync_days"],
-            60,
+            90,
         )
         self.assertEqual(
             result["history_window"]["backfill_months"],

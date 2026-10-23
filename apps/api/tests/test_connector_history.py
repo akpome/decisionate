@@ -26,7 +26,7 @@ class ConnectorHistoryPolicyTests(unittest.TestCase):
         today = date.today()
         start, end = routes.get_initial_connector_backfill_window(today)
         self.assertEqual(start, retention.connector_retention_cutoff_date(today))
-        self.assertEqual(end, today - timedelta(days=60))
+        self.assertEqual(end, today - timedelta(days=90))
         config = history.prepare_history({}, start, end)
         chunks = []
         while chunk := history.next_history_chunk(config, as_of=today):
@@ -140,7 +140,7 @@ class ConnectorHistoryQueueTests(unittest.TestCase):
         self.assertEqual(config[history.HISTORY_START_KEY], retention.connector_retention_cutoff_date().isoformat())
         self.assertEqual(config[routes.INITIAL_CONNECTOR_SYNC_STATUS_KEY], "backfill")
         self.assertEqual(len(jobs), 1)
-        self.assertEqual(date.fromisoformat(jobs[0][2]["end_date"]), date.today() - timedelta(days=60))
+        self.assertEqual(date.fromisoformat(jobs[0][2]["end_date"]), date.today() - timedelta(days=90))
         self.assertLessEqual((date.fromisoformat(jobs[0][2]["end_date"]) - date.fromisoformat(jobs[0][2]["start_date"])).days + 1, 30)
         self.assertEqual(watermark, self.watermark)
 
@@ -149,13 +149,39 @@ class ConnectorHistoryQueueTests(unittest.TestCase):
             connection = db.get(DataSourceConnection, self.identity)
             connection.source_type = "shopify"
             response = routes.build_source_connection_response(connection)
-        self.assertEqual(response["initial_sync_days"], 60)
+        self.assertEqual(response["initial_sync_days"], 90)
         self.assertEqual(response["initial_backfill_months"], 36)
         self.assertIsNone(response["initial_backfill_days"])
         self.assertIsNone(response["advanced_sync_max_days"])
         self.assertEqual(response["initial_sync_earliest_date"], retention.connector_retention_cutoff_date().isoformat())
         self.assertEqual(response["retention_start_date"], retention.connector_retention_cutoff_date().isoformat())
         self.assertEqual(response["retention_end_date"], date.today().isoformat())
+
+    def test_existing_60_day_checkpoint_is_preserved_when_initial_policy_changes(self):
+        start = retention.connector_retention_cutoff_date()
+        end = date.today() - timedelta(days=60)
+        config = history.prepare_history({}, start, end)
+        with self.sessions() as db:
+            db.get(DataSourceConnection, self.identity).connection_config = json.dumps(config)
+            db.commit()
+        routes.queue_connector_initial_backfill(None, self.identity)
+        prepared, jobs, _ = self.read()
+        self.assertEqual(prepared[history.HISTORY_NEXT_END_KEY], end.isoformat())
+        self.assertEqual(jobs[0][2]["end_date"], end.isoformat())
+
+    def test_legacy_saved_60_day_boundary_does_not_skip_dates_after_policy_change(self):
+        end = date.today() - timedelta(days=60)
+        with self.sessions() as db:
+            db.get(DataSourceConnection, self.identity).connection_config = json.dumps({
+                history.HISTORY_START_KEY: retention.connector_retention_cutoff_date().isoformat(),
+                history.HISTORY_END_KEY: end.isoformat(),
+                routes.INITIAL_CONNECTOR_SYNC_STATUS_KEY: "backfill",
+            })
+            db.commit()
+        routes.queue_connector_initial_backfill(None, self.identity)
+        prepared, jobs, _ = self.read()
+        self.assertEqual(prepared[history.HISTORY_NEXT_END_KEY], end.isoformat())
+        self.assertEqual(jobs[0][2]["end_date"], end.isoformat())
 
     def test_shopify_completed_short_current_plan_resumes_at_older_missing_dates(self):
         old_start = date.today() - timedelta(days=90)

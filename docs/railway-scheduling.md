@@ -105,7 +105,7 @@ queued; confirm the ingestion job's terminal result too.
 
 ### Connector History and Retention
 
-New connector imports load the most recent 60 days first, then queue older
+New connector imports load the most recent 90 days first, then queue older
 history back to the same calendar date three years before the import date.
 History runs newest-first in inclusive chunks of at most 30 days. Set
 `CONNECTOR_BACKFILL_CHUNK_DAYS` on the API and ingestion worker to 1-30 for
@@ -155,7 +155,7 @@ Uploaded files, decisions and frozen report snapshots are not connector raw
 history and are not deleted by this rule. Provider backup/versioning policies
 remain separate from live storage deletion.
 
-Provider history limits still apply. Shopify follows the shared 60-day initial
+Provider history limits still apply. Shopify follows the shared 90-day initial
 import and chunked three-year history policy, with no separate backfill switch
 or recovery date cap. Existing shorter plans extend at their saved checkpoint.
 Orders older than 60 days still require Shopify-approved `read_all_orders`
@@ -163,8 +163,9 @@ access alongside `read_orders`. After approval, configure
 `SHOPIFY_REQUIRE_ALL_ORDERS_ACCESS=true` and
 `SHOPIFY_OAUTH_SCOPES=read_orders,read_all_orders` on the API and worker, then
 reconnect Shopify. A token without the grant blocks historical import with an actionable
-error and an unchanged checkpoint, rather than completing an empty backfill;
-the initial recent import still works with `read_orders` alone.
+error and an unchanged checkpoint, rather than completing an empty backfill.
+The 90-day initial import also needs this grant; an explicit range limited to
+the latest 60 days can still use `read_orders` alone.
 See [Shopify access scopes](https://shopify.dev/docs/api/usage/access-scopes).
 No provider data or unavailable historical observations are fabricated.
 
