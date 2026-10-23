@@ -67,6 +67,14 @@ test("dimension, unique values and search share a responsive equal-width control
   assert.match(dashboard, /<div className="min-w-0 print:hidden"><DatasetDimensionFilter/)
 })
 
+test("embedded dimension controls align with adjacent fields without changing standalone spacing", () => {
+  const embedded = render({ embedded: true })
+  const standalone = render({})
+  assert.match(embedded, /class="@container min-w-0 space-y-3 /)
+  assert.doesNotMatch(embedded, /mt-4|border-t|pt-3/)
+  assert.match(standalone, /mt-4 border-t border-gray-100 pt-3/)
+})
+
 test("the value limit disables adding values without disabling removal", () => {
   const values = Array.from({ length: 50 }, (_, index) => `Value ${index}`)
   const html = render({ value: { column: "region", values } })

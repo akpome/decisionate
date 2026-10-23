@@ -65,10 +65,21 @@ test("single and multi reports expose separate dimension selectors before metric
     assert.equal((html.match(/Dimension column/g) || []).length, 2)
     assert.ok(html.indexOf("Dimension column") < html.indexOf('type="checkbox"'))
     assert.deepEqual(dimensionProps.map(item => item.datasetId), [1, 2])
-    assert.ok(dimensionProps.every(item => item.deferLoad && item.workspaceId === "workspace"))
+    assert.ok(dimensionProps.every(item => item.deferLoad && item.embedded && item.workspaceId === "workspace"))
     const filter = { column: "region", values: ["East", "West"] }
     dimensionProps[1].onChange(filter)
     assert.deepEqual(calls, [{ identity: 2, value: filter }])
+  }
+})
+
+test("date and dimension columns share a top-aligned responsive row in single and multi reports", () => {
+  for (const singleDataset of [true, false]) {
+    const html = render({ singleDataset, userId: "owner", workspaceId: "workspace", onDimensionFilterChange() {} })
+    assert.match(html, /@min-\[28rem\]:grid-cols-\[minmax\(0,1fr\)_minmax\(0,3fr\)\]/)
+    assert.match(html, /grid min-w-0 items-start gap-3/)
+    assert.ok(html.indexOf("Date column") < html.indexOf("Dimension column"))
+    assert.ok(html.indexOf("Dimension column") < html.indexOf('type="checkbox"'))
+    assert.match(html, /2026-01-01 \/ 2026-03-31/)
   }
 })
 

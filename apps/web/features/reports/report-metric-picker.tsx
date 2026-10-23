@@ -85,20 +85,26 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
         const datasetIssues = (dataset.metric_issues || []).filter(issue => !issue.metric_key)
         const metricIssues = (dataset.metric_issues || []).filter(issue => issue.metric_key)
         const dates = dataset.date_columns.filter(column => dataset.availability[column])
+        const showDate = dataset.metrics.length > 0 && dates.length > 0
+        const showDimension = dataset.metrics.length > 0 && Boolean(userId && onDimensionFilterChange)
         const unavailable = Boolean(dataset.error_code)
         const pending = dataset.catalog_status === "pending"
         return <fieldset key={dataset.dataset_id} className="min-w-0 border-b border-gray-200 py-4">
           <legend className="max-w-full break-words text-sm font-semibold">{dataset.dataset_label}<span className="ml-2 text-xs font-normal text-gray-500">{dataset.connector}</span></legend>
           {pending ? <p className="mt-2 text-sm text-gray-600">{t("Loading metrics...")}</p> : unavailable ? <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><p className="text-amber-800">{t("Dataset temporarily unavailable.")}</p>{onRetry && <button type="button" disabled={loading} onClick={onRetry} className="inline-flex min-h-10 items-center gap-2 font-medium text-blue-700 underline disabled:opacity-50"><RefreshCw size={16} aria-hidden="true" />{t("Retry")}</button>}</div> : <>
-            {dataset.metrics.length > 0 && dates.length > 0 && <div className="mt-3 min-w-0 max-w-sm">
-              <label htmlFor={`report-date-column-${dataset.dataset_id}`} className="block text-xs font-medium text-gray-600">{t("Date column")}</label>
-              <select id={`report-date-column-${dataset.dataset_id}`} className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950" value={dateColumn} onChange={event => onDateColumnChange(dataset, event.target.value)}>
-                {!usableDate && <option value={dateColumn} disabled>{t("Selected date field unavailable.")}</option>}
-                {dates.map(column => <option key={column} value={column}>{column}</option>)}
-              </select>
-              {dataset.availability[dateColumn] && <p className="mt-1 text-xs text-gray-500">{dataset.availability[dateColumn].start} / {dataset.availability[dateColumn].end}</p>}
+            {(showDate || showDimension) && <div className="@container mt-3 min-w-0">
+              <div className={`grid min-w-0 items-start gap-3 ${showDate && showDimension ? "@min-[28rem]:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]" : ""}`}>
+                {showDate && <div className="min-w-0 max-w-sm">
+                  <label htmlFor={`report-date-column-${dataset.dataset_id}`} className="block text-xs font-medium text-gray-600">{t("Date column")}</label>
+                  <select id={`report-date-column-${dataset.dataset_id}`} className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950" value={dateColumn} onChange={event => onDateColumnChange(dataset, event.target.value)}>
+                    {!usableDate && <option value={dateColumn} disabled>{t("Selected date field unavailable.")}</option>}
+                    {dates.map(column => <option key={column} value={column}>{column}</option>)}
+                  </select>
+                  {dataset.availability[dateColumn] && <p className="mt-1 text-xs text-gray-500">{dataset.availability[dateColumn].start} / {dataset.availability[dateColumn].end}</p>}
+                </div>}
+                {showDimension && userId && onDimensionFilterChange && <DatasetDimensionFilter key={`${userId}:${workspaceId}:${dataset.dataset_id}`} datasetId={dataset.dataset_id} userId={userId} workspaceId={workspaceId} deferLoad embedded value={dimensionFilters.find(item => item.dataset_id === dataset.dataset_id)} onChange={value => onDimensionFilterChange(dataset.dataset_id, value)} />}
+              </div>
             </div>}
-            {dataset.metrics.length > 0 && userId && onDimensionFilterChange && <DatasetDimensionFilter key={`${userId}:${workspaceId}:${dataset.dataset_id}`} datasetId={dataset.dataset_id} userId={userId} workspaceId={workspaceId} deferLoad value={dimensionFilters.find(item => item.dataset_id === dataset.dataset_id)} onChange={value => onDimensionFilterChange(dataset.dataset_id, value)} />}
             {dataset.metrics.length > 0 ? <div className="mt-2 grid min-w-0 gap-x-4 gap-y-1 sm:grid-cols-2">
               {dataset.metrics.map(metric => {
                 const checked = selected.has(metricIdentity(metric))

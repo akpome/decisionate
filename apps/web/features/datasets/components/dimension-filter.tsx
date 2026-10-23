@@ -9,9 +9,9 @@ const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg
 export const dimensionValueLabel = (value: string | null) => value === null ? "Missing" : value === "" ? "Empty string" : value
 export const dimensionFilterLabel = (value: DimensionFilter) => `${value.column}: ${value.values.map(dimensionValueLabel).join(", ")}`
 
-export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, onChange, disabled = false, deferLoad = false }: {
+export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, onChange, disabled = false, deferLoad = false, embedded = false }: {
   datasetId: number; userId: string; workspaceId?: string; value?: DimensionFilter
-  onChange: (value: DimensionFilter | undefined) => void; disabled?: boolean; deferLoad?: boolean
+  onChange: (value: DimensionFilter | undefined) => void; disabled?: boolean; deferLoad?: boolean; embedded?: boolean
 }) {
   const { t } = useDecisionateText()
   const id = useId()
@@ -59,7 +59,7 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
 
   const selectedValues = value?.values || []
   const visible = [...new Set([...selectedValues, ...(currentOptions ? options.values : [])])]
-  return <fieldset ref={fieldset} disabled={disabled} aria-label={t("Filter by column values")} onFocusCapture={() => setActivated(true)} onMouseEnter={() => setActivated(true)} className="@container mt-4 min-w-0 space-y-3 border-t border-gray-100 pt-3">
+  return <fieldset ref={fieldset} disabled={disabled} aria-label={t("Filter by column values")} onFocusCapture={() => setActivated(true)} onMouseEnter={() => setActivated(true)} className={`@container min-w-0 space-y-3 ${embedded ? "" : "mt-4 border-t border-gray-100 pt-3"}`}>
     <div className={`grid min-w-0 items-end gap-3 ${column ? "grid-cols-[minmax(0,1fr)_auto] @min-[28rem]:grid-cols-[repeat(3,minmax(0,1fr))_auto]" : "grid-cols-1"}`}>
       <div className="min-w-0">
         <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-column`}>{t("Dimension column")}</label>
