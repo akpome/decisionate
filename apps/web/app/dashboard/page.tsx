@@ -238,8 +238,6 @@ const periodFilters: PeriodFilter[] = [
   "1y",
   "2y",
   "3y",
-  "5y",
-  "all",
 ]
 
 const dashboardTemplates: DashboardTemplate[] = [
@@ -514,7 +512,7 @@ export default function DashboardPage() {
     useState<ScaleMode>("actual")
 
   const [periodFilter, setPeriodFilter] =
-    useState<PeriodFilter>("1m")
+    useState<PeriodFilter>("1y")
 
   const [aggregation, setAggregation] =
     useState<MetricAggregation>("monthly")
@@ -2796,7 +2794,7 @@ export default function DashboardPage() {
   }
 
   function handleResetView() {
-    setPeriodFilter("1m")
+    setPeriodFilter("1y")
     setAggregation("monthly")
     setAggregationType("sum")
     setStartDate("")
@@ -3434,8 +3432,6 @@ export default function DashboardPage() {
               <option value="1y">1 year</option>
               <option value="2y">2 years</option>
               <option value="3y">3 years</option>
-              <option value="5y">5 years</option>
-              <option value="all">All data</option>
             </select>
           </label>
 
@@ -5016,8 +5012,6 @@ function DashboardControls({
           ["1y", "1Y"],
           ["2y", "2Y"],
           ["3y", "3Y"],
-          ["5y", "5Y"],
-          ["all", "All"],
         ]}
       />
 
@@ -6437,7 +6431,7 @@ function getSavedPeriodFilter(
 ): PeriodFilter {
   return isSavedPeriodFilter(savedPeriodFilter)
     ? savedPeriodFilter
-    : "1m"
+    : "1y"
 }
 
 function getSavedAggregation(
