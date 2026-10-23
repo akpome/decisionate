@@ -88,6 +88,7 @@ import {
   RefreshCw,
   Settings2,
   Share2,
+  SlidersHorizontal,
   Unlink,
   X,
 } from "lucide-react"
@@ -529,6 +530,8 @@ export default function DashboardPage() {
   const [showJoinPanel, setShowJoinPanel] =
     useState(false)
   const [showDatasetPanel, setShowDatasetPanel] =
+    useState(false)
+  const [showFiltersPanel, setShowFiltersPanel] =
     useState(false)
 
   const [dashboardTitle, setDashboardTitle] =
@@ -3105,8 +3108,9 @@ export default function DashboardPage() {
     sourceDatasets.length > 1
 
   const filterLabel = templateProps.filterLabel
-  const dimensionControls = selectedDashboardNeedsDataset && selectedDatasetId && userId ? <div className="min-w-0">
-    <div className="@container mt-4 min-w-0 border-t border-gray-100 pt-3 print:hidden">
+  const dimensionControls = selectedDashboardNeedsDataset && selectedDatasetId && userId ? <>
+    <section id="dashboard-filters-panel" role="region" aria-labelledby="dashboard-filters-toggle" hidden={!showFiltersPanel}
+      className="@container min-w-0 border-y border-gray-200 py-3 print:hidden">
       <div className="grid min-w-0 items-start gap-3 @min-[28rem]:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
         <div className="min-w-0">
           <label htmlFor="dashboard-date-column" className="block text-xs font-medium text-gray-600">Date column</label>
@@ -3122,12 +3126,12 @@ export default function DashboardPage() {
         </button> : <DatasetDimensionFilter key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
           value={dimensionFilter} embedded disabled={loading} onChange={value => setDimensionSelection({ context: dimensionContext, value })} />}
       </div>
-    </div>
+    </section>
     {dimensionData.pending && <p role="status" className="mt-2 text-sm text-gray-600">Loading filtered dashboard...</p>}
     {dimensionData.error && <div className="mt-2 flex items-start gap-2 text-sm text-red-700"><p role="alert" className="min-w-0 flex-1 break-words">{dimensionData.error}</p>
       <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300" title="Retry filtered dashboard" aria-label="Retry filtered dashboard" onClick={dimensionData.retry}><RefreshCw size={16} /></button></div>}
     {dimensionFilter && dimensionData.data && !allRows.length && <p role="status" className="mt-2 text-sm text-gray-600">No rows match the selected dimension values.</p>}
-  </div> : null
+  </> : null
 
   const dashboardManagementActions = (
     <div
@@ -3189,6 +3193,23 @@ export default function DashboardPage() {
         </button>
       )}
 
+      {selectedDashboardNeedsDataset && selectedDatasetId && userId && (
+        <button
+          id="dashboard-filters-toggle"
+          type="button"
+          onClick={() => setShowFiltersPanel(current => !current)}
+          className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${showFiltersPanel
+            ? "border-blue-200 bg-blue-50 text-blue-800"
+            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"}`}
+          aria-expanded={showFiltersPanel}
+          aria-controls="dashboard-filters-panel"
+          title="Choose date and dimension columns"
+        >
+          <SlidersHorizontal size={14} aria-hidden="true" />
+          Filters
+        </button>
+      )}
+
       {canManageWorkspaceData && (
         <button
           type="button"
@@ -3217,6 +3238,8 @@ export default function DashboardPage() {
 
   const generalDashboardManagementPanels = (
     <>
+      {dimensionControls}
+
       {dashboardEditMode && (
         <DashboardCard>
           <CardHeader
@@ -3920,7 +3943,6 @@ export default function DashboardPage() {
           </div>
 
         </div>
-        {dimensionControls}
         {filterLabel && <p className="break-words text-sm text-gray-600">Filter: {filterLabel}</p>}
       </header>
 
@@ -4107,38 +4129,36 @@ export default function DashboardPage() {
           Dashboard Templates
       ========================= */}
 
-      {dataset && !loading && !dimensionBlocked && (
+      {dataset && !loading && (
         <>
           <div className="dashboard-management-toolbar print:hidden">
             {dashboardManagementActions}
           </div>
 
           {generalDashboardManagementPanels}
-
-          <div
-            className="dashboard-report space-y-4"
-          >
-            {dashboardTemplate === "executive" && (
-              <ExecutiveTemplate
-                {...templateProps}
-              />
-            )}
-
-            {dashboardTemplate === "performance" && (
-              <PerformanceTemplate
-                {...templateProps}
-              />
-            )}
-
-            {dashboardTemplate === "comparison" && (
-              <ComparisonTemplate
-                {...templateProps}
-              />
-            )}
-
-          </div>
-
         </>
+      )}
+
+      {dataset && !loading && !dimensionBlocked && (
+        <div className="dashboard-report space-y-4">
+          {dashboardTemplate === "executive" && (
+            <ExecutiveTemplate
+              {...templateProps}
+            />
+          )}
+
+          {dashboardTemplate === "performance" && (
+            <PerformanceTemplate
+              {...templateProps}
+            />
+          )}
+
+          {dashboardTemplate === "comparison" && (
+            <ComparisonTemplate
+              {...templateProps}
+            />
+          )}
+        </div>
       )}
     </div>
   )
