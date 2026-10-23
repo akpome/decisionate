@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     template: "%s | Decisionate",
   },
   description:
-    "Business intelligence dashboards and decision intelligence for growing businesses, with forecasts, AI recommendations, and accountable decisions.",
+    "Analyze business performance across datasets with selected metrics, dimension filters, seasonal checks, forecasts, weekly reports, and accountable decisions.",
   applicationName: "Decisionate",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Decisionate",
     description:
-      "Turn operational data into business intelligence, clearer decisions, forecasts, recommendations, and accountable follow-up.",
+      "Compare accounting, sales and marketing data in cross-dataset reports, investigate relationships and unusual changes, and track the actions you choose.",
     type: "website",
   },
 }

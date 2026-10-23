@@ -26,15 +26,15 @@ export function FeaturesSection() {
     },
     {
       icon: BarChart3,
-      title: "A view you can question",
+      title: "Analysis across your datasets",
       description:
-        "Compare metrics, change the period, group the data and switch between actual and indexed values. Follow the evidence before choosing an action."
+        "Choose metrics, date columns and dimension values from different datasets. Compare indexed trends, investigate relationships and check unusual changes in one report."
     },
     {
       icon: Target,
       title: "A decision you can follow up",
       description:
-        "Link the action to its dataset. Record the expected result, set a review date, and capture the outcome and lesson."
+        "Bring selected report evidence into Decisions. Record the action and expected result, set a review date, then capture the outcome and lesson."
     }
   ]
   return (
@@ -74,7 +74,7 @@ export function BusinessSection() {
             {t("One workspace for your business.")}
           </h2>
           <p className="mt-5 max-w-lg text-base leading-7 text-neutral-600">
-            {t("Connect your accounting, sales and marketing data or upload spreadsheets. Compare KPIs, explore AI-assisted insights, assign actions and review results with your team.")}
+            {t("Connect your business tools or upload files. Use Reports to compare marketing, sales and financial performance across datasets, with the date fields and dimension filters that fit your question.")}
           </p>
           <p className="mt-4 max-w-lg text-sm leading-7 text-neutral-600">
             {t("Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.")}
@@ -132,7 +132,7 @@ export function AgencySection() {
     },
     {
       title: "Review performance and follow through",
-      description: "With client-approved access, review KPIs and AI-assisted insights, record decisions and assign actions. Enable agency-branded weekly reports and KPI alerts by email, then review outcomes together."
+      description: "With client-approved access, compare selected metrics across each client's datasets and record agreed actions in Decisions. Enable agency-branded weekly reports and KPI alerts by email, then review outcomes together."
     }
   ]
   return (
@@ -248,6 +248,8 @@ export function IntegrationsSection() {
           })}
         </div>
         <p className="mt-8 border-t border-neutral-200 pt-5 text-xs leading-6 text-neutral-500">
+          {t("Where supported, initial imports cover 90 days. Older available history is loaded in background chunks, up to three years. Provider permissions and history limits apply.")}
+          {" "}
           {t(
             "Provider authorization and any required approvals apply. Connector data is kept for three years, then deleted."
           )}

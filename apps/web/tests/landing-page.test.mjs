@@ -26,9 +26,9 @@ function load(path, overrides = {}) {
 const { integrationGroups, faqs } = load("../components/landing/landing-content.ts")
 const connectors = integrationGroups.flatMap(group => group.items)
 const { refreshedLandingFrench } = load("../lib/landing-translations.ts")
-const headline = "Turn your business data into better decisions."
-const productSummary = "Connect your accounting, sales and marketing tools—or upload spreadsheets. Spot what needs attention with AI-assisted insights, assign actions and track results in one workspace."
-const automationSummary = "Daily syncing keeps your connected data current. Enable weekly performance reports and KPI alerts by email."
+const headline = "Decisionate"
+const productSummary = "Analyze accounting, sales and marketing data together. Compare selected metrics across datasets, investigate relationships and unusual changes, then track the action you choose."
+const automationSummary = "Save a cross-dataset report for weekly reviews. Enable weekly report delivery and KPI alerts by email when you are ready."
 const agencySummary = "Create branded workspaces for your clients. Clients connect and manage their own data; your agency helps them understand performance, coordinate actions and track results with client-approved access."
 
 function renderHero(language = "en") {
@@ -77,7 +77,7 @@ test("supported connectors and provider-approval disclosures are preserved", () 
   assert.match(faqs.find(item => item.question === "How long is connector data kept?").answer, /three years, then deleted/)
 })
 
-test("hero renders one benefit headline and one copy instance in both languages", () => {
+test("hero renders one brand headline and one copy instance in both languages", () => {
   for (const language of ["en", "fr"]) {
     const html = renderHero(language)
     const translated = text => language === "fr" ? refreshedLandingFrench[text] : text
@@ -101,7 +101,7 @@ test("trial wording matches no-card onboarding and emails remain opt-in", () => 
   assert.match(read("../../api/app/modules/alerts/router.py"), /enabled=False/)
   const html = renderHero()
   assert.match(html, /Start your 30-day trial/)
-  assert.match(html, /Enable weekly performance reports and KPI alerts by email/)
+  assert.match(html, /Enable weekly report delivery and KPI alerts by email when you are ready/)
   assert.match(html, /No credit card required\./)
   assert.ok(html.indexOf("landing-hero-note") > html.indexOf("Explore live demo"))
   assert.match(html, /href="\/sign-up"/)
@@ -159,7 +159,7 @@ test("business and agency sections are explicitly labelled and all content bands
 test("agency plan, permissions and four-step workflow are described in both languages", () => {
   const copy = [
     "One workspace for your business.",
-    "Connect your accounting, sales and marketing data or upload spreadsheets. Compare KPIs, explore AI-assisted insights, assign actions and review results with your team.",
+    "Connect your business tools or upload files. Use Reports to compare marketing, sales and financial performance across datasets, with the date fields and dimension filters that fit your question.",
     "Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.",
     "Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.",
     "Create and brand your agency",
@@ -170,7 +170,7 @@ test("agency plan, permissions and four-step workflow are described in both lang
     "Clients connect and manage their data",
     "Clients authorize their own business tools for daily or weekly syncing, or upload files. They manage their datasets and connections; your agency does not connect or manage their data.",
     "Review performance and follow through",
-    "With client-approved access, review KPIs and AI-assisted insights, record decisions and assign actions. Enable agency-branded weekly reports and KPI alerts by email, then review outcomes together."
+    "With client-approved access, compare selected metrics across each client's datasets and record agreed actions in Decisions. Enable agency-branded weekly reports and KPI alerts by email, then review outcomes together."
   ]
   for (const language of ["en", "fr"]) {
     const html = renderSections(language)
@@ -197,6 +197,60 @@ test("agency workflow assigns data connections and management to the client", ()
   assert.match(html, /your agency does not connect or manage their data/)
   assert.match(html, /With client-approved access/)
   assert.doesNotMatch(read("../components/landing/landing-sections.tsx"), /Connect each client's data|Connect business tools for daily or weekly syncing/)
+})
+
+test("landing explains cross-dataset Reports and selected evidence rather than a separate Insights workspace", () => {
+  const about = faqs.find(item => item.question === "What is Decisionate?").answer
+  const multi = faqs.find(item => item.question === "Can I combine data from more than one dataset?").answer
+  assert.match(about, /Reports brings selected metrics, relationships and unusual changes together/)
+  assert.match(about, /dashboards inspect individual datasets/)
+  for (const pattern of [/two or more datasets/, /date column and dimension filters/, /shared baseline of 100/, /individual metric pairs/, /not proof of causation/, /does not automatically record a business action/]) {
+    assert.match(multi, pattern)
+  }
+  const html = renderSections()
+  assert.match(html, /Bring selected report evidence into Decisions/)
+  assert.doesNotMatch(html, /explore AI-assisted insights|A view you can question/)
+  const metadata = read("../app/layout.tsx")
+  assert.match(metadata, /Analyze business performance across datasets/)
+})
+
+test("landing explains source filtering, seasonal validation and explicitly enabled weekly reports", () => {
+  const upload = faqs.find(item => item.question === "Can I upload files?").answer
+  const seasonal = faqs.find(item => item.question === "Do reports and forecasts account for seasonality?").answer
+  const weekly = faqs.find(item => item.question === "What is included in a weekly report?").answer
+  assert.match(upload, /selected unique values in a dimension column/)
+  assert.match(seasonal, /enough suitable history supports validation/)
+  assert.match(seasonal, /does not guarantee an accurate result/)
+  for (const pattern of [/enable delivery in Alerts/, /latest complete week/, /three years of available history/, /dimension filters and seasonal setting/, /unusual-change checks/, /Manual report dates do not restrict/]) {
+    assert.match(weekly, pattern)
+  }
+  const retention = faqs.find(item => item.question === "How long is connector data kept?").answer
+  assert.match(retention, /90 days/)
+  assert.match(retention, /background chunks/)
+  assert.match(retention, /Provider permissions and history limits can reduce coverage/)
+  assert.match(retention, /does not delete its source datasets or linked decisions/)
+  assert.match(read("../../api/app/modules/datasets/router.py"), /INITIAL_CONNECTOR_SYNC_DAYS = 90/)
+})
+
+test("every landing FAQ answer and updated feature is available in French", () => {
+  for (const { answer } of faqs) {
+    assert.ok(refreshedLandingFrench[answer], `Missing French FAQ: ${answer}`)
+  }
+  for (const language of ["en", "fr"]) {
+    const html = renderSections(language)
+    for (const text of [
+      "Analysis across your datasets",
+      "Choose metrics, date columns and dimension values from different datasets. Compare indexed trends, investigate relationships and check unusual changes in one report.",
+      "Bring selected report evidence into Decisions. Record the action and expected result, set a review date, then capture the outcome and lesson.",
+      "Where supported, initial imports cover 90 days. Older available history is loaded in background chunks, up to three years. Provider permissions and history limits apply.",
+      "Do reports and forecasts account for seasonality?",
+      "What is included in a weekly report?",
+    ]) {
+      assert.ok(refreshedLandingFrench[text], `Missing French feature: ${text}`)
+      const copy = language === "fr" ? refreshedLandingFrench[text] : text
+      assert.ok(html.includes(renderToStaticMarkup(React.createElement(React.Fragment, null, copy))))
+    }
+  }
 })
 
 test("desktop columns and stacked mobile content use normal flow rather than CTA spacers", () => {

@@ -62,7 +62,7 @@ export const faqs = [
   {
     question: "What is Decisionate?",
     answer:
-      "Decisionate brings business data, dashboards and decision tracking into one workspace. Explore performance, record the action you choose, and review the result with the evidence attached."
+      "Decisionate analyzes business performance across datasets. Reports brings selected metrics, relationships and unusual changes together; dashboards inspect individual datasets, Forecasts projects selected time series, and Decisions tracks the actions you choose and their outcomes."
   },
   {
     question: "Which connectors are available?",
@@ -72,17 +72,27 @@ export const faqs = [
   {
     question: "Can I upload files?",
     answer:
-      "Yes. Upload CSV, Excel, JSON or Parquet files, then choose the date and numeric columns you want to analyze. You do not need to connect an external service to get started."
+      "Yes. Upload CSV, Excel, JSON or Parquet files, then choose metrics and a date column. Filter by selected unique values in a dimension column, such as a channel or product category, where those fields are available. You do not need to connect an external service to get started."
   },
   {
     question: "Can I combine data from more than one dataset?",
     answer:
-      "Yes. Join datasets on normalized time periods and compare related metrics in the same workspace. Relationships show associations, not proof that one metric causes another."
+      "Yes. In Reports, select metrics from two or more datasets, choose each source's date column and dimension filters, and align their time periods. Compare indexed trends on a shared baseline of 100 and set timing directions for individual metric pairs. Relationships show associations, not proof of causation. Creating a report does not automatically record a business action."
   },
   {
     question: "How do AI recommendations and forecasts work?",
     answer:
-      "Forecasts use your selected time series and aggregation settings. AI-assisted recommendations use analytical summaries and relevant decision history. Neither forecasts nor recommendations guarantee an outcome."
+      "Forecasts use your selected metric, date column, dimension filters and aggregation settings. Reports can include AI-assisted interpretation of analytical summaries and relevant decision history. Neither forecasts nor recommendations guarantee an outcome."
+  },
+  {
+    question: "Do reports and forecasts account for seasonality?",
+    answer:
+      "Select the seasonal-business setting when recurring seasonal patterns matter. Reports check unusual changes for each selected metric, and seasonal analysis is used only when enough suitable history supports validation. Forecasts also support seasonal analysis. Missing history, holidays and promotions can limit results; a seasonal setting does not guarantee an accurate result."
+  },
+  {
+    question: "What is included in a weekly report?",
+    answer:
+      "Choose a saved cross-dataset report as the weekly template, then configure recipients and enable delivery in Alerts. Weekly analysis uses the latest complete week and up to three years of available history, retaining the template's metrics, date fields, dimension filters and seasonal setting. It includes metric changes, relationship findings and unusual-change checks. Manual report dates do not restrict the weekly history window."
   },
   {
     question: "What does the free trial include?",
@@ -97,7 +107,7 @@ export const faqs = [
   {
     question: "How long is connector data kept?",
     answer:
-      "Connector data is kept for three years, then deleted. See the Privacy Policy for other retention and deletion commitments.",
+      "Where supported, imports start with 90 days and load older available history in background chunks, up to three years. Provider permissions and history limits can reduce coverage. Connector data is kept for three years, then deleted on a rolling basis. Deleting a saved report does not delete its source datasets or linked decisions; see the Privacy Policy for details.",
     link: { href: "/privacy", label: "Privacy Policy" }
   },
   {

@@ -51,7 +51,8 @@ test("all policies match connector and expiry retention constants", () => {
   assert.match(expiry, /SUBSCRIPTION_EXPIRY_DATA_PURGE_DAYS = 89/)
   assert.match(expiry, /SUBSCRIPTION_CANCELLATION_DATA_PURGE_DAYS = 90/)
   for (const { name, source } of policies) {
-    assert.match(source, /updated="October 22, 2026"/, name)
+    const date = name === "security" ? "October 22, 2026" : "October 23, 2026"
+    assert.ok(source.includes(`updated="${date}"`), name)
     assert.match(source, /three years, then deleted/, name)
     assert.match(source, /three calendar years/, name)
     assert.doesNotMatch(source, /preceding 35 months/, name)
@@ -83,6 +84,36 @@ test("product export permissions do not restrict individual privacy rights", () 
   assert.match(privacy, /https:\/\/www\.priv\.gc\.ca\/en\/privacy-topics\/accessing-personal-information/)
   for (const { name, source } of policies.slice(1)) {
     assert.match(source, /do not (restrict|limit) individual|do not limit an individual/, name)
+  }
+})
+
+test("privacy describes stored analysis settings, jobs and sensitive dimension values", () => {
+  const source = policies[0].source
+  for (const pattern of [/selected unique values/, /Background analysis records/, /Closing a page does not itself delete/, /not access controls or anonymization/, /selected dimension filter values/, /Clearing browser storage does not delete those server-side records/]) {
+    assert.match(source, pattern)
+  }
+  const facts = read("../../api/app/modules/reports/service.py")
+  assert.match(facts, /facts\["dimension_filters"\] = report\["definition"\]\.get\("dimension_filters", \[\]\)/)
+  const jobs = read("../../api/app/modules/reports/models.py")
+  for (const field of ["definition", "sources", "status", "result"]) assert.ok(jobs.includes(`${field} = Column(`))
+})
+
+test("policies distinguish saved report deletion, weekly template removal and retained decision evidence", () => {
+  for (const { source, name } of policies.slice(0, 2)) {
+    for (const pattern of [/associated saved-report analysis-job records/, /evidence copied into those decisions/, /Removing only the weekly template pauses delivery/, /pauses delivery/, /downloaded files|downloaded or delivered by email/]) {
+      assert.match(source, pattern, name)
+    }
+  }
+  const router = read("../../api/app/modules/reports/router.py")
+  assert.match(router, /db\.query\(ReportAnalysisJob\)\.filter_by\(saved_report_id=report\.id\)\.delete/)
+  assert.match(router, /preference\.enabled = 0/)
+  assert.match(router, /def report_decision_evidence\(report\)/)
+})
+
+test("terms explain filtered, indexed, seasonal and queued analysis with explicit weekly delivery", () => {
+  const source = policies[1].source
+  for (const pattern of [/initial syncing requests 90 days/, /checkpointed background chunks/, /matching observations/, /shared baseline of 100, not amounts in the original units/, /do not establish causation, attribution/, /sufficient suitable history/, /latest complete week/, /Choosing a template does not itself enable email delivery/, /reopening one does not automatically recompute it/, /does not itself record a business action/]) {
+    assert.match(source, pattern)
   }
 })
 

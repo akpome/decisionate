@@ -3,7 +3,7 @@ import { PolicyPage, PolicySection } from "@/components/landing/policy-page"
 
 export const metadata = {
   title: "Terms of Service",
-  description: "Terms for Decisionate workspaces, connectors, trials, AI and billing, renewal, and deletion."
+  description: "Terms for Decisionate workspaces, cross-dataset reports, forecasts, connectors, AI, billing, and deletion."
 }
 
 export default function TermsPage() {
@@ -12,14 +12,15 @@ export default function TermsPage() {
       eyebrow="Legal"
       title="Terms of Service"
       description="The rules for using Decisionate, including your data, workspace permissions, paid services, and retention."
-      updated="October 22, 2026"
+      updated="October 23, 2026"
     >
       <PolicySection title="1. Using Decisionate">
         <p>
           These terms apply to the Decisionate website, web application, and
           related services (&quot;Decisionate&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;).
           Decisionate helps businesses and agencies connect data, analyze
-          performance, record decisions, and review outcomes. By creating an
+          performance across datasets in Reports, inspect individual datasets,
+          generate forecasts, record decisions, and review outcomes. By creating an
           account or using the service, you agree to these terms. If you act for
           an organization, you must have authority to do so.
         </p>
@@ -64,6 +65,13 @@ export default function TermsPage() {
           A supported connector does not guarantee approval or access to every account.
         </p>
         <p>
+          Where date-based imports are supported, initial syncing requests 90 days
+          and older available history is imported in checkpointed background chunks,
+          up to three years. Provider permissions and history limits may reduce
+          coverage. Imports and analysis may remain incomplete while background
+          jobs are running; selecting a date range does not create missing history.
+        </p>
+        <p>
           Use minimum-scope credentials where supported. Removing a connection
           stops future imports through it and removes its stored credentials, but
           does not automatically delete previously imported datasets or source
@@ -73,11 +81,37 @@ export default function TermsPage() {
 
       <PolicySection title="4. Analysis and AI">
         <p>
-          Dashboards, forecasts, relationships, recommendations, and alerts are
+          Reports, dashboards, forecasts, relationships, recommendations, and alerts are
           decision-support tools, not guarantees. Results can be incomplete,
           inaccurate, delayed, or unsuitable for a particular purpose. Associations
           between metrics do not establish causation. Review the source data,
           assumptions, and consequences before acting.
+        </p>
+        <p>
+          Analysis depends on the metrics, source date columns, dimension values,
+          date ranges, and grouping settings selected. Cross-dataset comparisons
+          need sufficient matching observations. Indexed report charts compare
+          relative movement from a shared baseline of 100, not amounts in the
+          original units. Timing directions and lag tests do not establish
+          causation, attribution, or a guaranteed return on spending.
+        </p>
+        <p>
+          Seasonal-business settings affect unusual-change checks and forecasts
+          where sufficient suitable history supports the analysis. They do not
+          guarantee that holidays, promotions, or every seasonal effect are
+          accounted for. Weekly reports analyze the latest complete week using
+          up to three years of available history and the selected template&apos;s
+          metrics, source date fields, dimension filters, and seasonal setting.
+          Manual report dates do not set the weekly history window. Choosing a
+          template does not itself enable email delivery or choose recipients;
+          configure those separately in Alerts.
+        </p>
+        <p>
+          Report analysis runs in background jobs that store submitted settings,
+          processing status, and results. Saved reports preserve generated
+          snapshots; reopening one does not automatically recompute it. Generating
+          or saving a report does not itself record a business action. Review
+          selected evidence and record the action you choose in Decisions.
         </p>
         <p>
           AI-assisted analysis processes aggregate facts and relevant, bounded
@@ -149,6 +183,15 @@ export default function TermsPage() {
           Connection settings and credentials are not removed by this analytical
           purge; delete the connection separately. Deleted data cannot be recovered
           simply by renewing.
+        </p>
+        <p>
+          An authorized user can delete a saved report and its associated
+          saved-report analysis-job records without deleting its source datasets,
+          linked decisions, or evidence copied into those decisions. Deleting the
+          report selected as a weekly template also removes that template and
+          pauses delivery. Removing only the weekly template pauses delivery but
+          preserves the saved report and decisions. Deletion or revoked sharing
+          does not recall previously downloaded files or delivered emails.
         </p>
         <p>
           Authorized workspace deletion removes supported live records and files.

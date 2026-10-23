@@ -47,15 +47,15 @@ const gettingStartedItems = [
   },
   {
     id: "metrics",
-    title: "Select metrics and a period",
-    description: "Choose the measures, date range, and aggregation that matter.",
+    title: "Choose metrics and filters",
+    description: "Choose measures, then open Filters for date and dimension columns.",
     href: "/dashboard",
     action: "Open dashboard",
   },
   {
     id: "analysis",
-    title: "Analyze selected metrics",
-    description: "Use evidence from the data to understand what is changing.",
+    title: "Compare datasets in Reports",
+    description: "Connect selected metrics across sources to answer a business question.",
     href: "/dashboard/reports",
     action: "Open reports",
   },
@@ -79,7 +79,32 @@ const faqItems = [
   {
     question: "What is Decisionate for?",
     answer:
-      "Decisionate connects business data to recommendations, forecasts, decisions, outcomes, and lessons learned. It is designed to improve the quality and accountability of decisions, not just display charts.",
+      "Decisionate brings evidence from different business datasets together to support decisions, outcomes, and lessons learned. Use cross-dataset reports to explore how activity in one source relates to results in another; dashboards provide supporting KPIs and charts.",
+  },
+  {
+    question: "Where are dashboard date and dimension filters?",
+    answer:
+      "Open Filters beside the other dashboard controls. Date column is preselected from the dataset; change it when another date field better fits the question. Choose a Dimension column, add one or more Unique values from the dropdown, and use Search values to find options. Closing Filters keeps your selections applied. Clear the dimension filter to return to all rows.",
+  },
+  {
+    question: "What is the default dashboard period?",
+    answer:
+      "New and reset dashboard views use 1 year. Available dashboard periods are 1 month, 1 quarter, 6 months, 1 year, 2 years, and 3 years. The 5-year and All options have been removed; older saved views using either fall back to 1 year. Other valid saved periods are preserved. Reports and Forecasts have their own date controls.",
+  },
+  {
+    question: "Where have Insights and dashboard Analysis moved?",
+    answer:
+      "Reports is now the analysis workspace, with Multi dataset report opening by default and Single dataset report available separately. Old Insights links redirect to Reports. Dashboard Analysis controls and their panels have been removed; use dashboards for charts and KPIs, Reports for analysis, and Forecasts for forward-looking estimates.",
+  },
+  {
+    question: "Why can a year-long report have insufficient relationship evidence?",
+    answer:
+      "The default minimum is 24 matched historical observations after grouping and filtering, not 24 calendar days selected in the form. A year of monthly source data provides only 12 monthly observations. Different date ranges, missing periods, dimension filters, constant values, and lag tests can reduce usable evidence further. Choose more overlapping source history or a finer grouping only when the source really contains observations at that frequency.",
+  },
+  {
+    question: "How much connector history is imported?",
+    answer:
+      "Initial connector ingestion requests the latest 90 days first, then backfills up to three years of available history in background chunks. Provider permissions and available source history can limit coverage. Imports longer than 90 days are chunked, and connector data older than the rolling three-year retention window is deleted. Review connection progress before treating a partial import as complete history.",
   },
   {
     question: "Why do I need to select metrics?",
@@ -89,7 +114,7 @@ const faqItems = [
   {
     question: "How do recommendations become decisions?",
     answer:
-      "Review the evidence, then open Decisions to create a decision. Select a saved cross-dataset report to retain its business question, source metrics and findings with the decision.",
+      "Review the evidence, then open Decisions to create a decision. Select a saved cross-dataset report to retain its business question, selected metrics, and findings. A report's Decision draft link opens the decision workflow; previewing or saving a report does not itself record a business action. Rename the generated decision name to describe the action.",
   },
   {
     question: "How does Decisionate learn from outcomes?",
@@ -124,15 +149,15 @@ const referenceChapters: ReferenceChapter[] = [
     id: "reference-orientation",
     title: "1. Decisionate fundamentals",
     summary:
-      "Decisionate is a decision-intelligence workspace. The product loop is Data -> Insight -> Recommendation -> Decision -> Outcome -> Learning. Charts and reports provide evidence; the decision record captures what the business chose and whether it worked.",
+      "Decisionate is a cross-dataset decision-intelligence workspace. The product loop is Data -> Analysis -> Recommendation -> Decision -> Outcome -> Learning. Reports connect evidence across sources; the decision record captures what the business chose and whether it worked.",
     howTos: [
       {
         title: "Start with a business question",
         steps: [
           "Write the decision you need to make in plain language, such as whether to increase campaign spend, change pricing, or address a sales bottleneck.",
-          "Identify the measure that will show whether the action worked. This is the metric you will select or map in Decisionate.",
+          "Identify the outcome measure and the related measures from other datasets, such as advertising spend in a marketing source and orders or revenue in a commerce source.",
           "Choose the period and aggregation that match the question. A daily operational question should not be answered with a yearly total unless that is intentional.",
-          "Use an insight, forecast, report, alert, relationship, or dashboard as evidence, then record the action and expected outcome as a decision.",
+          "Use Reports to analyze the selected evidence across datasets. Use dashboards, forecasts, saved relationships, and alerts as supporting context, then record the action and expected outcome in Decisions.",
         ],
       },
       {
@@ -210,11 +235,21 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Configure a connector",
         steps: [
           "Open Data -> Connections and review the connector catalog. The status shown in the application is the authority for whether a source is available in the current deployment.",
-          "Depending on deployment status, the catalog can include Google Analytics, PostgreSQL, MySQL, SQL Server, Stripe, Shopify, QuickBooks, FreshBooks, Sage Cloud Accounting, Xero, Zoho Books, HubSpot, and Meta Ads. File uploads support CSV, JSON, Excel, and Parquet.",
+          "Choose from the accounting, commerce, payment, CRM, advertising, analytics, or database sources actually offered by the catalog. Connector availability and required fields can differ by deployment; do not assume every provider is enabled.",
           "Select a connector and provide only the fields requested by that connector, such as an account, property, company, shop, tenant, or object identifier.",
           "Use read-only or minimum-scope credentials wherever the provider supports them.",
           "Run the connection or pull test if the connector exposes one. Resolve provider authentication, permission, identifier, and server-configuration errors before enabling scheduled sync.",
           "Choose the dataset name and sync settings, then perform a manual pull before relying on scheduled ingestion.",
+        ],
+      },
+      {
+        title: "Understand initial history and large imports",
+        steps: [
+          "The initial connector import requests the latest 90 days first so recent data can become available before the historical backfill completes.",
+          "The worker then backfills up to a rolling three years of available source history in checkpointed chunks. Background history chunks are at most 30 days, and provider limits or permissions can reduce the history returned.",
+          "Manual date ranges longer than 90 days are also split into chunks. Choose a range within the supported three-year history rather than submitting repeated overlapping full imports.",
+          "Review connection progress and dataset coverage while the backfill is running. A recent dataset appearing does not mean all historical chunks are complete.",
+          "Connector data older than the rolling three-year retention boundary is deleted. This connector policy is separate from uploaded-file and subscription retention rules.",
         ],
       },
       {
@@ -279,22 +314,33 @@ const referenceChapters: ReferenceChapter[] = [
     id: "reference-dashboards",
     title: "5. Dashboards and chart controls",
     summary:
-      "Dashboards provide visual evidence for decision work. The main dashboard and industry dashboards are independent views, so dataset and metric choices should be made in the dashboard where you are working.",
+      "Dashboards provide charts, KPIs, and targets for decision work. Dataset dashboards have a Filters control alongside their other toolbar controls. Reports is the analysis workspace; dashboards no longer have an Analysis panel.",
     howTos: [
       {
         title: "Open and configure a dashboard",
         steps: [
-          "Open Dashboards and choose General Business Overview, Decision Performance, Sales Performance, Marketing Performance, Retail, Restaurant, Hotels & Hospitality, Professional Services, Healthcare Practice, Real Estate, Nonprofit, Construction, or Law Firm Performance when available.",
-          "Select the dataset from the dashboard control. A selected dataset should not silently become the selection on another dashboard.",
-          "Choose the metric for each chart or use manual mapping where the source column names do not match the chart intent.",
-          "Set the start date, duration or period, grouping period, and aggregation. Confirm that every chart and KPI reflects the same analysis window where the dashboard supports global controls.",
+          "Open Dashboards and choose the business or industry dashboard appropriate to your question, including Auto Repair Shop Performance when available. Decision Performance uses decision records rather than dataset date and dimension selectors.",
+          "Select a dataset on General Business Overview, or open Dataset in an industry dashboard. Dataset and metric choices are saved for the dashboard where you are working.",
+          "Choose the target metric on General Business Overview. Use Edit dashboard to change metric selections, targets, or industry chart mappings where available.",
+          "Open Filters beside Edit dashboard, Dataset, or Compare data to choose the Date column and Dimension column. The selectors are aligned horizontally when space permits and stack on narrow screens.",
+          "Set the start date, Period, Group by, and Aggregate in the chart controls or industry Dataset panel. New views and Reset view or Reset range use 1 year; other supported saved periods remain in place.",
           "Use the chart action controls to expand a chart, save a PDF, or share the dashboard when those controls are available.",
+        ],
+      },
+      {
+        title: "Filter a dashboard by dimension values",
+        steps: [
+          "Open Filters. Keep the preselected Date column or choose another detected date field; changing it clears the old start-date selection.",
+          "Leave Dimension column on All rows for an unfiltered view, or choose a source field such as region, channel, product, or customer segment.",
+          "Choose one or more Unique values from the dropdown. Use Search values to find additional options; selected values appear below the controls and can be removed individually.",
+          "Choose at least one value after selecting a dimension. An empty value selection is not treated as all rows. Review loading, no-match, or retry messages before interpreting the charts.",
+          "Close Filters to make more room for charts. The selected date and dimension values remain applied. Use Clear dimension filter to return to all rows.",
         ],
       },
       {
         title: "Map metrics in an industry dashboard",
         steps: [
-          "Identify the chart name first. The mapping card names the chart whose source columns it controls.",
+          "Open Edit dashboard and identify the chart name first. The mapping card names the chart whose source columns it controls.",
           "Select the numeric value column for a trend, KPI, bar, or funnel value axis.",
           "Select the non-numeric category, channel, product, service, stage, or status column where the chart requires labels.",
           "Leave mappings empty when automatic detection correctly identifies the source columns.",
@@ -304,7 +350,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Set targets and inspect chart detail",
         steps: [
-          "Use KPI target controls on the main dashboard when a target is needed for the selected metric.",
+          "Open Edit dashboard on General Business Overview to set optional metric targets in Metrics & Targets.",
           "Use the chart expand action to open a larger view when the chart is mapped and the action is available.",
           "For a horizontal bar chart opened in a modal, use the expanded vertical presentation to compare category values more easily.",
           "Use the chart legend or direct labels to verify which dataset column each visual encoding represents.",
@@ -312,6 +358,8 @@ const referenceChapters: ReferenceChapter[] = [
       },
     ],
     notes: [
+      "Dashboard Period offers 1 month, 1 quarter, 6 months, 1 year, 2 years, and 3 years. The 5-year and All periods are no longer selectable; saved views using them reopen at 1 year.",
+      "Closing Filters does not clear its settings. Read the active dimension label and chart date labels before comparing dashboards or exports.",
       "Dashboards are not the entire product. Their purpose is to make evidence understandable before a decision is recorded.",
       "The available chart types depend on the dashboard definition, source columns, data cardinality, and selected mappings.",
     ],
@@ -325,18 +373,18 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Create a joined analysis",
         steps: [
-          "Open the main dashboard or an industry dashboard that includes the join panel.",
-          "Choose the datasets to relate and select the date or time columns used for normalization.",
-          "Choose the join behavior available on the panel and run the join.",
-          "If source data uses day, month, or year formats, normalize both sides to the dashboard period before judging whether periods overlap.",
+          "Open Compare data on a dataset dashboard with at least two available source datasets.",
+          "Choose the datasets, source metrics, and date columns used for normalization. Each source has its own dimension filter; choose its Unique values before joining if you need a segment-specific comparison.",
+          "Review the source selections and choose Join selected data. Decisionate normalizes the selected date columns into comparable periods.",
+          "Check whether the normalized source periods actually overlap before interpreting joined values.",
           "Review the joined metric selector and chart mappings. Metrics from both datasets should be available where the dashboard supports them.",
         ],
       },
       {
         title: "Reset a joined analysis",
         steps: [
-          "Use the reset or destroy-join control shown after a join has been created.",
-          "Confirm the reset when prompted. This returns the dashboard to its pre-join dataset state and releases the joined analysis context.",
+          "Use Reset joined data after a join has been created.",
+          "This releases the joined analysis context. Review the restored dataset and metric selections before continuing.",
           "Re-select the original dataset or metric if the dashboard asks for a new selection after reset.",
         ],
       },
@@ -344,23 +392,43 @@ const referenceChapters: ReferenceChapter[] = [
     notes: [
       "A join is an analysis operation, not proof that one source caused movement in another.",
       "A join can fail when normalized periods do not overlap or when the date columns contain incompatible or invalid values.",
-      "For recurring cross-source evidence, use Relationships instead of repeatedly rebuilding an ad hoc dashboard join.",
+      "Use Reports for multi-metric, multi-dataset analysis and saved report snapshots. Use Relationships for a saved two-metric monitor instead of repeatedly rebuilding an ad hoc dashboard join.",
     ],
   },
   {
     id: "reference-analysis",
     title: "7. Analysis, reports, and forecasts",
     summary:
-      "Reports contains the analysis workflow: choose metrics and settings once, review the findings, and save a report snapshot. Forecasts remains a separate forward-looking workflow.",
+      "Reports contains single- and multi-dataset analysis: choose metrics, dates, and dimension filters, review the findings, and save a report snapshot. Multi dataset report opens by default. Forecasts remains a separate forward-looking workflow; old Insights links redirect to Reports.",
     howTos: [
       {
         title: "Analyze metrics and findings",
         steps: [
           "Open Analysis -> Reports. Multi dataset report opens by default; Single dataset report uses the same analysis engine for one source.",
           "Select the approved metrics needed to answer your business question. Multi dataset reports require metrics from at least two datasets.",
-          "Set the date range, grouping period, seasonal-business setting, and any relationship directions, then preview the report.",
-          "Review metric movements, seasonal anomaly findings, relationship evidence, coverage, and limitations together in the report preview.",
+          "Under Datasets and metrics, review each source's preselected Date column. If needed, choose its Dimension column and add Unique values from the dropdown; Search values narrows the available choices.",
+          "Set Start and End for this report, Group by, and Business has seasonal activity when appropriate. Relationship analysis is expanded in multi dataset reports; choose timing separately for each cross-dataset metric pair if needed.",
+          "Choose Preview report and wait for the queued analysis to finish. Review metric movements, anomaly findings, relationship evidence, coverage, and limitations together in Report preview.",
           "Treat recommendations as prompts for review. Create decisions from the Decisions page after confirming the source data and business context.",
+        ],
+      },
+      {
+        title: "Set relationship timing and historical coverage",
+        steps: [
+          "Choose Spearman or Pearson in Relationship analysis. Minimum historical observations defaults to 24 and counts usable matched observations after grouping and filtering, not the number of dates entered.",
+          "Leave Evaluate timing off for same-period comparisons. When enabled, Relationship directions lists each cross-dataset metric pair separately; choose Same-period comparison only or name which metric leads for that pair.",
+          "Maximum lag is measured in the selected Group by period and is limited to 12. A lag of 2 means two daily, weekly, monthly, or quarterly periods, depending on that setting. A directional timing test also includes lag zero.",
+          "With metrics from three or more datasets, configure every relevant pair independently. A metric can follow one source and lead another; there is no single global middle-metric direction.",
+          "If evidence is insufficient, check real overlapping source dates, selected date columns, missing or constant values, dimension filters, and the observations left after lagging. Twelve monthly observations do not meet the default minimum of 24; a wider form date range cannot create missing source history.",
+        ],
+      },
+      {
+        title: "Read the combined indexed chart",
+        steps: [
+          "In Report preview, use Indexed metric comparison to compare selected metrics on one chart. Each line is identified by its dataset and metric, using distinct colors and, where needed, line styles.",
+          "The chart uses the displayed shared positive baseline date as 100. An index of 120 means 20 percent above that metric's baseline value, not 120 orders or 120 currency units.",
+          "Use the metric cards and tooltip for original values and units. Read coverage and baseline warnings; metrics without a usable positive baseline cannot be plotted on the indexed scale.",
+          "Compare movement without treating equal index levels as equal business quantities or proof that one metric caused another.",
         ],
       },
       {
@@ -368,6 +436,7 @@ const referenceChapters: ReferenceChapter[] = [
         steps: [
           "Open Analysis -> Reports, select metrics and dates, and enable Business has seasonal activity when appropriate. Preview the report to assess every selected metric with the shared anomaly engine.",
           "Review any anomaly finding alongside the underlying chart and time periods. Confirm that the finding is not caused by an incomplete connector sync, a date change, a join, or a source-schema change.",
+          "The seasonal setting requests validation of repeating patterns; it does not force seasonal adjustment when history is insufficient. Read any limited-history or trend-only warning, and consider promotions or holidays that are not automatically known to the model.",
           "Record the business response as a decision when action is needed. Include the suspected cause, the expected result, and the date on which the result will be reviewed.",
           "After the review period, record the actual outcome and lesson learned so the evidence can be used in later recommendation context.",
         ],
@@ -376,7 +445,9 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Generate a forecast",
         steps: [
           "Open Analysis -> Forecasts and select a dataset.",
-          "Select the metric to forecast and set the available date, period, grouping, and aggregation controls.",
+          "Select the metric and review the preselected Date column beside Dimension column. To forecast a segment, choose its dimension field and add one or more Unique values; use Search values to find options or clear the filter for all rows.",
+          "Set the history date range, period, grouping, and aggregation. These are forecast controls, not the dashboard's 1-year default period policy.",
+          "Enable Business has seasonal activity only when recurring calendar patterns are relevant. Seasonal forecasting validates candidate patterns against past history; review the seasonal basis, fallback, and coverage warnings instead of assuming the checkbox guarantees a seasonal model.",
           "Review the historical series, forecast horizon, confidence information, and any model or fallback status shown by the page.",
           "Check whether the forecast is based on enough comparable periods and whether the source has gaps or recent ingestion delays.",
           "Use the forecast recommendation as decision evidence, then record the expected outcome and review date in a decision.",
@@ -387,8 +458,27 @@ const referenceChapters: ReferenceChapter[] = [
         steps: [
           "Open Analysis -> Reports and configure the selected datasets and metrics in Build report.",
           "Rename the report to suit your analysis, enter a business question, and preview the findings. Save snapshot stores the generated report; reopening a snapshot preserves its analysis.",
-          "Use a saved multi dataset report as the weekly template. This does not enable delivery or change recipients. Weekly reports use the latest completed week and a rolling three-year history, not the manual report dates.",
+          "Generated report names are unique starting labels, not descriptions of the business question. Edit them before saving so saved reports are easy to distinguish.",
+          "Changing metric, date, dimension, seasonal, or timing settings requires a fresh preview before saving the changed analysis.",
           "Use the report as a review package. Reports are not a replacement for recording the business decision and expected outcome.",
+        ],
+      },
+      {
+        title: "Set up or remove a weekly report template",
+        steps: [
+          "Generate a multi dataset report and choose Use for weekly report. The saved template retains selected source metrics, date columns, dimension filters, and the seasonal-business setting.",
+          "Open Weekly delivery to review recipients, schedule, and sending preferences in Alerts. Selecting a template does not itself enable delivery or change recipients.",
+          "Weekly reports assess the latest completed week with up to a rolling three years of available history, including unusual changes in the selected metrics. Manual Start and End dates are for the generated snapshot and do not fix the weekly reporting window.",
+          "Weekly reviews use daily periods. A saved weekly, monthly, or quarterly lag is not silently reused as days; review the timing warning when applicable.",
+          "Use Remove weekly report template to pause delivery and remove the template selection while keeping the saved report and linked decisions.",
+        ],
+      },
+      {
+        title: "Delete a saved report",
+        steps: [
+          "Choose the saved report from Saved reports and use Delete saved report when your workspace permissions allow it.",
+          "Read the confirmation before deleting. Linked decisions and datasets are kept; deleting the report currently used as the weekly template also pauses weekly delivery.",
+          "To keep the saved report and remove only its weekly role, use Remove weekly report template instead.",
         ],
       },
     ],
@@ -407,7 +497,8 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Create a cross-source relationship",
         steps: [
           "Open Analysis -> Relationships.",
-          "Choose the left and right datasets, date columns, and metrics. Select the period and aggregation appropriate to the business question.",
+          "Choose the left and right datasets, date columns, and metrics. Each side has an independent Dimension column filter with Unique values and Search values; choose at least one value for any selected dimension.",
+          "Select the period and aggregation appropriate to the business question. Verify the actual overlapping dates after applying filters to each source.",
           "Leave Timing set to Automatic when you want Decisionate to evaluate a bounded set of lags. Use Advanced timing only when you have a specific timing hypothesis.",
           "Review the strength, direction, matched periods, best observed delay, stability or credibility, and the plain-language explanation.",
           "Save the relationship only when the source columns, period, and interpretation are meaningful for the workspace.",
@@ -436,6 +527,7 @@ const referenceChapters: ReferenceChapter[] = [
     ],
     notes: [
       "A relationship reports association, not proven causation.",
+      "Relationships saves a two-metric monitor. For multiple metrics across multiple datasets, use Multi dataset report in Reports. The retired advanced relationship explorer has been removed.",
       "The current KPI target is a digest and AI benchmark; it does not by itself create a separate threshold-triggered alert.",
       "Alerts are workspace-scoped. A workspace must not receive another workspace's datasets, targets, relationships, recipients, or recommendations.",
     ],
@@ -450,11 +542,20 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Create a decision from scratch",
         steps: [
           "Open Decisions and choose Create decision. Select a saved report as evidence, or choose a dataset for a manual decision.",
-          "Select the dataset and optional metric. The selected metric should appear consistently in the decision title and metric-specific template content.",
-          "Write a concise decision title that states the choice, not just the observation.",
+          "For report evidence, review only the selected report metrics and choose an available outcome metric. For a manual decision, choose the dataset and optional metric offered by that workflow.",
+          "Replace the unique generated decision name with a concise title that states the choice, not just the observation. The name is a label, not a reason to overwrite another decision.",
           "Complete Action with the concrete action, scope, owner responsibility, and timing. For example, state what will change and for how long.",
           "Complete Expected outcome with a measurable success condition, target, review date, or hypothesis.",
           "Set priority, category, confidence, review date, and owner fields available on the form, then create the decision.",
+        ],
+      },
+      {
+        title: "Continue a report-linked decision",
+        steps: [
+          "Open a saved report and look under Decisions and outcomes for its linked active decisions or an available Decision draft link.",
+          "Decision draft opens the decision workflow with that report's evidence. Review its selected metrics, record a concrete action and expected outcome, add reasoning and a review date where required, then explicitly save the decision.",
+          "An earlier draft is not a completed decision. Continue the existing record when it represents the same action; updating a decision edits that record instead of requiring another decision with the same name.",
+          "Use Manage decisions for the central Decisions page. Archived decisions remain in the report's separate archived-history section rather than being presented as active actions.",
         ],
       },
       {
@@ -594,7 +695,8 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Understand the AI analysis path",
         steps: [
-          "The user selects a dataset, metric, period, aggregation, dashboard mapping, join, relationship, or decision context.",
+          "The user selects report metrics, source date columns, dimension filters, analysis settings, or a forecast or decision context.",
+          "Changing dashboard charts or opening Filters does not request the removed dashboard AI Analysis panel. Open Reports when you need interpretation of the selected evidence.",
           "Decisionate computes or retrieves the permitted data summary and supporting evidence for that workspace.",
           "Where the AI provider is configured and credits are available, the application sends the configured analysis context to the AI service and receives a structured summary, recommendations, risks, and confidence information.",
           "Where the provider is unavailable or unsupported, the feature may use a deterministic fallback when one is implemented for that page.",
@@ -614,9 +716,9 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Understand data storage and retention",
         steps: [
           "Uploaded and connector data are handled through the configured storage and analytics providers of the deployment.",
-          "Connector ingestion can use partitioned and summarized storage paths so time-series analysis does not require loading an unbounded single file.",
+          "Connector ingestion imports recent data first, backfills older history in checkpointed chunks, and can use partitioned and summarized storage paths so analysis does not require an unbounded single file.",
           "Historical summaries preserve analytical aggregates and relevant low-cardinality grouping dimensions; row-level detail removed by summarization cannot be recovered from the summary.",
-          "Connector data retention, subscription-expiry retention, backups, and provider retention must be read together with the current Privacy and Terms pages.",
+          "Connector datasets use a rolling three-year retention window, with older connector data deleted. Read subscription-expiry retention, uploaded-file retention, backups, and provider policies together with the current Privacy and Terms pages.",
           "Request deletion or export through an authorized support request when self-service behavior does not cover the required scope.",
         ],
       },
@@ -650,6 +752,16 @@ const referenceChapters: ReferenceChapter[] = [
           "If only one connector or analysis fails, check that provider credentials, environment configuration, and required identifiers are valid.",
           "Retry once after confirming the session is still signed in. Do not repeatedly submit a connector pull if the provider may be rate limiting it.",
           "Send support the route, connector name, exact error, and safe reproduction details. The request includes the timestamp, active workspace, and session context automatically. Never include secrets.",
+        ],
+      },
+      {
+        title: "Dashboard filters or expected analysis are missing",
+        steps: [
+          "On a dataset dashboard, open Filters beside the toolbar controls to reveal Date column and Dimension column. The panel starts closed; this does not mean filtering has been removed.",
+          "If a dimension is selected, choose at least one Unique value. Clear dimension filter restores all rows; closing the Filters panel does not clear it.",
+          "If filtering is loading or failed, use the visible status or Retry filtered dashboard control. Do not interpret previous or unfiltered figures as a successful filtered result.",
+          "Dashboard Analysis panels and a separate Insights workspace are no longer part of this workflow. Open Reports for single- or multi-dataset analysis, or Forecasts for projections.",
+          "For a period change, new or reset dashboards use 1 year, while other supported saved periods remain. Saved 5-year or All selections reopen as 1 year.",
         ],
       },
       {
@@ -1083,7 +1195,7 @@ export default function HelpSupportPage() {
         <div className="mt-5 grid gap-4 md:grid-cols-4">
           {[
             ["1", "Observe", "Load data and select the metrics and period that frame the question."],
-            ["2", "Interpret", "Use insights, forecasts, reports, and alerts to understand the signal."],
+            ["2", "Interpret", "Compare selected metrics across datasets in Reports; use forecasts, relationships, and alerts for context."],
             ["3", "Decide", "Record the chosen action, expected outcome, owner, and review date."],
             ["4", "Learn", "Capture what happened and what to repeat or avoid next time."],
           ].map(([number, title, description]) => (

@@ -3,13 +3,13 @@ import { PolicyPage, PolicySection } from "@/components/landing/policy-page"
 
 export const metadata = {
   title: "Privacy Policy",
-  description: "How Decisionate handles accounts, workspaces, connected data, AI, retention, and privacy requests."
+  description: "How Decisionate handles connected data, report settings and results, AI analysis, retention, and privacy requests."
 }
 
 const processors = [
   ["Clerk", "Account authentication, identity information, and sign-in sessions. Decisionate does not store your sign-in password."],
-  ["Hosting and storage providers", "Application delivery, databases, files, service logs, and backups. Supported infrastructure includes Railway, Vercel, PostgreSQL, and Cloudflare R2 or Amazon S3; the providers and locations used depend on the deployment."],
-  ["OpenAI", "The selected analysis context, aggregate metrics and trends, and bounded decision outcomes or learning notes. User-authored text and category labels can contain personal information."],
+  ["Hosting and storage providers", "Application delivery, databases, files, stored report definitions and results, analysis-job records, service logs, and backups. Supported infrastructure includes Railway, Vercel, PostgreSQL, and Cloudflare R2 or Amazon S3; the providers and locations used depend on the deployment."],
+  ["OpenAI", "The requested analysis context, including selected dimension values, business questions, aggregate metrics and trends, bounded unusual-change evidence, and relevant decision outcomes or learning notes. User-authored text, filter values and category labels can contain personal information."],
   ["Stripe", "Subscription identifiers, checkout, payments, invoices, and billing events. Stripe collects payment-card details through its services; Decisionate does not store full card numbers."],
   ["Resend or the configured email provider", "Recipient details and the contents of requested reports, alerts, invitations, support correspondence, and service emails. With marketing opt-in, Resend also receives your name, email and lifecycle segment memberships; it does not receive raw business datasets or connector credentials for marketing."],
   ["Sentry, when diagnostics are configured", "Error context and service request metadata. The API disables default personal-information collection, local-variable capture, and request-body capture in its monitoring configuration."],
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
       eyebrow="Privacy"
       title="Privacy Policy"
       description="What information we handle, why we use it, how long we keep it, and how to request access, correction, or deletion."
-      updated="October 22, 2026"
+      updated="October 23, 2026"
     >
       <PolicySection title="1. Scope and responsibility">
         <p>
@@ -46,6 +46,8 @@ export default function PrivacyPage() {
           <li>Account information: name, email address, authentication identifiers, session information, and internal user identifiers.</li>
           <li>Workspace information: business and onboarding details, members and roles, invitations, agency-client relationships, branding, preferences, and access records.</li>
           <li>Business information: uploaded files, authorized connector records, dataset columns and metrics, dashboards, forecasts, relationships, alerts, reports, decisions, notes, outcomes, and lessons.</li>
+          <li>Analysis configuration and results: selected metrics, date columns, dimension columns and selected unique values, date ranges, grouping and timing settings, seasonal-business settings, business questions, saved report definitions and snapshots, weekly templates, and decision evidence.</li>
+          <li>Background analysis records: job identifiers, workspace and source references, submitted analysis settings, processing status, results, timestamps, and error information. Closing a page does not itself delete these records.</li>
           <li>Connection information: provider and account identifiers, configuration, authorization scopes, and credentials needed to import authorized data.</li>
           <li>Service information: request metadata, usage and AI-credit records, billing identifiers, delivery status, activity history, errors, and support messages.</li>
           <li>Email preferences: verification and marketing-consent records, the wording and sender details shown when you opted in, unsubscribe and suppression records, lifecycle classifications, and email-delivery history.</li>
@@ -95,6 +97,14 @@ export default function PrivacyPage() {
           authorization through the connected provider. Revocation and deletion
           in Decisionate do not delete the provider&apos;s original records.
         </p>
+        <p>
+          Where the source supports date-based imports, the initial sync requests
+          90 days. Older available history is loaded in background chunks, up to
+          three years. Longer imports are checkpointed so they can resume.
+          Provider permissions, resource coverage, and history limits can reduce
+          the records available; a configured history window is not a guarantee
+          that every record in that window can be imported.
+        </p>
       </PolicySection>
 
       <PolicySection title="5. Workspace access and public sharing">
@@ -103,6 +113,15 @@ export default function PrivacyPage() {
           private data. Agency management of a client workspace does not by itself
           grant permission to read the client&apos;s data. Platform administration
           is a separate permission.
+        </p>
+        <p>
+          Date and dimension filters narrow the records used for analysis; they
+          are not access controls or anonymization. Dimension values, small
+          groups, labels, and user-authored report text may identify people.
+          Saved reports, decision evidence, PDFs, and email reports can include
+          selected analysis context and results. Choose recipients and sharing
+          settings accordingly. Revoking a share does not recall copies already
+          downloaded or delivered by email.
         </p>
         <p>
           If you enable a public dashboard share, anyone with a valid share link
@@ -119,6 +138,8 @@ export default function PrivacyPage() {
           For a requested AI analysis, Decisionate prepares bounded facts,
           selected metric or relationship context, aggregate values and trends,
           and relevant decision outcomes or learning notes from the same workspace.
+          For reports, this can include your business question, selected dimension
+          filter values, and bounded unusual-change and seasonal-analysis results.
           This context is sent to the configured AI provider. The analysis request
           is not an upload of the raw dataset file or every source row.
         </p>
@@ -172,6 +193,11 @@ export default function PrivacyPage() {
           support sign-in and the application experience. Sign out on shared
           devices and use browser controls to clear stored information when needed.
         </p>
+        <p>
+          Saved dashboard preferences, report definitions, and weekly templates
+          are also stored by the service with the relevant account or workspace.
+          Clearing browser storage does not delete those server-side records.
+        </p>
       </PolicySection>
 
       <PolicySection title="9. Retention and deletion">
@@ -183,6 +209,20 @@ export default function PrivacyPage() {
           date are aged using their ingestion partition month. This rule does not
           automatically delete manually uploaded datasets, decisions, account
           information, or workspace configuration.
+        </p>
+        <p>
+          Saving a report stores its settings and a snapshot of the generated
+          results, rather than a live view that automatically changes with every
+          source update. An authorized user can delete a saved report and its
+          associated saved-report analysis-job records. This does not delete
+          source datasets, linked decisions, or evidence copied into those
+          decisions. If the report is the weekly template, deleting it also
+          removes that template and pauses delivery. Removing only the weekly
+          template pauses delivery but keeps the saved report and decisions.
+          Neither action recalls downloaded files or emails already delivered.
+          Source-record retention should not be treated as deletion of every
+          saved output or copied decision record; contact us about information
+          retained in those records.
         </p>
         <p>
           Where a trial or paid subscription expires, analytical dataset storage

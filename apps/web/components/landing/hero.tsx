@@ -9,10 +9,10 @@ import { LandingProductDemo } from "./landing-product-demo"
 export function LandingHero() {
   const { t } = useLandingText()
   const productSummary = t(
-    "Connect your accounting, sales and marketing tools—or upload spreadsheets. Spot what needs attention with AI-assisted insights, assign actions and track results in one workspace."
+    "Analyze accounting, sales and marketing data together. Compare selected metrics across datasets, investigate relationships and unusual changes, then track the action you choose."
   )
   const automationSummary = t(
-    "Daily syncing keeps your connected data current. Enable weekly performance reports and KPI alerts by email."
+    "Save a cross-dataset report for weekly reviews. Enable weekly report delivery and KPI alerts by email when you are ready."
   )
   return (
     <section id="product" className="landing-hero border-b border-neutral-200 bg-white">
@@ -21,7 +21,7 @@ export function LandingHero() {
           <div className="landing-hero-intro min-w-0">
             <div className="landing-hero-message">
               <h1 className="landing-hero-title font-semibold text-neutral-950">
-                {t("Turn your business data into better decisions.")}
+                {t("Decisionate")}
               </h1>
               <p className="landing-hero-copy max-w-lg text-neutral-600">
                 {productSummary}
