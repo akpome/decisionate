@@ -32,13 +32,34 @@ test("dimension control defaults to all rows with no preselected values", () => 
 
 test("saved selected values remain visible before options load and distinguish missing from empty", () => {
   const html = render({ value: { column: "channel", values: ["East", null, "", "null"] } })
-  assert.equal((html.match(/type="checkbox"/g) || []).length, 4)
-  assert.equal((html.match(/checked=""/g) || []).length, 4)
+  assert.doesNotMatch(html, /type="checkbox"|role="checkbox"/)
+  assert.equal((html.match(/<select/g) || []).length, 2)
+  assert.equal((html.match(/aria-label="Remove value:/g) || []).length, 4)
   for (const value of ["East", "Missing", "Empty string", "null"]) assert.ok(html.includes(value), value)
-  assert.match(html, /aria-label="channel values"/)
+  assert.match(html, /aria-label="channel selected values"/)
   assert.match(html, /aria-label="Clear dimension filter"/)
   assert.match(html, /Unique values/)
   assert.match(html, /Selected values.*4 \/ 50/)
+  assert.match(html, /value="null" disabled="">Missing<\/option>/)
+  assert.match(html, /value="&quot;&quot;" disabled="">Empty string<\/option>/)
+  assert.match(html, /value="&quot;null&quot;" disabled="">null<\/option>/)
+})
+
+test("unique values use a dropdown with a search field instead of a checkbox list", () => {
+  const html = render({ value: { column: "region", values: [] } })
+  assert.match(html, /<label[^>]*for="[^"]+-values"[^>]*>Unique values<\/label>/)
+  assert.match(html, /<select id="[^"]+-values"/)
+  assert.match(html, /<option value="" selected="">Select values<\/option>/)
+  assert.match(html, /aria-label="Search unique values"/)
+  assert.doesNotMatch(html, /type="checkbox"|role="checkbox"|<select[^>]*multiple/)
+})
+
+test("the value limit disables adding values without disabling removal", () => {
+  const values = Array.from({ length: 50 }, (_, index) => `Value ${index}`)
+  const html = render({ value: { column: "region", values } })
+  assert.match(html, /<select id="[^"]+-values"[^>]*disabled=""/)
+  assert.equal((html.match(/aria-label="Remove value:/g) || []).length, 50)
+  assert.doesNotMatch(html, /<button[^>]*disabled/)
 })
 
 test("report selectors remain visible without eagerly reading every dataset", () => {

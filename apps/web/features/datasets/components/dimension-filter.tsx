@@ -76,14 +76,22 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
       {value && <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300" title={t("Clear dimension filter")} aria-label={t("Clear dimension filter")} onClick={() => { onChange(undefined); setSearch(""); setOffset(0) }}><X size={16} /></button>}
     </div>
     {column && <div className="min-w-0 space-y-2">
-      <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-search`}>{t("Unique values")}</label>
-      <div className="relative"><Search size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-gray-400" /><input id={`${id}-search`} type="search" className={`${input} pl-9`} placeholder={t("Search values")} value={search} onChange={event => { setSearch(event.target.value); setOffset(0) }} /></div>
-      <div role="group" aria-label={`${column} ${t("values")}`} className="max-h-48 min-w-0 overflow-y-auto pr-2">
-        {visible.map(item => {
-          const checked = selectedValues.includes(item)
-          return <label key={JSON.stringify(item)} className="flex min-h-10 min-w-0 items-start gap-2 py-2 text-sm"><input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={checked} disabled={!checked && selectedValues.length >= 50} onChange={() => onChange({ column, values: checked ? selectedValues.filter(selected => selected !== item) : [...selectedValues, item] })} /><span className="min-w-0 break-words [overflow-wrap:anywhere]">{dimensionValueLabel(item)}</span></label>
-        })}
-      </div>
+      <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-values`}>{t("Unique values")}</label>
+      <select id={`${id}-values`} className={input} value="" disabled={selectedValues.length >= 50} onChange={event => {
+        if (!event.target.value || selectedValues.length >= 50) return
+        const selected = JSON.parse(event.target.value) as string | null
+        if (!selectedValues.includes(selected)) onChange({ column, values: [...selectedValues, selected] })
+      }}>
+        <option value="">{t("Select values")}</option>
+        {visible.map(item => <option key={JSON.stringify(item)} value={JSON.stringify(item)} disabled={selectedValues.includes(item)}>{dimensionValueLabel(item)}</option>)}
+      </select>
+      <div className="relative"><Search size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-gray-400" /><input id={`${id}-search`} aria-label={t("Search unique values")} type="search" className={`${input} pl-9`} placeholder={t("Search values")} value={search} onChange={event => { setSearch(event.target.value); setOffset(0) }} /></div>
+      {selectedValues.length > 0 && <div role="group" aria-label={`${column} ${t("selected values")}`} className="flex max-h-40 min-w-0 flex-wrap gap-2 overflow-y-auto">
+        {selectedValues.map(item => <span key={JSON.stringify(item)} className="inline-flex min-h-10 max-w-full min-w-0 items-center gap-2 rounded-md border border-gray-200 bg-gray-50 pl-3 text-sm">
+          <span className="min-w-0 break-words [overflow-wrap:anywhere]">{dimensionValueLabel(item)}</span>
+          <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100" title={`${t("Remove value")}: ${dimensionValueLabel(item)}`} aria-label={`${t("Remove value")}: ${dimensionValueLabel(item)}`} onClick={() => onChange({ column, values: selectedValues.filter(selected => selected !== item) })}><X size={14} /></button>
+        </span>)}
+      </div>}
       {!loading && !error && currentOptions && options.values.length === 0 && <p role="status" className="text-xs text-gray-500">{t("No matching values.")}</p>}
       {selectedValues.length === 0 && <p className="text-xs text-amber-800">{t("No dimension values selected.")}</p>}
       {selectedValues.length > 0 && <p className="text-xs text-gray-600">{t("Selected values")}: {selectedValues.length} / 50</p>}
