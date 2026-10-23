@@ -62,7 +62,7 @@ test("an older server cannot silently return all rows for any filtered dashboard
   for (const read of readers(api, "workspace", options)) await assert.rejects(read, error => error instanceof ApiError && error.status === 503)
 })
 
-test("dashboard AI analysis uses and caches the exact selected date field alongside the dimension filter", async () => {
+test("dataset AI analysis uses and caches the exact selected date field alongside the dimension filter", async () => {
   const api = client(), dimensionFilter = { column: "region", values: ["East"] }
   for (const dateColumn of ["date", "paid_date", "paid_date"]) {
     const result = await api.getDatasetAIAnalysis(1, "owner", "workspace", "revenue", { dateColumn, dimensionFilter })

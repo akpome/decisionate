@@ -108,7 +108,6 @@ test("all dataset layouts share one aligned selector and chart toolbars do not d
   assert.match(source, /value=\{dimensionFilter\} embedded/)
   assert.doesNotMatch(declaration("DashboardControls"), /Date column|setDateColumn|dateColumns/)
   assert.match(source, /dateColumn: analysisDateColumn/)
-  assert.match(source, /ai_analysis_date_column: result.date_column/)
   assert.match(source, /dashboardAnomalies\?\.date_column === analysisDateColumn/)
 })
 

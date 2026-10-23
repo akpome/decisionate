@@ -32,7 +32,7 @@ import {
   YAxis,
 } from "recharts"
 
-import { getDecisionSummary, type AIAnalysis, type DecisionSummary } from "@/lib/api";
+import { getDecisionSummary, type DecisionSummary } from "@/lib/api";
 import type {
   DashboardAggregation,
   DashboardValueAggregation,
@@ -53,12 +53,6 @@ import type {
   DashboardComponentKey,
 } from "@/features/dashboards/dashboard-definitions"
 import {
-  AIAnalysisPanel,
-} from "@/features/ai/components/analysis-panel"
-import {
-  AnalysisStatus,
-} from "@/features/ai/components/analysis-status"
-import {
   dashboardChartPalette,
 } from "@/features/dashboard/lib/chart-palette"
 import {
@@ -77,17 +71,12 @@ type DashboardPlaceholderProps = {
   datasetId?: number
   aggregation?: DashboardAggregation
   aggregationType?: DashboardValueAggregation
-  analysisMetric?: string
-  analysisLoading?: boolean
-  analysisError?: boolean
-  onRetryAnalysis?: () => void
   manualMapping?: DashboardMetricMapping
   chartTitles?: DashboardChartTitles
   decisionSummary?: DecisionSummary | null
   controls?: ReactNode
   managementActions?: ReactNode
   managementPanels?: ReactNode
-  showAnalysisPanel?: boolean
   status?: ReactNode
   brand?: WorkspaceBrand
   canManageWorkspaceData?: boolean
@@ -144,7 +133,6 @@ export type DashboardDatasetInput = {
   row_count?: number
   preview?: DashboardDatasetRow[]
   metrics?: DashboardDatasetMetric[]
-  ai_analysis?: AIAnalysis | null
   chart?: {
     data?: DashboardDatasetRow[]
     x_key?: string
@@ -1757,97 +1745,6 @@ function buildMappedIndustryDashboard(
   }
 }
 
-function SalesDecisionateAnalysis({
-  dashboard,
-  analysis,
-  analysisLoading = false,
-  analysisError = false,
-  onRetryAnalysis,
-}: {
-  dashboard: IndustryDashboardConfig
-  analysis?: AIAnalysis | null
-  analysisLoading?: boolean
-  analysisError?: boolean
-  onRetryAnalysis?: () => void
-}) {
-  const trendData = dashboard.trendData
-  const latest = trendData[trendData.length - 1]
-  const previous = trendData[trendData.length - 2]
-  const revenueSignal = dashboard.signals.find(
-    signal => signal.label === "Revenue"
-  )
-  const conversionSignal = dashboard.signals.find(
-    signal => signal.label === "Conversion rate"
-  )
-  const pipelineSignal = dashboard.signals.find(
-    signal => signal.label === "Pipeline"
-  )
-  const whatChanged = latest && previous
-    ? `${dashboard.trendLabel} is ${revenueSignal?.value.toLowerCase() ?? "being compared with the prior period"}; the latest value is ${formatInteger(latest.value)} versus ${formatInteger(previous.value)} previously${latest.secondary !== undefined ? `, with ${dashboard.secondaryTrendLabel ?? "pipeline"} at ${formatInteger(latest.secondary)}` : ""}.`
-    : "A recent comparison is not available for the selected period."
-  const attention = analysis?.risks[0]
-    ?? (conversionSignal?.value === "Needs mapping"
-      ? "Conversion rate is not mapped. Add a conversion or win-rate field before relying on funnel performance."
-      : pipelineSignal?.value === "Needs mapping"
-        ? "Pipeline value is not mapped. Add a pipeline or forecast field to put bookings in context."
-        : "Review pipeline coverage and movement through the sales stages for the selected period.")
-  const recommendation = analysisLoading
-    ? "Updating the recommendation for the selected sales metrics..."
-    : analysis?.recommendations[0]
-      ?? (analysisError
-        ? "AI analysis is unavailable. Review the evidence and record a decision when the next sales action is clear."
-        : "Review pipeline coverage and stage movement, then record the action and expected outcome as a decision.")
-
-  return (
-    <section className="flex h-full flex-col rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-3 text-[var(--decisionate-brand-primary-text)] sm:px-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold">Decisionate Analysis</p>
-
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-              {analysis?.confidence
-                ? `${analysis.confidence} confidence`
-                : "Sales attention"}
-          </span>
-
-          {analysisError && onRetryAnalysis && (
-            <button
-              type="button"
-              onClick={onRetryAnalysis}
-              className="text-xs font-semibold underline decoration-current/30 underline-offset-4 hover:opacity-80"
-            >
-              Retry analysis
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-3 grid gap-3 border-t border-[var(--decisionate-brand-primary-ring)]/70 pt-3 text-xs sm:grid-cols-3">
-        <div>
-          <p className="font-semibold uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]/70">
-            What changed
-          </p>
-          <p className="mt-1 leading-5 text-gray-700">{whatChanged}</p>
-        </div>
-        <div>
-          <p className="font-semibold uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]/70">
-            What needs attention
-          </p>
-          <p className="mt-1 leading-5 text-gray-700">{attention}</p>
-        </div>
-        <div>
-          <p className="font-semibold uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]/70">
-            Recommendation
-          </p>
-          <p className="mt-1 leading-5 text-gray-700">{recommendation}</p>
-        </div>
-      </div>
-
-
-    </section>
-  )
-}
-
 function IndustryDashboard({
   filterLabel,
   name,
@@ -1855,17 +1752,12 @@ function IndustryDashboard({
   dataset,
   aggregation = "monthly",
   aggregationType = "sum",
-  analysisMetric,
-  analysisLoading,
-  analysisError,
-  onRetryAnalysis,
   manualMapping,
   chartTitles,
   config,
   controls,
   managementActions,
   managementPanels,
-  showAnalysisPanel,
   status,
   brand,
   onDownloadPdf,
@@ -1916,58 +1808,6 @@ function IndustryDashboard({
       chartTitles?.operations?.trim() ||
       dashboardConfig.operationsTitle,
   }
-  const analysisPanelClassName = controls
-    ? "grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(30rem,1fr)]"
-    : "grid min-w-0 items-stretch gap-3"
-  const decisionateAnalysisPanel = (
-    <div className={analysisPanelClassName}>
-      {dashboardConfig.kpiMode === "sales" ? (
-        <SalesDecisionateAnalysis
-          dashboard={dashboardConfig}
-          analysis={
-            !analysisMetric ||
-            dataset?.ai_analysis?.metric === analysisMetric
-              ? dataset?.ai_analysis
-              : null
-          }
-          analysisLoading={analysisLoading}
-          analysisError={analysisError}
-          onRetryAnalysis={onRetryAnalysis}
-        />
-      ) : (
-        <div className="min-w-0">
-          {analysisLoading && (
-            <AnalysisStatus kind="loading" />
-          )}
-
-          {analysisError && (
-            <AnalysisStatus
-              kind="unavailable"
-              onRetry={onRetryAnalysis}
-            />
-          )}
-
-          {!analysisLoading &&
-            dataset?.ai_analysis &&
-            (!analysisMetric ||
-              dataset.ai_analysis.metric === analysisMetric) && (
-            <AIAnalysisPanel
-              analysis={dataset.ai_analysis}
-              title="Decisionate Analysis"
-              metric={analysisMetric}
-              className="h-full print:hidden !p-3"
-            />
-          )}
-        </div>
-      )}
-
-      {showActions !== false && controls && (
-        <div className="h-full min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm print:hidden">
-          {controls}
-        </div>
-      )}
-    </div>
-  )
 
   return (
     <div className="dashboard-export-dashboard space-y-4 print:space-y-1.5">
@@ -2012,9 +1852,9 @@ function IndustryDashboard({
         exportMode={exportMode}
       />
 
-      {showAnalysisPanel !== false && !exportMode && (
-        <div id="industry-dashboard-analysis-panel">
-          {decisionateAnalysisPanel}
+      {!exportMode && showActions !== false && controls && (
+        <div className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm print:hidden">
+          {controls}
         </div>
       )}
 
@@ -2827,32 +2667,9 @@ function DecisionPerformanceDashboard({
         </DashboardChartCard>
       </div>
 
-      {!exportMode && (
-        <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(30rem,1fr)]">
-          <div className="min-w-0">
-            {displayedSummary?.ai_analysis ? (
-              <AIAnalysisPanel
-                analysis={displayedSummary.ai_analysis}
-                title="Decisionate Analysis"
-                className="h-full print:hidden"
-              />
-            ) : (
-              <div className="flex h-full flex-col rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 print:hidden">
-                <p className="font-semibold text-gray-900">
-                  Decisionate Analysis
-                </p>
-                <p className="mt-1">
-                  Decision analysis will appear when decision history is available.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {showActions && controls && (
-            <div className="h-full min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm print:hidden">
-              {controls}
-            </div>
-          )}
+      {!exportMode && showActions && controls && (
+        <div className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm print:hidden">
+          {controls}
         </div>
       )}
     </div>

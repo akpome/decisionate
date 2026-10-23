@@ -23,13 +23,7 @@ import {
   MetricSelector,
 } from "@/features/dashboard/components/metric-selector"
 
-import { getDatasetJoinCache, joinDatasets, type AIAnalysis, type DatasetAnomaliesResponse, type DatasetJoinResult, type DatasetSummary, type DashboardPreferencePayload, type OrganizationRecord, type OrganizationWorkspaceRecord, getDatasetAIAnalysis, getDatasetAnomalies, getDatasetDetails, getDatasetShareLink, getDatasetShareStatus, getDatasets, getDatasetPreference, getDashboardPreference, getMyOrganization, getOrganizationWorkspaces, stopDatasetSharing, updateDatasetPreference } from "@/lib/api";
-import {
-  AnalysisStatus,
-} from "@/features/ai/components/analysis-status"
-import {
-  AIAnalysisPanel,
-} from "@/features/ai/components/analysis-panel"
+import { getDatasetJoinCache, joinDatasets, type DatasetAnomaliesResponse, type DatasetJoinResult, type DatasetSummary, type DashboardPreferencePayload, type OrganizationRecord, type OrganizationWorkspaceRecord, getDatasetAnomalies, getDatasetDetails, getDatasetShareLink, getDatasetShareStatus, getDatasets, getDatasetPreference, getDashboardPreference, getMyOrganization, getOrganizationWorkspaces, stopDatasetSharing, updateDatasetPreference } from "@/lib/api";
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -174,9 +168,6 @@ type DashboardDataset = {
   metric_profile?: { time_columns?: string[] }
   preview: DashboardRow[]
   metrics: DashboardMetric[]
-  ai_analysis?: AIAnalysis | null
-  ai_analysis_dimension_filter?: DimensionFilter | null
-  ai_analysis_date_column?: string | null
   chart?: {
     x_key?: string
     y_key?: string
@@ -215,8 +206,6 @@ type ReportSectionProps = {
   anomalies: DatasetAnomaliesResponse | null
   anomalyLoading: boolean
   anomalyError: boolean
-  aiAnalysis?: AIAnalysis | null
-  analysisLoading: boolean
 }
 
 type DashboardViewPreference = DashboardPreferencePayload
@@ -541,10 +530,6 @@ export default function DashboardPage() {
     useState(false)
   const [showDatasetPanel, setShowDatasetPanel] =
     useState(false)
-  const [showAnalysisPanel, setShowAnalysisPanel] =
-    useState(false)
-  const [showGeneralDecisionatePanel, setShowGeneralDecisionatePanel] =
-    useState(false)
 
   const [dashboardTitle, setDashboardTitle] =
     useState(defaultDashboardTitle)
@@ -583,12 +568,6 @@ export default function DashboardPage() {
 
   const [loading, setLoading] =
     useState(false)
-  const [metricAnalysisLoading, setMetricAnalysisLoading] =
-    useState(false)
-  const [metricAnalysisError, setMetricAnalysisError] =
-    useState(false)
-  const [metricAnalysisRetryKey, setMetricAnalysisRetryKey] =
-    useState(0)
   const [dashboardAnomalies, setDashboardAnomalies] =
     useState<DatasetAnomaliesResponse | null>(null)
   const [dashboardAnomalyLoading, setDashboardAnomalyLoading] =
@@ -2074,8 +2053,6 @@ export default function DashboardPage() {
       ? "period"
       : getDashboardDateColumn(dataset, dashboardDateColumns, getDashboardDefinition(selectedDashboard).componentKey, currentMetricMapping)
   const analysisDateColumn = dashboardDateColumns.includes(xKey) ? xKey : undefined
-  const dashboardAIAnalysis = !dimensionBlocked && sameDimensionFilter(dataset?.ai_analysis_dimension_filter, dimensionFilter)
-    && (!analysisDateColumn || dataset?.ai_analysis_date_column === analysisDateColumn) ? dataset?.ai_analysis : null
   const scopedAnomalies = !dimensionBlocked && sameDimensionFilter(dashboardAnomalies?.dimension_filter, dimensionFilter)
     && (!analysisDateColumn || dashboardAnomalies?.date_column === analysisDateColumn) ? dashboardAnomalies : null
 
@@ -2142,7 +2119,6 @@ export default function DashboardPage() {
       ...dataset,
       row_count: dimensionData.data?.row_count ?? 0,
       preview: dimensionData.data?.preview ?? [],
-      ai_analysis: dashboardAIAnalysis,
       metrics: dashboardMetrics,
       chart: {
         ...(dataset.chart ?? {}),
@@ -2153,7 +2129,6 @@ export default function DashboardPage() {
     dataset,
     dimensionBlocked,
     dimensionData.data,
-    dashboardAIAnalysis,
     dashboardMetrics,
     rows,
     selectedDashboard,
@@ -2175,26 +2150,6 @@ export default function DashboardPage() {
       dashboardComponentKeyForSync,
       selectedDashboardDataset
     ).primary
-  const dashboardAnalysisMetric =
-    joinedDatasetResult
-      ? undefined
-      : selectedDashboardUsesMetricMapping
-        ? currentMetricMapping.primary ||
-          selectedDashboardAutoMetric ||
-          primaryMetric
-        : primaryMetric
-  const dashboardMetricColumnSignature = useMemo(
-    () =>
-      metrics
-        .map(metric => metric.column)
-        .join("\u001f"),
-    [metrics]
-  )
-  const dashboardAnalysisMetricAvailable =
-    Boolean(dashboardAnalysisMetric) &&
-    dashboardMetricColumnSignature
-      .split("\u001f")
-      .includes(dashboardAnalysisMetric ?? "")
   const selectedDashboardSharedMetric =
     selectedDashboard === defaultDashboardKey
       ? primaryMetric
@@ -2202,99 +2157,6 @@ export default function DashboardPage() {
         ? currentMetricMapping.primary ||
           selectedDashboardAutoMetric
         : undefined
-
-  useEffect(() => {
-    const selectedComponentKey =
-      getDashboardDefinition(
-        selectedDashboard
-      ).componentKey
-
-    if (
-      !userId ||
-      !selectedDatasetId ||
-      !dashboardAnalysisMetric ||
-      loading ||
-      dataset?.id !== selectedDatasetId ||
-      !dashboardAnalysisMetricAvailable ||
-      dimensionBlocked ||
-      selectedComponentKey === "decisionPerformance"
-    ) {
-      queueMicrotask(() => {
-        setMetricAnalysisLoading(false)
-        setMetricAnalysisError(false)
-      })
-      return
-    }
-
-    const safeDatasetId = selectedDatasetId
-    const metric = dashboardAnalysisMetric
-    let ignoreResult = false
-    queueMicrotask(() => {
-      setMetricAnalysisLoading(true)
-      setMetricAnalysisError(false)
-    })
-
-    async function loadMetricAIAnalysis() {
-      try {
-        const result =
-          await getDatasetAIAnalysis(
-            safeDatasetId,
-            userId,
-            activeWorkspaceId,
-            metric,
-            { dateColumn: analysisDateColumn, dimensionFilter, startDate: startDate || undefined, periodFilter, aggregation, aggregationType }
-          )
-
-        if (!ignoreResult) {
-          setDataset(current =>
-            current
-              ? {
-                ...current,
-                ai_analysis: {
-                  ...result.ai_analysis,
-                  metric: result.metric,
-                },
-                ai_analysis_dimension_filter: result.dimension_filter,
-                ai_analysis_date_column: result.date_column,
-              }
-              : current
-          )
-        }
-      } catch {
-        if (!ignoreResult) {
-          setMetricAnalysisError(true)
-        }
-      } finally {
-        if (!ignoreResult) {
-          setMetricAnalysisLoading(false)
-        }
-      }
-    }
-
-    void loadMetricAIAnalysis()
-
-    return () => {
-      ignoreResult = true
-    }
-  }, [
-    activeWorkspaceId,
-    dashboardAnalysisMetric,
-    dashboardAnalysisMetricAvailable,
-    dashboardMetricColumnSignature,
-    analysisDateColumn,
-    dataset?.id,
-    loading,
-    dimensionFilter,
-    dimensionBlocked,
-    startDate,
-    periodFilter,
-    aggregation,
-    aggregationType,
-    metricAnalysisRetryKey,
-    selectedDashboard,
-    selectedDatasetId,
-    userId,
-  ])
 
   useEffect(() => {
     if (
@@ -2844,8 +2706,6 @@ export default function DashboardPage() {
     anomalies: scopedAnomalies,
     anomalyLoading: dashboardAnomalyLoading,
     anomalyError: dashboardAnomalyError,
-    aiAnalysis: dashboardAIAnalysis,
-    analysisLoading: metricAnalysisLoading,
   }
 
   /* =========================
@@ -3315,20 +3175,6 @@ export default function DashboardPage() {
         </button>
       )}
 
-      {!isCustomSelectedDashboard && (
-        <button
-          type="button"
-          onClick={() => setShowGeneralDecisionatePanel(current => !current)}
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
-          aria-expanded={showGeneralDecisionatePanel}
-          aria-controls="general-dashboard-decisionate-panel"
-          title="Show the Decisionate analysis and intelligence for this dashboard."
-        >
-          <LineChartIcon size={14} aria-hidden="true" />
-          Analysis
-        </button>
-      )}
-
       {showIndustryManagementToggles && (
         <button
           type="button"
@@ -3340,20 +3186,6 @@ export default function DashboardPage() {
         >
           <Database size={14} />
           {showDatasetPanel ? "Hide dataset" : "Dataset"}
-        </button>
-      )}
-
-      {showIndustryManagementToggles && (
-        <button
-          type="button"
-          onClick={() => setShowAnalysisPanel(current => !current)}
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
-          aria-expanded={showAnalysisPanel}
-          aria-controls="industry-dashboard-analysis-panel"
-          title="Show the Decisionate analysis and recommendation for this dashboard."
-        >
-          <LineChartIcon size={14} />
-          {showAnalysisPanel ? "Hide analysis" : "Decisionate Analysis"}
         </button>
       )}
 
@@ -3385,71 +3217,6 @@ export default function DashboardPage() {
 
   const generalDashboardManagementPanels = (
     <>
-      {dataset &&
-        !loading &&
-        showGeneralDecisionatePanel && (
-        <section
-          id="general-dashboard-decisionate-panel"
-          className="min-w-0 rounded-2xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3 shadow-sm print:hidden"
-        >
-          <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-2">
-            <div className="min-w-0">
-              {metricAnalysisLoading && (
-                <AnalysisStatus kind="loading" />
-              )}
-
-              {metricAnalysisError && (
-                <AnalysisStatus
-                  kind="unavailable"
-                  onRetry={() =>
-                    setMetricAnalysisRetryKey(
-                      currentKey => currentKey + 1
-                    )
-                  }
-                />
-              )}
-
-              {!metricAnalysisLoading &&
-                dashboardAIAnalysis &&
-                (!dashboardAnalysisMetric ||
-                  dashboardAIAnalysis.metric === dashboardAnalysisMetric) && (
-                <AIAnalysisPanel
-                  analysis={dashboardAIAnalysis}
-                  title="Decisionate Analysis"
-                  metric={dashboardAnalysisMetric}
-                  className="h-full !rounded-none !border-0 !bg-transparent !p-0"
-                  compact
-                />
-              )}
-
-              {!metricAnalysisLoading &&
-                !metricAnalysisError &&
-                !dashboardAIAnalysis && (
-                <p className="text-sm text-gray-600">
-                  Analysis will appear after the selected metric has been evaluated.
-                </p>
-              )}
-            </div>
-
-            <div className="min-w-0 border-t border-[var(--decisionate-brand-primary-ring)]/70 pt-3 xl:border-l xl:border-t-0 xl:pl-3 xl:pt-0">
-              <DashboardIntelligenceCard
-                anomalies={scopedAnomalies}
-                primaryMetric={primaryMetric}
-                latestValue={latestValue}
-                selectedTarget={selectedTarget}
-                chartRows={chartRows}
-                selectedMetrics={selectedMetrics}
-                anomalyLoading={dashboardAnomalyLoading}
-                anomalyError={dashboardAnomalyError}
-                analysisLoading={metricAnalysisLoading}
-                aiAnalysis={dashboardAIAnalysis}
-                embedded
-              />
-            </div>
-          </div>
-        </section>
-      )}
-
       {dashboardEditMode && (
         <DashboardCard>
           <CardHeader
@@ -3817,14 +3584,6 @@ export default function DashboardPage() {
               aggregation={aggregation}
               aggregationType={aggregationType}
               canManageWorkspaceData={canManageWorkspaceData}
-              analysisMetric={dashboardAnalysisMetric}
-              analysisLoading={metricAnalysisLoading}
-              analysisError={metricAnalysisError}
-              onRetryAnalysis={() =>
-                setMetricAnalysisRetryKey(
-                  currentKey => currentKey + 1
-                )
-              }
               manualMapping={
                 usesDatasetMetricMapping
                   ? currentMetricMapping
@@ -3841,7 +3600,7 @@ export default function DashboardPage() {
         <WorkspaceAccessNotice
           loading={loadingWorkspaceAccess}
           canManageWorkspaceData={canConfigureWorkspace}
-          message="Analysis and metric selection are available in this shared workspace. The business owner handles data changes and dashboard sharing."
+          message="Metric selection is available in this shared workspace. The business owner handles data changes and dashboard sharing."
           className="rounded-lg print:hidden"
         />
 
@@ -3857,14 +3616,6 @@ export default function DashboardPage() {
           aggregation={aggregation}
           aggregationType={aggregationType}
           canManageWorkspaceData={canManageWorkspaceData}
-          analysisMetric={dashboardAnalysisMetric}
-          analysisLoading={metricAnalysisLoading}
-          analysisError={metricAnalysisError}
-          onRetryAnalysis={() =>
-            setMetricAnalysisRetryKey(
-              currentKey => currentKey + 1
-            )
-          }
           manualMapping={
             usesDatasetMetricMapping
               ? currentMetricMapping
@@ -3880,7 +3631,6 @@ export default function DashboardPage() {
           }
           managementActions={dashboardManagementActions}
           managementPanels={<>{dimensionControls}{dashboardManagementPanels}</>}
-          showAnalysisPanel={showAnalysisPanel}
           status={
             canConfigureWorkspace && shareStatus ? (
               <div
@@ -4179,7 +3929,7 @@ export default function DashboardPage() {
       <WorkspaceAccessNotice
         loading={loadingWorkspaceAccess}
         canManageWorkspaceData={canConfigureWorkspace}
-        message="Analysis and metric selection are available in this shared workspace. The business owner handles data changes and dashboard sharing."
+        message="Metric selection is available in this shared workspace. The business owner handles data changes and dashboard sharing."
         className="rounded-lg print:hidden"
       />
 
@@ -4958,95 +4708,6 @@ function ComparisonTemplate({
         )}
       </DashboardCard>
     </>
-  )
-}
-
-function DashboardIntelligenceCard({
-  anomalies,
-  primaryMetric,
-  latestValue,
-  selectedTarget,
-  chartRows,
-  selectedMetrics,
-  anomalyLoading,
-  anomalyError,
-  analysisLoading,
-  aiAnalysis,
-  embedded = false,
-}: {
-  anomalies: DatasetAnomaliesResponse | null
-  primaryMetric: string
-  latestValue: number
-  selectedTarget: number
-  chartRows: DashboardRow[]
-  selectedMetrics: string[]
-  anomalyLoading: boolean
-  anomalyError: boolean
-  analysisLoading: boolean
-  aiAnalysis?: AIAnalysis | null
-  embedded?: boolean
-}) {
-  return (
-    <section
-      data-dashboard-export-control
-      className={
-        embedded
-          ? "flex h-full flex-col px-0 py-0 text-[var(--decisionate-brand-primary-text)]"
-          : "flex h-full flex-col rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-[var(--decisionate-brand-primary-text)] sm:px-3"
-      }
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="text-sm font-semibold">
-            Decisionate intelligence
-          </span>
-        </div>
-
-        <span className="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-          {getDashboardIntelligenceImportance(
-            anomalies,
-            primaryMetric,
-            latestValue,
-            selectedTarget
-          )}
-        </span>
-      </div>
-
-      <div className="mt-2 grid gap-2 border-t border-[var(--decisionate-brand-primary-ring)]/70 pt-2 text-xs sm:grid-cols-3">
-          <DashboardIntelligenceItem
-            label="What happened"
-            value={getDashboardIntelligenceEvent(
-              anomalies,
-              chartRows,
-              selectedMetrics,
-              primaryMetric,
-              anomalyLoading,
-              anomalyError
-            )}
-          />
-          <DashboardIntelligenceItem
-            label="Why it matters"
-            value={getDashboardIntelligenceMeaning(
-              anomalies,
-              primaryMetric,
-              latestValue,
-              selectedTarget
-            )}
-          />
-          <DashboardIntelligenceItem
-            label="Recommended action"
-            value={
-              analysisLoading
-                ? "Updating the recommendation for this metric..."
-                : aiAnalysis?.recommendations[0] ??
-                  getDashboardDefaultRecommendation(
-                    primaryMetric,
-                    anomalies
-                  )
-            }
-          />
-      </div>
-    </section>
   )
 }
 
@@ -6377,25 +6038,6 @@ function getDashboardKpiSignal(
   }
 }
 
-function DashboardIntelligenceItem({
-  label,
-  value,
-}: {
-  label: string
-  value: string
-}) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]/70">
-        {label}
-      </p>
-      <p className="mt-1 leading-5 text-gray-700">
-        {value}
-      </p>
-    </div>
-  )
-}
-
 function SnapshotRow({
   label,
   value,
@@ -7506,178 +7148,6 @@ function getTargetStatus(
     text: `${progress}% of target`,
     className: "text-[var(--decisionate-brand-primary-text)]",
   }
-}
-
-function getGrowth(
-  rows: DashboardRow[],
-  metric: string
-) {
-  if (rows.length < 2) return 0
-
-  const first =
-    toFiniteDashboardNumber(
-      rows[0]?.[metric]
-    )
-
-  const last =
-    toFiniteDashboardNumber(
-      rows[rows.length - 1]?.[metric]
-    )
-
-  if (
-    first === null ||
-    first === 0 ||
-    last === null
-  ) {
-    return 0
-  }
-
-  return Math.round(
-    ((last - first) / first) * 100
-  )
-}
-
-function getExecutiveNarrative(
-  rows: DashboardRow[],
-  selectedMetrics: string[],
-  primaryMetric: string
-) {
-  if (rows.length < 2 || !primaryMetric) {
-    return "Not enough data to generate an executive summary."
-  }
-
-  const primaryGrowth =
-    getGrowth(rows, primaryMetric)
-
-  const metricLabel =
-    formatMetricName(primaryMetric)
-
-  if (selectedMetrics.length === 1) {
-    return `${metricLabel} changed by ${primaryGrowth}% over the selected period.`
-  }
-
-  const comparisons =
-    selectedMetrics
-      .filter(metric => metric !== primaryMetric)
-      .map(metric => {
-        const growth =
-          getGrowth(rows, metric)
-
-        return `${formatMetricName(metric)} changed by ${growth}%`
-      })
-      .join(", ")
-
-  return `${metricLabel} changed by ${primaryGrowth}% over the selected period. Compared metrics: ${comparisons}.`
-}
-
-function getDashboardAnomalyMetric(
-  anomalies: DatasetAnomaliesResponse | null,
-  metric: string
-) {
-  return anomalies?.metrics.find(
-    item => item.metric === metric
-  )
-}
-
-function getDashboardIntelligenceImportance(
-  anomalies: DatasetAnomaliesResponse | null,
-  metric: string,
-  value: number,
-  target: number
-) {
-  const anomaly = getDashboardAnomalyMetric(
-    anomalies,
-    metric
-  )
-
-  if (anomaly?.anomaly_count) {
-    return "High importance"
-  }
-
-  if (target > 0 && getTargetProgress(value, target) < 100) {
-    return "Review target"
-  }
-
-  return "Monitoring"
-}
-
-function getDashboardIntelligenceEvent(
-  anomalies: DatasetAnomaliesResponse | null,
-  rows: DashboardRow[],
-  selectedMetrics: string[],
-  primaryMetric: string,
-  anomalyLoading: boolean,
-  anomalyError: boolean
-) {
-  if (anomalyLoading) {
-    return "Checking the selected metric against its recent pattern."
-  }
-
-  if (anomalyError) {
-    return getExecutiveNarrative(
-      rows,
-      selectedMetrics,
-      primaryMetric
-    )
-  }
-
-  const anomaly = getDashboardAnomalyMetric(
-    anomalies,
-    primaryMetric
-  )
-  const latestAnomaly =
-    anomaly?.anomalies[anomaly.anomalies.length - 1]
-
-  if (latestAnomaly) {
-    return `${formatMetricName(primaryMetric)} shows an unusual ${latestAnomaly.direction === "high" ? "increase" : "decrease"} versus its recent baseline.`
-  }
-
-  return getExecutiveNarrative(
-    rows,
-    selectedMetrics,
-    primaryMetric
-  )
-}
-
-function getDashboardIntelligenceMeaning(
-  anomalies: DatasetAnomaliesResponse | null,
-  metric: string,
-  value: number,
-  target: number
-) {
-  const anomaly = getDashboardAnomalyMetric(
-    anomalies,
-    metric
-  )
-
-  if (anomaly?.anomaly_count) {
-    return "The result is outside the expected pattern and deserves business-context review."
-  }
-
-  if (target > 0) {
-    const progress = getTargetProgress(value, target)
-    return progress >= 100
-      ? `${formatMetricName(metric)} is at or above its current target.`
-      : `${formatMetricName(metric)} is below its current target and may need attention.`
-  }
-
-  return "Use the trend and target snapshot to decide whether this movement is material."
-}
-
-function getDashboardDefaultRecommendation(
-  metric: string,
-  anomalies: DatasetAnomaliesResponse | null
-) {
-  const anomaly = getDashboardAnomalyMetric(
-    anomalies,
-    metric
-  )
-
-  if (anomaly?.anomaly_count) {
-    return `Review the ${formatMetricName(metric)} drivers and confirm whether the unusual movement is a real business signal.`
-  }
-
-  return `Review the ${formatMetricName(metric)} trend, set a target and record a decision if action is justified.`
 }
 
 function getTargetInsight(
