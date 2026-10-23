@@ -51,9 +51,10 @@ test("all policies match connector and expiry retention constants", () => {
   assert.match(expiry, /SUBSCRIPTION_EXPIRY_DATA_PURGE_DAYS = 89/)
   assert.match(expiry, /SUBSCRIPTION_CANCELLATION_DATA_PURGE_DAYS = 90/)
   for (const { name, source } of policies) {
-    assert.match(source, /updated="October 8, 2026"/, name)
+    assert.match(source, /updated="October 22, 2026"/, name)
     assert.match(source, /three years, then deleted/, name)
-    assert.match(source, /preceding 35 months/, name)
+    assert.match(source, /three calendar years/, name)
+    assert.doesNotMatch(source, /preceding 35 months/, name)
     assert.match(source, /89 days after the subscription end date/, name)
     assert.match(source, /90 days/, name)
     assert.match(source, /manually uploaded datasets/, name)

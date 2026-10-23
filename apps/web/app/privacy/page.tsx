@@ -23,7 +23,7 @@ export default function PrivacyPage() {
       eyebrow="Privacy"
       title="Privacy Policy"
       description="What information we handle, why we use it, how long we keep it, and how to request access, correction, or deletion."
-      updated="October 8, 2026"
+      updated="October 22, 2026"
     >
       <PolicySection title="1. Scope and responsibility">
         <p>
@@ -177,7 +177,7 @@ export default function PrivacyPage() {
       <PolicySection title="9. Retention and deletion">
         <p>
           Connector data is kept for three years, then deleted. The retention
-          window is the current calendar month and the preceding 35 months.
+          window is a rolling three calendar years, using the source date where available.
           Sync and scheduled maintenance remove expired connector records and
           partitions from live analytical storage. Records without a usable source
           date are aged using their ingestion partition month. This rule does not

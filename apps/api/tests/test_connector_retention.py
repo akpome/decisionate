@@ -5,6 +5,7 @@ import pandas as pd
 
 from app.modules.datasets.services.retention import (
     connector_retention_cutoff_month,
+    connector_retention_cutoff_date,
     filter_connector_dataframe_by_retention,
     filter_connector_summary_by_retention,
 )
@@ -15,11 +16,11 @@ class ConnectorRetentionTests(unittest.TestCase):
         as_of = date(2026, 8, 14)
         self.assertEqual(
             connector_retention_cutoff_month(as_of),
-            "2023-09",
+            "2023-08",
         )
 
         dataframe = pd.DataFrame({
-            "source_date": ["2023-08-31", "2023-09-01", "2026-08-14"],
+            "source_date": ["2023-08-13", "2023-08-14", "2026-08-14"],
             "revenue": [1, 2, 3],
         })
         retained = filter_connector_dataframe_by_retention(
@@ -28,6 +29,12 @@ class ConnectorRetentionTests(unittest.TestCase):
             as_of,
         )
         self.assertEqual(retained["revenue"].tolist(), [2, 3])
+
+    def test_exact_calendar_boundary_and_leap_day(self):
+        self.assertEqual(connector_retention_cutoff_date(date(2024, 2, 29)), date(2021, 2, 28))
+        frame = pd.DataFrame({"date": ["2023-10-21T23:59:59Z", "2023-10-22", None, "invalid"], "value": [1, 2, 3, 4]})
+        kept = filter_connector_dataframe_by_retention(frame, "date", date(2026, 10, 22))
+        self.assertEqual(kept.value.tolist(), [2, 3, 4])
 
     def test_summary_months_use_the_same_cutoff(self):
         dataframe = pd.DataFrame({

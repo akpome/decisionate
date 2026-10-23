@@ -12,7 +12,7 @@ export default function SecurityPage() {
       eyebrow="Trust"
       title="Security"
       description="The application controls in place today, their limits, and how to report a concern."
-      updated="October 8, 2026"
+      updated="October 22, 2026"
     >
       <PolicySection title="1. Accounts and authentication">
         <p>
@@ -116,8 +116,8 @@ export default function SecurityPage() {
 
       <PolicySection title="7. Retention and deletion">
         <p>
-          Connector data is kept for three years, then deleted. The current month
-          and preceding 35 months form the live retention window, enforced during
+          Connector data is kept for three years, then deleted. The live retention
+          window covers a rolling three calendar years, enforced during
           sync and scheduled maintenance. This rule does not automatically delete
           manually uploaded datasets, decisions, or account settings.
         </p>

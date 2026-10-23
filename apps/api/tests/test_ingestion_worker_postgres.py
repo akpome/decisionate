@@ -166,3 +166,29 @@ with ingestion_worker.engine.connect() as connection:
                 if process.poll() is None:
                     process.kill()
                     process.communicate(timeout=5)
+
+    def test_concurrent_backfill_submissions_queue_one_bounded_chunk(self):
+        with self.sessions() as db:
+            connection = DataSourceConnection(user_id=self.workspace, workspace_id=self.workspace, source_type="meta_ads", display_name="Test history")
+            db.add(connection)
+            db.commit()
+            connection_id = connection.id
+        barrier = threading.Barrier(2)
+        outcomes = []
+
+        def enqueue():
+            barrier.wait(timeout=5)
+            outcomes.append(routes.queue_connector_initial_backfill(None, connection_id))
+
+        with patch.object(routes, "SessionLocal", self.sessions), patch.object(routes, "durable_ingestion_enabled", return_value=True):
+            threads = [threading.Thread(target=enqueue) for _ in range(2)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=10)
+                self.assertFalse(thread.is_alive())
+        self.assertCountEqual(outcomes, [True, False])
+        with self.sessions() as db:
+            job = db.query(DataIngestionJob).filter_by(connection_id=connection_id).one()
+            payload = DataSourceConnectionSync(**json.loads(job.request_payload))
+            self.assertLessEqual((payload.end_date - payload.start_date).days + 1, 30)

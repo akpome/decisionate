@@ -25,11 +25,11 @@ def make_connection(source_type, config):
 
 
 class NewConnectorTests(unittest.TestCase):
-    def test_default_initial_import_policy_is_90_days_with_21_month_backfill(self):
+    def test_default_initial_import_policy_is_60_days_with_three_total_years(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(
                 datasets_router.get_initial_connector_sync_days(),
-                90,
+                60,
             )
             self.assertTrue(
                 datasets_router.initial_connector_backfill_enabled()
@@ -40,8 +40,8 @@ class NewConnectorTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual(backfill_end, date(2026, 6, 29))
-        self.assertEqual(backfill_start, date(2024, 9, 29))
+        self.assertEqual(backfill_end, date(2026, 7, 29))
+        self.assertEqual(backfill_start, date(2023, 9, 27))
 
     def test_shopify_defaults_use_60_days_without_backfill(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -164,15 +164,15 @@ class NewConnectorTests(unittest.TestCase):
                 None,
             )
 
-    def test_initial_connector_backfill_starts_after_the_90_day_window(self):
+    def test_initial_connector_backfill_starts_after_the_60_day_window(self):
         backfill_start, backfill_end = (
             datasets_router.get_initial_connector_backfill_window(
                 date(2026, 9, 27)
             )
         )
 
-        self.assertEqual(backfill_end, date(2026, 6, 29))
-        self.assertEqual(backfill_start, date(2024, 9, 29))
+        self.assertEqual(backfill_end, date(2026, 7, 29))
+        self.assertEqual(backfill_start, date(2023, 9, 27))
 
     def test_initial_connector_sync_status_is_stored_in_connection_config(self):
         connection = SimpleNamespace(

@@ -12,7 +12,7 @@ export default function TermsPage() {
       eyebrow="Legal"
       title="Terms of Service"
       description="The rules for using Decisionate, including your data, workspace permissions, paid services, and retention."
-      updated="October 8, 2026"
+      updated="October 22, 2026"
     >
       <PolicySection title="1. Using Decisionate">
         <p>
@@ -134,8 +134,8 @@ export default function TermsPage() {
       <PolicySection title="7. Retention, deletion, and exports">
         <p>
           Connector data is kept for three years, then deleted from live analytical
-          storage through sync and maintenance processing. The window includes the
-          current calendar month and the preceding 35 months. This connector rule
+          storage through sync and maintenance processing. The window is a rolling
+          three calendar years, using the source date where available. This connector rule
           does not automatically delete manually uploaded datasets, decisions, or
           workspace configuration.
         </p>

@@ -103,6 +103,52 @@ and sync-disabled connections. API `/ready` returns `503` when its heartbeat
 is missing or stale. A successful cron response only confirms that work was
 queued; confirm the ingestion job's terminal result too.
 
+### Connector History and Retention
+
+New connector imports load the most recent 60 days first, then queue older
+history back to the same calendar date three years before the import date.
+History runs newest-first in inclusive chunks of at most 30 days. Set
+`CONNECTOR_BACKFILL_CHUNK_DAYS` on the API and ingestion worker to 1-30 for
+high-volume accounts (default 30). Only one chunk per connection is queued;
+the next joins the queue after the previous chunk finishes, allowing other
+imports to run between chunks. Existing process memory and deadline limits
+still apply. A chunk is not a promise that a provider has unlimited row volume.
+Deploy the ingestion worker and API from the same revision, worker first, so
+checkpoint advancement is handled by the new worker before new submissions.
+
+Successful chunks, including legitimately empty windows, commit a durable
+cursor. Failed or interrupted chunks retain their cursor and can be retried by
+the scheduler without skipping dates. Multi-object connections advance only
+after all objects succeed or return no data. Existing completed connections
+extend their recorded old lower bound to three years on the next scheduler
+pass; connections without a reliable prior bound replay bounded historical
+windows, using their existing deduplication rules. Previously queued monolithic
+backfills are bounded before provider I/O. Backfill does not advance the recent
+incremental watermark and therefore cannot skip fresh activity.
+
+Monthly Parquet revisions are merged one month at a time, rather than loading
+the entire retained raw history into pandas for every chunk. Existing provider
+identity, complete-line-item and Search Console fallback merge rules remain in
+effect. Superseded storage is removed after its replacement is committed.
+
+Retention uses an exact rolling three-calendar-year source-date cutoff,
+including leap-day handling. It removes expired raw rows, old partitions and
+legacy summaries during sync and the independent hourly sweep, even if auto
+sync is disabled or authorization has expired. The boundary month can contain
+only the still-retained rows; an indivisible legacy monthly summary crossing
+the cutoff is dropped conservatively. Unparseable dates cannot be assigned a
+fabricated age; their ingestion partition supplies the existing fallback.
+Uploaded files, decisions and frozen report snapshots are not connector raw
+history and are not deleted by this rule. Provider backup/versioning policies
+remain separate from live storage deletion.
+
+Provider history limits still apply. Shopify backfill remains disabled until
+approved older-order access is configured (`SHOPIFY_INITIAL_BACKFILL_ENABLED`
+and the corresponding approved scopes). Once enabled, its default target is
+three total years; explicit shorter day/month overrides remain supported.
+See [Shopify access scopes](https://shopify.dev/docs/api/usage/access-scopes).
+No provider data or unavailable historical observations are fabricated.
+
 ## Persistent Reports Analysis Worker
 
 Reports previews, selected-metric anomaly checks, weekly previews and weekly

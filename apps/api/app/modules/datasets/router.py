@@ -266,9 +266,15 @@ from app.modules.datasets.services.scheduling import (
 from app.modules.datasets.services.retention import (
     CONNECTOR_DATA_RETENTION_MONTHS,
     CONNECTOR_DATA_RETENTION_YEARS,
+    connector_retention_cutoff_date,
     connector_retention_cutoff_month,
+    filter_connector_dataframe_by_retention,
     filter_connector_summary_by_retention,
     has_expired_connector_month,
+)
+from app.modules.datasets.services.connector_history import (
+    HISTORY_POLICY_VERSION, HISTORY_VERSION_KEY, HISTORY_NEXT_END_KEY,
+    prepare_history, next_history_chunk, advance_history,
 )
 from app.modules.datasets.services.auth import (
     get_user_id,
@@ -287,11 +293,10 @@ from app.modules.oauth.service import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-INITIAL_CONNECTOR_SYNC_DAYS = 90
-INITIAL_CONNECTOR_BACKFILL_MONTHS = 21
+INITIAL_CONNECTOR_SYNC_DAYS = 60
+INITIAL_CONNECTOR_BACKFILL_MONTHS = 36
 SHOPIFY_INITIAL_SYNC_DAYS_DEFAULT = 60
 SHOPIFY_INITIAL_BACKFILL_ENABLED_DEFAULT = False
-SHOPIFY_INITIAL_BACKFILL_DAYS_DEFAULT = 30
 SHOPIFY_MAX_CUSTOM_DATE_RANGE_DAYS_DEFAULT = 60
 INITIAL_CONNECTOR_SYNC_COMPLETED_KEY = "_initial_connector_sync_completed"
 INITIAL_CONNECTOR_SYNC_STATUS_KEY = "_initial_connector_sync_status"
@@ -380,23 +385,16 @@ def get_initial_connector_backfill_days(
 ) -> int | None:
     if source_type != "shopify":
         return None
-    return (
-        _read_positive_integer_environment_value(
-            "SHOPIFY_INITIAL_BACKFILL_DAYS",
-            SHOPIFY_INITIAL_BACKFILL_DAYS_DEFAULT,
-        )
-        or SHOPIFY_INITIAL_BACKFILL_DAYS_DEFAULT
-    )
+    return _read_positive_integer_environment_value("SHOPIFY_INITIAL_BACKFILL_DAYS", None)
 
 
 def get_initial_connector_backfill_months(
     source_type: str | None = None,
 ) -> int | None:
     if source_type == "shopify":
-        return _read_positive_integer_environment_value(
-            "SHOPIFY_INITIAL_BACKFILL_MONTHS",
-            None,
-        )
+        if get_initial_connector_backfill_days(source_type):
+            return None
+        return _read_positive_integer_environment_value("SHOPIFY_INITIAL_BACKFILL_MONTHS", INITIAL_CONNECTOR_BACKFILL_MONTHS)
     return INITIAL_CONNECTOR_BACKFILL_MONTHS
 
 
@@ -5871,16 +5869,13 @@ def get_initial_connector_backfill_window(
     backfill_end_date = initial_start_date - timedelta(days=1)
     backfill_months = get_initial_connector_backfill_months(source_type)
     if backfill_months is not None:
-        backfill_start_date = subtract_calendar_months(
-            backfill_end_date,
-            backfill_months,
-        )
+        backfill_start_date = subtract_calendar_months(end_date, backfill_months)
     else:
         backfill_days = get_initial_connector_backfill_days(source_type)
         backfill_start_date = backfill_end_date - timedelta(
             days=(backfill_days or 1) - 1
         )
-    return backfill_start_date, backfill_end_date
+    return max(backfill_start_date, connector_retention_cutoff_date(end_date)), backfill_end_date
 
 
 def initial_connector_sync_is_required(db, connection) -> bool:
@@ -5897,23 +5892,23 @@ def initial_connector_sync_is_required(db, connection) -> bool:
 
 
 def initial_connector_backfill_is_required(connection) -> bool:
+    if getattr(connection, "source_type", None) not in {"google_analytics", *IMPLEMENTED_CONNECTOR_TYPES}:
+        return False
     if not initial_connector_backfill_enabled(
         getattr(connection, "source_type", None)
-    ):
-        return False
-    if connection.last_synced_at is None:
-        return False
-    if get_initial_connector_sync_status(connection) != (
-        INITIAL_CONNECTOR_SYNC_FAILED
     ):
         return False
     connection_config = parse_schedule_config(
         getattr(connection, "connection_config", None)
     )
-    return bool(
-        connection_config.get("_initial_connector_backfill_start_date")
-        and connection_config.get("_initial_connector_backfill_end_date")
-    )
+    if connection.last_synced_at is None and HISTORY_NEXT_END_KEY not in connection_config:
+        return False
+    try:
+        return (connection_config.get(HISTORY_VERSION_KEY) != HISTORY_POLICY_VERSION
+                or get_initial_connector_sync_status(connection) in {INITIAL_CONNECTOR_SYNC_FAILED, INITIAL_CONNECTOR_SYNC_BACKFILL}
+                or HISTORY_NEXT_END_KEY in connection_config and next_history_chunk(connection_config) is not None)
+    except (KeyError, ValueError):
+        return True
 
 
 def get_initial_connector_earliest_date(connection) -> date:
@@ -5929,7 +5924,9 @@ def get_initial_connector_earliest_date(connection) -> date:
         "_initial_connector_backfill_start_date"
     )
     try:
-        return date.fromisoformat(str(configured_start))
+        if connection_config.get(HISTORY_VERSION_KEY) == HISTORY_POLICY_VERSION:
+            return max(date.fromisoformat(str(configured_start)), connector_retention_cutoff_date())
+        return get_initial_connector_backfill_window(source_type=source_type)[0]
     except (TypeError, ValueError):
         start_date, _end_date = get_initial_connector_backfill_window(
             source_type=source_type,
@@ -6377,7 +6374,7 @@ CONNECTOR_PARTITION_DATE_COLUMNS = (
     "timestamp",
 )
 # Keep raw connector partitions for the full analytical retention window.
-CONNECTOR_HOT_MONTHS = CONNECTOR_DATA_RETENTION_MONTHS
+CONNECTOR_HOT_MONTHS = CONNECTOR_DATA_RETENTION_MONTHS + 1
 CONNECTOR_HOT_DIRECTORY = "hot"
 CONNECTOR_HISTORICAL_DIRECTORY = "historical"
 CONNECTOR_HISTORICAL_LEGACY_FILENAME = "historical-summary.parquet"
@@ -6798,7 +6795,7 @@ def find_connector_partition_date_column(
     dataframe,
     report_config: dict,
 ):
-    configured_column = report_config.get("date_column")
+    configured_column = report_config.get("date_column") or report_config.get("partition_date_column")
     candidates = [
         configured_column,
         *CONNECTOR_PARTITION_DATE_COLUMNS,
@@ -7067,6 +7064,7 @@ def write_connector_monthly_partitions(
         partitioned_dataframe,
         report_config,
     )
+    partitioned_dataframe = filter_connector_dataframe_by_retention(partitioned_dataframe, date_column)
     fallback_month = date.today().strftime("%Y-%m")
     partition_key = CONNECTOR_PARTITION_MONTH_COLUMN
 
@@ -8065,8 +8063,11 @@ def persist_connector_dataframe(
     connection,
     dataframe,
     report_config,
+    *,
+    heartbeat=None,
 ):
     file_path = None
+    staged_partition_dir = None
     replaced_file_path = None
     try:
         report_config = report_config or {}
@@ -8090,20 +8091,23 @@ def persist_connector_dataframe(
         )
         existing_dataframe = None
         existing_summary = pd.DataFrame()
-        if existing_dataset:
+        storage_result = None
+        existing_row_count = 0
+        schema_column_mapping = {}
+        if existing_dataset and storage.is_directory_reference(existing_reference):
+            from app.modules.datasets.services.connector_partition_merge import merge_connector_partitions
             try:
-                if storage.is_directory_reference(existing_reference):
-                    existing_dataframe = load_connector_raw_dataframe(
-                        existing_reference
-                    )
-                    existing_summary = load_connector_summary_dataframe(
-                        existing_reference
-                    )
-                else:
-                    _, existing_dataframe = load_dataset_file(
-                        existing_reference,
-                        existing_dataset.file_name,
-                    )
+                merged_dataframe, storage_result, schema_column_mapping, existing_row_count = merge_connector_partitions(
+                    connection, dataframe, {**parse_source_connection_config(existing_dataset.source_config), **report_config}, existing_reference, storage,
+                    heartbeat=heartbeat,
+                )
+                staged_partition_dir = storage_result["partition_dir"]
+            except HTTPException as error:
+                if error.status_code != 404:
+                    raise
+        elif existing_dataset:
+            try:
+                _, existing_dataframe = load_dataset_file(existing_reference, existing_dataset.file_name)
             except HTTPException as error:
                 if error.status_code != 404:
                     raise
@@ -8115,14 +8119,11 @@ def persist_connector_dataframe(
         # Normalize dynamic values before deduplication. Older connector
         # partitions and provider aliases can contain dict/list values in an
         # identity column, which pandas cannot hash during drop_duplicates.
-        existing_dataframe = normalize_connector_row_schema(existing_dataframe, connection.source_type, sync_resource)
-        schema_column_mapping = (
-            existing_dataframe.attrs.get(COLUMN_MAPPING_ATTR, {})
-            if isinstance(existing_dataframe, pd.DataFrame) else {}
-        )
-        existing_dataframe = normalize_connector_dataframe_for_parquet(
-            existing_dataframe
-        )
+        if storage_result is None:
+            existing_dataframe = normalize_connector_row_schema(existing_dataframe, connection.source_type, sync_resource)
+            schema_column_mapping = existing_dataframe.attrs.get(COLUMN_MAPPING_ATTR, {}) if isinstance(existing_dataframe, pd.DataFrame) else {}
+            existing_dataframe = normalize_connector_dataframe_for_parquet(existing_dataframe)
+            existing_row_count = len(existing_dataframe) if existing_dataframe is not None else 0
         dataframe = normalize_connector_dataframe_for_parquet(
             dataframe
         )
@@ -8142,7 +8143,7 @@ def persist_connector_dataframe(
             and not storage.is_directory_reference(existing_reference)
         )
 
-        if dataframe.empty:
+        if dataframe.empty and storage_result is None:
             if not existing_dataset:
                 start_date = report_config.get("start_date")
                 end_date = report_config.get("end_date")
@@ -8167,17 +8168,10 @@ def persist_connector_dataframe(
                 )
             dataframe = existing_dataframe
 
-        merged_dataframe = merge_connector_dataframes(
-            existing_dataframe,
-            dataframe,
-            connection.source_type,
-            report_config,
-        )
-        if connection.source_type == "sage":
-            merged_dataframe = deduplicate_sage_dataframe(
-                merged_dataframe,
-                report_config,
-            )
+        if storage_result is None:
+            merged_dataframe = merge_connector_dataframes(existing_dataframe, dataframe, connection.source_type, report_config)
+            if connection.source_type == "sage":
+                merged_dataframe = deduplicate_sage_dataframe(merged_dataframe, report_config)
         base_filename = build_connector_dataset_filename(
             connection.source_type,
             report_config,
@@ -8189,12 +8183,8 @@ def persist_connector_dataframe(
             + ".parquet"
         )
         try:
-            storage_result = write_connector_monthly_partitions(
-                merged_dataframe,
-                connection,
-                report_config,
-                existing_summary=existing_summary,
-            )
+            if storage_result is None:
+                storage_result = write_connector_monthly_partitions(merged_dataframe, connection, report_config, existing_summary=existing_summary)
         except ImportError as error:
             raise ConnectorUnavailable(
                 "Connector dataset storage requires the pyarrow package"
@@ -8282,12 +8272,7 @@ def persist_connector_dataframe(
                 0
                 if storage_migration_required
                 else (
-                    len(merged_dataframe)
-                    if existing_dataframe is None
-                    else max(
-                        0,
-                        len(merged_dataframe) - len(existing_dataframe),
-                    )
+                    max(0, storage_result["hot_row_count"] - existing_row_count)
                 )
             ),
             "stored_file_format": "parquet",
@@ -8298,6 +8283,7 @@ def persist_connector_dataframe(
             "retention_years": CONNECTOR_DATA_RETENTION_YEARS,
             "retention_months": CONNECTOR_DATA_RETENTION_MONTHS,
             "retention_cutoff_month": connector_retention_cutoff_month(),
+            "retention_cutoff_date": connector_retention_cutoff_date().isoformat(),
             "partition_count": storage_result["hot_partition_count"],
             "hot_partition_count": storage_result["hot_partition_count"],
             "historical_directory": historical_directory,
@@ -8413,6 +8399,8 @@ def persist_connector_dataframe(
     except Exception:
         if file_path:
             remove_dataset_file(file_path)
+        if staged_partition_dir and staged_partition_dir != file_path:
+            remove_dataset_file(staged_partition_dir)
         raise
 
 
@@ -8429,6 +8417,8 @@ def connector_dataset_requires_retention_cleanup(
     dataset_reference = get_dataset_storage_reference(dataset)
     if storage.is_directory_reference(dataset_reference):
         with storage.materialize(dataset_reference) as local_partition_dir:
+            if not source_config.get("retention_cutoff_date"):
+                return True
             for path in list_connector_raw_partition_paths(
                 local_partition_dir
             ):
@@ -8438,6 +8428,11 @@ def connector_dataset_requires_retention_cleanup(
                 )
                 if month and has_expired_connector_month(month):
                     return True
+                if month == connector_retention_cutoff_month():
+                    boundary = pd.read_parquet(path)
+                    column = date_column or find_connector_partition_date_column(boundary, source_config)
+                    if len(filter_connector_dataframe_by_retention(boundary, column)) < len(boundary):
+                        return True
 
             historical_dir = build_connector_historical_dir(
                 local_partition_dir
@@ -8466,21 +8461,14 @@ def connector_dataset_requires_retention_cleanup(
             )
             if SUMMARY_MONTH_COLUMN not in summary.columns:
                 return False
-            months = summary[SUMMARY_MONTH_COLUMN].dropna().astype(str)
-            return any(
-                has_expired_connector_month(month)
-                for month in months
-                if len(month) >= 7
-            )
+            return len(filter_connector_summary_by_retention(summary, SUMMARY_MONTH_COLUMN)) < len(summary)
 
     if not date_column:
         created_at = dataset.created_at
         return bool(
             created_at
             and created_at.date()
-            < date.fromisoformat(
-                f"{connector_retention_cutoff_month()}-01"
-            )
+            < connector_retention_cutoff_date()
         )
 
     with storage.materialize(dataset_reference) as local_file_path:
@@ -8497,18 +8485,17 @@ def connector_dataset_requires_retention_cleanup(
         dataframe[date_column],
         errors="coerce",
         utc=True,
+        format="mixed",
     )
-    months = parsed_dates.dropna().dt.strftime("%Y-%m")
-    return any(
-        has_expired_connector_month(month)
-        for month in months
-    )
+    return bool((parsed_dates < pd.Timestamp(connector_retention_cutoff_date(), tz="UTC")).any())
 
 
 def purge_expired_connector_dataset(
     db,
     connection,
     dataset=None,
+    *,
+    heartbeat=None,
 ):
     """Rewrite a connector dataset when its three-year boundary is crossed."""
     dataset = dataset if dataset is not None else find_connector_dataset(db, connection)
@@ -8534,6 +8521,7 @@ def purge_expired_connector_dataset(
             connection,
             pd.DataFrame(),
             source_config,
+            **({"heartbeat": heartbeat} if heartbeat else {}),
         )
     )
     # Retention maintenance is not a source sync and must not move the
@@ -8547,6 +8535,7 @@ def purge_expired_connector_dataset(
             "retention_cutoff_month",
             connector_retention_cutoff_month(),
         ),
+        "deleted_before_date": connector_retention_cutoff_date().isoformat(),
         "replaced_file_path": replaced_file_path,
         "derived_file_references": derived_references,
     }
@@ -8581,7 +8570,7 @@ def sweep_connector_retention(heartbeat=None):
                 for dataset in find_connector_datasets(db, connection):
                     if heartbeat:
                         heartbeat()
-                    result = purge_expired_connector_dataset(db, connection, dataset)
+                    result = purge_expired_connector_dataset(db, connection, dataset, **({"heartbeat": heartbeat} if heartbeat else {}))
                     if result:
                         results.append(result)
                 db.commit()
@@ -8787,6 +8776,10 @@ def _persist_ingestion_job_failure(
             INITIAL_CONNECTOR_SYNC_FAILED,
             error,
         )
+        if job.job_type == INITIAL_CONNECTOR_BACKFILL_JOB_TYPE:
+            recent = parse_schedule_config(connection.connection_config).get("_initial_connector_recent_synced_at")
+            if recent:
+                connection.last_synced_at = datetime.fromisoformat(recent)
 
     job.status = INGESTION_JOB_FAILED
     job.error_message = str(error)[:1000]
@@ -8979,6 +8972,7 @@ def run_connector_parent_ingestion_job(job_id: int):
     db = SessionLocal()
     connection = None
     initial_sync_required = False
+    initial_backfill_job = False
     try:
         job = (
             db.query(DataIngestionJob)
@@ -9040,6 +9034,7 @@ def run_connector_parent_ingestion_job(job_id: int):
             )
         )
         if initial_backfill_job:
+            payload = bound_connector_backfill_job(db, connection, job)
             set_initial_connector_sync_status(
                 connection,
                 INITIAL_CONNECTOR_SYNC_BACKFILL,
@@ -9105,6 +9100,10 @@ def run_connector_parent_ingestion_job(job_id: int):
                 )
             )
             if initial_sync_required or initial_backfill_job:
+                if initial_backfill_job:
+                    recent = parse_schedule_config(connection.connection_config).get("_initial_connector_recent_synced_at")
+                    if recent:
+                        connection.last_synced_at = datetime.fromisoformat(recent)
                 set_initial_connector_sync_status(
                     connection,
                     INITIAL_CONNECTOR_SYNC_FAILED,
@@ -9132,12 +9131,7 @@ def run_connector_parent_ingestion_job(job_id: int):
             result=result,
         )
         if initial_backfill_job:
-            set_initial_connector_sync_status(
-                connection,
-                INITIAL_CONNECTOR_SYNC_COMPLETE,
-            )
-            db.commit()
-            queue_connector_initial_analysis(None, connection.id)
+            complete_connector_backfill_chunk(db, connection, payload)
         elif initial_sync_required:
             if initial_connector_backfill_enabled(connection.source_type):
                 queue_connector_initial_backfill(None, connection.id)
@@ -9148,6 +9142,16 @@ def run_connector_parent_ingestion_job(job_id: int):
                 )
                 db.commit()
                 queue_connector_initial_analysis(None, connection.id)
+    except ConnectorNoData as error:
+        if connection and initial_backfill_job:
+            for child in db.query(DataIngestionJob).filter_by(parent_job_id=job_id).all():
+                child.status = INGESTION_JOB_NO_DATA
+                child.completed_at = utc_now()
+            _set_ingestion_job_result(db, job_id, INGESTION_JOB_NO_DATA,
+                                      result={"connection_id": connection.id, "datasets": [], "message": str(error)})
+            complete_connector_backfill_chunk(db, connection, payload)
+        else:
+            _persist_ingestion_job_failure(db, job_id, error)
     except (
         GoogleAnalyticsConnectorUnavailable,
         ConnectorUnavailable,
@@ -9245,6 +9249,7 @@ def run_connector_ingestion_job(job_id: int):
             )
         )
         if initial_backfill_job:
+            payload = bound_connector_backfill_job(db, connection, job)
             set_initial_connector_sync_status(
                 connection,
                 INITIAL_CONNECTOR_SYNC_BACKFILL,
@@ -9298,18 +9303,13 @@ def run_connector_ingestion_job(job_id: int):
         )
 
         if initial_backfill_job:
-            set_initial_connector_sync_status(
-                connection,
-                INITIAL_CONNECTOR_SYNC_COMPLETE,
-            )
-            db.commit()
             _set_ingestion_job_result(
                 db,
                 job_id,
                 INGESTION_JOB_SUCCEEDED,
                 result=result,
             )
-            queue_connector_initial_analysis(None, connection.id)
+            complete_connector_backfill_chunk(db, connection, payload)
         elif initial_sync_required:
             # Commit the first phase and its job before launching backfill so
             # the latest data is available and the UI can show progress for
@@ -9382,10 +9382,6 @@ def run_connector_ingestion_job(job_id: int):
                 .first()
             )
             if current_connection:
-                set_initial_connector_sync_status(
-                    current_connection,
-                    INITIAL_CONNECTOR_SYNC_COMPLETE,
-                )
                 set_initial_connector_sync_message(
                     current_connection,
                     str(error),
@@ -9402,7 +9398,8 @@ def run_connector_ingestion_job(job_id: int):
                     "datasets": [],
                 },
             )
-            queue_connector_initial_analysis(None, connection.id)
+            if current_connection:
+                complete_connector_backfill_chunk(db, current_connection, payload)
             return
         else:
             _set_ingestion_job_result(
@@ -9520,6 +9517,8 @@ def _build_connector_dataset_analysis(
         "source_type": dataset.source_type,
         "generated_at": utc_now().isoformat(),
         "history_window": {
+            "retention_years": CONNECTOR_DATA_RETENTION_YEARS,
+            "earliest_date": get_initial_connector_earliest_date(connection).isoformat(),
             "initial_sync_days": get_initial_connector_sync_days(
                 connection.source_type,
             ),
@@ -9843,39 +9842,15 @@ def queue_connector_initial_backfill(
                 db.commit()
             return False
 
-        status = get_initial_connector_sync_status(connection)
-        if status in {
-            INITIAL_CONNECTOR_SYNC_BACKFILL,
-            INITIAL_CONNECTOR_SYNC_COMPLETE,
-        }:
-            return False
         if get_active_ingestion_job(db, connection.id):
             return False
-        connection_config = parse_schedule_config(
-            connection.connection_config
-        )
-        if not connection_config.get("_initial_connector_backfill_start_date"):
-            backfill_start, backfill_end = (
-                get_initial_connector_backfill_window(
-                    source_type=connection.source_type,
-                )
-            )
-            connection_config[
-                "_initial_connector_backfill_start_date"
-            ] = backfill_start.isoformat()
-            connection_config[
-                "_initial_connector_backfill_end_date"
-            ] = backfill_end.isoformat()
-            connection.connection_config = json.dumps(
-                connection_config,
-                sort_keys=True,
-            )
-        start_date = date.fromisoformat(
-            str(connection_config["_initial_connector_backfill_start_date"])
-        )
-        end_date = date.fromisoformat(
-            str(connection_config["_initial_connector_backfill_end_date"])
-        )
+        connection_config = prepare_connector_history(connection)
+        chunk = next_history_chunk(connection_config)
+        if chunk is None:
+            set_initial_connector_sync_status(connection, INITIAL_CONNECTOR_SYNC_COMPLETE)
+            db.commit()
+            return False
+        start_date, end_date = chunk
         job = enqueue_connector_ingestion_job(
             db,
             connection,
@@ -9897,6 +9872,63 @@ def queue_connector_initial_backfill(
         return True
     finally:
         db.close()
+
+
+def prepare_connector_history(connection):
+    config = parse_schedule_config(connection.connection_config)
+    if config.get(HISTORY_VERSION_KEY) == HISTORY_POLICY_VERSION:
+        try:
+            next_history_chunk(config)
+        except (KeyError, ValueError):
+            config.pop(HISTORY_VERSION_KEY, None)
+            config.pop("_initial_connector_backfill_start_date", None)
+    if config.get(HISTORY_VERSION_KEY) != HISTORY_POLICY_VERSION:
+        start, end = get_initial_connector_backfill_window(source_type=connection.source_type)
+        config = prepare_history(config, start, end,
+                                 completed=get_initial_connector_sync_status(connection) == INITIAL_CONNECTOR_SYNC_COMPLETE)
+        config["_initial_connector_recent_synced_at"] = connection.last_synced_at.isoformat() if connection.last_synced_at else None
+        config.pop(CONNECTOR_ANALYSIS_STATUS_KEY, None)
+        connection.connection_config = json.dumps(config, sort_keys=True)
+    return config
+
+
+def bound_connector_backfill_job(db, connection, job):
+    """Also bound historical jobs queued by an older deployment."""
+    config = prepare_connector_history(connection)
+    chunk = next_history_chunk(config)
+    if chunk is None:
+        raise ConnectorNoData("No retained historical dates remain to import.")
+    start, end = chunk
+    payload = DataSourceConnectionSync(advanced_date_range=True, start_date=start, end_date=end)
+    job.request_payload = serialize_sync_payload(payload)
+    for child in db.query(DataIngestionJob).filter_by(parent_job_id=job.id).all():
+        child.request_payload = serialize_sync_payload(payload.model_copy(update={"resource_type": child.object_type}))
+    db.commit()
+    return payload
+
+
+def complete_connector_backfill_chunk(db, connection, payload):
+    lock_workspace_queue(db, connection.workspace_id or connection.user_id)
+    lock_connection_for_enqueue(db, connection)
+    db.refresh(connection)
+    config = prepare_connector_history(connection)
+    if next_history_chunk(config) is not None:
+        config = advance_history(config, payload.start_date, payload.end_date)
+    recent_sync = config.get("_initial_connector_recent_synced_at")
+    if recent_sync:
+        connection.last_synced_at = datetime.fromisoformat(recent_sync)
+    connection.connection_config = json.dumps(config, sort_keys=True)
+    complete = next_history_chunk(config) is None
+    set_initial_connector_sync_status(connection, INITIAL_CONNECTOR_SYNC_COMPLETE if complete else INITIAL_CONNECTOR_SYNC_BACKFILL)
+    db.commit()
+    try:
+        if complete:
+            queue_connector_initial_analysis(None, connection.id)
+        else:
+            queue_connector_initial_backfill(None, connection.id)
+    except WorkspaceIngestionQueueFull:
+        # The durable cursor is committed; the scheduler resumes it later.
+        logger.info("Historical import deferred until workspace queue capacity is available", extra={"connection_id": connection.id})
 
 
 def queue_connector_initial_analysis(
@@ -10072,110 +10104,8 @@ def _persist_initial_backfill_failure(
 
 
 def run_connector_initial_backfill(connection_id: int):
-    """Import the historical phase when the connector policy enables it."""
-    db = SessionLocal()
-    try:
-        connection = (
-            db.query(DataSourceConnection)
-            .filter(DataSourceConnection.id == connection_id)
-            .first()
-        )
-        if not connection:
-            return
-        if not initial_connector_backfill_enabled(connection.source_type):
-            set_initial_connector_sync_status(
-                connection,
-                INITIAL_CONNECTOR_SYNC_COMPLETE,
-            )
-            db.commit()
-            return
-        status = get_initial_connector_sync_status(connection)
-        if status == INITIAL_CONNECTOR_SYNC_COMPLETE:
-            return
-
-        connection_config = parse_schedule_config(
-            connection.connection_config
-        )
-        stored_start = connection_config.get(
-            "_initial_connector_backfill_start_date"
-        )
-        stored_end = connection_config.get(
-            "_initial_connector_backfill_end_date"
-        )
-        try:
-            start_date = date.fromisoformat(str(stored_start))
-            end_date = date.fromisoformat(str(stored_end))
-        except (TypeError, ValueError):
-            start_date, end_date = get_initial_connector_backfill_window(
-                source_type=connection.source_type,
-            )
-            connection_config[
-                "_initial_connector_backfill_start_date"
-            ] = start_date.isoformat()
-            connection_config[
-                "_initial_connector_backfill_end_date"
-            ] = end_date.isoformat()
-            connection.connection_config = json.dumps(
-                connection_config,
-                sort_keys=True,
-            )
-
-        set_initial_connector_sync_status(
-            connection,
-            INITIAL_CONNECTOR_SYNC_BACKFILL,
-        )
-        db.commit()
-
-        try:
-            sync_results = run_data_source_sync_with_oauth_retry(
-                db,
-                connection,
-                DataSourceConnectionSync(
-                    start_date=start_date,
-                    end_date=end_date,
-                ),
-            )
-        except ConnectorNoData:
-            sync_results = []
-
-        db.commit()
-        for _dataset, _report_config, _file_path, replaced_file_path in (
-            sync_results
-        ):
-            remove_dataset_file(replaced_file_path)
-
-        connection = (
-            db.query(DataSourceConnection)
-            .filter(DataSourceConnection.id == connection_id)
-            .first()
-        )
-        if connection:
-            set_initial_connector_sync_status(
-                connection,
-                INITIAL_CONNECTOR_SYNC_COMPLETE,
-            )
-            db.commit()
-    except (
-        GoogleAnalyticsConnectorUnavailable,
-        ConnectorUnavailable,
-        OAuthProviderUnavailable,
-    ) as error:
-        logger.warning(
-            "Initial connector backfill failed",
-            extra={
-                "connection_id": connection_id,
-                "reason": str(error)[:500],
-            },
-        )
-        _persist_initial_backfill_failure(db, connection_id, error)
-    except Exception as error:
-        logger.exception(
-            "Initial connector backfill failed unexpectedly",
-            extra={"connection_id": connection_id},
-        )
-        _persist_initial_backfill_failure(db, connection_id, error)
-    finally:
-        db.close()
+    """Legacy callers also enqueue one bounded chunk, never inline history."""
+    return queue_connector_initial_backfill(None, connection_id)
 
 
 def run_connector_initial_import(connection_id: int):

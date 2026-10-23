@@ -24,16 +24,16 @@ def month_key_from_index(index: int) -> str:
 def connector_retention_cutoff_month(
     as_of: date | None = None,
 ) -> str:
-    """Return the first month still retained by the three-year rule.
+    """Return the boundary partition; individual rows use the exact cutoff."""
+    return connector_retention_cutoff_date(as_of).strftime("%Y-%m")
 
-    The current month and the preceding 35 calendar months remain available;
-    older months are eligible for deletion.
-    """
+
+def connector_retention_cutoff_date(as_of: date | None = None) -> date:
     reference = as_of or date.today()
-    current_index = reference.year * 12 + reference.month - 1
-    return month_key_from_index(
-        current_index - CONNECTOR_DATA_RETENTION_MONTHS + 1
-    )
+    try:
+        return reference.replace(year=reference.year - CONNECTOR_DATA_RETENTION_YEARS)
+    except ValueError:
+        return reference.replace(year=reference.year - CONNECTOR_DATA_RETENTION_YEARS, day=28)
 
 
 def filter_connector_dataframe_by_retention(
@@ -41,7 +41,7 @@ def filter_connector_dataframe_by_retention(
     date_column: str | None,
     as_of: date | None = None,
 ) -> pd.DataFrame:
-    """Remove connector rows whose source month is outside the retention window."""
+    """Remove connector rows older than the exact calendar-date cutoff."""
     if dataframe.empty or not date_column or date_column not in dataframe.columns:
         return dataframe
 
@@ -49,12 +49,12 @@ def filter_connector_dataframe_by_retention(
         dataframe[date_column],
         errors="coerce",
         utc=True,
+        format="mixed",
     )
-    months = parsed_dates.dt.strftime("%Y-%m")
-    cutoff = connector_retention_cutoff_month(as_of)
+    cutoff = pd.Timestamp(connector_retention_cutoff_date(as_of), tz="UTC")
     # Rows with an unusable source date are retained because their age cannot
     # be established from the connector payload without dropping live data.
-    keep = months.isna() | (months >= cutoff)
+    keep = parsed_dates.isna() | (parsed_dates >= cutoff)
     return dataframe.loc[keep].reset_index(drop=True)
 
 
@@ -68,7 +68,12 @@ def filter_connector_summary_by_retention(
         return dataframe
 
     months = dataframe[summary_month_column].astype(str).str.slice(0, 7)
-    cutoff = connector_retention_cutoff_month(as_of)
+    boundary = connector_retention_cutoff_date(as_of)
+    # A legacy monthly total cannot be split at the cutoff day without
+    # inventing daily values. Drop that partial month conservatively.
+    cutoff = boundary.strftime("%Y-%m")
+    if boundary.day > 1:
+        cutoff = month_key_from_index(month_index(cutoff) + 1)
     keep = dataframe[summary_month_column].isna() | (months >= cutoff)
     return dataframe.loc[keep].reset_index(drop=True)
 

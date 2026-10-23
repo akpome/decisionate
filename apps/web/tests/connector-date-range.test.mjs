@@ -19,6 +19,22 @@ const connectorTypes = [
   "zoho_books", "salesforce", "postgresql", "mysql", "sql_server",
 ]
 
+test("date range defaults span three total calendar years rather than adding history before the initial window", () => {
+  const source = readFileSync(new URL("../features/datasets/components/data-source-connections.tsx", import.meta.url), "utf8")
+  const ast = ts.createSourceFile("connections.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const helpers = ast.statements.filter(node => ts.isFunctionDeclaration(node) && ["formatDateInputValue", "subtractCalendarMonths", "getAdvancedSyncDateBounds"].includes(node.name?.text)).map(node => node.getText(ast)).join("\n")
+  const bounds = vm.runInNewContext(ts.transpileModule(`${helpers}\ngetAdvancedSyncDateBounds`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText)
+  const today = new Date(), expected = new Date(today)
+  expected.setDate(1)
+  expected.setFullYear(today.getFullYear() - 3)
+  expected.setDate(Math.min(today.getDate(), new Date(expected.getFullYear(), expected.getMonth() + 1, 0).getDate()))
+  const minimum = [expected.getFullYear(), String(expected.getMonth() + 1).padStart(2, "0"), String(expected.getDate()).padStart(2, "0")].join("-")
+  assert.equal(bounds({}).min, minimum)
+  assert.equal(bounds({ initial_sync_days: 60, initial_backfill_months: 36 }).min, minimum)
+  assert.equal(bounds({ initial_sync_earliest_date: "2025-01-01" }).min, "2025-01-01")
+  assert.ok(bounds({ advanced_sync_max_days: 60 }).min > minimum)
+})
+
 function elements(node, predicate) {
   if (Array.isArray(node)) return node.flatMap(child => elements(child, predicate))
   if (!React.isValidElement(node)) return []

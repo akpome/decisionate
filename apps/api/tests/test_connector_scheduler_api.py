@@ -135,6 +135,7 @@ class ConnectorSchedulerQueueTests(unittest.TestCase):
                 source_type="meta_ads", display_name="Test Ads", status="connected",
                 last_synced_at=utc_now() - timedelta(days=2),
                 connection_config=json.dumps({
+                    routes.HISTORY_VERSION_KEY: routes.HISTORY_POLICY_VERSION,
                     routes.INITIAL_CONNECTOR_SYNC_STATUS_KEY: routes.INITIAL_CONNECTOR_SYNC_COMPLETE,
                     routes.CONNECTOR_ANALYSIS_STATUS_KEY: routes.CONNECTOR_ANALYSIS_COMPLETE,
                     **config,
@@ -214,6 +215,7 @@ class ConnectorSchedulerQueueTests(unittest.TestCase):
 
     def test_backfill_queue_limit_does_not_abort_other_workspaces(self):
         config = {
+            routes.HISTORY_VERSION_KEY: 1,
             routes.INITIAL_CONNECTOR_SYNC_STATUS_KEY: routes.INITIAL_CONNECTOR_SYNC_FAILED,
             "_initial_connector_backfill_start_date": "2025-01-01",
             "_initial_connector_backfill_end_date": "2025-12-31",

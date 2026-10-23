@@ -126,14 +126,14 @@ function getAdvancedSyncDateBounds(
   const today = new Date()
   const defaultStart = new Date(today)
   defaultStart.setDate(today.getDate() - 1)
-  const initialSyncDays = connection.initial_sync_days ?? 90
+  const initialSyncDays = connection.initial_sync_days ?? 60
   const initialStart = new Date(today)
   initialStart.setDate(today.getDate() - initialSyncDays + 1)
   const backfillEnd = new Date(initialStart)
   backfillEnd.setDate(initialStart.getDate() - 1)
   const fallbackEarliest = connection.initial_backfill_months
     ? subtractCalendarMonths(
-        backfillEnd,
+        today,
         connection.initial_backfill_months
       )
     : connection.initial_backfill_days
@@ -145,7 +145,7 @@ function getAdvancedSyncDateBounds(
               60 *
               1000
         )
-      : subtractCalendarMonths(backfillEnd, 21)
+      : subtractCalendarMonths(today, 36)
   const configuredEarliest = connection.initial_sync_earliest_date
     ? new Date(`${connection.initial_sync_earliest_date}T00:00:00`)
     : fallbackEarliest
@@ -1047,7 +1047,7 @@ function DataSourceConnectionRow({
             role="status"
           >
             {t(
-              `Initial import is running. The most recent ${connection.initial_sync_days ?? 90} days will appear first, followed by historical data in the background.`
+              `Initial import is running. The most recent ${connection.initial_sync_days ?? 60} days will appear first, followed by historical data in the background.`
             )}
           </p>
         )}
