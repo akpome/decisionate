@@ -192,6 +192,9 @@ def ensure_dataset_relationship_columns():
                     "ADD COLUMN lag_mode VARCHAR NOT NULL DEFAULT 'manual'"
                 )
             )
+        for column in ("left_dimension_filter", "right_dimension_filter"):
+            if column not in column_names:
+                connection.execute(text(f"ALTER TABLE dataset_relationships ADD COLUMN {column} TEXT"))
 
 
 ensure_dataset_relationship_columns()

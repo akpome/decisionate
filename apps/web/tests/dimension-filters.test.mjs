@@ -54,6 +54,19 @@ test("unique values use a dropdown with a search field instead of a checkbox lis
   assert.doesNotMatch(html, /type="checkbox"|role="checkbox"|<select[^>]*multiple/)
 })
 
+test("dimension, unique values and search share a responsive equal-width control row", () => {
+  const html = render({ value: { column: "region", values: ["East"] } })
+  assert.match(html, /class="@container /)
+  assert.match(html, /@min-\[28rem\]:grid-cols-\[repeat\(3,minmax\(0,1fr\)\)_auto\]/)
+  assert.equal((html.match(/col-span-full min-w-0 @min-\[28rem\]:col-span-1/g) || []).length, 2)
+  assert.match(html, /<label[^>]*for="[^"]+-search"[^>]*>Search values<\/label>/)
+  assert.ok(html.indexOf("Dimension column") < html.indexOf("Unique values"))
+  assert.ok(html.indexOf("Unique values") < html.indexOf(">Search values<"))
+  assert.match(html, /col-start-2 row-start-1[^\"]*@min-\[28rem\]:col-start-4/)
+  const dashboard = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8")
+  assert.match(dashboard, /<div className="min-w-0 print:hidden"><DatasetDimensionFilter/)
+})
+
 test("the value limit disables adding values without disabling removal", () => {
   const values = Array.from({ length: 50 }, (_, index) => `Value ${index}`)
   const html = render({ value: { column: "region", values } })

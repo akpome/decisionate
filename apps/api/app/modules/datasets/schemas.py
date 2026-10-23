@@ -77,6 +77,7 @@ class DatasetRelationshipSelection(BaseModel):
     dataset_id: int = Field(ge=1)
     date_column: str = Field(min_length=1, max_length=120)
     metric_column: str = Field(min_length=1, max_length=120)
+    dimension_filter: DimensionFilter | None = None
 
 
 class DatasetRelationshipRequest(BaseModel):

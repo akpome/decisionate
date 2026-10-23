@@ -423,6 +423,9 @@ class DatasetRelationship(Base):
         nullable=False,
     )
 
+    left_dimension_filter = Column(Text, nullable=True)
+    right_dimension_filter = Column(Text, nullable=True)
+
     period = Column(
         String,
         nullable=False,

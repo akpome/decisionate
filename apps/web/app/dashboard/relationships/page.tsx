@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useUser } from "@clerk/nextjs"
 import { ChevronDown, GitCompare, RefreshCw, Save, Trash2 } from "lucide-react"
 
@@ -17,10 +17,12 @@ import {
   type DatasetSummary,
   type DashboardAggregation,
   type DashboardValueAggregation,
+  type DimensionFilter,
 } from "@/lib/api"
 import { useActiveWorkspace } from "@/lib/use-active-workspace"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { useDecisionateText } from "@/app/use-decisionate-language"
+import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 
 const aggregationOptions: Array<{
   value: DashboardValueAggregation
@@ -90,6 +92,7 @@ export default function RelationshipsPage() {
   const [rightDateColumn, setRightDateColumn] = useState("")
   const [leftMetric, setLeftMetric] = useState("")
   const [rightMetric, setRightMetric] = useState("")
+  const [dimensionFilters, setDimensionFilters] = useState<Record<string, DimensionFilter | undefined>>({})
   const [name, setName] = useState("Cross-source relationship")
   const [period, setPeriod] = useState<DashboardAggregation>("monthly")
   const [aggregation, setAggregation] = useState<DashboardValueAggregation>("sum")
@@ -104,6 +107,10 @@ export default function RelationshipsPage() {
   const [deletingRelationshipId, setDeletingRelationshipId] = useState<number | null>(null)
   const [error, setError] = useState("")
   const [statusMessage, setStatusMessage] = useState("")
+  const filterKey = (identity: string) => JSON.stringify([user?.id, activeWorkspaceId, workspaceVersion, identity])
+  const leftFilter = dimensionFilters[filterKey(leftDatasetId)]
+  const rightFilter = dimensionFilters[filterKey(rightDatasetId)]
+  const incompleteFilter = [leftFilter, rightFilter].some(filter => filter && !filter.values.length)
 
   const metadataById = useMemo(
     () => new Map(metadata.map(item => [String(item.dataset_id), item])),
@@ -131,6 +138,15 @@ export default function RelationshipsPage() {
       ? rightMetric
       : rightMetadata.numeric_columns[0] || ""
     : rightMetric
+
+  const setupScope = JSON.stringify([user?.id, activeWorkspaceId, workspaceVersion, leftDatasetId, rightDatasetId,
+    resolvedLeftDateColumn, resolvedRightDateColumn, resolvedLeftMetric, resolvedRightMetric, leftFilter, rightFilter,
+    name, period, aggregation, method, lagMode, lagPeriods])
+  const currentSetup = useRef(setupScope)
+  useLayoutEffect(() => {
+    currentSetup.current = setupScope
+    return () => { currentSetup.current = "" }
+  }, [setupScope])
 
   useEffect(() => {
     if (!user?.id) return
@@ -210,6 +226,10 @@ export default function RelationshipsPage() {
   }, [activeWorkspaceId, leftDatasetId, rightDatasetId, user?.id])
 
   function buildPayload(): DatasetRelationshipPayload | null {
+    if (incompleteFilter) {
+      setError("Choose at least one unique value for each selected dimension column.")
+      return null
+    }
     if (
       !leftDatasetId ||
       !rightDatasetId ||
@@ -232,11 +252,13 @@ export default function RelationshipsPage() {
         dataset_id: Number(leftDatasetId),
         date_column: resolvedLeftDateColumn,
         metric_column: resolvedLeftMetric,
+        ...(leftFilter ? { dimension_filter: leftFilter } : {}),
       },
       right: {
         dataset_id: Number(rightDatasetId),
         date_column: resolvedRightDateColumn,
         metric_column: resolvedRightMetric,
+        ...(rightFilter ? { dimension_filter: rightFilter } : {}),
       },
       period,
       aggregation,
@@ -253,12 +275,12 @@ export default function RelationshipsPage() {
     setBusy(true)
     setError("")
     setStatusMessage("")
+    const scope = setupScope
     try {
-      setResult(
-        await previewDatasetRelationship(payload, user.id, activeWorkspaceId)
-      )
+      const calculated = await previewDatasetRelationship(payload, user.id, activeWorkspaceId)
+      if (currentSetup.current === scope) setResult(calculated)
     } catch (previewError) {
-      setError(getErrorMessage(previewError, "Unable to calculate relationship."))
+      if (currentSetup.current === scope) setError(getErrorMessage(previewError, "Unable to calculate relationship."))
     } finally {
       setBusy(false)
     }
@@ -271,12 +293,14 @@ export default function RelationshipsPage() {
     setBusy(true)
     setError("")
     setStatusMessage("")
+    const scope = setupScope
     try {
       const saved = await createDatasetRelationship(
         payload,
         user.id,
         activeWorkspaceId
       )
+      if (currentSetup.current !== scope) return
       setResult(saved)
       setRelationships(current => [
         saved,
@@ -284,7 +308,7 @@ export default function RelationshipsPage() {
       ])
       setStatusMessage("Relationship saved for this workspace.")
     } catch (saveError) {
-      setError(getErrorMessage(saveError, "Unable to save relationship."))
+      if (currentSetup.current === scope) setError(getErrorMessage(saveError, "Unable to save relationship."))
     } finally {
       setBusy(false)
     }
@@ -317,6 +341,24 @@ export default function RelationshipsPage() {
     } finally {
       setDeletingRelationshipId(null)
     }
+  }
+
+  function changeDimensionFilter(identity: string, filter: DimensionFilter | undefined) {
+    setDimensionFilters(current => ({ ...current, [filterKey(identity)]: filter }))
+    setResult(null); setStatusMessage(""); setError("")
+  }
+
+  function openSavedRelationship(relationship: DatasetRelationship) {
+    setLeftDatasetId(String(relationship.left.dataset_id)); setRightDatasetId(String(relationship.right.dataset_id))
+    setLeftDateColumn(relationship.left.date_column); setRightDateColumn(relationship.right.date_column)
+    setLeftMetric(relationship.left.metric_column); setRightMetric(relationship.right.metric_column)
+    setName(relationship.name); setPeriod(relationship.period); setAggregation(relationship.aggregation)
+    setMethod(relationship.method); setLagMode(relationship.lag_mode || "manual"); setLagPeriods(String(relationship.lag_periods))
+    setDimensionFilters(current => ({ ...current,
+      [filterKey(String(relationship.left.dataset_id))]: relationship.left.dimension_filter || undefined,
+      [filterKey(String(relationship.right.dataset_id))]: relationship.right.dimension_filter || undefined,
+    }))
+    setResult(relationship); setStatusMessage(""); setError("")
   }
 
   return (
@@ -389,6 +431,8 @@ export default function RelationshipsPage() {
                 onDatasetChange={setLeftDatasetId}
                 onDateChange={setLeftDateColumn}
                 onMetricChange={setLeftMetric}
+                userId={user?.id} workspaceId={activeWorkspaceId} filterContext={filterKey(leftDatasetId)}
+                dimensionFilter={leftFilter} onDimensionFilterChange={value => changeDimensionFilter(leftDatasetId, value)} disabled={busy || loadingMetadata}
               />
               <RelationshipSide
                 label="Dataset B"
@@ -400,6 +444,8 @@ export default function RelationshipsPage() {
                 onDatasetChange={setRightDatasetId}
                 onDateChange={setRightDateColumn}
                 onMetricChange={setRightMetric}
+                userId={user?.id} workspaceId={activeWorkspaceId} filterContext={filterKey(rightDatasetId)}
+                dimensionFilter={rightFilter} onDimensionFilterChange={value => changeDimensionFilter(rightDatasetId, value)} disabled={busy || loadingMetadata}
               />
             </div>
 
@@ -409,6 +455,7 @@ export default function RelationshipsPage() {
               <label className="space-y-2">
                 <span className="text-sm font-medium text-gray-700">{t("Timing")}</span>
                 <select
+                  aria-label={t("Timing")}
                   value={lagMode}
                   onChange={event => setLagMode(event.target.value as "automatic" | "manual")}
                   className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -476,7 +523,7 @@ export default function RelationshipsPage() {
               <button
                 type="button"
                 onClick={() => void handlePreview()}
-                disabled={busy || loadingMetadata}
+                disabled={busy || loadingMetadata || incompleteFilter}
                 className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <GitCompare size={16} />
@@ -485,7 +532,7 @@ export default function RelationshipsPage() {
               <button
                 type="button"
                 onClick={() => void handleSave()}
-                disabled={busy || loadingMetadata}
+                disabled={busy || loadingMetadata || incompleteFilter}
                 className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Save size={16} />
@@ -517,13 +564,14 @@ export default function RelationshipsPage() {
               <div key={relationship.id} className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <button
                   type="button"
-                  onClick={() => setResult(relationship)}
+                  onClick={() => openSavedRelationship(relationship)}
                   className="min-w-0 text-left"
                 >
                   <p className="truncate font-medium text-gray-900">{relationship.name}</p>
                   <p className="mt-1 truncate text-xs text-gray-500">
                     {relationship.left_dataset_name} · {relationship.left.metric_column} → {relationship.right_dataset_name} · {relationship.right.metric_column}
                   </p>
+                  {[relationship.left, relationship.right].map((side, index) => side.dimension_filter && <p key={index} className="mt-1 break-words text-xs text-gray-600">{index === 0 ? "A" : "B"} / {dimensionFilterLabel(side.dimension_filter)}</p>)}
                 </button>
                 <div className="flex items-center gap-3">
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${relationshipTone(relationship)}`}>
@@ -561,6 +609,7 @@ function RelationshipSide({
   onDatasetChange,
   onDateChange,
   onMetricChange,
+  userId, workspaceId, filterContext, dimensionFilter, onDimensionFilterChange, disabled,
 }: {
   label: string
   datasets: DatasetSummary[]
@@ -571,11 +620,13 @@ function RelationshipSide({
   onDatasetChange: (value: string) => void
   onDateChange: (value: string) => void
   onMetricChange: (value: string) => void
+  userId?: string; workspaceId?: string; filterContext: string; dimensionFilter?: DimensionFilter
+  onDimensionFilterChange: (value: DimensionFilter | undefined) => void; disabled: boolean
 }) {
   const { t } = useDecisionateText()
 
   return (
-    <div className="space-y-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+    <fieldset disabled={disabled} aria-label={label} className="min-w-0 space-y-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
       <h3 className="text-sm font-semibold text-gray-900">{label}</h3>
       <SelectField
         label={t("Dataset")}
@@ -595,7 +646,9 @@ function RelationshipSide({
         onChange={onMetricChange}
         options={(metadata?.numeric_columns ?? []).map(column => ({ value: column, label: column }))}
       />
-    </div>
+      {userId && datasetId && <DatasetDimensionFilter key={filterContext} datasetId={Number(datasetId)} userId={userId} workspaceId={workspaceId}
+        value={dimensionFilter} onChange={onDimensionFilterChange} disabled={disabled} />}
+    </fieldset>
   )
 }
 
@@ -611,11 +664,13 @@ function SelectField({
   options: Array<{ value: string; label: string }>
 }) {
   const { t } = useDecisionateText()
+  const id = useId()
 
   return (
-    <label className="block space-y-2">
-      <span className="text-sm font-medium text-gray-700">{label}</span>
+    <div className="min-w-0 space-y-2">
+      <label htmlFor={id} className="block text-sm font-medium text-gray-700">{label}</label>
       <select
+        id={id}
         value={value}
         onChange={event => onChange(event.target.value)}
         className="h-10 w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -625,7 +680,7 @@ function SelectField({
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </select>
-    </label>
+    </div>
   )
 }
 
@@ -672,6 +727,10 @@ function RelationshipResult({
           </div>
         </div>
       </div>
+
+      {[relationship.left, relationship.right].map((side, index) => side.dimension_filter && <p key={index} className="mt-3 break-words text-sm text-gray-600">
+        <span className="font-medium">{index === 0 ? relationship.left_dataset_name : relationship.right_dataset_name}</span> / {dimensionFilterLabel(side.dimension_filter)}
+      </p>)}
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricStat label={t("Shared periods")} value={String(relationship.matched_period_count)} />

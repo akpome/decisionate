@@ -59,9 +59,9 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
 
   const selectedValues = value?.values || []
   const visible = [...new Set([...selectedValues, ...(currentOptions ? options.values : [])])]
-  return <fieldset ref={fieldset} disabled={disabled} aria-label={t("Filter by column values")} onFocusCapture={() => setActivated(true)} onMouseEnter={() => setActivated(true)} className="mt-4 min-w-0 space-y-3 border-t border-gray-100 pt-3">
-    <div className="flex min-w-0 items-end gap-2">
-      <div className="min-w-0 flex-1">
+  return <fieldset ref={fieldset} disabled={disabled} aria-label={t("Filter by column values")} onFocusCapture={() => setActivated(true)} onMouseEnter={() => setActivated(true)} className="@container mt-4 min-w-0 space-y-3 border-t border-gray-100 pt-3">
+    <div className={`grid min-w-0 items-end gap-3 ${column ? "grid-cols-[minmax(0,1fr)_auto] @min-[28rem]:grid-cols-[repeat(3,minmax(0,1fr))_auto]" : "grid-cols-1"}`}>
+      <div className="min-w-0">
         <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-column`}>{t("Dimension column")}</label>
         <select id={`${id}-column`} className={input} value={column || ""} onChange={event => {
           setSearch(""); setOffset(0); setOptions(current => ({ ...current, values: [], next_offset: null }))
@@ -73,19 +73,26 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
           {columns.map(item => <option key={item.column} value={item.column}>{item.label}</option>)}
         </select>
       </div>
-      {value && <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300" title={t("Clear dimension filter")} aria-label={t("Clear dimension filter")} onClick={() => { onChange(undefined); setSearch(""); setOffset(0) }}><X size={16} /></button>}
+      {column && <>
+        <div className="col-span-full min-w-0 @min-[28rem]:col-span-1">
+          <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-values`}>{t("Unique values")}</label>
+          <select id={`${id}-values`} className={input} value="" disabled={selectedValues.length >= 50} onChange={event => {
+            if (!event.target.value || selectedValues.length >= 50) return
+            const selected = JSON.parse(event.target.value) as string | null
+            if (!selectedValues.includes(selected)) onChange({ column, values: [...selectedValues, selected] })
+          }}>
+            <option value="">{t("Select values")}</option>
+            {visible.map(item => <option key={JSON.stringify(item)} value={JSON.stringify(item)} disabled={selectedValues.includes(item)}>{dimensionValueLabel(item)}</option>)}
+          </select>
+        </div>
+        <div className="col-span-full min-w-0 @min-[28rem]:col-span-1">
+          <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-search`}>{t("Search values")}</label>
+          <div className="relative"><Search size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-gray-400" /><input id={`${id}-search`} aria-label={t("Search unique values")} type="search" className={`${input} pl-9`} placeholder={t("Search values")} value={search} onChange={event => { setSearch(event.target.value); setOffset(0) }} /></div>
+        </div>
+      </>}
+      {value && <button type="button" className="col-start-2 row-start-1 inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 @min-[28rem]:col-start-4" title={t("Clear dimension filter")} aria-label={t("Clear dimension filter")} onClick={() => { onChange(undefined); setSearch(""); setOffset(0) }}><X size={16} /></button>}
     </div>
     {column && <div className="min-w-0 space-y-2">
-      <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-values`}>{t("Unique values")}</label>
-      <select id={`${id}-values`} className={input} value="" disabled={selectedValues.length >= 50} onChange={event => {
-        if (!event.target.value || selectedValues.length >= 50) return
-        const selected = JSON.parse(event.target.value) as string | null
-        if (!selectedValues.includes(selected)) onChange({ column, values: [...selectedValues, selected] })
-      }}>
-        <option value="">{t("Select values")}</option>
-        {visible.map(item => <option key={JSON.stringify(item)} value={JSON.stringify(item)} disabled={selectedValues.includes(item)}>{dimensionValueLabel(item)}</option>)}
-      </select>
-      <div className="relative"><Search size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-gray-400" /><input id={`${id}-search`} aria-label={t("Search unique values")} type="search" className={`${input} pl-9`} placeholder={t("Search values")} value={search} onChange={event => { setSearch(event.target.value); setOffset(0) }} /></div>
       {selectedValues.length > 0 && <div role="group" aria-label={`${column} ${t("selected values")}`} className="flex max-h-40 min-w-0 flex-wrap gap-2 overflow-y-auto">
         {selectedValues.map(item => <span key={JSON.stringify(item)} className="inline-flex min-h-10 max-w-full min-w-0 items-center gap-2 rounded-md border border-gray-200 bg-gray-50 pl-3 text-sm">
           <span className="min-w-0 break-words [overflow-wrap:anywhere]">{dimensionValueLabel(item)}</span>

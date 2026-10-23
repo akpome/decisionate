@@ -19,6 +19,8 @@ from app.modules.datasets.services.numeric import (
     is_identifier_column,
 )
 from app.modules.datasets.services.curated_metric_analytics import aggregate_curated_dataframe, frame_policy
+from app.modules.datasets.services.dimension_filters import DimensionFilter, apply_dimension_filter
+from app.modules.datasets.services.metric_selection import filter_dataframe_to_selected_metrics
 
 
 RELATIONSHIP_PERIODS = {
@@ -45,6 +47,20 @@ AUTO_MAX_LAGS = {
 AUTO_MIN_MATCHED_PERIODS = 6
 AUTO_MIN_ABSOLUTE_CORRELATION = 0.30
 AUTO_NEIGHBOR_MIN_ABSOLUTE_CORRELATION = 0.20
+
+
+def relationship_definition_from_record(record, *, include_filters=True):
+    selections = {}
+    for side in ("left", "right"):
+        saved = getattr(record, f"{side}_dimension_filter", None) if include_filters else None
+        selections[side] = {
+            "dataset_id": getattr(record, f"{side}_dataset_id"),
+            "date_column": getattr(record, f"{side}_date_column"),
+            "metric_column": getattr(record, f"{side}_metric"),
+            "dimension_filter": DimensionFilter.model_validate_json(saved).model_dump() if saved is not None else None,
+        }
+    return {"name": record.name, **selections, "period": record.period, "aggregation": record.aggregation,
+            "method": record.method, "lag_mode": getattr(record, "lag_mode", None) or "manual", "lag_periods": record.lag_periods}
 
 
 def _safe_float(value) -> float | None:
@@ -122,6 +138,15 @@ def _build_metric_series(
     aggregation: str,
     reference_year: int | None,
 ) -> pd.DataFrame:
+    selection_filter = selection.get("dimension_filter")
+    if selection_filter is not None:
+        source = dataframe
+        dataframe = filter_dataframe_to_selected_metrics(dataset, source)
+        # Retain grouping fields without making unselected measures eligible.
+        column = selection_filter["column"]
+        if column in source and column not in dataframe:
+            dataframe = dataframe.copy()
+            dataframe[column] = source[column]
     date_column = resolve_column(
         dataframe,
         selection.get("date_column"),
@@ -132,6 +157,8 @@ def _build_metric_series(
         selection.get("metric_column"),
         f"Metric for {dataset.file_name}",
     )
+    if selection_filter is not None:
+        dataframe = apply_dimension_filter(dataset, dataframe, selection_filter, metrics=[str(metric_column)])
     parsed_dates = _parse_dates(
         dataframe[date_column],
         reference_year=reference_year,
@@ -502,6 +529,14 @@ def build_dataset_relationship(
         f"{correlation_text} ({strength}, {direction}). "
         f"Timing: {delay_description}. {association_summary}"
     )
+    scopes = []
+    for dataset, selection in ((left_dataset, left), (right_dataset, right)):
+        selected = selection.get("dimension_filter")
+        if selected is not None:
+            labels = ["Missing" if value is None else "Empty string" if value == "" else value for value in selected["values"]]
+            scopes.append(f"{dataset.file_name} / {selected['column']}: {', '.join(labels)}")
+    if scopes:
+        decision_context += " Filters: " + "; ".join(scopes) + "."
 
     return {
         "id": relationship_id,

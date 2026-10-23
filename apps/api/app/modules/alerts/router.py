@@ -60,6 +60,7 @@ from app.modules.datasets.services.deduplication import (
 )
 from app.modules.datasets.services.relationships import (
     build_dataset_relationship,
+    relationship_definition_from_record,
 )
 from app.modules.decisions.models import Decision
 from app.modules.reports.models import BusinessReport
@@ -1015,39 +1016,18 @@ def build_weekly_report_relationships(
             continue
 
         try:
-            for dataset in (left_dataset, right_dataset):
-                if dataset.id not in cached_frames:
-                    cached_frames[dataset.id] = load_dataframe_from_dataset(dataset)
-            frames = [
-                (
-                    left_dataset,
-                    scoped_frame(cached_frames[left_dataset.id], relationship.left_date_column, history_window, reporting_timezone())[0],
-                ),
-                (
-                    right_dataset,
-                    scoped_frame(cached_frames[right_dataset.id], relationship.right_date_column, history_window, reporting_timezone())[0],
-                ),
-            ]
+            definition = relationship_definition_from_record(relationship)
+            frames = []
+            for dataset, side in ((left_dataset, "left"), (right_dataset, "right")):
+                raw = definition[side].get("dimension_filter") is not None
+                cache_key = (dataset.id, raw)
+                if cache_key not in cached_frames:
+                    cached_frames[cache_key] = (load_dataframe_from_dataset(dataset, apply_metric_selection=False)
+                                                if raw else load_dataframe_from_dataset(dataset))
+                frames.append((dataset, scoped_frame(cached_frames[cache_key], definition[side]["date_column"], history_window, reporting_timezone())[0]))
             result = build_dataset_relationship(
                 frames,
-                {
-                    "name": relationship.name,
-                    "left": {
-                        "dataset_id": relationship.left_dataset_id,
-                        "date_column": relationship.left_date_column,
-                        "metric_column": relationship.left_metric,
-                    },
-                    "right": {
-                        "dataset_id": relationship.right_dataset_id,
-                        "date_column": relationship.right_date_column,
-                        "metric_column": relationship.right_metric,
-                    },
-                    "period": relationship.period,
-                    "aggregation": relationship.aggregation,
-                    "method": relationship.method,
-                    "lag_mode": getattr(relationship, "lag_mode", None) or "manual",
-                    "lag_periods": relationship.lag_periods,
-                },
+                definition,
                 relationship.id,
             )
             results.append({

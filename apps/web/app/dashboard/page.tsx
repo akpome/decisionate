@@ -3255,7 +3255,7 @@ export default function DashboardPage() {
   const dimensionControls = selectedDashboardNeedsDataset && selectedDatasetId && userId ? <div className="min-w-0">
     {joinedDatasetResult ? <button type="button" className="inline-flex min-h-10 items-center gap-2 text-sm font-medium text-blue-700 underline print:hidden" onClick={() => setShowJoinPanel(current => !current)} aria-expanded={showJoinPanel}>
       <Settings2 size={16} />Source dimension filters
-    </button> : <div className="max-w-md print:hidden"><DatasetDimensionFilter key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
+    </button> : <div className="min-w-0 print:hidden"><DatasetDimensionFilter key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
       value={dimensionFilter} disabled={loading} onChange={value => setDimensionSelection({ context: dimensionContext, value })} /></div>}
     {dimensionData.pending && <p role="status" className="mt-2 text-sm text-gray-600">Loading filtered dashboard...</p>}
     {dimensionData.error && <div className="mt-2 flex items-start gap-2 text-sm text-red-700"><p role="alert" className="min-w-0 flex-1 break-words">{dimensionData.error}</p>

@@ -455,6 +455,7 @@ export type DatasetRelationshipSelection = {
   dataset_id: number
   date_column: string
   metric_column: string
+  dimension_filter?: DimensionFilter | null
 }
 
 export type DatasetRelationshipPayload = {
@@ -3723,13 +3724,27 @@ export async function joinDatasets(
   return response.json()
 }
 
+function verifyDatasetRelationshipFilters(result: DatasetRelationship, payload: DatasetRelationshipPayload) {
+  for (const side of ["left", "right"] as const) {
+    const expected = payload[side].dimension_filter
+    if (!expected) continue
+    const actual = result[side]?.dimension_filter
+    if (!actual || actual.column !== expected.column || actual.values.length !== expected.values.length ||
+      expected.values.some(value => !actual.values.includes(value))) {
+      throw new ApiError("Dimension filtering is not available from this API yet. No unfiltered relationship was displayed.", 503)
+    }
+  }
+  return result
+}
+
 export async function previewDatasetRelationship(
   payload: DatasetRelationshipPayload,
   userId: string,
   workspaceId?: string
 ): Promise<DatasetRelationship> {
+  const filtered = Boolean(payload.left.dimension_filter || payload.right.dimension_filter)
   const response = await apiFetch(
-    `${API_URL}/datasets/relationships/preview`,
+    `${API_URL}/datasets/relationships/preview${filtered ? "/filtered" : ""}`,
     {
       method: "POST",
       headers: await workspaceJsonHeaders(
@@ -3747,7 +3762,7 @@ export async function previewDatasetRelationship(
     )
   }
 
-  return response.json()
+  return verifyDatasetRelationshipFilters(await response.json(), payload)
 }
 
 export async function createDatasetRelationship(
@@ -3755,8 +3770,9 @@ export async function createDatasetRelationship(
   userId: string,
   workspaceId?: string
 ): Promise<DatasetRelationship> {
+  const filtered = Boolean(payload.left.dimension_filter || payload.right.dimension_filter)
   const response = await apiFetch(
-    `${API_URL}/datasets/relationships`,
+    `${API_URL}/datasets/relationships${filtered ? "/filtered" : ""}`,
     {
       method: "POST",
       headers: await workspaceJsonHeaders(
@@ -3774,7 +3790,7 @@ export async function createDatasetRelationship(
     )
   }
 
-  return response.json()
+  return verifyDatasetRelationshipFilters(await response.json(), payload)
 }
 
 export async function getDatasetRelationships(

@@ -177,6 +177,7 @@ from app.modules.datasets.services.joins import (
 )
 from app.modules.datasets.services.relationships import (
     build_dataset_relationship,
+    relationship_definition_from_record,
 )
 from app.modules.datasets.services.join_cache import (
     build_dataset_source_fingerprint,
@@ -5029,24 +5030,7 @@ def _relationship_workspace_filter(
 def _relationship_definition_from_record(
     relationship: DatasetRelationship,
 ):
-    return {
-        "name": relationship.name,
-        "left": {
-            "dataset_id": relationship.left_dataset_id,
-            "date_column": relationship.left_date_column,
-            "metric_column": relationship.left_metric,
-        },
-        "right": {
-            "dataset_id": relationship.right_dataset_id,
-            "date_column": relationship.right_date_column,
-            "metric_column": relationship.right_metric,
-        },
-        "period": relationship.period,
-        "aggregation": relationship.aggregation,
-        "method": relationship.method,
-        "lag_mode": getattr(relationship, "lag_mode", None) or "manual",
-        "lag_periods": relationship.lag_periods,
-    }
+    return relationship_definition_from_record(relationship)
 
 
 def _load_relationship_frames(
@@ -5061,14 +5045,9 @@ def _load_relationship_frames(
     ]
     frames = []
     for selection in selections:
-        dataset, dataframe = load_dataframe(
-            db,
-            int(selection["dataset_id"]),
-        )
-        verify_dataset_owner(
-            dataset,
-            user_id,
-            workspace_id,
+        dataset, dataframe = _load_owned_dataset_dataframe(
+            db, int(selection["dataset_id"]), user_id, workspace_id,
+            apply_metric_selection=selection.get("dimension_filter") is None,
         )
         frames.append((dataset, dataframe))
 
@@ -5096,6 +5075,7 @@ async def _calculate_dataset_relationship(
 
 
 @router.post("/relationships/preview")
+@router.post("/relationships/preview/filtered")
 async def preview_dataset_relationship(
     request: Request,
     payload: DatasetRelationshipRequest,
@@ -5165,9 +5145,7 @@ async def get_dataset_relationships(
                 )
             except (HTTPException, ValueError, OSError):
                 results.append({
-                    **_relationship_definition_from_record(
-                        relationship
-                    ),
+                    **relationship_definition_from_record(relationship, include_filters=False),
                     "id": relationship.id,
                     "left_dataset_name": f"Dataset {relationship.left_dataset_id}",
                     "right_dataset_name": f"Dataset {relationship.right_dataset_id}",
@@ -5181,7 +5159,7 @@ async def get_dataset_relationships(
                     "relationship_strength": "unavailable",
                     "direction": "undetermined",
                     "evidence": [],
-                    "decision_context": "The source dataset is unavailable.",
+                    "decision_context": "The source dataset or saved dimension filter is unavailable.",
                     "status": "unavailable",
                 })
 
@@ -5191,6 +5169,7 @@ async def get_dataset_relationships(
 
 
 @router.post("/relationships")
+@router.post("/relationships/filtered")
 async def create_dataset_relationship(
     request: Request,
     payload: DatasetRelationshipRequest,
@@ -5220,6 +5199,8 @@ async def create_dataset_relationship(
             right_dataset_id=result["right"]["dataset_id"],
             right_date_column=result["right"]["date_column"],
             right_metric=result["right"]["metric_column"],
+            left_dimension_filter=json.dumps(result["left"]["dimension_filter"]) if result["left"].get("dimension_filter") is not None else None,
+            right_dimension_filter=json.dumps(result["right"]["dimension_filter"]) if result["right"].get("dimension_filter") is not None else None,
             period=result["period"],
             aggregation=result["aggregation"],
             method=result["method"],
