@@ -290,6 +290,8 @@ export default function ForecastsPage() {
 
   const [selectedMetric, setSelectedMetric] =
     useState<string>()
+  const [dateColumns, setDateColumns] = useState<string[]>([])
+  const [selectedDateColumn, setSelectedDateColumn] = useState<string>()
   const [periodFilter, setPeriodFilter] =
     useState<ForecastPeriodFilter>("all")
   const [aggregation, setAggregation] =
@@ -343,6 +345,9 @@ export default function ForecastsPage() {
     metricsReadyForSelectedDataset
       ? datasetMetricColumns
       : forecastMetricColumns
+  const availableDateColumns = metricsReadyForSelectedDataset && dateColumns.length
+    ? dateColumns : forecast?.forecast.date_column ? [forecast.forecast.date_column] : []
+  const resolvedDateColumn = selectedDateColumn || forecast?.forecast.date_column || ""
   const selectedDatasetSource =
     selectedDataset
       ? getDatasetSourceDetails(
@@ -383,6 +388,8 @@ export default function ForecastsPage() {
         setDatasets([])
         setSelectedDatasetId(undefined)
         setSelectedMetric(undefined)
+        setDateColumns([])
+        setSelectedDateColumn(undefined)
         setPeriodFilter("all")
         setAggregation("monthly")
         setAggregationType("sum")
@@ -498,7 +505,8 @@ export default function ForecastsPage() {
           await getDatasetMetrics(
             datasetId,
             userId,
-            activeWorkspaceId
+            activeWorkspaceId,
+            true
           )
 
         if (ignore) {
@@ -519,6 +527,11 @@ export default function ForecastsPage() {
         setDatasetMetricColumns(
           metricColumns
         )
+        const availableDates = [...new Set(data.date_columns || [])]
+        setDateColumns(availableDates)
+        setSelectedDateColumn(current => current && availableDates.includes(current)
+          ? current : data.default_date_column && availableDates.includes(data.default_date_column)
+            ? data.default_date_column : availableDates[0])
         setSelectedMetric(currentMetric =>
           currentMetric &&
           !metricColumns.includes(currentMetric)
@@ -628,6 +641,7 @@ export default function ForecastsPage() {
             selectedMetric,
             activeWorkspaceId,
             {
+              dateColumn: selectedDateColumn,
               startDate: startDate || undefined,
               periodFilter,
               aggregation,
@@ -702,6 +716,7 @@ export default function ForecastsPage() {
   }, [
     selectedDatasetId,
     selectedMetric,
+    selectedDateColumn,
     datasetMetricColumns,
     metricsDatasetId,
     metricsLoadFailedDatasetId,
@@ -943,6 +958,8 @@ export default function ForecastsPage() {
     setForecastUnavailableMessage("")
     setForecast(null)
     setSelectedMetric(undefined)
+    setDateColumns([])
+    setSelectedDateColumn(undefined)
     setPeriodFilter("all")
     setAggregation("monthly")
     setAggregationType("sum")
@@ -1140,9 +1157,23 @@ export default function ForecastsPage() {
             </label>
           </div>
 
-          {selectedDatasetId && user?.id && <DatasetDimensionFilter key={`${activeWorkspaceId}:${selectedDatasetId}`} datasetId={selectedDatasetId} userId={user.id} workspaceId={activeWorkspaceId} value={dimensionFilter} disabled={metricsLoading} onChange={value => {
-            setDimensionFilter(value); setForecast(null); setPageError(""); setForecastUnavailableMessage("")
-          }} />}
+          {selectedDatasetId && user?.id && <div className="@container mt-4 min-w-0 border-t border-gray-100 pt-3">
+            <div className="grid min-w-0 items-start gap-3 @min-[28rem]:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
+              <div className="min-w-0">
+                <label htmlFor="forecast-date-column" className="block text-xs font-medium text-gray-600">{t("Date column")}</label>
+                <select id="forecast-date-column" className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
+                  value={resolvedDateColumn} disabled={metricsLoading || !availableDateColumns.length} onChange={event => {
+                    setSelectedDateColumn(event.target.value); setForecast(null); setPageError(""); setForecastUnavailableMessage("")
+                  }}>
+                  {!availableDateColumns.length && <option value="">{t(metricsLoading ? "Loading date columns..." : "No date columns available")}</option>}
+                  {availableDateColumns.map(column => <option key={column} value={column}>{column}</option>)}
+                </select>
+              </div>
+              <DatasetDimensionFilter key={`${activeWorkspaceId}:${selectedDatasetId}`} datasetId={selectedDatasetId} userId={user.id} workspaceId={activeWorkspaceId} value={dimensionFilter} embedded disabled={metricsLoading} onChange={value => {
+                setDimensionFilter(value); setForecast(null); setPageError(""); setForecastUnavailableMessage("")
+              }} />
+            </div>
+          </div>}
 
           <div className="mt-4 grid min-w-0 gap-3 rounded-lg border border-gray-200 bg-gray-50 px-0 py-2 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
             <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">

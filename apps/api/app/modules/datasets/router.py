@@ -201,6 +201,7 @@ from app.modules.datasets.services.source_metadata import (
     connector_dataset_display_name,
 )
 from app.modules.forecasting.services import (
+    forecast_date_columns,
     identify_forecast_columns,
     prepare_forecast_dataframe,
 )
@@ -10913,6 +10914,7 @@ def dataset_dimensions(
 def dataset_metrics(
     request: Request,
     dataset_id: int,
+    include_dates: bool = False,
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -10930,7 +10932,7 @@ def dataset_metrics(
             workspace_id,
         )
 
-        return {
+        result = {
             "dataset_id": dataset.id,
             "file_name": connector_dataset_display_name(dataset),
             "metrics": generate_metrics(
@@ -10938,6 +10940,13 @@ def dataset_metrics(
                 selected_columns=get_effective_dataset_metric_columns(dataset, dataframe),
             ),
         }
+        if include_dates:
+            date_columns = forecast_date_columns(dataframe)
+            result.update({
+                "date_columns": date_columns,
+                "default_date_column": date_columns[0] if date_columns else None,
+            })
+        return result
 
     finally:
         db.close()

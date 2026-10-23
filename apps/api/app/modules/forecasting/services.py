@@ -21,6 +21,7 @@ from app.modules.datasets.services.numeric import (
 from app.modules.datasets.services.charts import (
     find_date_column,
 )
+from app.modules.datasets.services.joins import infer_date_columns
 from app.modules.datasets.services.serialization import (
     dataframe_to_json_records,
 )
@@ -221,6 +222,14 @@ def build_forecast_summary(
             else None
         ),
     }
+
+
+def forecast_date_columns(dataframe: pd.DataFrame) -> list[str]:
+    default = find_date_column(dataframe, list(dataframe.columns))
+    return list(dict.fromkeys([
+        *([str(default)] if default is not None else []),
+        *infer_date_columns(dataframe),
+    ]))
 
 
 def identify_forecast_columns(
@@ -737,6 +746,7 @@ def generate_forecast(
     aggregation_type: str | None = None,
     actor_user_id: str | None = None,
     seasonal_business: bool = False,
+    date_column: str | None = None,
 ):
     if not isinstance(
         dataframe,
@@ -747,7 +757,12 @@ def generate_forecast(
         }
 
     dimension_filter = dataframe.attrs.get("dimension_filter")
+    requested_date_column = date_column
     date_column, value_column = identify_forecast_columns(dataframe)
+    if requested_date_column is not None:
+        if requested_date_column not in forecast_date_columns(dataframe):
+            return {"error": "The selected date column is unavailable or does not contain usable dates."}
+        date_column = next(column for column in dataframe.columns if str(column) == requested_date_column)
 
     if not date_column:
         return {"error": "No date column found"}
@@ -787,7 +802,7 @@ def generate_forecast(
     if dataframe.empty:
         return {"error": "Not enough data"}
 
-    date_column, value_column = identify_forecast_columns(
+    _, value_column = identify_forecast_columns(
         dataframe
     )
 

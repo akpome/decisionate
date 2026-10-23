@@ -9,11 +9,11 @@ const ts = require("typescript")
 const React = require("react")
 const { renderToStaticMarkup } = require("react-dom/server")
 function load(source, globals = {}) {
-  const module = { exports: {} }
+  const loadedModule = { exports: {} }
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
-  } }).outputText, { module, exports: module.exports, require, URLSearchParams, ...globals })
-  return module.exports
+  } }).outputText, { module: loadedModule, exports: loadedModule.exports, require, URLSearchParams, ...globals })
+  return loadedModule.exports
 }
 const { ForecastBasis } = load(readFileSync(new URL("../features/dashboard/components/forecast-basis.tsx", import.meta.url), "utf8"))
 const basis = {
@@ -49,13 +49,14 @@ test("forecast warnings are escaped rather than rendered as markup", () => {
 const apiSource = readFileSync(new URL("../lib/api.ts", import.meta.url), "utf8")
 const ast = ts.createSourceFile("api.ts", apiSource, ts.ScriptTarget.Latest, true)
 const forecastFunction = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "getForecast")
+const metricsFunction = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "getDatasetMetrics")
 const apiErrorClass = ast.statements.find(node => ts.isClassDeclaration(node) && node.name?.text === "ApiError")
 const { ApiError } = load(apiErrorClass.getText(ast))
 const { ApiReadCache } = load(readFileSync(new URL("../lib/api-read-cache.ts", import.meta.url), "utf8"))
 function client(legacy = false) {
   const requests = [], cache = new ApiReadCache()
   let legacyResponse = legacy
-  const { getForecast } = load(forecastFunction.getText(ast), {
+  const { getForecast, getDatasetMetrics } = load([forecastFunction.getText(ast), metricsFunction.getText(ast)].join("\n"), {
     ApiError,
     API_URL: "https://sample.test", cleanPositiveIntegerId: value => value,
     getWorkspaceCacheIdentity: (user, workspace) => `${user}:${workspace}`,
@@ -63,11 +64,42 @@ function client(legacy = false) {
     getCachedRead: (key, loader) => cache.get(key, loader, 10000),
     apiFetch: async (url, init) => { requests.push({ url, init }); return { ok: true, json: async () => ({ url,
       dimension_filter: legacyResponse || !init.body ? null : JSON.parse(init.body),
-      forecast: legacyResponse ? {} : { seasonality: { requested: new URL(url).searchParams.get("seasonal_business") === "true" } },
+      forecast: { date_column: legacyResponse ? "date" : new URL(url).searchParams.get("date_column") || "date",
+        ...legacyResponse ? {} : { seasonality: { requested: new URL(url).searchParams.get("seasonal_business") === "true" } } },
     }) } },
   })
-  return { getForecast, requests, setLegacyResponse: value => { legacyResponse = value } }
+  return { getForecast, getDatasetMetrics, requests, setLegacyResponse: value => { legacyResponse = value } }
 }
+
+test("date selections are sent to the forecast API and isolated in its cache", async () => {
+  const { getForecast, requests } = client()
+  for (const dateColumn of [undefined, "date", "paid_date", "paid_date"]) {
+    const result = await getForecast(1, "alice", "revenue", "workspace", { dateColumn })
+    assert.equal(result.forecast.date_column, dateColumn || "date")
+  }
+  assert.equal(requests.length, 3)
+  assert.equal(new URL(requests[0].url).searchParams.has("date_column"), false)
+  assert.equal(new URL(requests[2].url).searchParams.get("date_column"), "paid_date")
+})
+
+test("an API that ignores a date selection is rejected and can recover after upgrade", async () => {
+  const { getForecast, requests, setLegacyResponse } = client(true)
+  await assert.rejects(getForecast(1, "alice", "revenue", "workspace", { dateColumn: "paid_date" }), error => error.status === 503)
+  setLegacyResponse(false)
+  const result = await getForecast(1, "alice", "revenue", "workspace", { dateColumn: "paid_date" })
+  assert.equal(result.forecast.date_column, "paid_date")
+  assert.equal(requests.length, 2)
+})
+
+test("date metadata uses the existing metric request with a distinct cache entry", async () => {
+  const { getDatasetMetrics, requests } = client()
+  await getDatasetMetrics(1, "alice", "workspace")
+  await getDatasetMetrics(1, "alice", "workspace", true)
+  await getDatasetMetrics(1, "alice", "workspace", true)
+  assert.equal(requests.length, 2)
+  assert.equal(new URL(requests[0].url).search, "")
+  assert.equal(new URL(requests[1].url).searchParams.get("include_dates"), "true")
+})
 
 test("forecast query sends seasonality explicitly and keeps ordinary controls", async () => {
   const { getForecast, requests } = client()
@@ -143,6 +175,32 @@ test("an older API cannot silently return all rows for a filtered forecast, and 
 
 const pageSource = readFileSync(new URL("../app/dashboard/forecasts/page.tsx", import.meta.url), "utf8")
 const pageAst = ts.createSourceFile("page.tsx", pageSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+test("forecast date selector is labelled, preselected and updates the actual request", () => {
+  let selector
+  function visit(node) {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(pageAst) === "select"
+      && node.openingElement.attributes.properties.some(attribute => attribute.name?.getText(pageAst) === "id" && attribute.initializer?.text === "forecast-date-column")) selector = node
+    ts.forEachChild(node, visit)
+  }
+  visit(pageAst)
+  assert.ok(selector)
+  const changes = []
+  const { DateControl } = load(`export function DateControl() { return (${selector.parent.getText(pageAst)}) }`, {
+    t: value => value, resolvedDateColumn: "paid_date", availableDateColumns: ["date", "paid_date"], metricsLoading: false,
+    setSelectedDateColumn: value => changes.push(value), setForecast: value => changes.push(value),
+    setPageError: value => changes.push(value), setForecastUnavailableMessage: value => changes.push(value),
+  })
+  const html = renderToStaticMarkup(React.createElement(DateControl))
+  assert.match(html, /for="forecast-date-column"[^>]*>Date column<\/label>/)
+  assert.match(html, /<option value="paid_date" selected="">paid_date<\/option>/)
+  const control = DateControl().props.children.find(child => child.type === "select")
+  control.props.onChange({ target: { value: "date" } })
+  assert.deepEqual(changes, ["date", null, "", ""])
+  assert.match(pageSource, /dateColumn: selectedDateColumn/)
+  assert.match(pageSource, /@min-\[28rem\]:grid-cols-\[minmax\(0,1fr\)_minmax\(0,3fr\)\]/)
+  assert.match(pageSource, /value=\{dimensionFilter\} embedded/)
+  assert.equal((pageSource.match(/setSelectedDateColumn\(undefined\)/g) || []).length, 2)
+})
 const helpers = pageAst.statements.filter(node => ts.isFunctionDeclaration(node) && ["getForecastPageErrorMessage", "getForecastUnavailableMessage"].includes(node.name?.text))
 const { getForecastUnavailableMessage } = load(helpers.map(node => node.getText(pageAst)).join("\n") + "\nexport { getForecastUnavailableMessage }", { ApiError, Error })
 

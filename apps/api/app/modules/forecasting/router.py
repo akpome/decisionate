@@ -128,6 +128,7 @@ async def get_forecast(
         "max",
     ] = Query("sum"),
     seasonal_business: bool = Query(False),
+    date_column: str | None = Query(None, min_length=1, max_length=200),
     dimension_filter: DimensionFilter | None = Body(None),
 ):
     user_id = get_user_id(request)
@@ -199,6 +200,7 @@ async def get_forecast(
             aggregation_type,
             user_id,
             seasonal_business,
+            **({"date_column": date_column} if date_column is not None else {}),
         )
 
         if "error" in forecast:

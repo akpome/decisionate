@@ -522,6 +522,8 @@ export type DatasetMetricsResponse = {
   dataset_id: number
   file_name: string
   metrics: DatasetMetricSummary[]
+  date_columns?: string[]
+  default_date_column?: string | null
 }
 
 export type DimensionFilter = { column: string; values: (string | null)[] }
@@ -938,6 +940,7 @@ export type ForecastPeriodFilter =
   | "all"
 
 export type ForecastQueryOptions = {
+  dateColumn?: string
   startDate?: string
   periodFilter?: ForecastPeriodFilter
   aggregation?: DashboardAggregation
@@ -3922,7 +3925,8 @@ export async function deleteDatasetJoinCache(
 export async function getDatasetMetrics(
   id: number,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  includeDates = false
 ): Promise<DatasetMetricsResponse> {
   const cleanDatasetId =
     cleanPositiveIntegerId(
@@ -3935,14 +3939,14 @@ export async function getDatasetMetrics(
       workspaceId
     )
   const cacheKey =
-    `dataset-metrics:${cacheIdentity}:${cleanDatasetId}`
+    `dataset-metrics:${cacheIdentity}:${cleanDatasetId}${includeDates ? ":dates" : ""}`
 
   return getCachedRead(
     cacheKey,
     async () => {
       const response =
         await apiFetch(
-          `${API_URL}/datasets/${cleanDatasetId}/metrics`,
+          `${API_URL}/datasets/${cleanDatasetId}/metrics${includeDates ? "?include_dates=true" : ""}`,
           {
             headers: await workspaceHeaders(
               userId,
@@ -6809,6 +6813,10 @@ export async function getForecast(
     queryParams.set("metric", cleanMetric)
   }
 
+  if (options?.dateColumn) {
+    queryParams.set("date_column", options.dateColumn)
+  }
+
   if (options?.startDate) {
     queryParams.set("start_date", options.startDate)
   }
@@ -6859,6 +6867,9 @@ export async function getForecast(
       }
 
       const result: ForecastResponse = await response.json()
+      if (options?.dateColumn && result.forecast.date_column !== options.dateColumn) {
+        throw new ApiError("The selected date column could not be applied. Please try again shortly.", 503)
+      }
       if (options?.dimensionFilter && (result.dimension_filter?.column !== options.dimensionFilter.column
         || JSON.stringify(result.dimension_filter?.values) !== JSON.stringify(options.dimensionFilter.values))) {
         throw new ApiError("The selected dimension filter could not be applied. Please try again shortly.", 503)
