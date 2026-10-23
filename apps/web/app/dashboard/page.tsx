@@ -170,10 +170,13 @@ type DashboardDataset = {
   source_config?: string | null
   numeric_columns?: string[]
   selected_metric_columns?: string[]
+  date_columns?: string[]
+  metric_profile?: { time_columns?: string[] }
   preview: DashboardRow[]
   metrics: DashboardMetric[]
   ai_analysis?: AIAnalysis | null
   ai_analysis_dimension_filter?: DimensionFilter | null
+  ai_analysis_date_column?: string | null
   chart?: {
     x_key?: string
     y_key?: string
@@ -197,7 +200,6 @@ type ReportSectionProps = {
   aggregation: MetricAggregation
   aggregationType: ValueAggregation
   startDate: string
-  dateColumns: string[]
   primaryMetric: string
   selectedTarget: number
   latestValue: number
@@ -209,7 +211,6 @@ type ReportSectionProps = {
   setAggregation: (value: MetricAggregation) => void
   setAggregationType: (value: ValueAggregation) => void
   setStartDate: (value: string) => void
-  setDateColumn: (value: string) => void
   onResetView: () => void
   anomalies: DatasetAnomaliesResponse | null
   anomalyLoading: boolean
@@ -1440,7 +1441,7 @@ export default function DashboardPage() {
             savedChartRows,
             savedJoinedDatasetResult
               ? "period"
-              : data?.chart?.x_key ?? "month",
+              : getDashboardDateColumn(data, getDashboardDateColumns(data), getDashboardDefinition(selectedDashboard).componentKey, resolvedSavedMetricMapping),
             safePeriodFilter
           )
 
@@ -1876,10 +1877,6 @@ export default function DashboardPage() {
   const dimensionData = useDashboardDimensionData(dataset, selectedDatasetId, userId, activeWorkspaceId,
     dimensionFilter, `${dimensionContext}:${datasetLoadRetryKey}`)
   const dimensionBlocked = Boolean(dimensionFilter && !dimensionData.data)
-  const dashboardAIAnalysis = !dimensionBlocked && sameDimensionFilter(dataset?.ai_analysis_dimension_filter, dimensionFilter)
-    ? dataset?.ai_analysis : null
-  const scopedAnomalies = !dimensionBlocked && sameDimensionFilter(dashboardAnomalies?.dimension_filter, dimensionFilter)
-    ? dashboardAnomalies : null
   const allRows = useMemo(
     () => {
       const sourceRows =
@@ -1964,6 +1961,10 @@ export default function DashboardPage() {
         : getDashboardDimensionMappingColumns(dataset),
     [dataset, joinedDatasetResult, joinedDimensionMappingColumns]
   )
+  const dashboardDateColumns = useMemo(
+    () => joinedDatasetResult ? ["period"] : getDashboardDateColumns(dataset),
+    [dataset, joinedDatasetResult]
+  )
   const dashboardMappingKey = useMemo(
     () =>
       `${selectedDashboard}:${selectedDatasetId ?? "none"}`,
@@ -2040,6 +2041,7 @@ export default function DashboardPage() {
           if (
             value &&
             availableColumns.has(value) &&
+            (key !== "date" || dashboardDateColumns.includes(value)) &&
             (!["primary", "secondary", "operationsValue"].includes(key) ||
               numericColumns.has(value))
           ) {
@@ -2056,6 +2058,7 @@ export default function DashboardPage() {
       dashboardMappingKey,
       dashboardMappingColumns,
       dashboardNumericMappingColumns,
+      dashboardDateColumns,
     ]
   )
   const cleanCurrentMetricMapping =
@@ -2069,25 +2072,12 @@ export default function DashboardPage() {
   const xKey =
     joinedDatasetResult
       ? "period"
-      : currentMetricMapping.date ||
-        dataset?.chart?.x_key ||
-        "month"
-  const dashboardDateColumns = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          [
-            xKey,
-            ...dashboardDimensionMappingColumns,
-          ].filter(
-            (column): column is string =>
-              typeof column === "string" &&
-              column.trim().length > 0
-          )
-        )
-      ),
-    [dashboardDimensionMappingColumns, xKey]
-  )
+      : getDashboardDateColumn(dataset, dashboardDateColumns, getDashboardDefinition(selectedDashboard).componentKey, currentMetricMapping)
+  const analysisDateColumn = dashboardDateColumns.includes(xKey) ? xKey : undefined
+  const dashboardAIAnalysis = !dimensionBlocked && sameDimensionFilter(dataset?.ai_analysis_dimension_filter, dimensionFilter)
+    && (!analysisDateColumn || dataset?.ai_analysis_date_column === analysisDateColumn) ? dataset?.ai_analysis : null
+  const scopedAnomalies = !dimensionBlocked && sameDimensionFilter(dashboardAnomalies?.dimension_filter, dimensionFilter)
+    && (!analysisDateColumn || dashboardAnomalies?.date_column === analysisDateColumn) ? dashboardAnomalies : null
 
   const rows = useMemo(
     () =>
@@ -2252,7 +2242,7 @@ export default function DashboardPage() {
             userId,
             activeWorkspaceId,
             metric,
-            { dimensionFilter, startDate: startDate || undefined, periodFilter, aggregation, aggregationType }
+            { dateColumn: analysisDateColumn, dimensionFilter, startDate: startDate || undefined, periodFilter, aggregation, aggregationType }
           )
 
         if (!ignoreResult) {
@@ -2265,6 +2255,7 @@ export default function DashboardPage() {
                   metric: result.metric,
                 },
                 ai_analysis_dimension_filter: result.dimension_filter,
+                ai_analysis_date_column: result.date_column,
               }
               : current
           )
@@ -2290,6 +2281,7 @@ export default function DashboardPage() {
     dashboardAnalysisMetric,
     dashboardAnalysisMetricAvailable,
     dashboardMetricColumnSignature,
+    analysisDateColumn,
     dataset?.id,
     loading,
     dimensionFilter,
@@ -2338,7 +2330,7 @@ export default function DashboardPage() {
           cleanUserId,
           activeWorkspaceId,
           {
-            dateColumn: xKey === "month" ? undefined : xKey,
+            dateColumn: analysisDateColumn,
             startDate: startDate || undefined,
             periodFilter,
             aggregation,
@@ -2370,6 +2362,7 @@ export default function DashboardPage() {
     }
   }, [
     activeWorkspaceId,
+    analysisDateColumn,
     aggregation,
     aggregationType,
     dataset?.id,
@@ -2836,7 +2829,6 @@ export default function DashboardPage() {
     aggregation,
     aggregationType,
     startDate,
-    dateColumns: dashboardDateColumns,
     primaryMetric,
     selectedTarget,
     latestValue,
@@ -2848,7 +2840,6 @@ export default function DashboardPage() {
     setAggregation,
     setAggregationType,
     setStartDate,
-    setDateColumn: handleDateColumnChange,
     onResetView: handleResetView,
     anomalies: scopedAnomalies,
     anomalyLoading: dashboardAnomalyLoading,
@@ -2922,6 +2913,7 @@ export default function DashboardPage() {
   }
 
   function handleDateColumnChange(column: string) {
+    if (!dashboardDateColumns.includes(column) || joinedDatasetResult) return
     const nextMapping = getNextDashboardMetricMapping(
       currentMetricMapping,
       "date",
@@ -2932,6 +2924,7 @@ export default function DashboardPage() {
       ...current,
       [dashboardMappingKey]: nextMapping,
     }))
+    setStartDate("")
     setTemporaryShareStatus(
       column
         ? "Date column updated."
@@ -3253,10 +3246,23 @@ export default function DashboardPage() {
 
   const filterLabel = templateProps.filterLabel
   const dimensionControls = selectedDashboardNeedsDataset && selectedDatasetId && userId ? <div className="min-w-0">
-    {joinedDatasetResult ? <button type="button" className="inline-flex min-h-10 items-center gap-2 text-sm font-medium text-blue-700 underline print:hidden" onClick={() => setShowJoinPanel(current => !current)} aria-expanded={showJoinPanel}>
-      <Settings2 size={16} />Source dimension filters
-    </button> : <div className="min-w-0 print:hidden"><DatasetDimensionFilter key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
-      value={dimensionFilter} disabled={loading} onChange={value => setDimensionSelection({ context: dimensionContext, value })} /></div>}
+    <div className="@container mt-4 min-w-0 border-t border-gray-100 pt-3 print:hidden">
+      <div className="grid min-w-0 items-start gap-3 @min-[28rem]:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
+        <div className="min-w-0">
+          <label htmlFor="dashboard-date-column" className="block text-xs font-medium text-gray-600">Date column</label>
+          <select id="dashboard-date-column" className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
+            value={dashboardDateColumns.includes(xKey) ? xKey : ""} disabled={loading || Boolean(joinedDatasetResult) || !dashboardDateColumns.length}
+            onChange={event => handleDateColumnChange(event.target.value)}>
+            {!dashboardDateColumns.includes(xKey) && <option value="">No date columns available</option>}
+            {dashboardDateColumns.map(column => <option key={column} value={column}>{column}</option>)}
+          </select>
+        </div>
+        {joinedDatasetResult ? <button type="button" className="mt-5 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-blue-700 underline" onClick={() => setShowJoinPanel(current => !current)} aria-expanded={showJoinPanel}>
+          <Settings2 size={16} />Source dimension filters
+        </button> : <DatasetDimensionFilter key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
+          value={dimensionFilter} embedded disabled={loading} onChange={value => setDimensionSelection({ context: dimensionContext, value })} />}
+      </div>
+    </div>
     {dimensionData.pending && <p role="status" className="mt-2 text-sm text-gray-600">Loading filtered dashboard...</p>}
     {dimensionData.error && <div className="mt-2 flex items-start gap-2 text-sm text-red-700"><p role="alert" className="min-w-0 flex-1 break-words">{dimensionData.error}</p>
       <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300" title="Retry filtered dashboard" aria-label="Retry filtered dashboard" onClick={dimensionData.retry}><RefreshCw size={16} /></button></div>}
@@ -4772,8 +4778,6 @@ function PerformanceTemplate(
             aggregation={props.aggregation}
             aggregationType={props.aggregationType}
             startDate={props.startDate}
-            xKey={props.xKey}
-            dateColumns={props.dateColumns}
             selectedMetrics={props.selectedMetrics}
             setChartType={props.setChartType}
             setScaleMode={props.setScaleMode}
@@ -4781,7 +4785,6 @@ function PerformanceTemplate(
             setAggregation={props.setAggregation}
             setAggregationType={props.setAggregationType}
             setStartDate={props.setStartDate}
-            setDateColumn={props.setDateColumn}
             onResetView={props.onResetView}
           />
 
@@ -4843,7 +4846,6 @@ function ComparisonTemplate({
   aggregation,
   aggregationType,
   startDate,
-  dateColumns,
   primaryMetric,
   selectedTarget,
   setChartType,
@@ -4852,7 +4854,6 @@ function ComparisonTemplate({
   setAggregation,
   setAggregationType,
   setStartDate,
-  setDateColumn,
   onResetView,
   anomalies,
   anomalyLoading,
@@ -4910,8 +4911,6 @@ function ComparisonTemplate({
           aggregation={aggregation}
           aggregationType={aggregationType}
           startDate={startDate}
-          xKey={xKey}
-          dateColumns={dateColumns}
           selectedMetrics={selectedMetrics}
           setChartType={setChartType}
           setScaleMode={setScaleMode}
@@ -4919,7 +4918,6 @@ function ComparisonTemplate({
           setAggregation={setAggregation}
           setAggregationType={setAggregationType}
           setStartDate={setStartDate}
-          setDateColumn={setDateColumn}
           onResetView={onResetView}
         />
 
@@ -5068,7 +5066,6 @@ function ReportSection({
   aggregation,
   aggregationType,
   startDate,
-  dateColumns,
   primaryMetric,
   selectedTarget,
   latestValue,
@@ -5080,7 +5077,6 @@ function ReportSection({
   setAggregation,
   setAggregationType,
   setStartDate,
-  setDateColumn,
   onResetView,
   anomalies,
   anomalyLoading,
@@ -5145,8 +5141,6 @@ function ReportSection({
             aggregation={aggregation}
             aggregationType={aggregationType}
             startDate={startDate}
-            xKey={xKey}
-            dateColumns={dateColumns}
             selectedMetrics={selectedMetrics}
             setChartType={setChartType}
             setScaleMode={setScaleMode}
@@ -5154,7 +5148,6 @@ function ReportSection({
             setAggregation={setAggregation}
             setAggregationType={setAggregationType}
             setStartDate={setStartDate}
-            setDateColumn={setDateColumn}
             onResetView={onResetView}
           />
 
@@ -5275,8 +5268,6 @@ function DashboardControls({
   aggregation,
   aggregationType,
   startDate,
-  xKey,
-  dateColumns,
   selectedMetrics,
   setChartType,
   setScaleMode,
@@ -5284,7 +5275,6 @@ function DashboardControls({
   setAggregation,
   setAggregationType,
   setStartDate,
-  setDateColumn,
   onResetView,
 }: {
   chartType: ChartType
@@ -5293,8 +5283,6 @@ function DashboardControls({
   aggregation: MetricAggregation
   aggregationType: ValueAggregation
   startDate: string
-  xKey: string
-  dateColumns: string[]
   selectedMetrics: string[]
   setChartType: (value: ChartType) => void
   setScaleMode: (value: ScaleMode) => void
@@ -5302,7 +5290,6 @@ function DashboardControls({
   setAggregation: (value: MetricAggregation) => void
   setAggregationType: (value: ValueAggregation) => void
   setStartDate: (value: string) => void
-  setDateColumn: (value: string) => void
   onResetView: () => void
 }) {
   return (
@@ -5381,18 +5368,6 @@ function DashboardControls({
           ["max", "Maximum"],
         ]}
       />
-
-      {dateColumns.length > 0 && (
-        <CompactSelect
-          label="Date column"
-          value={xKey}
-          onChange={setDateColumn}
-          options={dateColumns.map(column => [
-            column,
-            formatMetricName(column),
-          ])}
-        />
-      )}
 
       <label className="flex h-10 w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs sm:h-9 sm:w-auto sm:px-2">
         <span className="whitespace-nowrap font-medium text-gray-500">
@@ -8294,6 +8269,17 @@ function getDashboardDimensionMappingColumns(
   return getDashboardMappingColumns(dataset).filter(
     column => !numericColumns.has(column)
   )
+}
+
+function getDashboardDateColumns(dataset: DashboardDataset | null): string[] {
+  const columns = dataset?.date_columns ?? dataset?.metric_profile?.time_columns ?? (dataset?.chart?.x_key ? [dataset.chart.x_key] : [])
+  return [...new Set(columns.filter(column => typeof column === "string" && column.length > 0 && !isInternalSummaryColumn(column)))]
+}
+
+function getDashboardDateColumn(dataset: DashboardDataset | null, columns: string[], componentKey: Parameters<typeof getDashboardAutoMetricMapping>[0], mapping: DashboardMetricMapping) {
+  if (mapping.date && columns.includes(mapping.date)) return mapping.date
+  const automatic = getDashboardAutoMetricMapping(componentKey, dataset).date
+  return automatic && columns.includes(automatic) ? automatic : dataset?.chart?.x_key || columns[0] || "month"
 }
 
 function getDashboardNumericMappingColumns(

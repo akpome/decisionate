@@ -1738,6 +1738,9 @@ def build_dataset_details_response(
         )
         is not None
     )
+    date_columns = _safe_dataset_detail_section(
+        "date_columns", lambda: forecast_date_columns(dataframe), [], dataset, detail_warnings,
+    )
     if dimension_filter is not None:
         dataframe = apply_dimension_filter(dataset, dataframe, dimension_filter, metrics=selected_metric_columns)
         persisted_analysis = None
@@ -1815,6 +1818,7 @@ def build_dataset_details_response(
             detail_warnings.append("chart")
 
     response = {
+        "date_columns": date_columns,
         "dimension_filter": dimension_filter,
         **_safe_dataset_detail_section(
             "summary",
@@ -11298,6 +11302,7 @@ def dataset_ai_analysis(
     request: Request,
     dataset_id: int,
     metric: str | None = None,
+    date_column: str | None = Query(None, min_length=1, max_length=200),
     start_date: str | None = Query(None),
     period_filter: Literal[
         "1m",
@@ -11342,6 +11347,9 @@ def dataset_ai_analysis(
         )
 
         dataframe = normalize_dataset_details_dataframe(dataframe)
+        selected_date_column = date_column if isinstance(date_column, str) else None
+        if selected_date_column is not None and selected_date_column not in forecast_date_columns(dataframe):
+            raise HTTPException(422, "The selected date column is unavailable or does not contain usable dates.")
         if isinstance(dimension_filter, DimensionFilter):
             try:
                 dataframe = apply_dimension_filter(dataset, dataframe, dimension_filter.model_dump(), metrics=[metric] if metric else ())
@@ -11351,18 +11359,18 @@ def dataset_ai_analysis(
         if any(
             value is not None
             for value in (
+                selected_date_column,
                 start_date,
                 period_filter,
                 aggregation,
                 aggregation_type,
             )
         ):
-            date_column, _ = identify_forecast_columns(
-                dataframe
-            )
+            if selected_date_column is None:
+                selected_date_column, _ = identify_forecast_columns(dataframe)
             dataframe = prepare_forecast_dataframe(
                 dataframe,
-                date_column,
+                selected_date_column,
                 start_date,
                 period_filter,
                 aggregation,
@@ -11413,6 +11421,7 @@ def dataset_ai_analysis(
         )
 
         return {
+            "date_column": selected_date_column,
             "dimension_filter": dimension_filter.model_dump() if isinstance(dimension_filter, DimensionFilter) else None,
             "dataset_id": dataset.id,
             "metric": clean_metric or None,

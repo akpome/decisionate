@@ -64,7 +64,8 @@ test("dimension, unique values and search share a responsive equal-width control
   assert.ok(html.indexOf("Unique values") < html.indexOf(">Search values<"))
   assert.match(html, /col-start-2 row-start-1[^\"]*@min-\[28rem\]:col-start-4/)
   const dashboard = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8")
-  assert.match(dashboard, /<div className="min-w-0 print:hidden"><DatasetDimensionFilter/)
+  assert.match(dashboard, /min-w-0 border-t border-gray-100 pt-3 print:hidden/)
+  assert.match(dashboard, /value=\{dimensionFilter\} embedded/)
 })
 
 test("embedded dimension controls align with adjacent fields without changing standalone spacing", () => {

@@ -498,12 +498,15 @@ def clean_dashboard_preferences(
                 if (
                     clean_dashboard_key
                     not in DATASET_METRIC_MAPPING_DASHBOARDS
+                    and clean_dashboard_key != DEFAULT_SELECTED_DASHBOARD
                 ):
                     continue
 
                 clean_mapping = clean_dashboard_metric_mapping(
                     mapping
                 )
+                if clean_dashboard_key == DEFAULT_SELECTED_DASHBOARD:
+                    clean_mapping = {"date": clean_mapping["date"]} if clean_mapping.get("date") else {}
 
                 if clean_mapping:
                     clean_mappings[clean_dashboard_key] = clean_mapping

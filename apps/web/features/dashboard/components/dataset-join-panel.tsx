@@ -550,27 +550,37 @@ export function DatasetJoinPanel({
                   </p>
                 </div>
 
-                <label className="min-w-0 text-xs font-medium text-gray-500">
-                  <span className="mb-1 block">{t("Date column")}</span>
-                  <select
-                    value={configuration?.date_column ?? ""}
-                    onChange={event =>
-                      updateConfiguration(
-                        item.dataset_id,
-                        "date_column",
-                        event.target.value
-                      )
-                    }
-                    className="h-9 w-full min-w-0 truncate rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700"
-                  >
-                    <option value="">{t("Choose date")}</option>
-                    {item.date_columns.map(column => (
-                      <option key={column} value={column}>
-                        {column}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="@container min-w-0">
+                  <div className="grid min-w-0 items-start gap-3 @min-[28rem]:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
+                    <div className="min-w-0 text-xs font-medium text-gray-600">
+                      <label htmlFor={`join-date-column-${item.dataset_id}`} className="block">{t("Date column")}</label>
+                      <select
+                        id={`join-date-column-${item.dataset_id}`}
+                        value={configuration?.date_column ?? ""}
+                        disabled={joining || loadingMetadata}
+                        onChange={event =>
+                          updateConfiguration(
+                            item.dataset_id,
+                            "date_column",
+                            event.target.value
+                          )
+                        }
+                        className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-950"
+                      >
+                        <option value="">{t("Choose date")}</option>
+                        {item.date_columns.map(column => (
+                          <option key={column} value={column}>
+                            {column}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {userId && <DatasetDimensionFilter key={`${workspaceId}:${item.dataset_id}`} datasetId={item.dataset_id} userId={userId} workspaceId={workspaceId}
+                      embedded disabled={joining || loadingMetadata} value={configuration?.dimension_filter} onChange={value => setConfigurations(current => ({
+                        ...current, [item.dataset_id]: { ...current[item.dataset_id], dataset_id: item.dataset_id, dimension_filter: value },
+                      }))} />}
+                  </div>
+                </div>
 
                 <div className="min-w-0 text-xs font-medium text-gray-500">
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
@@ -621,10 +631,6 @@ export function DatasetJoinPanel({
                   </div>
                 </div>
 
-                {userId && <div className="col-span-full min-w-0"><DatasetDimensionFilter key={`${workspaceId}:${item.dataset_id}`} datasetId={item.dataset_id} userId={userId} workspaceId={workspaceId}
-                  disabled={joining} value={configuration?.dimension_filter} onChange={value => setConfigurations(current => ({
-                    ...current, [item.dataset_id]: { ...current[item.dataset_id], dataset_id: item.dataset_id, dimension_filter: value },
-                  }))} /></div>}
               </div>
             )
           })}

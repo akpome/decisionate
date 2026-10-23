@@ -6,11 +6,11 @@ import test from "node:test"
 
 const require = createRequire(import.meta.url), ts = require("typescript")
 function load(source, globals = {}) {
-  const module = { exports: {} }
+  const loadedModule = { exports: {} }
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
-  } }).outputText, { module, exports: module.exports, require, Error, URLSearchParams, setTimeout, clearTimeout, ...globals })
-  return module.exports
+  } }).outputText, { module: loadedModule, exports: loadedModule.exports, require, Error, URLSearchParams, setTimeout, clearTimeout, ...globals })
+  return loadedModule.exports
 }
 const source = readFileSync(new URL("../lib/api.ts", import.meta.url), "utf8")
 const ast = ts.createSourceFile("api.ts", source, ts.ScriptTarget.Latest, true)
@@ -25,7 +25,7 @@ function client(legacy = false) {
     workspaceHeaders: async (user, workspace) => ({ user, workspace }),
     invalidateApiReadCache: prefixes => cache.invalidate(prefixes), getCachedRead: (key, loader) => cache.get(key, loader, 10000),
     apiFetch: async (url, init) => { requests.push({ url, init }); return { ok: true,
-      json: async () => ({ dimension_filter: legacy || !init.body ? null : JSON.parse(init.body), rows: [] }) } },
+      json: async () => ({ date_column: legacy ? "date" : new URL(url).searchParams.get("date_column"), dimension_filter: legacy || !init.body ? null : JSON.parse(init.body), rows: [] }) } },
   })
   return { ...api, requests }
 }
@@ -60,6 +60,17 @@ test("dashboard caches isolate filters, all rows and workspaces, without changin
 test("an older server cannot silently return all rows for any filtered dashboard read", async () => {
   const api = client(true), options = { dimensionFilter: { column: "region", values: ["East"] } }
   for (const read of readers(api, "workspace", options)) await assert.rejects(read, error => error instanceof ApiError && error.status === 503)
+})
+
+test("dashboard AI analysis uses and caches the exact selected date field alongside the dimension filter", async () => {
+  const api = client(), dimensionFilter = { column: "region", values: ["East"] }
+  for (const dateColumn of ["date", "paid_date", "paid_date"]) {
+    const result = await api.getDatasetAIAnalysis(1, "owner", "workspace", "revenue", { dateColumn, dimensionFilter })
+    assert.equal(result.date_column, dateColumn)
+  }
+  assert.equal(api.requests.length, 2)
+  assert.equal(new URL(api.requests[1].url).searchParams.get("date_column"), "paid_date")
+  await assert.rejects(client(true).getDatasetAIAnalysis(1, "owner", "workspace", "revenue", { dateColumn: "paid_date" }), error => error.status === 503)
 })
 
 function hookHarness() {

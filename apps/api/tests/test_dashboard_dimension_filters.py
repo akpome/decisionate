@@ -55,6 +55,37 @@ class DashboardDimensionRouteTests(unittest.TestCase):
         self.assertIsNone(result["dimension_filter"])
         self.assertEqual(result["metrics"][0]["total"], sum(range(1, 91)) + 90 * 9999)
 
+    def test_details_exposes_date_choices_even_when_a_dimension_has_no_matching_rows(self):
+        dataset, frame = self.frames[1]
+        frame["paid_date"] = pd.to_datetime(frame["date"]) + pd.Timedelta(days=31)
+        response = self.client.post("/datasets/1/details?include_ai_analysis=false", json={"column": "region", "values": ["Gone"]})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["date_columns"], ["date", "paid_date"])
+        self.assertEqual(response.json()["preview"], [])
+
+    def test_ai_analysis_uses_the_selected_date_for_the_window_and_keeps_dimension_scope(self):
+        _dataset, frame = self.frames[1]
+        frame["paid_date"] = pd.to_datetime(frame["date"]) + pd.Timedelta(days=31)
+        with patch.object(datasets, "generate_dataset_ai_analysis", return_value={"summary": "Selected dates"}) as calculate:
+            response = self.client.post("/datasets/1/ai-analysis?metric=spend&date_column=paid_date&start_date=2026-03-01&period_filter=1m&aggregation=daily", json=self.filter)
+        self.assertEqual(response.status_code, 200, response.text)
+        result = calculate.call_args.args[0]
+        self.assertNotIn("date", result.columns)
+        self.assertEqual(result.paid_date.min().strftime("%Y-%m-%d"), "2026-03-01")
+        self.assertEqual(result.paid_date.max().strftime("%Y-%m-%d"), "2026-03-31")
+        expected = frame.loc[(frame.region == "East") & (frame.paid_date >= "2026-03-01") & (frame.paid_date < "2026-04-01"), "spend"].sum()
+        self.assertEqual(result.spend.sum(), expected)
+        self.assertEqual(response.json()["date_column"], "paid_date")
+        self.assertEqual(response.json()["dimension_filter"], self.filter)
+
+    def test_invalid_selected_date_never_runs_automatic_analysis(self):
+        with patch.object(datasets, "generate_dataset_ai_analysis") as calculate:
+            for column in ("gone", "spend", "region", ""):
+                with self.subTest(column=column):
+                    response = self.client.get("/datasets/1/ai-analysis", params={"date_column": column})
+                    self.assertEqual(response.status_code, 422, response.text)
+            calculate.assert_not_called()
+
     def test_invalid_filters_are_rejected_by_every_dashboard_data_endpoint(self):
         for endpoint in ("details", "ai-analysis", "anomalies"):
             for selection in ({"column": "missing", "values": ["East"]}, {"column": "spend", "values": ["1"]},
@@ -111,6 +142,14 @@ class DashboardDimensionPersistenceTests(unittest.TestCase):
         self.assertEqual(clean_dashboard_views(views), views)
         preferences = {"1": {"dimensionFilter": self.filter}}
         self.assertEqual(clean_dashboard_preferences(preferences), preferences)
+
+    def test_saved_general_date_and_each_industry_date_survive_cleaning(self):
+        for key in ("general-business", "sales-performance", "retail-performance"):
+            view = {"metricMappings": {key: {"date": "paid_date"}}, "dimensionFilter": self.filter}
+            self.assertEqual(clean_dashboard_views({"1": {key: view}}), {"1": {key: view}})
+            self.assertEqual(clean_dashboard_preferences({"1": view}), {"1": view})
+        cleaned = clean_dashboard_preferences({"1": {"metricMappings": {"general-business": {"date": "paid_date", "primary": "spend"}}}})
+        self.assertEqual(cleaned["1"]["metricMappings"]["general-business"], {"date": "paid_date"})
 
     def test_invalid_saved_scope_fails_closed_instead_of_removing_the_filter(self):
         for value in ({"column": "region", "values": []}, {"column": "region", "values": ["x" * 1001]}, "region"):
