@@ -158,6 +158,7 @@ def generate_dataset_ai_analysis(
     ]
 
     facts = {
+        "dimension_filter": dataframe.attrs.get("dimension_filter"),
         "row_count": int(len(dataframe.index)),
         "metric_count": len(metric_facts),
         "available_metric_count": len(all_metric_facts),

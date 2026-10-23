@@ -80,6 +80,9 @@ def apply_dimension_filter(dataset, frame, selection, *, metrics=()):
     mask = normalized.isin(selection.values)
     if None in selection.values:
         mask |= normalized.isna()
+        summary_marker = "__decisionate_summary__"
+        if summary_marker in frame and (frame[summary_marker].fillna(False).astype(bool) & normalized.isna()).any():
+            raise DimensionFilterError("Historical summaries do not retain missing dimension values. Select a known value or resync detailed history.")
 
     # An invoice header amount cannot be allocated to individual product rows.
     headers = set(receipt_document_columns(dataset.source_type, parse_dataset_source_config(dataset)))

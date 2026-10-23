@@ -14,6 +14,9 @@ import {
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
+import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
+import { sameDimensionFilter, useDashboardDimensionData } from "@/features/dashboard/lib/use-dimension-data"
+import type { DimensionFilter } from "@/lib/api"
 import { CorrelationWidgets } from "@/features/relationships/correlation-widgets"
 import {
   formatMetricLabel,
@@ -88,6 +91,7 @@ import {
   GitMerge,
   LineChart as LineChartIcon,
   Maximize2,
+  RefreshCw,
   Settings2,
   Share2,
   Unlink,
@@ -169,6 +173,7 @@ type DashboardDataset = {
   preview: DashboardRow[]
   metrics: DashboardMetric[]
   ai_analysis?: AIAnalysis | null
+  ai_analysis_dimension_filter?: DimensionFilter | null
   chart?: {
     x_key?: string
     y_key?: string
@@ -177,6 +182,7 @@ type DashboardDataset = {
 }
 
 type ReportSectionProps = {
+  filterLabel?: string
   dashboardTitle: string
   dashboardSubtitle: string
   dataset: DashboardDataset
@@ -610,6 +616,9 @@ export default function DashboardPage() {
     useState<OrganizationWorkspaceRecord[]>([])
   const [selectedDashboard, setSelectedDashboard] =
     useState(defaultDashboardKey)
+  const [dimensionSelection, setDimensionSelection] = useState<{ context: string; value?: DimensionFilter }>()
+  const dimensionContext = `${userId}:${activeWorkspaceId}:${workspaceVersion}:${selectedDatasetId}:${selectedDashboard}:${joinedDatasetResult ? "joined" : "source"}`
+  const dimensionFilter = dimensionSelection?.context === dimensionContext ? dimensionSelection.value : undefined
   const selectedDashboardRef =
     useRef(defaultDashboardKey)
   // Dataset preferences are loaded independently of dashboard-tab changes.
@@ -1255,6 +1264,9 @@ export default function DashboardPage() {
         if (datasetResult.status === "rejected") {
           throw datasetResult.reason
         }
+        if (preferenceResult.status === "rejected" && preferenceResult.reason?.status === 422) {
+          throw preferenceResult.reason
+        }
 
         const data = datasetResult.value
         const preference =
@@ -1433,6 +1445,10 @@ export default function DashboardPage() {
           )
 
         setDataset(data)
+        setDimensionSelection({
+          context: `${userId}:${activeWorkspaceId}:${workspaceVersion}:${datasetId}:${selectedDashboard}:${savedJoinedDatasetResult ? "joined" : "source"}`,
+          value: savedJoinedDatasetResult ? undefined : savedDashboardPreference.dimensionFilter || undefined,
+        })
         setJoinedDatasetResult(
           savedJoinedDatasetResult
         )
@@ -1857,14 +1873,21 @@ export default function DashboardPage() {
      Derived Dashboard Data
   ========================= */
 
+  const dimensionData = useDashboardDimensionData(dataset, selectedDatasetId, userId, activeWorkspaceId,
+    dimensionFilter, `${dimensionContext}:${datasetLoadRetryKey}`)
+  const dimensionBlocked = Boolean(dimensionFilter && !dimensionData.data)
+  const dashboardAIAnalysis = !dimensionBlocked && sameDimensionFilter(dataset?.ai_analysis_dimension_filter, dimensionFilter)
+    ? dataset?.ai_analysis : null
+  const scopedAnomalies = !dimensionBlocked && sameDimensionFilter(dashboardAnomalies?.dimension_filter, dimensionFilter)
+    ? dashboardAnomalies : null
   const allRows = useMemo(
     () => {
       const sourceRows =
         joinedDatasetResult?.rows.length
           ? joinedDatasetResult.rows
-          : dataset?.chart?.data?.length
-          ? dataset.chart.data
-          : dataset?.preview ?? []
+          : dimensionData.data?.chart?.data?.length
+          ? dimensionData.data.chart.data
+          : dimensionData.data?.preview ?? []
 
       return joinedDatasetResult
         ? sourceRows
@@ -1873,7 +1896,7 @@ export default function DashboardPage() {
             dataset
           )
     },
-    [dataset, joinedDatasetResult]
+    [dataset, dimensionData.data, joinedDatasetResult]
   )
   const joinedNumericMetrics = useMemo(
     () =>
@@ -1890,8 +1913,10 @@ export default function DashboardPage() {
     () =>
       joinedDatasetResult
         ? joinedNumericMetrics
-        : getSelectedDashboardMetrics(dataset),
-    [dataset, joinedDatasetResult, joinedNumericMetrics]
+        : getSelectedDashboardMetrics(dataset).map(metric => dimensionFilter
+          ? dimensionData.data?.metrics.find(item => item.column === metric.column) || { column: metric.column, total: null }
+          : metric),
+    [dataset, dimensionData.data, dimensionFilter, joinedDatasetResult, joinedNumericMetrics]
   )
   const joinedMappingColumns = useMemo(
     () =>
@@ -2114,6 +2139,7 @@ export default function DashboardPage() {
     ]
   )
   const selectedDashboardDataset = useMemo(() => {
+    if (dimensionBlocked) return null
     if (
       !dataset ||
       getDashboardDefinition(selectedDashboard).dataBasis !==
@@ -2124,6 +2150,9 @@ export default function DashboardPage() {
 
     return {
       ...dataset,
+      row_count: dimensionData.data?.row_count ?? 0,
+      preview: dimensionData.data?.preview ?? [],
+      ai_analysis: dashboardAIAnalysis,
       metrics: dashboardMetrics,
       chart: {
         ...(dataset.chart ?? {}),
@@ -2132,6 +2161,9 @@ export default function DashboardPage() {
     }
   }, [
     dataset,
+    dimensionBlocked,
+    dimensionData.data,
+    dashboardAIAnalysis,
     dashboardMetrics,
     rows,
     selectedDashboard,
@@ -2194,6 +2226,7 @@ export default function DashboardPage() {
       loading ||
       dataset?.id !== selectedDatasetId ||
       !dashboardAnalysisMetricAvailable ||
+      dimensionBlocked ||
       selectedComponentKey === "decisionPerformance"
     ) {
       queueMicrotask(() => {
@@ -2218,7 +2251,8 @@ export default function DashboardPage() {
             safeDatasetId,
             userId,
             activeWorkspaceId,
-            metric
+            metric,
+            { dimensionFilter, startDate: startDate || undefined, periodFilter, aggregation, aggregationType }
           )
 
         if (!ignoreResult) {
@@ -2230,6 +2264,7 @@ export default function DashboardPage() {
                   ...result.ai_analysis,
                   metric: result.metric,
                 },
+                ai_analysis_dimension_filter: result.dimension_filter,
               }
               : current
           )
@@ -2257,6 +2292,12 @@ export default function DashboardPage() {
     dashboardMetricColumnSignature,
     dataset?.id,
     loading,
+    dimensionFilter,
+    dimensionBlocked,
+    startDate,
+    periodFilter,
+    aggregation,
+    aggregationType,
     metricAnalysisRetryKey,
     selectedDashboard,
     selectedDatasetId,
@@ -2270,6 +2311,7 @@ export default function DashboardPage() {
       !selectedDatasetId ||
       dataset?.id !== selectedDatasetId ||
       loading ||
+      dimensionBlocked ||
       joinedDatasetResult
     ) {
       queueMicrotask(() => {
@@ -2302,6 +2344,7 @@ export default function DashboardPage() {
             aggregation,
             aggregationType,
             sensitivity: "medium",
+            dimensionFilter,
           }
         )
 
@@ -2331,6 +2374,8 @@ export default function DashboardPage() {
     aggregationType,
     dataset?.id,
     dataset?.chart?.data,
+    dimensionFilter,
+    dimensionBlocked,
     joinedDatasetResult,
     loading,
     periodFilter,
@@ -2471,6 +2516,7 @@ export default function DashboardPage() {
   const currentDashboardPreference =
     useMemo<DashboardViewPreference>(
       () => ({
+        dimensionFilter: dimensionFilter?.values.length ? dimensionFilter : null,
         title: cleanDashboardText(
           dashboardTitle,
           maxDashboardTitleLength
@@ -2514,6 +2560,7 @@ export default function DashboardPage() {
           : {}),
       }),
       [
+        dimensionFilter,
         availableMetricColumns,
         aggregation,
         aggregationType,
@@ -2543,6 +2590,7 @@ export default function DashboardPage() {
         !selectedDatasetId ||
         !dataset ||
         loading ||
+        Boolean(dimensionFilter && !dimensionFilter.values.length) ||
         dashboardDatasetHydrationRef.current !==
           dashboardDatasetContextKey
       ) {
@@ -2715,6 +2763,7 @@ export default function DashboardPage() {
       dataset,
       joinedDatasetResult,
       loading,
+      dimensionFilter,
       currentSavedDashboardPreference,
       selectedDashboardSharedMetric,
       selectedDatasetId,
@@ -2771,9 +2820,11 @@ export default function DashboardPage() {
   ])
 
   const templateProps: ReportSectionProps = {
+    filterLabel: dimensionFilter ? dimensionFilterLabel(dimensionFilter) : joinedDatasetResult?.dimension_filters?.map(filter =>
+      `${joinedDatasetResult.datasets.find(item => item.dataset_id === filter.dataset_id)?.file_name || filter.dataset_id} / ${dimensionFilterLabel(filter)}`).join("; "),
     dashboardTitle: effectiveDashboardTitle,
     dashboardSubtitle: effectiveDashboardSubtitle,
-    dataset: dataset ?? emptyDashboardDataset,
+    dataset: dimensionData.data ?? emptyDashboardDataset,
     metrics: dashboardMetrics,
     rows,
     chartRows,
@@ -2799,10 +2850,10 @@ export default function DashboardPage() {
     setStartDate,
     setDateColumn: handleDateColumnChange,
     onResetView: handleResetView,
-    anomalies: dashboardAnomalies,
+    anomalies: scopedAnomalies,
     anomalyLoading: dashboardAnomalyLoading,
     anomalyError: dashboardAnomalyError,
-    aiAnalysis: dataset?.ai_analysis,
+    aiAnalysis: dashboardAIAnalysis,
     analysisLoading: metricAnalysisLoading,
   }
 
@@ -2898,6 +2949,7 @@ export default function DashboardPage() {
   }
 
   async function handleDownloadDashboardPdf() {
+    if (dimensionBlocked) return
     if (
       selectedDashboardNeedsDataset &&
       (!selectedDatasetId || !dataset)
@@ -2945,6 +2997,7 @@ export default function DashboardPage() {
   async function handleShareDashboard() {
     if (
       shareAction ||
+      dimensionBlocked ||
       !canConfigureWorkspace
     ) {
       return
@@ -2982,7 +3035,11 @@ export default function DashboardPage() {
                 {
                   dataset_id: detail.dataset_id,
                   date_column: detail.date_column,
-                  metric_column: detail.metric_column,
+                  metric_columns: joinedDatasetResult.datasets.filter(item => item.dataset_id === detail.dataset_id).map(item => item.metric_column),
+                  dimension_filter: (() => {
+                    const sourceFilter = joinedDatasetResult.dimension_filters?.find(item => item.dataset_id === detail.dataset_id)
+                    return sourceFilter ? { column: sourceFilter.column, values: sourceFilter.values } : undefined
+                  })(),
                 },
               ])
             ).values()
@@ -3113,6 +3170,7 @@ export default function DashboardPage() {
   }
 
   const shareControlsDisabled =
+    dimensionBlocked ||
     !selectedDatasetId ||
     !userId ||
     shareAction !== null ||
@@ -3192,6 +3250,18 @@ export default function DashboardPage() {
     Boolean(selectedDatasetId) &&
     !isSelectedDerivedDataset &&
     sourceDatasets.length > 1
+
+  const filterLabel = templateProps.filterLabel
+  const dimensionControls = selectedDashboardNeedsDataset && selectedDatasetId && userId ? <div className="min-w-0">
+    {joinedDatasetResult ? <button type="button" className="inline-flex min-h-10 items-center gap-2 text-sm font-medium text-blue-700 underline print:hidden" onClick={() => setShowJoinPanel(current => !current)} aria-expanded={showJoinPanel}>
+      <Settings2 size={16} />Source dimension filters
+    </button> : <div className="max-w-md print:hidden"><DatasetDimensionFilter key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
+      value={dimensionFilter} disabled={loading} onChange={value => setDimensionSelection({ context: dimensionContext, value })} /></div>}
+    {dimensionData.pending && <p role="status" className="mt-2 text-sm text-gray-600">Loading filtered dashboard...</p>}
+    {dimensionData.error && <div className="mt-2 flex items-start gap-2 text-sm text-red-700"><p role="alert" className="min-w-0 flex-1 break-words">{dimensionData.error}</p>
+      <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300" title="Retry filtered dashboard" aria-label="Retry filtered dashboard" onClick={dimensionData.retry}><RefreshCw size={16} /></button></div>}
+    {dimensionFilter && dimensionData.data && !allRows.length && <p role="status" className="mt-2 text-sm text-gray-600">No rows match the selected dimension values.</p>}
+  </div> : null
 
   const dashboardManagementActions = (
     <div
@@ -3334,11 +3404,11 @@ export default function DashboardPage() {
               )}
 
               {!metricAnalysisLoading &&
-                dataset.ai_analysis &&
+                dashboardAIAnalysis &&
                 (!dashboardAnalysisMetric ||
-                  dataset.ai_analysis.metric === dashboardAnalysisMetric) && (
+                  dashboardAIAnalysis.metric === dashboardAnalysisMetric) && (
                 <AIAnalysisPanel
-                  analysis={dataset.ai_analysis}
+                  analysis={dashboardAIAnalysis}
                   title="Decisionate Analysis"
                   metric={dashboardAnalysisMetric}
                   className="h-full !rounded-none !border-0 !bg-transparent !p-0"
@@ -3348,7 +3418,7 @@ export default function DashboardPage() {
 
               {!metricAnalysisLoading &&
                 !metricAnalysisError &&
-                !dataset.ai_analysis && (
+                !dashboardAIAnalysis && (
                 <p className="text-sm text-gray-600">
                   Analysis will appear after the selected metric has been evaluated.
                 </p>
@@ -3357,7 +3427,7 @@ export default function DashboardPage() {
 
             <div className="min-w-0 border-t border-[var(--decisionate-brand-primary-ring)]/70 pt-3 xl:border-l xl:border-t-0 xl:pl-3 xl:pt-0">
               <DashboardIntelligenceCard
-                anomalies={dashboardAnomalies}
+                anomalies={scopedAnomalies}
                 primaryMetric={primaryMetric}
                 latestValue={latestValue}
                 selectedTarget={selectedTarget}
@@ -3366,7 +3436,7 @@ export default function DashboardPage() {
                 anomalyLoading={dashboardAnomalyLoading}
                 anomalyError={dashboardAnomalyError}
                 analysisLoading={metricAnalysisLoading}
-                aiAnalysis={dataset?.ai_analysis}
+                aiAnalysis={dashboardAIAnalysis}
                 embedded
               />
             </div>
@@ -3730,6 +3800,7 @@ export default function DashboardPage() {
             className="dashboard-print-page"
           >
             <SelectedDashboard
+              filterLabel={filterLabel}
               key={`print-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
               name={selectedDashboardDefinition.name}
               description={selectedDashboardDefinition.description}
@@ -3769,6 +3840,7 @@ export default function DashboardPage() {
         />
 
           <SelectedDashboard
+          filterLabel={filterLabel}
           key={`screen-${selectedDashboard}`}
           name={selectedDashboardDefinition.name}
           description={selectedDashboardDefinition.description}
@@ -3801,7 +3873,7 @@ export default function DashboardPage() {
               : undefined
           }
           managementActions={dashboardManagementActions}
-          managementPanels={dashboardManagementPanels}
+          managementPanels={<>{dimensionControls}{dashboardManagementPanels}</>}
           showAnalysisPanel={showAnalysisPanel}
           status={
             canConfigureWorkspace && shareStatus ? (
@@ -3828,7 +3900,7 @@ export default function DashboardPage() {
             (selectedDashboardNeedsDataset && (
               !selectedDatasetId ||
               !dataset ||
-              loading
+              loading || dimensionBlocked
             )) ||
             pdfExporting
           }
@@ -3881,7 +3953,7 @@ export default function DashboardPage() {
 
   return (
     <div className="screen-page space-y-4">
-      {dataset && !loading && pdfExporting && (
+      {dataset && !loading && !dimensionBlocked && pdfExporting && (
         <div
           aria-hidden="true"
           className="dashboard-print-page"
@@ -3980,6 +4052,7 @@ export default function DashboardPage() {
                 !selectedDatasetId ||
                 !dataset ||
                 loading ||
+                dimensionBlocked ||
                 pdfExporting
               }
               className="shadow-none"
@@ -4091,6 +4164,8 @@ export default function DashboardPage() {
           </div>
 
         </div>
+        {dimensionControls}
+        {filterLabel && <p className="break-words text-sm text-gray-600">Filter: {filterLabel}</p>}
       </header>
 
       <CorrelationWidgets key={`${userId}:${activeWorkspaceId}:${selectedDashboard}`} userId={userId} workspaceId={activeWorkspaceId} dashboardKey={selectedDashboard} canManage={canManageWorkspaceData} />
@@ -4276,7 +4351,7 @@ export default function DashboardPage() {
           Dashboard Templates
       ========================= */}
 
-      {dataset && !loading && (
+      {dataset && !loading && !dimensionBlocked && (
         <>
           <div className="dashboard-management-toolbar print:hidden">
             {dashboardManagementActions}
@@ -4393,6 +4468,7 @@ function DashboardPrintPage({
             <p className="mt-1 truncate text-xs font-medium text-gray-600">
               {props.dashboardSubtitle}
             </p>
+            {props.filterLabel && <p className="mt-1 break-words text-xs text-gray-600">Filter: {props.filterLabel}</p>}
 
             <p className="mt-1 truncate text-[10px] text-gray-400">
               {getDashboardDatasetDescription(props.dataset)}

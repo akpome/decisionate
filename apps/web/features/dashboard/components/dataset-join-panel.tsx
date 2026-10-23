@@ -14,6 +14,7 @@ import {
 
 import { deleteDatasetJoinCache, getDatasetJoinMetadata, joinDatasets, type DatasetJoinMetadata, type DatasetJoinResult, type DatasetJoinSelection, type DatasetSummary, type DashboardAggregation, type DashboardValueAggregation, type ForecastPeriodFilter } from "@/lib/api";
 import { useDecisionateText } from "@/app/use-decisionate-language"
+import { DatasetDimensionFilter } from "@/features/datasets/components/dimension-filter"
 
 type DatasetJoinPanelProps = {
   datasets: DatasetSummary[]
@@ -137,8 +138,10 @@ export function DatasetJoinPanel({
             return
           }
 
+          const sourceFilter = persistedResult.dimension_filters?.find(filter => filter.dataset_id === item.dataset_id)
           next[item.dataset_id] = {
             dataset_id: item.dataset_id,
+            dimension_filter: sourceFilter ? { column: sourceFilter.column, values: sourceFilter.values } : undefined,
             date_column: item.date_column,
             metric_columns: metricColumnsByDataset.get(item.dataset_id) ?? [],
           }
@@ -203,6 +206,7 @@ export function DatasetJoinPanel({
 
             next[item.dataset_id] = {
               dataset_id: item.dataset_id,
+              dimension_filter: existing?.dimension_filter,
               date_column: dateColumn,
               metric_columns: metricColumns,
             }
@@ -403,6 +407,10 @@ export function DatasetJoinPanel({
     const selections = selectedDatasetIds.map(
       datasetId => configurations[datasetId]
     )
+    if (selections.some(item => item?.dimension_filter && !item.dimension_filter.values.length)) {
+      setError(t("Select dimension values for each active source filter."))
+      return
+    }
     if (selections.some(item => !item?.date_column)) {
       setError(
         t("Choose a date column for each dataset.")
@@ -613,6 +621,10 @@ export function DatasetJoinPanel({
                   </div>
                 </div>
 
+                {userId && <div className="col-span-full min-w-0"><DatasetDimensionFilter key={`${workspaceId}:${item.dataset_id}`} datasetId={item.dataset_id} userId={userId} workspaceId={workspaceId}
+                  disabled={joining} value={configuration?.dimension_filter} onChange={value => setConfigurations(current => ({
+                    ...current, [item.dataset_id]: { ...current[item.dataset_id], dataset_id: item.dataset_id, dimension_filter: value },
+                  }))} /></div>}
               </div>
             )
           })}

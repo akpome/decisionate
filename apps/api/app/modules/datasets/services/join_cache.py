@@ -29,6 +29,7 @@ def build_join_definition(
                 "date_column": selection.get("date_column"),
                 "metric_column": selection.get("metric_column"),
                 "metric_columns": selection.get("metric_columns"),
+                **({"dimension_filter": selection["dimension_filter"]} if selection.get("dimension_filter") is not None else {}),
             }
             for selection in sorted(
                 selections,

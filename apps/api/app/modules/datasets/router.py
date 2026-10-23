@@ -26,7 +26,7 @@ from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, buil
 
 import pandas as pd
 from fastapi import APIRouter
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, Body
 from fastapi import File
 from fastapi import HTTPException
 from fastapi import Query
@@ -280,7 +280,7 @@ from app.modules.datasets.services.connector_range_sync import (
     RANGE_SYNC_KEY, RANGE_SYNC_JOB_TYPE, MAX_UNCHUNKED_SYNC_DAYS,
     range_sync_pending, new_range_sync, next_range_sync_chunk, advance_range_sync,
 )
-from app.modules.datasets.services.dimension_filters import dimension_options
+from app.modules.datasets.services.dimension_filters import DimensionFilter, DimensionFilterError, apply_dimension_filter, dimension_options
 from app.modules.datasets.services.auth import (
     get_user_id,
     get_workspace_id,
@@ -1676,6 +1676,7 @@ def build_dataset_details_response(
     aggregation_type: str | None = None,
     include_ai_analysis: bool = True,
     persisted_analysis=None,
+    dimension_filter=None,
 ):
     dataframe = normalize_dataset_details_dataframe(
         dataframe,
@@ -1735,6 +1736,9 @@ def build_dataset_details_response(
         )
         is not None
     )
+    if dimension_filter is not None:
+        dataframe = apply_dimension_filter(dataset, dataframe, dimension_filter, metrics=selected_metric_columns)
+        persisted_analysis = None
     report_dataframe = _safe_dataset_detail_section(
         "metric_filter",
         lambda: filter_dataframe_to_selected_metrics(
@@ -1809,6 +1813,7 @@ def build_dataset_details_response(
             detail_warnings.append("chart")
 
     response = {
+        "dimension_filter": dimension_filter,
         **_safe_dataset_detail_section(
             "summary",
             lambda: build_dataset_summary_response(dataset),
@@ -1837,7 +1842,7 @@ def build_dataset_details_response(
         **({
             "row_count": len(dataframe),
             "column_count": len(dataframe.columns),
-        } if COLUMN_MAPPING_ATTR in dataframe.attrs else {}),
+        } if COLUMN_MAPPING_ATTR in dataframe.attrs or dimension_filter is not None else {}),
         "metrics": _safe_dataset_detail_section(
             "metrics",
             lambda: generate_metrics(
@@ -10911,6 +10916,7 @@ def dataset_dimensions(
     workspace_id = get_workspace_id(request, user_id)
     with SessionLocal() as db:
         dataset, frame = _load_owned_dataset_dataframe(db, dataset_id, user_id, workspace_id)
+        frame = normalize_dataset_details_dataframe(frame)
         try:
             return dimension_options(dataset, frame, column, search, offset)
         except ValueError as error:
@@ -11034,6 +11040,7 @@ def dataset_chart_data(
 
 
 @router.get("/{dataset_id}/anomalies")
+@router.post("/{dataset_id}/anomalies")
 def dataset_anomalies(
     request: Request,
     dataset_id: int,
@@ -11073,6 +11080,7 @@ def dataset_anomalies(
         ge=1,
         le=100,
     ),
+    dimension_filter: DimensionFilter | None = Body(None),
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -11094,6 +11102,13 @@ def dataset_anomalies(
         # Anomaly detection owns metric selection. Keep legacy duplicate
         # headers addressable before it resolves the date and metric series.
         dataframe = normalize_dataset_details_dataframe(dataframe)
+
+        if isinstance(dimension_filter, DimensionFilter):
+            try:
+                dataframe = apply_dimension_filter(dataset, dataframe, dimension_filter.model_dump(),
+                    metrics=[metric] if metric else get_effective_dataset_metric_columns(dataset, dataframe))
+            except DimensionFilterError as error:
+                raise HTTPException(422, str(error)) from error
 
         try:
             result = detect_dataset_anomalies(
@@ -11145,6 +11160,7 @@ def dataset_anomalies(
             }
 
         return {
+            "dimension_filter": dimension_filter.model_dump() if isinstance(dimension_filter, DimensionFilter) else None,
             "dataset_id": dataset.id,
             "file_name": connector_dataset_display_name(dataset),
             **result,
@@ -11155,6 +11171,7 @@ def dataset_anomalies(
 
 
 @router.get("/{dataset_id}/details")
+@router.post("/{dataset_id}/details")
 def dataset_details(
     request: Request,
     dataset_id: int,
@@ -11190,6 +11207,7 @@ def dataset_details(
         default=True,
         description="Include AI analysis in the initial dataset response.",
     ),
+    dimension_filter: DimensionFilter | None = Body(None),
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -11243,6 +11261,7 @@ def dataset_details(
             aggregation_type=aggregation_type,
             include_ai_analysis=include_ai_analysis,
             persisted_analysis=persisted_analysis,
+            dimension_filter=dimension_filter.model_dump() if isinstance(dimension_filter, DimensionFilter) else None,
         )
         try:
             return JSONResponse(content=jsonable_encoder(details_response))
@@ -11256,6 +11275,8 @@ def dataset_details(
             )
             return JSONResponse(content=to_json_value(details_response))
 
+    except DimensionFilterError as error:
+        raise HTTPException(422, str(error)) from error
     except HTTPException:
         raise
     except Exception as error:
@@ -11277,6 +11298,7 @@ def dataset_details(
 
 
 @router.get("/{dataset_id}/ai-analysis")
+@router.post("/{dataset_id}/ai-analysis")
 def dataset_ai_analysis(
     request: Request,
     dataset_id: int,
@@ -11305,6 +11327,7 @@ def dataset_ai_analysis(
         "min",
         "max",
     ] | None = Query(None),
+    dimension_filter: DimensionFilter | None = Body(None),
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -11322,6 +11345,13 @@ def dataset_ai_analysis(
             workspace_id,
             apply_metric_selection=False,
         )
+
+        dataframe = normalize_dataset_details_dataframe(dataframe)
+        if isinstance(dimension_filter, DimensionFilter):
+            try:
+                dataframe = apply_dimension_filter(dataset, dataframe, dimension_filter.model_dump(), metrics=[metric] if metric else ())
+            except DimensionFilterError as error:
+                raise HTTPException(422, str(error)) from error
 
         if any(
             value is not None
@@ -11388,6 +11418,7 @@ def dataset_ai_analysis(
         )
 
         return {
+            "dimension_filter": dimension_filter.model_dump() if isinstance(dimension_filter, DimensionFilter) else None,
             "dataset_id": dataset.id,
             "metric": clean_metric or None,
             "ai_analysis": ai_analysis,

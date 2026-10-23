@@ -377,6 +377,17 @@ def clean_dashboard_preferences(
             continue
 
         clean_preference = {}
+        if "dimensionFilter" in preference:
+            from app.modules.datasets.services.dimension_filters import DimensionFilter
+            from pydantic import ValidationError
+            value = preference["dimensionFilter"]
+            if value is None:
+                clean_preference["dimensionFilter"] = None
+            else:
+                try:
+                    clean_preference["dimensionFilter"] = DimensionFilter.model_validate(value).model_dump()
+                except ValidationError as error:
+                    raise HTTPException(422, "The saved dashboard dimension filter is invalid.") from error
         title = clean_dashboard_preference_text(
             preference.get("title"),
             MAX_DASHBOARD_TITLE_LENGTH,

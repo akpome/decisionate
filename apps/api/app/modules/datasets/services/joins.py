@@ -14,6 +14,7 @@ from app.modules.datasets.services.numeric import (
     get_numeric_columns,
     is_identifier_column,
 )
+from app.modules.datasets.services.dimension_filters import apply_dimension_filter
 
 
 JOIN_PERIOD_MONTHS = {
@@ -435,6 +436,12 @@ def build_joined_dataset(
         selections,
         key=lambda selection: int(selection["dataset_id"]),
     )
+    for selection in ordered_selections:
+        identity = int(selection["dataset_id"])
+        if selection.get("dimension_filter") is not None and identity in frame_by_id:
+            dataset, dataframe, metadata = frame_by_id[identity]
+            selected = selection.get("metric_columns") or ([selection["metric_column"]] if selection.get("metric_column") else ())
+            frame_by_id[identity] = dataset, apply_dimension_filter(dataset, dataframe, selection["dimension_filter"], metrics=selected), metadata
     canonical_primary_dataset_id = int(
         ordered_selections[0]["dataset_id"]
     )
@@ -785,6 +792,8 @@ def build_joined_dataset(
 
     return {
         "join_version": JOIN_RESULT_VERSION,
+        "dimension_filters": [{"dataset_id": int(selection["dataset_id"]), **selection["dimension_filter"]}
+                              for selection in ordered_selections if selection.get("dimension_filter") is not None],
         "primary_dataset_id": canonical_primary_dataset_id,
         "dataset_ids": [
             int(selection["dataset_id"])

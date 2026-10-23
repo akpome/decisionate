@@ -411,12 +411,14 @@ export type DatasetJoinMetadata = {
 
 export type DatasetJoinSelection = {
   dataset_id: number
+  dimension_filter?: DimensionFilter
   date_column?: string
   metric_column?: string | null
   metric_columns?: string[] | null
 }
 
 export type DatasetJoinResult = {
+  dimension_filters?: DatasetDimensionFilter[]
   join_version?: number
   primary_dataset_id: number
   derived_dataset_id?: number | null
@@ -530,6 +532,7 @@ export type DimensionOptions = {
 }
 
 export type DatasetAIAnalysisResponse = {
+  dimension_filter?: DimensionFilter | null
   dataset_id: number
   metric?: string | null
   ai_analysis: AIAnalysis
@@ -607,6 +610,7 @@ export type DatasetAnomalyMetric = {
 }
 
 export type DatasetAnomaliesResponse = {
+  dimension_filter?: DimensionFilter | null
   dataset_id: number
   file_name: string
   status: "ready" | "insufficient_data" | "unavailable"
@@ -942,6 +946,7 @@ export type ForecastQueryOptions = {
 }
 
 export type DashboardPreferencePayload = {
+  dimensionFilter?: DimensionFilter | null
   title?: string
   subtitle?: string
   selectedMetrics?: string[]
@@ -1543,6 +1548,8 @@ export type PublicSharedDashboardResponse = {
     accent_color?: string | null
   }
   dataset: {
+    dimension_filter?: DimensionFilter | null
+    dimension_filters?: DatasetDimensionFilter[]
     file_name: string
     row_count?: number
     source_type?: string | null
@@ -2808,6 +2815,15 @@ function cleanDashboardPreference(
   preference: Record<string, unknown>
 ): DashboardPreferencePayload {
   const cleanPreference: DashboardPreferencePayload = {}
+  if ("dimensionFilter" in preference) {
+    const filter = preference.dimensionFilter as DimensionFilter | null
+    if (filter === null) cleanPreference.dimensionFilter = null
+    else if (filter && typeof filter.column === "string" && filter.column.length > 0 && filter.column.length <= 200
+      && Array.isArray(filter.values) && filter.values.length > 0 && filter.values.length <= 50
+      && filter.values.every(value => value === null || typeof value === "string" && value.length <= 1000)) {
+      cleanPreference.dimensionFilter = { column: filter.column, values: [...new Set(filter.values)] }
+    } else throw new ApiError("The saved dashboard dimension filter is invalid.", 422)
+  }
   const cleanTitle =
     getCleanDashboardPreferenceText(
       preference.title,
@@ -5488,6 +5504,7 @@ export async function getDatasetDetails(
     aggregationType?: DashboardValueAggregation
     forceRefresh?: boolean
     notifyAvailability?: boolean
+    dimensionFilter?: DimensionFilter
   }
 ) {
   const cleanDatasetId =
@@ -5530,11 +5547,12 @@ export async function getDatasetDetails(
     ? `?${queryString}`
     : ""
 
+  const dimensionBody = options?.dimensionFilter ? JSON.stringify(options.dimensionFilter) : ""
   const cacheKey =
     `dataset-details:${getWorkspaceCacheIdentity(
       userId,
       workspaceId
-    )}:${cleanDatasetId}:${queryString}`
+    )}:${cleanDatasetId}:${queryString}:${dimensionBody}`
 
   if (options?.forceRefresh) {
     invalidateApiReadCache([cacheKey])
@@ -5547,10 +5565,8 @@ export async function getDatasetDetails(
         await apiFetch(
           `${API_URL}/datasets/${cleanDatasetId}/details${query}`,
           {
-            headers: await workspaceHeaders(
-              userId,
-              workspaceId
-            ),
+            ...(dimensionBody ? { method: "POST", body: dimensionBody } : {}),
+            headers: { ...await workspaceHeaders(userId, workspaceId), ...(dimensionBody ? { "Content-Type": "application/json" } : {}) },
           },
           datasetDetailsRequestTimeoutMs,
           options?.notifyAvailability ?? true,
@@ -5563,7 +5579,12 @@ export async function getDatasetDetails(
         )
       }
 
-      return response.json()
+      const result = await response.json()
+      if (options?.dimensionFilter && (result.dimension_filter?.column !== options.dimensionFilter.column
+        || JSON.stringify(result.dimension_filter?.values) !== JSON.stringify(options.dimensionFilter.values))) {
+        throw new ApiError("The selected dimension filter could not be applied. Please try again shortly.", 503)
+      }
+      return result
     }
   )
 }
@@ -5646,6 +5667,7 @@ export async function getDatasetAnomalies(
     aggregation?: DashboardAggregation
     aggregationType?: DashboardValueAggregation
     sensitivity?: "high" | "medium" | "low"
+    dimensionFilter?: DimensionFilter
   }
 ): Promise<DatasetAnomaliesResponse> {
   const cleanDatasetId =
@@ -5706,11 +5728,12 @@ export async function getDatasetAnomalies(
     ? `?${queryString}`
     : ""
 
+  const dimensionBody = options?.dimensionFilter ? JSON.stringify(options.dimensionFilter) : ""
   const cacheKey =
     `dataset-anomalies:${getWorkspaceCacheIdentity(
       userId,
       workspaceId
-    )}:${cleanDatasetId}:${queryString}`
+    )}:${cleanDatasetId}:${queryString}:${dimensionBody}`
 
   return getCachedRead(
     cacheKey,
@@ -5719,10 +5742,8 @@ export async function getDatasetAnomalies(
         await apiFetch(
           `${API_URL}/datasets/${cleanDatasetId}/anomalies${query}`,
           {
-            headers: await workspaceHeaders(
-              userId,
-              workspaceId
-            ),
+            ...(dimensionBody ? { method: "POST", body: dimensionBody } : {}),
+            headers: { ...await workspaceHeaders(userId, workspaceId), ...(dimensionBody ? { "Content-Type": "application/json" } : {}) },
           }
         )
 
@@ -5733,7 +5754,12 @@ export async function getDatasetAnomalies(
         )
       }
 
-      return response.json()
+      const result = await response.json()
+      if (options?.dimensionFilter && (result.dimension_filter?.column !== options.dimensionFilter.column
+        || JSON.stringify(result.dimension_filter?.values) !== JSON.stringify(options.dimensionFilter.values))) {
+        throw new ApiError("The selected dimension filter could not be applied. Please try again shortly.", 503)
+      }
+      return result
     }
   )
 }
@@ -5748,6 +5774,7 @@ export async function getDatasetAIAnalysis(
     periodFilter?: ForecastPeriodFilter
     aggregation?: DashboardAggregation
     aggregationType?: DashboardValueAggregation
+    dimensionFilter?: DimensionFilter
   }
 ): Promise<DatasetAIAnalysisResponse> {
   const cleanDatasetId =
@@ -5786,11 +5813,12 @@ export async function getDatasetAIAnalysis(
     ? `?${queryString}`
     : ""
 
+  const dimensionBody = options?.dimensionFilter ? JSON.stringify(options.dimensionFilter) : ""
   const cacheKey =
     `dataset-ai-analysis:${getWorkspaceCacheIdentity(
       userId,
       workspaceId
-    )}:${cleanDatasetId}:${queryString}`
+    )}:${cleanDatasetId}:${queryString}:${dimensionBody}`
 
   return getCachedRead(
     cacheKey,
@@ -5799,10 +5827,8 @@ export async function getDatasetAIAnalysis(
         await apiFetch(
           `${API_URL}/datasets/${cleanDatasetId}/ai-analysis${query}`,
           {
-            headers: await workspaceHeaders(
-              userId,
-              workspaceId
-            ),
+            ...(dimensionBody ? { method: "POST", body: dimensionBody } : {}),
+            headers: { ...await workspaceHeaders(userId, workspaceId), ...(dimensionBody ? { "Content-Type": "application/json" } : {}) },
           }
         )
 
@@ -5813,7 +5839,12 @@ export async function getDatasetAIAnalysis(
         )
       }
 
-      return response.json()
+      const result = await response.json()
+      if (options?.dimensionFilter && (result.dimension_filter?.column !== options.dimensionFilter.column
+        || JSON.stringify(result.dimension_filter?.values) !== JSON.stringify(options.dimensionFilter.values))) {
+        throw new ApiError("The selected dimension filter could not be applied. Please try again shortly.", 503)
+      }
+      return result
     }
   )
 }

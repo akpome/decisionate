@@ -74,6 +74,8 @@ import {
 import {
   dashboardChartPalette,
 } from "@/features/dashboard/lib/chart-palette"
+import { dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
+import type { DimensionFilter, DatasetDimensionFilter } from "@/lib/api"
 import {
   finalizeSummaryAggregation,
   getHistoricalDimensionWarning,
@@ -122,6 +124,8 @@ type DashboardMetric = {
 }
 
 type DashboardDataset = {
+  dimension_filter?: DimensionFilter | null
+  dimension_filters?: DatasetDimensionFilter[]
   file_name: string
   row_count?: number
   source_type?: string | null
@@ -1144,6 +1148,8 @@ function SharedDashboardContent({
       sharedDatasetDescription,
       maxDashboardSubtitleLength
     )
+  const filterLabel = dataset?.dimension_filter ? dimensionFilterLabel(dataset.dimension_filter)
+    : dataset?.dimension_filters?.map(filter => `${joinedDatasetResult?.datasets.find(item => item.dataset_id === filter.dataset_id)?.file_name || filter.dataset_id} / ${dimensionFilterLabel(filter)}`).join("; ")
   const effectiveDashboardMetricMapping =
     sharedDemo &&
     isGeneralBusinessOverview &&
@@ -1175,6 +1181,7 @@ function SharedDashboardContent({
           </div>
         )}
         <SelectedDashboard
+          filterLabel={filterLabel}
           name={selectedDashboardDefinition.name}
           description={selectedDashboardDefinition.description}
           highlights={selectedDashboardDefinition.highlights}
@@ -1223,6 +1230,7 @@ function SharedDashboardContent({
   return (
     <SharedPageShell brand={sharedBrand}>
       <div className="space-y-5">
+        {filterLabel && <p className="break-words text-sm text-gray-600">Filter: {filterLabel}</p>}
         {historicalDataWarning && (
           <div
             className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800"

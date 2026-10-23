@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Literal
 
 from pydantic import BaseModel
 from pydantic import Field
+from app.modules.datasets.services.dimension_filters import DimensionFilter
 
 
 class DatasetCreate(BaseModel):
@@ -31,6 +32,7 @@ class DatasetSignedUrlImport(BaseModel):
 
 class DatasetJoinSelection(BaseModel):
     dataset_id: int = Field(ge=1)
+    dimension_filter: DimensionFilter | None = None
     date_column: str | None = None
     metric_column: str | None = None
     metric_columns: List[str] | None = Field(

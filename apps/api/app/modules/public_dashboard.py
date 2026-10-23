@@ -2,6 +2,7 @@ import json
 from collections import Counter
 from datetime import UTC, datetime
 from secrets import compare_digest
+import pandas as pd
 
 from fastapi import APIRouter
 from fastapi import HTTPException
@@ -23,6 +24,7 @@ from app.modules.datasets.services.dataset_loader import (
 from app.modules.datasets.services.metrics import (
     generate_metrics,
 )
+from app.modules.datasets.services.dimension_filters import DimensionFilter, DimensionFilterError, apply_dimension_filter
 from app.modules.datasets.services.joins import (
     JOIN_RESULT_VERSION,
 )
@@ -645,15 +647,36 @@ def get_public_shared_dashboard(
             else None
         )
 
+        view = (dashboard_views or {}).get(str(dataset.id), {}).get(dashboard_key, {})
+        legacy = (dashboard_preferences or {}).get(str(dataset.id), {}) if dashboard_key == DEFAULT_SELECTED_DASHBOARD else {}
+        dimension_filter = view.get("dimensionFilter", legacy.get("dimensionFilter"))
+        if dimension_filter is not None and dashboard_key != "decision-performance":
+            try:
+                from app.modules.datasets.router import normalize_dataset_details_dataframe
+                dimension_filter = DimensionFilter.model_validate(dimension_filter).model_dump()
+                if joined_dataset_result is not None:
+                    raise DimensionFilterError("This shared view has incompatible saved joined data.")
+                dataframe = apply_dimension_filter(dataset, normalize_dataset_details_dataframe(dataframe), dimension_filter)
+            except ValueError as error:
+                raise HTTPException(422, "The shared dashboard dimension filter is unavailable. Ask the owner to update the saved view.") from error
+
+        joined_filters = (joined_dataset_result or {}).get("dimension_filters", [])
+        if joined_filters:
+            dataframe = pd.DataFrame(joined_dataset_result["rows"])
+        if dimension_filter is not None or joined_filters:
+            dashboard_preferences = {str(dataset.id): {**legacy, "joinedDatasetResult": joined_dataset_result}}
+            dashboard_views = {str(dataset.id): {dashboard_key: {**view, "joinedDatasetResult": joined_dataset_result}}}
+        public_dataset = build_public_dashboard_dataset_response(dataset, dataframe)
+        public_dataset.update(dimension_filter=dimension_filter, dimension_filters=joined_filters)
+        if dimension_filter is not None or joined_filters:
+            public_dataset["row_count"] = len(dataframe)
+
         return {
             "branding": get_public_dashboard_brand(
                 db,
                 dataset,
             ),
-            "dataset": build_public_dashboard_dataset_response(
-                dataset,
-                dataframe,
-            ),
+            "dataset": public_dataset,
             "preference": {
                 "selected_metric": (
                     preference.selected_metric

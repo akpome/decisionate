@@ -68,6 +68,7 @@ import {
 } from "@/features/dashboard/lib/summary-aggregation"
 
 type DashboardPlaceholderProps = {
+  filterLabel?: string
   name: string
   description: string
   highlights: string[]
@@ -1848,6 +1849,7 @@ function SalesDecisionateAnalysis({
 }
 
 function IndustryDashboard({
+  filterLabel,
   name,
   description,
   dataset,
@@ -1992,6 +1994,7 @@ function IndustryDashboard({
         showActions={showActions}
         exportMode={exportMode}
       />
+      {filterLabel && <p className="break-words text-sm text-gray-600">Filter: {filterLabel}</p>}
 
       {managementActions && (
         <div className="flex min-w-0 justify-end print:hidden">
