@@ -131,11 +131,19 @@ class ForecastingRouterTests(unittest.TestCase):
 
         load_dataframe.assert_called_once_with(
             dataset,
+            apply_metric_selection=True,
         )
         self.assertIs(
             result,
             dataframe,
         )
+
+    def test_filtered_forecast_loader_can_retain_source_dimensions(self):
+        dataset = SimpleNamespace(file_path="sales.json")
+        frame = pd.DataFrame({"revenue": [100], "customer_id": [7]})
+        with patch("app.modules.forecasting.router.load_dataframe_from_dataset", return_value=frame) as load:
+            self.assertIs(load_forecast_dataframe(dataset, apply_metric_selection=False), frame)
+        load.assert_called_once_with(dataset, apply_metric_selection=False)
 
     def test_forecast_dataset_metadata_includes_source_label(self):
         dataset = SimpleNamespace(

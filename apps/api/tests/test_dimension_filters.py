@@ -12,6 +12,7 @@ from app.modules.datasets import router as datasets
 from app.modules.datasets.services.dimension_filters import (
     DimensionFilter, DimensionFilterError, apply_dimension_filter, dimension_columns, dimension_options,
 )
+from app.modules.datasets.services.metric_selection import filter_dataframe_to_selected_metrics
 from app.modules.forecasting import router as forecasting
 from app.modules.forecasting.services import generate_forecast
 from app.modules.reports.schemas import ReportDefinition
@@ -198,7 +199,7 @@ class FilteredForecastRouteTests(unittest.TestCase):
         })
         for name, value in {
             "SessionLocal": MagicMock(return_value=self.db), "get_user_id": lambda _: "owner",
-            "get_workspace_id": lambda *_: "workspace", "load_forecast_dataframe": lambda _: self.frame,
+            "get_workspace_id": lambda *_: "workspace", "load_forecast_dataframe": lambda _, **kwargs: self.frame,
             "build_workspace_decision_learning_context": lambda *_args, **_kwargs: None,
             "generate_forecast": self.generate,
         }.items():
@@ -221,6 +222,22 @@ class FilteredForecastRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(len(self.generate.call_args.args[0]), 180)
         self.assertIsNone(response.json()["dimension_filter"])
+
+    def test_filter_can_use_numeric_identifiers_not_retained_by_metric_selection(self):
+        self.frame["customer_id"] = [1] * 90 + [2] * 90
+        self.frame["internal_cost"] = list(range(180))
+        selected = filter_dataframe_to_selected_metrics(self.dataset, self.frame)
+        self.assertNotIn("customer_id", selected)
+        self.assertNotIn("internal_cost", selected)
+        original_config = self.dataset.source_config
+        with patch.object(forecasting, "load_forecast_dataframe", side_effect=lambda dataset, **kwargs:
+                          self.frame if kwargs.get("apply_metric_selection") is False else selected) as load:
+            response = self.client.post("/forecasting/1?metric=revenue", json={"column": "customer_id", "values": ["1"]})
+        self.assertEqual(response.status_code, 200, response.text)
+        load.assert_called_once_with(self.dataset, apply_metric_selection=False)
+        self.assertEqual(response.json()["historical"][0]["revenue"], 4095)
+        self.assertNotIn("internal_cost", self.generate.call_args.args[0])
+        self.assertEqual(self.dataset.source_config, original_config)
 
     def test_invalid_missing_and_nonmatching_filters_never_run_an_unfiltered_forecast(self):
         for selection, status in [({"column": "revenue", "values": ["1"]}, 422), ({"column": "Gone", "values": ["East"]}, 422),
@@ -258,4 +275,20 @@ class DimensionOptionsRouteTests(unittest.TestCase):
             response = TestClient(app).get("/datasets/7/dimensions?column=region&search=East")
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["values"], ["East"])
-        load.assert_called_once_with(db, 7, "owner", "workspace")
+        load.assert_called_once_with(db, 7, "owner", "workspace", apply_metric_selection=False)
+
+    def test_options_read_source_dimensions_even_when_manual_metric_selection_excludes_them(self):
+        dataset = SimpleNamespace(id=7, source_type="csv", source_config='{"selected_metric_columns":["revenue"]}')
+        frame = pd.DataFrame({"date": pd.date_range("2026-01-01", periods=10), "revenue": range(10), "customer_id": [1, 2] * 5})
+        self.assertNotIn("customer_id", filter_dataframe_to_selected_metrics(dataset, frame))
+        session = MagicMock()
+        app = FastAPI(); app.include_router(datasets.router, prefix="/datasets")
+        with patch.object(datasets, "SessionLocal", session), patch.object(datasets, "get_user_id", return_value="owner"), patch.object(
+            datasets, "get_workspace_id", return_value="workspace"
+        ), patch.object(datasets, "load_dataset", return_value=dataset), patch.object(datasets, "verify_dataset_owner") as authorize, patch(
+            "app.modules.datasets.services.dataset_loader.load_dataset_dataframe", return_value=frame
+        ):
+            response = TestClient(app).get("/datasets/7/dimensions?column=customer_id")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["values"], ["1", "2"])
+        authorize.assert_called_once_with(dataset, "owner", "workspace")

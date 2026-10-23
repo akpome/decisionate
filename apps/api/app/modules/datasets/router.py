@@ -10920,7 +10920,7 @@ def dataset_dimensions(
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(request, user_id)
     with SessionLocal() as db:
-        dataset, frame = _load_owned_dataset_dataframe(db, dataset_id, user_id, workspace_id)
+        dataset, frame = _load_owned_dataset_dataframe(db, dataset_id, user_id, workspace_id, apply_metric_selection=False)
         frame = normalize_dataset_details_dataframe(frame)
         try:
             return dimension_options(dataset, frame, column, search, offset)

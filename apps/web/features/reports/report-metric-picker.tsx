@@ -98,6 +98,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
               </select>
               {dataset.availability[dateColumn] && <p className="mt-1 text-xs text-gray-500">{dataset.availability[dateColumn].start} / {dataset.availability[dateColumn].end}</p>}
             </div>}
+            {dataset.metrics.length > 0 && userId && onDimensionFilterChange && <DatasetDimensionFilter key={`${userId}:${workspaceId}:${dataset.dataset_id}`} datasetId={dataset.dataset_id} userId={userId} workspaceId={workspaceId} deferLoad value={dimensionFilters.find(item => item.dataset_id === dataset.dataset_id)} onChange={value => onDimensionFilterChange(dataset.dataset_id, value)} />}
             {dataset.metrics.length > 0 ? <div className="mt-2 grid min-w-0 gap-x-4 gap-y-1 sm:grid-cols-2">
               {dataset.metrics.map(metric => {
                 const checked = selected.has(metricIdentity(metric))
@@ -110,7 +111,6 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
             {datasetIssues.map(issue => <p key={issue.code} className="mt-2 text-sm text-amber-800">{issueText(issue)}</p>)}
             {!usableDate && !datasetIssues.some(issue => ["date_field_missing", "date_values_unavailable"].includes(issue.code)) && <p className="mt-2 text-sm text-amber-800">{t(dates.length ? "Selected date field unavailable." : "No usable date values.")}</p>}
             {metricIssues.length > 0 && <details className="mt-2 text-sm"><summary className="min-h-10 cursor-pointer py-2 font-medium text-gray-600">{t("Unavailable metrics")} ({metricIssues.length})</summary><ul className="space-y-2 border-l-2 border-amber-200 pl-3 text-gray-600">{metricIssues.map(issue => <li key={`${issue.metric_key}:${issue.code}`} className="break-words"><span className="font-medium">{issue.metric_key}</span>: {issueText(issue)}</li>)}</ul></details>}
-            {count > 0 && userId && onDimensionFilterChange && <DatasetDimensionFilter key={`${workspaceId}:${dataset.dataset_id}`} datasetId={dataset.dataset_id} userId={userId} workspaceId={workspaceId} value={dimensionFilters.find(item => item.dataset_id === dataset.dataset_id)} onChange={value => onDimensionFilterChange(dataset.dataset_id, value)} />}
             {count > 0 && <p className="mt-3 border-t border-gray-100 pt-3 text-xs font-medium text-blue-800">{t("Selected metrics")}: {count}</p>}
           </>}
           {!pending && (unavailable || !dataset.metrics.length || !usableDate || metricIssues.length > 0) && <Link href={`/dashboard/datasets/${dataset.dataset_id}`} className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline">{t("Review dataset")}</Link>}

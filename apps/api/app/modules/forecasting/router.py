@@ -32,6 +32,7 @@ from app.modules.forecasting.services import (
     generate_forecast,
 )
 from app.modules.datasets.services.dimension_filters import DimensionFilter, apply_dimension_filter
+from app.modules.datasets.services.metric_selection import build_metric_selection_profile, filter_dataframe_to_selected_metrics
 
 router = APIRouter()
 
@@ -66,10 +67,11 @@ def filter_forecast_dataset_for_workspace(
 
 def load_forecast_dataframe(
     dataset,
+    *, apply_metric_selection=True,
 ):
     try:
         return load_dataframe_from_dataset(
-            dataset
+            dataset, apply_metric_selection=apply_metric_selection,
         )
     except (FileNotFoundError, OSError) as error:
         raise HTTPException(
@@ -155,16 +157,17 @@ async def get_forecast(
                 detail="Dataset not found",
             )
 
-        dataframe = load_forecast_dataframe(
-            dataset
-        )
+        dataframe = (load_forecast_dataframe(dataset, apply_metric_selection=False)
+                     if dimension_filter is not None else load_forecast_dataframe(dataset))
         if dimension_filter is not None:
             try:
+                profile = await asyncio.to_thread(build_metric_selection_profile, dataset, dataframe)
                 dataframe = await asyncio.to_thread(
                     apply_dimension_filter, dataset, dataframe, dimension_filter.model_dump(), metrics=[metric] if metric else (),
                 )
                 if dataframe.empty:
                     raise HTTPException(400, "No observations match the selected dimension values.")
+                dataframe = await asyncio.to_thread(filter_dataframe_to_selected_metrics, dataset, dataframe, profile)
             except ValueError as error:
                 raise HTTPException(422, str(error)) from error
 

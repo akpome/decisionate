@@ -67,3 +67,8 @@ export function editableDefinition(value: Partial<ReportDefinition>): ReportDefi
     included_findings: value.included_findings ?? null, source_run_id: value.source_run_id ?? null,
     pair_directions: reportPairDirections(value.metrics || [], value.pair_directions, value.pair_directions == null && value.lag ? value.lag.direction === "b_leads_a" ? "b_leads_a" : "a_leads_b" : undefined) }
 }
+
+export function selectedReportDimensionFilters(value: Pick<ReportDefinition, "metrics" | "dimension_filters">) {
+  const selected = new Set(value.metrics.map(metric => metric.dataset_id))
+  return (value.dimension_filters || []).filter(filter => selected.has(filter.dataset_id))
+}

@@ -9,25 +9,25 @@ const ts = require("typescript")
 const React = require("react")
 const { renderToStaticMarkup } = require("react-dom/server")
 function load(source, globals = {}) {
-  const module = { exports: {} }
+  const loadedModule = { exports: {} }
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
-  } }).outputText, { module, exports: module.exports, require: name => {
+  } }).outputText, { module: loadedModule, exports: loadedModule.exports, require: name => {
     if (name === "@/app/use-decisionate-language") return { useDecisionateText: () => ({ t: value => value }) }
     if (name === "@/lib/api") return { getDatasetDimensions: () => { throw new Error("No requests during server render") } }
     return require(name)
   }, ...globals })
-  return module.exports
+  return loadedModule.exports
 }
 const { DatasetDimensionFilter, dimensionFilterLabel } = load(readFileSync(new URL("../features/datasets/components/dimension-filter.tsx", import.meta.url), "utf8"))
 const render = props => renderToStaticMarkup(React.createElement(DatasetDimensionFilter, { datasetId: 7, userId: "owner", onChange() {}, ...props }))
 
 test("dimension control defaults to all rows with no preselected values", () => {
   const html = render({})
-  assert.match(html, /Filter by dimension/)
-  assert.match(html, /<label[^>]*>Filter by dimension<\/label>/)
+  assert.match(html, /Dimension column/)
+  assert.match(html, /<label[^>]*>Dimension column<\/label>/)
   assert.match(html, /<option value="" selected="">All rows<\/option>/)
-  assert.doesNotMatch(html, /type="checkbox"|Clear dimension filter|Dimension values/)
+  assert.doesNotMatch(html, /type="checkbox"|Clear dimension filter|Unique values/)
 })
 
 test("saved selected values remain visible before options load and distinguish missing from empty", () => {
@@ -37,6 +37,15 @@ test("saved selected values remain visible before options load and distinguish m
   for (const value of ["East", "Missing", "Empty string", "null"]) assert.ok(html.includes(value), value)
   assert.match(html, /aria-label="channel values"/)
   assert.match(html, /aria-label="Clear dimension filter"/)
+  assert.match(html, /Unique values/)
+  assert.match(html, /Selected values.*4 \/ 50/)
+})
+
+test("report selectors remain visible without eagerly reading every dataset", () => {
+  const html = render({ deferLoad: true })
+  assert.match(html, /Dimension column/)
+  assert.match(html, /All rows/)
+  assert.doesNotMatch(html, /Loading dimensions|No filterable columns/)
 })
 
 test("unselected dimension shows an explicit empty selection rather than implying all rows", () => {

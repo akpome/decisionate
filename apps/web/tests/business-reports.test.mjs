@@ -13,7 +13,7 @@ const loadedModule = { exports: {} }
 const source = readFileSync(new URL("../features/reports/types.ts", import.meta.url), "utf8")
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText,
   { module: loadedModule, exports: loadedModule.exports, require: name => name === "./pair-directions" ? pairModule.exports : require(name), Intl, Number, Math })
-const { editableDefinition, formatReportValue } = loadedModule.exports
+const { editableDefinition, formatReportValue, selectedReportDimensionFilters } = loadedModule.exports
 
 test("report editor removes server-only fields while preserving cross-dataset scope and provenance", () => {
   const value = editableDefinition({ name: "Cross-source review", business_question: "What changed across channels?", reporting_timezone: "UTC", source_run_id: "run-1",
@@ -35,6 +35,17 @@ test("saved report dimension filters survive editing and legacy reports default 
   assert.deepEqual(Array.from(editableDefinition({}).dimension_filters), [])
 })
 
+test("only filters for selected datasets are submitted, leaving pending choices untouched", () => {
+  const value = editableDefinition({ metrics: [{ dataset_id: 7, metric_key: "spend", date_column: "date", aggregation: "sum" }],
+    dimension_filters: [{ dataset_id: 7, column: "region", values: ["East"] }, { dataset_id: 8, column: "channel", values: [] }] })
+  const filters = selectedReportDimensionFilters(value)
+  assert.equal(filters.length, 1)
+  assert.equal(filters[0].dataset_id, 7)
+  assert.equal(value.dimension_filters.length, 2)
+  assert.equal(value.dimension_filters[1].values.length, 0)
+  assert.equal(selectedReportDimensionFilters(editableDefinition({})).length, 0)
+})
+
 test("new reports automatically include findings without checkbox selection", () => {
   assert.equal(editableDefinition({}).included_findings, null)
   assert.equal(editableDefinition({ included_findings: null }).included_findings, null)
@@ -50,12 +61,15 @@ test("a fresh preview includes findings automatically and keeps the returned sel
   }
   visit(ast)
   assert.ok(declaration)
-  const original = editableDefinition({ included_findings: [] })
+  const original = editableDefinition({ included_findings: [],
+    metrics: [{ dataset_id: 1, metric_key: "spend", date_column: "date", aggregation: "sum" }],
+    dimension_filters: [{ dataset_id: 1, column: "region", values: ["East"] }, { dataset_id: 2, column: "channel", values: [] }],
+  })
   let savedDefinition, report, view
   const calculate = vm.runInNewContext(ts.transpileModule(`${declaration}\ncalculate`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    definition: original, execute: async action => action(), editableDefinition,
+    definition: original, execute: async action => action(), editableDefinition, selectedReportDimensionFilters,
     crypto: { randomUUID: () => "request-1" }, setAnalysisJob: () => {}, routeController: { current: null },
     analysisSubmission: { current: false }, busy: false,
     setRecentJobs: () => {},
@@ -67,6 +81,7 @@ test("a fresh preview includes findings automatically and keeps the returned sel
     request: async (path, options) => {
       assert.equal(path, "/jobs")
       assert.equal(JSON.parse(options.body).included_findings, null)
+      assert.deepEqual(JSON.parse(options.body).dimension_filters, [{ dataset_id: 1, column: "region", values: ["East"] }])
       return { job_id: "job-1", status: "queued" }
     },
     setDefinition: value => { savedDefinition = value }, setReport: value => { report = value }, setView: value => { view = value },

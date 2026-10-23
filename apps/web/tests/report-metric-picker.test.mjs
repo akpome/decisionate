@@ -9,6 +9,7 @@ const React = require("react")
 const ts = require("typescript")
 const { renderToStaticMarkup } = require("react-dom/server")
 const source = readFileSync(new URL("../features/reports/report-metric-picker.tsx", import.meta.url), "utf8")
+const dimensionProps = []
 const loadedModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2021 },
@@ -18,7 +19,10 @@ vm.runInNewContext(ts.transpileModule(source, {
     if (name === "next/link") return { __esModule: true, default: props => React.createElement("a", props) }
     if (name === "@/app/use-decisionate-language") return { useDecisionateText: () => ({ t: value => value }) }
     if (name === "@/features/relationships/types") return { metricIdentity: metric => `${metric.dataset_id}:${metric.metric_key}` }
-    if (name === "@/features/datasets/components/dimension-filter") return { DatasetDimensionFilter: () => null }
+    if (name === "@/features/datasets/components/dimension-filter") return { DatasetDimensionFilter: props => {
+      dimensionProps.push(props)
+      return React.createElement("label", null, "Dimension column", React.createElement("select", { "data-dataset-id": props.datasetId }))
+    } }
     return require(name)
   },
 })
@@ -50,6 +54,22 @@ test("search and date selection are visibly labelled before any metrics are sele
   assert.match(html, /<option value="date" selected="">date<\/option>/)
   assert.ok(html.indexOf('<select id="report-date-column-1"') < html.indexOf('type="checkbox"'))
   assert.doesNotMatch(html, /Selected metrics/)
+})
+
+test("single and multi reports expose separate dimension selectors before metric selection", () => {
+  for (const singleDataset of [true, false]) {
+    dimensionProps.length = 0
+    const calls = []
+    const html = render({ singleDataset, userId: "owner", workspaceId: "workspace", datasets: [dataset(), dataset({ dataset_id: 2 })],
+      onDimensionFilterChange: (identity, value) => calls.push({ identity, value }) })
+    assert.equal((html.match(/Dimension column/g) || []).length, 2)
+    assert.ok(html.indexOf("Dimension column") < html.indexOf('type="checkbox"'))
+    assert.deepEqual(dimensionProps.map(item => item.datasetId), [1, 2])
+    assert.ok(dimensionProps.every(item => item.deferLoad && item.workspaceId === "workspace"))
+    const filter = { column: "region", values: ["East", "West"] }
+    dimensionProps[1].onChange(filter)
+    assert.deepEqual(calls, [{ identity: 2, value: filter }])
+  }
 })
 
 test("both report sections have identical fixed minimum and maximum heights with internal scrolling", () => {

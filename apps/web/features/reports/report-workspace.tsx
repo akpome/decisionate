@@ -14,7 +14,7 @@ import { getAIAnalysisProvenance } from "@/features/ai/lib/analysis-copy"
 import { AnalysisNavigation } from "./analysis-navigation"
 import { ReportMetricPicker, reportDateColumn } from "./report-metric-picker"
 import { loadReportCatalogPage } from "./report-catalog-loading"
-import { editableDefinition, type BusinessReport, type ReportDefinition } from "./types"
+import { editableDefinition, selectedReportDimensionFilters, type BusinessReport, type ReportDefinition } from "./types"
 import { MetricTrends } from "./report-metric-trends"
 import { ReportDecisions, ReportRelationshipFindings } from "./report-evidence-sections"
 import { defaultReportName, isDefaultReportName, reportDraftName } from "./default-report-name"
@@ -86,7 +86,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const single = definition.scope === "single"
   const taskCount = reportTestCount(definition.metrics, definition.pair_directions, definition.lag)
   const showPairDirections = definition.lag.enabled && definition.pair_directions.length > 0
-  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < (single ? 1 : 2) || taskCount > 1000 || definition.metrics.length > 25 || (definition.dimension_filters || []).some(item => !item.values.length) || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t("Preview report")}</button>
+  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < (single ? 1 : 2) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t("Preview report")}</button>
 
   useEffect(() => {
     const controller = new AbortController()
@@ -240,7 +240,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       start.setUTCDate(start.getUTCDate() - 29)
       range = { start: availability.start > start.toISOString().slice(0, 10) ? availability.start : start.toISOString().slice(0, 10), end: availability.end }
     }
-    edit({ metrics, date_range: range, dimension_filters: (definition.dimension_filters || []).filter(item => metrics.some(metric => metric.dataset_id === item.dataset_id)) })
+    edit({ metrics, date_range: range })
   }
 
   async function execute(action: () => Promise<void>) {
@@ -256,7 +256,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     analysisSubmission.current = true
     try { await execute(async () => {
       const signal = routeController.current?.signal
-      const job = await request<AnalysisJob>("/jobs", { method: "POST", signal, headers: { "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ ...definition, included_findings: null }) })
+      const job = await request<AnalysisJob>("/jobs", { method: "POST", signal, headers: { "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ ...definition, dimension_filters: selectedReportDimensionFilters(definition), included_findings: null }) })
       signal?.throwIfAborted()
       setAnalysisJob(job)
       setRecentJobs(current => [job, ...current.filter(item => item.job_id !== job.job_id)])
