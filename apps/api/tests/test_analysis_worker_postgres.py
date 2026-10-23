@@ -92,6 +92,23 @@ class AnalysisWorkerPostgresTests(unittest.TestCase):
             finally:
                 connection.execute(text("SELECT pg_advisory_unlock(59831, 4)")); connection.commit()
 
+    def test_dimension_filter_survives_the_separate_worker_process_and_save(self):
+        path = Path(self.directory.name) / "sales.csv"
+        frame = pd.read_csv(path)
+        pd.concat([frame.assign(region="East"), frame.assign(region="West", revenue=9999)], ignore_index=True).to_csv(path, index=False)
+        selection = [{"dataset_id": self.dataset_id, "column": "region", "values": ["East"]}]
+        definition = ReportDefinition.model_validate({**self.definition.model_dump(mode="json"), "dimension_filters": selection})
+        with self.sessions() as db:
+            identity = enqueue_report(db, definition, self.workspace, self.workspace).id
+        self.run_worker()
+        with self.sessions() as db:
+            job = db.get(ReportAnalysisJob, identity)
+            self.assertEqual(job.status, "succeeded", job.error)
+            result = json.loads(job.result)
+            self.assertEqual(result["definition"]["dimension_filters"], selection)
+            self.assertEqual(result["metrics"][0]["value"], sum(100 + i % 14 for i in range(109, 116)))
+            self.assertEqual(save_completed_job(db, identity, self.workspace, self.workspace)["definition"]["dimension_filters"], selection)
+
     def test_concurrent_requests_and_saves_are_idempotent(self):
         barrier = threading.Barrier(2)
         identities, errors = [], []

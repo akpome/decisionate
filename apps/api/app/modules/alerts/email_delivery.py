@@ -427,6 +427,15 @@ def send_platform_system_email(
         ) from error
 
 
+def report_dimension_lines(report):
+    lines = []
+    for selection in report.get("definition", {}).get("dimension_filters", []):
+        label = next((metric["dataset_label"] for metric in report["metrics"] if metric["dataset_id"] == selection["dataset_id"]), f"Dataset {selection['dataset_id']}")
+        values = ["Missing" if value is None else "Empty string" if value == "" else value for value in selection["values"]]
+        lines.append(f"Filter: {label} / {selection['column']}: {', '.join(values)}")
+    return lines
+
+
 def report_anomaly_lines(report):
     analysis = report.get("anomaly_analysis")
     if not analysis:
@@ -473,6 +482,7 @@ def build_weekly_report_email_text(
                         f"Reporting window: {report['window']['start']} to {report['window']['end']}",
                         f"Previous window: {report['previous_window']['start']} to {report['previous_window']['end']}",
                         f"Coverage: {report['status']}"]
+        review_lines.extend(report_dimension_lines(report))
         review_lines.extend(report["observations"])
         review_lines.extend(report["contrasts"])
         review_lines.extend(["", "Unusual changes (anomaly detection)", *report_anomaly_lines(report), "", "Relationship findings"])
@@ -792,7 +802,7 @@ def build_weekly_report_email_html(
     cross_markup = ""
     if digest.cross_dataset_report:
         report = digest.cross_dataset_report
-        statements = report["observations"] + report["contrasts"]
+        statements = report_dimension_lines(report) + report["observations"] + report["contrasts"]
         statements += [item["interpretation"] for item in report["findings"] if item["id"] in report["included_findings"]]
         statements += ["Warning: " + warning for warning in report["warnings"]]
         statements += [f"Decision: {item['title']} ({item['status']}). Expected: {item['expected_outcome'] or 'Not recorded'}. Actual: {item['actual_outcome'] or 'Not yet recorded'}."

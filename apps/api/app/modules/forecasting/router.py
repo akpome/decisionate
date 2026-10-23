@@ -1,7 +1,7 @@
 import asyncio
 from typing import Literal
 
-from fastapi import HTTPException
+from fastapi import Body, HTTPException
 from fastapi import Query
 from fastapi import Request, APIRouter
 
@@ -31,6 +31,7 @@ from app.modules.ai.learning import (
 from app.modules.forecasting.services import (
     generate_forecast,
 )
+from app.modules.datasets.services.dimension_filters import DimensionFilter, apply_dimension_filter
 
 router = APIRouter()
 
@@ -95,6 +96,7 @@ async def test_forecasting():
 
 
 @router.get("/{dataset_id}")
+@router.post("/{dataset_id}")
 async def get_forecast(
     dataset_id: int,
     request: Request,
@@ -124,6 +126,7 @@ async def get_forecast(
         "max",
     ] = Query("sum"),
     seasonal_business: bool = Query(False),
+    dimension_filter: DimensionFilter | None = Body(None),
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(
@@ -155,6 +158,15 @@ async def get_forecast(
         dataframe = load_forecast_dataframe(
             dataset
         )
+        if dimension_filter is not None:
+            try:
+                dataframe = await asyncio.to_thread(
+                    apply_dimension_filter, dataset, dataframe, dimension_filter.model_dump(), metrics=[metric] if metric else (),
+                )
+                if dataframe.empty:
+                    raise HTTPException(400, "No observations match the selected dimension values.")
+            except ValueError as error:
+                raise HTTPException(422, str(error)) from error
 
         learning_context = (
             build_workspace_decision_learning_context(
@@ -219,6 +231,7 @@ async def get_forecast(
             )
 
         response = {
+            "dimension_filter": dimension_filter.model_dump() if dimension_filter is not None else None,
             **build_forecast_dataset_metadata(
                 dataset
             ),

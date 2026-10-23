@@ -903,6 +903,8 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
         warnings.append(f"The saved report tests {template['grain']} lag periods. Weekly reviews use daily periods, so that lag is not reused; review timing in the original report.")
         lag = {**lag, "enabled": False}
     definition = {**(template or {}), "scope": "multi", "name": (template or {}).get("name", "Weekly cross-dataset review"),
+                  "dimension_filters": [item for item in (template or {}).get("dimension_filters", [])
+                                        if item["dataset_id"] in {reference["dataset_id"] for reference in references}],
                   "seasonal_business": (template or {}).get("seasonal_business", False),
                   "business_question": (template or {}).get("business_question", "What changed across the selected datasets, and which changes deserve investigation?"),
                   "metrics": references, "date_range": complete_week(analysis_date) if analysis_date else complete_week(), "grain": "daily",

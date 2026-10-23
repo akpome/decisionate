@@ -5,6 +5,8 @@ import Link from "next/link"
 import { LoaderCircle, RefreshCw, Search, X } from "lucide-react"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { metricIdentity, type CatalogDataset, type CatalogMetricIssue, type MetricRef } from "@/features/relationships/types"
+import { DatasetDimensionFilter } from "@/features/datasets/components/dimension-filter"
+import type { DatasetDimensionFilter as DimensionSelection, DimensionFilter } from "@/lib/api"
 
 const issueLabels: Record<string, string> = {
   selection_not_saved: "Metric selection not saved.",
@@ -39,7 +41,7 @@ export function filterReportDatasets(datasets: CatalogDataset[], search: string)
   })
 }
 
-export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, footer, singleDataset = false }: {
+export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, footer, singleDataset = false, userId, workspaceId, dimensionFilters = [], onDimensionFilterChange }: {
   datasets: CatalogDataset[]
   metrics: MetricRef[]
   dateColumns: Record<number, string>
@@ -50,6 +52,10 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   onRetry?: () => void
   footer?: ReactNode
   singleDataset?: boolean
+  userId?: string
+  workspaceId?: string
+  dimensionFilters?: DimensionSelection[]
+  onDimensionFilterChange?: (datasetId: number, filter: DimensionFilter | undefined) => void
 }) {
   const { t } = useDecisionateText()
   const [search, setSearch] = useState("")
@@ -104,6 +110,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
             {datasetIssues.map(issue => <p key={issue.code} className="mt-2 text-sm text-amber-800">{issueText(issue)}</p>)}
             {!usableDate && !datasetIssues.some(issue => ["date_field_missing", "date_values_unavailable"].includes(issue.code)) && <p className="mt-2 text-sm text-amber-800">{t(dates.length ? "Selected date field unavailable." : "No usable date values.")}</p>}
             {metricIssues.length > 0 && <details className="mt-2 text-sm"><summary className="min-h-10 cursor-pointer py-2 font-medium text-gray-600">{t("Unavailable metrics")} ({metricIssues.length})</summary><ul className="space-y-2 border-l-2 border-amber-200 pl-3 text-gray-600">{metricIssues.map(issue => <li key={`${issue.metric_key}:${issue.code}`} className="break-words"><span className="font-medium">{issue.metric_key}</span>: {issueText(issue)}</li>)}</ul></details>}
+            {count > 0 && userId && onDimensionFilterChange && <DatasetDimensionFilter key={`${workspaceId}:${dataset.dataset_id}`} datasetId={dataset.dataset_id} userId={userId} workspaceId={workspaceId} value={dimensionFilters.find(item => item.dataset_id === dataset.dataset_id)} onChange={value => onDimensionFilterChange(dataset.dataset_id, value)} />}
             {count > 0 && <p className="mt-3 border-t border-gray-100 pt-3 text-xs font-medium text-blue-800">{t("Selected metrics")}: {count}</p>}
           </>}
           {!pending && (unavailable || !dataset.metrics.length || !usableDate || metricIssues.length > 0) && <Link href={`/dashboard/datasets/${dataset.dataset_id}`} className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline">{t("Review dataset")}</Link>}

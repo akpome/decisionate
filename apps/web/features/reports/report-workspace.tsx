@@ -23,6 +23,7 @@ import { ReportPairDirections } from "./report-pair-directions"
 import { ReportAnomalies } from "./report-anomalies"
 import { historicalEvidenceHref } from "./legacy-relationship-destination"
 import { analysisPhaseLabel, waitForAnalysis, type AnalysisJob } from "./analysis-jobs"
+import { dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
@@ -85,7 +86,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const single = definition.scope === "single"
   const taskCount = reportTestCount(definition.metrics, definition.pair_directions, definition.lag)
   const showPairDirections = definition.lag.enabled && definition.pair_directions.length > 0
-  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < (single ? 1 : 2) || taskCount > 1000 || definition.metrics.length > 25 || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t("Preview report")}</button>
+  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < (single ? 1 : 2) || taskCount > 1000 || definition.metrics.length > 25 || (definition.dimension_filters || []).some(item => !item.values.length) || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t("Preview report")}</button>
 
   useEffect(() => {
     const controller = new AbortController()
@@ -213,7 +214,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   }
 
   function edit(patch: Partial<ReportDefinition>) {
-    const analysisChanged = ["metrics", "date_range", "grain", "method", "filters", "lag", "pair_directions", "seasonal_business"].some(key => key in patch)
+    const analysisChanged = ["metrics", "dimension_filters", "date_range", "grain", "method", "filters", "lag", "pair_directions", "seasonal_business"].some(key => key in patch)
     const nextName = report?.report_id && !("name" in patch) && isDefaultReportName(definition.name) ? defaultReportName() : null
     setDefinition(current => {
       const next = { ...current, ...(nextName ? { name: nextName } : {}), ...patch, ...(analysisChanged ? { included_findings: null } : {}) }
@@ -239,7 +240,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       start.setUTCDate(start.getUTCDate() - 29)
       range = { start: availability.start > start.toISOString().slice(0, 10) ? availability.start : start.toISOString().slice(0, 10), end: availability.end }
     }
-    edit({ metrics, date_range: range })
+    edit({ metrics, date_range: range, dimension_filters: (definition.dimension_filters || []).filter(item => metrics.some(metric => metric.dataset_id === item.dataset_id)) })
   }
 
   async function execute(action: () => Promise<void>) {
@@ -410,7 +411,9 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             <label className="block text-xs font-medium text-gray-700">Business question<input className={input} required minLength={8} maxLength={1000} value={definition.business_question} onChange={event => edit({ business_question: event.target.value })} /></label>
           </div>
           <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <ReportMetricPicker datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} singleDataset={single} loading={catalogBusy} error={catalogError} onRetry={refreshCatalog} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
+            <ReportMetricPicker userId={userId} workspaceId={workspaceId} dimensionFilters={definition.dimension_filters} onDimensionFilterChange={(identity, filter) => edit({ dimension_filters: [
+              ...(definition.dimension_filters || []).filter(item => item.dataset_id !== identity), ...(filter ? [{ dataset_id: identity, ...filter }] : []),
+            ] })} datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} singleDataset={single} loading={catalogBusy} error={catalogError} onRetry={refreshCatalog} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
               setDateColumns(current => ({ ...current, [dataset.dataset_id]: column }))
               edit({ metrics: definition.metrics.map(item => item.dataset_id === dataset.dataset_id ? { ...item, date_column: column } : item) })
             }} footer={nextOffset !== null && <button type="button" className={button} disabled={busy || catalogBusy} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>} />
@@ -442,6 +445,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       {!report ? <div className="border-y border-gray-200 py-12 text-center"><FileText className="mx-auto text-gray-400" size={32} /><h2 className="mt-3 text-lg font-medium">No report generated</h2><button type="button" className={`${button} mt-4`} onClick={() => setView("explore")}><ChartNoAxesCombined size={16} />{t("Build report")}</button></div> : <>
         <header className="border-b border-gray-200 pb-5"><div className="flex items-center gap-3"><WorkspaceBrandMark name={brand.name} logoUrl={brand.logoUrl} primaryColor={brand.primaryColor} className="h-10 w-10 rounded-md text-sm" /><span className="text-sm font-medium">{brand.name}</span></div><h2 className="mt-4 break-words text-2xl font-semibold">{report.name}</h2><p className="mt-2 break-words text-base text-gray-700">{report.business_question}</p><p className="mt-2 text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.grain} / {report.dataset_count} datasets / Generated {report.generated_at.slice(0, 10)}</p></header>
         <ReportOverview report={report} />
+        {(report.definition.dimension_filters || []).map(selection => <p key={selection.dataset_id} className="break-words text-sm text-gray-600"><span className="font-medium">{report.metrics.find(metric => metric.dataset_id === selection.dataset_id)?.dataset_label || `Dataset ${selection.dataset_id}`}</span> / {dimensionFilterLabel(selection)}</p>)}
         {report.ai_analysis && <section aria-label="Report interpretation" className="space-y-3 border-b border-gray-200 pb-5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-lg font-semibold">{t("Report interpretation")}</h3><span className="text-xs text-gray-500">{report.ai_analysis.confidence} confidence</span></div><p className="text-xs text-gray-500">{getAIAnalysisProvenance(report.ai_analysis)}</p><p className="break-words text-sm leading-6 text-gray-700">{report.ai_analysis.summary}</p><Statements statements={report.ai_analysis.recommendations} /><Statements statements={report.ai_analysis.risks} /></section>}
         <MetricTrends report={report} />
         <ReportAnomalies analysis={report.anomaly_analysis} />

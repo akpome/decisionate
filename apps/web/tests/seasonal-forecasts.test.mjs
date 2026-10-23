@@ -61,7 +61,10 @@ function client(legacy = false) {
     getWorkspaceCacheIdentity: (user, workspace) => `${user}:${workspace}`,
     workspaceHeaders: async (user, workspace) => ({ "X-User": user, "X-Workspace": workspace }),
     getCachedRead: (key, loader) => cache.get(key, loader, 10000),
-    apiFetch: async (url, init) => { requests.push({ url, init }); return { ok: true, json: async () => ({ url, forecast: legacyResponse ? {} : { seasonality: { requested: new URL(url).searchParams.get("seasonal_business") === "true" } } }) } },
+    apiFetch: async (url, init) => { requests.push({ url, init }); return { ok: true, json: async () => ({ url,
+      dimension_filter: legacyResponse || !init.body ? null : JSON.parse(init.body),
+      forecast: legacyResponse ? {} : { seasonality: { requested: new URL(url).searchParams.get("seasonal_business") === "true" } },
+    }) } },
   })
   return { getForecast, requests, setLegacyResponse: value => { legacyResponse = value } }
 }
@@ -99,6 +102,42 @@ test("Retry can recover the same cached seasonal request after the API is upgrad
   setLegacyResponse(false)
   const result = await getForecast(1, "alice", "revenue", "workspace", { seasonalBusiness: true })
   assert.equal(result.forecast.seasonality.requested, true)
+  assert.equal(requests.length, 2)
+})
+
+test("dimension filters are posted without changing metric, date, aggregation or seasonal controls", async () => {
+  const { getForecast, requests } = client()
+  const dimensionFilter = { column: "region", values: ["East", null, ""] }
+  const result = await getForecast(1, "alice", "revenue", "workspace", {
+    dimensionFilter, aggregation: "monthly", aggregationType: "sum", seasonalBusiness: true,
+  })
+  assert.equal(requests[0].init.method, "POST")
+  assert.equal(requests[0].init.headers["Content-Type"], "application/json")
+  assert.deepEqual(JSON.parse(requests[0].init.body), dimensionFilter)
+  assert.deepEqual(result.dimension_filter, dimensionFilter)
+  assert.equal(new URL(requests[0].url).searchParams.get("seasonal_business"), "true")
+  assert.equal(new URL(requests[0].url).searchParams.get("aggregation"), "monthly")
+})
+
+test("forecast cache isolates each filter, unfiltered data, and workspace", async () => {
+  const { getForecast, requests } = client()
+  const east = { dimensionFilter: { column: "region", values: ["East"] } }
+  const west = { dimensionFilter: { column: "region", values: ["West"] } }
+  await getForecast(1, "alice", "revenue", "first")
+  await getForecast(1, "alice", "revenue", "first", east)
+  await getForecast(1, "alice", "revenue", "first", west)
+  await getForecast(1, "alice", "revenue", "second", east)
+  await getForecast(1, "alice", "revenue", "first", east)
+  assert.equal(requests.length, 4)
+  assert.equal(requests[0].init.method, "GET")
+})
+
+test("an older API cannot silently return all rows for a filtered forecast, and retry recovers", async () => {
+  const { getForecast, requests, setLegacyResponse } = client(true)
+  const options = { dimensionFilter: { column: "region", values: ["East"] } }
+  await assert.rejects(getForecast(1, "alice", "revenue", "workspace", options), error => error instanceof ApiError && error.status === 503)
+  setLegacyResponse(false)
+  assert.deepEqual((await getForecast(1, "alice", "revenue", "workspace", options)).dimension_filter, options.dimensionFilter)
   assert.equal(requests.length, 2)
 })
 

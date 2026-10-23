@@ -13,6 +13,7 @@ from app.modules.correlation.engine import adjust_bh, metric_id
 from app.modules.datasets.services.curated_metric_analytics import aggregate_metric, frame_policy
 from app.modules.datasets.services.joins import _bucket_dates, _infer_explicit_year, _parse_dates
 from app.modules.datasets.services.numeric import coerce_numeric_series
+from app.modules.datasets.services.dimension_filters import apply_dimension_filter
 from .catalog import prepare_report_source
 from .anomalies import anomaly_summary, detect_report_metric, historical_start
 from .decision_drafts import is_report_decision_draft
@@ -144,6 +145,14 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None):
     previous = previous_window(window)
     metadata, series, metrics, warnings = {}, {}, [], list(unavailable or [])
     catalogs = {identity: metric_catalog(dataset, frame) for identity, (dataset, frame) in frames.items()}
+    for selection in definition.get("dimension_filters", []):
+        identity = selection["dataset_id"]
+        if identity in frames:
+            dataset, frame = frames[identity]
+            frames[identity] = dataset, apply_dimension_filter(
+                dataset, frame, selection,
+                metrics=[item["metric_key"] for item in references if item["dataset_id"] == identity],
+            )
     usable = []
     for reference in references:
         identity = reference["dataset_id"]
@@ -313,6 +322,7 @@ def report_analysis_facts(report):
     facts = {key: report[key] for key in ("business_question", "window", "previous_window", "history_window", "status",
                                         "observations", "contrasts", "warnings", "limitations")}
     facts["metrics"] = [{key: value for key, value in item.items() if key != "trend"} for item in report["metrics"]]
+    facts["dimension_filters"] = report["definition"].get("dimension_filters", [])
     facts["findings"] = [{key: value for key, value in item.items() if key != "evidence"}
                          for item in report["findings"] if item["id"] in report["included_findings"]][:10]
     analysis = report.get("anomaly_analysis")

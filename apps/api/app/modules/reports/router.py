@@ -16,6 +16,7 @@ from app.modules.correlation.service import allowed_run, authorize_datasets, dat
 from app.modules.auth_context import is_client_workspace_role
 from app.modules.datasets.services.auth import get_user_id, get_workspace_id, get_workspace_role, require_workspace_data_manager
 from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
+from app.modules.datasets.services.dimension_filters import DimensionFilterError
 from app.modules.forecasting.services import prepare_forecast_dataframe
 from app.modules.decisions.metric_scope import selected_report_metrics
 from .decision_drafts import is_report_decision_draft
@@ -77,6 +78,8 @@ def generate(db, payload, user, workspace, progress=None):
         progress("computing")
     try:
         result = build_report(frames, definition, unavailable=unavailable)
+    except DimensionFilterError as error:
+        raise HTTPException(422, str(error)) from error
     except (ValueError, KeyError) as error:
         raise HTTPException(400, "The selected metrics, date columns or saved policies are no longer available. Review the selections.") from error
     if source_run:

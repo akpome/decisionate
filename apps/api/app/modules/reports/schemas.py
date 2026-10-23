@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 
 from app.modules.correlation.schemas import AnalysisCreate, LagPolicy, MetricRef, ResultFilters, StrictModel
+from app.modules.datasets.services.dimension_filters import DatasetDimensionFilter
 
 
 MINIMUM_REPORT_OBSERVATIONS = 24
@@ -32,6 +33,7 @@ class ReportPairDirection(StrictModel):
 class ReportDefinition(AnalysisCreate):
     scope: Literal["single", "multi"] = "multi"
     metrics: list[MetricRef] = Field(min_length=1, max_length=25)
+    dimension_filters: list[DatasetDimensionFilter] = Field(default_factory=list, max_length=25)
     seasonal_business: bool = False
     include_ai_analysis: bool = False
     filters: ReportFilters = Field(default_factory=ReportFilters)
@@ -48,6 +50,9 @@ class ReportDefinition(AnalysisCreate):
         if len(identities) != len(self.metrics):
             raise ValueError("Select each dataset metric only once")
         datasets = {item.dataset_id for item in self.metrics}
+        filtered = [item.dataset_id for item in self.dimension_filters]
+        if len(set(filtered)) != len(filtered) or not set(filtered).issubset(datasets):
+            raise ValueError("Choose at most one dimension filter per selected dataset")
         if self.scope == "single":
             if len(datasets) != 1:
                 raise ValueError("Single dataset reports require exactly one dataset")

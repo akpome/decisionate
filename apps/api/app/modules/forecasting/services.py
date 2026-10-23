@@ -746,6 +746,7 @@ def generate_forecast(
             "error": "Forecast data must be tabular"
         }
 
+    dimension_filter = dataframe.attrs.get("dimension_filter")
     date_column, value_column = identify_forecast_columns(dataframe)
 
     if not date_column:
@@ -898,6 +899,7 @@ def generate_forecast(
         model_quality,
     )
     ai_facts = {
+        "dimension_filter": dimension_filter,
         "date_column": str(date_column),
         "value_column": str(value_column),
         "recent_values": [

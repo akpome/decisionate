@@ -18,6 +18,7 @@ vm.runInNewContext(ts.transpileModule(source, {
     if (name === "next/link") return { __esModule: true, default: props => React.createElement("a", props) }
     if (name === "@/app/use-decisionate-language") return { useDecisionateText: () => ({ t: value => value }) }
     if (name === "@/features/relationships/types") return { metricIdentity: metric => `${metric.dataset_id}:${metric.metric_key}` }
+    if (name === "@/features/datasets/components/dimension-filter") return { DatasetDimensionFilter: () => null }
     return require(name)
   },
 })

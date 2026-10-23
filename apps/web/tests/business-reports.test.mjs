@@ -29,6 +29,12 @@ test("empty findings remain empty rather than silently adding all correlations",
   assert.deepEqual(Array.from(editableDefinition({ included_findings: [] }).included_findings), [])
 })
 
+test("saved report dimension filters survive editing and legacy reports default to all rows", () => {
+  const dimension_filters = [{ dataset_id: 7, column: "region", values: ["East", null, ""] }]
+  assert.deepEqual(JSON.parse(JSON.stringify(editableDefinition({ dimension_filters }).dimension_filters)), dimension_filters)
+  assert.deepEqual(Array.from(editableDefinition({}).dimension_filters), [])
+})
+
 test("new reports automatically include findings without checkbox selection", () => {
   assert.equal(editableDefinition({}).included_findings, null)
   assert.equal(editableDefinition({ included_findings: null }).included_findings, null)

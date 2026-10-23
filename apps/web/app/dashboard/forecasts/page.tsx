@@ -13,6 +13,8 @@ import { RecommendationCard }
 import { ForecastSummaryCard }
   from "@/features/dashboard/components/forecast-summary-card"
 import { ForecastBasis } from "@/features/dashboard/components/forecast-basis"
+import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
+import type { DimensionFilter } from "@/lib/api"
 
 import { ApiError, type DatasetSummary, type DecisionConfidenceScore, type ForecastResponse, type ForecastPeriodFilter, type DashboardAggregation, type DashboardValueAggregation, getDatasets, getDatasetMetrics, getForecast } from "@/lib/api";
 import {
@@ -297,6 +299,7 @@ export default function ForecastsPage() {
   const [startDate, setStartDate] =
     useState("")
   const [seasonalBusiness, setSeasonalBusiness] = useState(false)
+  const [dimensionFilter, setDimensionFilter] = useState<DimensionFilter>()
 
   const [loading, setLoading] =
     useState(false)
@@ -385,6 +388,7 @@ export default function ForecastsPage() {
         setAggregationType("sum")
         setStartDate("")
         setSeasonalBusiness(false)
+        setDimensionFilter(undefined)
         setDatasetMetricColumns([])
         setMetricsDatasetId(undefined)
         setMetricsLoadFailedDatasetId(
@@ -569,6 +573,16 @@ export default function ForecastsPage() {
     if (!user?.id) return
     const userId = user.id
     let ignoreResult = false
+    if (dimensionFilter && !dimensionFilter.values.length) {
+      async function clearIncompleteDimension() {
+        setForecast(null)
+        setLoading(false)
+        setPageError("")
+        setForecastUnavailableMessage("")
+      }
+      void clearIncompleteDimension()
+      return
+    }
     const metricsKnownForDataset =
       metricsDatasetId === datasetId
     const metricsLoadFailedForDataset =
@@ -619,6 +633,7 @@ export default function ForecastsPage() {
               aggregation,
               aggregationType,
               seasonalBusiness,
+              dimensionFilter,
             }
           )
 
@@ -699,6 +714,7 @@ export default function ForecastsPage() {
     periodFilter,
     startDate,
     seasonalBusiness,
+    dimensionFilter,
   ])
 
   // Chart data preparation: combines historical values with forecasted periods.
@@ -932,6 +948,7 @@ export default function ForecastsPage() {
     setAggregationType("sum")
     setStartDate("")
     setSeasonalBusiness(false)
+    setDimensionFilter(undefined)
     setDatasetMetricColumns([])
     setMetricsDatasetId(undefined)
     setMetricsLoadFailedDatasetId(undefined)
@@ -1122,6 +1139,10 @@ export default function ForecastsPage() {
               )}
             </label>
           </div>
+
+          {selectedDatasetId && user?.id && <DatasetDimensionFilter key={`${activeWorkspaceId}:${selectedDatasetId}`} datasetId={selectedDatasetId} userId={user.id} workspaceId={activeWorkspaceId} value={dimensionFilter} disabled={metricsLoading} onChange={value => {
+            setDimensionFilter(value); setForecast(null); setPageError(""); setForecastUnavailableMessage("")
+          }} />}
 
           <div className="mt-4 grid min-w-0 gap-3 rounded-lg border border-gray-200 bg-gray-50 px-0 py-2 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
             <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
@@ -1401,6 +1422,7 @@ export default function ForecastsPage() {
           )}
 
           <ForecastBasis basis={forecast.forecast.seasonality} />
+          {forecast.dimension_filter && <p className="break-words text-sm text-gray-600">{t("Filter")}: {dimensionFilterLabel(forecast.dimension_filter)}</p>}
 
           {forecast?.forecast?.recommendation && (
             <div className="mt-5 border-t pt-5">

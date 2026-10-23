@@ -521,6 +521,14 @@ export type DatasetMetricsResponse = {
   metrics: DatasetMetricSummary[]
 }
 
+export type DimensionFilter = { column: string; values: (string | null)[] }
+export type DatasetDimensionFilter = DimensionFilter & { dataset_id: number }
+export type DimensionOptions = {
+  columns: { column: string; label: string }[]
+  values: (string | null)[]
+  next_offset: number | null
+}
+
 export type DatasetAIAnalysisResponse = {
   dataset_id: number
   metric?: string | null
@@ -930,6 +938,7 @@ export type ForecastQueryOptions = {
   aggregation?: DashboardAggregation
   aggregationType?: DashboardValueAggregation
   seasonalBusiness?: boolean
+  dimensionFilter?: DimensionFilter
 }
 
 export type DashboardPreferencePayload = {
@@ -1634,6 +1643,7 @@ export type PublicDemoDashboardResponse =
 export type ForecastResponse = {
   dataset_id: number
   file_name: string
+  dimension_filter?: DimensionFilter | null
   source_type?: string | null
   source_label?: string | null
   source_config?: string | null
@@ -6716,6 +6726,22 @@ export async function removeOrganizationMember(
    Forecast API For Dataset Metric Predictions
 ========================= */
 
+export async function getDatasetDimensions(
+  datasetId: number, userId: string, workspaceId?: string,
+  options: { column?: string; search?: string; offset?: number; signal?: AbortSignal } = {},
+): Promise<DimensionOptions> {
+  const identity = cleanPositiveIntegerId(datasetId, "Dataset id")
+  const query = new URLSearchParams()
+  if (options.column) query.set("column", options.column)
+  if (options.search) query.set("search", options.search)
+  if (options.offset) query.set("offset", String(options.offset))
+  const response = await apiFetch(`${API_URL}/datasets/${identity}/dimensions?${query}`, {
+    signal: options.signal, headers: await workspaceHeaders(userId, workspaceId),
+  })
+  if (!response.ok) await throwApiError(response, "Dimension values could not be loaded")
+  return response.json()
+}
+
 export async function getForecast(
   datasetId: number,
   userId: string,
@@ -6758,11 +6784,12 @@ export async function getForecast(
   queryParams.set("seasonal_business", String(options?.seasonalBusiness ?? false))
   const query = queryParams.toString()
   const forecastQuery = query ? `?${query}` : ""
+  const dimensionBody = options?.dimensionFilter ? JSON.stringify(options.dimensionFilter) : ""
   const cacheKey =
     `forecast:${getWorkspaceCacheIdentity(
       userId,
       workspaceId
-    )}:${cleanDatasetId}:${query}`
+    )}:${cleanDatasetId}:${query}:${dimensionBody}`
 
   return getCachedRead(
     cacheKey,
@@ -6771,10 +6798,9 @@ export async function getForecast(
         await apiFetch(
           `${API_URL}/forecasting/${cleanDatasetId}${forecastQuery}`,
           {
-            headers: await workspaceHeaders(
-              userId,
-              workspaceId
-            ),
+            method: dimensionBody ? "POST" : "GET",
+            headers: { ...await workspaceHeaders(userId, workspaceId), ...(dimensionBody ? { "Content-Type": "application/json" } : {}) },
+            ...(dimensionBody ? { body: dimensionBody } : {}),
           }
         )
 
@@ -6786,6 +6812,10 @@ export async function getForecast(
       }
 
       const result: ForecastResponse = await response.json()
+      if (options?.dimensionFilter && (result.dimension_filter?.column !== options.dimensionFilter.column
+        || JSON.stringify(result.dimension_filter?.values) !== JSON.stringify(options.dimensionFilter.values))) {
+        throw new ApiError("The selected dimension filter could not be applied. Please try again shortly.", 503)
+      }
       if (options?.seasonalBusiness && !result.forecast.seasonality?.requested) {
         throw new ApiError("Seasonal forecasting is temporarily unavailable. Please try again shortly.", 503)
       }
