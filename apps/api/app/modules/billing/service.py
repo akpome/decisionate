@@ -6,6 +6,7 @@ import hmac
 import json
 import os
 import time
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from email.utils import parseaddr
 from urllib.error import HTTPError, URLError
@@ -156,12 +157,16 @@ def _get_platform_billing_settings(db=None):
     owns_db = db is None
     if owns_db:
         db = SessionLocal()
+    # Isolate optional reads without rolling back the caller's credit transaction.
+    # Start outside the fallback handler so unrelated pending-write failures propagate.
+    transaction = nullcontext() if owns_db else db.begin_nested()
     try:
-        return (
-            db.query(PlatformBillingSettings)
-            .filter(PlatformBillingSettings.id == 1)
-            .first()
-        )
+        with transaction:
+            return (
+                db.query(PlatformBillingSettings)
+                .filter(PlatformBillingSettings.id == 1)
+                .first()
+            )
     except Exception:
         return None
     finally:
