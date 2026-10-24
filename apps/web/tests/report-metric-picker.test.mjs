@@ -184,9 +184,22 @@ test("partial availability shows eligible choices and exact excluded field diagn
   assert.match(html, /revenue/)
 })
 
-test("usable datasets appear before empty and unavailable sources", () => {
+test("sources keep catalog order as metrics finish loading so controls do not jump", () => {
   const html = render({ datasets: [dataset({ dataset_id: 2, dataset_label: "Empty.csv", metrics: [] }), dataset()] })
-  assert.ok(html.indexOf("Advertising.csv") < html.indexOf("Empty.csv"))
+  assert.ok(html.indexOf("Empty.csv") < html.indexOf("Advertising.csv"))
+  const pending = render({ datasets: [dataset({ dataset_id: 2, dataset_label: "Empty.csv", catalog_status: "pending" }), dataset()] })
+  assert.ok(pending.indexOf("Empty.csv") < pending.indexOf("Advertising.csv"))
+})
+
+test("source retries are individually labelled and show progress without hiding healthy choices", () => {
+  const datasets = [dataset({ dataset_id: 2, dataset_label: "Failed.csv", metrics: [], error_code: "dataset_unavailable" }), dataset()]
+  const retry = render({ datasets, onRetryDataset() {} })
+  assert.match(retry, /aria-label="Retry: Failed.csv"/)
+  assert.equal((retry.match(/type="checkbox"/g) || []).length, 2)
+  const pending = render({ datasets, onRetryDataset() {}, retryingDataset: 2 })
+  assert.match(pending, /Loading metrics/)
+  assert.doesNotMatch(pending, /Dataset temporarily unavailable|Retry: Failed.csv/)
+  assert.equal((pending.match(/type="checkbox"/g) || []).length, 2)
 })
 
 test("unavailable datasets and old API responses do not invent selection diagnoses", () => {

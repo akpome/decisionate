@@ -9,7 +9,7 @@ const loaded = { exports: {} }
 const source = readFileSync(new URL("../features/reports/report-catalog-loading.ts", import.meta.url), "utf8")
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
   { module: loaded, exports: loaded.exports, Promise })
-const { loadReportCatalogPage } = loaded.exports
+const { loadReportCatalogPage, loadReportCatalogDataset, mergeReportCatalog } = loaded.exports
 const entry = id => ({ dataset_id: id, dataset_label: `Source ${id}`, connector: "csv", metrics: [], date_columns: [], availability: {}, catalog_status: "pending" })
 const ready = id => ({ ...entry(id), catalog_status: undefined, metrics: [{ metric_key: "spend" }] })
 const page = ids => ({ datasets: ids.map(entry), next_offset: null })
@@ -81,4 +81,48 @@ test("pagination and older ready catalog responses do not cause unnecessary repe
     25, new AbortController().signal, value => pages.push(value), () => assert.fail("Already ready"))
   assert.deepEqual(paths, ["/catalog?metadata_only=true&offset=25"])
   assert.equal(pages[0].next_offset, 50)
+})
+
+test("a source retry makes one request instead of rescanning the catalog page", async () => {
+  const paths = [], controller = new AbortController()
+  const result = await loadReportCatalogDataset(async (path, init) => {
+    paths.push(path)
+    assert.equal(init.signal, controller.signal)
+    return { datasets: [ready(17)] }
+  }, entry(17), controller.signal)
+  assert.deepEqual(paths, ["/catalog?dataset_id=17"])
+  assert.equal(result.dataset_id, 17)
+  assert.equal(result.metrics.length, 1)
+})
+
+test("a source retry remains retryable on errors, missing or mismatched source responses", async () => {
+  for (const request of [async () => { throw new Error("Private bucket URL") }, async () => page([]), async () => ({ datasets: [ready(2)] })]) {
+    const result = await loadReportCatalogDataset(request, entry(1), new AbortController().signal)
+    assert.equal(result.dataset_id, 1)
+    assert.equal(result.error_code, "dataset_unavailable")
+    assert.equal(result.catalog_status, undefined)
+    assert.doesNotMatch(JSON.stringify(result), /Private bucket URL/)
+  }
+})
+
+test("a retry cancelled during navigation never returns data for the old workspace", async () => {
+  const controller = new AbortController(), pending = deferred()
+  const work = loadReportCatalogDataset(() => pending.promise, entry(1), controller.signal)
+  controller.abort()
+  pending.resolve({ datasets: [ready(1)] })
+  await assert.rejects(work, error => error.name === "AbortError")
+  await assert.rejects(loadReportCatalogDataset(() => assert.fail("Already cancelled"), entry(1), controller.signal), error => error.name === "AbortError")
+})
+
+test("metadata, resolved metrics and pagination preserve row order and healthy selections", () => {
+  const first = ready(1), second = entry(2)
+  const merged = mergeReportCatalog([first, second], [entry(1), ready(3), ready(2)])
+  assert.deepEqual(Array.from(merged, item => item.dataset_id), [1, 2, 3])
+  assert.equal(merged[0], first)
+  assert.equal(merged[1].metrics.length, 1)
+  assert.equal(first.metrics.length, 1)
+  assert.equal(second.catalog_status, "pending")
+  const updated = ready(1)
+  updated.metrics = [{ metric_key: "revenue" }]
+  assert.equal(mergeReportCatalog(merged, [updated])[0], updated)
 })

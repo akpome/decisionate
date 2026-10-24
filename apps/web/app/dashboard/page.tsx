@@ -554,6 +554,8 @@ export default function DashboardPage() {
     useState<ShareAction | null>(null)
   const [shareEnabled, setShareEnabled] =
     useState(false)
+  const [shareStatusLoading, setShareStatusLoading] =
+    useState(false)
   const shareStatusTimeoutRef =
     useRef<number | null>(null)
   const [sharedConfig] =
@@ -1157,6 +1159,20 @@ export default function DashboardPage() {
   ========================= */
 
   useEffect(() => {
+    if (!selectedDatasetId || !userId || !canConfigureWorkspace) return
+    let isCurrent = true
+    queueMicrotask(() => {
+      if (isCurrent) { setShareEnabled(false); setShareStatusLoading(true) }
+    })
+    // Sharing is optional metadata, not a dependency of the dashboard's data.
+    void getDatasetShareStatus(selectedDatasetId, userId, activeWorkspaceId, selectedDashboard)
+      .then(value => { if (isCurrent) setShareEnabled(value.share_enabled) })
+      .catch(() => { /* A failed status lookup must not hide the dashboard. */ })
+      .finally(() => { if (isCurrent) setShareStatusLoading(false) })
+    return () => { isCurrent = false }
+  }, [selectedDatasetId, userId, activeWorkspaceId, selectedDashboard, canConfigureWorkspace, datasetLoadRetryKey, workspaceVersion])
+
+  useEffect(() => {
     const datasetWorkspaceKey =
       `${activeWorkspaceId}:${workspaceVersion}`
     if (
@@ -1199,7 +1215,6 @@ export default function DashboardPage() {
           datasetResult,
           preferenceResult,
           joinCacheResult,
-          shareResult,
         ] = await Promise.allSettled([
           getDatasetDetails(
             datasetId,
@@ -1220,16 +1235,6 @@ export default function DashboardPage() {
             userId,
             activeWorkspaceId
           ),
-          canConfigureWorkspace
-            ? getDatasetShareStatus(
-                datasetId,
-                userId,
-                activeWorkspaceId,
-                selectedDashboard
-              )
-            : Promise.resolve({
-                share_enabled: false,
-              }),
         ])
 
         if (!isCurrent) {
@@ -1261,11 +1266,6 @@ export default function DashboardPage() {
               selectedDashboard
             )
           )
-        const shareState =
-          shareResult.status === "fulfilled"
-            ? shareResult.value
-            : { share_enabled: false }
-
         const savedTargets =
           preference?.metric_targets ?? {}
 
@@ -1426,9 +1426,6 @@ export default function DashboardPage() {
         })
         setJoinedDatasetResult(
           savedJoinedDatasetResult
-        )
-        setShareEnabled(
-          shareState.share_enabled
         )
         setMetricTargetsByDataset(savedTargets)
         setDashboardPreferencesByDataset(
@@ -3019,6 +3016,8 @@ export default function DashboardPage() {
 
   const shareControlsDisabled =
     dimensionBlocked ||
+    loading ||
+    shareStatusLoading ||
     !selectedDatasetId ||
     !userId ||
     shareAction !== null ||

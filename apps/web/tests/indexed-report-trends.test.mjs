@@ -172,7 +172,9 @@ test("a one-period report has visible points, and metric warnings and numerical 
 
 test("only the combined trend component is wired into the report workspace", () => {
   const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
-  assert.match(source, /import \{ MetricTrends \} from "\.\/report-metric-trends"/)
+  assert.match(source, /dynamic\(\(\) => import\("\.\/report-metric-trends"\)/)
+  assert.doesNotMatch(source, /import \{ MetricTrends \} from/)
+  assert.match(source, /view !== "report" \? null/)
   assert.equal((source.match(/<MetricTrends report=\{report\}/g) || []).length, 1)
   assert.doesNotMatch(source, /<LineChart|<ResponsiveContainer/)
   const translations = readFileSync(new URL("../lib/language.ts", import.meta.url), "utf8")

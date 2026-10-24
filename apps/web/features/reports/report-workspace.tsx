@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Square, Trash2 } from "lucide-react"
 import { correlationRequest, getMyOrganization, getOrganizationWorkspaces } from "@/lib/api"
@@ -13,9 +14,8 @@ import { CorrelationInsights } from "@/features/relationships/correlation-widget
 import { getAIAnalysisProvenance } from "@/features/ai/lib/analysis-copy"
 import { AnalysisNavigation } from "./analysis-navigation"
 import { ReportMetricPicker, reportDateColumn } from "./report-metric-picker"
-import { loadReportCatalogPage } from "./report-catalog-loading"
+import { loadReportCatalogDataset, loadReportCatalogPage, mergeReportCatalog as mergeCatalog } from "./report-catalog-loading"
 import { editableDefinition, selectedReportDimensionFilters, type BusinessReport, type ReportDefinition } from "./types"
-import { MetricTrends } from "./report-metric-trends"
 import { ReportDecisions, ReportRelationshipFindings } from "./report-evidence-sections"
 import { defaultReportName, isDefaultReportName, reportDraftName } from "./default-report-name"
 import { reportPairDirections, reportPairKey, reportTestCount } from "./pair-directions"
@@ -33,7 +33,9 @@ type SavedReport = { report_id: string; name: string; created_at: string }
 type WeeklyTemplate = { report_id: string | null; name: string | null; enabled: boolean }
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Report unavailable. Your selections have been preserved."
 
-const mergeCatalog = (current: CatalogDataset[], added: CatalogDataset[]) => [...new Map([...current, ...added].map(item => [item.dataset_id, item])).values()]
+const MetricTrends = dynamic(() => import("./report-metric-trends").then(module => module.MetricTrends), {
+  loading: () => <div role="status" className="flex min-h-80 items-center justify-center gap-2 text-sm text-gray-600"><LoaderCircle size={16} className="animate-spin" />Loading charts...</div>,
+})
 
 async function hydrateCatalog(userId: string, workspaceId: string | undefined, current: CatalogDataset[], value: ReportDefinition, signal: AbortSignal) {
   let result = current
@@ -55,6 +57,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const analysisSubmission = useRef(false)
   const draftName = useRef("")
   const managementAction = useRef(false)
+  const catalogRetry = useRef(false)
   const deletedReports = useRef(new Set<string>())
   const routeController = useRef<AbortController | null>(null)
   const [datasets, setDatasets] = useState<CatalogDataset[]>([])
@@ -64,6 +67,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [catalogReload, setCatalogReload] = useState(0)
   const [catalogBusy, setCatalogBusy] = useState(true)
   const [catalogError, setCatalogError] = useState(false)
+  const [retryingDataset, setRetryingDataset] = useState<number | null>(null)
   const [historyError, setHistoryError] = useState(false)
   const [historyReload, setHistoryReload] = useState(0)
   const [weeklyTemplate, setWeeklyTemplate] = useState<WeeklyTemplate | null>(null)
@@ -100,7 +104,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     const controller = new AbortController()
     const request = <T,>(path: string, init: RequestInit) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
     void loadReportCatalogPage(request, catalogOffset, controller.signal, page => {
-      setDatasets(current => mergeCatalog(page.datasets, current)); setNextOffset(page.next_offset)
+      setDatasets(current => mergeCatalog(current, page.datasets)); setNextOffset(page.next_offset)
     }, dataset => setDatasets(current => mergeCatalog(current, [dataset])))
       .catch(() => { if (!controller.signal.aborted) setCatalogError(true) })
       .finally(() => { if (!controller.signal.aborted) setCatalogBusy(false) })
@@ -208,9 +212,24 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   }, [userId, workspaceId])
 
   function refreshCatalog() {
-    if (catalogBusy) return
+    if (catalogBusy || catalogRetry.current) return
     setCatalogBusy(true); setCatalogError(false)
     setCatalogOffset(0); setCatalogReload(value => value + 1)
+  }
+
+  async function retryDataset(dataset: CatalogDataset) {
+    const signal = routeController.current?.signal
+    if (!signal || signal.aborted || catalogBusy || catalogRetry.current) return
+    catalogRetry.current = true
+    setRetryingDataset(dataset.dataset_id)
+    try {
+      const resolved = await loadReportCatalogDataset(request, dataset, signal)
+      if (!signal.aborted) setDatasets(current => mergeCatalog(current, [resolved]))
+    } catch { /* Navigation cancels the source retry without changing the new workspace. */ }
+    finally {
+      catalogRetry.current = false
+      if (!signal.aborted) setRetryingDataset(null)
+    }
   }
 
   function edit(patch: Partial<ReportDefinition>) {
@@ -387,7 +406,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         {canManage && report?.report_id && <button type="button" className={`${button} text-red-700`} disabled={busy} title={t("Delete saved report")} aria-label={t("Delete saved report")} onClick={() => void deleteSavedReport()}><Trash2 size={16} /></button>}
       </div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className={button} disabled={busy || catalogBusy} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>
+        <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>
         {report && <>
           <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id)} onClick={() => void execute(async () => { await saveSnapshot(); setMessage("Report snapshot saved.") })}><Save size={16} />Save snapshot</button>
           {!single && <button type="button" className={button} disabled={busy || !canManage || weeklyTemplate?.report_id === report.report_id && Boolean(report.report_id)} onClick={() => void saveWeeklyTemplate()}><CalendarDays size={16} />{weeklyTemplate?.report_id === report.report_id && report.report_id ? "Weekly template selected" : "Use for weekly report"}</button>}
@@ -413,10 +432,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <ReportMetricPicker userId={userId} workspaceId={workspaceId} dimensionFilters={definition.dimension_filters} onDimensionFilterChange={(identity, filter) => edit({ dimension_filters: [
               ...(definition.dimension_filters || []).filter(item => item.dataset_id !== identity), ...(filter ? [{ dataset_id: identity, ...filter }] : []),
-            ] })} datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} singleDataset={single} loading={catalogBusy} error={catalogError} onRetry={refreshCatalog} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
+            ] })} datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} singleDataset={single} loading={catalogBusy} error={catalogError} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} retryingDataset={retryingDataset} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
               setDateColumns(current => ({ ...current, [dataset.dataset_id]: column }))
               edit({ metrics: definition.metrics.map(item => item.dataset_id === dataset.dataset_id ? { ...item, date_column: column } : item) })
-            }} footer={nextOffset !== null && <button type="button" className={button} disabled={busy || catalogBusy} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>} />
+            }} footer={nextOffset !== null && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>} />
             <section className="report-builder-section gap-4" aria-label="Analysis settings">
               <h2 className="shrink-0 text-base font-semibold">Analysis settings</h2>
               <div className="grid shrink-0 grid-cols-2 gap-3"><label className="block text-xs text-gray-600">Start<input className={input} type="date" required max={definition.date_range.end || undefined} value={definition.date_range.start} onChange={event => edit({ date_range: { ...definition.date_range, start: event.target.value } })} /></label><label className="block text-xs text-gray-600">End<input className={input} type="date" required min={definition.date_range.start || undefined} value={definition.date_range.end} onChange={event => edit({ date_range: { ...definition.date_range, end: event.target.value } })} /></label></div>
@@ -442,7 +461,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     </section>
 
     <section role="tabpanel" id="report-report" aria-labelledby="tab-report" hidden={view !== "report"} className="space-y-6">
-      {!report ? <div className="border-y border-gray-200 py-12 text-center"><FileText className="mx-auto text-gray-400" size={32} /><h2 className="mt-3 text-lg font-medium">No report generated</h2><button type="button" className={`${button} mt-4`} onClick={() => setView("explore")}><ChartNoAxesCombined size={16} />{t("Build report")}</button></div> : <>
+      {view !== "report" ? null : !report ? <div className="border-y border-gray-200 py-12 text-center"><FileText className="mx-auto text-gray-400" size={32} /><h2 className="mt-3 text-lg font-medium">No report generated</h2><button type="button" className={`${button} mt-4`} onClick={() => setView("explore")}><ChartNoAxesCombined size={16} />{t("Build report")}</button></div> : <>
         <header className="border-b border-gray-200 pb-5"><div className="flex items-center gap-3"><WorkspaceBrandMark name={brand.name} logoUrl={brand.logoUrl} primaryColor={brand.primaryColor} className="h-10 w-10 rounded-md text-sm" /><span className="text-sm font-medium">{brand.name}</span></div><h2 className="mt-4 break-words text-2xl font-semibold">{report.name}</h2><p className="mt-2 break-words text-base text-gray-700">{report.business_question}</p><p className="mt-2 text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.grain} / {report.dataset_count} datasets / Generated {report.generated_at.slice(0, 10)}</p></header>
         <ReportOverview report={report} />
         {(report.definition.dimension_filters || []).map(selection => <p key={selection.dataset_id} className="break-words text-sm text-gray-600"><span className="font-medium">{report.metrics.find(metric => metric.dataset_id === selection.dataset_id)?.dataset_label || `Dataset ${selection.dataset_id}`}</span> / {dimensionFilterLabel(selection)}</p>)}

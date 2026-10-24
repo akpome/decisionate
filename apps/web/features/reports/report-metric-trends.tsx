@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { formatReportValue, type BusinessReport } from "./types"
@@ -44,8 +45,8 @@ export function IndexedTrendTooltip({ active, row, series }: { active: boolean; 
 
 export function MetricTrends({ report }: { report: BusinessReport }) {
   const { t } = useDecisionateText()
-  const data = indexedMetricTrends(report.metrics)
-  const rows = new Map(data.rows.map(row => [row.period, row]))
+  const data = useMemo(() => indexedMetricTrends(report.metrics), [report.metrics])
+  const rows = useMemo(() => new Map(data.rows.map(row => [row.period, row])), [data.rows])
   return <section className="min-w-0 space-y-5" aria-label={t("Metric comparisons")}>
     <div className={`grid min-w-0 gap-4 md:grid-cols-2 ${report.metrics.length >= 3 ? "xl:grid-cols-3" : ""}`}>
       {data.series.map(item => {
