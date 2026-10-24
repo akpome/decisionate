@@ -3,7 +3,7 @@ import { PolicyPage, PolicySection } from "@/components/landing/policy-page"
 
 export const metadata = {
   title: "Security",
-  description: "Decisionate's implemented access controls, credential protection, production safeguards, retention, and security reporting."
+  description: "Decisionate's workspace and report-job access controls, credential protection, AI context, storage, retention, and security reporting."
 }
 
 export default function SecurityPage() {
@@ -12,7 +12,7 @@ export default function SecurityPage() {
       eyebrow="Trust"
       title="Security"
       description="The application controls in place today, their limits, and how to report a concern."
-      updated="October 22, 2026"
+      updated="October 23, 2026"
     >
       <PolicySection title="1. Accounts and authentication">
         <p>
@@ -36,6 +36,13 @@ export default function SecurityPage() {
           membership and role. A workspace ID supplied by a browser is not permission
           to access that workspace. Agency-managed client workspaces have separate
           access checks, and platform administration requires a separate role.
+        </p>
+        <p>
+          Report-job access is scoped to the submitting user and workspace, with
+          dataset permission checks when jobs are retrieved. Saved reports also
+          require access to their source datasets. Date and dimension filters
+          narrow analytical inputs; they are not access controls or anonymization.
+          Selected unique values, labels, and small groups can identify people.
         </p>
         <p>
           Owners control member access and sharing. An intentionally enabled public
@@ -62,6 +69,12 @@ export default function SecurityPage() {
           Removing a connection removes its stored credentials but does not delete
           datasets already imported through it.
         </p>
+        <p>
+          Where date-based imports are supported, the initial sync requests 90 days
+          before older available history is loaded in checkpointed background
+          chunks, up to three years. Chunking reduces work per import and supports
+          resumption; it does not extend provider permissions or history coverage.
+        </p>
       </PolicySection>
 
       <PolicySection title="4. Production safeguards and storage">
@@ -79,6 +92,16 @@ export default function SecurityPage() {
           deployment and provider settings. We do not claim end-to-end encryption
           of analytical data or immediate erasure from every backup.
         </p>
+        <p>
+          Report relationship analysis, report anomaly checks, and weekly report
+          processing use a separate analysis worker and durable database jobs.
+          Job records contain submitted settings, source references, status, and
+          results; closing the browser does not delete them. Saved report
+          definitions and result snapshots are also database records, not just
+          temporary browser content. Separate processing is not by itself a
+          security sandbox; it relies on the configured application, hosting,
+          database, and storage access controls.
+        </p>
       </PolicySection>
 
       <PolicySection title="5. AI and payments">
@@ -87,6 +110,11 @@ export default function SecurityPage() {
           aggregate facts, selected context, and relevant user-authored decision
           learning to the configured provider. Such text can contain personal
           information, so avoid secrets and unnecessary sensitive details.
+          Requested report interpretation can include business questions,
+          selected dimension filter values, and bounded unusual-change and
+          seasonal-analysis results. These summaries are not an upload of the
+          raw dataset file or every source row, but they should not be assumed
+          to be anonymous.
           Outputs require human review and do not automatically execute business actions.
         </p>
         <p>
@@ -106,6 +134,16 @@ export default function SecurityPage() {
           and operational metadata may still be processed for diagnosis.
         </p>
         <p>
+          Report processing has per-workspace queue limits, bounded metric and
+          lag-test counts, and supervised execution timeouts. During execution,
+          the worker rechecks workspace access, source versions, and weekly
+          delivery settings where applicable; detected changes can stop work and
+          require a fresh preview. Interrupted email delivery is not blindly
+          resent: delivery history and provider logs must be checked before retrying.
+          These controls do not guarantee uninterrupted availability or exactly-once
+          email delivery.
+        </p>
+        <p>
           Automated tests cover authentication, workspace permissions, credential
           protection, retention, and production configuration. These checks are
           not a security certification, an independent penetration-test report, or
@@ -120,6 +158,17 @@ export default function SecurityPage() {
           window covers a rolling three calendar years, enforced during
           sync and scheduled maintenance. This rule does not automatically delete
           manually uploaded datasets, decisions, or account settings.
+        </p>
+        <p>
+          Finished analysis-job records are eligible for cleanup after seven days,
+          or 90 days for weekly-send jobs. This cleanup runs while the analysis
+          worker operates and does not delete saved report snapshots or copied
+          decision evidence. Authorized deletion of a saved report removes its
+          associated saved-report job records but preserves source datasets and
+          linked decisions, including copied evidence. Deleting the report used
+          as the weekly template also removes that template and pauses delivery;
+          removing only the template keeps the saved report. Deletion and revoked
+          sharing do not recall previously downloaded files or delivered emails.
         </p>
         <p>
           After trial or subscription expiry, analytical dataset storage becomes

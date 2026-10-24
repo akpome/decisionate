@@ -51,8 +51,7 @@ test("all policies match connector and expiry retention constants", () => {
   assert.match(expiry, /SUBSCRIPTION_EXPIRY_DATA_PURGE_DAYS = 89/)
   assert.match(expiry, /SUBSCRIPTION_CANCELLATION_DATA_PURGE_DAYS = 90/)
   for (const { name, source } of policies) {
-    const date = name === "security" ? "October 22, 2026" : "October 23, 2026"
-    assert.ok(source.includes(`updated="${date}"`), name)
+    assert.ok(source.includes('updated="October 23, 2026"'), name)
     assert.match(source, /three years, then deleted/, name)
     assert.match(source, /three calendar years/, name)
     assert.doesNotMatch(source, /preceding 35 months/, name)
@@ -115,6 +114,41 @@ test("terms explain filtered, indexed, seasonal and queued analysis with explici
   for (const pattern of [/initial syncing requests 90 days/, /checkpointed background chunks/, /matching observations/, /shared baseline of 100, not amounts in the original units/, /do not establish causation, attribution/, /sufficient suitable history/, /latest complete week/, /Choosing a template does not itself enable email delivery/, /reopening one does not automatically recompute it/, /does not itself record a business action/]) {
     assert.match(source, pattern)
   }
+})
+
+test("security describes scoped report-job access, worker checks and bounded execution", () => {
+  const source = policies[2].source
+  for (const pattern of [/scoped to the submitting user and workspace/, /Saved reports also require access to their source datasets/, /not access controls or anonymization/, /separate analysis worker and durable database jobs/, /not by itself a security sandbox/, /per-workspace queue limits/, /supervised execution timeouts/, /rechecks workspace access, source versions/, /not blindly resent/, /do not guarantee uninterrupted availability or exactly-once email delivery/]) {
+    assert.match(source, pattern)
+  }
+  const jobs = read("../../api/app/modules/reports/jobs.py")
+  assert.match(jobs, /filter_by\(id=identity, workspace_id=workspace, user_id=user\)/)
+  assert.match(jobs, /ReportAnalysisJob\.status\.in_\(ACTIVE\)\)\.count\(\) >= 3/)
+  const worker = read("../../api/app/infrastructure/analysis_worker.py")
+  for (const pattern of [/verify_job_actor\(job\)/, /authorize_datasets\(db, job\.user_id, job\.workspace_id/, /snapshot\(datasets\) != expected/, /weekly_configuration\(db, preference, job\.workspace_id\)/, /ANALYSIS_JOB_TIMEOUT_SECONDS/, /No automatic resend/]) {
+    assert.match(worker, pattern)
+  }
+})
+
+test("security distinguishes analysis-job cleanup from snapshots and retained decision evidence", () => {
+  const source = policies[2].source
+  for (const pattern of [/eligible for cleanup after seven days, or 90 days for weekly-send jobs/, /cleanup runs while the analysis worker operates/, /does not delete saved report snapshots or copied decision evidence/, /preserves source datasets and linked decisions/, /pauses delivery/, /do not recall previously downloaded files or delivered emails/]) {
+    assert.match(source, pattern)
+  }
+  const worker = read("../../api/app/infrastructure/analysis_worker.py")
+  assert.match(worker, /ReportAnalysisJob\.status\.notin_\(ACTIVE\)/)
+  assert.match(worker, /ReportAnalysisJob\.kind != "weekly_send"[\s\S]*timedelta\(days=7\)/)
+  assert.match(worker, /ReportAnalysisJob\.completed_at < utc_now\(\) - timedelta\(days=90\)/)
+  assert.match(worker, /time\.monotonic\(\) - last_cleanup > 3600/)
+})
+
+test("security describes bounded imports and identifiable AI report context without anonymity guarantees", () => {
+  const source = policies[2].source
+  for (const pattern of [/initial sync requests 90 days/, /checkpointed background chunks/, /does not extend provider permissions/, /selected dimension filter values/, /seasonal-analysis results/, /not an upload of the raw dataset file or every source row/, /should not be assumed to be anonymous/]) {
+    assert.match(source, pattern)
+  }
+  assert.match(read("../../api/app/modules/datasets/router.py"), /INITIAL_CONNECTOR_SYNC_DAYS = 90/)
+  assert.match(read("../../api/app/modules/reports/service.py"), /facts\["dimension_filters"\]/)
 })
 
 test("AI and billing descriptions are direct while security claims remain bounded", () => {
