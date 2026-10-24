@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import sys
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -28,15 +27,6 @@ from app.infrastructure.object_storage import (
 from app.modules.datasets.services.analytics_storage import (
     normalize_analytics_identifier,
 )
-
-
-def _safe_filename(value: str | None) -> str:
-    clean_value = re.sub(
-        r"[^A-Za-z0-9._-]+",
-        "-",
-        str(value or "dataset.parquet").strip(),
-    ).strip(".-")
-    return clean_value or "dataset.parquet"
 
 
 def _hash_file(path: Path) -> str:

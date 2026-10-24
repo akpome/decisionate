@@ -1,4 +1,3 @@
-import asyncio
 from io import BytesIO, StringIO
 from contextlib import contextmanager, redirect_stdout
 from datetime import timedelta
@@ -24,7 +23,7 @@ from starlette.responses import JSONResponse
 
 from app import main
 from app.db.database import Base
-from app.db.models import DataIngestionJob, DatasetAnalysis, DataSourceConnection, WorkspaceSubscription
+from app.db.models import DataIngestionJob, DataSourceConnection, WorkspaceSubscription
 from app.infrastructure import ingestion_jobs, ingestion_worker, monitoring
 from app.modules import auth_context
 from app.modules.ai import credits

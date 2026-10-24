@@ -8,11 +8,11 @@ const require = createRequire(import.meta.url), React = require("react"), ts = r
 const { renderToStaticMarkup } = require("react-dom/server")
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8")
 function load(path, imports = {}, globals = {}) {
-  const module = { exports: {} }
+  const loaded = { exports: {} }
   vm.runInNewContext(ts.transpileModule(read(path), { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
-  } }).outputText, { module, exports: module.exports, require: name => imports[name] || require(name), URLSearchParams, AbortController, Error, ...globals })
-  return module.exports
+  } }).outputText, { module: loaded, exports: loaded.exports, require: name => imports[name] || require(name), URLSearchParams, AbortController, Error, ...globals })
+  return loaded.exports
 }
 const destinations = load("../features/reports/legacy-relationship-destination.ts")
 

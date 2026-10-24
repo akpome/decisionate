@@ -1,7 +1,8 @@
-import { Insight } from "../utils/generate-insights"
-
 interface InsightCardProps {
-  insight: Insight
+  insight: {
+    title: string
+    description: string
+  }
   label?: string
 }
 
@@ -25,7 +26,6 @@ export function InsightCard({
         <p className="break-words text-sm leading-6 text-gray-600">
           {insight.description}
         </p>
-
 
       </div>
     </div>

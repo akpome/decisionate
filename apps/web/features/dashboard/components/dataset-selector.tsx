@@ -15,9 +15,6 @@ import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
 import {
-  useDashboardSessionUserId,
-} from "@/lib/dashboard-session-context"
-import {
   getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
 import { useDecisionateText } from "@/app/use-decisionate-language"
@@ -62,12 +59,9 @@ export function DatasetSelector({
     userId,
   } = useAuth()
   const { user } = useUser()
-  const serverUserId =
-    useDashboardSessionUserId()
   const resolvedUserId =
     userId ??
-    user?.id ??
-    serverUserId
+    user?.id
   const {
     activeWorkspaceId,
     workspaceVersion,

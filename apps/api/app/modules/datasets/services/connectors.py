@@ -22,7 +22,7 @@ from xml.etree import ElementTree
 
 import pandas as pd
 
-from app.modules.datasets.services.connector_schema import normalize_connector_row_schema
+from app.modules.datasets.services.connector_schema import normalize_connector_row_schema as normalize_connector_row_schema
 from app.modules.datasets.services.receipt_metrics import receipt_document_columns
 from app.configuration import get_provider_setting
 from app.db.models import DataSourceConnection
@@ -77,11 +77,6 @@ DATABASE_DEFAULT_PORTS = {
     "postgresql": 5432,
     "mysql": 3306,
     "sql_server": 1433,
-}
-SALESFORCE_OBJECT_TYPES = {
-    "Account",
-    "Lead",
-    "Opportunity",
 }
 SALESFORCE_RESOURCE_TYPES = {
     "accounts": "Account",
@@ -611,14 +606,6 @@ QUICKBOOKS_RESOURCE_ALIASES = {
     "vendor": "vendors",
     "item": "products_services",
     "account": "accounts",
-}
-QUICKBOOKS_TRANSACTION_RESOURCES = {
-    "invoices",
-    "payments",
-    "sales_receipts",
-    "estimates",
-    "bills",
-    "purchases",
 }
 QUICKBOOKS_LINE_ITEM_RESOURCES = {
     "invoices",
@@ -1542,11 +1529,6 @@ def _is_transaction_metric(column_name: str) -> bool:
             for suffix in TRANSACTION_METRIC_SUFFIXES
         )
     )
-
-
-def _is_lightspeed_transaction_metric(column_name: str) -> bool:
-    """Backward-compatible alias for the Lightspeed transaction rule."""
-    return _is_transaction_metric(column_name)
 
 
 def _parent_values_for_item_row(parent_row: dict, line_index: int, source_type=None, resource=None) -> dict:
@@ -8109,13 +8091,6 @@ def get_meta_ads_time_increment() -> str:
             "META_ADS_TIME_INCREMENT must be an integer from 1 to 90 or all"
         )
     return str(increment)
-
-
-def get_next_link(link_header: str | None) -> str | None:
-    if not link_header:
-        return None
-    match = re.search(r"<([^>]+)>;\s*rel=\"next\"", link_header)
-    return match.group(1) if match else None
 
 
 def filter_date_range(

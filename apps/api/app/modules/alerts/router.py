@@ -55,9 +55,6 @@ from app.modules.ai.learning import (
 from app.modules.datasets.services.dataset_loader import (
     load_dataframe_from_dataset,
 )
-from app.modules.datasets.services.deduplication import (
-    deduplicate_text_items,
-)
 from app.modules.datasets.services.relationships import (
     build_dataset_relationship,
     relationship_definition_from_record,
@@ -467,65 +464,6 @@ def get_metric_number(
     return None
 
 
-def build_digest_recommendations(
-    preference: WeeklyReportPreferenceResponse,
-    metrics: list[dict],
-    unavailable_datasets: list[str],
-) -> list[str]:
-    recommendations = []
-
-    if not preference.metric_focus and not preference.relationship_focus:
-        recommendations.append(
-            "Select KPI metrics from your datasets before enabling weekly notifications."
-        )
-
-    if preference.enabled and not preference.recipient_emails:
-        recommendations.append(
-            "Add at least one recipient so the enabled KPI notification can be delivered."
-        )
-
-    if unavailable_datasets:
-        recommendations.append(
-            "Review unavailable datasets before sending the next KPI notification."
-        )
-
-    if not metrics and not preference.relationship_focus:
-        recommendations.append(
-            "No matching dataset metrics are available yet. Upload or sync data with numeric KPI columns."
-        )
-
-    for metric in metrics[:3]:
-        column = metric["column"]
-        dataset_name = metric["dataset_name"]
-        total = metric.get("total")
-        average = metric.get("average")
-        target = metric.get("target")
-
-        if total is not None:
-            recommendation = (
-                f"Review total {column} from {dataset_name}: "
-                f"{total:,.2f}."
-            )
-        elif average is not None:
-            recommendation = (
-                f"Review average {column} from {dataset_name}: "
-                f"{average:,.2f}."
-            )
-        else:
-            recommendation = (
-                f"Review {column} from {dataset_name}."
-            )
-
-        if target is not None:
-            recommendation += (
-                f" Optional KPI target: {target:,.2f}."
-            )
-
-        recommendations.append(recommendation)
-
-    return deduplicate_text_items(recommendations)[:5]
-
-
 def clean_weekly_report_brand_color(
     value: str | None,
     default: str,
@@ -610,17 +548,6 @@ def build_weekly_report_review_url() -> str | None:
         )
     except Exception:
         return None
-
-
-def get_weekly_report_brand_name(
-    db,
-    workspace_id: str,
-) -> str:
-    """Keep the existing brand-name helper for non-email callers."""
-    return get_weekly_report_branding(
-        db,
-        workspace_id,
-    )["brand_name"]
 
 
 def build_weekly_report_digest(

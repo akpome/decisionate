@@ -10,14 +10,14 @@ const ts = require("typescript")
 const { outputText } = ts.transpileModule(readFileSync(new URL("../features/datasets/components/curated-metric-picker.tsx", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2021 },
 })
-const module = { exports: {} }
-vm.runInNewContext(outputText, { module, exports: module.exports, require: name => {
+const loaded = { exports: {} }
+vm.runInNewContext(outputText, { module: loaded, exports: loaded.exports, require: name => {
   if (name === "react/jsx-runtime") return require(name)
   if (name === "lucide-react") return require(name)
   if (name === "@/features/dashboard/components/metric-selector") return { formatMetricLabel: name => name.replaceAll("_", " ") }
   throw Error(`Unexpected import: ${name}`)
 } })
-const { CuratedMetricPicker, getRecommendedMetricKeys } = module.exports
+const { CuratedMetricPicker, getRecommendedMetricKeys } = loaded.exports
 const metric = (columnKey, aggregation = "SUM") => ({ columnKey, semanticKey: columnKey, aggregation, unit: "count", reason: `${columnKey} definition` })
 const recommendations = {
   policyVersion: "v1", recommended: [metric("clicks"), metric("impressions")],

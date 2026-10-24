@@ -12,7 +12,6 @@ from app.modules.datasets.router import (
     normalize_connector_dataframe_for_parquet,
     normalize_connector_partition_month,
     deduplicate_sage_dataframe,
-    strip_sage_metadata_columns,
     write_connector_monthly_partitions,
 )
 

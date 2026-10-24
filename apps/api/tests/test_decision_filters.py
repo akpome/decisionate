@@ -135,6 +135,20 @@ from app.modules.decisions.schemas import (
 
 
 class DecisionFilterTests(unittest.TestCase):
+    def test_activity_filters_keep_identity_validation_without_unused_bindings(self):
+        for activity_filter in (
+            filter_decision_activities_for_workspace,
+            filter_decision_activity_feed_for_workspace,
+        ):
+            with self.subTest(activity_filter=activity_filter.__name__), patch(
+                "app.modules.decisions.router.get_active_user_id",
+                side_effect=HTTPException(status_code=401, detail="Sign in required"),
+            ) as validate_identity:
+                with self.assertRaises(HTTPException) as raised:
+                    activity_filter("", "workspace-1")
+                self.assertEqual(raised.exception.status_code, 401)
+                validate_identity.assert_called_once_with("")
+
     def setUp(self):
         self.user_reference_patch = patch(
             "app.modules.decisions.router.resolve_user_reference",

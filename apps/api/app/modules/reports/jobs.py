@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 
 from app.db.database import SessionLocal
-from app.db.models import Dataset, IngestionWorkerHeartbeat, WeeklyReportPreference, utc_now
+from app.db.models import IngestionWorkerHeartbeat, utc_now
 from app.infrastructure.ingestion_jobs import lock_workspace_queue
 from app.modules.correlation.catalog import reporting_timezone
 from app.modules.correlation.service import allowed_run, authorize_datasets, digest, encode, snapshot

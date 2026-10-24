@@ -1715,7 +1715,6 @@ export type ForecastSeasonality = {
   warnings: string[]
 }
 
-
 /* =========================
    Decision API Response Types For Portfolio And Detail Pages
 ========================= */
@@ -3638,23 +3637,6 @@ export async function runEntityMatching(
   return response.json()
 }
 
-export async function getCanonicalEntities(
-  entityType: EntityType,
-  userId: string,
-  workspaceId?: string
-): Promise<EntityMatchingRun["entities"]> {
-  const response = await apiFetch(
-    `${API_URL}/datasets/entities?entity_type=${encodeURIComponent(entityType)}`,
-    {
-      headers: await workspaceHeaders(userId, workspaceId),
-    }
-  )
-  if (!response.ok) {
-    await throwApiError(response, "Failed to load canonical entities")
-  }
-  return response.json()
-}
-
 export async function getDatasetJoinMetadata(
   datasetIds: number[],
   userId: string,
@@ -4008,31 +3990,6 @@ export async function getDatasetSources(
   return data.sources ?? []
 }
 
-export async function getAnalyticsEngineStatus(
-  userId: string,
-  workspaceId?: string
-): Promise<AnalyticsEngineStatus> {
-  const response =
-    await apiFetch(
-      `${API_URL}/datasets/analytics/status`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId ?? userId
-        ),
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load analytics engine status"
-    )
-  }
-
-  return response.json()
-}
-
 export async function getDataSourceConnections(
   userId: string,
   workspaceId?: string
@@ -4131,58 +4088,6 @@ export async function getWeeklyReportDeliveryConfig(
     await throwApiError(
       response,
       "Failed to load weekly report delivery configuration"
-    )
-  }
-
-  return response.json()
-}
-
-export async function getWeeklyReportDeliveryHistory(
-  userId: string,
-  workspaceId?: string,
-  limit = 20
-): Promise<WeeklyReportDeliveryLog[]> {
-  const response =
-    await apiFetch(
-      `${API_URL}/alerts/weekly-report/delivery-history?limit=${limit}`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
-        cache: "no-store",
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load weekly report delivery history"
-    )
-  }
-
-  return response.json()
-}
-
-export async function getAIStatus(
-  userId: string,
-  workspaceId?: string
-): Promise<AIStatus> {
-  const response =
-    await apiFetch(
-      `${API_URL}/ai/status`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load AI status"
     )
   }
 
@@ -4976,25 +4881,6 @@ export async function removePlatformAdminMember(
   }
 }
 
-export async function getApiHealthStatus(): Promise<ApiHealthStatus> {
-  const response =
-    await apiFetch(
-      `${API_URL}/health`,
-      {
-        cache: "no-store",
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load API health status"
-    )
-  }
-
-  return response.json()
-}
-
 export async function updateWeeklyReportPreference(
   payload: WeeklyReportPreference,
   userId: string,
@@ -5023,15 +4909,6 @@ export async function updateWeeklyReportPreference(
   }
 
   return response.json()
-}
-
-export async function sendWeeklyReportNow(
-  userId: string,
-  workspaceId?: string
-): Promise<WeeklyReportDeliveryResult> {
-  const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
-  const job = await request<AnalysisJob>("/weekly-jobs?send=true&include_ai_analysis=true", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() } })
-  return waitForAnalysis<WeeklyReportDeliveryResult>(request, job.job_id)
 }
 
 export async function sendWeeklyReportTestEmail(
@@ -5880,62 +5757,6 @@ export async function getDatasetAIAnalysis(
   )
 }
 
-export async function analyzeMultipleDatasetMetrics(
-  payload: DatasetMultiMetricAnalysisPayload,
-  userId: string,
-  workspaceId?: string
-): Promise<DatasetMultiMetricAnalysis> {
-  const response = await apiFetch(
-    `${API_URL}/datasets/multi-metric-analysis`,
-    {
-      method: "POST",
-      headers: await workspaceJsonHeaders(userId, workspaceId),
-      body: JSON.stringify(payload),
-    }
-  )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to analyze selected metrics"
-    )
-  }
-
-  return response.json()
-}
-
-export async function getDatasetAnalytics(
-  id: number,
-  userId: string,
-  workspaceId?: string
-): Promise<DatasetAnalyticsManifest> {
-  const cleanDatasetId =
-    cleanPositiveIntegerId(
-      id,
-      "Dataset id"
-    )
-
-  const response =
-    await apiFetch(
-      `${API_URL}/datasets/${cleanDatasetId}/analytics`,
-      {
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId
-        ),
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to load dataset analytics"
-    )
-  }
-
-  return response.json()
-}
-
 export async function getPublicSharedDashboard(
   datasetId: number,
   token: string,
@@ -6657,40 +6478,6 @@ export async function addOrganizationInvite(
   return response.json()
 }
 
-export async function addOrganizationMember(
-  payload: OrganizationMemberCreatePayload,
-  userId: string,
-  workspaceId?: string
-): Promise<OrganizationMemberRecord> {
-  const response =
-    await fetchOrganizationRequest(
-      `${API_URL}/organizations/members`,
-      {
-        method: "POST",
-        headers: await workspaceJsonHeaders(
-          userId,
-          workspaceId
-        ),
-        body: JSON.stringify(
-          payload
-        ),
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to add organization member"
-    )
-  }
-
-  invalidateApiReadCache([
-    `organization-workspaces:${userId.trim()}`,
-  ])
-
-  return response.json()
-}
-
 export async function removeOrganizationInvite(
   inviteId: number,
   userId: string,
@@ -7371,45 +7158,6 @@ export async function getDecisionTemplates(
   return response.json()
 }
 
-export async function updateDecision(
-  decisionId: number,
-  status: DecisionStatus,
-  userId: string,
-  workspaceId?: string
-): Promise<DecisionRecord> {
-  const cleanDecisionId =
-    cleanPositiveIntegerId(
-      decisionId,
-      "Decision id"
-    )
-
-  const response =
-    await apiFetch(
-      `${API_URL}/decisions/${cleanDecisionId}`,
-      {
-        method: "PATCH",
-
-        headers: await decisionHeaders(
-          userId,
-          workspaceId
-        ),
-
-        body: JSON.stringify({
-          status,
-        }),
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to update decision"
-    )
-  }
-
-  return response.json()
-}
-
 /* =========================
    Decision Detail Consolidated Edit API For Overview And Details Cards
 ========================= */
@@ -7873,7 +7621,6 @@ export async function measureDecisionOutcome(
   return response.json()
 }
 
-
 export async function updateDecisionLearning(
   decisionId: number,
   lessonsLearned: string | null,
@@ -7915,161 +7662,8 @@ export async function updateDecisionLearning(
 }
 
 /* =========================
-   Legacy Single Field Decision Edit API For Older UI Calls
+   Support Requests
 ========================= */
-
-export async function updateDecisionReviewDate(
-  decisionId: number,
-  reviewDate: string | null,
-  userId: string,
-  workspaceId?: string
-): Promise<DecisionRecord> {
-  const cleanDecisionId =
-    cleanPositiveIntegerId(
-      decisionId,
-      "Decision id"
-    )
-
-  const response =
-    await apiFetch(
-      `${API_URL}/decisions/${cleanDecisionId}/review-date`,
-      {
-        method: "PATCH",
-        headers: await decisionHeaders(
-          userId,
-          workspaceId
-        ),
-        body: JSON.stringify({
-          review_date:
-            reviewDate,
-        }),
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to update review date"
-    )
-  }
-
-  return response.json()
-}
-
-export async function updateDecisionPriority(
-  decisionId: number,
-  priority: DecisionPriority,
-  userId: string,
-  workspaceId?: string
-): Promise<DecisionRecord> {
-  const cleanDecisionId =
-    cleanPositiveIntegerId(
-      decisionId,
-      "Decision id"
-    )
-
-  const response =
-    await apiFetch(
-      `${API_URL}/decisions/${cleanDecisionId}/priority`,
-      {
-        method: "PATCH",
-
-        headers: await decisionHeaders(
-          userId,
-          workspaceId
-        ),
-
-        body: JSON.stringify({
-          priority,
-        }),
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to update priority"
-    )
-  }
-
-  return response.json()
-}
-
-export async function updateDecisionCategory(
-  decisionId: number,
-  category: DecisionCategory,
-  userId: string,
-  workspaceId?: string
-): Promise<DecisionRecord> {
-  const cleanDecisionId =
-    cleanPositiveIntegerId(
-      decisionId,
-      "Decision id"
-    )
-
-  const response =
-    await apiFetch(
-      `${API_URL}/decisions/${cleanDecisionId}/category`,
-      {
-        method: "PATCH",
-
-        headers: await decisionHeaders(
-          userId,
-          workspaceId
-        ),
-
-        body: JSON.stringify({
-          category,
-        }),
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to update category"
-    )
-  }
-
-  return response.json()
-}
-
-export async function updateDecisionConfidence(
-  decisionId: number,
-  confidenceScore: DecisionConfidenceScore | null,
-  userId: string,
-  workspaceId?: string
-): Promise<DecisionRecord> {
-  const cleanDecisionId =
-    cleanPositiveIntegerId(
-      decisionId,
-      "Decision id"
-    )
-
-  const response =
-    await apiFetch(
-      `${API_URL}/decisions/${cleanDecisionId}/confidence`,
-      {
-        method: "PATCH",
-        headers: await decisionHeaders(
-          userId,
-          workspaceId
-        ),
-        body: JSON.stringify({
-          confidence_score: confidenceScore,
-        }),
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Failed to update decision confidence"
-    )
-  }
-
-  return response.json()
-}
 
 export async function submitSupportRequest(
   payload: SupportRequestPayload,

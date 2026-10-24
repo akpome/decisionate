@@ -31,9 +31,6 @@ import {
   useWorkspaceAccess,
 } from "@/lib/use-workspace-access"
 import {
-  useDashboardSessionUserId,
-} from "@/lib/dashboard-session-context"
-import {
   getDatasetSourceDetails,
 } from "@/features/datasets/lib/source-config"
 import {
@@ -467,12 +464,9 @@ export default function DashboardPage() {
     isLoaded: authLoaded,
     userId: clerkUserId,
   } = useAuth()
-  const serverUserId =
-    useDashboardSessionUserId()
   const userId =
     clerkUserId ??
     user?.id ??
-    serverUserId ??
     ""
   const {
     activeWorkspaceId,
@@ -3145,7 +3139,6 @@ export default function DashboardPage() {
         <GitCompare size={16} />Cross-dataset review
       </Link>
 
-
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
         {canConfigureWorkspace && shareEnabled && (
         <DashboardActionButton
@@ -3346,13 +3339,6 @@ export default function DashboardPage() {
         selectedDashboardDefinition.componentKey,
         selectedDashboardDataset
       )
-    const customDashboardMetricValue =
-      currentMetricMapping.primary &&
-      availableMetricColumns.includes(
-        currentMetricMapping.primary
-      )
-        ? currentMetricMapping.primary
-        : undefined
     const dashboardControls = usesDatasetSelection ? (
       <div className="grid w-full min-w-0 grid-cols-1 gap-3">
         <div className="min-w-0 space-y-1">

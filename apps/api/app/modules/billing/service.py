@@ -90,11 +90,6 @@ PUBLIC_BILLING_PLANS = (
     PROFESSIONAL_PLAN,
     AGENCY_PLAN,
 )
-ACTIVE_SUBSCRIPTION_STATUSES = {
-    "active",
-    "trialing",
-    "past_due",
-}
 
 BILLING_PLAN_DEFINITIONS = {
     FREE_PLAN: {
@@ -387,10 +382,6 @@ def is_agency_plan(plan: str | None) -> bool:
     return get_billing_plan_definition(plan)["billing_model"] == "agency"
 
 
-def is_subscription_active(status: str | None) -> bool:
-    return str(status or "").strip().lower() in ACTIVE_SUBSCRIPTION_STATUSES
-
-
 def validate_email(value: str | None) -> str | None:
     clean_value = str(value or "").strip()
     if not clean_value:
@@ -455,14 +446,6 @@ def create_checkout_session(
         raise BillingProviderUnavailable(
             "The AI credit pack price is not configured"
         )
-    metadata = {
-        "workspace_id": workspace_id,
-        "owner_user_id": owner_user_id,
-        "plan": normalized_plan,
-        "billing_interval": normalized_interval,
-        "additional_client_workspaces": str(additional_count),
-        "additional_ai_credit_packs": str(ai_credit_pack_count),
-    }
     params = {
         "mode": "subscription",
         "line_items[0][price]": price_id,

@@ -8,10 +8,10 @@ const require = createRequire(import.meta.url)
 const React = require("react"), ts = require("typescript")
 const { renderToStaticMarkup } = require("react-dom/server")
 function compile(path, imports = {}) {
-  const module = { exports: {} }
+  const loaded = { exports: {} }
   const code = ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2021 } }).outputText
-  vm.runInNewContext(code, { module, exports: module.exports, require: name => imports[name] ?? require(name) })
-  return module.exports
+  vm.runInNewContext(code, { module: loaded, exports: loaded.exports, require: name => imports[name] ?? require(name) })
+  return loaded.exports
 }
 const types = compile("../features/relationships/types.ts")
 const { RelationshipMatrix } = compile("../features/relationships/relationship-matrix.tsx", { "./types": types })

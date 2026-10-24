@@ -1275,35 +1275,6 @@ def get_managed_organization_or_404(
     return organization
 
 
-def require_agency_client_access(
-    db,
-    auth_context,
-    organization: Organization,
-    detail: str,
-):
-    if ":client:" in organization.owner_user_id:
-        return
-
-    subscription = (
-        db.query(WorkspaceSubscription)
-        .filter(
-            WorkspaceSubscription.workspace_id == auth_context.user_id,
-        )
-        .first()
-    )
-    access_state = build_subscription_access_state(subscription)
-    plan = normalize_billing_plan(
-        subscription.plan
-        if subscription and access_state.access_allowed
-        else FREE_PLAN
-    )
-    if not is_agency_plan(plan):
-        raise HTTPException(
-            status_code=403,
-            detail=detail,
-        )
-
-
 def clean_member_user_id(
     user_id: str,
 ) -> str:
@@ -2049,7 +2020,6 @@ async def get_organization_members(
         request,
         allow_managed_client_workspace=True,
     )
-    user_id = auth_context.user_id
 
     db = SessionLocal()
 
@@ -2245,7 +2215,6 @@ async def get_organization_invites(
         request,
         allow_managed_client_workspace=True,
     )
-    user_id = auth_context.user_id
 
     db = SessionLocal()
 
@@ -2284,7 +2253,6 @@ async def add_organization_invite(
         request,
         allow_managed_client_workspace=True,
     )
-    user_id = auth_context.user_id
 
     db = SessionLocal()
 
@@ -2392,7 +2360,6 @@ async def update_organization_member_role(
         request,
         allow_managed_client_workspace=True,
     )
-    user_id = auth_context.user_id
 
     db = SessionLocal()
 
@@ -2468,7 +2435,6 @@ async def remove_organization_invite(
         request,
         allow_managed_client_workspace=True,
     )
-    user_id = auth_context.user_id
 
     db = SessionLocal()
 
@@ -2514,7 +2480,6 @@ async def remove_organization_member(
         request,
         allow_managed_client_workspace=True,
     )
-    user_id = auth_context.user_id
 
     db = SessionLocal()
 

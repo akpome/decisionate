@@ -449,51 +449,6 @@ def resolve_external_identity(
         db.close()
 
 
-def sync_external_identity_email(
-    subject: str,
-    user_id: str,
-    email: str | None,
-    provider: str = DEFAULT_AUTH_PROVIDER,
-) -> None:
-    """Store an email on an already-resolved identity without relinking it."""
-
-    clean_subject = str(subject or "").strip()
-    clean_user_id = str(user_id or "").strip()
-    clean_email = str(email or "").strip()
-    if not clean_subject or not clean_user_id or not clean_email:
-        return
-
-    db = SessionLocal()
-    try:
-        identity = (
-            db.query(AuthIdentity)
-            .filter(
-                AuthIdentity.provider == provider,
-                AuthIdentity.subject == clean_subject,
-                AuthIdentity.user_id == clean_user_id,
-            )
-            .first()
-        )
-        if identity is None:
-            return
-
-        identity.email = clean_email
-        user = (
-            db.query(AppUser)
-            .filter(AppUser.id == clean_user_id)
-            .first()
-        )
-        if user and not user.email:
-            user.email = clean_email
-
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
-
 def link_external_identity(
     subject: str,
     target_user_id: str,

@@ -182,33 +182,6 @@ def _is_low_cardinality_dimension(
     )
 
 
-def _duplicate_column(
-    dataframe: pd.DataFrame,
-    column,
-    numeric_series: pd.Series,
-    numeric_lookup: dict[str, pd.Series] | None = None,
-):
-    """Find an earlier numeric column with identical values.
-
-    Numeric coercion is cached by the profiler. Re-coercing every earlier
-    column for every candidate made metric selection quadratic in both column
-    count and dataframe size.
-    """
-    for other_column in dataframe.columns:
-        if str(other_column) == str(column):
-            break
-        other_numeric = (
-            numeric_lookup.get(str(other_column))
-            if numeric_lookup is not None
-            else _numeric_series(dataframe, other_column)
-        )
-        if other_numeric is None:
-            continue
-        if numeric_series.equals(other_numeric):
-            return str(other_column)
-    return None
-
-
 def _numeric_series_signature(series: pd.Series):
     """Build a cheap pre-check key before comparing full numeric columns."""
     hashed_values = pd.util.hash_pandas_object(

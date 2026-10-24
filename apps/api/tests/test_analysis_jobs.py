@@ -6,8 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from fastapi import HTTPException
-
 from app.db.models import Dataset, IngestionWorkerHeartbeat, WeeklyReportDeliveryLog, WeeklyReportPreference, utc_now
 from app.infrastructure import analysis_worker as worker
 from app.modules.alerts import router as alerts

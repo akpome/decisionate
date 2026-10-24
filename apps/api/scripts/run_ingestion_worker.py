@@ -3,6 +3,7 @@
 
 import argparse
 import ctypes
+from importlib import import_module
 import logging
 import os
 from pathlib import Path
@@ -43,7 +44,7 @@ def main():
         configure_error_monitoring()
         execute_job(args.job_id)
     else:
-        from app import main as application  # Initializes the schema once, not for every job.
+        import_module("app.main")  # Initialize the schema once, not for every job.
         run_worker(str(Path(__file__).resolve()), once=args.once)
 
 

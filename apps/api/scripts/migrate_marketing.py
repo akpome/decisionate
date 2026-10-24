@@ -2,13 +2,14 @@
 """Add marketing tables without changing existing customers' consent."""
 
 import argparse
+from importlib import import_module
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.db.database import Base, engine
-from app.modules.marketing import models  # Register the additive schema.
+import_module("app.modules.marketing.models")  # Register the additive schema.
 
 
 def main():

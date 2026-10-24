@@ -21,7 +21,6 @@ from urllib.error import HTTPError
 from urllib.error import URLError
 from urllib.parse import urlparse
 from urllib.request import Request as UrlRequest
-from urllib.request import urlopen
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, build_opener
 
 import pandas as pd
@@ -227,7 +226,6 @@ from app.modules.datasets.services.connectors import (
     ConnectorUnavailable,
     DATABASE_CONNECTOR_TYPES,
     DATABASE_ENCRYPTED_PASSWORD_CONFIGS,
-    POSTGRESQL_ENCRYPTED_PASSWORD_CONFIG,
     STRIPE_ENCRYPTED_API_KEY_CONFIG,
     WOOCOMMERCE_ENCRYPTED_CONSUMER_KEY_CONFIG,
     WOOCOMMERCE_ENCRYPTED_CONSUMER_SECRET_CONFIG,
@@ -10178,156 +10176,6 @@ def queue_connector_initial_import(
         return True
     finally:
         db.close()
-
-
-def _persist_initial_backfill_failure(
-    db,
-    connection_id: int,
-    error: Exception,
-):
-    db.rollback()
-    connection = (
-        db.query(DataSourceConnection)
-        .filter(DataSourceConnection.id == connection_id)
-        .first()
-    )
-    if not connection:
-        return
-    set_initial_connector_sync_status(
-        connection,
-        INITIAL_CONNECTOR_SYNC_FAILED,
-        error,
-    )
-    if connector_requires_reauthorization(connection.source_type, error):
-        mark_connection_authorization_failed(connection, error)
-    db.commit()
-
-
-def run_connector_initial_backfill(connection_id: int):
-    """Legacy callers also enqueue one bounded chunk, never inline history."""
-    return queue_connector_initial_backfill(None, connection_id)
-
-
-def run_connector_initial_import(connection_id: int):
-    """Run the initial phase, then continue with historical data if enabled."""
-    db = SessionLocal()
-    try:
-        connection = (
-            db.query(DataSourceConnection)
-            .filter(DataSourceConnection.id == connection_id)
-            .first()
-        )
-        if not connection:
-            return
-        if get_initial_connector_sync_status(connection) == (
-            INITIAL_CONNECTOR_SYNC_COMPLETE
-        ):
-            return
-
-        reference_date = date.today()
-        backfill_start, backfill_end = (
-            get_initial_connector_backfill_window(
-                reference_date,
-                source_type=connection.source_type,
-            )
-        )
-        connection_config = parse_schedule_config(
-            connection.connection_config
-        )
-        connection_config[
-            "_initial_connector_backfill_start_date"
-        ] = backfill_start.isoformat()
-        connection_config[
-            "_initial_connector_backfill_end_date"
-        ] = backfill_end.isoformat()
-        connection.connection_config = json.dumps(
-            connection_config,
-            sort_keys=True,
-        )
-        set_initial_connector_sync_status(
-            connection,
-            INITIAL_CONNECTOR_SYNC_INITIAL,
-        )
-        db.commit()
-
-        sync_results = run_data_source_sync_with_oauth_retry(
-            db,
-            connection,
-            DataSourceConnectionSync(),
-        )
-        db.commit()
-        for _dataset, _report_config, _file_path, replaced_file_path in (
-            sync_results
-        ):
-            remove_dataset_file(replaced_file_path)
-    except ConnectorNoData as error:
-        logger.info(
-            "Initial connector import returned no data",
-            extra={
-                "connection_id": connection_id,
-                "reason": str(error)[:500],
-            },
-        )
-        db.rollback()
-        connection = (
-            db.query(DataSourceConnection)
-            .filter(DataSourceConnection.id == connection_id)
-            .first()
-        )
-        if connection:
-            set_initial_connector_sync_status(
-                connection,
-                (
-                    INITIAL_CONNECTOR_SYNC_BACKFILL
-                    if initial_connector_backfill_enabled(
-                        connection.source_type
-                    )
-                    else INITIAL_CONNECTOR_SYNC_COMPLETE
-                ),
-            )
-            db.commit()
-    except (
-        GoogleAnalyticsConnectorUnavailable,
-        ConnectorUnavailable,
-        OAuthProviderUnavailable,
-    ) as error:
-        logger.warning(
-            "Initial connector import failed",
-            extra={
-                "connection_id": connection_id,
-                "reason": str(error)[:500],
-            },
-        )
-        _persist_initial_backfill_failure(db, connection_id, error)
-        return
-    except Exception as error:
-        logger.exception(
-            "Initial connector import failed unexpectedly",
-            extra={"connection_id": connection_id},
-        )
-        _persist_initial_backfill_failure(db, connection_id, error)
-        return
-    finally:
-        db.close()
-
-    if initial_connector_backfill_enabled(connection.source_type):
-        run_connector_initial_backfill(connection_id)
-    else:
-        db = SessionLocal()
-        try:
-            connection = (
-                db.query(DataSourceConnection)
-                .filter(DataSourceConnection.id == connection_id)
-                .first()
-            )
-            if connection:
-                set_initial_connector_sync_status(
-                    connection,
-                    INITIAL_CONNECTOR_SYNC_COMPLETE,
-                )
-                db.commit()
-        finally:
-            db.close()
 
 
 def get_connectors_scheduler_secret():

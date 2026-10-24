@@ -9,11 +9,11 @@ const ts = require("typescript")
 const React = require("react")
 const { renderToStaticMarkup } = require("react-dom/server")
 function load(path, imports = {}) {
-  const module = { exports: {} }
+  const loaded = { exports: {} }
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
-  } }).outputText, { module, exports: module.exports, Intl, require: name => imports[name] || require(name) })
-  return module.exports
+  } }).outputText, { module: loaded, exports: loaded.exports, Intl, require: name => imports[name] || require(name) })
+  return loaded.exports
 }
 const pairs = load("../features/reports/pair-directions.ts")
 const types = load("../features/reports/types.ts", { "./pair-directions": pairs })

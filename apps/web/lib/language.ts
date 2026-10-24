@@ -1327,17 +1327,6 @@ export function applyDecisionateLanguage(
   )
 }
 
-export function toggleDecisionateLanguage(
-  currentLanguage = getCurrentDecisionateLanguage()
-) {
-  const nextLanguage =
-    currentLanguage === "fr" ? "en" : "fr"
-
-  applyDecisionateLanguage(nextLanguage)
-
-  return nextLanguage
-}
-
 export function getDecisionateText(
   language: DecisionateLanguage,
   key: DecisionateTranslationKey

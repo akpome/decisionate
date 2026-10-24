@@ -5,7 +5,6 @@ from importlib.metadata import PackageNotFoundError, version
 import math
 import warnings
 
-import pandas as pd
 
 from app.modules.datasets.services.relationships import _calculate_lag_result
 

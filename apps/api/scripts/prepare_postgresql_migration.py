@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import sqlite3
 import sys
 from pathlib import Path
@@ -109,10 +108,6 @@ def backup_sqlite(engine, destination: str) -> str:
         backup_connection.close()
         source_connection.close()
     return str(destination_path)
-
-
-def quote_identifier(engine, value: str) -> str:
-    return engine.dialect.identifier_preparer.quote(value)
 
 
 def get_model_tables(base) -> dict[str, Any]:

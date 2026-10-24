@@ -60,27 +60,6 @@ export function parseDatasetSourceConfig(
   return null
 }
 
-export function formatDatasetSource(
-  sourceType?: string | null,
-  sourceConfig?: string | null,
-  sourceLabel?: string | null
-) {
-  return getDatasetSourceDetails(
-    sourceType,
-    sourceConfig,
-    sourceLabel
-  ).label
-}
-
-export function getDatasetOriginalFileName(
-  sourceConfig?: string | null
-) {
-  return getDatasetSourceDetails(
-    undefined,
-    sourceConfig
-  ).originalFileName
-}
-
 export function getDatasetSourceDetails(
   sourceType?: string | null,
   sourceConfig?: string | null,

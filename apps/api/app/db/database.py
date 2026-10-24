@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 from app.configuration import (
     get_runtime_configuration,
-    normalize_database_url,
+    normalize_database_url as normalize_database_url,
 )
 
 

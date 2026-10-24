@@ -91,8 +91,8 @@ from app.modules.decisions import (
     router as decisions_router
 )
 
-from app.modules.decisions.models import Decision
-from app.modules.decisions.activity_models import DecisionActivity
+from app.modules.decisions.models import Decision as Decision
+from app.modules.decisions.activity_models import DecisionActivity as DecisionActivity
 from app.modules.auth_context import (
     get_auth_context,
 )

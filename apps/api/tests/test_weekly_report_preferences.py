@@ -19,7 +19,6 @@ from app.modules.alerts.schemas import (
 from app.modules.alerts.email_delivery import (
     _send_resend_message,
     build_weekly_report_email_message,
-    build_weekly_report_email_html,
     build_weekly_report_email_text,
     is_email_delivery_configured,
     send_weekly_report_email,
@@ -1268,7 +1267,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             "app.modules.alerts.router.get_weekly_report_preference_record",
             return_value=preference,
         ):
-            response = asyncio.run(
+            asyncio.run(
                 update_weekly_report_preference(
                     request,
                     WeeklyReportPreferenceUpdate(

@@ -304,7 +304,7 @@ def filter_decision_activities_for_workspace(
     x_user_id: str,
     x_workspace_id: str | None,
 ):
-    clean_user_id = get_active_user_id(
+    get_active_user_id(
         x_user_id
     )
     workspace_id = get_active_workspace_id(
@@ -322,7 +322,7 @@ def filter_decision_activity_feed_for_workspace(
     x_user_id: str,
     x_workspace_id: str | None,
 ):
-    clean_user_id = get_active_user_id(
+    get_active_user_id(
         x_user_id
     )
     workspace_id = get_active_workspace_id(

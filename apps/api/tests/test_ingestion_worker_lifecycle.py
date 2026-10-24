@@ -1,8 +1,38 @@
+import importlib.util
+import os
+from pathlib import Path
+import sys
+from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 
-from app.infrastructure import ingestion_worker
+from app.infrastructure import analysis_worker, ingestion_worker
 from app.modules.marketing import config, worker
+
+
+class WorkerBootstrapTests(unittest.TestCase):
+    def test_supervisors_keep_schema_bootstrap_without_an_unused_module_binding(self):
+        for script_name, worker_module in (
+            ("run_ingestion_worker", ingestion_worker),
+            ("run_analysis_worker", analysis_worker),
+        ):
+            with self.subTest(script=script_name):
+                script = Path(__file__).resolve().parents[1] / "scripts" / f"{script_name}.py"
+                spec = importlib.util.spec_from_file_location(script_name, script)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                with patch.object(module, "import_module") as bootstrap, patch.object(
+                    worker_module, "run_worker"
+                ) as run, patch(
+                    "app.db.database.engine", SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+                ), patch.object(sys, "argv", [str(script), "--once"]), patch.object(
+                    sys, "path", sys.path.copy()
+                ), patch.dict(
+                    os.environ, {}, clear=False
+                ), patch.object(module.logging, "basicConfig"):
+                    module.main()
+                bootstrap.assert_called_once_with("app.main")
+                run.assert_called_once_with(str(script), once=True)
 
 
 class WorkerLifecycleTests(unittest.TestCase):

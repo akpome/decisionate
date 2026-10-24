@@ -28,13 +28,6 @@ def get_provider_setting(name: str) -> str:
     return _env(name)
 
 
-def _int_env(name: str, default: int) -> int:
-    try:
-        return int(_env(name, str(default)))
-    except (TypeError, ValueError):
-        return default
-
-
 def normalize_database_url(value: str | None) -> str:
     """Normalize common hosted PostgreSQL URLs for SQLAlchemy."""
     database_url = str(value or "").strip() or "sqlite:///./decisionate.db"

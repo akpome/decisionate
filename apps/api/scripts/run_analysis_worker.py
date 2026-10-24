@@ -3,6 +3,7 @@
 
 import argparse
 import ctypes
+from importlib import import_module
 import logging
 import os
 from pathlib import Path
@@ -42,7 +43,7 @@ def main():
         from app.db.database import engine
         if engine.dialect.name != "postgresql":
             raise RuntimeError("The durable analysis worker requires PostgreSQL.")
-        from app import main as application  # Same serialized schema bootstrap as the API.
+        import_module("app.main")  # Run the API's serialized schema bootstrap.
         from app.infrastructure.analysis_worker import run_worker
         run_worker(str(Path(__file__).resolve()), once=args.once)
 
