@@ -135,6 +135,15 @@ export default function PrivacyPage() {
 
       <PolicySection title="6. AI processing">
         <p>
+          When you use Ask Decisionate in Help &amp; Support, your question, recent
+          questions from the conversation, and relevant product documentation may
+          be sent to the configured AI provider. This guidance does not query your
+          datasets or change your account. The conversation is held in the current
+          page, not saved as a chat history by Decisionate. Clearing it or leaving
+          the page does not delete information already processed by the provider.
+          Contact support opens a separate form for you to review and send.
+        </p>
+        <p>
           For a requested AI analysis, Decisionate prepares bounded facts,
           selected metric or relationship context, aggregate values and trends,
           and relevant decision outcomes or learning notes from the same workspace.

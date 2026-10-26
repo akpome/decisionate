@@ -224,6 +224,21 @@ export type SupportRequestResponse = {
   message: string
 }
 
+export type GuidanceTurn = { role: "user" | "assistant"; content: string }
+export type GuidanceResponse = {
+  answer: string
+  mode: "ai" | "documentation" | "unavailable"
+  sources: {
+    chunk_id: string
+    title: string
+    section: string
+    content: string
+    route: string
+    reviewed_on: string
+  }[]
+  contact_support: boolean
+}
+
 export type DatasetAnalyticsManifest = {
   engine: string
   storage_format: string
@@ -4094,6 +4109,23 @@ export async function getWeeklyReportDeliveryConfig(
   return response.json()
 }
 
+export async function getAIStatus(
+  userId: string,
+  signal?: AbortSignal,
+): Promise<AIStatus> {
+  const response = await apiFetch(`${API_URL}/ai/status`, {
+    headers: await workspaceHeaders(userId, userId),
+    cache: "no-store",
+    signal,
+  })
+
+  if (!response.ok) {
+    await throwApiError(response, "AI service status is unavailable.")
+  }
+
+  return response.json()
+}
+
 export async function getPlatformAdminOverview(
   userId: string
 ): Promise<PlatformAdminOverview> {
@@ -7664,6 +7696,24 @@ export async function updateDecisionLearning(
 /* =========================
    Support Requests
 ========================= */
+
+export async function askProductGuidance(
+  question: string,
+  history: GuidanceTurn[],
+  userId: string,
+  workspaceId: string,
+  signal: AbortSignal,
+): Promise<GuidanceResponse> {
+  const response = await apiFetch(`${API_URL}/support/chat`, {
+    method: "POST",
+    headers: await workspaceJsonHeaders(userId, workspaceId),
+    body: JSON.stringify({ question, history }),
+    signal,
+    cache: "no-store",
+  }, 25000, false)
+  if (!response.ok) await throwApiError(response, "Product guidance is unavailable. Please try again or contact support.")
+  return response.json()
+}
 
 export async function submitSupportRequest(
   payload: SupportRequestPayload,

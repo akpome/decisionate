@@ -1,0 +1,44 @@
+# Verify analytics and report-worker execution
+
+Treat configuration, liveness, job completion and numerical validity as different
+checks. Do not tell a customer the engine completed their analysis merely because
+a public endpoint returned HTTP 200.
+
+## Readiness checks
+
+Read the deployed API's `/health` and `/ready`. The former reports configuration
+including analytics engine and AI configuration. `duckdb_configured` is a
+configuration flag, not a completed benchmark. `/ready` checks the database and
+required ingestion/analysis heartbeats. The analysis heartbeat is named
+`reports-analysis` and must be recent within the implemented 30-second check.
+
+No values in this document are current live results. Confirm which deployment,
+environment and service domain answered the request before interpreting it.
+
+## Safe end-to-end test
+
+Use authorized synthetic or approved datasets with overlapping dates and enough
+real observations. In Reports, select metrics from two sources, choose dates
+and grouping, and request a preview with AI interpretation off initially.
+Inspect the same job identity through submission and
+`/api/v2/business-reports/jobs/{job_id}` until `status: succeeded` and
+`phase: completed` with a non-null result. Compare summaries against a small
+known aggregate and confirm the selected filters were honored.
+
+Worker logs record `Report analysis <id> started (<kind>)` and
+`Report analysis <id> completed`. That shows execution, not scientific correctness.
+An insufficient-history warning or zero anomalies can be a legitimate output.
+Do not send production weekly email merely to test deployment health.
+
+## Operational limits and recovery
+
+The worker uses a distinct PostgreSQL advisory lock, one persistent consumer
+and supervised subprocesses. Defaults are 900 seconds and a 2048 MB child
+address-space cap, not a guaranteed provider container memory allocation.
+At most three queued/running jobs are allowed per workspace. Preserve queued
+work and inspect job errors before retrying.
+
+Source or permission changes can invalidate a job. Safe interrupted computation
+has bounded recovery; AI interpretation and email side effects are not blindly
+replayed. A scheduler success is only an enqueue acknowledgement. Check job and
+delivery state before any manual resend.

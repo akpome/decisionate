@@ -1,0 +1,245 @@
+{
+  "analysis_settings": {
+    "aggregation": "sum",
+    "business_objective": "general_business",
+    "direction": "Meta Ads leads Shopify",
+    "grain": "daily",
+    "lag_days": {
+      "maximum": 7,
+      "minimum": 0
+    },
+    "method": "pearson",
+    "minimum_observations": 30
+  },
+  "currency": "CAD",
+  "data_origin": "synthetic",
+  "datasets": [
+    {
+      "aggregation": "sum",
+      "date_column": "date",
+      "file": "meta_ads_daily_2025.csv",
+      "recommended_metrics": [
+        "spend",
+        "impressions",
+        "clicks",
+        "leads",
+        "attributed_orders",
+        "attributed_revenue"
+      ],
+      "rows": 365,
+      "scope": "All modeled Meta Ads campaigns combined"
+    },
+    {
+      "aggregation": "sum",
+      "date_column": "date",
+      "file": "shopify_daily_2025.csv",
+      "recommended_metrics": [
+        "orders",
+        "quantity",
+        "gross_sales",
+        "net_sales"
+      ],
+      "rows": 365,
+      "scope": "All modeled Shopify store orders combined"
+    }
+  ],
+  "date_range": {
+    "end": "2025-12-31",
+    "start": "2025-01-01"
+  },
+  "definition_sources": [
+    {
+      "title": "Shopify sales reports: sales, discounts, orders and average order value",
+      "url": "https://help.shopify.com/en/manual/reports-and-analytics/shopify-reports/report-types/default-reports/sales-report"
+    },
+    {
+      "title": "Shopify return on ad spend: attributed revenue divided by advertising cost",
+      "url": "https://www.shopify.com/blog/roas"
+    }
+  ],
+  "definitions": {
+    "attributed_orders": "Synthetic daily purchase-attribution count; a demo aggregate name, not a native API field claim.",
+    "attributed_revenue": "After-discount purchase value of the attributed orders on their purchase date, before later refunds; a synthetic demo aggregate, not a native Meta API field claim.",
+    "clicks": "Modeled daily ad clicks, not store orders or unique customers.",
+    "discounts": "Supporting daily monetary total, not a discount percentage.",
+    "gross_sales": "Modeled item value before discounts and refunds; excludes tax and shipping.",
+    "impressions": "Modeled daily ad displays, not unique people.",
+    "leads": "Modeled marketing signups, separate from the purchase-count metric; a buyer need not first be counted as a lead.",
+    "net_sales": "gross_sales minus discounts minus refund_amount; excludes tax and shipping.",
+    "non_ad_orders": "Synthetic organic/repeat-customer orders, generated independently of paid clicks; orders = non_ad_orders + Meta attributed_orders for the same date.",
+    "orders": "Synthetic total store order count, including modeled advertising-attributed and other orders.",
+    "quantity": "Synthetic gross item units ordered for the day; not order count or units net of later returns.",
+    "refund_amount": "Positive merchandise refund amount processed today for modeled orders from 7-21 days earlier; not returned-item count. No other sales reversal types are modeled.",
+    "spend": "Media advertising cost in CAD, not a count of orders."
+  },
+  "grain": "daily",
+  "measured_economics": {
+    "daily_averages": {
+      "ad_spend_cad": "26.49",
+      "attributed_orders": 0.94,
+      "net_sales_cad": "6466.00",
+      "non_ad_orders": 75.14,
+      "orders": 76.08
+    },
+    "daily_ranges": {
+      "ad_spend_cad": {
+        "maximum": "40.00",
+        "minimum": "6.44"
+      },
+      "orders": {
+        "maximum": 117,
+        "minimum": 53
+      }
+    },
+    "days_order_count_exceeds_ad_spend_numeric_value": 365,
+    "formulas": {
+      "attributed_order_share_percent": "100 * SUM(attributed_orders) / SUM(orders).",
+      "average_order_value_cad": "SUM(gross_sales - discounts) / SUM(orders); before later refunds.",
+      "blended_net_sales_to_ad_spend_ratio": "SUM(net_sales) / SUM(spend); includes non-ad orders, so this is not attributed ROAS.",
+      "media_cost_per_attributed_order_cad": "SUM(spend) / SUM(attributed_orders); not new-customer acquisition cost.",
+      "media_only_attributed_roas": "SUM(attributed_revenue) / SUM(spend); excludes agency fees and creative costs."
+    },
+    "period_totals": {
+      "ad_spend_cad": "9668.13",
+      "attributed_orders": 344,
+      "attributed_revenue_cad": "30788.43",
+      "discounts_cad": "69080.07",
+      "gross_sales_cad": "2491223.25",
+      "net_sales_cad": "2360088.47",
+      "non_ad_orders": 27426,
+      "orders": 27770,
+      "refund_amount_cad": "62054.71"
+    },
+    "weighted_unit_economics": {
+      "attributed_order_share_percent": 1.24,
+      "average_order_value_cad": "87.22",
+      "blended_net_sales_to_ad_spend_ratio": 244.1101,
+      "media_cost_per_attributed_order_cad": "28.11",
+      "media_only_attributed_roas": 3.1845
+    }
+  },
+  "measured_pearson_correlations": [
+    {
+      "meta_ads_leads_by_days": 0,
+      "meta_ads_metric": "spend",
+      "observations": 365,
+      "pearson_coefficient": 0.36442858925830873,
+      "shopify_metric": "net_sales"
+    },
+    {
+      "meta_ads_leads_by_days": 2,
+      "meta_ads_metric": "spend",
+      "observations": 363,
+      "pearson_coefficient": 0.2357558431248129,
+      "shopify_metric": "net_sales"
+    },
+    {
+      "meta_ads_leads_by_days": 0,
+      "meta_ads_metric": "spend",
+      "observations": 365,
+      "pearson_coefficient": 0.42793249483334006,
+      "shopify_metric": "orders"
+    },
+    {
+      "meta_ads_leads_by_days": 2,
+      "meta_ads_metric": "spend",
+      "observations": 363,
+      "pearson_coefficient": 0.24057069384967628,
+      "shopify_metric": "orders"
+    },
+    {
+      "meta_ads_leads_by_days": 0,
+      "meta_ads_metric": "clicks",
+      "observations": 365,
+      "pearson_coefficient": 0.3827914169839453,
+      "shopify_metric": "orders"
+    },
+    {
+      "meta_ads_leads_by_days": 2,
+      "meta_ads_metric": "clicks",
+      "observations": 363,
+      "pearson_coefficient": 0.2323682999672955,
+      "shopify_metric": "orders"
+    },
+    {
+      "meta_ads_leads_by_days": 0,
+      "meta_ads_metric": "attributed_orders",
+      "observations": 365,
+      "pearson_coefficient": 0.21404850273172335,
+      "shopify_metric": "orders"
+    }
+  ],
+  "metric_units": {
+    "attributed_orders": "count",
+    "attributed_revenue": "CAD",
+    "clicks": "count",
+    "discounts": "CAD",
+    "gross_sales": "CAD",
+    "impressions": "count",
+    "leads": "count",
+    "net_sales": "CAD",
+    "non_ad_orders": "count",
+    "orders": "count",
+    "quantity": "count",
+    "refund_amount": "CAD",
+    "spend": "CAD"
+  },
+  "model": {
+    "advertising_response_lag_days": 2,
+    "features": [
+      "annual seasonality",
+      "weekday variation",
+      "November promotion",
+      "December uplift",
+      "random click-to-purchase outcomes",
+      "campaign fatigue",
+      "non-advertising orders",
+      "individual order baskets",
+      "discounts",
+      "delayed partial refunds"
+    ],
+    "fictional_scenario_assumptions_not_benchmarks": {
+      "ad_budget_cycle_amplitude_cad": 8,
+      "ad_budget_noise_sd_cad": 5,
+      "base_daily_ad_budget_cad": 25,
+      "baseline_click_through_rate": 0.016,
+      "baseline_click_to_purchase_rate": 0.032,
+      "baseline_cpm_cad": 14,
+      "baseline_daily_non_ad_orders": 70,
+      "item_prices_cad": [
+        29.95,
+        39.95,
+        49.95,
+        69.95,
+        89.95
+      ],
+      "maximum_daily_ad_budget_cad": 40,
+      "minimum_daily_ad_budget_cad": 6,
+      "minimum_daily_non_ad_orders": 45,
+      "non_ad_order_noise_sd": 4,
+      "order_refund_probability": 0.045,
+      "promotion_discount_rate": 0.15,
+      "refund_delay_days": [
+        7,
+        21
+      ]
+    },
+    "limitations": [
+      "Daily aggregate CSVs for demonstration, not raw connector responses or real customer data.",
+      "Model parameters and attribution are invented for this demo, not provider benchmarks.",
+      "Correlations are intentionally generated and do not establish real-world causation or attribution.",
+      "Most orders are organic/repeat-customer purchases. The small paid-order response can be masked by other demand; the strongest total-sales correlation need not occur at the modeled paid-response lag.",
+      "Shared seasonality affects both spending and organic orders; any correlation in store totals must not be attributed entirely to advertising.",
+      "Gross and net sales are mathematically related; use cross-dataset pairs for the main demonstration.",
+      "Spend is currency and orders are counts; compare spend to sales for a same-unit monetary view, not to the raw height of an order-count line.",
+      "Attribution uses purchase dates in this fictional model, not provider attribution windows or native advertising-report time settings.",
+      "Attributed purchase revenue excludes later refunds and may exceed net store sales on refund-heavy days.",
+      "Revenue and ROAS are not profit; product costs, shipping, tax, fees, agency costs and creative costs are not modeled."
+    ],
+    "warmup_days_outside_export": 28
+  },
+  "provider_native_export": false,
+  "scenario": "Low-budget advertising for an established store driven mainly by organic and repeat-customer orders.",
+  "seed": 20251018,
+  "year": 2025
+}

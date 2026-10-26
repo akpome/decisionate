@@ -37,6 +37,7 @@ import {
   createPlatformAdminOrganization,
   deletePlatformAdminOrganization,
   deletePlatformAdminUser,
+  getAIStatus,
   getPlatformAdminAlertDeliveries,
   getPlatformAdminAccessDetails,
   getPlatformAdminAuditEvents,
@@ -317,6 +318,9 @@ export default function PlatformAdminPage() {
     user?.emailAddresses?.[0]?.emailAddress
   const [overview, setOverview] =
     useState<PlatformAdminOverview | null>(null)
+  const [aiStatusRefreshing, setAiStatusRefreshing] = useState(false)
+  const [aiStatusError, setAiStatusError] = useState("")
+  const [aiStatusRefreshKey, setAiStatusRefreshKey] = useState(0)
   const [organizations, setOrganizations] =
     useState<PlatformAdminOrganization[]>([])
   const [provisionForm, setProvisionForm] = useState({
@@ -518,6 +522,10 @@ export default function PlatformAdminPage() {
     useState<"all" | "trial" | "trial_expired" | "paid" | "free">("all")
   const [userSearch, setUserSearch] =
     useState("")
+  const canRefreshAIStatus = Boolean(
+    overview && !loading && adminAccess?.allowed &&
+    (adminAccess.full_access || adminAccess.permissions.includes("overview"))
+  )
 
   useEffect(() => {
     if (!user?.id) {
@@ -855,6 +863,52 @@ export default function PlatformAdminPage() {
     user?.id,
     currentUserEmail,
   ])
+
+  useEffect(() => {
+    if (!user?.id || !canRefreshAIStatus) return
+
+    const userId = user.id
+    const controller = new AbortController()
+    let cancelled = false
+    let pending = false
+
+    async function refreshAIStatus() {
+      if (cancelled || pending || document.visibilityState !== "visible") return
+      pending = true
+      setAiStatusRefreshing(true)
+      try {
+        const status = await getAIStatus(userId, controller.signal)
+        if (!cancelled) {
+          setOverview(current => current ? { ...current, ai_status: status } : current)
+          setAiStatusError("")
+        }
+      } catch (statusError) {
+        if (!cancelled) {
+          setAiStatusError(statusError instanceof Error
+            ? statusError.message
+            : "AI service status could not be refreshed.")
+        }
+      } finally {
+        pending = false
+        if (!cancelled) setAiStatusRefreshing(false)
+      }
+    }
+
+    const refresh = () => { void refreshAIStatus() }
+    const initialLoadTimer = window.setTimeout(refresh, 0)
+    const interval = window.setInterval(refresh, 30_000)
+    window.addEventListener("focus", refresh)
+    document.addEventListener("visibilitychange", refresh)
+
+    return () => {
+      cancelled = true
+      controller.abort()
+      window.clearTimeout(initialLoadTimer)
+      window.clearInterval(interval)
+      window.removeEventListener("focus", refresh)
+      document.removeEventListener("visibilitychange", refresh)
+    }
+  }, [canRefreshAIStatus, user?.id, aiStatusRefreshKey])
 
   useEffect(() => {
     if (!user?.id || !adminAccess) {
@@ -2803,20 +2857,33 @@ export default function PlatformAdminPage() {
             {overview && canView("overview") && (
             <div className="mt-8 grid gap-4 lg:grid-cols-2">
               <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <BrainCircuit className="text-blue-600" size={20} />
-                  <h2 className="font-semibold">AI service</h2>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <BrainCircuit className="text-blue-600" size={20} />
+                    <h2 className="font-semibold">AI service</h2>
+                  </div>
+                  <button
+                    type="button"
+                    title="Refresh AI service status"
+                    aria-label="Refresh AI service status"
+                    disabled={aiStatusRefreshing}
+                    onClick={() => setAiStatusRefreshKey(value => value + 1)}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <RefreshCw size={16} className={aiStatusRefreshing ? "animate-spin" : ""} />
+                  </button>
                 </div>
+                {aiStatusError && <p role="alert" className="mt-3 text-sm text-amber-700">{aiStatusError} Displaying last known status.</p>}
                 <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                   <div>
                     <dt className="text-gray-500">Provider</dt>
-                    <dd className="mt-1 font-medium">
-                      {overview.ai_status.provider}
+                    <dd className="mt-1 break-words font-medium">
+                      {overview.ai_status.provider || "Not configured"}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-gray-500">Model</dt>
-                    <dd className="mt-1 font-medium">
+                    <dd className="mt-1 break-words font-medium">
                       {overview.ai_status.model || "Not configured"}
                     </dd>
                   </div>

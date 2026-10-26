@@ -1,0 +1,474 @@
+{
+  "schema_version": 1,
+  "source": "apps/api/app/modules/datasets/services/sources.py",
+  "scope": "Literal source-registry inventory; implemented flags and declared statuses do not certify runtime availability, permissions, emitted metrics or provider history",
+  "sources": [
+    {
+      "type": "csv",
+      "label": "CSV",
+      "category": "files",
+      "connection_type": "upload",
+      "declared_status": "available",
+      "implemented_connector_flag": false,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual"
+      ],
+      "required_config_keys": [],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "excel",
+      "label": "Excel",
+      "category": "files",
+      "connection_type": "upload",
+      "declared_status": "available",
+      "implemented_connector_flag": false,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual"
+      ],
+      "required_config_keys": [],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "json",
+      "label": "JSON",
+      "category": "files",
+      "connection_type": "upload",
+      "declared_status": "available",
+      "implemented_connector_flag": false,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual"
+      ],
+      "required_config_keys": [],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "parquet",
+      "label": "Parquet",
+      "category": "files",
+      "connection_type": "upload",
+      "declared_status": "available",
+      "implemented_connector_flag": false,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual"
+      ],
+      "required_config_keys": [],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "google_analytics",
+      "label": "Google Analytics",
+      "category": "analytics",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "property_id"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "google_ads",
+      "label": "Google Ads",
+      "category": "business_apps",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "customer_id"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "google_search_console",
+      "label": "Google Search Console",
+      "category": "analytics",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "site_url"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "google_business_profile",
+      "label": "Google Business Profile",
+      "category": "business_apps",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "postgresql",
+      "label": "PostgreSQL",
+      "category": "databases",
+      "connection_type": "database",
+      "declared_status": "available",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "host",
+        "database",
+        "username",
+        "password",
+        "query"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "mysql",
+      "label": "MySQL",
+      "category": "databases",
+      "connection_type": "database",
+      "declared_status": "available",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "host",
+        "database",
+        "username",
+        "password",
+        "query"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "sql_server",
+      "label": "SQL Server",
+      "category": "databases",
+      "connection_type": "database",
+      "declared_status": "available",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "host",
+        "database",
+        "username",
+        "password",
+        "query"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "stripe",
+      "label": "Stripe",
+      "category": "payments",
+      "connection_type": "api_key",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "api_key"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "shopify",
+      "label": "Shopify",
+      "category": "commerce",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "shop_domain"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "square",
+      "label": "Square",
+      "category": "payments",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "location_id"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "woocommerce",
+      "label": "WooCommerce",
+      "category": "commerce",
+      "connection_type": "oauth",
+      "declared_status": "available",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "store_url"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "lightspeed",
+      "label": "Lightspeed Retail (R-Series)",
+      "category": "commerce",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "account_id"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "lightspeed_x",
+      "label": "Lightspeed Retail (X-Series)",
+      "category": "commerce",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "domain_prefix",
+        "resource_types"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "lightspeed_k",
+      "label": "Lightspeed Restaurant (K-Series)",
+      "category": "restaurant",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": true,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "business_location_id",
+        "resource_types"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "lightspeed_o",
+      "label": "Lightspeed Restaurant (O-Series)",
+      "category": "restaurant",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": true,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "company_id",
+        "resource_types"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "quickbooks",
+      "label": "QuickBooks",
+      "category": "accounting",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "company_id",
+        "resource_types"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "freshbooks",
+      "label": "FreshBooks",
+      "category": "accounting",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "account_id",
+        "resource_types"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "sage",
+      "label": "Sage Cloud Accounting",
+      "category": "accounting",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "country",
+        "resource_types"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "xero",
+      "label": "Xero",
+      "category": "accounting",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "tenant_id",
+        "resource_types"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "zoho_books",
+      "label": "Zoho Books",
+      "category": "accounting",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "organization_id",
+        "resource_types"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "hubspot",
+      "label": "HubSpot",
+      "category": "business_apps",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "portal_id",
+        "resource_types"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "salesforce",
+      "label": "Salesforce Sales Cloud",
+      "category": "business_apps",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "instance_url",
+        "resource_types"
+      ],
+      "runtime_availability": "not_checked"
+    },
+    {
+      "type": "meta_ads",
+      "label": "Meta Ads",
+      "category": "business_apps",
+      "connection_type": "oauth",
+      "declared_status": "planned",
+      "implemented_connector_flag": true,
+      "forced_planned": false,
+      "sync_modes": [
+        "manual",
+        "scheduled"
+      ],
+      "required_config_keys": [
+        "ad_account_id"
+      ],
+      "runtime_availability": "not_checked"
+    }
+  ]
+}

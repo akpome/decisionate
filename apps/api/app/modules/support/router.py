@@ -1,22 +1,34 @@
 import re
 
-from fastapi import APIRouter
-from fastapi import HTTPException
-from fastapi import Request
-
 from app.db.database import SessionLocal
 from app.db.models import Organization
-from app.modules.auth_context import get_auth_context
 from app.modules.alerts.email_delivery import (
     send_support_request_email,
 )
+from app.modules.auth_context import get_auth_context
 from app.modules.support.schemas import (
+    GuidanceRequest,
+    GuidanceResponse,
     SupportRequestCreate,
     SupportRequestResponse,
 )
-
+from fastapi import APIRouter, HTTPException, Request, Response
+from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter()
+
+
+@router.post("/chat", response_model=GuidanceResponse)
+def product_guidance(payload: GuidanceRequest, request: Request, response: Response):
+    from app.modules.support.guidance import answer_guidance, enforce_guidance_limits
+
+    auth = get_auth_context(request)
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        enforce_guidance_limits(auth)
+    except SQLAlchemyError as error:
+        raise HTTPException(503, "Product guidance is temporarily unavailable. Please use the guide or contact support.") from error
+    return answer_guidance(payload)
 
 
 def get_workspace_name(workspace_id: str) -> str:

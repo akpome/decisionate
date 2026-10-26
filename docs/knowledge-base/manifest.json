@@ -1,0 +1,1096 @@
+{
+  "schema_version": 1,
+  "product": "Decisionate",
+  "language": "en",
+  "reviewed_on": "2026-10-26",
+  "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
+  "default_export_audience": "customer",
+  "articles": [
+    {
+      "id": "product-overview",
+      "title": "What Decisionate does",
+      "path": "customer/product-overview.md",
+      "audience": "customer",
+      "topics": [
+        "navigation",
+        "product",
+        "insights"
+      ],
+      "questions": [
+        "What is Decisionate for?",
+        "Where did Insights go?"
+      ],
+      "routes": [
+        "/dashboard/reports",
+        "/dashboard/decisions",
+        "/dashboard/help"
+      ],
+      "sources": [
+        "apps/web/app/dashboard/help/page.tsx",
+        "docs/CROSS_DATASET_REPORTS.md",
+        "apps/web/features/reports/legacy-insights-destination.ts"
+      ],
+      "related": [
+        "getting-started",
+        "reports-build",
+        "relationship-monitors"
+      ]
+    },
+    {
+      "id": "getting-started",
+      "title": "Get to your first useful analysis",
+      "path": "customer/getting-started.md",
+      "audience": "customer",
+      "topics": [
+        "onboarding",
+        "first-report"
+      ],
+      "questions": [
+        "How do I start?",
+        "How can I compare advertising with orders?"
+      ],
+      "routes": [
+        "/dashboard/datasets",
+        "/dashboard/reports",
+        "/dashboard/decisions"
+      ],
+      "sources": [
+        "apps/web/app/dashboard/help/page.tsx",
+        "apps/api/app/modules/reports/schemas.py",
+        "apps/web/features/reports/report-workspace.tsx"
+      ],
+      "related": [
+        "workspaces-access",
+        "uploads-datasets",
+        "reports-build"
+      ]
+    },
+    {
+      "id": "workspaces-access",
+      "title": "Accounts workspaces and access",
+      "path": "customer/workspaces-access.md",
+      "audience": "customer",
+      "topics": [
+        "permissions",
+        "membership",
+        "workspace"
+      ],
+      "questions": [
+        "Why is access restricted?",
+        "Why can I not see another workspace's datasets?"
+      ],
+      "routes": [
+        "/dashboard/settings",
+        "/dashboard/help"
+      ],
+      "sources": [
+        "apps/web/app/dashboard/help/page.tsx",
+        "apps/api/app/modules/auth_context.py",
+        "apps/api/app/modules/organizations/router.py"
+      ],
+      "related": [
+        "agencies-clients",
+        "troubleshooting-support",
+        "privacy-preferences"
+      ]
+    },
+    {
+      "id": "agencies-clients",
+      "title": "Agency and client workspaces",
+      "path": "customer/agencies-clients.md",
+      "audience": "customer",
+      "topics": [
+        "agency",
+        "client",
+        "branding",
+        "permissions"
+      ],
+      "questions": [
+        "Can an agency owner see client data?",
+        "Whose logo do agency clients receive?"
+      ],
+      "routes": [
+        "/dashboard/settings",
+        "/dashboard/reports"
+      ],
+      "sources": [
+        "apps/web/app/dashboard/help/page.tsx",
+        "apps/api/app/modules/auth_context.py",
+        "apps/api/app/modules/alerts/router.py",
+        "apps/api/app/modules/alerts/email_delivery.py"
+      ],
+      "related": [
+        "workspaces-access",
+        "email-branding",
+        "weekly-reports"
+      ]
+    },
+    {
+      "id": "uploads-datasets",
+      "title": "Upload and inspect datasets",
+      "path": "customer/uploads-datasets.md",
+      "audience": "customer",
+      "topics": [
+        "uploads",
+        "schema",
+        "dataset"
+      ],
+      "questions": [
+        "Which files can I upload?",
+        "Why do the imported columns look different?"
+      ],
+      "routes": [
+        "/dashboard/datasets"
+      ],
+      "sources": [
+        "apps/web/app/dashboard/help/page.tsx",
+        "apps/api/app/modules/datasets/services/file_loader.py",
+        "apps/api/app/modules/datasets/services/metric_selection.py"
+      ],
+      "related": [
+        "metric-selection",
+        "connectors",
+        "time-aggregation"
+      ]
+    },
+    {
+      "id": "connectors",
+      "title": "Connector availability and setup",
+      "path": "customer/connectors.md",
+      "audience": "customer",
+      "topics": [
+        "connectors",
+        "oauth",
+        "catalog"
+      ],
+      "questions": [
+        "Which connectors exist?",
+        "Is every listed integration enabled?"
+      ],
+      "routes": [
+        "/dashboard/connections"
+      ],
+      "sources": [
+        "apps/api/app/modules/datasets/services/sources.py",
+        "apps/web/app/dashboard/help/page.tsx"
+      ],
+      "related": [
+        "sync-retention",
+        "metric-semantics",
+        "troubleshooting-support"
+      ]
+    },
+    {
+      "id": "sync-retention",
+      "title": "Initial sync historical imports and retention",
+      "path": "customer/sync-retention.md",
+      "audience": "customer",
+      "topics": [
+        "ingestion",
+        "backfill",
+        "retention",
+        "90-days",
+        "three-years"
+      ],
+      "questions": [
+        "How much history is imported?",
+        "Why is only recent data available?",
+        "Is older data deleted?"
+      ],
+      "routes": [
+        "/dashboard/connections",
+        "/dashboard/datasets"
+      ],
+      "sources": [
+        "apps/api/app/modules/datasets/router.py",
+        "apps/api/app/modules/datasets/services/connector_history.py",
+        "apps/api/app/modules/datasets/services/connector_range_sync.py",
+        "apps/api/app/modules/datasets/services/retention.py",
+        "apps/api/app/modules/reports/anomalies.py"
+      ],
+      "related": [
+        "connectors",
+        "anomalies-seasonality",
+        "privacy-preferences"
+      ]
+    },
+    {
+      "id": "metric-selection",
+      "title": "Choose relevant metrics",
+      "path": "customer/metric-selection.md",
+      "audience": "customer",
+      "topics": [
+        "metrics",
+        "objectives",
+        "receipt",
+        "defaults",
+        "manual-selection"
+      ],
+      "questions": [
+        "Why are only some metrics preselected?",
+        "Does changing the objective replace manual choices?",
+        "Why did my selection not save?"
+      ],
+      "routes": [
+        "/dashboard/datasets"
+      ],
+      "sources": [
+        "apps/api/app/modules/datasets/services/metric_selection.py",
+        "apps/api/app/modules/datasets/services/metric_objectives.py",
+        "apps/api/app/modules/datasets/services/receipt_metrics.py",
+        "apps/web/features/datasets/lib/metric-selection-save.ts",
+        "docs/CURATED_METRIC_DEFAULTS.md"
+      ],
+      "related": [
+        "metric-semantics",
+        "uploads-datasets",
+        "reports-build"
+      ]
+    },
+    {
+      "id": "metric-semantics",
+      "title": "CRM and financial metric caveats",
+      "path": "customer/metric-semantics.md",
+      "audience": "customer",
+      "topics": [
+        "salesforce",
+        "quantity",
+        "currency",
+        "line-items",
+        "receipts"
+      ],
+      "questions": [
+        "Is ProductQuantity a Salesforce field?",
+        "Why is TotalOpportunityQuantity missing?",
+        "Why can I not sum invoice totals for product rows?",
+        "Why does Lightspeed show only quantity?"
+      ],
+      "routes": [
+        "/dashboard/datasets"
+      ],
+      "sources": [
+        "apps/api/app/modules/datasets/services/salesforce_metrics.py",
+        "apps/api/app/modules/datasets/services/receipt_metrics.py",
+        "apps/api/app/modules/datasets/services/connector_schema.py",
+        "apps/api/app/modules/datasets/services/dimension_filters.py",
+        "docs/CURATED_METRIC_DEFAULTS.md"
+      ],
+      "related": [
+        "metric-selection",
+        "dimension-filters",
+        "connectors"
+      ]
+    },
+    {
+      "id": "time-aggregation",
+      "title": "Dates grouped periods and aggregation",
+      "path": "customer/time-aggregation.md",
+      "audience": "customer",
+      "topics": [
+        "dates",
+        "grouping",
+        "aggregation",
+        "coverage"
+      ],
+      "questions": [
+        "What is a grouped period?",
+        "Does daily grouping create more observations?",
+        "Why are two pages showing different totals?"
+      ],
+      "routes": [
+        "/dashboard/reports",
+        "/dashboard/forecasts"
+      ],
+      "sources": [
+        "apps/api/app/modules/reports/service.py",
+        "apps/api/app/modules/reports/schemas.py",
+        "apps/api/app/modules/datasets/services/curated_metric_analytics.py",
+        "apps/web/app/dashboard/help/page.tsx"
+      ],
+      "related": [
+        "lag-observations",
+        "reports-read-save",
+        "dashboards"
+      ]
+    },
+    {
+      "id": "dimension-filters",
+      "title": "Filter metrics by category values",
+      "path": "customer/dimension-filters.md",
+      "audience": "customer",
+      "topics": [
+        "dimensions",
+        "filters",
+        "unique-values",
+        "segments"
+      ],
+      "questions": [
+        "Can I use non-metric columns for channel analysis?",
+        "Does Search values apply the filter?",
+        "Does a filter apply to every dataset?"
+      ],
+      "routes": [
+        "/dashboard",
+        "/dashboard/reports",
+        "/dashboard/forecasts",
+        "/dashboard/relationships"
+      ],
+      "sources": [
+        "apps/api/app/modules/datasets/services/dimension_filters.py",
+        "apps/web/features/datasets/components/dimension-filter.tsx",
+        "apps/web/features/reports/report-metric-picker.tsx",
+        "apps/web/app/dashboard/help/page.tsx"
+      ],
+      "related": [
+        "metric-semantics",
+        "time-aggregation",
+        "reports-build"
+      ]
+    },
+    {
+      "id": "dashboards",
+      "title": "Use dashboards for KPIs and charts",
+      "path": "customer/dashboards.md",
+      "audience": "customer",
+      "topics": [
+        "dashboard",
+        "mapping",
+        "targets",
+        "periods"
+      ],
+      "questions": [
+        "Where are dashboard filters?",
+        "Why did All and 5 years disappear?",
+        "Where is the dashboard Analysis tab?"
+      ],
+      "routes": [
+        "/dashboard",
+        "/dashboard/dashboards"
+      ],
+      "sources": [
+        "apps/web/features/dashboards/dashboard-definitions.ts",
+        "apps/web/app/dashboard/page.tsx",
+        "apps/web/app/dashboard/help/page.tsx",
+        "apps/web/tests/dashboard-periods.test.mjs",
+        "apps/web/tests/dashboard-analysis-removal.test.mjs"
+      ],
+      "related": [
+        "dimension-filters",
+        "sharing-exports",
+        "reports-build"
+      ]
+    },
+    {
+      "id": "reports-build",
+      "title": "Build single and multi dataset reports",
+      "path": "customer/reports-build.md",
+      "audience": "customer",
+      "topics": [
+        "reports",
+        "builder",
+        "multi-dataset",
+        "single-dataset",
+        "limits"
+      ],
+      "questions": [
+        "How do I select metrics from multiple datasets?",
+        "How many metrics and lag tests are supported?",
+        "Does preview create a decision?"
+      ],
+      "routes": [
+        "/dashboard/reports",
+        "/dashboard/reports/dataset"
+      ],
+      "sources": [
+        "apps/web/features/reports/report-workspace.tsx",
+        "apps/api/app/modules/reports/schemas.py",
+        "apps/api/app/modules/reports/jobs.py",
+        "apps/api/app/modules/reports/router.py"
+      ],
+      "related": [
+        "reports-read-save",
+        "relationship-evidence",
+        "lag-observations",
+        "decisions-outcomes"
+      ]
+    },
+    {
+      "id": "reports-read-save",
+      "title": "Read and manage report evidence",
+      "path": "customer/reports-read-save.md",
+      "audience": "customer",
+      "topics": [
+        "indexed-chart",
+        "snapshots",
+        "deletion",
+        "report-names"
+      ],
+      "questions": [
+        "What does index 100 mean?",
+        "Does reopening recalculate a saved report?",
+        "Can I delete a saved report or template?"
+      ],
+      "routes": [
+        "/dashboard/reports",
+        "/dashboard/reports/dataset"
+      ],
+      "sources": [
+        "apps/web/features/reports/indexed-trends.ts",
+        "apps/web/features/reports/report-workspace.tsx",
+        "apps/api/app/modules/reports/router.py",
+        "apps/api/app/modules/reports/jobs.py",
+        "docs/CROSS_DATASET_REPORTS.md"
+      ],
+      "related": [
+        "weekly-reports",
+        "decisions-outcomes",
+        "relationship-evidence"
+      ]
+    },
+    {
+      "id": "relationship-evidence",
+      "title": "Interpret relationships without assuming causation",
+      "path": "customer/relationship-evidence.md",
+      "audience": "customer",
+      "topics": [
+        "correlation",
+        "pearson",
+        "spearman",
+        "significance",
+        "causality"
+      ],
+      "questions": [
+        "Does correlation prove that ad spend caused revenue?",
+        "What happens with more than two datasets?",
+        "What decision can a relationship support?"
+      ],
+      "routes": [
+        "/dashboard/reports"
+      ],
+      "sources": [
+        "apps/api/app/modules/reports/relationships.py",
+        "apps/api/app/modules/reports/service.py",
+        "apps/api/app/modules/correlation/engine.py",
+        "docs/CROSS_DATASET_REPORTS.md"
+      ],
+      "related": [
+        "lag-observations",
+        "reports-build",
+        "decisions-outcomes"
+      ]
+    },
+    {
+      "id": "lag-observations",
+      "title": "Timing direction and minimum observations",
+      "path": "customer/lag-observations.md",
+      "audience": "customer",
+      "topics": [
+        "lag",
+        "direction",
+        "observations",
+        "insufficient-history"
+      ],
+      "questions": [
+        "Does maximum lag test every day up to 365?",
+        "How do I set direction for a middle metric?",
+        "Why is a one-year report insufficient?"
+      ],
+      "routes": [
+        "/dashboard/reports"
+      ],
+      "sources": [
+        "apps/api/app/modules/reports/relationships.py",
+        "apps/api/app/modules/reports/schemas.py",
+        "apps/api/app/modules/correlation/engine.py",
+        "apps/web/features/reports/report-pair-directions.tsx",
+        "apps/web/features/reports/pair-directions.ts"
+      ],
+      "related": [
+        "relationship-evidence",
+        "time-aggregation",
+        "reports-build"
+      ]
+    },
+    {
+      "id": "relationship-monitors",
+      "title": "Saved relationships versus report relationships",
+      "path": "customer/relationship-monitors.md",
+      "audience": "customer",
+      "topics": [
+        "relationships",
+        "monitors",
+        "retired-explorer"
+      ],
+      "questions": [
+        "How is Relationships different from Reports?",
+        "Should I deploy the old correlation worker?"
+      ],
+      "routes": [
+        "/dashboard/relationships",
+        "/dashboard/reports",
+        "/dashboard/reports/evidence"
+      ],
+      "sources": [
+        "apps/web/app/dashboard/help/page.tsx",
+        "apps/web/features/reports/historical-relationship-evidence.tsx",
+        "apps/web/features/reports/legacy-relationship-destination.ts",
+        "docs/MULTI_METRIC_CORRELATION.md"
+      ],
+      "related": [
+        "reports-build",
+        "lag-observations",
+        "weekly-reports"
+      ]
+    },
+    {
+      "id": "anomalies-seasonality",
+      "title": "Unusual changes and seasonal businesses",
+      "path": "customer/anomalies-seasonality.md",
+      "audience": "customer",
+      "topics": [
+        "anomalies",
+        "seasonality",
+        "mad",
+        "standard-deviation"
+      ],
+      "questions": [
+        "Is anomaly detection MAD or standard deviation?",
+        "Does the seasonal checkbox force a seasonal model?",
+        "Does no unusual change mean the engine failed?"
+      ],
+      "routes": [
+        "/dashboard/reports",
+        "/dashboard/reports/dataset"
+      ],
+      "sources": [
+        "apps/api/app/modules/reports/anomalies.py",
+        "apps/api/app/modules/datasets/services/seasonal_baseline.py",
+        "apps/web/features/reports/report-anomalies.tsx"
+      ],
+      "related": [
+        "forecasts",
+        "weekly-reports",
+        "sync-retention"
+      ]
+    },
+    {
+      "id": "forecasts",
+      "title": "Forecast a selected metric",
+      "path": "customer/forecasts.md",
+      "audience": "customer",
+      "topics": [
+        "forecasting",
+        "seasonality",
+        "validation",
+        "filters"
+      ],
+      "questions": [
+        "How do I forecast a segment?",
+        "Why is my seasonal forecast trend-only?",
+        "Does worker readiness verify forecasts?"
+      ],
+      "routes": [
+        "/dashboard/forecasts"
+      ],
+      "sources": [
+        "apps/api/app/modules/forecasting/services.py",
+        "apps/api/app/modules/forecasting/router.py",
+        "apps/api/app/modules/datasets/services/seasonal_baseline.py",
+        "docs/railway-scheduling.md",
+        "apps/web/app/dashboard/help/page.tsx"
+      ],
+      "related": [
+        "anomalies-seasonality",
+        "dimension-filters",
+        "troubleshooting-support"
+      ]
+    },
+    {
+      "id": "weekly-reports",
+      "title": "Configure a meaningful weekly report",
+      "path": "customer/weekly-reports.md",
+      "audience": "customer",
+      "topics": [
+        "weekly",
+        "templates",
+        "alerts",
+        "delivery"
+      ],
+      "questions": [
+        "Do saved report dates fix the weekly dates?",
+        "Does choosing a template enable sending?",
+        "Does scheduler success mean delivered?"
+      ],
+      "routes": [
+        "/dashboard/reports",
+        "/dashboard/alerts"
+      ],
+      "sources": [
+        "apps/api/app/modules/alerts/router.py",
+        "apps/api/app/modules/reports/service.py",
+        "apps/api/app/modules/reports/jobs.py",
+        "apps/api/app/modules/reports/router.py",
+        "apps/api/app/infrastructure/analysis_worker.py"
+      ],
+      "related": [
+        "email-branding",
+        "anomalies-seasonality",
+        "reports-read-save"
+      ]
+    },
+    {
+      "id": "email-branding",
+      "title": "Weekly email format sender and branding",
+      "path": "customer/email-branding.md",
+      "audience": "customer",
+      "topics": [
+        "email",
+        "sender",
+        "agency-logo",
+        "weekly-format"
+      ],
+      "questions": [
+        "What is in the weekly email?",
+        "Is the sender no-reply or alert?",
+        "Does the agency logo mean an agency sender?",
+        "Is there a chart or PDF attachment?"
+      ],
+      "routes": [
+        "/dashboard/alerts",
+        "/dashboard/reports"
+      ],
+      "sources": [
+        "apps/api/app/modules/alerts/email_delivery.py",
+        "apps/api/app/modules/alerts/router.py",
+        "apps/api/app/infrastructure/email_branding.py"
+      ],
+      "related": [
+        "weekly-reports",
+        "agencies-clients",
+        "privacy-preferences"
+      ]
+    },
+    {
+      "id": "decisions-outcomes",
+      "title": "Create decisions and track outcomes",
+      "path": "customer/decisions-outcomes.md",
+      "audience": "customer",
+      "topics": [
+        "decisions",
+        "drafts",
+        "duplicates",
+        "outcomes",
+        "learning"
+      ],
+      "questions": [
+        "Why is a draft called Review joined evidence?",
+        "Should a report always create three decisions?",
+        "Why do unrelated metrics appear in a decision?",
+        "Does editing create a new decision?"
+      ],
+      "routes": [
+        "/dashboard/decisions",
+        "/dashboard/decisions/new"
+      ],
+      "sources": [
+        "apps/api/app/modules/decisions/router.py",
+        "apps/api/app/modules/decisions/metric_scope.py",
+        "apps/api/app/modules/decisions/duplicates.py",
+        "apps/api/app/modules/reports/decision_drafts.py",
+        "apps/web/features/decisions/components/decision-report-evidence.tsx",
+        "docs/CROSS_DATASET_REPORTS.md"
+      ],
+      "related": [
+        "reports-read-save",
+        "relationship-evidence",
+        "ai-interpretation"
+      ]
+    },
+    {
+      "id": "ai-interpretation",
+      "title": "AI interpretation and rules fallback",
+      "path": "customer/ai-interpretation.md",
+      "audience": "customer",
+      "topics": [
+        "ai",
+        "interpretation",
+        "fallback",
+        "configuration"
+      ],
+      "questions": [
+        "Does a completed report mean AI ran?",
+        "Is an API key required to display the model name?",
+        "Why is rules fallback active?"
+      ],
+      "routes": [
+        "/dashboard/reports",
+        "/dashboard/alerts"
+      ],
+      "sources": [
+        "apps/api/app/modules/ai/service.py",
+        "apps/api/app/configuration.py",
+        "apps/api/app/modules/reports/router.py",
+        "apps/api/app/modules/reports/service.py",
+        "docs/openai-data-flow.md"
+      ],
+      "related": [
+        "billing-credits",
+        "anomalies-seasonality",
+        "privacy-preferences"
+      ]
+    },
+    {
+      "id": "billing-credits",
+      "title": "Billing trials and AI credits",
+      "path": "customer/billing-credits.md",
+      "audience": "customer",
+      "topics": [
+        "billing",
+        "trial",
+        "renewal",
+        "credits"
+      ],
+      "questions": [
+        "Is my renewal date an expiry date?",
+        "Are AI credits the same as provider tokens?",
+        "Does buying credits configure AI?"
+      ],
+      "routes": [
+        "/dashboard/billing"
+      ],
+      "sources": [
+        "apps/api/app/modules/billing/renewals.py",
+        "apps/api/app/modules/billing/router.py",
+        "apps/api/app/modules/ai/credits.py",
+        "apps/web/app/dashboard/help/page.tsx"
+      ],
+      "related": [
+        "ai-interpretation",
+        "privacy-preferences",
+        "troubleshooting-support"
+      ]
+    },
+    {
+      "id": "sharing-exports",
+      "title": "Share dashboards and retain evidence",
+      "path": "customer/sharing-exports.md",
+      "audience": "customer",
+      "topics": [
+        "sharing",
+        "pdf",
+        "exports",
+        "public-links"
+      ],
+      "questions": [
+        "Is a weekly email the dashboard PDF?",
+        "Who can open a shared dashboard link?",
+        "Why does my shared dashboard look different?"
+      ],
+      "routes": [
+        "/dashboard",
+        "/dashboard/decisions",
+        "/dashboard/reports"
+      ],
+      "sources": [
+        "apps/api/app/modules/public_dashboard.py",
+        "apps/api/app/modules/decisions/router.py",
+        "apps/web/app/dashboard/help/page.tsx",
+        "apps/api/app/modules/alerts/email_delivery.py"
+      ],
+      "related": [
+        "dashboards",
+        "reports-read-save",
+        "privacy-preferences"
+      ]
+    },
+    {
+      "id": "troubleshooting-support",
+      "title": "Safe troubleshooting and support requests",
+      "path": "customer/troubleshooting-support.md",
+      "audience": "customer",
+      "topics": [
+        "troubleshooting",
+        "errors",
+        "support",
+        "escalation"
+      ],
+      "questions": [
+        "What should I include in a bug report?",
+        "Does an unavailable message mean data was lost?",
+        "Can I paste an API key for diagnosis?"
+      ],
+      "routes": [
+        "/dashboard/help"
+      ],
+      "sources": [
+        "apps/web/app/dashboard/help/page.tsx",
+        "apps/api/app/modules/support/router.py",
+        "apps/api/app/modules/support/schemas.py",
+        "apps/api/app/modules/support/guidance.py",
+        "apps/api/app/modules/support/knowledge.py",
+        "apps/web/features/support/product-guidance.tsx",
+        "apps/web/features/datasets/lib/metric-selection-save.ts"
+      ],
+      "related": [
+        "workspaces-access",
+        "lag-observations",
+        "forecasts",
+        "privacy-preferences"
+      ]
+    },
+    {
+      "id": "privacy-preferences",
+      "title": "Data processing retention and email preferences",
+      "path": "customer/privacy-preferences.md",
+      "audience": "customer",
+      "topics": [
+        "privacy",
+        "retention",
+        "marketing",
+        "consent",
+        "security"
+      ],
+      "questions": [
+        "Does marketing unsubscribe stop weekly reports?",
+        "Are all data types deleted after three years?",
+        "Does the chatbot need secrets?"
+      ],
+      "routes": [
+        "/privacy",
+        "/terms",
+        "/security",
+        "/dashboard/help"
+      ],
+      "sources": [
+        "apps/api/app/modules/marketing/config.py",
+        "apps/web/features/auth/lib/signup-consent.ts",
+        "apps/api/app/modules/datasets/services/retention.py",
+        "docs/openai-data-flow.md",
+        "apps/web/app/privacy/page.tsx",
+        "apps/web/app/dashboard/help/page.tsx"
+      ],
+      "related": [
+        "sync-retention",
+        "ai-interpretation",
+        "weekly-reports"
+      ]
+    },
+    {
+      "id": "joins-entities",
+      "title": "Joining periods and matching entities",
+      "path": "customer/joins-entities.md",
+      "audience": "customer",
+      "topics": [
+        "joins",
+        "entity-matching",
+        "identity",
+        "dates"
+      ],
+      "questions": [
+        "How does a join differ from a relationship?",
+        "Does Entity Matching use fuzzy AI matching?"
+      ],
+      "routes": [
+        "/dashboard",
+        "/dashboard/entity-matching"
+      ],
+      "sources": [
+        "apps/web/app/dashboard/help/page.tsx",
+        "apps/api/app/modules/datasets/services/joins.py",
+        "apps/api/app/modules/datasets/services/entity_resolution.py",
+        "apps/web/app/dashboard/entity-matching/page.tsx"
+      ],
+      "related": [
+        "dashboards",
+        "relationship-evidence",
+        "dimension-filters"
+      ]
+    },
+    {
+      "id": "operator-architecture",
+      "title": "Operator architecture and trust boundaries",
+      "path": "operator/architecture.md",
+      "audience": "operator",
+      "topics": [
+        "architecture",
+        "security",
+        "mcp"
+      ],
+      "questions": [
+        "Does the support chatbot require MCP?",
+        "Which calculations run outside the API?"
+      ],
+      "routes": [
+        "/platform-admin"
+      ],
+      "sources": [
+        "apps/api/app/infrastructure/analysis_worker.py",
+        "apps/api/app/configuration.py",
+        "apps/api/app/modules/auth_context.py",
+        "docs/railway-scheduling.md"
+      ],
+      "related": [
+        "operator-worker-verification",
+        "operator-ai-configuration",
+        "operator-maintenance-integration"
+      ]
+    },
+    {
+      "id": "operator-worker-verification",
+      "title": "Verify analytics and report worker execution",
+      "path": "operator/worker-verification.md",
+      "audience": "operator",
+      "topics": [
+        "worker",
+        "readiness",
+        "job",
+        "recovery"
+      ],
+      "questions": [
+        "Does a heartbeat prove successful analysis?",
+        "How do I verify a job without sending email?"
+      ],
+      "routes": [
+        "/platform-admin"
+      ],
+      "sources": [
+        "apps/api/app/main.py",
+        "apps/api/app/infrastructure/readiness.py",
+        "apps/api/app/infrastructure/analysis_worker.py",
+        "apps/api/app/modules/reports/jobs.py",
+        "apps/api/app/modules/reports/router.py"
+      ],
+      "related": [
+        "operator-architecture",
+        "operator-ai-configuration",
+        "operator-email-delivery"
+      ]
+    },
+    {
+      "id": "operator-ai-configuration",
+      "title": "Diagnose AI configuration without exposing credentials",
+      "path": "operator/ai-configuration.md",
+      "audience": "operator",
+      "topics": [
+        "ai",
+        "environment",
+        "readiness",
+        "fallback"
+      ],
+      "questions": [
+        "Why is the model blank after deployment?",
+        "Does Configured verify the provider key?"
+      ],
+      "routes": [
+        "/platform-admin"
+      ],
+      "sources": [
+        "apps/api/app/configuration.py",
+        "apps/api/app/modules/ai/service.py",
+        "apps/api/app/modules/ai/router.py",
+        "apps/web/app/platform-admin/page.tsx",
+        "apps/web/lib/api.ts"
+      ],
+      "related": [
+        "operator-worker-verification",
+        "operator-maintenance-integration",
+        "ai-interpretation"
+      ]
+    },
+    {
+      "id": "operator-email-delivery",
+      "title": "Verify report sender and delivery",
+      "path": "operator/email-delivery.md",
+      "audience": "operator",
+      "topics": [
+        "email",
+        "sender",
+        "delivery",
+        "reconciliation"
+      ],
+      "questions": [
+        "Which setting controls weekly From?",
+        "Can an interrupted send be replayed?"
+      ],
+      "routes": [
+        "/platform-admin"
+      ],
+      "sources": [
+        "apps/api/app/modules/alerts/email_delivery.py",
+        "apps/api/app/modules/platform_admin.py",
+        "apps/api/app/infrastructure/analysis_worker.py"
+      ],
+      "related": [
+        "operator-worker-verification",
+        "operator-incident-curation",
+        "email-branding"
+      ]
+    },
+    {
+      "id": "operator-incident-curation",
+      "title": "Curate incidents into reusable troubleshooting knowledge",
+      "path": "operator/incident-curation.md",
+      "audience": "operator",
+      "topics": [
+        "incidents",
+        "triage",
+        "transactions",
+        "duplicates"
+      ],
+      "questions": [
+        "Can raw logs be indexed for customers?",
+        "When is a source fix production verified?"
+      ],
+      "routes": [
+        "/platform-admin"
+      ],
+      "sources": [
+        "apps/api/app/modules/datasets/services/metric_selection.py",
+        "apps/api/app/modules/billing/service.py",
+        "apps/api/tests/test_billing_settings_transactions.py",
+        "apps/api/app/modules/decisions/duplicates.py",
+        "apps/api/app/modules/reports/decision_drafts.py"
+      ],
+      "related": [
+        "operator-maintenance-integration",
+        "operator-worker-verification",
+        "operator-email-delivery"
+      ]
+    },
+    {
+      "id": "operator-maintenance-integration",
+      "title": "Maintain knowledge and integrate a guidance chatbot",
+      "path": "operator/maintenance-integration.md",
+      "audience": "operator",
+      "topics": [
+        "retrieval",
+        "knowledge",
+        "maintenance",
+        "mcp",
+        "security"
+      ],
+      "questions": [
+        "How should the knowledge base be indexed?",
+        "What remains before chatbot rollout?"
+      ],
+      "routes": [
+        "/dashboard/help"
+      ],
+      "sources": [
+        "apps/web/app/dashboard/help/page.tsx",
+        "apps/api/app/modules/support/router.py",
+        "docs/openai-data-flow.md",
+        "apps/api/scripts/knowledge_repository.py",
+        "apps/api/app/modules/support/guidance.py",
+        "apps/api/app/modules/support/knowledge.py",
+        "apps/api/app/security/rate_limits.py",
+        "apps/web/features/support/product-guidance.tsx"
+      ],
+      "related": [
+        "operator-architecture",
+        "operator-incident-curation",
+        "operator-ai-configuration"
+      ]
+    }
+  ]
+}

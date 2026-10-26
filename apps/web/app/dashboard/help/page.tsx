@@ -19,11 +19,13 @@ import {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react"
 
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { ProductGuidance } from "@/features/support/product-guidance"
 import { submitSupportRequest } from "@/lib/api"
 import { useActiveWorkspace } from "@/lib/use-active-workspace"
 
@@ -802,6 +804,14 @@ export default function HelpSupportPage() {
     useState("")
   const [supportFormSuccess, setSupportFormSuccess] =
     useState("")
+  const supportFormRef = useRef<HTMLFormElement | null>(null)
+
+  useEffect(() => {
+    if (supportFormOpen) {
+      supportFormRef.current?.scrollIntoView({ block: "start", behavior: "smooth" })
+      supportFormRef.current?.querySelector("textarea")?.focus({ preventScroll: true })
+    }
+  }, [supportFormOpen])
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -925,6 +935,16 @@ export default function HelpSupportPage() {
         eyebrow="Support"
         title="Help & Support"
         description="A concise guide to getting value from Decisionate, resolving issues, and turning evidence into better decisions."
+      />
+
+      <ProductGuidance
+        key={`${user?.id ?? ""}:${activeWorkspaceId}`}
+        userId={user?.id ?? ""}
+        workspaceId={activeWorkspaceId}
+        onContactSupport={message => {
+          openSupportForm("support")
+          if (message) setSupportMessage(message)
+        }}
       />
 
       <section
@@ -1064,8 +1084,9 @@ export default function HelpSupportPage() {
 
         {supportFormOpen && (
           <form
+            ref={supportFormRef}
             onSubmit={handleSupportSubmit}
-            className="rounded-2xl border border-[var(--decisionate-brand-primary-ring)] bg-white p-5 shadow-sm sm:p-6"
+            className="scroll-mt-24 rounded-2xl border border-[var(--decisionate-brand-primary-ring)] bg-white p-5 shadow-sm sm:p-6"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
