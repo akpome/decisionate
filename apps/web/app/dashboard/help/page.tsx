@@ -418,7 +418,8 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Set relationship timing and historical coverage",
         steps: [
           "Choose Spearman or Pearson in Relationship analysis. Minimum historical observations defaults to 24 and counts usable matched observations after grouping and filtering, not the number of dates entered.",
-          "Leave Evaluate timing off for same-period comparisons. When enabled, Relationship directions lists each cross-dataset metric pair separately; choose Same-period comparison only or name which metric leads for that pair.",
+          "Relationship directions lists each cross-dataset metric pair independently of Evaluate timing. Choose Same-period comparison only or name which metric leads for that pair. With Evaluate timing off, analysis compares the same period and retains your direction choices.",
+          "Remove relationship pairs you do not want to analyze. Restore them from Removed pairs when needed. These choices are saved with the report and weekly template; removing a pair does not remove its metrics from KPI or anomaly analysis.",
           "Maximum lag is measured in the selected Group by period and is limited to 12. A lag of 2 means two daily, weekly, monthly, or quarterly periods, depending on that setting. A directional timing test also includes lag zero.",
           "With metrics from three or more datasets, configure every relevant pair independently. A metric can follow one source and lead another; there is no single global middle-metric direction.",
           "If evidence is insufficient, check real overlapping source dates, selected date columns, missing or constant values, dimension filters, and the observations left after lagging. Twelve monthly observations do not meet the default minimum of 24; a wider form date range cannot create missing source history.",

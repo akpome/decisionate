@@ -53,6 +53,26 @@ class AnalysisJobTests(unittest.TestCase):
         with self.Session() as db:
             self.assertEqual(db.query(BusinessReport).count(), 1)
 
+    def test_worker_snapshot_and_weekly_template_keep_removed_pairs_excluded(self):
+        excluded = [{"metric_a": {"dataset_id": 1, "metric_key": "spend"},
+                     "metric_b": {"dataset_id": 2, "metric_key": "net_sales"}}]
+        identity = self.enqueue(excluded_pairs=excluded)
+        with patch("app.modules.reports.relationships.compute_pair", side_effect=AssertionError("Removed pair must not run")):
+            worker.execute_job(identity)
+        result = self.state(identity)
+        self.assertEqual(result["status"], "succeeded", result)
+        self.assertEqual(result["result"]["definition"]["excluded_pairs"], excluded)
+        self.assertEqual(result["result"]["findings"], [])
+        saved = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save")
+        self.assertEqual(saved.status_code, 201, saved.text)
+        report_id = saved.json()["report_id"]
+        reopened = self.client.get(f"/api/v2/business-reports/{report_id}").json()
+        self.assertEqual(reopened["definition"]["excluded_pairs"], excluded)
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/{report_id}/weekly").status_code, 200)
+        with self.Session() as db:
+            preference = db.query(WeeklyReportPreference).filter_by(workspace_id="owner").one()
+            self.assertEqual(alerts.weekly_business_template(db, preference, "owner")["excluded_pairs"], excluded)
+
     def test_deleting_a_saved_report_also_removes_its_temporary_analysis_result(self):
         identity = self.enqueue()
         worker.execute_job(identity)
@@ -76,6 +96,8 @@ class AnalysisJobTests(unittest.TestCase):
         second = self.client.post(path, json=fixtures.definition(), headers=headers)
         self.assertEqual(first.json()["job_id"], second.json()["job_id"])
         self.assertEqual(self.client.post(path, json=fixtures.definition(seasonal_business=True), headers=headers).status_code, 409)
+        excluded = [{"metric_a": {"dataset_id": 1, "metric_key": "spend"}, "metric_b": {"dataset_id": 2, "metric_key": "net_sales"}}]
+        self.assertEqual(self.client.post(path, json=fixtures.definition(excluded_pairs=excluded), headers=headers).status_code, 409)
 
     def test_source_changes_are_rejected_before_computation(self):
         identity = self.enqueue()

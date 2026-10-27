@@ -19,9 +19,12 @@ class ReportMetricKey(StrictModel):
     metric_key: str = Field(min_length=1, max_length=200)
 
 
-class ReportPairDirection(StrictModel):
+class ReportMetricPair(StrictModel):
     metric_a: ReportMetricKey
     metric_b: ReportMetricKey
+
+
+class ReportPairDirection(ReportMetricPair):
     direction: Literal["a_leads_b", "b_leads_a", "same_period"]
 
     @field_validator("direction", mode="before")
@@ -42,6 +45,7 @@ class ReportDefinition(AnalysisCreate):
     included_findings: list[str] | None = Field(default=None, max_length=300)
     source_run_id: str | None = Field(default=None, max_length=80)
     pair_directions: list[ReportPairDirection] | None = Field(default=None, max_length=300)
+    excluded_pairs: list[ReportMetricPair] = Field(default_factory=list, max_length=300)
 
     @model_validator(mode="after")
     def check_metrics(self):
@@ -56,7 +60,7 @@ class ReportDefinition(AnalysisCreate):
         if self.scope == "single":
             if len(datasets) != 1:
                 raise ValueError("Single dataset reports require exactly one dataset")
-            if self.lag.enabled or self.pair_directions:
+            if self.lag.enabled or self.pair_directions or self.excluded_pairs:
                 raise ValueError("Relationship timing is only available for multi dataset reports")
         elif len(datasets) < 2:
             raise ValueError("Select metrics from at least two datasets")
@@ -67,18 +71,19 @@ class ReportDefinition(AnalysisCreate):
     @model_validator(mode="after")
     def check_pair_directions(self):
         selected = {(item.dataset_id, item.metric_key) for item in self.metrics}
-        seen = set()
-        for pair in self.pair_directions or []:
-            left = (pair.metric_a.dataset_id, pair.metric_a.metric_key)
-            right = (pair.metric_b.dataset_id, pair.metric_b.metric_key)
-            identity = frozenset((left, right))
-            if left not in selected or right not in selected:
-                raise ValueError("Relationship directions must use selected metrics")
-            if left[0] == right[0]:
-                raise ValueError("Relationship directions must join different datasets")
-            if identity in seen:
-                raise ValueError("Select one direction setting for each metric pair")
-            seen.add(identity)
+        for policies in (self.pair_directions or [], self.excluded_pairs):
+            seen = set()
+            for pair in policies:
+                left = (pair.metric_a.dataset_id, pair.metric_a.metric_key)
+                right = (pair.metric_b.dataset_id, pair.metric_b.metric_key)
+                identity = frozenset((left, right))
+                if left not in selected or right not in selected:
+                    raise ValueError("Relationship pairs must use selected metrics")
+                if left[0] == right[0]:
+                    raise ValueError("Relationship pairs must join different datasets")
+                if identity in seen:
+                    raise ValueError("Select each relationship pair only once per setting")
+                seen.add(identity)
         return self
 
     @field_validator("business_question", mode="before")

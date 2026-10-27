@@ -8,8 +8,10 @@ metrics from at least two datasets for delivery.
 
 Generate and save the desired multi dataset report, then choose Use for weekly
 report. Review selected metrics, date columns, dimension filters, business
-question, seasonal setting and relationship pairs. Selecting this template does
-not enable sending or change recipients.
+question, seasonal setting and relationship pairs. Removed pairs remain excluded
+from weekly relationship analysis, while their selected metrics still receive
+KPI and anomaly analysis. Selecting this template does not enable sending or
+change recipients.
 
 Use Weekly delivery or Alerts to check recipients, schedule, delivery preferences
 and email readiness. Enable delivery only after confirming the intended audience.

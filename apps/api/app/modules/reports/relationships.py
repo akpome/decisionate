@@ -13,6 +13,12 @@ def pair_key(left, right):
     return frozenset((metric_key(left), metric_key(right)))
 
 
+def report_pairs(definition, metrics=None):
+    excluded = {pair_key(item["metric_a"], item["metric_b"]) for item in definition.get("excluded_pairs", [])}
+    return [(left, right) for left, right in combinations(definition["metrics"] if metrics is None else metrics, 2)
+            if left["dataset_id"] != right["dataset_id"] and pair_key(left, right) not in excluded]
+
+
 def normalize_pair_directions(configured):
     if configured is None:
         return None
@@ -39,9 +45,7 @@ def report_test_count(definition):
     lookup, lag = direction_lookup(definition), definition["lag"]
     positive = len({value for value in range(lag["minimum"], lag["maximum"] + 1) if value > 0}) if lag["enabled"] else 0
     count = 0
-    for left, right in combinations(definition["metrics"], 2):
-        if left["dataset_id"] == right["dataset_id"]:
-            continue
+    for left, right in report_pairs(definition):
         mode = pair_direction(left, right, definition, lookup)
         count += 1 + (0 if mode == "same_period" else positive)
     return count

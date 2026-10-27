@@ -18,7 +18,7 @@ import { loadReportCatalogDataset, loadReportCatalogPage, mergeReportCatalog as 
 import { editableDefinition, selectedReportDimensionFilters, type BusinessReport, type ReportDefinition } from "./types"
 import { ReportDecisions, ReportRelationshipFindings } from "./report-evidence-sections"
 import { defaultReportName, isDefaultReportName, reportDraftName } from "./default-report-name"
-import { reportPairDirections, reportPairKey, reportTestCount } from "./pair-directions"
+import { reportExcludedPairs, reportPairDirections, reportPairKey, reportTestCount, unorderedReportPairKey } from "./pair-directions"
 import { ReportPairDirections } from "./report-pair-directions"
 import { ReportAnomalies } from "./report-anomalies"
 import { historicalEvidenceHref } from "./legacy-relationship-destination"
@@ -88,8 +88,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
   const datasetCount = new Set(definition.metrics.map(metric => metric.dataset_id)).size
   const single = definition.scope === "single"
-  const taskCount = reportTestCount(definition.metrics, definition.pair_directions, definition.lag)
-  const showPairDirections = definition.lag.enabled && definition.pair_directions.length > 0
+  const taskCount = reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs)
+  const showPairDirections = definition.pair_directions.length > 0
   const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < (single ? 1 : 2) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t("Preview report")}</button>
 
   useEffect(() => {
@@ -233,11 +233,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   }
 
   function edit(patch: Partial<ReportDefinition>) {
-    const analysisChanged = ["metrics", "dimension_filters", "date_range", "grain", "method", "filters", "lag", "pair_directions", "seasonal_business"].some(key => key in patch)
+    const analysisChanged = ["metrics", "dimension_filters", "date_range", "grain", "method", "filters", "lag", "pair_directions", "excluded_pairs", "seasonal_business"].some(key => key in patch)
     const nextName = report?.report_id && !("name" in patch) && isDefaultReportName(definition.name) ? defaultReportName() : null
     setDefinition(current => {
       const next = { ...current, ...(nextName ? { name: nextName } : {}), ...patch, ...(analysisChanged ? { included_findings: null } : {}) }
-      return { ...next, pair_directions: reportPairDirections(next.metrics, next.pair_directions) }
+      return { ...next, pair_directions: reportPairDirections(next.metrics, next.pair_directions), excluded_pairs: reportExcludedPairs(next.metrics, next.excluded_pairs) }
     })
     setReport(null); setError(""); setMessage("")
     setAnalysisJob(null)
@@ -446,9 +446,12 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
                 {!single && <section aria-label="Relationship analysis" className="border-y border-gray-100 py-3"><h3 className="text-sm font-medium">{t("Relationship analysis")}</h3><div className="mt-3 space-y-3">
                   <label className="block text-xs text-gray-600">Correlation method<select className={input} value={definition.method} onChange={event => edit({ method: event.target.value as ReportDefinition["method"] })}><option value="spearman">Spearman</option><option value="pearson">Pearson</option></select></label>
                   <label className="block text-xs text-gray-600">Minimum historical observations<input className={input} type="number" min={24} max={3653} required value={definition.filters.minimum_observations} onChange={event => edit({ filters: { ...definition.filters, minimum_observations: Number(event.target.value) } })} /></label>
+                  {showPairDirections && <ReportPairDirections pairs={definition.pair_directions} excludedPairs={definition.excluded_pairs} datasets={datasets}
+                    onChange={(pair, direction) => edit({ pair_directions: definition.pair_directions.map(item => reportPairKey(item) === reportPairKey(pair) ? { ...item, direction } : item) })}
+                    onRemove={pair => edit({ excluded_pairs: [...definition.excluded_pairs, pair] })}
+                    onRestore={pair => edit({ excluded_pairs: definition.excluded_pairs.filter(item => unorderedReportPairKey(item) !== unorderedReportPairKey(pair)) })} />}
                   <label className="flex gap-2 text-sm"><input className="h-4 w-4" type="checkbox" checked={definition.lag.enabled} onChange={event => edit({ lag: { ...definition.lag, enabled: event.target.checked } })} />Evaluate timing</label>
                   {definition.lag.enabled && <label className="block text-xs text-gray-600">Maximum lag<input className={input} type="number" min={definition.lag.minimum} max={12} required value={definition.lag.maximum} onChange={event => edit({ lag: { ...definition.lag, maximum: Number(event.target.value) } })} /></label>}
-                  {showPairDirections && <ReportPairDirections pairs={definition.pair_directions} datasets={datasets} onChange={(pair, direction) => edit({ pair_directions: definition.pair_directions.map(item => reportPairKey(item) === reportPairKey(pair) ? { ...item, direction } : item) })} />}
                 </div></section>}
               </div>
               <p className="shrink-0 text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets / {taskCount} tests</p>

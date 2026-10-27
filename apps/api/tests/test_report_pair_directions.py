@@ -27,6 +27,10 @@ def policy(left, right, direction):
     return {"metric_a": key(*left), "metric_b": key(*right), "direction": direction}
 
 
+def excluded(left, right):
+    return {"metric_a": key(*left), "metric_b": key(*right)}
+
+
 A, B, C = (1, "spend"), (2, "net_sales"), (4, "clicks")
 
 
@@ -62,6 +66,68 @@ class ReportPairDirectionTests(unittest.TestCase):
             self.assertEqual(results[pair]["lag"], lag)
             self.assertAlmostEqual(results[pair]["coefficient"], 1, places=10)
         self.assertEqual(len(results), 3)
+
+    def test_removed_pairs_are_not_computed_or_included_in_significance_correction(self):
+        payload = definition(excluded_pairs=[excluded(B, A), excluded(B, C)])
+        original = deepcopy(payload)
+        with (patch("app.modules.reports.relationships.compute_pair", wraps=engine.compute_pair) as compute,
+              patch("app.modules.reports.service.adjust_bh", wraps=engine.adjust_bh) as adjust):
+            report = build_report(frames(), payload)
+        self.assertEqual(report_test_count(payload), 4)
+        self.assertEqual(compute.call_count, 1)
+        self.assertEqual(len(adjust.call_args.args[0]), 4)
+        self.assertEqual(len(report["findings"]), 1)
+        self.assertEqual({item["dataset_id"] for item in (report["findings"][0]["metric_a"], report["findings"][0]["metric_b"])}, {1, 4})
+        self.assertEqual(len(report["metrics"]), 3)
+        self.assertEqual(len(report["anomaly_analysis"]["metrics"]), 3)
+        self.assertEqual(payload, original)
+
+    def test_all_pairs_can_be_removed_without_losing_metric_or_anomaly_results(self):
+        payload = definition(excluded_pairs=[excluded(A, B), excluded(A, C), excluded(B, C)])
+        with patch("app.modules.reports.relationships.compute_pair") as compute:
+            report = build_report(frames(), payload)
+        compute.assert_not_called()
+        self.assertEqual(report_test_count(payload), 0)
+        self.assertEqual(report["findings"], [])
+        self.assertEqual(report["included_findings"], [])
+        self.assertEqual(report["contrasts"], [])
+        self.assertEqual(len(report["metrics"]), 3)
+        self.assertEqual(len(report["anomaly_analysis"]["metrics"]), 3)
+
+    def test_direction_is_retained_when_timing_is_off(self):
+        payload = definition(excluded_pairs=[excluded(A, B)])
+        payload["lag"]["enabled"] = False
+        with patch.object(engine, "_calculate_lag_result", wraps=engine._calculate_lag_result) as calculate:
+            report = build_report(frames(), payload)
+        self.assertEqual(calculate.call_count, 2)
+        self.assertEqual(report_test_count(payload), 2)
+        self.assertTrue(all(item["lag"] == 0 for item in report["findings"]))
+        self.assertEqual(report["definition"]["pair_directions"], payload["pair_directions"])
+
+    def test_removed_pairs_do_not_reappear_in_combined_movement_contrasts(self):
+        sources = fixtures.fixture()
+        self.assertEqual(len(build_report(sources, fixtures.definition())["contrasts"]), 1)
+        report = build_report(sources, fixtures.definition(excluded_pairs=[excluded(A, B)]))
+        self.assertEqual(report["contrasts"], [])
+        self.assertEqual(len(report["observations"]), 2)
+
+    def test_exclusion_identity_uses_both_dataset_and_metric(self):
+        payload = definition(excluded_pairs=[excluded(A, B)])
+        payload["metrics"].append({**key(1, "orders"), "date_column": "date", "aggregation": "sum"})
+        self.assertEqual(report_test_count(payload), 10)
+
+    def test_schema_rejects_unknown_same_dataset_and_duplicate_exclusions(self):
+        for policies in ([excluded(A, (99, "spend"))], [excluded(A, A)], [excluded(A, B), excluded(B, A)]):
+            with self.subTest(policies=policies), self.assertRaises(ValidationError):
+                ReportDefinition(**definition(excluded_pairs=policies))
+
+    def test_schema_rejects_null_exclusions_and_defaults_legacy_reports_to_no_exclusions(self):
+        payload = definition()
+        del payload["excluded_pairs"]
+        self.assertEqual(ReportDefinition(**payload).excluded_pairs, [])
+        payload["excluded_pairs"] = None
+        with self.assertRaises(ValidationError):
+            ReportDefinition(**payload)
 
     def test_pair_choices_survive_reordered_selected_metrics_and_reversed_policy_endpoints(self):
         payload = definition()
@@ -205,6 +271,20 @@ class ReportPairDirectionTests(unittest.TestCase):
         self.assertEqual(partial["definition"]["pair_directions"], [policy(A, B, "a_leads_b")])
         ReportDefinition(**partial["definition"])
 
+    def test_weekly_template_preserves_exclusions_even_when_all_remaining_pairs_are_removed(self):
+        preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=[], include_recommendations=True)
+        template = definition(excluded_pairs=[excluded(A, B), excluded(B, C)])
+        original = deepcopy(template)
+        with patch("app.modules.alerts.router.complete_week", return_value=template["date_range"]):
+            report = build_weekly_cross_dataset_report(frames(), preference, template)
+            partial = build_weekly_cross_dataset_report({key: value for key, value in frames().items() if key != 4}, preference, template)
+        self.assertEqual(report["definition"]["excluded_pairs"], template["excluded_pairs"])
+        self.assertEqual(len(report["findings"]), 1)
+        self.assertEqual(partial["definition"]["excluded_pairs"], [excluded(A, B)])
+        self.assertEqual(partial["findings"], [])
+        ReportDefinition(**partial["definition"])
+        self.assertEqual(template, original)
+
     def test_weekly_report_defaults_old_bidirectional_pairs_to_same_period(self):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=[], include_recommendations=True)
         template = definition()
@@ -230,15 +310,26 @@ class ReportPairDirectionRouteTests(unittest.TestCase):
             db.commit()
 
     def test_preview_save_and_reopen_retain_all_independent_pair_choices(self):
-        payload = definition()
+        payload = definition(excluded_pairs=[excluded(B, A)])
         for path in ("/api/v2/business-reports/preview", "/api/v2/business-reports"):
             response = self.client.post(path, json=payload)
             self.assertIn(response.status_code, (200, 201), response.text)
             self.assertEqual(response.json()["definition"]["pair_directions"], payload["pair_directions"])
+            self.assertEqual(response.json()["definition"]["excluded_pairs"], payload["excluded_pairs"])
+            self.assertEqual(len(response.json()["findings"]), 2)
         saved = response.json()
         reopened = self.client.get(f"/api/v2/business-reports/{saved['report_id']}")
         self.assertEqual(reopened.status_code, 200)
         self.assertEqual(reopened.json()["definition"]["pair_directions"], payload["pair_directions"])
+        self.assertEqual(reopened.json()["definition"]["excluded_pairs"], payload["excluded_pairs"])
+
+    def test_invalid_pair_exclusion_is_rejected_before_any_source_file_reads(self):
+        payload = definition()
+        payload["excluded_pairs"] = [excluded(A, (3, "private"))]
+        with patch.object(router, "load_dataframe_from_dataset") as load:
+            response = self.client.post("/api/v2/business-reports/preview", json=payload)
+        self.assertEqual(response.status_code, 422, response.text)
+        load.assert_not_called()
 
     def test_invalid_pair_policy_is_rejected_before_any_source_file_reads(self):
         payload = definition()

@@ -1,7 +1,6 @@
 """Shared, deterministic evidence for interactive and scheduled reports."""
 
 from datetime import date, datetime, timedelta, timezone
-from itertools import combinations
 import json
 import math
 from zoneinfo import ZoneInfo
@@ -17,7 +16,7 @@ from app.modules.datasets.services.dimension_filters import apply_dimension_filt
 from .catalog import prepare_report_source
 from .anomalies import anomaly_summary, detect_report_metric, historical_start
 from .decision_drafts import is_report_decision_draft
-from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, report_test_count
+from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, report_pairs, report_test_count
 from .schemas import MINIMUM_REPORT_OBSERVATIONS
 from app.modules.decisions.duplicates import canonical_decisions
 
@@ -216,7 +215,9 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None):
     history = {"start": historical_start(history_anchor) if history_anchor else str(min(date.fromisoformat(window["start"]), date.fromisoformat(window["end"]) - timedelta(days=89))), "end": window["end"]}
     relationship_definition = {**actual_definition, "date_range": history,
                                "filters": {**definition["filters"], "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, definition["filters"]["minimum_observations"])}}
-    historical = prepare_report_series(frames, usable, relationship_definition) if usable and not single else {}
+    pairs = report_pairs(definition, usable)
+    relationship_metrics = {metric_id(item) for pair in pairs for item in pair}
+    historical = prepare_report_series(frames, [item for item in usable if metric_id(item) in relationship_metrics], relationship_definition) if pairs and not single else {}
     history_periods = period_index(history, grain)
     for identity, points in list(historical.items()):
         points["value"] = pd.to_numeric(points["value"], errors="coerce").replace([float("inf"), -float("inf")], float("nan"))
@@ -224,9 +225,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None):
         # exactly k calendar periods, then discards unavailable pairs, not dates.
         historical[identity] = points.set_index("period").reindex(history_periods).rename_axis("period").reset_index()
     rows, directions = [], direction_lookup(definition)
-    for left, right in combinations(usable, 2):
-        if left["dataset_id"] == right["dataset_id"]:
-            continue
+    for left, right in pairs:
         rows.extend(compute_report_pair(metadata[metric_id(left)], metadata[metric_id(right)], historical, relationship_definition, directions))
     adjusted = adjust_bh([row["p_value"] for row in rows])
     findings = []
@@ -279,8 +278,8 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None):
     observations = [f"{metric['dataset_label']} / {metric['label']}: {metric['change_percent']:+.1f}% versus the previous comparable period."
                     for metric in movements[:6]]
     contrasts = []
-    for left, right in combinations(movements, 2):
-        if left["dataset_id"] != right["dataset_id"] and left["change_percent"] * right["change_percent"] < 0:
+    for left, right in report_pairs(definition, movements):
+        if left["change_percent"] * right["change_percent"] < 0:
             contrasts.append(f"{left['dataset_label']} / {left['label']} and {right['dataset_label']} / {right['label']} moved in opposite directions. Check channel mix, timing and source coverage before attributing the difference to an intervention.")
     actions = []
     if warnings:

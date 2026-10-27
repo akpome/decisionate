@@ -7,10 +7,19 @@ quarterly grouping. It is not automatically a two-day conversion delay.
 
 ## Set direction per pair
 
-Leave Evaluate timing off for a same-period comparison. When timing is enabled,
-choose which metric leads for each cross-dataset pair, or leave that pair at
-Same-period comparison only. A metric can follow one metric and lead another;
-there is no need to assign one global direction to the middle source.
+Relationship directions is available independently of Evaluate timing. Choose
+which metric leads for each cross-dataset pair, or leave that pair at Same-period
+comparison only. With Evaluate timing off, analysis compares the same period
+while retaining your direction choices. A metric can follow one metric and lead
+another; there is no need to assign one global direction to the middle source.
+
+Remove relationship pairs you do not want to analyze. Removed pairs are excluded
+from relationship tests and cross-dataset movement contrasts, including in weekly
+reports using that template. Restore a pair from Removed pairs to reuse its
+previous direction. Removing a pair does not deselect its metrics: KPI and
+anomaly analysis still assess each selected metric. Removing all pairs runs no
+relationship tests. Removing a metric also clears exclusions involving it, so
+reselecting that metric creates its pairs again.
 
 The interface no longer offers Test both directions. Directional timing includes
 lag zero and eligible positive lags up to the selected maximum of 12 periods.

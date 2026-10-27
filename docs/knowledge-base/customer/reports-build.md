@@ -14,22 +14,25 @@ dataset metrics, date policies, anomaly detection and report snapshots.
 4. Review each preselected Date column. Apply a dataset-local Dimension column
    filter and Unique values if you want a segment rather than all eligible rows.
 5. Set Start, End and Group by. Request seasonal activity only when appropriate.
-6. For multi dataset analysis, configure Relationship analysis and optional
-   pair-specific timing. Single dataset reports omit cross-source relationships.
+6. For multi dataset analysis, configure Relationship analysis. Remove unwanted
+   pairs and set each remaining pair's direction independently of Evaluate timing.
+   Enable timing only to test positive lags; otherwise analysis compares the same
+   period. Single dataset reports omit cross-source relationships.
 7. Choose Preview report and wait for analysis to finish before saving.
 
 ## Limits and evidence
 
 A report supports at most 25 selected metrics, a maximum of 12 lag periods and
 1,000 cross-dataset pair/lag tests. Reduce metrics or timing complexity if the
-analysis exceeds these limits. The default relationship observation threshold is
-24 matched periods; selecting more calendar dates is not equivalent to having
-more observations.
+analysis exceeds these limits. Removed pairs do not consume relationship tests;
+they can be restored without removing the selected metrics. The default
+relationship observation threshold is 24 matched periods; selecting more calendar
+dates is not equivalent to having more observations.
 
 AI interpretation is optional and off by default for manual report definitions.
 The computed report does not require an external AI response. A saved snapshot
-retains its original result; changing a filter, metric, date or timing setting
-requires a new preview to calculate new evidence.
+retains its original result; changing a filter, metric, date, pair selection or
+timing setting requires a new preview to calculate new evidence.
 
 Reports show evidence and linked decisions. Create a new business decision in
 the central Decisions workflow rather than expecting Preview report to execute

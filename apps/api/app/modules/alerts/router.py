@@ -839,10 +839,11 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
                   "method": (template or {}).get("method", "spearman"),
                   "lag": lag,
                   "filters": {"minimum_abs_coefficient": .3, "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, (template or {}).get("filters", {}).get("minimum_observations", MINIMUM_REPORT_OBSERVATIONS))}, "included_findings": None}
-    if definition.get("pair_directions") is not None:
-        selected_keys = {metric_key(item) for item in references}
-        definition["pair_directions"] = [pair for pair in definition["pair_directions"]
-                                         if metric_key(pair["metric_a"]) in selected_keys and metric_key(pair["metric_b"]) in selected_keys]
+    selected_keys = {metric_key(item) for item in references}
+    for setting in ("pair_directions", "excluded_pairs"):
+        if definition.get(setting) is not None:
+            definition[setting] = [pair for pair in definition[setting]
+                                   if metric_key(pair["metric_a"]) in selected_keys and metric_key(pair["metric_b"]) in selected_keys]
     selected_frames = {key: value for key, value in frames.items() if any(item["dataset_id"] == key for item in references)}
     anchor = analysis_date or datetime.now(ZoneInfo(reporting_timezone())).date()
     result = build_report(selected_frames, definition, unavailable=warnings, history_anchor=anchor)

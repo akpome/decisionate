@@ -1,9 +1,9 @@
 import type { CorrelationDefinition, CorrelationMetric } from "@/features/relationships/types"
 import type { AIAnalysis, DatasetDimensionFilter } from "@/lib/api"
-import { reportPairDirections, type ReportPairDirection } from "./pair-directions"
+import { reportExcludedPairs, reportPairDirections, type ReportMetricPair, type ReportPairDirection } from "./pair-directions"
 
 export type ReportScope = "single" | "multi"
-export type ReportDefinition = CorrelationDefinition & { scope: ReportScope; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[] }
+export type ReportDefinition = CorrelationDefinition & { scope: ReportScope; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[] }
 export type ReportAnomalyMetric = {
   metric_id: string; dataset_id: number; dataset_label: string; metric_key: string; label: string
   unit?: string | null; currency?: string | null; status: "ready" | "limited_history" | "insufficient_history" | "unavailable"
@@ -65,6 +65,7 @@ export function editableDefinition(value: Partial<ReportDefinition>): ReportDefi
     filters: { minimum_abs_coefficient: value.filters?.minimum_abs_coefficient ?? .3, minimum_observations: Math.max(24, value.filters?.minimum_observations ?? 24) },
     lag: value.lag ? { ...value.lag, minimum: Math.min(12, value.lag.minimum), maximum: Math.min(12, value.lag.maximum) } : { enabled: false, minimum: 0, maximum: 12, direction: "a_leads_b" },
     included_findings: value.included_findings ?? null, source_run_id: value.source_run_id ?? null,
+    excluded_pairs: reportExcludedPairs(value.metrics || [], value.excluded_pairs),
     pair_directions: reportPairDirections(value.metrics || [], value.pair_directions, value.pair_directions == null && value.lag ? value.lag.direction === "b_leads_a" ? "b_leads_a" : "a_leads_b" : undefined) }
 }
 
