@@ -65,7 +65,7 @@ from app.modules.reports.service import attach_report_decisions, build_report, c
 from app.modules.reports.catalog import prepare_report_source
 from app.modules.reports.relationships import metric_key
 from app.modules.reports.schemas import MINIMUM_REPORT_OBSERVATIONS
-from app.modules.correlation.defaults import DEFAULT_MINIMUM_OBSERVATIONS
+from app.modules.correlation.defaults import DEFAULT_MINIMUM_OBSERVATIONS, DEFAULT_PERIOD
 from app.modules.correlation.catalog import metric_catalog, reporting_timezone
 from app.modules.decisions.templates import build_decision_template_url
 
@@ -828,15 +828,13 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
         valid_references.append(reference)
     references = valid_references
     lag = (template or {}).get("lag", {"enabled": False, "minimum": 0, "maximum": 0, "direction": "a_leads_b"})
-    if template and template.get("grain", "daily") != "daily" and lag.get("enabled"):
-        warnings.append(f"The saved report tests {template['grain']} lag periods. Weekly reviews use daily periods, so that lag is not reused; review timing in the original report.")
-        lag = {**lag, "enabled": False}
     definition = {**(template or {}), "scope": "multi", "name": (template or {}).get("name", "Weekly cross-dataset review"),
                   "dimension_filters": [item for item in (template or {}).get("dimension_filters", [])
                                         if item["dataset_id"] in {reference["dataset_id"] for reference in references}],
                   "seasonal_business": (template or {}).get("seasonal_business", False),
                   "business_question": (template or {}).get("business_question", "What changed across the selected datasets, and which changes deserve investigation?"),
-                  "metrics": references, "date_range": complete_week(analysis_date) if analysis_date else complete_week(), "grain": "daily",
+                  "metrics": references, "date_range": complete_week(analysis_date) if analysis_date else complete_week(),
+                  "grain": (template or {}).get("grain", DEFAULT_PERIOD),
                   "method": (template or {}).get("method", "spearman"),
                   "lag": lag,
                   "filters": {"minimum_abs_coefficient": .3, "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, (template or {}).get("filters", {}).get("minimum_observations", DEFAULT_MINIMUM_OBSERVATIONS))}, "included_findings": None}
@@ -854,11 +852,12 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
         impact_definition = {"impact": template["impact"], "grain": template["grain"],
                              "date_range": {"start": max(template["date_range"]["start"], historical_start(anchor)),
                                             "end": definition["date_range"]["end"]}}
-    result = build_report(selected_frames, definition, unavailable=warnings, history_anchor=anchor, impact_definition=impact_definition)
+    result = build_report(selected_frames, definition, unavailable=warnings, history_anchor=anchor,
+                          impact_definition=impact_definition, reporting_grain="daily")
     evaluated = {item["metric_id"] for item in result["anomaly_analysis"]["metrics"]}
     omitted = [item for item in requested_references if f"{item['dataset_id']}:{item['metric_key']}" not in evaluated]
     if omitted:
-        unavailable_metrics = report_anomalies({}, omitted, {**definition, "reporting_timezone": reporting_timezone()}, {}, anchor=anchor)["metrics"]
+        unavailable_metrics = report_anomalies({}, omitted, {**definition, "grain": result["grain"], "reporting_timezone": reporting_timezone()}, {}, anchor=anchor)["metrics"]
         for metric in unavailable_metrics:
             metric["warnings"] = ["The selected metric or its dataset is unavailable under the current policy; it could not be assessed."]
         result["anomaly_analysis"]["metrics"].extend(unavailable_metrics)

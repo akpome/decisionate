@@ -179,9 +179,16 @@ reporting timezone, compared with the preceding complete week. Relationships
 use a rolling historical window capped at three calendar years, anchored to the
 current run date. Manual report dates do not constrain scheduled reporting or
 its historical context. Saved templates preserve the selected finding
-pairs even if the best current lag changes. A lag configured in weekly, monthly
-or quarterly units is not silently reused as days: daily reviews disable that
-lag with a warning and retain the original report for timing analysis.
+pairs even if the best current lag changes. Analysis grouping is independent of
+the weekly summary: `ReportDefinition.grain` retains the saved relationship and
+business-impact units, while `build_report(reporting_grain="daily")` selects daily
+summary trends, coverage and anomaly checks inside the completed week. Results
+expose `grain` for summary detail and `analysis_grain` for analytical units.
+Without a template, analytical grouping uses the shared weekly default. Saved
+lags and minimum observation thresholds are retained, not disabled or relabeled
+as days. Coarser analysis may lack enough observations within three years; it is
+not silently replaced with a finer, statistically different analysis. Weekly
+previews, bounded AI facts and email alternatives label the two groupings.
 Changed or unavailable policies are
 flagged; fewer than two usable datasets prevents delivery rather than sending a
 misleading single-source report. Existing KPI targets remain visible without

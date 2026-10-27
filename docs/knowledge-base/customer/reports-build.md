@@ -52,7 +52,7 @@ recorded business change. Existing saved reports keep their original workflow.
    reports require at least two sources. Single dataset reports use exactly one.
 4. Review each preselected Date column. Apply a dataset-local Dimension column
    filter and Unique values if you want a segment rather than all eligible rows.
-5. Set Start, End and Group by. Request seasonal activity only when appropriate.
+5. Set Start, End and Analysis group by. Request seasonal activity only when appropriate.
 6. For exploratory multi dataset analysis, configure Relationship analysis. Remove unwanted
    pairs and set each remaining pair's direction. Evaluate timing is always
    available above the pairs; set Maximum lag for directional tests. Pairs left

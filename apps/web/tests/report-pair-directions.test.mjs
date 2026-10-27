@@ -207,7 +207,7 @@ test("report dates stay in a nonshrinking row outside the settings scroll area",
   assert.match(dates.getText(tree), /max=\{definition\.date_range\.end \|\| undefined\}/)
   assert.match(dates.getText(tree), /min=\{definition\.date_range\.start \|\| undefined\}/)
   assert.doesNotMatch(scroll.getText(tree), /type="date"/)
-  assert.match(scroll.getText(tree), /Group by/)
+  assert.match(scroll.getText(tree), /Analysis group by/)
   assert.match(scroll.getText(tree), /Relationship analysis/)
 })
 

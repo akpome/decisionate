@@ -283,6 +283,8 @@ class BusinessImpactTests(unittest.TestCase):
                                                 analysis_date=date(2025, 12, 29), include_ai_analysis=True)
         result = digest.cross_dataset_report
         self.assertEqual(result["grain"], "daily")
+        self.assertEqual(result["analysis_grain"], "weekly")
+        self.assertEqual(result["definition"]["grain"], "weekly")
         self.assertEqual(result["impact_analysis"]["grain"], "weekly")
         self.assertEqual(result["impact_analysis"]["status"], "estimated", result["impact_analysis"])
         self.assertEqual(result["impact_analysis"]["before_periods"], 110)
@@ -295,6 +297,9 @@ class BusinessImpactTests(unittest.TestCase):
         self.assertIn("&lt;script&gt;unsafe", html)
         self.assertNotIn("<script>", html)
         self.assertIn("Study dates:", text)
+        for content in (html, text):
+            self.assertIn("Weekly summary: daily detail.", content)
+            self.assertIn("Analysis group by: weekly.", content)
 
 
 class BusinessImpactWorkflowTests(unittest.TestCase):

@@ -30,10 +30,19 @@ reporting timezone, compared with the preceding week. The manual report's Start
 and End are not a permanent weekly window. Historical context rolls with the
 current run date and is capped at three years where used for weekly analysis.
 
-Weekly reviews use daily periods. A template lag configured in weekly, monthly
-or quarterly units is not silently relabeled as days; it is disabled for that
-daily review with a warning. Keep the original report for the intended timing
-study. Per-metric anomaly results include seasonal support and history warnings.
+Analysis group by is separate from weekly delivery. Weekly totals cover the
+completed week, with daily detail for coverage and anomaly checks. Relationship
+analysis retains the template's daily, weekly, monthly or quarterly grouping,
+minimum observations, pair directions and lag limits. A two-week lag remains
+two weeks; sending weekly does not turn it into two days or disable timing.
+Without a template, relationship analysis defaults to weekly grouping.
+
+Changing the analysis grouping does not change the weekly summary window or
+the metric's approved aggregation policy. Monthly and quarterly analyses may
+still lack enough matched observations inside the rolling three-year limit;
+daily summary detail does not create extra observations for them. Per-metric
+anomaly results include seasonal support and history warnings. New weekly
+previews and emails label the summary and analysis groupings separately.
 
 ## Follow up on a business change
 

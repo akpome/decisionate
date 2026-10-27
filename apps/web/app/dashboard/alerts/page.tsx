@@ -1,6 +1,7 @@
 "use client"
 
 import { ReportAnomalies } from "@/features/reports/report-anomalies"
+import { ReportGrouping } from "@/features/reports/report-grouping"
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react";
@@ -1372,6 +1373,7 @@ function WeeklyReportDigestPreview({
       {digest.cross_dataset_report && <section className="mt-4 space-y-3 border-y border-gray-200 py-4 text-sm" aria-label="Weekly cross-dataset review">
         <h3 className="break-words font-semibold">{digest.cross_dataset_report.business_question}</h3>
         <p className="text-xs text-gray-500">{digest.cross_dataset_report.window.start} to {digest.cross_dataset_report.window.end} / Previous: {digest.cross_dataset_report.previous_window.start} to {digest.cross_dataset_report.previous_window.end}</p>
+        <ReportGrouping report={digest.cross_dataset_report} />
         <ul className="list-disc space-y-2 pl-5 text-gray-700">{[...digest.cross_dataset_report.observations, ...digest.cross_dataset_report.contrasts].map((value, index) => <li key={index} className="break-words">{value}</li>)}</ul>
         {digest.cross_dataset_report.findings.filter(value => digest.cross_dataset_report!.included_findings.includes(value.id)).map(value => <p key={value.id} className="break-words leading-6 text-gray-700">{value.interpretation}</p>)}
         {digest.cross_dataset_report.warnings.length > 0 && <ul className="space-y-2 text-amber-800">{digest.cross_dataset_report.warnings.map((value, index) => <li key={index}>{value}</li>)}</ul>}

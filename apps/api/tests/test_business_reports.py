@@ -1,3 +1,4 @@
+import copy
 import json
 import random
 from datetime import date
@@ -261,8 +262,62 @@ class BusinessReportEngineTests(unittest.TestCase):
         template = definition(grain="monthly", lag={"enabled": True, "minimum": 0, "maximum": 3, "direction": "a_leads_b"})
         with patch("app.modules.alerts.router.complete_week", return_value=definition()["date_range"]):
             report = build_weekly_cross_dataset_report(self.frames, preference, template)
-        self.assertFalse(report["definition"]["lag"]["enabled"])
-        self.assertTrue(any("not reused" in warning for warning in report["warnings"]))
+        self.assertTrue(report["definition"]["lag"]["enabled"])
+        self.assertEqual(report["definition"]["grain"], "monthly")
+        self.assertEqual(report["analysis_grain"], "monthly")
+        self.assertEqual(report["grain"], "daily")
+        self.assertTrue(all(item["lag_unit"] == "calendar monthly periods" for item in report["findings"]))
+        self.assertFalse(any("not reused" in warning for warning in report["warnings"]))
+
+    def test_analysis_grouping_does_not_change_weekly_values_daily_coverage_or_anomalies(self):
+        preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=[], include_recommendations=True)
+        original = None
+        for grain in ("daily", "weekly", "monthly", "quarterly"):
+            with self.subTest(grain=grain):
+                template = definition(grain=grain, pair_directions=[{"metric_a": {"dataset_id": 1, "metric_key": "spend"},
+                    "metric_b": {"dataset_id": 2, "metric_key": "net_sales"}, "direction": "a_leads_b"}])
+                before = copy.deepcopy(template)
+                report = build_weekly_cross_dataset_report(self.frames, preference, template, analysis_date=date(2026, 4, 1))
+                self.assertEqual(template, before)
+                self.assertEqual(report["window"], complete_week(date(2026, 4, 1)))
+                self.assertEqual(report["definition"]["grain"], grain)
+                self.assertEqual(report["definition"]["lag"], template["lag"])
+                self.assertEqual(report["definition"]["pair_directions"], template["pair_directions"])
+                self.assertEqual(report["metrics"][0]["expected_periods"], 7)
+                self.assertEqual(len(report["metrics"][0]["trend"]), 7)
+                self.assertTrue(all(item["grain"] == "daily" for item in report["anomaly_analysis"]["metrics"]))
+                summary = {key: report[key] for key in ("metrics", "anomaly_analysis", "window", "previous_window")}
+                if original is None:
+                    original = summary
+                self.assertEqual(summary, original)
+
+    def test_weekly_summary_preserves_a_known_two_week_relationship_lag(self):
+        rng = random.Random(47)
+        lead = [rng.uniform(10, 100) for _ in range(140)]
+        follow = [rng.uniform(10, 100) for _ in range(2)] + lead[:-2]
+        dates = pd.date_range(end="2026-03-29", periods=7 * len(lead))
+        frames = {identity: (dataset, pd.DataFrame({"date": dates,
+            key: [values[index // 7] for index in range(len(dates))], "currency": "CAD"}))
+            for (identity, key, values), (dataset, _) in zip(((1, "spend", lead), (2, "net_sales", follow)), self.frames.values())}
+        preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=[], include_recommendations=True)
+        template = definition(grain="weekly", filters={"minimum_observations": 52},
+            lag={"enabled": True, "minimum": 0, "maximum": 3, "direction": "a_leads_b"})
+        report = build_weekly_cross_dataset_report(frames, preference, template, analysis_date=date(2026, 4, 1))
+        finding = report["findings"][0]
+        self.assertTrue(finding["eligible"])
+        self.assertEqual(finding["lag"], 2)
+        self.assertEqual(finding["lag_unit"], "calendar weekly periods")
+        self.assertGreater(finding["observations"], 52)
+        self.assertIn("2 weeks ahead", finding["business_summary"])
+        self.assertAlmostEqual(report["metrics"][0]["value"], 7 * lead[-1])
+
+    def test_weekly_default_analysis_uses_shared_weekly_default_not_daily_summary_units(self):
+        preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=["owner@example.test"], metric_focus=["1:spend", "2:net_sales"], include_recommendations=True)
+        report = build_weekly_cross_dataset_report(self.frames, preference, analysis_date=date(2026, 4, 1))
+        self.assertEqual(report["analysis_grain"], "weekly")
+        self.assertEqual(report["grain"], "daily")
+        self.assertEqual(report["definition"]["filters"]["minimum_observations"], 52)
+        self.assertTrue(all(item["lag_unit"] == "calendar weekly periods" for item in report["findings"]))
 
     def test_weekly_ai_receives_bounded_summaries_not_raw_trends_or_evidence(self):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=["1:spend", "2:net_sales"], include_recommendations=True)
@@ -271,6 +326,8 @@ class BusinessReportEngineTests(unittest.TestCase):
              patch("app.modules.alerts.router.generate_structured_analysis", return_value=None) as ai:
             build_weekly_report_digest(preference, [pair[0] for pair in self.frames.values()])
         facts = ai.call_args.kwargs["facts"]["cross_dataset_report"]
+        self.assertEqual(facts["summary_grouping"], "daily")
+        self.assertEqual(facts["analysis_grouping"], "weekly")
         self.assertEqual(len(facts["metrics"]), 2)
         self.assertTrue(all("trend" not in metric for metric in facts["metrics"]))
         self.assertTrue(all("evidence" not in finding for finding in facts["findings"]))
@@ -671,6 +728,23 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         self.assertNotIn("report_id", response.json())
         with self.Session() as db:
             self.assertFalse(db.query(WeeklyReportPreference).one().enabled)
+
+    def test_saved_analysis_grouping_is_immutable_across_weekly_preview_and_new_analysis(self):
+        template = definition(grain="monthly")
+        saved = self.client.post("/api/v2/business-reports", json=template).json()
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/{saved['report_id']}/weekly").status_code, 200)
+        self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=definition(grain="weekly")).status_code, 200)
+        with patch("app.modules.alerts.router.complete_week", return_value=definition()["date_range"]), \
+             patch("app.modules.alerts.router.load_dataframe_from_dataset", side_effect=lambda dataset: self.frames[dataset.id][1].copy()), \
+             patch("app.modules.alerts.router.get_weekly_report_branding", return_value={"brand_name": "Decisionate"}):
+            response = self.client.get("/api/v2/business-reports/weekly-preview")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["grain"], "daily")
+        self.assertEqual(response.json()["analysis_grain"], "monthly")
+        self.assertEqual(response.json()["definition"]["grain"], "monthly")
+        reopened = self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()
+        self.assertEqual(reopened["definition"], saved["definition"])
+        self.assertEqual(reopened["metrics"], saved["metrics"])
 
     def test_read_only_users_can_explore_but_not_save_shared_reports(self):
         with patch.object(router, "get_workspace_role", return_value="viewer"):

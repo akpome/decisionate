@@ -2,7 +2,7 @@
 
 Date selection, grouping and aggregation answer different questions. A Date
 column identifies when source activity occurred. Start and End bound a manual
-report. Group by chooses the calendar buckets used for comparison.
+report. Analysis group by chooses the calendar buckets used for comparison.
 
 ## Grouping versus historical observations
 
@@ -36,3 +36,10 @@ dimension filter and grouping before comparing their values. Dashboards,
 Forecasts, manual Reports and scheduled weekly Reports have separate time
 controls. Weekly reporting follows completed weeks rather than retaining the
 dates of the snapshot used as its template.
+
+Analysis grouping is independent of weekly delivery. The weekly summary covers
+the last completed Monday-Sunday week and checks daily coverage and unusual
+changes. Its relationship analysis keeps the saved analysis grouping and lag
+units. A weekly email can therefore include a monthly relationship analysis,
+if enough matched monthly history is available. It does not relabel months as
+days, change approved metric aggregation, or rewrite the saved snapshot.

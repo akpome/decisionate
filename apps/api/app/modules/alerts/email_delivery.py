@@ -428,6 +428,11 @@ def send_platform_system_email(
         ) from error
 
 
+def report_grouping_lines(report):
+    return [f"Weekly summary: {report['grain']} detail.",
+            f"Analysis group by: {report.get('analysis_grain', report['grain'])}."]
+
+
 def report_dimension_lines(report):
     lines = []
     for selection in report.get("definition", {}).get("dimension_filters", []):
@@ -483,6 +488,7 @@ def build_weekly_report_email_text(
                         f"Reporting window: {report['window']['start']} to {report['window']['end']}",
                         f"Previous window: {report['previous_window']['start']} to {report['previous_window']['end']}",
                         f"Coverage: {report['status']}"]
+        review_lines.extend(report_grouping_lines(report))
         review_lines.extend(report_dimension_lines(report))
         review_lines.extend(impact_lines(report))
         review_lines.extend(report["observations"])
@@ -805,7 +811,7 @@ def build_weekly_report_email_html(
     cross_markup = ""
     if digest.cross_dataset_report:
         report = digest.cross_dataset_report
-        statements = report_dimension_lines(report) + report["observations"] + report["contrasts"]
+        statements = report_grouping_lines(report) + report_dimension_lines(report) + report["observations"] + report["contrasts"]
         statements += [item.get("business_summary", item["interpretation"]) for item in report["findings"] if item["id"] in report["included_findings"]]
         statements += ["Warning: " + warning for warning in report["warnings"]]
         statements += [f"Decision: {item['title']} ({item['status']}). Expected: {item['expected_outcome'] or 'Not recorded'}. Actual: {item['actual_outcome'] or 'Not yet recorded'}."

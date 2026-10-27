@@ -42,7 +42,7 @@ export type BusinessReport = {
   analysis_job_id?: string
   report_id?: string; decision_report_id?: string | null; name: string; business_question: string; definition: ReportDefinition
   window: { start: string; end: string }; previous_window: { start: string; end: string }
-  history_window: { start: string; end: string }; grain: string; dataset_count: number
+  history_window: { start: string; end: string }; grain: string; analysis_grain?: string; dataset_count: number
   status: "ready" | "limited_coverage"; analysis_source: string; generated_at: string
   metrics: ReportMetric[]; findings: ReportFinding[]; included_findings: string[]
   observations: string[]; contrasts: string[]; recommendations: string[]; warnings: string[]; limitations: string[]

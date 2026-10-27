@@ -248,6 +248,9 @@ class AnalysisJobTests(unittest.TestCase):
         self.assertEqual(result["status"], "succeeded", result)
         report = result["result"]["cross_dataset_report"]
         self.assertEqual(report["window"], {"start": "2026-03-23", "end": "2026-03-29"})
+        self.assertEqual(report["grain"], "daily")
+        self.assertEqual(report["analysis_grain"], "weekly")
+        self.assertEqual(report["definition"]["grain"], "weekly")
         self.assertEqual(report["anomaly_analysis"]["lookback_years"], 3)
 
     def test_scheduled_delivery_has_one_claim_per_completed_week(self):
