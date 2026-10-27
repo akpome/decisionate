@@ -58,12 +58,12 @@ export function formatReportValue(value: number | null, currency?: string | null
 export function editableDefinition(value: Partial<ReportDefinition>): ReportDefinition {
   return { name: value.name ?? "", business_question: value.business_question || "", scope: value.scope ?? "multi",
     seasonal_business: value.seasonal_business ?? false,
-    include_ai_analysis: value.include_ai_analysis ?? false,
+    include_ai_analysis: true,
     metrics: value.metrics || [], method: value.method || "spearman", grain: value.grain || "daily",
     dimension_filters: value.dimension_filters || [],
     date_range: value.date_range || { start: "", end: "" }, advanced: false,
     filters: { minimum_abs_coefficient: value.filters?.minimum_abs_coefficient ?? .3, minimum_observations: Math.max(24, value.filters?.minimum_observations ?? 24) },
-    lag: value.lag ? { ...value.lag, minimum: Math.min(12, value.lag.minimum), maximum: Math.min(12, value.lag.maximum) } : { enabled: false, minimum: 0, maximum: 12, direction: "a_leads_b" },
+    lag: value.lag ? { ...value.lag, enabled: value.scope !== "single", minimum: Math.min(12, value.lag.minimum), maximum: Math.min(12, value.lag.maximum) } : { enabled: value.scope !== "single", minimum: 0, maximum: 12, direction: "a_leads_b" },
     included_findings: value.included_findings ?? null, source_run_id: value.source_run_id ?? null,
     excluded_pairs: reportExcludedPairs(value.metrics || [], value.excluded_pairs),
     pair_directions: reportPairDirections(value.metrics || [], value.pair_directions, value.pair_directions == null && value.lag ? value.lag.direction === "b_leads_a" ? "b_leads_a" : "a_leads_b" : undefined) }

@@ -414,7 +414,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "Metric mapping": "Mappage des métriques",
   "Relationship analysis": "Analyse des relations",
   "Business has seasonal activity": "L'activité de l'entreprise est saisonnière",
-  "Include AI interpretation": "Inclure l'interprétation par IA",
+  "Evaluate timing": "Évaluer le décalage temporel",
   "Report interpretation": "Interprétation du rapport",
   "Up to 3 years": "Jusqu'à 3 ans",
   "Retry forecast": "Réessayer la prévision",

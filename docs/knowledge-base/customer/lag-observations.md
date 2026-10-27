@@ -7,11 +7,12 @@ quarterly grouping. It is not automatically a two-day conversion delay.
 
 ## Set direction per pair
 
-Relationship directions is available independently of Evaluate timing. Choose
-which metric leads for each cross-dataset pair, or leave that pair at Same-period
-comparison only. With Evaluate timing off, analysis compares the same period
-while retaining your direction choices. A metric can follow one metric and lead
-another; there is no need to assign one global direction to the middle source.
+Evaluate timing and Maximum lag are always available above Relationship
+directions in multi dataset reports, without an enable checkbox. Choose which
+metric leads for each cross-dataset pair, or leave that pair at Same-period
+comparison only. Only directed pairs run positive-lag tests. A metric can follow
+one metric and lead another; there is no need to assign one global direction to
+the middle source.
 
 Remove relationship pairs you do not want to analyze. Removed pairs are excluded
 from relationship tests and cross-dataset movement contrasts, including in weekly
@@ -24,7 +25,8 @@ reselecting that metric creates its pairs again.
 The interface no longer offers Test both directions. Directional timing includes
 lag zero and eligible positive lags up to the selected maximum of 12 periods.
 The maximum is not a search of every day from 1 to 365. A pair left at
-Same-period comparison only does not run positive-lag tests.
+Same-period comparison only does not run positive-lag tests. A maximum lag of
+zero also restricts every retained pair to its same-period test.
 
 ## Why one year can be insufficient
 

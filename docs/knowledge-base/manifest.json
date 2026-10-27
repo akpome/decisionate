@@ -403,6 +403,7 @@
       ],
       "sources": [
         "apps/web/features/reports/report-workspace.tsx",
+        "apps/web/features/reports/types.ts",
         "apps/api/app/modules/reports/schemas.py",
         "apps/api/app/modules/reports/jobs.py",
         "apps/api/app/modules/reports/router.py"
@@ -503,6 +504,7 @@
         "apps/api/app/modules/reports/schemas.py",
         "apps/api/app/modules/correlation/engine.py",
         "apps/web/features/reports/report-pair-directions.tsx",
+        "apps/web/features/reports/types.ts",
         "apps/web/features/reports/pair-directions.ts"
       ],
       "related": [
@@ -731,6 +733,7 @@
         "apps/api/app/configuration.py",
         "apps/api/app/modules/reports/router.py",
         "apps/api/app/modules/reports/service.py",
+        "apps/web/features/reports/types.ts",
         "docs/openai-data-flow.md"
       ],
       "related": [

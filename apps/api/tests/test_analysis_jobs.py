@@ -160,7 +160,7 @@ class AnalysisJobTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/v2/business-reports/jobs", json=fixtures.definition()).status_code, 503)
 
     def test_restart_retries_computation_once_but_not_ai_or_delivery(self):
-        identity = self.enqueue()
+        identity = self.enqueue(include_ai_analysis=False)
         with self.Session() as db:
             job = db.get(ReportAnalysisJob, identity)
             job.status, job.phase, job.attempts = "running", "computing", 1
@@ -179,6 +179,18 @@ class AnalysisJobTests(unittest.TestCase):
             db.commit()
         worker.recover_interrupted_jobs()
         self.assertIn("No automatic resend", self.state(identity)["error"])
+
+    def test_restart_does_not_automatically_replay_default_ai_enabled_jobs(self):
+        for phase in ("computing", "interpreting"):
+            with self.subTest(phase=phase):
+                identity = self.enqueue()
+                with self.Session() as db:
+                    job = db.get(ReportAnalysisJob, identity)
+                    self.assertTrue(json.loads(job.definition)["include_ai_analysis"])
+                    job.status, job.phase, job.attempts = "running", phase, 1
+                    db.commit()
+                worker.recover_interrupted_jobs()
+                self.assertEqual(self.state(identity)["status"], "failed")
 
     def test_cleanup_removes_pending_and_completed_derived_data(self):
         self.enqueue()

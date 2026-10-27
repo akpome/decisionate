@@ -19,7 +19,10 @@ environment and service domain answered the request before interpreting it.
 
 Use authorized synthetic or approved datasets with overlapping dates and enough
 real observations. In Reports, select metrics from two sources, choose dates
-and grouping, and request a preview with AI interpretation off initially.
+and grouping, and request a preview. The report builder requests interpretation
+automatically; check its source label separately from the statistical results.
+For an isolated operator API check without an external AI call, explicitly send
+`include_ai_analysis: false` in the report definition.
 Inspect the same job identity through submission and
 `/api/v2/business-reports/jobs/{job_id}` until `status: succeeded` and
 `phase: completed` with a non-null result. Compare summaries against a small

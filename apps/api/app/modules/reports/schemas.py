@@ -38,7 +38,7 @@ class ReportDefinition(AnalysisCreate):
     metrics: list[MetricRef] = Field(min_length=1, max_length=25)
     dimension_filters: list[DatasetDimensionFilter] = Field(default_factory=list, max_length=25)
     seasonal_business: bool = False
-    include_ai_analysis: bool = False
+    include_ai_analysis: bool = True
     filters: ReportFilters = Field(default_factory=ReportFilters)
     lag: LagPolicy = Field(default_factory=lambda: LagPolicy(maximum=12))
     business_question: str = Field(min_length=8, max_length=1000)

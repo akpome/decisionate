@@ -15,9 +15,10 @@ dataset metrics, date policies, anomaly detection and report snapshots.
    filter and Unique values if you want a segment rather than all eligible rows.
 5. Set Start, End and Group by. Request seasonal activity only when appropriate.
 6. For multi dataset analysis, configure Relationship analysis. Remove unwanted
-   pairs and set each remaining pair's direction independently of Evaluate timing.
-   Enable timing only to test positive lags; otherwise analysis compares the same
-   period. Single dataset reports omit cross-source relationships.
+   pairs and set each remaining pair's direction. Evaluate timing is always
+   available above the pairs; set Maximum lag for directional tests. Pairs left
+   at Same-period comparison only do not test positive lags. Single dataset
+   reports omit cross-source relationships.
 7. Choose Preview report and wait for analysis to finish before saving.
 
 ## Limits and evidence
@@ -29,8 +30,9 @@ they can be restored without removing the selected metrics. The default
 relationship observation threshold is 24 matched periods; selecting more calendar
 dates is not equivalent to having more observations.
 
-AI interpretation is optional and off by default for manual report definitions.
-The computed report does not require an external AI response. A saved snapshot
+New report previews request AI interpretation automatically, with a clearly
+labeled rules-based fallback if the provider or credits are unavailable.
+The computed report does not require a successful external AI response. A saved snapshot
 retains its original result; changing a filter, metric, date, pair selection or
 timing setting requires a new preview to calculate new evidence.
 

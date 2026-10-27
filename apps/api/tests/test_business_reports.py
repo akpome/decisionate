@@ -27,7 +27,8 @@ from app.modules.alerts.schemas import WeeklyReportPreferenceResponse
 from app.modules.alerts.email_delivery import build_weekly_report_email_html, build_weekly_report_email_text
 
 
-FLAGS = {"CURATED_METRIC_DEFAULTS_BACKEND": "false", "CORRELATION_REPORTING_TIMEZONE": "UTC"}
+FLAGS = {"CURATED_METRIC_DEFAULTS_BACKEND": "false", "CORRELATION_REPORTING_TIMEZONE": "UTC",
+         "AI_PROVIDER": "", "AI_API_KEY": "", "OPENAI_API_KEY": ""}
 
 
 def fixture():
@@ -352,13 +353,16 @@ class BusinessReportWorkflowTests(unittest.TestCase):
             self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=payload).status_code, 403)
             load.assert_not_called()
 
-    def test_report_interpretation_is_opt_in_selected_scoped_and_saved_without_recomputing_on_read(self):
+    def test_report_interpretation_defaults_on_is_selected_scoped_and_not_recomputed_on_read(self):
         analysis = {"source": "rules", "summary": "Selected metric interpretation", "confidence": "low", "recommendations": [], "risks": []}
         payload = definition(scope="single", metrics=definition()["metrics"][:1])
+        del payload["include_ai_analysis"]
         with patch.object(router, "generate_structured_analysis", return_value=analysis) as ai:
-            self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=payload).status_code, 200)
-            ai.assert_not_called()
-            payload["include_ai_analysis"] = True
+            preview = self.client.post("/api/v2/business-reports/preview", json=payload)
+            self.assertEqual(preview.status_code, 200, preview.text)
+            self.assertEqual(preview.json()["ai_analysis"], analysis)
+            ai.assert_called_once()
+            ai.reset_mock()
             response = self.client.post("/api/v2/business-reports", json=payload)
             self.assertEqual(response.status_code, 201, response.text)
             saved = response.json()
@@ -372,6 +376,41 @@ class BusinessReportWorkflowTests(unittest.TestCase):
             self.assertEqual(reopened["ai_analysis"], analysis)
             self.assertTrue(reopened["definition"]["include_ai_analysis"])
             self.assertEqual(ai.call_count, 1)
+
+    def test_explicit_api_opt_out_is_preserved_for_legacy_and_operator_clients(self):
+        payload = definition(include_ai_analysis=False)
+        with patch.object(router, "generate_structured_analysis") as ai:
+            response = self.client.post("/api/v2/business-reports/preview", json=payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        ai.assert_not_called()
+
+    def test_default_interpretation_falls_back_without_blocking_metric_or_anomaly_results(self):
+        from app.modules.ai.credits import AICreditLimitExceeded
+
+        payload = definition(scope="single", metrics=definition()["metrics"][:1])
+        for reason in ("not_configured", "provider_unavailable", "credits_exhausted"):
+            runtime = SimpleNamespace(ai_provider="" if reason == "not_configured" else "openai",
+                                      ai_api_key="test-only-key", ai_model="fixture-model", ai_api_url="https://example.test/chat/completions")
+            with (self.subTest(reason=reason),
+                  patch("app.modules.ai.service.get_runtime_configuration", return_value=runtime),
+                  patch("app.modules.ai.service._get_cached_analysis", return_value=None),
+                  patch("app.modules.ai.service.reserve_ai_credits", return_value={"id": "reservation"}) as reserve,
+                  patch("app.modules.ai.service.release_ai_credits") as release,
+                  patch("app.modules.ai.service.urlopen", side_effect=TimeoutError("Provider unavailable")) as remote):
+                if reason == "credits_exhausted":
+                    reserve.side_effect = AICreditLimitExceeded("No credits")
+                response = self.client.post("/api/v2/business-reports/preview", json=payload)
+                self.assertEqual(response.status_code, 200, response.text)
+                report = response.json()
+                self.assertEqual(report["ai_analysis"]["source"], "rules")
+                self.assertEqual(report["ai_analysis"]["fallback_reason"], reason)
+                self.assertEqual(len(report["metrics"]), 1)
+                self.assertEqual(len(report["anomaly_analysis"]["metrics"]), 1)
+                if reason == "provider_unavailable":
+                    remote.assert_called_once()
+                    release.assert_called_once_with("reservation")
+                else:
+                    remote.assert_not_called()
 
     def test_denied_report_never_reaches_ai_or_source_loading(self):
         payload = definition(scope="single", metrics=[{**definition()["metrics"][0], "dataset_id": 3}], include_ai_analysis=True)

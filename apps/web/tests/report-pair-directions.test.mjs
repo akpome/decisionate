@@ -60,6 +60,26 @@ test("legacy report direction is translated without changing its original select
   assert.ok(editableDefinition({ metrics, pair_directions: [] }).pair_directions.every(pair => pair.direction === "same_period"))
 })
 
+test("new previews always request interpretation and multi-dataset timing without changing saved snapshots", () => {
+  const current = editableDefinition({ metrics })
+  assert.equal(current.include_ai_analysis, true)
+  assert.equal(current.lag.enabled, true)
+  assert.equal(current.lag.maximum, 12)
+  assert.equal(reportTestCount(metrics, current.pair_directions, current.lag), 3)
+  const legacy = { metrics, include_ai_analysis: false, lag: { ...lag, enabled: false }, pair_directions: [{ metric_a: metrics[0], metric_b: metrics[1], direction: "a_leads_b" }] }
+  const original = structuredClone(legacy)
+  const edited = editableDefinition(legacy)
+  assert.equal(edited.include_ai_analysis, true)
+  assert.equal(edited.lag.enabled, true)
+  assert.equal(edited.lag.maximum, 3)
+  assert.equal(reportTestCount(metrics, edited.pair_directions, edited.lag), 6)
+  assert.deepEqual(legacy, original)
+  const single = editableDefinition({ ...legacy, scope: "single", metrics: metrics.slice(0, 1) })
+  assert.equal(single.include_ai_analysis, true)
+  assert.equal(single.lag.enabled, false)
+  assert.equal(single.pair_directions.length, 0)
+})
+
 test("saved bidirectional settings reopen as same-period without changing explicit leaders or the snapshot", () => {
   const configured = [
     { metric_a: key(4, "clicks"), metric_b: key(2, "revenue"), direction: "both" },
@@ -190,17 +210,17 @@ test("report dates stay in a nonshrinking row outside the settings scroll area",
   assert.match(scroll.getText(tree), /Relationship analysis/)
 })
 
-test("the builder renders pair directions independently of timing and invalidates results on pair changes", () => {
+test("the builder shows timing above pairs without checkboxes and invalidates results on pair changes", () => {
   const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
   assert.match(source, /const taskCount = reportTestCount/)
   assert.match(source, /const showPairDirections = definition\.pair_directions\.length > 0/)
   const settings = source.slice(source.indexOf('aria-label="Analysis settings"'), source.indexOf('id="report-report"'))
   assert.match(settings, /showPairDirections && <ReportPairDirections/)
-  assert.ok(settings.indexOf("<ReportPairDirections") < settings.indexOf("Evaluate timing"))
-  assert.ok(settings.indexOf("<ReportPairDirections") < settings.indexOf("</section>"))
-  assert.ok(settings.indexOf("</section>") < settings.indexOf("{previewButton}"))
+  assert.ok(settings.indexOf("Evaluate timing") < settings.indexOf("Maximum lag"))
+  assert.ok(settings.indexOf("Maximum lag") < settings.indexOf("<ReportPairDirections"))
+  assert.ok(settings.indexOf("<ReportPairDirections") < settings.indexOf("{previewButton}"))
   assert.ok(settings.indexOf("{previewButton}") < settings.lastIndexOf("</section>"))
-  const relationshipSettings = settings.slice(settings.indexOf('<div role="group"'), settings.indexOf("</section>"))
+  const relationshipSettings = settings.slice(settings.indexOf('<div role="group"'), settings.indexOf("</div></section>"))
   assert.match(relationshipSettings, /aria-label="Analysis settings" tabIndex=\{0\}/)
   assert.match(relationshipSettings, /className="report-builder-scroll /)
   assert.ok(relationshipSettings.includes("Correlation method"))
@@ -208,6 +228,8 @@ test("the builder renders pair directions independently of timing and invalidate
   assert.match(relationshipSettings, /<section aria-label="Relationship analysis"/)
   assert.match(relationshipSettings, /<h3[^>]*>\{t\("Relationship analysis"\)\}<\/h3>/)
   assert.match(relationshipSettings, /Minimum historical observations<input[^>]*min=\{24\}/)
+  assert.match(relationshipSettings, /<section aria-label=\{t\("Evaluate timing"\)\}/)
+  assert.doesNotMatch(source, /Include AI interpretation|checked=\{definition\.lag\.enabled\}|definition\.lag\.enabled &&/)
   assert.doesNotMatch(settings, /<details|<summary|cursor-pointer/)
   assert.equal((settings.match(/report-builder-scroll/g) || []).length, 1)
   assert.doesNotMatch(settings, /overflow-y-|max-h-/)
