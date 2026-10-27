@@ -65,6 +65,7 @@ from app.modules.reports.service import attach_report_decisions, build_report, c
 from app.modules.reports.catalog import prepare_report_source
 from app.modules.reports.relationships import metric_key
 from app.modules.reports.schemas import MINIMUM_REPORT_OBSERVATIONS
+from app.modules.correlation.defaults import DEFAULT_MINIMUM_OBSERVATIONS
 from app.modules.correlation.catalog import metric_catalog, reporting_timezone
 from app.modules.decisions.templates import build_decision_template_url
 
@@ -838,7 +839,7 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
                   "metrics": references, "date_range": complete_week(analysis_date) if analysis_date else complete_week(), "grain": "daily",
                   "method": (template or {}).get("method", "spearman"),
                   "lag": lag,
-                  "filters": {"minimum_abs_coefficient": .3, "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, (template or {}).get("filters", {}).get("minimum_observations", MINIMUM_REPORT_OBSERVATIONS))}, "included_findings": None}
+                  "filters": {"minimum_abs_coefficient": .3, "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, (template or {}).get("filters", {}).get("minimum_observations", DEFAULT_MINIMUM_OBSERVATIONS))}, "included_findings": None}
     selected_keys = {metric_key(item) for item in references}
     for setting in ("pair_directions", "excluded_pairs"):
         if definition.get(setting) is not None:
@@ -972,6 +973,7 @@ def build_weekly_report_relationships(
                 "method": result["method"],
                 "minimum_observations": result["minimum_observations"],
                 "maximum_lag": result["maximum_lag"],
+                "lag_direction": result["lag_direction"],
                 "lag_mode": result["lag_mode"],
                 "lag_periods": result["lag_periods"],
                 "matched_period_count": result["matched_period_count"],

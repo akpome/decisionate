@@ -23,8 +23,8 @@ dataset metrics, date policies, anomaly detection and report snapshots.
 
 ## Limits and evidence
 
-New analyses share their defaults with Relationships: Spearman, daily grouping,
-Sum aggregation where applicable, 24 minimum historical observations, maximum
+New analyses share their defaults with Relationships: Spearman, weekly grouping,
+Sum aggregation where applicable, 52 minimum historical observations, maximum
 lag 12 grouped periods and same-period comparison. Valid saved choices are
 retained rather than replaced simply because the defaults changed.
 
@@ -32,7 +32,7 @@ A report supports at most 25 selected metrics, a maximum of 12 lag periods and
 1,000 cross-dataset pair/lag tests. Reduce metrics or timing complexity if the
 analysis exceeds these limits. Removed pairs do not consume relationship tests;
 they can be restored without removing the selected metrics. The default
-relationship observation threshold is 24 matched periods; selecting more calendar
+relationship observation threshold is 52 matched periods; selecting more calendar
 dates is not equivalent to having more observations.
 
 New report previews request AI interpretation automatically, with a clearly

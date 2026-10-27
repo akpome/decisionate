@@ -10,7 +10,7 @@ const defaultModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/relationships/defaults.ts", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText, { module: defaultModule, exports: defaultModule.exports })
-const { RELATIONSHIP_DEFAULTS, MAXIMUM_RELATIONSHIP_OBSERVATIONS } = defaultModule.exports
+const { RELATIONSHIP_DEFAULTS, MAXIMUM_RELATIONSHIP_OBSERVATIONS, MINIMUM_RELATIONSHIP_OBSERVATIONS } = defaultModule.exports
 const source = readFileSync(new URL("../app/dashboard/relationships/page.tsx", import.meta.url), "utf8")
 function declarations(source, names) {
   const tree = ts.createSourceFile("source.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX), found = []
@@ -34,7 +34,7 @@ function payloadHarness(extra = {}) {
   const globals = { incompleteFilter: false, leftDatasetId: "1", rightDatasetId: "2", resolvedLeftDateColumn: "date",
     resolvedRightDateColumn: "paid_date", resolvedLeftMetric: "spend", resolvedRightMetric: "revenue", name: "Filtered monitor",
     period: "monthly", aggregation: "sum", method: "pearson", lagMode: "manual", lagPeriods: "0",
-    minimumObservations: "24", maximumLag: "12", RELATIONSHIP_DEFAULTS, MAXIMUM_RELATIONSHIP_OBSERVATIONS,
+    minimumObservations: "24", maximumLag: "12", lagDirection: "a_leads_b", RELATIONSHIP_DEFAULTS, MAXIMUM_RELATIONSHIP_OBSERVATIONS, MINIMUM_RELATIONSHIP_OBSERVATIONS,
     leftFilter: undefined, rightFilter: undefined, setError: error => errors.push(error), ...extra }
   return { ...functions(["buildPayload"], globals), errors }
 }
@@ -58,15 +58,16 @@ test("all-rows relationships preserve their original payload and incomplete sele
 })
 
 test("monitor settings submit exact values and invalid observation or lag bounds cannot preview", () => {
-  const payload = payloadHarness({ minimumObservations: "48", maximumLag: "3", lagMode: "automatic" }).buildPayload()
+  const payload = payloadHarness({ minimumObservations: "48", maximumLag: "3", lagMode: "automatic", lagDirection: "b_leads_a" }).buildPayload()
   assert.equal(payload.minimum_observations, 48)
   assert.equal(payload.maximum_lag, 3)
+  assert.equal(payload.lag_direction, "b_leads_a")
   for (const settings of [{ minimumObservations: "23" }, { minimumObservations: "3654" }, { maximumLag: "13" }, { maximumLag: "-1" }, { maximumLag: "2", lagPeriods: "3" }]) {
     const harness = payloadHarness(settings)
     assert.equal(harness.buildPayload(), null)
     assert.equal(harness.errors.length, 1)
   }
-  for (const setting of ["period", "aggregation", "method", "lagMode", "lagPeriods", "minimumObservations", "maximumLag"]) {
+  for (const setting of ["period", "aggregation", "method", "lagMode", "lagPeriods", "lagDirection", "minimumObservations", "maximumLag"]) {
     assert.match(source, new RegExp(`useState(?:<[^>]+>)?\\((?:String\\()?RELATIONSHIP_DEFAULTS\\.${setting}`))
   }
   assert.doesNotMatch(source, /Pearson \(default\)|showAdvanced/)
@@ -97,7 +98,7 @@ test("opening a saved monitor restores both filters without overwriting another 
   let filters = { "old-workspace": { column: "region", values: ["Private"] } }, result
   const globals = { RELATIONSHIP_DEFAULTS, filterKey: identity => `owner:workspace:${identity}`, setDimensionFilters: update => { filters = update(filters) },
     setResult: value => { result = value }, setStatusMessage() {}, setError() {} }
-  for (const name of ["setLeftDatasetId", "setRightDatasetId", "setLeftDateColumn", "setRightDateColumn", "setLeftMetric", "setRightMetric", "setName", "setPeriod", "setAggregation", "setMethod", "setLagMode", "setLagPeriods", "setMinimumObservations", "setMaximumLag"]) globals[name] = () => {}
+  for (const name of ["setLeftDatasetId", "setRightDatasetId", "setLeftDateColumn", "setRightDateColumn", "setLeftMetric", "setRightMetric", "setName", "setPeriod", "setAggregation", "setMethod", "setLagMode", "setLagPeriods", "setLagDirection", "setMinimumObservations", "setMaximumLag"]) globals[name] = () => {}
   const record = { name: "Saved", period: "daily", aggregation: "sum", method: "pearson", lag_periods: 0,
     left: { dataset_id: 1, date_column: "date", metric_column: "spend", dimension_filter: selection },
     right: { dataset_id: 2, date_column: "date", metric_column: "revenue", dimension_filter: { column: "channel", values: ["Web"] } } }
@@ -147,11 +148,36 @@ test("preview and save send scope unchanged and reject an API that ignores filte
     assert.equal(calls[0].init.headers.workspace, "workspace")
     echo = { ...payload, left: { ...payload.left, dimension_filter: null } }
     await assert.rejects(methods[name](payload, "owner", "workspace"), error => error.status === 503)
-    for (const setting of ["minimum_observations", "maximum_lag"]) {
+    for (const setting of ["minimum_observations", "maximum_lag", "lag_direction"]) {
       echo = { ...payload }; delete echo[setting]
       await assert.rejects(methods[name](payload, "owner", "workspace"), error => error.status === 503 && /relationship settings/.test(error.message))
     }
   }
+})
+
+test("direction selection removes fixed-lag editing and resets stale timing explicitly", () => {
+  let mode = "manual", periods = "3", direction = "a_leads_b"
+  const view = functions(["changeRelationshipDirection"], { changeAnalysisSetting: update => update(),
+    setLagMode: value => { mode = value }, setLagPeriods: value => { periods = value }, setLagDirection: value => { direction = value } })
+  view.changeRelationshipDirection("legacy_fixed")
+  assert.deepEqual([mode, periods], ["manual", "3"])
+  view.changeRelationshipDirection("b_leads_a")
+  assert.deepEqual([mode, periods, direction], ["automatic", "0", "b_leads_a"])
+  view.changeRelationshipDirection("same_period")
+  assert.deepEqual([mode, periods], ["manual", "0"])
+  assert.doesNotMatch(source, /Left metric leads by|Advanced manual/)
+  assert.match(source, /lagMode === "automatic" && <label[^\n]+Maximum lag/)
+  assert.match(source, /Saved fixed lag/)
+})
+
+test("saved monitor labels follow the selected leader and do not imply a leader for same-period comparisons", () => {
+  const { relationshipPairLabel } = functions(["relationshipPairLabel"])
+  const record = { left_dataset_name: "Ads", left: { metric_column: "spend" }, right_dataset_name: "Store", right: { metric_column: "revenue" }, lag_mode: "automatic", lag_periods: 2 }
+  assert.equal(relationshipPairLabel(record), "Ads · spend → Store · revenue")
+  assert.equal(relationshipPairLabel({ ...record, lag_direction: "b_leads_a" }), "Store · revenue → Ads · spend")
+  assert.equal(relationshipPairLabel({ ...record, lag_mode: "manual", lag_periods: 0 }), "Ads · spend / Store · revenue")
+  assert.equal(relationshipPairLabel({ ...record, lag_mode: "manual", lag_periods: 3 }), "Ads · spend → Store · revenue")
+  assert.match(source, /\{relationshipPairLabel\(relationship\)\}/)
 })
 
 test("changing analysis settings invalidates old evidence without changing the saved definition", () => {

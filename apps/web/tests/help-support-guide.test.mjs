@@ -61,17 +61,18 @@ test("Reports is the documented analysis entry and date and dimension filtering 
   assert.match(chapter("troubleshooting"), /Retry filtered dashboard/)
 })
 
-test("report timing guidance matches the 24-observation default and pair-specific calendar lags", () => {
+test("report timing guidance matches the 52-observation weekly default and pair-specific calendar lags", () => {
   const text = chapter("analysis")
-  assert.match(text, /defaults to 24/)
+  assert.match(text, /defaults to 52/)
   assert.match(text, /limited to 12/)
   assert.match(text, /includes lag zero/)
   assert.match(text, /every relevant pair independently/)
-  assert.match(text, /Twelve monthly observations do not meet the default minimum of 24/)
-  assert.match(read("../features/reports/types.ts"), /minimum_observations: Math.max\(RELATIONSHIP_DEFAULTS.minimumObservations/)
+  assert.match(text, /Twelve monthly observations do not meet the default minimum of 52/)
+  assert.match(read("../features/reports/types.ts"), /minimum_observations: Math.max\(MINIMUM_RELATIONSHIP_OBSERVATIONS/)
   assert.match(read("../features/reports/report-pair-directions.tsx"), /Same-period comparison only/)
   assert.match(text, /Reports and Relationships share the same new-analysis defaults/)
-  assert.match(chapter("relationships-alerts"), /Spearman, daily Group by, Sum aggregation, 24 Minimum historical observations, Maximum lag 12, and Same-period comparison only/)
+  assert.match(chapter("relationships-alerts"), /Spearman, weekly Group by, Sum aggregation, 52 Minimum historical observations, Maximum lag 12, and Same-period comparison only/)
+  assert.match(chapter("relationships-alerts"), /Maximum lag appears only for a directional timing search/)
 })
 
 test("indexed comparisons and seasonality include their interpretation limits", () => {

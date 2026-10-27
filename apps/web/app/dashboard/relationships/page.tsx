@@ -23,7 +23,7 @@ import { useActiveWorkspace } from "@/lib/use-active-workspace"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
-import { MAXIMUM_RELATIONSHIP_OBSERVATIONS, RELATIONSHIP_DEFAULTS } from "@/features/relationships/defaults"
+import { MAXIMUM_RELATIONSHIP_OBSERVATIONS, MINIMUM_RELATIONSHIP_OBSERVATIONS, RELATIONSHIP_DEFAULTS } from "@/features/relationships/defaults"
 
 const aggregationOptions: Array<{
   value: DashboardValueAggregation
@@ -80,6 +80,13 @@ function formatPeriodUnit(period: string) {
   }[period] || "period"
 }
 
+function relationshipPairLabel(relationship: DatasetRelationship) {
+  const left = `${relationship.left_dataset_name} · ${relationship.left.metric_column}`
+  const right = `${relationship.right_dataset_name} · ${relationship.right.metric_column}`
+  if (relationship.lag_mode !== "automatic" && relationship.lag_periods === 0) return `${left} / ${right}`
+  return relationship.lag_direction === "b_leads_a" ? `${right} → ${left}` : `${left} → ${right}`
+}
+
 export default function RelationshipsPage() {
   const { t } = useDecisionateText()
   const { user } = useUser()
@@ -100,6 +107,7 @@ export default function RelationshipsPage() {
   const [method, setMethod] = useState<"pearson" | "spearman">(RELATIONSHIP_DEFAULTS.method)
   const [lagMode, setLagMode] = useState<"automatic" | "manual">(RELATIONSHIP_DEFAULTS.lagMode)
   const [lagPeriods, setLagPeriods] = useState(String(RELATIONSHIP_DEFAULTS.lagPeriods))
+  const [lagDirection, setLagDirection] = useState<"a_leads_b" | "b_leads_a">(RELATIONSHIP_DEFAULTS.lagDirection)
   const [minimumObservations, setMinimumObservations] = useState(String(RELATIONSHIP_DEFAULTS.minimumObservations))
   const [maximumLag, setMaximumLag] = useState(String(RELATIONSHIP_DEFAULTS.maximumLag))
   const [result, setResult] = useState<DatasetRelationship | null>(null)
@@ -143,7 +151,7 @@ export default function RelationshipsPage() {
 
   const setupScope = JSON.stringify([user?.id, activeWorkspaceId, workspaceVersion, leftDatasetId, rightDatasetId,
     resolvedLeftDateColumn, resolvedRightDateColumn, resolvedLeftMetric, resolvedRightMetric, leftFilter, rightFilter,
-    name, period, aggregation, method, lagMode, lagPeriods, minimumObservations, maximumLag])
+    name, period, aggregation, method, lagMode, lagPeriods, lagDirection, minimumObservations, maximumLag])
   const currentSetup = useRef(setupScope)
   useLayoutEffect(() => {
     currentSetup.current = setupScope
@@ -228,13 +236,13 @@ export default function RelationshipsPage() {
   }, [activeWorkspaceId, leftDatasetId, rightDatasetId, user?.id])
 
   function buildPayload(): DatasetRelationshipPayload | null {
-    const minimum = Number(minimumObservations), maximum = Number(maximumLag), fixedLag = Number(lagPeriods)
-    if (!Number.isInteger(minimum) || minimum < RELATIONSHIP_DEFAULTS.minimumObservations || minimum > MAXIMUM_RELATIONSHIP_OBSERVATIONS) {
+    const minimum = Number(minimumObservations), maximum = Number(maximumLag), fixedLag = lagMode === "automatic" ? 0 : Number(lagPeriods)
+    if (!Number.isInteger(minimum) || minimum < MINIMUM_RELATIONSHIP_OBSERVATIONS || minimum > MAXIMUM_RELATIONSHIP_OBSERVATIONS) {
       setError("Choose between 24 and 3653 minimum historical observations.")
       return null
     }
     if (!Number.isInteger(maximum) || maximum < 0 || maximum > RELATIONSHIP_DEFAULTS.maximumLag || !Number.isInteger(fixedLag) || fixedLag < 0 || fixedLag > RELATIONSHIP_DEFAULTS.maximumLag || lagMode === "manual" && fixedLag > maximum) {
-      setError("Choose a maximum lag from 0 to 12 and a fixed lag no greater than that maximum.")
+      setError("Choose a maximum lag from 0 to 12. If saved timing is outside this limit, choose a relationship direction again.")
       return null
     }
     if (incompleteFilter) {
@@ -276,6 +284,7 @@ export default function RelationshipsPage() {
       method,
       minimum_observations: minimum,
       maximum_lag: maximum,
+      lag_direction: lagDirection,
       lag_mode: lagMode,
       lag_periods: fixedLag,
     }
@@ -366,12 +375,22 @@ export default function RelationshipsPage() {
     setResult(null); setStatusMessage(""); setError("")
   }
 
+  function changeRelationshipDirection(direction: string) {
+    if (direction === "legacy_fixed") return
+    changeAnalysisSetting(() => {
+      setLagMode(direction === "same_period" ? "manual" : "automatic")
+      setLagDirection(direction === "b_leads_a" ? "b_leads_a" : "a_leads_b")
+      setLagPeriods("0")
+    })
+  }
+
   function openSavedRelationship(relationship: DatasetRelationship) {
     setLeftDatasetId(String(relationship.left.dataset_id)); setRightDatasetId(String(relationship.right.dataset_id))
     setLeftDateColumn(relationship.left.date_column); setRightDateColumn(relationship.right.date_column)
     setLeftMetric(relationship.left.metric_column); setRightMetric(relationship.right.metric_column)
     setName(relationship.name); setPeriod(relationship.period); setAggregation(relationship.aggregation)
     setMethod(relationship.method); setLagMode(relationship.lag_mode || "manual"); setLagPeriods(String(relationship.lag_periods))
+    setLagDirection(relationship.lag_direction ?? RELATIONSHIP_DEFAULTS.lagDirection)
     setMinimumObservations(String(relationship.minimum_observations ?? RELATIONSHIP_DEFAULTS.minimumObservations))
     setMaximumLag(String(relationship.maximum_lag ?? RELATIONSHIP_DEFAULTS.maximumLag))
     setDimensionFilters(current => ({ ...current,
@@ -475,36 +494,26 @@ export default function RelationshipsPage() {
                 <SelectField label={t("Group by")} value={period} onChange={value => changeAnalysisSetting(() => setPeriod(value as DashboardAggregation))} options={periodOptions} />
                 <SelectField label={t("Aggregation")} value={aggregation} onChange={value => changeAnalysisSetting(() => setAggregation(value as DashboardValueAggregation))} options={aggregationOptions} />
                 <SelectField label={t("Correlation method")} value={method} onChange={value => changeAnalysisSetting(() => setMethod(value as "pearson" | "spearman"))} options={[{ value: "spearman", label: t("Spearman") }, { value: "pearson", label: t("Pearson") }]} />
-                <label className="space-y-2"><span className="text-sm font-medium text-gray-700">{t("Minimum historical observations")}</span><input type="number" min={RELATIONSHIP_DEFAULTS.minimumObservations} max={MAXIMUM_RELATIONSHIP_OBSERVATIONS} required value={minimumObservations} onChange={event => changeAnalysisSetting(() => setMinimumObservations(event.target.value))} className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm" /></label>
+                <label className="space-y-2"><span className="text-sm font-medium text-gray-700">{t("Minimum historical observations")}</span><input type="number" min={MINIMUM_RELATIONSHIP_OBSERVATIONS} max={MAXIMUM_RELATIONSHIP_OBSERVATIONS} required value={minimumObservations} onChange={event => changeAnalysisSetting(() => setMinimumObservations(event.target.value))} className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm" /></label>
               </div>
               <h4 className="text-sm font-medium">{t("Evaluate timing")}</h4>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-2"><span className="text-sm font-medium text-gray-700">{t("Maximum lag")}</span><input type="number" min={0} max={RELATIONSHIP_DEFAULTS.maximumLag} required value={maximumLag} onChange={event => changeAnalysisSetting(() => setMaximumLag(event.target.value))} className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm" /></label>
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-gray-700">{t("Timing")}</span>
+                  <span className="text-sm font-medium text-gray-700">{t("Relationship direction")}</span>
                   <select
-                    aria-label={t("Timing")}
-                    value={lagMode}
-                    onChange={event => changeAnalysisSetting(() => setLagMode(event.target.value as "automatic" | "manual"))}
+                    aria-label={t("Relationship direction")}
+                    value={lagMode === "automatic" ? lagDirection : Number(lagPeriods) > 0 ? "legacy_fixed" : "same_period"}
+                    onChange={event => changeRelationshipDirection(event.target.value)}
                     className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
-                    <option value="manual">{t(Number(lagPeriods) === 0 ? "Same-period comparison only" : "Fixed lag")}</option>
-                    <option value="automatic">{t("Dataset A leads (timing search)")}</option>
+                    <option value="same_period">{t("Same-period comparison only")}</option>
+                    <option value="a_leads_b">{t("{metric} leads").replace("{metric}", `${datasets.find(item => String(item.id) === leftDatasetId)?.file_name || t("Dataset A")} / ${resolvedLeftMetric}`)}</option>
+                    <option value="b_leads_a">{t("{metric} leads").replace("{metric}", `${datasets.find(item => String(item.id) === rightDatasetId)?.file_name || t("Dataset B")} / ${resolvedRightMetric}`)}</option>
+                    {lagMode === "manual" && Number(lagPeriods) > 0 && <option value="legacy_fixed">{t("Saved fixed lag")}: {lagPeriods} {t(formatPeriodUnit(period))}{Number(lagPeriods) === 1 ? "" : "s"}</option>}
                   </select>
                 </label>
+                {lagMode === "automatic" && <label className="space-y-2"><span className="text-sm font-medium text-gray-700">{t("Maximum lag")}</span><input type="number" min={0} max={RELATIONSHIP_DEFAULTS.maximumLag} required value={maximumLag} onChange={event => changeAnalysisSetting(() => setMaximumLag(event.target.value))} className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm" /></label>}
               </div>
-              {lagMode === "manual" && (
-                <label className="block max-w-sm space-y-2">
-                  <span className="text-sm font-medium text-gray-700">{t("Left metric leads by")}</span>
-                  <select value={lagPeriods} onChange={event => changeAnalysisSetting(() => setLagPeriods(event.target.value))} className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                    {Array.from({ length: RELATIONSHIP_DEFAULTS.maximumLag + 1 }, (_, index) => (
-                      <option key={index} value={String(index)} disabled={index > Number(maximumLag)}>
-                        {index === 0 ? t("Same period") : `${index} ${t(formatPeriodUnit(period))}${index === 1 ? "" : "s"} ${t("later")}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
             </section>
 
             {loadingMetadata && <p className="text-xs text-gray-500">{t("Loading dataset columns...")}</p>}
@@ -559,7 +568,7 @@ export default function RelationshipsPage() {
                 >
                   <p className="truncate font-medium text-gray-900">{relationship.name}</p>
                   <p className="mt-1 truncate text-xs text-gray-500">
-                    {relationship.left_dataset_name} · {relationship.left.metric_column} → {relationship.right_dataset_name} · {relationship.right.metric_column}
+                    {relationshipPairLabel(relationship)}
                   </p>
                   {[relationship.left, relationship.right].map((side, index) => side.dimension_filter && <p key={index} className="mt-1 break-words text-xs text-gray-600">{index === 0 ? "A" : "B"} / {dimensionFilterLabel(side.dimension_filter)}</p>)}
                 </button>

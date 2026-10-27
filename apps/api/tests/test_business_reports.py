@@ -47,6 +47,7 @@ def definition(**updates):
         "metrics": [{"dataset_id": 1, "metric_key": "spend", "date_column": "date", "aggregation": "sum"},
                     {"dataset_id": 2, "metric_key": "net_sales", "date_column": "date", "aggregation": "sum"}],
         "date_range": {"start": "2026-03-23", "end": "2026-03-29"}, "grain": "daily", "method": "pearson",
+        "filters": {"minimum_observations": 24},
         **updates,
     }).model_dump(mode="json")
 
@@ -98,8 +99,8 @@ class BusinessReportEngineTests(unittest.TestCase):
         from app.modules.correlation.schemas import ResultFilters
 
         self.assertEqual(definition()["filters"]["minimum_observations"], 24)
-        self.assertEqual(definition(filters={"minimum_abs_coefficient": .5})["filters"]["minimum_observations"], 24)
-        self.assertEqual(ResultFilters().minimum_observations, 24)
+        self.assertEqual(definition(filters={"minimum_abs_coefficient": .5})["filters"]["minimum_observations"], 52)
+        self.assertEqual(ResultFilters().minimum_observations, 52)
         self.assertEqual(ResultFilters(minimum_observations=2).minimum_observations, 2)
         for minimum in (24, 30, 48, 3653):
             self.assertEqual(definition(filters={"minimum_observations": minimum})["filters"]["minimum_observations"], minimum)
@@ -118,9 +119,9 @@ class BusinessReportEngineTests(unittest.TestCase):
         higher = build_report(sources, definition(date_range=window, filters={"minimum_observations": 30}))["findings"][0]
         self.assertFalse(higher["eligible"])
 
-    def test_weekly_reports_default_to_24_and_preserve_a_templates_higher_minimum(self):
+    def test_weekly_reports_default_to_52_and_preserve_explicit_template_thresholds(self):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=["1:spend", "2:net_sales"], include_recommendations=True)
-        for template, expected in ((None, 24), (definition(), 24), (definition(filters={"minimum_observations": 48}), 48)):
+        for template, expected in ((None, 52), (definition(), 24), (definition(filters={"minimum_observations": 48}), 48), (definition(filters={"minimum_observations": 60}), 60)):
             with patch("app.modules.alerts.router.complete_week", return_value=definition()["date_range"]):
                 report = build_weekly_cross_dataset_report(self.frames, preference, template)
             self.assertEqual(report["definition"]["filters"]["minimum_observations"], expected)

@@ -5209,6 +5209,7 @@ async def create_dataset_relationship(
             method=result["method"],
             minimum_observations=result["minimum_observations"],
             maximum_lag=result["maximum_lag"],
+            lag_direction=result["lag_direction"],
             lag_mode=result["lag_mode"],
             lag_periods=result["lag_periods"],
             created_at=utc_now(),

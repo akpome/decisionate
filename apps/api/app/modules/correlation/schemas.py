@@ -2,7 +2,7 @@ from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from .defaults import DEFAULT_METHOD, DEFAULT_PERIOD, MAXIMUM_LAG, MINIMUM_ABS_COEFFICIENT, MINIMUM_OBSERVATIONS
+from .defaults import DEFAULT_METHOD, DEFAULT_MINIMUM_OBSERVATIONS, DEFAULT_PERIOD, MAXIMUM_LAG, MINIMUM_ABS_COEFFICIENT
 
 
 class StrictModel(BaseModel):
@@ -42,7 +42,7 @@ class LagPolicy(StrictModel):
 
 class ResultFilters(StrictModel):
     minimum_abs_coefficient: float = Field(default=MINIMUM_ABS_COEFFICIENT, ge=0, le=1, allow_inf_nan=False)
-    minimum_observations: int = Field(default=MINIMUM_OBSERVATIONS, ge=2, le=3653)
+    minimum_observations: int = Field(default=DEFAULT_MINIMUM_OBSERVATIONS, ge=2, le=3653)
 
 
 class AnalysisCreate(StrictModel):

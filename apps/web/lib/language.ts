@@ -776,6 +776,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "Minimum historical observations": "Observations historiques minimales",
   "Maximum lag": "Décalage maximal",
   "Fixed lag": "Décalage fixe",
+  "Saved fixed lag": "Décalage fixe enregistré",
   "Dataset A leads (timing search)": "Le jeu de données A précède (recherche de décalage)",
   "{metric} leads": "{metric} précède",
   "No matching metric pairs.": "Aucune paire d'indicateurs correspondante.",

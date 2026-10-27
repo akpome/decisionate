@@ -11,24 +11,30 @@ and apply each side's Dimension column and Unique values independently when
 needed. Set the period and aggregation to fit the business question, then check
 the actual overlapping source dates.
 
-New analyses on both pages default to Spearman, daily grouping, Sum aggregation
-where applicable, 24 minimum historical observations, a maximum lag of 12 grouped
+New analyses on both pages default to Spearman, weekly grouping, Sum aggregation
+where applicable, 52 minimum historical observations, a maximum lag of 12 grouped
 periods, and same-period comparison. Correlation method, Minimum historical
 observations and Maximum lag are visible in Relationship analysis rather than
 hidden in advanced options. Valid deliberately saved settings are retained.
 
-Leave Timing at Same-period comparison only to avoid positive-lag tests. Choose
-Dataset A leads (timing search) to evaluate zero through Maximum lag, or use
-Left metric leads by for a fixed-lag hypothesis. A fixed lag must not exceed
-Maximum lag. The 12-period maximum is the same for daily, weekly, monthly and
+Leave Relationship direction at Same-period comparison only to avoid positive-lag
+tests. Choose either named metric as the leader to evaluate zero through Maximum
+lag. Maximum lag is shown only for a directional search. Dataset labels and each
+source's dimension filter retain their original identities when the second
+metric leads. The 12-period maximum is the same for daily, weekly, monthly and
 quarterly grouping; it is not an automatic conversion into days.
+
+There is no new fixed-lag editor. Existing saved fixed-lag monitors retain their
+original timing, shown as Saved fixed lag, until the user explicitly chooses a
+new direction. Saved grouping and observation thresholds, including daily
+grouping and a 24-observation threshold, are not overwritten by the new defaults.
 
 The observation minimum is enforced after filtering, grouping and lagging.
 Insufficient observations produce insufficient data, not a usable correlation.
 Observation and lag limits persist with each monitor and are reused for its
 scheduled evaluation. Existing monitors without a saved history threshold use
-24, so a short-history monitor that formerly showed a coefficient can now be
-insufficient. Read the matched periods, timing, strength and credibility before
+24 for backward compatibility; newly created analyses default to 52. Read the
+matched periods, timing, strength and credibility before
 saving. Shared defaults do not make the two workflows identical: the saved
 monitor retains its fixed/automatic timing and stability scoring, while Reports
 supports multiple pairs and its report-specific calendar alignment and testing

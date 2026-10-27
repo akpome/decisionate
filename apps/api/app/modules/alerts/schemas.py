@@ -67,6 +67,7 @@ class WeeklyReportDigestRelationship(BaseModel):
     method: str
     minimum_observations: int | None = None
     maximum_lag: int | None = None
+    lag_direction: str | None = None
     lag_periods: int = 0
     matched_period_count: int
     correlation: float | None = None

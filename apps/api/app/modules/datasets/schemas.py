@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from pydantic import Field
 from pydantic import model_validator
 from app.modules.correlation.defaults import (
-    DEFAULT_AGGREGATION, DEFAULT_LAG_MODE, DEFAULT_LAG_PERIODS, DEFAULT_METHOD, DEFAULT_PERIOD,
+    DEFAULT_AGGREGATION, DEFAULT_LAG_DIRECTION, DEFAULT_LAG_MODE, DEFAULT_LAG_PERIODS, DEFAULT_METHOD, DEFAULT_MINIMUM_OBSERVATIONS, DEFAULT_PERIOD,
     MAXIMUM_LAG, MAXIMUM_OBSERVATIONS, MINIMUM_OBSERVATIONS,
 )
 from app.modules.datasets.services.dimension_filters import DimensionFilter
@@ -110,8 +110,9 @@ class DatasetRelationshipRequest(BaseModel):
         "pearson",
         "spearman",
     ] = DEFAULT_METHOD
-    minimum_observations: int = Field(default=MINIMUM_OBSERVATIONS, ge=MINIMUM_OBSERVATIONS, le=MAXIMUM_OBSERVATIONS)
+    minimum_observations: int = Field(default=DEFAULT_MINIMUM_OBSERVATIONS, ge=MINIMUM_OBSERVATIONS, le=MAXIMUM_OBSERVATIONS)
     maximum_lag: int = Field(default=MAXIMUM_LAG, ge=0, le=MAXIMUM_LAG)
+    lag_direction: Literal["a_leads_b", "b_leads_a"] = DEFAULT_LAG_DIRECTION
     lag_mode: Literal["automatic", "manual"] = DEFAULT_LAG_MODE
     lag_periods: int = Field(
         default=DEFAULT_LAG_PERIODS,
@@ -136,8 +137,9 @@ class DatasetRelationshipResponse(BaseModel):
     period: str
     aggregation: str
     method: str
-    minimum_observations: int = MINIMUM_OBSERVATIONS
+    minimum_observations: int = DEFAULT_MINIMUM_OBSERVATIONS
     maximum_lag: int = MAXIMUM_LAG
+    lag_direction: Literal["a_leads_b", "b_leads_a"] = DEFAULT_LAG_DIRECTION
     lag_periods: int
     lag_mode: str = DEFAULT_LAG_MODE
     matched_period_count: int

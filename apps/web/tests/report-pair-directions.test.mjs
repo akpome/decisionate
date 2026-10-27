@@ -228,7 +228,7 @@ test("the builder shows timing above pairs without checkboxes and invalidates re
   assert.ok(relationshipSettings.includes("<ReportPairDirections"))
   assert.match(relationshipSettings, /<section aria-label="Relationship analysis"/)
   assert.match(relationshipSettings, /<h3[^>]*>\{t\("Relationship analysis"\)\}<\/h3>/)
-  assert.match(relationshipSettings, /Minimum historical observations<input[^>]*min=\{RELATIONSHIP_DEFAULTS.minimumObservations\}/)
+  assert.match(relationshipSettings, /Minimum historical observations<input[^>]*min=\{MINIMUM_RELATIONSHIP_OBSERVATIONS\}/)
   assert.match(relationshipSettings, /<section aria-label=\{t\("Evaluate timing"\)\}/)
   assert.doesNotMatch(source, /Include AI interpretation|checked=\{definition\.lag\.enabled\}|definition\.lag\.enabled &&/)
   assert.doesNotMatch(settings, /<details|<summary|cursor-pointer/)

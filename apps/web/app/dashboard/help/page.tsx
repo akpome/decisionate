@@ -101,7 +101,7 @@ const faqItems = [
   {
     question: "Why can a year-long report have insufficient relationship evidence?",
     answer:
-      "The default minimum is 24 matched historical observations after grouping and filtering, not 24 calendar days selected in the form. A year of monthly source data provides only 12 monthly observations. Different date ranges, missing periods, dimension filters, constant values, and lag tests can reduce usable evidence further. Choose more overlapping source history or a finer grouping only when the source really contains observations at that frequency.",
+      "The default minimum is 52 matched historical observations after grouping and filtering, with weekly grouping by default, not 52 calendar days selected in the form. A year of monthly source data provides only 12 monthly observations. Different date ranges, missing periods, dimension filters, constant values, and lag tests can reduce usable evidence further. Choose more overlapping source history or a finer grouping only when the source really contains observations at that frequency.",
   },
   {
     question: "How much connector history is imported?",
@@ -418,13 +418,13 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Set relationship timing and historical coverage",
         steps: [
-          "Choose Spearman or Pearson in Relationship analysis. Minimum historical observations defaults to 24 and counts usable matched observations after grouping and filtering, not the number of dates entered.",
-          "Reports and Relationships share the same new-analysis defaults: Spearman, daily grouping, sum aggregation where applicable, 24 minimum historical observations, a maximum lag of 12 grouped periods, and same-period comparison. Valid deliberately saved settings are retained.",
+          "Choose Spearman or Pearson in Relationship analysis. Minimum historical observations defaults to 52 and counts usable matched observations after grouping and filtering, not the number of dates entered.",
+          "Reports and Relationships share the same new-analysis defaults: Spearman, weekly grouping, sum aggregation where applicable, 52 minimum historical observations, a maximum lag of 12 grouped periods, and same-period comparison. Valid deliberately saved settings are retained, including a saved 24-observation minimum or daily grouping.",
           "Evaluate timing is always visible above Relationship directions, without an enable checkbox. Choose Same-period comparison only or name which metric leads for each pair. Only directed pairs run positive-lag tests, up to Maximum lag; all pairs include the same-period comparison.",
           "Remove relationship pairs you do not want to analyze. Restore them from Removed pairs when needed. These choices are saved with the report and weekly template; removing a pair does not remove its metrics from KPI or anomaly analysis.",
           "Maximum lag is measured in the selected Group by period and is limited to 12. A lag of 2 means two daily, weekly, monthly, or quarterly periods, depending on that setting. A directional timing test also includes lag zero.",
           "With metrics from three or more datasets, configure every relevant pair independently. A metric can follow one source and lead another; there is no single global middle-metric direction.",
-          "If evidence is insufficient, check real overlapping source dates, selected date columns, missing or constant values, dimension filters, and the observations left after lagging. Twelve monthly observations do not meet the default minimum of 24; a wider form date range cannot create missing source history.",
+          "If evidence is insufficient, check real overlapping source dates, selected date columns, missing or constant values, dimension filters, and the observations left after lagging. Twelve monthly observations do not meet the default minimum of 52; a wider form date range cannot create missing source history. The 52-observation minimum must still be met after lagging, so positive-lag tests need additional history.",
         ],
       },
       {
@@ -503,8 +503,9 @@ const referenceChapters: ReferenceChapter[] = [
         steps: [
           "Open Analysis -> Relationships.",
           "Choose the left and right datasets, date columns, and metrics. Each side has an independent Dimension column filter with Unique values and Search values; choose at least one value for any selected dimension.",
-          "The defaults match Reports: Spearman, daily Group by, Sum aggregation, 24 Minimum historical observations, Maximum lag 12, and Same-period comparison only. Verify actual overlapping dates after applying filters to each source.",
-          "Change Timing to Dataset A leads (timing search) to test zero through Maximum lag. For a specific fixed-lag hypothesis, use Left metric leads by and keep it no greater than Maximum lag. The maximum is 12 grouped periods for every grouping.",
+          "The defaults match Reports: Spearman, weekly Group by, Sum aggregation, 52 Minimum historical observations, Maximum lag 12, and Same-period comparison only. Verify actual overlapping dates after applying filters to each source.",
+          "Choose Relationship direction using the named metric that leads, or keep Same-period comparison only. Maximum lag appears only for a directional timing search and tests zero through that limit. Either metric can lead; labels and dimension filters keep their original dataset identities. The maximum is 12 grouped periods for every grouping.",
+          "The old fixed-lag editor is removed. Existing saved fixed-lag monitors keep their original timing and show it as Saved fixed lag until you explicitly choose a new direction. Saved observation thresholds and grouping are not replaced by the new defaults.",
           "The selected observation minimum is enforced after filtering, grouping and lagging. Too few matched observations produce insufficient data, not a usable correlation. Custom observation and lag settings are saved with the monitor and reused during scheduled evaluation.",
           "Review the strength, direction, matched periods, best observed delay, stability or credibility, and the plain-language explanation.",
           "Save the relationship only when the source columns, period, and interpretation are meaningful for the workspace.",

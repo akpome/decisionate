@@ -30,10 +30,14 @@ zero also restricts every retained pair to its same-period test.
 
 ## Why one year can be insufficient
 
-Reports and Relationships share a default minimum of 24 matched observations,
-not 24 dates in the form. Twelve
+Reports and Relationships share a default minimum of 52 matched observations
+and weekly grouping, not 52 dates in the form. Explicit saved grouping and
+thresholds are retained, including the previously saved 24-observation setting.
+The editable minimum remains 24; 52 is the new default, not a new lower bound. Twelve
 monthly source points fail that threshold. Filtering, non-overlapping dates,
 missing buckets and shifting for lag can reduce the usable pair further.
+The minimum must still be met after lagging. Positive-lag searches therefore
+need more source history than a same-period comparison at the same threshold.
 Constant or otherwise unsuitable series can prevent meaningful correlation even
 when the nominal point count is large enough.
 

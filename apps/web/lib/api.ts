@@ -482,6 +482,7 @@ export type DatasetRelationshipPayload = {
   method: "pearson" | "spearman"
   minimum_observations?: number
   maximum_lag?: number
+  lag_direction?: "a_leads_b" | "b_leads_a"
   lag_mode: "automatic" | "manual"
   lag_periods: number
 }
@@ -498,6 +499,7 @@ export type DatasetRelationship = {
   method: "pearson" | "spearman"
   minimum_observations?: number
   maximum_lag?: number
+  lag_direction?: "a_leads_b" | "b_leads_a"
   lag_mode?: "automatic" | "manual"
   lag_periods: number
   matched_period_count: number
@@ -1122,6 +1124,7 @@ export type WeeklyReportDigestRelationship = {
   method: string
   minimum_observations?: number | null
   maximum_lag?: number | null
+  lag_direction?: string | null
   lag_mode?: "automatic" | "manual"
   lag_periods: number
   matched_period_count: number
@@ -3743,7 +3746,7 @@ function verifyDatasetRelationshipFilters(result: DatasetRelationship, payload: 
       throw new ApiError("Dimension filtering is not available from this API yet. No unfiltered relationship was displayed.", 503)
     }
   }
-  for (const key of ["minimum_observations", "maximum_lag"] as const) {
+  for (const key of ["minimum_observations", "maximum_lag", "lag_direction"] as const) {
     if (payload[key] !== undefined && result[key] !== payload[key]) {
       throw new ApiError("The analysis service did not apply your relationship settings. Your selections are preserved; please try again shortly.", 503)
     }

@@ -198,6 +198,8 @@ def ensure_dataset_relationship_columns():
         for column, default in (("minimum_observations", 24), ("maximum_lag", 12)):
             if column not in column_names:
                 connection.execute(text(f"ALTER TABLE dataset_relationships ADD COLUMN {column} INTEGER NOT NULL DEFAULT {default}"))
+        if "lag_direction" not in column_names:
+            connection.execute(text("ALTER TABLE dataset_relationships ADD COLUMN lag_direction VARCHAR NOT NULL DEFAULT 'a_leads_b'"))
 
 
 ensure_dataset_relationship_columns()

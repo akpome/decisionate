@@ -49,7 +49,7 @@ class RelationshipDimensionFilterTests(unittest.TestCase):
 
     def payload(self, left="East", right="West"):
         return {"name": "Filtered campaign and revenue", "period": "daily", "aggregation": "sum", "method": "pearson",
-                "lag_mode": "manual", "lag_periods": 0,
+                "lag_mode": "manual", "lag_periods": 0, "minimum_observations": 24,
                 "left": {"dataset_id": 1, "date_column": "date", "metric_column": "spend", "dimension_filter": {"column": "region", "values": [left]}},
                 "right": {"dataset_id": 2, "date_column": "date", "metric_column": "revenue", "dimension_filter": {"column": "region", "values": [right]}}}
 
@@ -86,19 +86,20 @@ class RelationshipDimensionFilterTests(unittest.TestCase):
         self.assertEqual(response.json()[0]["evidence"], saved["evidence"])
         self.assertEqual(response.json()[0]["left"], saved["left"])
 
-    def test_public_defaults_are_spearman_daily_same_period_with_24_observations_and_12_maximum_lag(self):
+    def test_public_defaults_are_spearman_weekly_same_period_with_52_observations_and_12_maximum_lag(self):
         payload = self.payload()
-        for setting in ("period", "method", "lag_mode", "lag_periods"):
+        for setting in ("period", "method", "lag_mode", "lag_periods", "minimum_observations"):
             payload.pop(setting)
         result = self.save(payload)
         self.assertEqual((result["method"], result["period"], result["aggregation"], result["minimum_observations"], result["maximum_lag"], result["lag_mode"], result["lag_periods"]),
-                         ("spearman", "daily", "sum", 24, 12, "manual", 0))
+                         ("spearman", "weekly", "sum", 52, 12, "manual", 0))
         self.assertEqual(len(result["lag_candidates"]), 1)
-        self.assertAlmostEqual(result["correlation"], -1)
+        self.assertIsNone(result["correlation"])
+        self.assertEqual(result["status"], "insufficient_data")
 
     def test_custom_history_and_zero_maximum_lag_survive_save_reopen_and_weekly_evaluation(self):
         payload = self.payload()
-        payload.update(minimum_observations=30, maximum_lag=0, method="pearson")
+        payload.update(minimum_observations=30, maximum_lag=0, method="pearson", lag_mode="automatic", lag_direction="b_leads_a")
         saved = self.save(payload)
         self.assertEqual(saved["status"], "insufficient_data")
         self.assertIsNone(saved["correlation"])
@@ -111,10 +112,11 @@ class RelationshipDimensionFilterTests(unittest.TestCase):
                 scheduled = alerts.build_weekly_report_relationships(db, SimpleNamespace(relationship_focus=[record.id]), db.query(Dataset).all(), "workspace")
         self.assertEqual((scheduled[0]["minimum_observations"], scheduled[0]["maximum_lag"]), (30, 0))
         self.assertIsNone(scheduled[0]["correlation"])
+        self.assertEqual((reopened["lag_direction"], scheduled[0]["lag_direction"]), ("b_leads_a", "b_leads_a"))
 
     def test_invalid_history_and_lag_settings_are_rejected_before_loading_sources(self):
         for settings in ({"minimum_observations": 23}, {"minimum_observations": 3654}, {"maximum_lag": -1},
-                         {"maximum_lag": 13}, {"maximum_lag": 2, "lag_periods": 3}):
+                         {"maximum_lag": 13}, {"maximum_lag": 2, "lag_periods": 3}, {"lag_direction": "both"}):
             with self.subTest(settings=settings):
                 self.load.reset_mock()
                 response = self.client.post("/datasets/relationships/preview", json={**self.payload(), **settings})
@@ -219,5 +221,5 @@ class RelationshipFilterMigrationTests(unittest.TestCase):
         exec(compile(ast.Module(body=[declaration], type_ignores=[]), "relationship_migration", "exec"), scope)
         scope["ensure_dataset_relationship_columns"](); scope["ensure_dataset_relationship_columns"]()
         with engine.connect() as connection:
-            row = connection.execute(text("SELECT name, lag_mode, left_dimension_filter, right_dimension_filter, minimum_observations, maximum_lag FROM dataset_relationships")).one()
-        self.assertEqual(tuple(row), ("Existing monitor", "manual", None, None, 24, 12))
+            row = connection.execute(text("SELECT name, lag_mode, left_dimension_filter, right_dimension_filter, minimum_observations, maximum_lag, lag_direction FROM dataset_relationships")).one()
+        self.assertEqual(tuple(row), ("Existing monitor", "manual", None, None, 24, 12, "a_leads_b"))

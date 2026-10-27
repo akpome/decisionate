@@ -22,7 +22,7 @@ from app.modules.datasets.services.curated_metric_analytics import aggregate_cur
 from app.modules.datasets.services.dimension_filters import DimensionFilter, apply_dimension_filter
 from app.modules.datasets.services.metric_selection import filter_dataframe_to_selected_metrics
 from app.modules.correlation.defaults import (
-    DEFAULT_AGGREGATION, DEFAULT_LAG_MODE, DEFAULT_LAG_PERIODS, DEFAULT_METHOD, DEFAULT_PERIOD,
+    DEFAULT_AGGREGATION, DEFAULT_LAG_DIRECTION, DEFAULT_LAG_MODE, DEFAULT_LAG_PERIODS, DEFAULT_METHOD, DEFAULT_MINIMUM_OBSERVATIONS, DEFAULT_PERIOD,
     MAXIMUM_LAG, MAXIMUM_OBSERVATIONS, MINIMUM_ABS_COEFFICIENT, MINIMUM_OBSERVATIONS,
 )
 
@@ -59,6 +59,7 @@ def relationship_definition_from_record(record, *, include_filters=True):
     return {"name": record.name, **selections, "period": record.period, "aggregation": record.aggregation,
             "minimum_observations": getattr(record, "minimum_observations", None) or MINIMUM_OBSERVATIONS,
             "maximum_lag": MAXIMUM_LAG if getattr(record, "maximum_lag", None) is None else record.maximum_lag,
+            "lag_direction": getattr(record, "lag_direction", None) or DEFAULT_LAG_DIRECTION,
             "method": record.method, "lag_mode": getattr(record, "lag_mode", None) or "manual", "lag_periods": record.lag_periods}
 
 
@@ -209,7 +210,7 @@ def _calculate_lag_result(
     aligned: pd.DataFrame,
     method: str,
     lag_periods: int,
-    minimum_observations: int = MINIMUM_OBSERVATIONS,
+    minimum_observations: int = DEFAULT_MINIMUM_OBSERVATIONS,
 ) -> dict:
     lagged = _apply_lag(aligned, lag_periods).dropna(
         subset=["left_value", "right_value"]
@@ -237,7 +238,7 @@ def _is_same_direction(left: float | None, right: float | None) -> bool:
     return (left > 0) == (right > 0)
 
 
-def _score_lag_candidates(candidates: list[dict], minimum_observations: int = MINIMUM_OBSERVATIONS) -> list[dict]:
+def _score_lag_candidates(candidates: list[dict], minimum_observations: int = DEFAULT_MINIMUM_OBSERVATIONS) -> list[dict]:
     by_lag = {
         item["lag_periods"]: item
         for item in candidates
@@ -361,8 +362,9 @@ def build_dataset_relationship(
     method = str(definition.get("method") or DEFAULT_METHOD).lower()
     lag_mode = str(definition.get("lag_mode") or DEFAULT_LAG_MODE).lower()
     requested_lag = int(definition.get("lag_periods") or DEFAULT_LAG_PERIODS)
-    minimum_observations = int(definition.get("minimum_observations", MINIMUM_OBSERVATIONS))
+    minimum_observations = int(definition.get("minimum_observations", DEFAULT_MINIMUM_OBSERVATIONS))
     maximum_lag = int(definition.get("maximum_lag", MAXIMUM_LAG))
+    lag_direction = str(definition.get("lag_direction") or DEFAULT_LAG_DIRECTION)
 
     if period not in RELATIONSHIP_PERIODS:
         raise ValueError("Unsupported relationship period")
@@ -372,6 +374,8 @@ def build_dataset_relationship(
         raise ValueError("Unsupported relationship method")
     if lag_mode not in {"automatic", "manual"}:
         raise ValueError("Unsupported relationship timing mode")
+    if lag_direction not in {"a_leads_b", "b_leads_a"}:
+        raise ValueError("Unsupported relationship direction")
     if requested_lag < 0 or requested_lag > MAXIMUM_LAG:
         raise ValueError("Relationship lag must be between 0 and 12 periods")
     # Historical internal runs can retain smaller samples; current API schemas enforce the shared floor.
@@ -436,10 +440,12 @@ def build_dataset_relationship(
         on="period",
         how="inner",
     ).sort_values("period").reset_index(drop=True)
+    # Analyze the chosen leader first, then restore the original metric labels for evidence.
+    comparison = aligned.rename(columns={"left_value": "right_value", "right_value": "left_value"}) if lag_direction == "b_leads_a" else aligned
 
     if lag_mode == "automatic":
         raw_candidates = [
-            _calculate_lag_result(aligned, method, lag, minimum_observations)
+            _calculate_lag_result(comparison, method, lag, minimum_observations)
             for lag in range(maximum_lag + 1)
         ]
         candidates = _score_lag_candidates(raw_candidates, minimum_observations)
@@ -483,7 +489,7 @@ def build_dataset_relationship(
         )
     else:
         selected_raw = _calculate_lag_result(
-            aligned,
+            comparison,
             method,
             requested_lag,
             minimum_observations,
@@ -501,6 +507,8 @@ def build_dataset_relationship(
         credibility = "manual" if selected_raw["correlation"] is not None else "insufficient_data"
 
     selected_aligned = selected_raw["aligned"]
+    if lag_direction == "b_leads_a":
+        selected_aligned = selected_aligned.rename(columns={"left_value": "right_value", "right_value": "left_value"})
     correlation = selected_raw["correlation"]
     lag_periods = selected_raw["lag_periods"]
     evidence = [
@@ -513,6 +521,7 @@ def build_dataset_relationship(
     ]
     left_label = f"{left_dataset.file_name} · {left['metric_column']}"
     right_label = f"{right_dataset.file_name} · {right['metric_column']}"
+    leader_label, follower_label = (right_label, left_label) if lag_direction == "b_leads_a" else (left_label, right_label)
     strength = _relationship_strength(correlation)
     direction = _relationship_direction(correlation)
     delay_description = _delay_description(period, lag_periods)
@@ -522,8 +531,8 @@ def build_dataset_relationship(
         else "not available"
     )
     association_summary = _relationship_summary(
-        left_label,
-        right_label,
+        leader_label,
+        follower_label,
         strength,
         direction,
         delay_description,
@@ -536,7 +545,7 @@ def build_dataset_relationship(
         f"correlation over {len(selected_aligned)} shared {period} periods "
         f"with {aggregation} aggregation. Observed correlation: "
         f"{correlation_text} ({strength}, {direction}). "
-        f"Timing: {delay_description}. {association_summary}"
+        f"Timing: {leader_label} compared with {follower_label} {delay_description}. {association_summary}"
     )
     scopes = []
     for dataset, selection in ((left_dataset, left), (right_dataset, right)):
@@ -559,6 +568,7 @@ def build_dataset_relationship(
         "method": method,
         "minimum_observations": minimum_observations,
         "maximum_lag": maximum_lag,
+        "lag_direction": lag_direction,
         "lag_mode": lag_mode,
         "lag_periods": lag_periods,
         "matched_period_count": int(len(selected_aligned)),

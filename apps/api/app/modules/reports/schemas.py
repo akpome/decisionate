@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 
 from app.modules.correlation.schemas import AnalysisCreate, LagPolicy, MetricRef, ResultFilters, StrictModel
-from app.modules.correlation.defaults import MAXIMUM_LAG, MAXIMUM_OBSERVATIONS, MINIMUM_OBSERVATIONS
+from app.modules.correlation.defaults import DEFAULT_MINIMUM_OBSERVATIONS, MAXIMUM_LAG, MAXIMUM_OBSERVATIONS, MINIMUM_OBSERVATIONS
 from app.modules.datasets.services.dimension_filters import DatasetDimensionFilter
 
 
@@ -12,7 +12,7 @@ MINIMUM_REPORT_OBSERVATIONS = MINIMUM_OBSERVATIONS
 
 
 class ReportFilters(ResultFilters):
-    minimum_observations: int = Field(default=MINIMUM_REPORT_OBSERVATIONS, ge=MINIMUM_REPORT_OBSERVATIONS, le=MAXIMUM_OBSERVATIONS)
+    minimum_observations: int = Field(default=DEFAULT_MINIMUM_OBSERVATIONS, ge=MINIMUM_REPORT_OBSERVATIONS, le=MAXIMUM_OBSERVATIONS)
 
 
 class ReportMetricKey(StrictModel):

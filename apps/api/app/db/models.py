@@ -11,8 +11,8 @@ from sqlalchemy import UniqueConstraint
 
 from app.db.database import Base
 from app.modules.correlation.defaults import (
-    DEFAULT_AGGREGATION, DEFAULT_LAG_MODE, DEFAULT_LAG_PERIODS, DEFAULT_METHOD, DEFAULT_PERIOD,
-    MAXIMUM_LAG, MINIMUM_OBSERVATIONS,
+    DEFAULT_AGGREGATION, DEFAULT_LAG_DIRECTION, DEFAULT_LAG_MODE, DEFAULT_LAG_PERIODS, DEFAULT_METHOD, DEFAULT_MINIMUM_OBSERVATIONS, DEFAULT_PERIOD,
+    MAXIMUM_LAG,
 )
 
 
@@ -448,8 +448,9 @@ class DatasetRelationship(Base):
         default=DEFAULT_METHOD,
     )
 
-    minimum_observations = Column(Integer, nullable=False, default=MINIMUM_OBSERVATIONS)
+    minimum_observations = Column(Integer, nullable=False, default=DEFAULT_MINIMUM_OBSERVATIONS)
     maximum_lag = Column(Integer, nullable=False, default=MAXIMUM_LAG)
+    lag_direction = Column(String, nullable=False, default=DEFAULT_LAG_DIRECTION)
 
     lag_mode = Column(
         String,
