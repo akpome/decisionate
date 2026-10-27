@@ -30,13 +30,13 @@ class RelationshipDimensionFilterTests(unittest.TestCase):
         with self.sessions() as db:
             for identity, metric in ((1, "spend"), (2, "revenue")):
                 dataset = Dataset(id=identity, user_id="owner", workspace_id="workspace", file_name=f"Source {identity}.csv",
-                                  file_path="unused.csv", source_type="csv", row_count=24, column_count=5,
+                                  file_path="unused.csv", source_type="csv", row_count=48, column_count=5,
                                   source_config=json.dumps({"selected_metric_columns": [metric]}))
                 db.add(dataset)
                 self.frames[identity] = pd.DataFrame({
-                    "date": list(pd.date_range("2026-10-01", periods=12)) * 2,
-                    metric: (list(range(1, 13)) + list(range(100, 112))) if identity == 1 else (list(range(2, 25, 2)) + list(range(500, 488, -1))),
-                    "region": ["East"] * 12 + ["West"] * 12, "customer_id": [1] * 12 + [2] * 12, "internal_cost": list(range(24)),
+                    "date": list(pd.date_range("2026-10-01", periods=24)) * 2,
+                    metric: (list(range(1, 25)) + list(range(100, 124))) if identity == 1 else (list(range(2, 49, 2)) + list(range(500, 476, -1))),
+                    "region": ["East"] * 24 + ["West"] * 24, "customer_id": [1] * 24 + [2] * 24, "internal_cost": list(range(48)),
                 })
             db.commit()
         self.load = MagicMock(side_effect=lambda dataset, apply_metric_selection=True:
@@ -65,7 +65,7 @@ class RelationshipDimensionFilterTests(unittest.TestCase):
         response = self.client.post("/datasets/relationships/preview/filtered", json=self.payload())
         self.assertEqual(response.status_code, 200, response.text)
         result = response.json()
-        self.assertEqual(result["matched_period_count"], 12)
+        self.assertEqual(result["matched_period_count"], 24)
         self.assertAlmostEqual(result["correlation"], -1)
         self.assertEqual(result["evidence"][0], {"period": "2026-10-01", "left_value": 1, "right_value": 500})
         for side in ("left", "right"):
@@ -85,6 +85,41 @@ class RelationshipDimensionFilterTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()[0]["evidence"], saved["evidence"])
         self.assertEqual(response.json()[0]["left"], saved["left"])
+
+    def test_public_defaults_are_spearman_daily_same_period_with_24_observations_and_12_maximum_lag(self):
+        payload = self.payload()
+        for setting in ("period", "method", "lag_mode", "lag_periods"):
+            payload.pop(setting)
+        result = self.save(payload)
+        self.assertEqual((result["method"], result["period"], result["aggregation"], result["minimum_observations"], result["maximum_lag"], result["lag_mode"], result["lag_periods"]),
+                         ("spearman", "daily", "sum", 24, 12, "manual", 0))
+        self.assertEqual(len(result["lag_candidates"]), 1)
+        self.assertAlmostEqual(result["correlation"], -1)
+
+    def test_custom_history_and_zero_maximum_lag_survive_save_reopen_and_weekly_evaluation(self):
+        payload = self.payload()
+        payload.update(minimum_observations=30, maximum_lag=0, method="pearson")
+        saved = self.save(payload)
+        self.assertEqual(saved["status"], "insufficient_data")
+        self.assertIsNone(saved["correlation"])
+        reopened = self.client.get("/datasets/relationships").json()[0]
+        self.assertEqual((reopened["minimum_observations"], reopened["maximum_lag"], reopened["method"]), (30, 0, "pearson"))
+        with self.sessions() as db:
+            record = db.get(DatasetRelationship, saved["id"])
+            self.assertEqual((record.minimum_observations, record.maximum_lag), (30, 0))
+            with patch.object(alerts, "complete_week", return_value={"start": "2026-10-19", "end": "2026-10-25"}), patch.object(alerts, "load_dataframe_from_dataset", self.load):
+                scheduled = alerts.build_weekly_report_relationships(db, SimpleNamespace(relationship_focus=[record.id]), db.query(Dataset).all(), "workspace")
+        self.assertEqual((scheduled[0]["minimum_observations"], scheduled[0]["maximum_lag"]), (30, 0))
+        self.assertIsNone(scheduled[0]["correlation"])
+
+    def test_invalid_history_and_lag_settings_are_rejected_before_loading_sources(self):
+        for settings in ({"minimum_observations": 23}, {"minimum_observations": 3654}, {"maximum_lag": -1},
+                         {"maximum_lag": 13}, {"maximum_lag": 2, "lag_periods": 3}):
+            with self.subTest(settings=settings):
+                self.load.reset_mock()
+                response = self.client.post("/datasets/relationships/preview", json={**self.payload(), **settings})
+                self.assertEqual(response.status_code, 422, response.text)
+                self.load.assert_not_called()
 
     def test_numeric_id_filter_does_not_enable_unselected_measures(self):
         payload = self.payload()
@@ -139,7 +174,7 @@ class RelationshipDimensionFilterTests(unittest.TestCase):
         saved = self.save()
         with self.sessions() as db:
             datasets = db.query(Dataset).all()
-            with patch.object(alerts, "complete_week", return_value={"start": "2026-10-12", "end": "2026-10-18"}), patch.object(
+            with patch.object(alerts, "complete_week", return_value={"start": "2026-10-19", "end": "2026-10-25"}), patch.object(
                 alerts, "load_dataframe_from_dataset", self.load
             ):
                 results = alerts.build_weekly_report_relationships(db, SimpleNamespace(relationship_focus=[saved["id"]]), datasets, "workspace")
@@ -162,7 +197,7 @@ class RelationshipDimensionFilterTests(unittest.TestCase):
             legacy[side].pop("dimension_filter")
         other = self.save(legacy)
         with self.sessions() as db:
-            with patch.object(alerts, "complete_week", return_value={"start": "2026-10-12", "end": "2026-10-18"}), patch.object(
+            with patch.object(alerts, "complete_week", return_value={"start": "2026-10-19", "end": "2026-10-25"}), patch.object(
                 alerts, "load_dataframe_from_dataset", self.load
             ):
                 results = alerts.build_weekly_report_relationships(db, SimpleNamespace(relationship_focus=[saved["id"], other["id"]]), db.query(Dataset).all(), "workspace")
@@ -184,5 +219,5 @@ class RelationshipFilterMigrationTests(unittest.TestCase):
         exec(compile(ast.Module(body=[declaration], type_ignores=[]), "relationship_migration", "exec"), scope)
         scope["ensure_dataset_relationship_columns"](); scope["ensure_dataset_relationship_columns"]()
         with engine.connect() as connection:
-            row = connection.execute(text("SELECT name, lag_mode, left_dimension_filter, right_dimension_filter FROM dataset_relationships")).one()
-        self.assertEqual(tuple(row), ("Existing monitor", "manual", None, None))
+            row = connection.execute(text("SELECT name, lag_mode, left_dimension_filter, right_dimension_filter, minimum_observations, maximum_lag FROM dataset_relationships")).one()
+        self.assertEqual(tuple(row), ("Existing monitor", "manual", None, None, 24, 12))

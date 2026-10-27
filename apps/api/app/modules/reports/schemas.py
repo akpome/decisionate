@@ -4,14 +4,15 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 
 from app.modules.correlation.schemas import AnalysisCreate, LagPolicy, MetricRef, ResultFilters, StrictModel
+from app.modules.correlation.defaults import MAXIMUM_LAG, MAXIMUM_OBSERVATIONS, MINIMUM_OBSERVATIONS
 from app.modules.datasets.services.dimension_filters import DatasetDimensionFilter
 
 
-MINIMUM_REPORT_OBSERVATIONS = 24
+MINIMUM_REPORT_OBSERVATIONS = MINIMUM_OBSERVATIONS
 
 
 class ReportFilters(ResultFilters):
-    minimum_observations: int = Field(default=MINIMUM_REPORT_OBSERVATIONS, ge=MINIMUM_REPORT_OBSERVATIONS, le=3653)
+    minimum_observations: int = Field(default=MINIMUM_REPORT_OBSERVATIONS, ge=MINIMUM_REPORT_OBSERVATIONS, le=MAXIMUM_OBSERVATIONS)
 
 
 class ReportMetricKey(StrictModel):
@@ -40,7 +41,7 @@ class ReportDefinition(AnalysisCreate):
     seasonal_business: bool = False
     include_ai_analysis: bool = True
     filters: ReportFilters = Field(default_factory=ReportFilters)
-    lag: LagPolicy = Field(default_factory=lambda: LagPolicy(maximum=12))
+    lag: LagPolicy = Field(default_factory=lambda: LagPolicy(maximum=MAXIMUM_LAG))
     business_question: str = Field(min_length=8, max_length=1000)
     included_findings: list[str] | None = Field(default=None, max_length=300)
     source_run_id: str | None = Field(default=None, max_length=80)

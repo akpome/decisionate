@@ -16,7 +16,8 @@ function load(relative, imports = {}) {
 const indexed = load("../features/reports/indexed-trends.ts")
 const { indexedMetricTrends } = indexed
 const pairModule = load("../features/reports/pair-directions.ts")
-const types = load("../features/reports/types.ts", { "./pair-directions": pairModule })
+const defaults = load("../features/relationships/defaults.ts")
+const types = load("../features/reports/types.ts", { "./pair-directions": pairModule, "@/features/relationships/defaults": defaults })
 const json = value => JSON.parse(JSON.stringify(value))
 function metric(id, values, updates = {}) {
   return { id: `${id}:amount`, dataset_id: id, dataset_label: `Source ${id}.csv`, metric_key: "amount", label: "Amount", currency: id === 2 ? "CAD" : null,

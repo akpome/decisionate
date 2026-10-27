@@ -16,7 +16,8 @@ function load(path, imports = {}) {
   return loaded.exports
 }
 const pairs = load("../features/reports/pair-directions.ts")
-const types = load("../features/reports/types.ts", { "./pair-directions": pairs })
+const defaults = load("../features/relationships/defaults.ts")
+const types = load("../features/reports/types.ts", { "./pair-directions": pairs, "@/features/relationships/defaults": defaults })
 const { ReportAnomalies } = load("../features/reports/report-anomalies.tsx", { "./types": types })
 const metric = {
   metric_id: "1:spend", label: "Spend", dataset_label: "Advertising", currency: "CAD", status: "ready",

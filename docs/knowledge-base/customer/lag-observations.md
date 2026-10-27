@@ -30,7 +30,8 @@ zero also restricts every retained pair to its same-period test.
 
 ## Why one year can be insufficient
 
-The default minimum is 24 matched observations, not 24 dates in the form. Twelve
+Reports and Relationships share a default minimum of 24 matched observations,
+not 24 dates in the form. Twelve
 monthly source points fail that threshold. Filtering, non-overlapping dates,
 missing buckets and shifting for lag can reduce the usable pair further.
 Constant or otherwise unsuitable series can prevent meaningful correlation even

@@ -970,6 +970,8 @@ def build_weekly_report_relationships(
                 "period": result["period"],
                 "aggregation": result["aggregation"],
                 "method": result["method"],
+                "minimum_observations": result["minimum_observations"],
+                "maximum_lag": result["maximum_lag"],
                 "lag_mode": result["lag_mode"],
                 "lag_periods": result["lag_periods"],
                 "matched_period_count": result["matched_period_count"],

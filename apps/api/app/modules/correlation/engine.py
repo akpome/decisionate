@@ -85,7 +85,7 @@ def compute_pair(left, right, series, definition, *, include_zero=True):
     for shift in lags:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
-            result = _calculate_lag_result(aligned, definition["method"], shift)
+            result = _calculate_lag_result(aligned, definition["method"], shift, minimum)
         sample = result["aligned"]
         coefficient = result["correlation"]
         flags = []

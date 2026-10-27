@@ -17,6 +17,8 @@ def frozen_relationship(left, right, *, method="pearson", lag=0):
         "right": {"dataset_id": 2, "date_column": "date", "metric_column": "revenue"},
         "period": "daily", "aggregation": "sum", "method": method,
         "lag_mode": "manual", "lag_periods": lag,
+        # Freeze the historical math independently of today's public minimum.
+        "minimum_observations": 2,
     }
     return build_dataset_relationship(frames, definition), frames, definition
 

@@ -94,12 +94,13 @@ class BusinessReportEngineTests(unittest.TestCase):
         with self.assertRaises(HTTPException):
             validate_weekly_report_digest_for_delivery(SimpleNamespace(enabled=True, cross_dataset_report={**result, "status": "ready"}))
 
-    def test_report_observation_defaults_and_validation_are_report_specific(self):
+    def test_observation_defaults_are_shared_while_report_validation_preserves_its_floor(self):
         from app.modules.correlation.schemas import ResultFilters
 
         self.assertEqual(definition()["filters"]["minimum_observations"], 24)
         self.assertEqual(definition(filters={"minimum_abs_coefficient": .5})["filters"]["minimum_observations"], 24)
-        self.assertEqual(ResultFilters().minimum_observations, 30)
+        self.assertEqual(ResultFilters().minimum_observations, 24)
+        self.assertEqual(ResultFilters(minimum_observations=2).minimum_observations, 2)
         for minimum in (24, 30, 48, 3653):
             self.assertEqual(definition(filters={"minimum_observations": minimum})["filters"]["minimum_observations"], minimum)
         for minimum in (23, 3654):

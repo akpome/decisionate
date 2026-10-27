@@ -14,8 +14,9 @@ function load(relative, imports = {}) {
   return loaded.exports
 }
 const pairs = load("../features/reports/pair-directions.ts")
+const defaults = load("../features/relationships/defaults.ts")
 const { reportExcludedPairs, reportPairDirections, reportPairKey, reportTestCount, unorderedReportPairKey } = pairs
-const { editableDefinition } = load("../features/reports/types.ts", { "./pair-directions": pairs })
+const { editableDefinition } = load("../features/reports/types.ts", { "./pair-directions": pairs, "@/features/relationships/defaults": defaults })
 const key = (dataset_id, metric_key) => ({ dataset_id, metric_key })
 const metrics = [key(1, "spend"), key(2, "revenue"), key(4, "clicks")].map(item => ({ ...item, date_column: "date", aggregation: "sum" }))
 const lag = { enabled: true, minimum: 0, maximum: 3, direction: "a_leads_b" }
@@ -227,7 +228,7 @@ test("the builder shows timing above pairs without checkboxes and invalidates re
   assert.ok(relationshipSettings.includes("<ReportPairDirections"))
   assert.match(relationshipSettings, /<section aria-label="Relationship analysis"/)
   assert.match(relationshipSettings, /<h3[^>]*>\{t\("Relationship analysis"\)\}<\/h3>/)
-  assert.match(relationshipSettings, /Minimum historical observations<input[^>]*min=\{24\}/)
+  assert.match(relationshipSettings, /Minimum historical observations<input[^>]*min=\{RELATIONSHIP_DEFAULTS.minimumObservations\}/)
   assert.match(relationshipSettings, /<section aria-label=\{t\("Evaluate timing"\)\}/)
   assert.doesNotMatch(source, /Include AI interpretation|checked=\{definition\.lag\.enabled\}|definition\.lag\.enabled &&/)
   assert.doesNotMatch(settings, /<details|<summary|cursor-pointer/)

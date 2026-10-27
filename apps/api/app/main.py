@@ -195,6 +195,9 @@ def ensure_dataset_relationship_columns():
         for column in ("left_dimension_filter", "right_dimension_filter"):
             if column not in column_names:
                 connection.execute(text(f"ALTER TABLE dataset_relationships ADD COLUMN {column} TEXT"))
+        for column, default in (("minimum_observations", 24), ("maximum_lag", 12)):
+            if column not in column_names:
+                connection.execute(text(f"ALTER TABLE dataset_relationships ADD COLUMN {column} INTEGER NOT NULL DEFAULT {default}"))
 
 
 ensure_dataset_relationship_columns()

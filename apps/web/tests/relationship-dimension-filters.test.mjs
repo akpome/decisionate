@@ -6,6 +6,11 @@ import test from "node:test"
 
 const require = createRequire(import.meta.url), ts = require("typescript"), React = require("react")
 const { renderToStaticMarkup } = require("react-dom/server")
+const defaultModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/relationships/defaults.ts", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText, { module: defaultModule, exports: defaultModule.exports })
+const { RELATIONSHIP_DEFAULTS, MAXIMUM_RELATIONSHIP_OBSERVATIONS } = defaultModule.exports
 const source = readFileSync(new URL("../app/dashboard/relationships/page.tsx", import.meta.url), "utf8")
 function declarations(source, names) {
   const tree = ts.createSourceFile("source.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX), found = []
@@ -29,6 +34,7 @@ function payloadHarness(extra = {}) {
   const globals = { incompleteFilter: false, leftDatasetId: "1", rightDatasetId: "2", resolvedLeftDateColumn: "date",
     resolvedRightDateColumn: "paid_date", resolvedLeftMetric: "spend", resolvedRightMetric: "revenue", name: "Filtered monitor",
     period: "monthly", aggregation: "sum", method: "pearson", lagMode: "manual", lagPeriods: "0",
+    minimumObservations: "24", maximumLag: "12", RELATIONSHIP_DEFAULTS, MAXIMUM_RELATIONSHIP_OBSERVATIONS,
     leftFilter: undefined, rightFilter: undefined, setError: error => errors.push(error), ...extra }
   return { ...functions(["buildPayload"], globals), errors }
 }
@@ -49,6 +55,23 @@ test("all-rows relationships preserve their original payload and incomplete sele
   const pending = payloadHarness({ incompleteFilter: true })
   assert.equal(pending.buildPayload(), null)
   assert.match(pending.errors[0], /unique value/)
+})
+
+test("monitor settings submit exact values and invalid observation or lag bounds cannot preview", () => {
+  const payload = payloadHarness({ minimumObservations: "48", maximumLag: "3", lagMode: "automatic" }).buildPayload()
+  assert.equal(payload.minimum_observations, 48)
+  assert.equal(payload.maximum_lag, 3)
+  for (const settings of [{ minimumObservations: "23" }, { minimumObservations: "3654" }, { maximumLag: "13" }, { maximumLag: "-1" }, { maximumLag: "2", lagPeriods: "3" }]) {
+    const harness = payloadHarness(settings)
+    assert.equal(harness.buildPayload(), null)
+    assert.equal(harness.errors.length, 1)
+  }
+  for (const setting of ["period", "aggregation", "method", "lagMode", "lagPeriods", "minimumObservations", "maximumLag"]) {
+    assert.match(source, new RegExp(`useState(?:<[^>]+>)?\\((?:String\\()?RELATIONSHIP_DEFAULTS\\.${setting}`))
+  }
+  assert.doesNotMatch(source, /Pearson \(default\)|showAdvanced/)
+  assert.match(source, /Minimum historical observations/)
+  assert.match(source, /Maximum lag/)
 })
 
 test("each dataset side renders the shared dropdown control with current workspace and disabled state", () => {
@@ -72,9 +95,9 @@ test("each dataset side renders the shared dropdown control with current workspa
 
 test("opening a saved monitor restores both filters without overwriting another workspace", () => {
   let filters = { "old-workspace": { column: "region", values: ["Private"] } }, result
-  const globals = { filterKey: identity => `owner:workspace:${identity}`, setDimensionFilters: update => { filters = update(filters) },
+  const globals = { RELATIONSHIP_DEFAULTS, filterKey: identity => `owner:workspace:${identity}`, setDimensionFilters: update => { filters = update(filters) },
     setResult: value => { result = value }, setStatusMessage() {}, setError() {} }
-  for (const name of ["setLeftDatasetId", "setRightDatasetId", "setLeftDateColumn", "setRightDateColumn", "setLeftMetric", "setRightMetric", "setName", "setPeriod", "setAggregation", "setMethod", "setLagMode", "setLagPeriods"]) globals[name] = () => {}
+  for (const name of ["setLeftDatasetId", "setRightDatasetId", "setLeftDateColumn", "setRightDateColumn", "setLeftMetric", "setRightMetric", "setName", "setPeriod", "setAggregation", "setMethod", "setLagMode", "setLagPeriods", "setMinimumObservations", "setMaximumLag"]) globals[name] = () => {}
   const record = { name: "Saved", period: "daily", aggregation: "sum", method: "pearson", lag_periods: 0,
     left: { dataset_id: 1, date_column: "date", metric_column: "spend", dimension_filter: selection },
     right: { dataset_id: 2, date_column: "date", metric_column: "revenue", dimension_filter: { column: "channel", values: ["Web"] } } }
@@ -124,5 +147,18 @@ test("preview and save send scope unchanged and reject an API that ignores filte
     assert.equal(calls[0].init.headers.workspace, "workspace")
     echo = { ...payload, left: { ...payload.left, dimension_filter: null } }
     await assert.rejects(methods[name](payload, "owner", "workspace"), error => error.status === 503)
+    for (const setting of ["minimum_observations", "maximum_lag"]) {
+      echo = { ...payload }; delete echo[setting]
+      await assert.rejects(methods[name](payload, "owner", "workspace"), error => error.status === 503 && /relationship settings/.test(error.message))
+    }
   }
+})
+
+test("changing analysis settings invalidates old evidence without changing the saved definition", () => {
+  let result = { id: 5 }, method = "pearson"
+  functions(["changeAnalysisSetting"], { setResult: value => { result = value }, setStatusMessage() {}, setError() {} })
+    .changeAnalysisSetting(() => { method = "spearman" })
+  assert.equal(method, "spearman")
+  assert.equal(result, null)
+  assert.match(source, /minimumObservations, maximumLag\]\)/)
 })

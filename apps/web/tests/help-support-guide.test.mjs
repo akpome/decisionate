@@ -68,8 +68,10 @@ test("report timing guidance matches the 24-observation default and pair-specifi
   assert.match(text, /includes lag zero/)
   assert.match(text, /every relevant pair independently/)
   assert.match(text, /Twelve monthly observations do not meet the default minimum of 24/)
-  assert.match(read("../features/reports/types.ts"), /minimum_observations: Math.max\(24/)
+  assert.match(read("../features/reports/types.ts"), /minimum_observations: Math.max\(RELATIONSHIP_DEFAULTS.minimumObservations/)
   assert.match(read("../features/reports/report-pair-directions.tsx"), /Same-period comparison only/)
+  assert.match(text, /Reports and Relationships share the same new-analysis defaults/)
+  assert.match(chapter("relationships-alerts"), /Spearman, daily Group by, Sum aggregation, 24 Minimum historical observations, Maximum lag 12, and Same-period comparison only/)
 })
 
 test("indexed comparisons and seasonality include their interpretation limits", () => {

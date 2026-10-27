@@ -10,6 +10,10 @@ from sqlalchemy import Text
 from sqlalchemy import UniqueConstraint
 
 from app.db.database import Base
+from app.modules.correlation.defaults import (
+    DEFAULT_AGGREGATION, DEFAULT_LAG_MODE, DEFAULT_LAG_PERIODS, DEFAULT_METHOD, DEFAULT_PERIOD,
+    MAXIMUM_LAG, MINIMUM_OBSERVATIONS,
+)
 
 
 def utc_now() -> datetime:
@@ -429,31 +433,34 @@ class DatasetRelationship(Base):
     period = Column(
         String,
         nullable=False,
-        default="monthly",
+        default=DEFAULT_PERIOD,
     )
 
     aggregation = Column(
         String,
         nullable=False,
-        default="sum",
+        default=DEFAULT_AGGREGATION,
     )
 
     method = Column(
         String,
         nullable=False,
-        default="pearson",
+        default=DEFAULT_METHOD,
     )
+
+    minimum_observations = Column(Integer, nullable=False, default=MINIMUM_OBSERVATIONS)
+    maximum_lag = Column(Integer, nullable=False, default=MAXIMUM_LAG)
 
     lag_mode = Column(
         String,
         nullable=False,
-        default="manual",
+        default=DEFAULT_LAG_MODE,
     )
 
     lag_periods = Column(
         Integer,
         nullable=False,
-        default=0,
+        default=DEFAULT_LAG_PERIODS,
     )
 
     created_at = Column(

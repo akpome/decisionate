@@ -3,6 +3,11 @@ from typing import Any, Dict, List, Literal
 
 from pydantic import BaseModel
 from pydantic import Field
+from pydantic import model_validator
+from app.modules.correlation.defaults import (
+    DEFAULT_AGGREGATION, DEFAULT_LAG_MODE, DEFAULT_LAG_PERIODS, DEFAULT_METHOD, DEFAULT_PERIOD,
+    MAXIMUM_LAG, MAXIMUM_OBSERVATIONS, MINIMUM_OBSERVATIONS,
+)
 from app.modules.datasets.services.dimension_filters import DimensionFilter
 
 
@@ -93,24 +98,32 @@ class DatasetRelationshipRequest(BaseModel):
         "weekly",
         "monthly",
         "quarterly",
-    ] = "monthly"
+    ] = DEFAULT_PERIOD
     aggregation: Literal[
         "sum",
         "count",
         "avg",
         "min",
         "max",
-    ] = "sum"
+    ] = DEFAULT_AGGREGATION
     method: Literal[
         "pearson",
         "spearman",
-    ] = "pearson"
-    lag_mode: Literal["automatic", "manual"] = "automatic"
+    ] = DEFAULT_METHOD
+    minimum_observations: int = Field(default=MINIMUM_OBSERVATIONS, ge=MINIMUM_OBSERVATIONS, le=MAXIMUM_OBSERVATIONS)
+    maximum_lag: int = Field(default=MAXIMUM_LAG, ge=0, le=MAXIMUM_LAG)
+    lag_mode: Literal["automatic", "manual"] = DEFAULT_LAG_MODE
     lag_periods: int = Field(
-        default=0,
+        default=DEFAULT_LAG_PERIODS,
         ge=0,
-        le=12,
+        le=MAXIMUM_LAG,
     )
+
+    @model_validator(mode="after")
+    def check_lag_bounds(self):
+        if self.lag_mode == "manual" and self.lag_periods > self.maximum_lag:
+            raise ValueError("The fixed lag must not exceed Maximum lag")
+        return self
 
 
 class DatasetRelationshipResponse(BaseModel):
@@ -123,8 +136,10 @@ class DatasetRelationshipResponse(BaseModel):
     period: str
     aggregation: str
     method: str
+    minimum_observations: int = MINIMUM_OBSERVATIONS
+    maximum_lag: int = MAXIMUM_LAG
     lag_periods: int
-    lag_mode: str = "automatic"
+    lag_mode: str = DEFAULT_LAG_MODE
     matched_period_count: int
     correlation: float | None = None
     relationship_strength: str

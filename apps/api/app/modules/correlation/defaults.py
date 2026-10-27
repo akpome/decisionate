@@ -1,0 +1,11 @@
+"""Defaults shared by report analysis and saved two-metric monitors."""
+
+DEFAULT_METHOD = "spearman"
+DEFAULT_PERIOD = "daily"
+DEFAULT_AGGREGATION = "sum"
+MINIMUM_OBSERVATIONS = 24
+MAXIMUM_OBSERVATIONS = 3653
+MAXIMUM_LAG = 12
+MINIMUM_ABS_COEFFICIENT = 0.3
+DEFAULT_LAG_MODE = "manual"
+DEFAULT_LAG_PERIODS = 0

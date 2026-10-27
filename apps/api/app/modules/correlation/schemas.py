@@ -2,6 +2,7 @@ from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from .defaults import DEFAULT_METHOD, DEFAULT_PERIOD, MAXIMUM_LAG, MINIMUM_ABS_COEFFICIENT, MINIMUM_OBSERVATIONS
 
 
 class StrictModel(BaseModel):
@@ -29,7 +30,7 @@ class DateRange(StrictModel):
 class LagPolicy(StrictModel):
     enabled: bool = False
     minimum: int = Field(default=0, ge=0, le=60)
-    maximum: int = Field(default=14, ge=0, le=60)
+    maximum: int = Field(default=MAXIMUM_LAG, ge=0, le=60)
     direction: Literal["a_leads_b", "b_leads_a"] = "a_leads_b"
 
     @model_validator(mode="after")
@@ -40,15 +41,15 @@ class LagPolicy(StrictModel):
 
 
 class ResultFilters(StrictModel):
-    minimum_abs_coefficient: float = Field(default=0.3, ge=0, le=1, allow_inf_nan=False)
-    minimum_observations: int = Field(default=30, ge=2, le=3653)
+    minimum_abs_coefficient: float = Field(default=MINIMUM_ABS_COEFFICIENT, ge=0, le=1, allow_inf_nan=False)
+    minimum_observations: int = Field(default=MINIMUM_OBSERVATIONS, ge=2, le=3653)
 
 
 class AnalysisCreate(StrictModel):
     name: str = Field(min_length=1, max_length=120)
     metrics: list[MetricRef] = Field(min_length=2, max_length=50)
-    method: Literal["pearson", "spearman"] = "spearman"
-    grain: Literal["daily", "weekly", "monthly", "quarterly"] = "daily"
+    method: Literal["pearson", "spearman"] = DEFAULT_METHOD
+    grain: Literal["daily", "weekly", "monthly", "quarterly"] = DEFAULT_PERIOD
     date_range: DateRange
     lag: LagPolicy = Field(default_factory=LagPolicy)
     filters: ResultFilters = Field(default_factory=ResultFilters)

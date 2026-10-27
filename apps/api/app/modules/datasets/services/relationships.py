@@ -21,6 +21,10 @@ from app.modules.datasets.services.numeric import (
 from app.modules.datasets.services.curated_metric_analytics import aggregate_curated_dataframe, frame_policy
 from app.modules.datasets.services.dimension_filters import DimensionFilter, apply_dimension_filter
 from app.modules.datasets.services.metric_selection import filter_dataframe_to_selected_metrics
+from app.modules.correlation.defaults import (
+    DEFAULT_AGGREGATION, DEFAULT_LAG_MODE, DEFAULT_LAG_PERIODS, DEFAULT_METHOD, DEFAULT_PERIOD,
+    MAXIMUM_LAG, MAXIMUM_OBSERVATIONS, MINIMUM_ABS_COEFFICIENT, MINIMUM_OBSERVATIONS,
+)
 
 
 RELATIONSHIP_PERIODS = {
@@ -38,14 +42,7 @@ RELATIONSHIP_AGGREGATIONS = {
     "max": "max",
 }
 
-AUTO_MAX_LAGS = {
-    "daily": 12,
-    "weekly": 8,
-    "monthly": 6,
-    "quarterly": 4,
-}
-AUTO_MIN_MATCHED_PERIODS = 6
-AUTO_MIN_ABSOLUTE_CORRELATION = 0.30
+AUTO_MIN_ABSOLUTE_CORRELATION = MINIMUM_ABS_COEFFICIENT
 AUTO_NEIGHBOR_MIN_ABSOLUTE_CORRELATION = 0.20
 
 
@@ -60,6 +57,8 @@ def relationship_definition_from_record(record, *, include_filters=True):
             "dimension_filter": DimensionFilter.model_validate_json(saved).model_dump() if saved is not None else None,
         }
     return {"name": record.name, **selections, "period": record.period, "aggregation": record.aggregation,
+            "minimum_observations": getattr(record, "minimum_observations", None) or MINIMUM_OBSERVATIONS,
+            "maximum_lag": MAXIMUM_LAG if getattr(record, "maximum_lag", None) is None else record.maximum_lag,
             "method": record.method, "lag_mode": getattr(record, "lag_mode", None) or "manual", "lag_periods": record.lag_periods}
 
 
@@ -210,12 +209,13 @@ def _calculate_lag_result(
     aligned: pd.DataFrame,
     method: str,
     lag_periods: int,
+    minimum_observations: int = MINIMUM_OBSERVATIONS,
 ) -> dict:
     lagged = _apply_lag(aligned, lag_periods).dropna(
         subset=["left_value", "right_value"]
     ).reset_index(drop=True)
     correlation = None
-    if len(lagged) >= 2:
+    if len(lagged) >= minimum_observations:
         correlation = _calculate_correlation(
             lagged["left_value"],
             lagged["right_value"],
@@ -237,7 +237,7 @@ def _is_same_direction(left: float | None, right: float | None) -> bool:
     return (left > 0) == (right > 0)
 
 
-def _score_lag_candidates(candidates: list[dict]) -> list[dict]:
+def _score_lag_candidates(candidates: list[dict], minimum_observations: int = MINIMUM_OBSERVATIONS) -> list[dict]:
     by_lag = {
         item["lag_periods"]: item
         for item in candidates
@@ -262,7 +262,7 @@ def _score_lag_candidates(candidates: list[dict]) -> list[dict]:
             item
             for item in usable_neighbors
             if _is_same_direction(correlation, item["correlation"])
-            and item["matched_period_count"] >= AUTO_MIN_MATCHED_PERIODS
+            and item["matched_period_count"] >= minimum_observations
             and abs(item["correlation"]) >= AUTO_NEIGHBOR_MIN_ABSOLUTE_CORRELATION
         ]
         stability = (
@@ -270,7 +270,7 @@ def _score_lag_candidates(candidates: list[dict]) -> list[dict]:
             if usable_neighbors
             else 0.0
         )
-        sufficient = candidate["matched_period_count"] >= AUTO_MIN_MATCHED_PERIODS
+        sufficient = candidate["matched_period_count"] >= minimum_observations
         meaningful = (
             correlation is not None
             and abs(correlation) >= AUTO_MIN_ABSOLUTE_CORRELATION
@@ -278,7 +278,7 @@ def _score_lag_candidates(candidates: list[dict]) -> list[dict]:
         stable = bool(same_direction_neighbors) and stability >= 0.5
         coverage = min(
             1.0,
-            candidate["matched_period_count"] / (AUTO_MIN_MATCHED_PERIODS * 2),
+            candidate["matched_period_count"] / (minimum_observations * 2),
         )
         score = (
             (abs(correlation) if correlation is not None else 0.0) * 0.7
@@ -321,6 +321,7 @@ def _relationship_summary(
     delay_description: str,
     matched_period_count: int,
     credibility: str,
+    minimum_observations: int,
 ) -> str:
     if credibility == "credible":
         opening = f"{strength.capitalize()} {direction} association."
@@ -328,6 +329,9 @@ def _relationship_summary(
             f"Changes in {left_label} have historically been most strongly "
             f"associated with {right_label} {delay_description}."
         )
+    elif credibility == "manual":
+        opening = f"Observed {strength} {direction} association in the selected comparison."
+        detail = f"{left_label} and {right_label} were compared {delay_description}. This fixed comparison does not establish the best timing."
     elif credibility == "limited_evidence":
         opening = f"Observed {strength} {direction} association with limited evidence."
         detail = (
@@ -337,10 +341,10 @@ def _relationship_summary(
         )
     else:
         opening = "Insufficient evidence for a reliable association."
-        detail = (
-            f"There is not enough matched history to describe how {left_label} "
-            f"and {right_label} move together."
-        )
+        detail = (f"There is not enough matched history to describe how {left_label} "
+                  f"and {right_label} move together. At least {minimum_observations} matched observations are required."
+                  if matched_period_count < minimum_observations else
+                  "Correlation could not be established from the matched values. Check metric variation and data quality.")
     return (
         f"{opening} {detail} Historical periods compared: "
         f"{matched_period_count}. Association does not establish causation."
@@ -352,11 +356,13 @@ def build_dataset_relationship(
     definition: dict,
     relationship_id: int | None = None,
 ) -> dict:
-    period = str(definition.get("period") or "monthly").lower()
-    aggregation = str(definition.get("aggregation") or "sum").lower()
-    method = str(definition.get("method") or "pearson").lower()
-    lag_mode = str(definition.get("lag_mode") or "manual").lower()
-    requested_lag = int(definition.get("lag_periods") or 0)
+    period = str(definition.get("period") or DEFAULT_PERIOD).lower()
+    aggregation = str(definition.get("aggregation") or DEFAULT_AGGREGATION).lower()
+    method = str(definition.get("method") or DEFAULT_METHOD).lower()
+    lag_mode = str(definition.get("lag_mode") or DEFAULT_LAG_MODE).lower()
+    requested_lag = int(definition.get("lag_periods") or DEFAULT_LAG_PERIODS)
+    minimum_observations = int(definition.get("minimum_observations", MINIMUM_OBSERVATIONS))
+    maximum_lag = int(definition.get("maximum_lag", MAXIMUM_LAG))
 
     if period not in RELATIONSHIP_PERIODS:
         raise ValueError("Unsupported relationship period")
@@ -366,8 +372,13 @@ def build_dataset_relationship(
         raise ValueError("Unsupported relationship method")
     if lag_mode not in {"automatic", "manual"}:
         raise ValueError("Unsupported relationship timing mode")
-    if requested_lag < 0 or requested_lag > 12:
+    if requested_lag < 0 or requested_lag > MAXIMUM_LAG:
         raise ValueError("Relationship lag must be between 0 and 12 periods")
+    # Historical internal runs can retain smaller samples; current API schemas enforce the shared floor.
+    if not 2 <= minimum_observations <= MAXIMUM_OBSERVATIONS:
+        raise ValueError("Unsupported minimum historical observations")
+    if not 0 <= maximum_lag <= MAXIMUM_LAG or lag_mode == "manual" and requested_lag > maximum_lag:
+        raise ValueError("The relationship lag must not exceed Maximum lag (0 to 12 periods)")
     if len(dataset_frames) != 2:
         raise ValueError("A relationship requires exactly two datasets")
 
@@ -427,15 +438,11 @@ def build_dataset_relationship(
     ).sort_values("period").reset_index(drop=True)
 
     if lag_mode == "automatic":
-        max_lag = min(
-            AUTO_MAX_LAGS[period],
-            max(0, len(aligned) - 2),
-        )
         raw_candidates = [
-            _calculate_lag_result(aligned, method, lag)
-            for lag in range(max_lag + 1)
+            _calculate_lag_result(aligned, method, lag, minimum_observations)
+            for lag in range(maximum_lag + 1)
         ]
-        candidates = _score_lag_candidates(raw_candidates)
+        candidates = _score_lag_candidates(raw_candidates, minimum_observations)
         credible_candidates = [
             item
             for item in candidates
@@ -463,7 +470,7 @@ def build_dataset_relationship(
                 for item in raw_candidates
                 if item["lag_periods"] == selected_candidate["lag_periods"]
             ),
-            _calculate_lag_result(aligned, method, 0),
+            raw_candidates[0],
         )
         credibility = (
             "credible"
@@ -479,6 +486,7 @@ def build_dataset_relationship(
             aligned,
             method,
             requested_lag,
+            minimum_observations,
         )
         selected_candidate = {
             key: value
@@ -490,7 +498,7 @@ def build_dataset_relationship(
             "score": None,
         })
         candidates = [selected_candidate]
-        credibility = "manual"
+        credibility = "manual" if selected_raw["correlation"] is not None else "insufficient_data"
 
     selected_aligned = selected_raw["aligned"]
     correlation = selected_raw["correlation"]
@@ -521,6 +529,7 @@ def build_dataset_relationship(
         delay_description,
         len(selected_aligned),
         credibility,
+        minimum_observations,
     )
     decision_context = (
         f"{left_label} and {right_label} were compared using {method} "
@@ -548,6 +557,8 @@ def build_dataset_relationship(
         "period": period,
         "aggregation": aggregation,
         "method": method,
+        "minimum_observations": minimum_observations,
+        "maximum_lag": maximum_lag,
         "lag_mode": lag_mode,
         "lag_periods": lag_periods,
         "matched_period_count": int(len(selected_aligned)),

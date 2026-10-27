@@ -10,10 +10,30 @@ const pairModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/reports/pair-directions.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText,
   { module: pairModule, exports: pairModule.exports })
 const loadedModule = { exports: {} }
+const defaults = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/relationships/defaults.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText,
+  { module: defaults, exports: defaults.exports })
 const source = readFileSync(new URL("../features/reports/types.ts", import.meta.url), "utf8")
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText,
-  { module: loadedModule, exports: loadedModule.exports, require: name => name === "./pair-directions" ? pairModule.exports : require(name), Intl, Number, Math })
+  { module: loadedModule, exports: loadedModule.exports, require: name => name === "./pair-directions" ? pairModule.exports : name === "@/features/relationships/defaults" ? defaults.exports : require(name), Intl, Number, Math })
 const { editableDefinition, formatReportValue, selectedReportDimensionFilters } = loadedModule.exports
+
+test("report defaults share the monitor's method, grouping, observation floor and lag limit", () => {
+  const defaultsValue = defaults.exports.RELATIONSHIP_DEFAULTS
+  assert.deepEqual(JSON.parse(JSON.stringify(defaultsValue)), { method: "spearman", period: "daily", aggregation: "sum", minimumObservations: 24, maximumLag: 12, minimumAbsCoefficient: .3, lagMode: "manual", lagPeriods: 0 })
+  const value = editableDefinition({})
+  assert.equal(value.method, defaultsValue.method)
+  assert.equal(value.grain, defaultsValue.period)
+  assert.equal(value.filters.minimum_observations, defaultsValue.minimumObservations)
+  assert.equal(value.filters.minimum_abs_coefficient, defaultsValue.minimumAbsCoefficient)
+  assert.equal(value.lag.maximum, defaultsValue.maximumLag)
+  assert.equal(value.lag.minimum, defaultsValue.lagPeriods)
+  const saved = editableDefinition({ method: "pearson", grain: "monthly", filters: { minimum_observations: 60, minimum_abs_coefficient: .6 }, lag: { enabled: true, minimum: 0, maximum: 3, direction: "b_leads_a" } })
+  assert.equal(saved.method, "pearson")
+  assert.equal(saved.grain, "monthly")
+  assert.equal(saved.filters.minimum_observations, 60)
+  assert.equal(saved.lag.maximum, 3)
+})
 
 test("report editor removes server-only fields while preserving cross-dataset scope and provenance", () => {
   const value = editableDefinition({ name: "Cross-source review", business_question: "What changed across channels?", reporting_timezone: "UTC", source_run_id: "run-1",
