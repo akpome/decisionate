@@ -6,11 +6,13 @@ import vm from "node:vm"
 
 const require = createRequire(import.meta.url)
 const ts = require("typescript")
+const React = require("react")
+const { renderToStaticMarkup } = require("react-dom/server")
 
 function load(relativePath, dependencies = {}, globals = {}) {
   const source = readFileSync(new URL(relativePath, import.meta.url), "utf8")
   const { outputText } = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
   })
   const loaded = { exports: {} }
   vm.runInNewContext(outputText, {
@@ -27,6 +29,46 @@ const redirects = load("../features/auth/lib/auth-redirects.ts")
 const workspaces = load("../features/auth/lib/auth-workspaces.ts", { "./auth-redirects": redirects })
 const own = { id: 1, owner_user_id: "reviewer", role: "owner" }
 const shared = { id: 2, owner_user_id: "agency:client:2", role: "client_user" }
+
+test("account menu sign-out uses the sign-in page without changing successful sign-in routing", () => {
+  let options
+  const { AppClerkProvider } = load("../app/clerk-provider.tsx", {
+    "react/jsx-runtime": require("react/jsx-runtime"),
+    react: { useEffect() {} },
+    "@clerk/nextjs": {
+      ClerkProvider: props => { options = props; return props.children },
+      useAuth: () => ({ getToken: async () => null }),
+    },
+    "@/lib/api": { setClerkSessionTokenProvider() {} },
+    "@/features/auth/lib/auth-redirects": redirects,
+  })
+  const html = renderToStaticMarkup(React.createElement(AppClerkProvider, null, "Application content"))
+  assert.equal(html, "Application content")
+  assert.equal(options.afterSignOutUrl, "/sign-in")
+  assert.equal(options.signInFallbackRedirectUrl, "/auth/redirect")
+  assert.equal(options.signInForceRedirectUrl, "/auth/redirect")
+  assert.equal(options.signUpFallbackRedirectUrl, "/auth/redirect")
+  assert.equal(options.signUpForceRedirectUrl, "/auth/redirect")
+})
+
+test("the platform admin sign-out button redirects to sign in rather than the public landing page", () => {
+  const source = readFileSync(new URL("../app/platform-admin/page.tsx", import.meta.url), "utf8")
+  const tree = ts.createSourceFile("page.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const handlers = []
+  function visit(node) {
+    if (ts.isJsxAttribute(node) && node.name.getText(tree) === "onClick" && ts.isJsxExpression(node.initializer) && node.initializer.expression?.getText(tree).includes("signOut(")) {
+      handlers.push(node.initializer.expression.getText(tree))
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(tree)
+  assert.equal(handlers.length, 1)
+  const destinations = []
+  const { outputText } = ts.transpileModule(`const handler = ${handlers[0]}; handler()`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } })
+  vm.runInNewContext(outputText, { AUTH_REDIRECTS: redirects.AUTH_REDIRECTS, signOut: options => { destinations.push(options.redirectUrl) } })
+  assert.deepEqual(destinations, ["/sign-in"])
+  assert.doesNotMatch(source, /signOut\(\{\s*redirectUrl:\s*["']\/["']/)
+})
 
 test("return destinations preserve application paths, filters and fragments", () => {
   for (const path of ["/dashboard", "/dashboard/datasets/56?tab=rows&range=90#details", "/dashboard/decisions/new?title=Review%20ads", "/onboarding", "/platform-admin?tab=users"]) {

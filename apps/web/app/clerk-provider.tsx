@@ -29,6 +29,7 @@ export function AppClerkProvider({
 }: AppClerkProviderProps) {
   return (
     <ClerkProvider
+      afterSignOutUrl={AUTH_REDIRECTS.afterSignOut}
       signInFallbackRedirectUrl={AUTH_REDIRECTS.afterLogin}
       signInForceRedirectUrl={AUTH_REDIRECTS.afterLogin}
       signUpFallbackRedirectUrl={AUTH_REDIRECTS.afterSignup}

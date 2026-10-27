@@ -1,6 +1,7 @@
 export const AUTH_REDIRECTS = {
   afterLogin: "/auth/redirect",
   afterSignup: "/auth/redirect",
+  afterSignOut: "/sign-in",
 } as const
 
 type RedirectValue = string | string[] | null | undefined

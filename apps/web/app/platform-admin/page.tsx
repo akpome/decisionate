@@ -29,6 +29,7 @@ import {
 } from "@clerk/nextjs"
 import { Fragment, useEffect, useState } from "react"
 import { MarketingAdmin } from "@/features/marketing/marketing-admin"
+import { AUTH_REDIRECTS } from "@/features/auth/lib/auth-redirects"
 
 import {
   addPlatformAdminOrganizationInvite,
@@ -2025,7 +2026,7 @@ export default function PlatformAdminPage() {
             </div>
             <button
               type="button"
-              onClick={() => void signOut({ redirectUrl: "/" })}
+              onClick={() => void signOut({ redirectUrl: AUTH_REDIRECTS.afterSignOut })}
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
             >
               <LogOut size={16} />

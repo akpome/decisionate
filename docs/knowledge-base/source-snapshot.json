@@ -1,22 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-10-27",
-  "base_git_revision": "28686df6157af6f1d8ad870c1ceeba36c152206a",
+  "base_git_revision": "1cb6b63ddbcb0ea74f29b2782c9b342f5a49c154",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/db/models.py",
-    "apps/api/app/main.py",
-    "apps/api/app/modules/alerts/router.py",
-    "apps/api/app/modules/correlation/defaults.py",
-    "apps/api/app/modules/datasets/router.py",
-    "apps/api/app/modules/datasets/schemas.py",
-    "apps/api/app/modules/datasets/services/relationships.py",
-    "apps/api/app/modules/reports/schemas.py",
-    "apps/web/app/dashboard/help/page.tsx",
-    "apps/web/app/dashboard/relationships/page.tsx",
-    "apps/web/features/relationships/defaults.ts",
-    "apps/web/features/reports/report-workspace.tsx",
-    "apps/web/features/reports/types.ts",
-    "apps/web/lib/api.ts"
+    "apps/web/app/platform-admin/page.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -82,7 +69,7 @@
     "apps/web/app/dashboard/help/page.tsx": "5df24b6e9fe7a912a4ffad7f861e893075242afa97e5ee1058a9a46eceed36dc",
     "apps/web/app/dashboard/page.tsx": "3af5c0c1fcffcb3cde82a32b5cfcc43df6322a45b0a8d78c9a482c0689f688bd",
     "apps/web/app/dashboard/relationships/page.tsx": "056f1eea9484b717e626184b07e2f652ab3d8c96524664b13174628e531ae247",
-    "apps/web/app/platform-admin/page.tsx": "83d5c786ef977da4e5dbde36c639a19430106da45925933da8130dd9362ac667",
+    "apps/web/app/platform-admin/page.tsx": "7f5ae2b6a851ce81fcdeb9f46fa18a02c1dfbe907d39eaed3e6b5cc25f075c12",
     "apps/web/app/privacy/page.tsx": "98436d76019e53dd6f96be8037956f1060c346ffcef3d4c18d5cde74cf092eb8",
     "apps/web/features/auth/lib/signup-consent.ts": "06b4e23a2e1c1b16cb132585e84cf4a073eaf07bd79227e578235fd02363e1d5",
     "apps/web/features/dashboards/dashboard-definitions.ts": "26dddbfc1599c5179cc823ec6231582aa8a5c5761ec2239a7defd6d9301f95ca",
