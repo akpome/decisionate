@@ -9,6 +9,7 @@ import { UserButton, useUser } from "@clerk/nextjs"
 import {
   AlertCircle,
   Bell,
+  CalendarDays,
   CreditCard,
   Database,
   ChevronDown,
@@ -68,6 +69,7 @@ import {
   decisionateLanguageChangedEvent,
   getCurrentDecisionateLanguage,
   getDecisionateText,
+  getLandingText,
   getServerDecisionateLanguage,
   type DecisionateLanguage,
   type DecisionateTranslationKey,
@@ -166,8 +168,13 @@ const dashboardNavGroups: DashboardNavGroup[] = [
     items: [
       {
         href: "/dashboard/reports",
-        label: "Reports",
+        label: "Instant analysis",
         icon: <FileText size={18} />,
+      },
+      {
+        href: "/dashboard/reports/weekly",
+        label: "Weekly reports",
+        icon: <CalendarDays size={18} />,
       },
       {
         href: "/dashboard/relationships",
@@ -279,7 +286,7 @@ function getDashboardNavigationLabel(
 
   return translationKey
     ? getDecisionateText(language, translationKey)
-    : label
+    : getLandingText(language, label)
 }
 
 /* =========================
@@ -1435,6 +1442,7 @@ function isActiveDashboardPath(
   pathname: string,
   href: string
 ) {
+  if (href === "/dashboard/reports" && pathname.startsWith("/dashboard/reports/weekly")) return false
   if (href === "/dashboard") {
     return pathname === href
   }

@@ -266,7 +266,7 @@ class BusinessImpactTests(unittest.TestCase):
             filtered = build_report(frames, definition)
             self.assertIsNone(filtered["impact_analysis"]["estimate"])
 
-    def test_weekly_updates_keep_original_study_dates_and_grain_and_escape_email_content(self):
+    def test_weekly_updates_use_weekly_rolling_history_and_escape_email_content(self):
         from app.modules.alerts.router import build_weekly_report_digest
         from app.modules.alerts.schemas import WeeklyReportPreferenceResponse
         from app.modules.alerts.email_delivery import build_weekly_report_email_html, build_weekly_report_email_text
@@ -282,14 +282,14 @@ class BusinessImpactTests(unittest.TestCase):
             digest = build_weekly_report_digest(preference, [pair[0] for pair in frames.values()], report_definition=definition,
                                                 analysis_date=date(2025, 12, 29), include_ai_analysis=True)
         result = digest.cross_dataset_report
-        self.assertEqual(result["grain"], "daily")
+        self.assertEqual(result["grain"], "weekly")
         self.assertEqual(result["analysis_grain"], "weekly")
         self.assertEqual(result["definition"]["grain"], "weekly")
         self.assertEqual(result["impact_analysis"]["grain"], "weekly")
         self.assertEqual(result["impact_analysis"]["status"], "estimated", result["impact_analysis"])
         self.assertEqual(result["impact_analysis"]["before_periods"], 110)
         self.assertEqual(result["impact_analysis"]["after_periods"], 46)
-        self.assertEqual(result["impact_analysis"]["window"]["start"], definition["date_range"]["start"])
+        self.assertEqual(result["impact_analysis"]["window"]["start"], "2022-12-29")
         ai.assert_not_called()
         html, text = build_weekly_report_email_html(digest), build_weekly_report_email_text(digest)
         self.assertIn("Did your business change help?", html)
@@ -298,8 +298,8 @@ class BusinessImpactTests(unittest.TestCase):
         self.assertNotIn("<script>", html)
         self.assertIn("Study dates:", text)
         for content in (html, text):
-            self.assertIn("Weekly summary: daily detail.", content)
-            self.assertIn("Analysis group by: weekly.", content)
+            self.assertIn("Weekly report: grouped weekly", content)
+            self.assertIn("Relationship timing is measured in weeks", content)
 
 
 class BusinessImpactWorkflowTests(unittest.TestCase):

@@ -133,7 +133,7 @@ def report_anomalies(frames, references, definition, metadata, *, anchor=None):
     return anomaly_summary(results, definition.get("seasonal_business", False), window, anchor)
 
 
-def build_report(frames, definition, *, unavailable=None, history_anchor=None, impact_definition=None, reporting_grain=None):
+def build_report(frames, definition, *, unavailable=None, history_anchor=None, impact_definition=None):
     """Frames must already be authorized; source data and selections are never changed."""
     definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
     single = definition.get("scope", "multi") == "single"
@@ -141,7 +141,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
         raise ValueError("Reports support at most 1,000 pair-lag tests")
     frames = {identity: prepare_report_source(dataset, frame) for identity, (dataset, frame) in frames.items()}
     window, analysis_grain, references = definition["date_range"], definition["grain"], definition["metrics"]
-    grain = reporting_grain or analysis_grain
+    grain = analysis_grain
     zone = definition.get("reporting_timezone") or reporting_timezone()
     previous = previous_window(window)
     metadata, series, metrics, warnings = {}, {}, [], list(unavailable or [])
@@ -169,12 +169,10 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
         metadata[identity_key] = {**reference, **descriptor, "id": identity_key, "dataset_label": dataset.file_name}
 
     actual_definition = {**definition, "metrics": usable, "reporting_timezone": zone}
-    # Weekly summaries use daily coverage/anomalies without changing analysis units.
-    reporting_definition = {**actual_definition, "grain": grain}
     prior_series = {}
     if usable:
-        series = prepare_report_series(frames, usable, reporting_definition)
-        prior_series = prepare_report_series(frames, usable, {**reporting_definition, "date_range": previous})
+        series = prepare_report_series(frames, usable, actual_definition)
+        prior_series = prepare_report_series(frames, usable, {**actual_definition, "date_range": previous})
         for points in series.values():
             points["value"] = pd.to_numeric(points["value"], errors="coerce").replace([float("inf"), -float("inf")], float("nan"))
     expected = period_index(window, grain)
@@ -223,6 +221,8 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     relationship_metrics = {metric_id(item) for pair in pairs for item in pair}
     historical = prepare_report_series(frames, [item for item in usable if metric_id(item) in relationship_metrics], relationship_definition) if pairs and not single else {}
     history_periods = period_index(history, analysis_grain)
+    if history_anchor and analysis_grain == "weekly":
+        history_periods = history_periods[history_periods >= pd.Timestamp(history["start"])]
     for identity, points in list(historical.items()):
         points["value"] = pd.to_numeric(points["value"], errors="coerce").replace([float("inf"), -float("inf")], float("nan"))
         # Retain missing calendar buckets so the existing shift primitive moves
@@ -298,7 +298,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     if not actions:
         actions.append("Compare the selected metrics with their previous-period baselines and business targets before acting." if single else
                        "Collect comparable history across the selected datasets before drawing a relationship conclusion.")
-    anomalies = report_anomalies(frames, references, reporting_definition, metadata, anchor=history_anchor)
+    anomalies = report_anomalies(frames, references, actual_definition, metadata, anchor=history_anchor)
     if anomalies["anomaly_count"]:
         actions.append("Check unusual changes against your normal busy and quiet times, recent business events, and whether the data import finished.")
     impact = None

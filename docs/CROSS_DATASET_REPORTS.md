@@ -173,25 +173,30 @@ run's frozen results. See [retirement and deployment cleanup](MULTI_METRIC_CORRE
 
 ## Weekly Delivery
 
-Use for weekly report selects a snapshot's question, metrics and finding pairs
-as the workspace's template. It does not enable sending or change recipients.
-Alerts continues to manage delivery preferences and manual previews.
+Instant analysis (`/dashboard/reports`, single source at `/dashboard/reports/dataset`)
+and Weekly reports (`/dashboard/reports/weekly`) are separate workflows. Instant
+analysis has selectable dates and defaults to daily grouping. Weekly reports stores
+an independent JSON configuration on `WeeklyReportPreference.weekly_report_definition`,
+managed through GET/PUT/DELETE `/api/v2/business-reports/weekly-settings`.
+Saving it does not enable sending or change recipients. Alerts retains delivery settings.
+Copy selection to weekly reports is an explicit editable copy, not a live template link.
 
 Weekly values cover the latest complete Monday-Sunday week in the platform
 reporting timezone, compared with the preceding complete week. Relationships
 use a rolling historical window capped at three calendar years, anchored to the
 current run date. Manual report dates do not constrain scheduled reporting or
-its historical context. Saved templates preserve the selected finding
-pairs even if the best current lag changes. Analysis grouping is independent of
-the weekly summary: `ReportDefinition.grain` retains the saved relationship and
-business-impact units, while `build_report(reporting_grain="daily")` selects daily
-summary trends, coverage and anomaly checks inside the completed week. Results
-expose `grain` for summary detail and `analysis_grain` for analytical units.
-Without a template, analytical grouping uses the shared daily default. Saved
-lags and minimum observation thresholds are retained, not disabled or relabeled
-as days. Coarser analysis may lack enough observations within three years; it is
-not silently replaced with a finer, statistically different analysis. Weekly
-previews, bounded AI facts and email alternatives label the two groupings.
+its historical context. Weekly totals, coverage, anomalies, relationships and
+business-impact studies use fixed weekly grouping. Weekly relationship defaults are
+Spearman, 52 matched weeks (floor 24), same-period comparison, maximum lag 12 weeks.
+The worker enforces weekly grouping, including legacy fallback paths. A non-weekly
+legacy template keeps its selected metrics/date columns/dimension filters/question,
+but resets directional timing to same-period; a numeric daily lag never becomes
+the same number of weeks. Deliberate weekly timing is retained. Startup backfills
+existing template definitions into independent settings without changing sending.
+Saved snapshots are immutable and listed separately by workflow. Removing settings
+pauses delivery; deleting an independent snapshot does not alter weekly settings.
+Source deletion clears affected weekly settings and pauses sending. Configuration
+changes invalidate queued weekly jobs under the existing worker checks.
 Changed or unavailable policies are
 flagged; fewer than two usable datasets prevents delivery rather than sending a
 misleading single-source report. Existing KPI targets remain visible without
@@ -200,7 +205,8 @@ assuming that an increase is always an improvement.
 Both HTML and plain-text emails include the question, windows, movements,
 per-metric anomaly findings, selected relationship evidence, limitations and decision follow-up. Existing
 agency branding, logo rules, recipients, provider and delivery safeguards are
-preserved. Review links open `/dashboard/reports?weekly=1`.
+preserved. Review links open `/dashboard/reports/weekly?weekly=1`; legacy
+`/dashboard/reports?weekly=1` links redirect to the weekly page.
 
 ## Selected-Metric Anomalies
 
@@ -208,8 +214,9 @@ Anomaly detection runs automatically for each selected metric, independently of
 correlation eligibility or lag settings. Both report tabs show anomaly evidence;
 the single-dataset route uses the same detector and selected metric/date policy.
 The `seasonal_business` checkbox defaults to false. It is stored in a report's
-JSON definition and reused by its weekly template without changing recipients,
-delivery permissions or the sending switch. No database migration is needed.
+JSON definition, independently in instant and weekly settings, without changing recipients,
+delivery permissions or the sending switch. Startup adds the nullable weekly settings
+column to existing installations; deploy the API and analysis worker together.
 
 For each evaluated block, the detector uses only preceding observations inside
 a rolling three-calendar-year maximum lookback. A complete weekly report is

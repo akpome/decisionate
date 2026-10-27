@@ -532,6 +532,8 @@ const frenchLandingTranslations: Record<string, string> = {
   "Compare the expected outcome with what happened and capture the lesson.": "Comparez le résultat attendu à ce qui s'est passé et retenez l'apprentissage.",
   "Future recommendations can use your workspace's own decision evidence.": "Les recommandations futures peuvent utiliser les propres données probantes décisionnelles de votre espace.",
   Reports: "Rapports",
+  "Instant analysis": "Analyse instantanée",
+  "Weekly reports": "Rapports hebdomadaires",
   Datasets: "Jeux de données",
   Connections: "Connexions",
   Settings: "Paramètres",

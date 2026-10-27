@@ -26,6 +26,7 @@ class WeeklyReportPreferenceResponse(BaseModel):
     recipient_emails: list[str]
     metric_focus: list[str]
     business_report_id: str | None = None
+    weekly_settings_configured: bool = False
     metric_targets: dict[str, float] = Field(
         default_factory=dict
     )

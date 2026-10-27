@@ -65,7 +65,7 @@ from app.modules.reports.service import attach_report_decisions, build_report, c
 from app.modules.reports.catalog import prepare_report_source
 from app.modules.reports.relationships import metric_key
 from app.modules.reports.schemas import MINIMUM_REPORT_OBSERVATIONS
-from app.modules.correlation.defaults import DEFAULT_MINIMUM_OBSERVATIONS, DEFAULT_PERIOD
+from app.modules.correlation.defaults import DEFAULT_MINIMUM_OBSERVATIONS
 from app.modules.correlation.catalog import metric_catalog, reporting_timezone
 from app.modules.decisions.templates import build_decision_template_url
 
@@ -348,6 +348,7 @@ def build_weekly_report_preference_response(
     return WeeklyReportPreferenceResponse(
         enabled=bool(preference.enabled),
         business_report_id=getattr(preference, "business_report_id", None),
+        weekly_settings_configured=bool(getattr(preference, "weekly_report_definition", None) or getattr(preference, "business_report_id", None)),
         cadence=preference.cadence or "weekly",
         delivery_day=preference.delivery_day or "monday",
         recipient_emails=parse_json_list(
@@ -545,7 +546,7 @@ def build_weekly_report_review_url() -> str | None:
     try:
         return (
             get_runtime_configuration().web_url.rstrip("/")
-            + "/dashboard/reports?weekly=1"
+            + "/dashboard/reports/weekly?weekly=1"
         )
     except Exception:
         return None
@@ -784,6 +785,9 @@ def build_weekly_report_digest(
 
 
 def build_weekly_cross_dataset_report(frames, preference, template=None, unavailable=None, relationships=None, *, analysis_date=None):
+    from app.modules.reports.weekly import weekly_settings_copy
+
+    template = weekly_settings_copy(template) if template else None
     frames = {identity: prepare_report_source(*pair) for identity, pair in frames.items()}
     references, warnings = [], [f"Dataset unavailable: {name}." for name in (unavailable or [])]
     if template:
@@ -834,7 +838,7 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
                   "seasonal_business": (template or {}).get("seasonal_business", False),
                   "business_question": (template or {}).get("business_question", "What changed across the selected datasets, and which changes deserve investigation?"),
                   "metrics": references, "date_range": complete_week(analysis_date) if analysis_date else complete_week(),
-                  "grain": (template or {}).get("grain", DEFAULT_PERIOD),
+                  "grain": "weekly",
                   "method": (template or {}).get("method", "spearman"),
                   "lag": lag,
                   "filters": {"minimum_abs_coefficient": .3, "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, (template or {}).get("filters", {}).get("minimum_observations", DEFAULT_MINIMUM_OBSERVATIONS))}, "included_findings": None}
@@ -847,13 +851,14 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
     anchor = analysis_date or datetime.now(ZoneInfo(reporting_timezone())).date()
     impact_definition = None
     if template and template.get("impact"):
-        # A weekly email updates the original study, not a seven-day causal model.
+        # Weekly business-change estimates use weekly history, not a seven-day model.
         from app.modules.reports.anomalies import historical_start
-        impact_definition = {"impact": template["impact"], "grain": template["grain"],
-                             "date_range": {"start": max(template["date_range"]["start"], historical_start(anchor)),
+        impact_definition = {"impact": template["impact"], "grain": "weekly",
+                             "date_range": {"start": historical_start(anchor),
                                             "end": definition["date_range"]["end"]}}
     result = build_report(selected_frames, definition, unavailable=warnings, history_anchor=anchor,
-                          impact_definition=impact_definition, reporting_grain="daily")
+                          impact_definition=impact_definition)
+    result["weekly_report"] = True
     evaluated = {item["metric_id"] for item in result["anomaly_analysis"]["metrics"]}
     omitted = [item for item in requested_references if f"{item['dataset_id']}:{item['metric_key']}" not in evaluated]
     if omitted:
@@ -873,13 +878,18 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
 
 
 def weekly_business_template(db, preference, workspace_id):
+    from app.modules.reports.weekly import weekly_settings_copy
+
+    saved = getattr(preference, "weekly_report_definition", None) if preference else None
+    if saved:
+        return weekly_settings_copy(json.loads(saved))
     identity = getattr(preference, "business_report_id", None) if preference else None
     if not identity:
         return None
     report = db.get(BusinessReport, identity)
     if report is None or report.workspace_id != workspace_id:
         raise HTTPException(400, "The weekly business report template is unavailable in this workspace")
-    return json.loads(report.definition)
+    return weekly_settings_copy(json.loads(report.definition))
 
 
 def get_alert_datasets(
@@ -1843,11 +1853,11 @@ async def update_weekly_report_preference(
             clean_focus,
             sort_keys=True,
         )
-        if getattr(preference, "business_report_id", None):
-            template = db.get(BusinessReport, preference.business_report_id)
-            expected = {f"{item['dataset_id']}:{item['metric_key']}" for item in json.loads(template.definition)["metrics"]} if template else set()
+        if getattr(preference, "business_report_id", None) or getattr(preference, "weekly_report_definition", None):
+            template = weekly_business_template(db, preference, auth_context.workspace_id)
+            expected = {f"{item['dataset_id']}:{item['metric_key']}" for item in template["metrics"]} if template else set()
             if set(clean_focus) != expected:
-                preference.business_report_id = None
+                raise HTTPException(409, "Change the selected metrics on the Weekly reports page before saving delivery settings.")
         preference.metric_targets = json.dumps(
             clean_targets,
             sort_keys=True,

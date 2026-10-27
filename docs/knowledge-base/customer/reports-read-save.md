@@ -43,12 +43,12 @@ not silently recalculate the data or update its narrative. Editing the settings
 starts an unsaved analysis; preview again and save a new snapshot. Generated
 names should be edited to describe the analysis, not treated as an overwrite key.
 
-## Delete versus remove weekly template
+## Delete versus remove weekly settings
 
 Delete saved report removes that snapshot, not its source datasets or linked
-decisions. If it is the weekly template, delivery is paused and that template
-link is removed. Remove weekly report template keeps the saved report and linked
-decisions while pausing its weekly role. Read the confirmation and use only
+decisions. Independent weekly settings and delivery are unchanged. On Weekly reports,
+Remove weekly settings keeps saved snapshots and linked decisions while clearing
+the weekly configuration and pausing delivery. Read the confirmation and use only
 actions allowed by your workspace role.
 
 Decisions and outcomes shows linked work, not a requirement for a fixed number

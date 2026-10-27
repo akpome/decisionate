@@ -262,10 +262,13 @@ class ReportPairDirectionTests(unittest.TestCase):
 
     def test_weekly_template_reuses_pair_directions_and_drops_only_missing_source_pairs(self):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=[], include_recommendations=True)
-        template = definition()
+        template = definition(grain="weekly")
+        sources = frames()
+        for _, frame in sources.values():
+            frame["date"] = pd.date_range(end="2026-03-23", periods=len(frame), freq="W-MON")
         with patch("app.modules.alerts.router.complete_week", return_value=template["date_range"]):
-            report = build_weekly_cross_dataset_report(frames(), preference, template)
-            partial = build_weekly_cross_dataset_report({key: value for key, value in frames().items() if key != 4}, preference, template)
+            report = build_weekly_cross_dataset_report(sources, preference, template)
+            partial = build_weekly_cross_dataset_report({key: value for key, value in sources.items() if key != 4}, preference, template)
         self.assertEqual(report["definition"]["pair_directions"], template["pair_directions"])
         self.assertTrue(any(item["lead_metric"] == "4:clicks" and item["lag"] == 1 for item in report["findings"]))
         self.assertEqual(partial["definition"]["pair_directions"], [policy(A, B, "a_leads_b")])

@@ -1,12 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { FileText, Table2 } from "lucide-react"
+import { CalendarDays, ChartNoAxesCombined } from "lucide-react"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 
 const destinations = [
-  { key: "dataset-reports", href: "/dashboard/reports/dataset", label: "Single dataset report", icon: Table2 },
-  { key: "reports", href: "/dashboard/reports", label: "Multi dataset report", icon: FileText },
+  { key: "reports", href: "/dashboard/reports", label: "Instant analysis", icon: ChartNoAxesCombined },
+  { key: "weekly", href: "/dashboard/reports/weekly", label: "Weekly reports", icon: CalendarDays },
 ] as const
 
 export function AnalysisNavigation({ active }: { active: typeof destinations[number]["key"] }) {

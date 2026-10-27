@@ -1445,6 +1445,7 @@ def ensure_weekly_report_delivery_columns():
 
         for column_name, column_type in [
             ("business_report_id", "VARCHAR"),
+            ("weekly_report_definition", "TEXT"),
             (
                 "relationship_focus",
                 "TEXT",
@@ -1513,6 +1514,17 @@ def ensure_weekly_report_delivery_columns():
                         f"ADD COLUMN {column_name} {column_type}"
                     )
                 )
+
+        if get_table_columns(connection, "business_reports"):
+            connection.execute(text("""
+                UPDATE weekly_report_preferences
+                SET weekly_report_definition = (
+                    SELECT definition FROM business_reports
+                    WHERE business_reports.id = weekly_report_preferences.business_report_id
+                      AND business_reports.workspace_id = weekly_report_preferences.workspace_id
+                )
+                WHERE weekly_report_definition IS NULL AND business_report_id IS NOT NULL
+            """))
 
         connection.execute(
             text(

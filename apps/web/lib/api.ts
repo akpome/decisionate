@@ -1085,6 +1085,7 @@ export type WeeklyReportPreference = {
   recipient_emails: string[]
   metric_focus: string[]
   business_report_id?: string | null
+  weekly_settings_configured?: boolean
   metric_targets: Record<string, number | null>
   relationship_focus: number[]
   include_recommendations: boolean

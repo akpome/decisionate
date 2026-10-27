@@ -1,7 +1,9 @@
 # Build single and multi dataset reports
 
-Reports is the main analysis workspace. Multi dataset report opens by default;
-Single dataset report is available separately for one source. Both use approved
+Instant analysis is the on-demand analysis workspace. Multi dataset report opens by
+default; Single dataset report is available separately for one source. Weekly reports
+has its own page and settings, with fixed weekly grouping and automatic dates.
+Instant analysis uses approved
 dataset metrics, date policies, anomaly detection and report snapshots.
 
 New multi dataset reports open with **Correlation analysis**. The correlation

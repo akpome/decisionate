@@ -94,7 +94,7 @@ test("a fresh preview includes findings automatically and keeps the returned sel
   }).outputText, {
     definition: original, execute: async action => action(), editableDefinition, selectedReportDimensionFilters,
     crypto: { randomUUID: () => "request-1" }, setAnalysisJob: () => {}, routeController: { current: null },
-    analysisSubmission: { current: false }, busy: false,
+    analysisSubmission: { current: false }, busy: false, weekly: false,
     setRecentJobs: () => {},
     window: { location: { pathname: "/dashboard/reports" }, history: { replaceState() {} } }, encodeURIComponent,
     waitForAnalysis: async (request, identity) => {
@@ -146,7 +146,7 @@ test("main Reports route opens the combined workspace while dataset inspection r
   assert.doesNotMatch(page, /SingleDatasetReport|single-dataset-report|redirect\(/)
   assert.match(readFileSync(new URL("../features/reports/report-page.tsx", import.meta.url), "utf8"), /canCreateDecisions/)
   const workspace = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
-  assert.match(workspace, /<AnalysisNavigation active=\{single \? "dataset-reports" : "reports"\}/)
+  assert.match(workspace, /<AnalysisNavigation active=\{navigation\}/)
   assert.match(inspection, /single-dataset-report/)
 })
 
@@ -198,7 +198,7 @@ function draftHandoff(overrides = {}) {
   const handler = vm.runInNewContext(ts.transpileModule(`${declaration}\nopenDecisionDraft`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    canEditDecisions: true, canSave: true, busy: false, openingDraft, report: null, URLSearchParams,
+    canEditDecisions: true, canSave: true, busy: false, openingDraft, report: null, URLSearchParams, pagePath: "/dashboard/reports",
     execute: async action => { try { await action() } catch (error) { errors.push(error.message) } },
     saveSnapshot: async () => { calls.push("save"); return { report_id: "report-1" } },
     request: async (path, init) => { calls.push([path, init.method]); return { decision_id: 4 } },

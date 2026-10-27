@@ -641,7 +641,7 @@
         "Does scheduler success mean delivered?"
       ],
       "routes": [
-        "/dashboard/reports",
+        "/dashboard/reports/weekly",
         "/dashboard/alerts"
       ],
       "sources": [
@@ -649,6 +649,9 @@
         "apps/api/app/modules/reports/service.py",
         "apps/api/app/modules/reports/jobs.py",
         "apps/api/app/modules/reports/router.py",
+        "apps/api/app/modules/reports/weekly.py",
+        "apps/web/features/reports/weekly-settings.ts",
+        "apps/web/app/dashboard/reports/weekly/page.tsx",
         "apps/api/app/infrastructure/analysis_worker.py"
       ],
       "related": [

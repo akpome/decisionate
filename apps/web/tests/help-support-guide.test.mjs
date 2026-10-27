@@ -87,17 +87,17 @@ test("indexed comparisons and seasonality include their interpretation limits", 
   assert.match(text, /Seasonal forecasting validates/)
 })
 
-test("weekly delivery documents rolling history, saved filters and safe template and snapshot removal", () => {
+test("weekly delivery documents independent settings, fixed weekly grouping and safe removal", () => {
   const text = chapter("analysis")
-  assert.match(text, /selected source metrics, date columns, dimension filters/)
+  assert.match(text, /Select source metrics, date columns, dimension filters/)
   assert.match(text, /latest completed week/)
   assert.match(text, /rolling three years/)
   assert.match(text, /does not itself enable delivery or change recipients/)
-  assert.match(text, /Analysis group by is separate from weekly delivery/)
-  assert.match(text, /daily coverage and anomaly checks/)
-  assert.match(text, /a two-week lag stays two weeks/)
+  assert.match(text, /independent of Instant analysis/)
+  assert.match(text, /Weekly totals, anomaly detection and relationship analysis always use weekly grouping/)
+  assert.match(text, /daily lags are not interpreted as weeks/)
   assert.match(text, /Linked decisions and datasets are kept/)
-  assert.match(text, /deleting the report currently used as the weekly template also pauses weekly delivery/)
+  assert.match(text, /Deleting a saved snapshot does not remove independent weekly settings or change delivery/)
 })
 
 test("connector guidance matches the current 90-day initial request and bounded three-year history", () => {

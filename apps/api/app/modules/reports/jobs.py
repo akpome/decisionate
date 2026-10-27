@@ -156,6 +156,7 @@ def save_completed_job(db, identity, user, workspace):
     result = json.loads(job.result)
     if job.kind == "weekly_preview":
         result = result.get("cross_dataset_report", result)
+        result["weekly_report"] = True
         if len({item["dataset_id"] for item in result["definition"]["metrics"]}) < 2:
             raise HTTPException(400, "Weekly report snapshots require usable metrics from at least two datasets.")
     report = BusinessReport(workspace_id=workspace, user_id=user, name=result["name"],

@@ -22,7 +22,7 @@ from app.modules.decisions.metric_scope import selected_report_metrics
 from .decision_drafts import is_report_decision_draft
 from .models import BusinessReport
 from .catalog import prepare_report_source, report_metric_catalog
-from .schemas import ReportDecision, ReportDefinition
+from .schemas import ReportDecision, ReportDefinition, WeeklyReportSettings
 from .service import attach_report_decisions, build_report, report_analysis_facts, report_anomalies, report_dates, report_summary
 from .relationships import report_test_count
 from .jobs import (allowed_job, cancel_job, enqueue, enqueue_report, enqueue_weekly, job_response,
@@ -277,15 +277,22 @@ async def save(request: Request, payload: ReportDefinition, db=Depends(database)
 
 
 @router.get("")
-def reports(request: Request, db=Depends(database)):
+def reports(request: Request, workflow: Literal["instant", "weekly"] | None = None, db=Depends(database)):
     user, workspace = identity(request)
     result = []
-    for report in db.query(BusinessReport).filter_by(workspace_id=workspace).order_by(BusinessReport.created_at.desc()).limit(100):
+    records = db.query(BusinessReport).filter_by(workspace_id=workspace).order_by(BusinessReport.created_at.desc()).limit(100).all()
+    weekly_ids = {row.saved_report_id for row in db.query(ReportAnalysisJob.saved_report_id).filter(
+        ReportAnalysisJob.workspace_id == workspace, ReportAnalysisJob.kind == "weekly_preview",
+        ReportAnalysisJob.saved_report_id.in_([report.id for report in records]))}
+    for report in records:
+        kind = "weekly" if json.loads(report.snapshot).get("weekly_report") or report.id in weekly_ids else "instant"
+        if workflow and kind != workflow:
+            continue
         try:
             allowed_report(db, report.id, user, workspace)
         except HTTPException:
             continue
-        result.append({"report_id": report.id, "name": report.name, "created_at": report.created_at.isoformat() + "Z"})
+        result.append({"report_id": report.id, "name": report.name, "workflow": kind, "created_at": report.created_at.isoformat() + "Z"})
     return result
 
 
@@ -295,6 +302,52 @@ async def weekly_preview(request: Request, db=Depends(database)):
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).first()
     job = enqueue_weekly(db, user, workspace, preference, include_ai=False, report_only=True)
     return await wait_for_job(job.id, user, workspace)
+
+
+@router.get("/weekly-settings")
+def weekly_settings(request: Request, db=Depends(database)):
+    from app.modules.alerts.router import weekly_business_template
+    from .weekly import weekly_context
+
+    user, workspace = identity(request)
+    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).first()
+    definition = weekly_business_template(db, preference, workspace)
+    context = weekly_context()
+    if definition:
+        authorize_datasets(db, user, workspace, [item["dataset_id"] for item in definition["metrics"]])
+        definition = {**definition, "date_range": context["history_window"]}
+    return {"definition": definition, "enabled": bool(preference and preference.enabled), **context}
+
+
+@router.put("/weekly-settings")
+def update_weekly_settings(request: Request, payload: WeeklyReportSettings, db=Depends(database)):
+    from .jobs import validate_definition
+    from app.infrastructure.ingestion_jobs import lock_workspace_queue
+
+    user, workspace = identity(request)
+    require_workspace_data_manager(request)
+    validate_definition(db, payload, user, workspace)
+    lock_workspace_queue(db, "weekly-settings:" + workspace)
+    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
+    if preference is None:
+        preference = WeeklyReportPreference(workspace_id=workspace, enabled=0)
+        db.add(preference)
+    preference.weekly_report_definition = encode(payload.model_dump(mode="json"))
+    preference.business_report_id = None
+    preference.metric_focus = encode([metric_id(item) for item in payload.model_dump(mode="json")["metrics"]])
+    db.commit()
+    return weekly_settings(request, db)
+
+
+@router.delete("/weekly-settings")
+def delete_weekly_settings(request: Request, db=Depends(database)):
+    _, workspace = identity(request)
+    require_workspace_data_manager(request)
+    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
+    if preference:
+        clear_weekly_template(preference)
+        db.commit()
+    return weekly_settings(request, db)
 
 
 @router.get("/weekly-template")
@@ -309,6 +362,7 @@ def weekly_template_status(request: Request, db=Depends(database)):
 
 def clear_weekly_template(preference):
     preference.business_report_id = None
+    preference.weekly_report_definition = None
     preference.metric_focus = None
     # Removing the selected template must not silently send a different report.
     preference.enabled = 0
@@ -334,6 +388,9 @@ def detail(report_id: str, request: Request, db=Depends(database)):
     user, workspace = identity(request)
     report = allowed_report(db, report_id, user, workspace)
     snapshot = json.loads(report.snapshot)
+    if not snapshot.get("weekly_report") and db.query(ReportAnalysisJob.id).filter_by(
+            workspace_id=workspace, saved_report_id=report.id, kind="weekly_preview").first():
+        snapshot["weekly_report"] = True
     attach_report_decisions(snapshot, db, workspace, {item["dataset_id"] for item in snapshot["definition"]["metrics"]}, report.id)
     return {**snapshot, "report_id": report.id}
 
@@ -346,9 +403,12 @@ def delete_report(report_id: str, request: Request, db=Depends(database)):
     if report is None:
         raise HTTPException(404, "Report not found")
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
-    removed_template = bool(preference and preference.business_report_id == report.id)
+    linked_template = bool(preference and preference.business_report_id == report.id)
+    removed_template = bool(linked_template and not preference.weekly_report_definition)
     if removed_template:
         clear_weekly_template(preference)
+    elif linked_template:
+        preference.business_report_id = None
     db.query(ReportAnalysisJob).filter_by(saved_report_id=report.id).delete(synchronize_session=False)
     db.delete(report)
     db.commit()
@@ -461,6 +521,8 @@ def weekly_template(report_id: str, request: Request, db=Depends(database)):
         preference = WeeklyReportPreference(workspace_id=workspace, enabled=0)
         db.add(preference)
     preference.business_report_id = report.id
+    from .weekly import weekly_settings_copy
+    preference.weekly_report_definition = encode(weekly_settings_copy(definition))
     preference.metric_focus = encode([metric_id(item) for item in definition["metrics"]])
     # Selecting a template must not enable sending or change existing recipients.
     db.commit()

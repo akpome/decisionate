@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from app.modules.correlation.schemas import AnalysisCreate, LagPolicy, MetricRef, ResultFilters, StrictModel
+from app.modules.correlation.schemas import AnalysisCreate, DateRange, LagPolicy, MetricRef, ResultFilters, StrictModel
 from app.modules.correlation.defaults import DEFAULT_MINIMUM_OBSERVATIONS, MAXIMUM_LAG, MAXIMUM_OBSERVATIONS, MINIMUM_OBSERVATIONS
 from app.modules.datasets.services.dimension_filters import DatasetDimensionFilter
 
@@ -121,6 +121,27 @@ class ReportDefinition(AnalysisCreate):
     @classmethod
     def trim_question(cls, value):
         return value.strip() if isinstance(value, str) else value
+
+
+def weekly_history_range():
+    from .weekly import weekly_context
+    return DateRange.model_validate(weekly_context()["history_window"])
+
+
+class WeeklyReportSettings(ReportDefinition):
+    scope: Literal["multi"] = "multi"
+    grain: Literal["weekly"] = "weekly"
+    date_range: DateRange = Field(default_factory=weekly_history_range)
+
+    @model_validator(mode="before")
+    @classmethod
+    def automatic_window(cls, value):
+        from .weekly import weekly_context
+
+        if isinstance(value, dict):
+            value = {**value, "date_range": weekly_context()["history_window"], "included_findings": None,
+                     "source_run_id": None, "pair_directions": value.get("pair_directions") or []}
+        return value
 
 
 class ReportDecision(StrictModel):

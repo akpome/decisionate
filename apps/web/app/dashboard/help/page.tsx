@@ -96,7 +96,7 @@ const faqItems = [
   {
     question: "Where have Insights and dashboard Analysis moved?",
     answer:
-      "Reports is now the analysis workspace, with Multi dataset report opening by default and Single dataset report available separately. Old Insights links redirect to Reports. Dashboard Analysis controls and their panels have been removed; use dashboards for charts and KPIs, Reports for analysis, and Forecasts for forward-looking estimates.",
+      "Instant analysis is the on-demand workspace, with Multi dataset report opening by default and Single dataset report available separately. Weekly reports has its own page and independent settings. Old Insights links redirect to Instant analysis. Dashboard Analysis controls and their panels have been removed; use dashboards for charts and KPIs and Forecasts for forward-looking estimates.",
   },
   {
     question: "Why can a year-long report have insufficient relationship evidence?",
@@ -406,7 +406,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Analyze metrics and findings",
         steps: [
-          "Open Analysis -> Reports. Multi dataset report opens by default; Single dataset report uses the same analysis engine for one source.",
+          "Open Analysis -> Instant analysis. Multi dataset report opens by default; Single dataset report uses the same analysis engine for one source.",
           "Select the approved metrics needed to answer your business question. Multi dataset reports require metrics from at least two datasets.",
           "Under Datasets and metrics, review each source's preselected Date column. If needed, choose its Dimension column and add Unique values from the dropdown; Search values narrows the available choices.",
           "New multi dataset reports open with Correlation analysis. Relationship analysis is expanded, with the correlation method, Minimum historical observations, timing and relationship-pair controls. Business impact analysis is a separate optional analysis type; saved reports retain their original type.",
@@ -442,7 +442,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Review anomaly findings",
         steps: [
-          "Open Analysis -> Reports, select metrics and dates, and enable Business has seasonal activity when appropriate. Preview the report to assess every selected metric with the shared anomaly engine.",
+          "Open Analysis -> Instant analysis, select metrics and dates, and enable Business has seasonal activity when appropriate. Preview the report to assess every selected metric with the shared anomaly engine. Weekly reports runs weekly unusual-change checks with its own settings.",
           "Review any anomaly finding alongside the underlying chart and time periods. Confirm that the finding is not caused by an incomplete connector sync, a date change, a join, or a source-schema change.",
           "The seasonal setting requests validation of repeating patterns; it does not force seasonal adjustment when history is insufficient. Read any limited-history or trend-only warning, and consider promotions or holidays that are not automatically known to the model.",
           "Record the business response as a decision when action is needed. Include the suspected cause, the expected result, and the date on which the result will be reviewed.",
@@ -464,7 +464,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Build a report",
         steps: [
-          "Open Analysis -> Reports and configure the selected datasets and metrics in Build report.",
+          "Open Analysis -> Instant analysis and configure the selected datasets and metrics in Build report.",
           "Rename the report to suit your analysis, enter a business question, and preview the findings. Save snapshot stores the generated report; reopening a snapshot preserves its analysis.",
           "Generated report names are unique starting labels, not descriptions of the business question. Edit them before saving so saved reports are easy to distinguish.",
           "Changing metric, date, dimension, seasonal, or timing settings requires a fresh preview before saving the changed analysis.",
@@ -472,21 +472,22 @@ const referenceChapters: ReferenceChapter[] = [
         ],
       },
       {
-        title: "Set up or remove a weekly report template",
+        title: "Set up or remove weekly report settings",
         steps: [
-          "Generate a multi dataset report and choose Use for weekly report. The saved template retains selected source metrics, date columns, dimension filters, and the seasonal-business setting.",
-          "Open Weekly delivery to review recipients, schedule, and sending preferences in Alerts. Selecting a template does not itself enable delivery or change recipients.",
+          "Open Analysis -> Weekly reports. Select source metrics, date columns, dimension filters, business question, relationship pairs and the seasonal-business setting. Save weekly settings or choose Save and preview. These settings are independent of Instant analysis.",
+          "Open Delivery settings to review recipients, schedule, and sending preferences in Alerts. Saving weekly settings does not itself enable delivery or change recipients.",
           "Weekly reports assess the latest completed week with up to a rolling three years of available history, including unusual changes in the selected metrics. Manual Start and End dates are for the generated snapshot and do not fix the weekly reporting window.",
-          "Analysis group by is separate from weekly delivery. Weekly totals cover the latest completed Monday-Sunday week, with daily coverage and anomaly checks. Relationship analysis keeps the template's saved grouping, minimum observations, pair directions, and lag units; a two-week lag stays two weeks. Without a saved template, relationship grouping defaults to daily. A monthly analysis can still lack enough observations within three years.",
-          "Use Remove weekly report template to pause delivery and remove the template selection while keeping the saved report and linked decisions.",
+          "Weekly totals, anomaly detection and relationship analysis always use weekly grouping. The weekly page has automatic dates, 52 minimum matched weeks by default and a maximum lag of 12 weeks. Instant analysis has selectable dates and grouping, daily by default. Changing one workflow does not change the other.",
+          "Copy selection to weekly reports copies a saved instant report into an editable weekly configuration. Non-weekly timing resets to same-period so daily lags are not interpreted as weeks. Review and save before using it. Delivery settings manages recipients and the sending switch.",
+          "Use Remove weekly settings to pause delivery and clear its configuration while keeping saved snapshots and linked decisions.",
         ],
       },
       {
         title: "Delete a saved report",
         steps: [
           "Choose the saved report from Saved reports and use Delete saved report when your workspace permissions allow it.",
-          "Read the confirmation before deleting. Linked decisions and datasets are kept; deleting the report currently used as the weekly template also pauses weekly delivery.",
-          "To keep the saved report and remove only its weekly role, use Remove weekly report template instead.",
+          "Read the confirmation before deleting. Linked decisions and datasets are kept. Deleting a saved snapshot does not remove independent weekly settings or change delivery.",
+          "To clear weekly settings and pause delivery while retaining snapshots, use Remove weekly settings on the Weekly reports page.",
         ],
       },
     ],

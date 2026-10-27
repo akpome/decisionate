@@ -13,6 +13,20 @@ vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/reports/
 }).outputText, { module: loaded, exports: loaded.exports, require })
 const render = report => renderToStaticMarkup(React.createElement(loaded.exports.ReportGrouping, { report }))
 
+test("new weekly reports explicitly label their fixed weekly grouping", () => {
+  const markup = render({ weekly_report: true, grain: "weekly", analysis_grain: "weekly" })
+  assert.match(markup, /Weekly report \/ Grouped weekly/)
+  assert.doesNotMatch(markup, /daily detail/)
+})
+
+test("a known legacy weekly snapshot retains its originally calculated units", () => {
+  const markup = render({ weekly_report: true, grain: "daily", analysis_grain: "monthly" })
+  assert.match(markup, /Weekly report/)
+  assert.match(markup, /daily detail/)
+  assert.match(markup, /Analysis group by: monthly/)
+  assert.doesNotMatch(markup, /Grouped weekly/)
+})
+
 test("weekly results distinguish daily summary detail from saved analysis grouping", () => {
   for (const grain of ["weekly", "monthly", "quarterly"]) {
     const markup = render({ grain: "daily", analysis_grain: grain })

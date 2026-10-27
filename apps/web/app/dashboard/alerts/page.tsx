@@ -879,7 +879,7 @@ function AlertsPageContent({
       />
 
       <div className="space-y-5">
-        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+        <div id="weekly-delivery" className="scroll-mt-24 rounded-2xl border bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-sm font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
@@ -891,7 +891,7 @@ function AlertsPageContent({
               </h2>
 
               <p className="mt-1.5 max-w-3xl text-sm text-gray-500">
-                Choose which dataset metrics and recommendations should shape the email digest.
+                Manage recipients and weekly delivery. <Link href="/dashboard/reports/weekly" className="text-blue-700 underline">Weekly reports</Link> has the analysis settings and preview.
               </p>
             </div>
 
@@ -1044,7 +1044,7 @@ function AlertsPageContent({
                 </p>
 
                 <p className="mt-1 text-xs text-gray-500">
-                  Select the specific dataset metrics that should shape the digest.
+                  {weeklyReportPreference.weekly_settings_configured ? <>Metrics are selected on the <Link href="/dashboard/reports/weekly" className="text-blue-700 underline">Weekly reports page</Link>.</> : "Select the specific dataset metrics that should shape the digest."}
                 </p>
 
                 {metricOptions.length > 0 ? (
@@ -1057,6 +1057,7 @@ function AlertsPageContent({
                         <label className="flex min-w-0 items-start gap-2.5">
                           <input
                             type="checkbox"
+                            disabled={weeklyReportPreference.weekly_settings_configured}
                             checked={weeklyReportPreference.metric_focus.includes(
                               option.value
                             )}

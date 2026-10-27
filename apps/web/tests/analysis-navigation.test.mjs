@@ -39,20 +39,20 @@ function navigation(translate = text => text) {
   }).AnalysisNavigation
 }
 
-const paths = ["/dashboard/reports/dataset", "/dashboard/reports"]
+const paths = ["/dashboard/reports", "/dashboard/reports/weekly"]
 
-test("report navigation has only single and multi dataset reports on existing routes", () => {
+test("report navigation separates instant analysis from weekly reporting", () => {
   const html = renderToStaticMarkup(React.createElement(navigation(), { active: "reports" }))
   assert.match(html, /<nav aria-label="Report navigation"/)
   for (const path of paths) assert.ok(html.includes(`href="${path}"`))
-  for (const label of ["Single dataset report", "Multi dataset report"]) assert.ok(html.includes(`>${label}</span>`))
+  for (const label of ["Instant analysis", "Weekly reports"]) assert.ok(html.includes(`>${label}</span>`))
   assert.doesNotMatch(html, /Relationships|\/dashboard\/relationships|Advanced matrix|Saved monitors|Dataset inspection/)
   assert.equal((html.match(/<a /g) ?? []).length, 2)
-  assert.ok(html.indexOf("Single dataset report") < html.indexOf("Multi dataset report"))
+  assert.ok(html.indexOf("Instant analysis") < html.indexOf("Weekly reports"))
 })
 
 test("each report view marks exactly one real navigation link as current", () => {
-  for (const [index, active] of ["dataset-reports", "reports"].entries()) {
+  for (const [index, active] of ["reports", "weekly"].entries()) {
     const html = renderToStaticMarkup(React.createElement(navigation(), { active }))
     assert.equal((html.match(/aria-current="page"/g) ?? []).length, 1)
     assert.ok(html.includes(`href="${paths[index]}" aria-current="page"`))
@@ -73,8 +73,8 @@ test("French report labels use the existing translation dictionary", () => {
   const { getLandingText } = compile("../lib/language.ts")
   const html = renderToStaticMarkup(React.createElement(navigation(text => getLandingText("fr", text)), { active: "reports" }))
   assert.match(html, /aria-label="Navigation des rapports"/)
-  assert.match(html, />Rapport sur un seul jeu de données</)
-  assert.match(html, />Rapport sur plusieurs jeux de données</)
+  assert.match(html, />Analyse instantanée</)
+  assert.match(html, />Rapports hebdomadaires</)
   for (const label of ["Build report", "Report preview", "Compare two metrics", "Compare multiple metrics"]) {
     assert.notEqual(getLandingText("fr", label), label)
   }
@@ -84,7 +84,8 @@ test("Relationships is directly discoverable in the Analysis sidebar", () => {
   const source = read("../app/dashboard/dashboard-shell.tsx")
   const analysis = source.slice(source.indexOf('label: "Analysis"'), source.indexOf('label: "Data"'))
   assert.match(analysis, /href: "\/dashboard\/relationships",\s+label: "Relationships"/)
-  assert.ok(analysis.indexOf('label: "Reports"') < analysis.indexOf('label: "Relationships"'))
+  assert.ok(analysis.indexOf('label: "Instant analysis"') < analysis.indexOf('label: "Weekly reports"'))
+  assert.ok(analysis.indexOf('label: "Weekly reports"') < analysis.indexOf('label: "Relationships"'))
 })
 
 test("both report views share navigation while Relationships stays a separate sidebar destination", () => {
@@ -97,10 +98,11 @@ test("both report views share navigation while Relationships stays a separate si
     assert.doesNotMatch(read(path), /AnalysisNavigation/)
   }
   const report = read("../features/reports/report-workspace.tsx")
-  assert.match(report, /<AnalysisNavigation active=\{single \? "dataset-reports" : "reports"\}/)
-  assert.match(report, /<h1[^>]*>\{t\(single \? "Single dataset report" : "Multi dataset report"\)\}<\/h1>/)
+  assert.match(report, /<AnalysisNavigation active=\{navigation\}/)
+  assert.match(report, /<h1[^>]*>\{t\(weekly \? "Weekly reports" : "Instant analysis"\)\}<\/h1>/)
+  assert.match(report, /<nav aria-label="Analysis sources"/)
   assert.match(report, /"Build report" : "Report preview"/)
-  assert.match(report, /t\("Preview report"\)/)
+  assert.match(report, /"Save and preview" : "Preview report"/)
   assert.doesNotMatch(report, /href="\/dashboard\/relationships\/explorer"/)
 })
 

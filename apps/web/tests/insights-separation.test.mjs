@@ -102,6 +102,6 @@ test("saved relationship insights remain accessible without entering the selecte
 test("single dataset reports do not expose cross-source direction or weekly template controls", () => {
   const source = read("../features/reports/report-workspace.tsx")
   assert.match(source, /\{!single && !definition.impact && <section aria-label="Relationship analysis"/)
-  assert.match(source, /\{!single && <button[^>]*onClick=\{\(\) => void saveWeeklyTemplate\(\)\}/)
-  assert.match(source, /if \(single \|\| !canManage/)
+  assert.match(source, /!single && !weekly && canManage && report.report_id && <Link href=\{`\/dashboard\/reports\/weekly\?copy=/)
+  assert.doesNotMatch(source, /saveWeeklyTemplate\(/)
 })

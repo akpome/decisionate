@@ -13,11 +13,19 @@ def delete_reports(db, identities):
         return
     if inspect(db.connection()).has_table(WeeklyReportPreference.__tablename__):
         db.query(WeeklyReportPreference).filter(WeeklyReportPreference.business_report_id.in_(identities)).update(
-            {WeeklyReportPreference.business_report_id: None}, synchronize_session=False)
+            {WeeklyReportPreference.business_report_id: None, WeeklyReportPreference.weekly_report_definition: None,
+             WeeklyReportPreference.metric_focus: None, WeeklyReportPreference.enabled: 0}, synchronize_session=False)
     db.query(BusinessReport).filter(BusinessReport.id.in_(identities)).delete(synchronize_session=False)
 
 
 def cleanup_source(db, dataset_id):
+    if inspect(db.connection()).has_table(WeeklyReportPreference.__tablename__):
+        for preference in db.query(WeeklyReportPreference).filter(WeeklyReportPreference.weekly_report_definition.isnot(None)):
+            if any(item["dataset_id"] == dataset_id for item in json.loads(preference.weekly_report_definition)["metrics"]):
+                preference.weekly_report_definition = None
+                preference.business_report_id = None
+                preference.metric_focus = None
+                preference.enabled = 0
     if inspect(db.connection()).has_table(ReportAnalysisJob.__tablename__):
         identities = [identity for identity, sources in db.query(ReportAnalysisJob.id, ReportAnalysisJob.sources)
                       if str(dataset_id) in json.loads(sources)]
@@ -34,6 +42,10 @@ def cleanup_source(db, dataset_id):
 
 
 def cleanup_workspace(db, workspace_id):
+    if inspect(db.connection()).has_table(WeeklyReportPreference.__tablename__):
+        db.query(WeeklyReportPreference).filter_by(workspace_id=workspace_id).update(
+            {WeeklyReportPreference.business_report_id: None, WeeklyReportPreference.weekly_report_definition: None,
+             WeeklyReportPreference.metric_focus: None, WeeklyReportPreference.enabled: 0}, synchronize_session=False)
     if inspect(db.connection()).has_table(ReportAnalysisJob.__tablename__):
         db.query(ReportAnalysisJob).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(BusinessReport.__tablename__):

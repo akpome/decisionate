@@ -72,7 +72,7 @@ function editor({ name = draft().defaultReportName(), saved = false } = {}) {
   visit(ast)
   const state = { definition: { name, metrics: [], included_findings: ["finding-1"] }, report: saved ? { report_id: "report-1" } : null }
   const bindings = {
-    definition: state.definition, report: state.report, ...draft(), ...pairs.exports, ...impact.exports,
+    definition: state.definition, report: state.report, weekly: false, ...draft(), ...pairs.exports, ...impact.exports,
     setDefinition: update => { state.definition = update(state.definition); bindings.definition = state.definition },
     setReport: value => { state.report = value; bindings.report = value }, setError: () => {}, setMessage: () => {},
     setAnalysisJob: () => {}, URLSearchParams, window: { location: { search: "" } },

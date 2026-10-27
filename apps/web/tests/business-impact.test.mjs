@@ -131,7 +131,7 @@ test("fresh reports open with correlation settings and do not initialize an impa
   assert.ok(initialize)
   for (const scope of ["single", "multi"]) {
     const value = vm.runInNewContext(ts.transpileModule(`(${initialize})()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
-      { initialScope: scope, editableDefinition, newImpactStudy: () => { throw new Error("Impact must be an explicit choice") } })
+      { weekly: false, initialScope: scope, editableDefinition, newImpactStudy: () => { throw new Error("Impact must be an explicit choice") } })
     assert.equal(value.scope, scope)
     assert.equal(value.impact, null)
     assert.equal(value.method, "spearman")
