@@ -18,6 +18,10 @@ const { newImpactStudy, retainedImpactStudy, impactReady, impactEvidenceSummary 
 const formatReportValue = (value, currency) => `${currency ? `${currency} ` : ""}${value}`
 const { ImpactResult } = load("../features/reports/impact-result.tsx", { "./types": { formatReportValue } })
 const { ImpactSetup, ImpactChange } = load("../features/reports/impact-setup.tsx")
+const { editableDefinition } = load("../features/reports/types.ts", {
+  "./pair-directions": load("../features/reports/pair-directions.ts"),
+  "@/features/relationships/defaults": load("../features/relationships/defaults.ts"),
+})
 const metrics = [{ dataset_id: 1, metric_key: "orders" }, { dataset_id: 2, metric_key: "orders" }]
 const study = { ...newImpactStudy(), change: "Extended opening hours", change_date: "2025-01-01", outcome: metrics[0], comparison: metrics[1],
   comparison_reason: "Another shop did not change its opening hours.", comparison_unaffected: true, other_changes: "none_known" }
@@ -113,10 +117,88 @@ test("decision evidence reads only a stored report summary and tolerates malform
   assert.equal(value.summary, analysis.summary)
 })
 
-test("single and legacy reports keep their existing workflow while new multi reports start with impact", () => {
+test("fresh reports open with correlation settings and do not initialize an impact study", () => {
   const workspace = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
-  assert.match(workspace, /initialScope === "multi" \? newImpactStudy\(\) : null/)
+  const ast = ts.createSourceFile("workspace.tsx", workspace, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let initialize
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && ts.isArrayBindingPattern(node.name) && node.name.elements[0]?.getText(ast) === "definition") {
+      initialize = node.initializer.arguments[0].getText(ast)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(initialize)
+  for (const scope of ["single", "multi"]) {
+    const value = vm.runInNewContext(ts.transpileModule(`(${initialize})()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
+      { initialScope: scope, editableDefinition, newImpactStudy: () => { throw new Error("Impact must be an explicit choice") } })
+    assert.equal(value.scope, scope)
+    assert.equal(value.impact, null)
+    assert.equal(value.method, "spearman")
+    assert.equal(value.grain, "weekly")
+    assert.equal(value.filters.minimum_observations, 52)
+  }
   assert.match(workspace, /<ImpactResult analysis=\{report.impact_analysis\}/)
   assert.match(workspace, /!single && !definition.impact/)
   assert.doesNotMatch(workspace, /Create decision|createDecision\(/)
+})
+
+test("explicitly named modes switch without changing selected metrics, dates or correlation settings", () => {
+  const workspace = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  const ast = ts.createSourceFile("workspace.tsx", workspace, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let controls
+  function visit(node) {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === "fieldset" && node.getText(ast).includes('aria-label="Analysis type"')) controls = node.getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(controls)
+  const original = editableDefinition({ metrics, grain: "monthly", method: "pearson", date_range: { start: "2023-01-01", end: "2025-12-31" } })
+  const changes = []
+  const context = { require, exports: {}, newImpactStudy, definition: original, edit: patch => {
+    changes.push(patch)
+    context.definition = editableDefinition({ ...context.definition, ...patch })
+  } }
+  function buttons() {
+    const node = vm.runInNewContext(ts.transpileModule(`(${controls})`, { compilerOptions: {
+      target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
+    } }).outputText, { ...context })
+    const result = []
+    function visit(element) {
+      if (!element || typeof element !== "object") return
+      if (element.type === "button") result.push(element)
+      React.Children.forEach(element.props?.children, visit)
+    }
+    visit(node)
+    return result
+  }
+  let options = buttons()
+  assert.deepEqual(options.map(button => button.props.children), ["Correlation analysis", "Business impact analysis"])
+  assert.equal(options[0].props["aria-pressed"], true)
+  assert.equal(options[1].props["aria-pressed"], false)
+  options[0].props.onClick()
+  assert.equal(changes.length, 0)
+  options[1].props.onClick()
+  assert.equal(context.definition.impact.comparison_unaffected, false)
+  assert.equal(context.definition.impact.outcome, null)
+  options = buttons()
+  assert.equal(options[1].props["aria-pressed"], true)
+  options[0].props.onClick()
+  assert.equal(context.definition.impact, null)
+  assert.equal(context.definition.metrics, original.metrics)
+  assert.deepEqual(context.definition.date_range, original.date_range)
+  assert.equal(context.definition.grain, original.grain)
+  assert.equal(context.definition.method, original.method)
+  assert.deepEqual(context.definition.filters, original.filters)
+})
+
+test("saved impact reports restore their explicit analysis type without changing the saved definition", () => {
+  const saved = { scope: "multi", impact: study, metrics, grain: "monthly", method: "pearson" }
+  const before = JSON.stringify(saved)
+  const restored = editableDefinition(saved)
+  assert.equal(restored.impact, study)
+  assert.equal(restored.grain, "monthly")
+  assert.equal(restored.method, "pearson")
+  assert.equal(JSON.stringify(saved), before)
+  assert.equal(editableDefinition({ metrics }).impact, null)
 })

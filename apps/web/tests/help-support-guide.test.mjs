@@ -63,6 +63,8 @@ test("Reports is the documented analysis entry and date and dimension filtering 
 
 test("report timing guidance matches the 52-observation weekly default and pair-specific calendar lags", () => {
   const text = chapter("analysis")
+  assert.match(text, /New multi dataset reports open with Correlation analysis/)
+  assert.match(text, /Business impact analysis is a separate optional analysis type/)
   assert.match(text, /defaults to 52/)
   assert.match(text, /limited to 12/)
   assert.match(text, /includes lag zero/)

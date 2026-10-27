@@ -46,7 +46,7 @@ previews and emails label the summary and analysis groupings separately.
 
 ## Follow up on a business change
 
-A template built with **Did my change help?** also updates that business-change
+A template built with **Business impact analysis** also updates that business-change
 study. The weekly email includes its answer, estimated range when available,
 and what to do next. It keeps the original change date, result, unaffected
 comparison and grouping. Its study starts no earlier than the saved study start

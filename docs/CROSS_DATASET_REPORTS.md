@@ -37,8 +37,11 @@ change the deterministic analysis, expand metric selection or create decisions.
 
 ## Business Change Impact
 
-New multi-dataset reports start with **Did my change help?**. Existing definitions
-without `impact` remain exploratory. The study records a sustained change/date,
+New multi-dataset reports start with **Correlation analysis**, with relationship
+settings expanded. **Business impact analysis** is a separately labelled, explicit
+choice in Analysis type; it is not decision review. Saved definitions retain
+their original type and settings. Definitions without `impact` remain exploratory.
+The optional impact study records a sustained change/date,
 an outcome and one unaffected comparison from a different selected dataset,
 business-context confirmations, desired direction and optional worthwhile target.
 All inputs use approved metric/date/aggregation policies and dataset-local filters.

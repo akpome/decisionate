@@ -2,7 +2,7 @@
 
 ## Read a business-change result
 
-A report built with Did my change help? starts with a direct answer, its
+A report built with Business impact analysis starts with a direct answer, its
 estimated difference and range, and what to do next. A range including no effect
 means the result is unclear. A failed comparison gives no impact amount at all.
 This is not a guarantee that the action caused the result.

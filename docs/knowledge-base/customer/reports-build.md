@@ -4,9 +4,16 @@ Reports is the main analysis workspace. Multi dataset report opens by default;
 Single dataset report is available separately for one source. Both use approved
 dataset metrics, date policies, anomaly detection and report snapshots.
 
+New multi dataset reports open with **Correlation analysis**. The correlation
+method, minimum historical observations, timing and relationship-pair settings
+are available under the expanded Relationship analysis section. Under Analysis
+type, choose **Business impact analysis** only when assessing a recorded business
+change. Saved reports keep their original analysis type. Neither mode replaces
+decision creation or decision review on the Decisions page.
+
 ## Did my business change help?
 
-New multi dataset reports start with **Did my change help?** Record an ongoing
+For Business impact analysis, record an ongoing
 change and its start date, such as extended opening hours or a price change.
 Choose the result you want to improve and an unaffected comparison from another
 dataset. A similar store that did not make the change may help; increased ad
@@ -40,8 +47,8 @@ an impact amount or upgrade weak evidence. Details are available under the check
 Supporting charts and unusual-change tables are kept in Supporting business
 results, rather than crowding the main answer and decision links.
 
-Choose **How are my results moving?** for exploratory relationships without a
-recorded business change. Existing saved reports keep their original workflow.
+Choose **Correlation analysis** for exploratory relationships without a recorded
+business change. Existing saved reports keep their original workflow.
 
 ## Build an analysis
 

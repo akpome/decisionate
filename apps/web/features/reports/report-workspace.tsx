@@ -80,7 +80,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [templateError, setTemplateError] = useState(false)
   const [templateReload, setTemplateReload] = useState(0)
   const [saved, setSaved] = useState<SavedReport[]>([])
-  const [definition, setDefinition] = useState<ReportDefinition>(() => editableDefinition({ scope: initialScope, impact: initialScope === "multi" ? newImpactStudy() : null }))
+  const [definition, setDefinition] = useState<ReportDefinition>(() => editableDefinition({ scope: initialScope }))
   const [report, setReport] = useState<BusinessReport | null>(null)
   const [view, setView] = useState<"explore" | "report">("explore")
   const [loading, setLoading] = useState(true)
@@ -435,8 +435,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     <section role="tabpanel" id="report-explore" aria-labelledby="tab-explore" hidden={view !== "explore"} className="space-y-6 print:hidden">
       <form onSubmit={event => { event.preventDefault(); void calculate() }}>
         <fieldset disabled={busy} className="min-w-0 space-y-5">
-          {!single && <fieldset className="min-w-0"><legend className="mb-2 text-sm font-medium">What would you like to understand?</legend><div className="inline-flex max-w-full flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1" role="group" aria-label="Report purpose">
-            {[{ label: "Did my change help?", impact: true }, { label: "How are my results moving?", impact: false }].map(mode => <button key={mode.label} type="button" aria-pressed={Boolean(definition.impact) === mode.impact} className={`min-h-10 min-w-0 rounded px-3 text-sm ${Boolean(definition.impact) === mode.impact ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`} onClick={() => {
+          {!single && <fieldset className="min-w-0"><legend className="mb-2 text-sm font-medium">Analysis type</legend><div className="inline-flex max-w-full flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1" role="group" aria-label="Analysis type">
+            {[{ label: "Correlation analysis", impact: false }, { label: "Business impact analysis", impact: true }].map(mode => <button key={mode.label} type="button" aria-pressed={Boolean(definition.impact) === mode.impact} className={`min-h-10 min-w-0 rounded px-3 text-sm ${Boolean(definition.impact) === mode.impact ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`} onClick={() => {
               if (Boolean(definition.impact) !== mode.impact) edit({ impact: mode.impact ? newImpactStudy() : null, ...(mode.impact && definition.grain === "quarterly" ? { grain: "weekly" } : {}) })
             }}>{mode.label}</button>)}
           </div></fieldset>}
