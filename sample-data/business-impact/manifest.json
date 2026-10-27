@@ -1,0 +1,21 @@
+{
+  "synthetic": true,
+  "seed": 20261027,
+  "start": "2024-01-01",
+  "end": "2026-10-25",
+  "change_date": "2026-01-05",
+  "grain": "weekly",
+  "seasonal_business": true,
+  "comparison": "unchanged_store.csv / comparison_orders",
+  "post_periods": 42,
+  "effects_per_week": {
+    "orders_helpful_change": 30,
+    "orders_no_effect": 0,
+    "orders_harmful_change": -30
+  },
+  "notes": [
+    "Fictional weekly counts, not connector exports or customer data.",
+    "The comparison is unaffected by construction. Only the changed store has the intervention.",
+    "Known effects test implementation behavior; they are not proof of real-world causal validity."
+  ]
+}

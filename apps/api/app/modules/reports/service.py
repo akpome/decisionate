@@ -18,6 +18,7 @@ from .anomalies import anomaly_summary, detect_report_metric, historical_start
 from .decision_drafts import is_report_decision_draft
 from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, report_pairs, report_test_count
 from .schemas import MINIMUM_REPORT_OBSERVATIONS
+from .impact import evaluate_impact, impact_facts
 from app.modules.decisions.duplicates import canonical_decisions
 
 
@@ -132,7 +133,7 @@ def report_anomalies(frames, references, definition, metadata, *, anchor=None):
     return anomaly_summary(results, definition.get("seasonal_business", False), window, anchor)
 
 
-def build_report(frames, definition, *, unavailable=None, history_anchor=None):
+def build_report(frames, definition, *, unavailable=None, history_anchor=None, impact_definition=None):
     """Frames must already be authorized; source data and selections are never changed."""
     definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
     single = definition.get("scope", "multi") == "single"
@@ -259,6 +260,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None):
                          "adjusted_p_value": adjusted_p, "reliability": "passes_adjusted_test" if reliable else "exploratory" if row["eligible"] else "insufficient",
                          "warnings": flags, "interpretation": interpretation, "history_window": history,
                          "evidence": row["evidence"]})
+        findings[-1]["business_summary"] = relationship_summary(findings[-1], grain)
     findings.sort(key=lambda item: (item["eligible"], abs(item["coefficient"] or 0)), reverse=True)
     requested = definition.get("included_findings")
     if requested is not None:
@@ -272,8 +274,10 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None):
         warnings.append("The selected dataset has no usable observations in the report window.")
     elif not single and dataset_count < 2:
         warnings.append("Cross-dataset coverage is insufficient: at least two datasets need usable observations in the report window.")
-    if any(metric["warnings"] for metric in metrics):
-        warnings.append("Some metrics have incomplete coverage or no previous-period baseline. Review the metric-level warnings before acting.")
+    if any(metric["observations"] < metric["expected_periods"] for metric in metrics):
+        warnings.append("Some selected metrics have gaps in this report's dates. Check their coverage notes.")
+    if any(metric["change_percent"] is None for metric in metrics):
+        warnings.append("A previous-period comparison is unavailable for some metrics. This does not by itself prevent a relationship or business-change analysis.")
     movements = sorted((metric for metric in metrics if metric["change_percent"] is not None), key=lambda item: abs(item["change_percent"]), reverse=True)
     observations = [f"{metric['dataset_label']} / {metric['label']}: {metric['change_percent']:+.1f}% versus the previous comparable period."
                     for metric in movements[:6]]
@@ -283,17 +287,30 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None):
             contrasts.append(f"{left['dataset_label']} / {left['label']} and {right['dataset_label']} / {right['label']} moved in opposite directions. Check channel mix, timing and source coverage before attributing the difference to an intervention.")
     actions = []
     if warnings:
-        actions.append("Resolve missing coverage and baseline warnings before making a consequential change.")
+        actions.append("Check the missing-date and earlier-comparison notes before making a large commitment.")
     if contrasts:
-        actions.append("Investigate the contrasting cross-dataset movements and record competing explanations.")
+        actions.append("Check why the results moved in different directions, including changes to prices, channels or business activity.")
     if any(finding["eligible"] for finding in selected):
-        actions.append("Validate promising relationships with segmentation or a controlled experiment; define the expected outcome and review date before acting.")
+        actions.append("Try a small, fair comparison before expanding a change. Record the result you expect and when you will review it.")
     if not actions:
         actions.append("Compare the selected metrics with their previous-period baselines and business targets before acting." if single else
                        "Collect comparable history across the selected datasets before drawing a relationship conclusion.")
     anomalies = report_anomalies(frames, references, actual_definition, metadata, anchor=history_anchor)
     if anomalies["anomaly_count"]:
-        actions.append("Investigate the unusual selected-metric changes against their expected ranges; check source quality, seasonal context and operational events before acting.")
+        actions.append("Check unusual changes against your normal busy and quiet times, recent business events, and whether the data import finished.")
+    impact = None
+    if definition.get("impact"):
+        study_definition = {**actual_definition, **(impact_definition or {}), "reporting_timezone": zone}
+        study = study_definition["impact"]
+        role_ids = {metric_id(study["outcome"]), metric_id(study["comparison"])}
+        study_references = [item for item in usable if metric_id(item) in role_ids]
+        study_metadata = {key: dict(value) for key, value in metadata.items() if key in role_ids}
+        for reference in study_references:
+            policy = frame_policy(frames[reference["dataset_id"]][1])
+            study_metadata[metric_id(reference)]["additive"] = reference["aggregation"] in {"sum", "count"} or bool(
+                policy and reference["aggregation"] == "policy" and policy["descriptors"][reference["metric_key"]]["aggregation"] == "SUM")
+        impact = evaluate_impact(prepare_report_series(frames, study_references, study_definition), study_definition, study_metadata)
+        actions = impact["next_steps"]
     selected_ids = [finding["id"] for finding in selected]
     return {"name": definition["name"], "business_question": definition["business_question"],
             "definition": {**definition, "included_findings": selected_ids},
@@ -303,6 +320,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None):
             "analysis_source": "deterministic", "generated_at": datetime.now(timezone.utc).isoformat(),
             "metrics": metrics, "findings": findings, "included_findings": selected_ids,
             "anomaly_analysis": anomalies,
+            "impact_analysis": impact,
             "observations": observations, "contrasts": contrasts[:5], "recommendations": actions, "warnings": warnings,
             "limitations": ["Missing observations remain unavailable and are not zero-filled.",
                             "An unusual change is not proof of its cause. Check source quality and business context.",
@@ -331,7 +349,44 @@ def report_analysis_facts(report):
             "metrics": [{key: value for key, value in item.items() if key not in {"baselines", "anomalies"}}
                         | {"anomalies": item["anomalies"][:7]} for item in analysis["metrics"]],
         }
+    if report.get("impact_analysis"):
+        facts["impact_analysis"] = impact_facts(report["impact_analysis"])
     return facts
+
+
+def report_summary(report):
+    if report.get("impact_analysis"):
+        return " ".join(report["impact_analysis"][key] for key in ("headline", "summary"))
+    movements = report["observations"] + report["contrasts"]
+    if movements:
+        return " ".join(movements[:3])
+    selected = set(report["included_findings"])
+    findings = [item for item in report["findings"] if item["id"] in selected and item["eligible"]]
+    if findings:
+        return " ".join(item.get("business_summary") or relationship_summary(item, report["grain"]) for item in findings[:2])
+    if report.get("anomaly_analysis", {}).get("anomaly_count"):
+        return "Some selected results changed unusually. Check the unusual changes below before deciding what to do."
+    return "There is not enough comparable history to explain these results yet. Check the dates and missing-data notes below."
+
+
+def relationship_summary(finding, grain):
+    left, right = finding["metric_a"], finding["metric_b"]
+    names = f"{left['dataset_label']} / {left['label']} and {right['dataset_label']} / {right['label']}"
+    if not finding["eligible"] or finding["coefficient"] is None:
+        return f"We need more matching history or more variation to explain the pattern between {names}."
+    coefficient = finding["coefficient"]
+    if abs(coefficient) < .3:
+        return f"There was no clear pattern of {names} moving together."
+    pattern = "tended to rise and fall together" if coefficient >= 0 else "tended to move in opposite directions"
+    text = f"{names} {pattern}. "
+    if finding["lag"]:
+        leader = left if finding["lead_metric"] == left["id"] else right
+        unit = {"daily": "days", "weekly": "weeks", "monthly": "months", "quarterly": "quarters"}[grain]
+        text += f"The pattern was strongest with {leader['label']} {finding['lag']} {unit} ahead. "
+    text += "This is a pattern worth checking, not evidence that one caused the other."
+    if finding["reliability"] != "passes_adjusted_test":
+        text += " The pattern is not clear enough to rely on by itself."
+    return text
 
 
 def decisions_for_report(db, workspace, dataset_ids, report_id=None):

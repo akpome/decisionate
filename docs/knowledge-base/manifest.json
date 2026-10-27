@@ -408,7 +408,11 @@
         "apps/api/app/modules/correlation/defaults.py",
         "apps/api/app/modules/reports/schemas.py",
         "apps/api/app/modules/reports/jobs.py",
-        "apps/api/app/modules/reports/router.py"
+        "apps/api/app/modules/reports/router.py",
+        "apps/api/app/modules/reports/impact.py",
+        "apps/web/features/reports/impact-types.ts",
+        "apps/web/features/reports/impact-setup.tsx",
+        "apps/web/features/reports/impact-result.tsx"
       ],
       "related": [
         "reports-read-save",
@@ -439,6 +443,7 @@
       ],
       "sources": [
         "apps/web/features/reports/indexed-trends.ts",
+        "apps/web/features/reports/impact-chart.tsx",
         "apps/web/features/reports/report-workspace.tsx",
         "apps/api/app/modules/reports/router.py",
         "apps/api/app/modules/reports/jobs.py",

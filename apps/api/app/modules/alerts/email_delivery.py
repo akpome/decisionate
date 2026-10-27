@@ -25,6 +25,7 @@ from app.modules.alerts.schemas import (
     WeeklyReportAIAnalysis,
 )
 from app.security.secrets import decrypt_secret
+from app.modules.reports.impact import impact_lines
 
 
 logger = logging.getLogger(__name__)
@@ -483,14 +484,16 @@ def build_weekly_report_email_text(
                         f"Previous window: {report['previous_window']['start']} to {report['previous_window']['end']}",
                         f"Coverage: {report['status']}"]
         review_lines.extend(report_dimension_lines(report))
+        review_lines.extend(impact_lines(report))
         review_lines.extend(report["observations"])
         review_lines.extend(report["contrasts"])
         review_lines.extend(["", "Unusual changes (anomaly detection)", *report_anomaly_lines(report), "", "Relationship findings"])
-        review_lines.extend(item["interpretation"] for item in report["findings"] if item["id"] in report["included_findings"])
+        review_lines.extend(item.get("business_summary", item["interpretation"]) for item in report["findings"] if item["id"] in report["included_findings"])
         review_lines.extend("Warning: " + warning for warning in report["warnings"])
         review_lines.extend(f"Decision: {item['title']} ({item['status']}). Expected: {item['expected_outcome'] or 'Not recorded'}. Actual: {item['actual_outcome'] or 'Not yet recorded'}."
                             for item in report.get("decisions", []))
-        review_lines.extend(report["limitations"])
+        if not report.get("impact_analysis"):
+            review_lines.extend(report["limitations"])
         lines[4:4] = review_lines + [""]
 
     if digest.ai_analysis:
@@ -803,11 +806,12 @@ def build_weekly_report_email_html(
     if digest.cross_dataset_report:
         report = digest.cross_dataset_report
         statements = report_dimension_lines(report) + report["observations"] + report["contrasts"]
-        statements += [item["interpretation"] for item in report["findings"] if item["id"] in report["included_findings"]]
+        statements += [item.get("business_summary", item["interpretation"]) for item in report["findings"] if item["id"] in report["included_findings"]]
         statements += ["Warning: " + warning for warning in report["warnings"]]
         statements += [f"Decision: {item['title']} ({item['status']}). Expected: {item['expected_outcome'] or 'Not recorded'}. Actual: {item['actual_outcome'] or 'Not yet recorded'}."
                        for item in report.get("decisions", [])]
-        statements += report["limitations"]
+        if not report.get("impact_analysis"):
+            statements += report["limitations"]
         cross_markup = (
             '<section style="margin-top:24px;color:#334155;font-size:14px;line-height:1.6;">'
             '<h2 style="font-size:18px;margin:0 0 10px;">Cross-dataset business review</h2>'
@@ -822,6 +826,13 @@ def build_weekly_report_email_html(
             + "".join(f'<li style="margin-bottom:8px;">{escape_html(line)}</li>' for line in report_anomaly_lines(report))
             + '</ul></section>'
         )
+        if report.get("impact_analysis"):
+            cross_markup = (
+                '<section style="margin-top:24px;color:#1f2937;font-size:14px;line-height:1.6;">'
+                '<h2 style="font-size:18px;margin:0 0 10px;">Did your business change help?</h2>'
+                + "".join(f'<p>{escape_html(line)}</p>' for line in impact_lines(report))
+                + '</section>' + cross_markup
+            )
     if digest.ai_analysis:
         analysis_markup = (
             '<p style="color:#475569;font-size:14px;line-height:1.6;'

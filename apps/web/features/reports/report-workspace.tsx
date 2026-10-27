@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
@@ -25,6 +25,9 @@ import { historicalEvidenceHref } from "./legacy-relationship-destination"
 import { analysisPhaseLabel, waitForAnalysis, type AnalysisJob } from "./analysis-jobs"
 import { dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 import { MAXIMUM_RELATIONSHIP_OBSERVATIONS, MINIMUM_RELATIONSHIP_OBSERVATIONS, RELATIONSHIP_DEFAULTS } from "@/features/relationships/defaults"
+import { impactReady, newImpactStudy, retainedImpactStudy, type ImpactStudy } from "./impact-types"
+import { ImpactChange, ImpactSetup } from "./impact-setup"
+import { ImpactResult } from "./impact-result"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
@@ -37,6 +40,7 @@ const errorMessage = (error: unknown) => error instanceof Error ? error.message 
 const MetricTrends = dynamic(() => import("./report-metric-trends").then(module => module.MetricTrends), {
   loading: () => <div role="status" className="flex min-h-80 items-center justify-center gap-2 text-sm text-gray-600"><LoaderCircle size={16} className="animate-spin" />Loading charts...</div>,
 })
+const ImpactChart = dynamic(() => import("./impact-chart").then(module => module.ImpactChart), { ssr: false })
 
 async function hydrateCatalog(userId: string, workspaceId: string | undefined, current: CatalogDataset[], value: ReportDefinition, signal: AbortSignal) {
   let result = current
@@ -75,7 +79,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [templateError, setTemplateError] = useState(false)
   const [templateReload, setTemplateReload] = useState(0)
   const [saved, setSaved] = useState<SavedReport[]>([])
-  const [definition, setDefinition] = useState<ReportDefinition>(() => editableDefinition({ scope: initialScope }))
+  const [definition, setDefinition] = useState<ReportDefinition>(() => editableDefinition({ scope: initialScope, impact: initialScope === "multi" ? newImpactStudy() : null }))
   const [report, setReport] = useState<BusinessReport | null>(null)
   const [view, setView] = useState<"explore" | "report">("explore")
   const [loading, setLoading] = useState(true)
@@ -91,7 +95,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const single = definition.scope === "single"
   const taskCount = reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs)
   const showPairDirections = definition.pair_directions.length > 0
-  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < (single ? 1 : 2) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t("Preview report")}</button>
+  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={datasetCount < (single ? 1 : 2) || !impactReady(definition.impact, definition.metrics) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t("Preview report")}</button>
 
   useEffect(() => {
     const controller = new AbortController()
@@ -234,15 +238,19 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   }
 
   function edit(patch: Partial<ReportDefinition>) {
-    const analysisChanged = ["metrics", "dimension_filters", "date_range", "grain", "method", "filters", "lag", "pair_directions", "excluded_pairs", "seasonal_business"].some(key => key in patch)
+    const analysisChanged = ["metrics", "dimension_filters", "date_range", "grain", "method", "filters", "lag", "pair_directions", "excluded_pairs", "seasonal_business", "impact"].some(key => key in patch)
     const nextName = report?.report_id && !("name" in patch) && isDefaultReportName(definition.name) ? defaultReportName() : null
     setDefinition(current => {
       const next = { ...current, ...(nextName ? { name: nextName } : {}), ...patch, ...(analysisChanged ? { included_findings: null } : {}) }
-      return { ...next, pair_directions: reportPairDirections(next.metrics, next.pair_directions), excluded_pairs: reportExcludedPairs(next.metrics, next.excluded_pairs) }
+      return { ...next, impact: retainedImpactStudy(next.impact, next.metrics, "metrics" in patch || "dimension_filters" in patch), pair_directions: reportPairDirections(next.metrics, next.pair_directions), excluded_pairs: reportExcludedPairs(next.metrics, next.excluded_pairs) }
     })
     setReport(null); setError(""); setMessage("")
     setAnalysisJob(null)
     if (new URLSearchParams(window.location.search).has("job")) window.history.replaceState(null, "", window.location.pathname)
+  }
+
+  function editImpact(patch: Partial<ImpactStudy>) {
+    if (definition.impact) edit({ impact: { ...definition.impact, ...patch } })
   }
 
   function toggleMetric(dataset: CatalogDataset, key: string) {
@@ -258,7 +266,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     if ((!range.end || single && datasetCount > 0 && !definition.metrics.some(item => item.dataset_id === dataset.dataset_id)) && availability) {
       const start = new Date(`${availability.end}T00:00:00Z`)
       start.setUTCDate(start.getUTCDate() - 29)
-      range = { start: availability.start > start.toISOString().slice(0, 10) ? availability.start : start.toISOString().slice(0, 10), end: availability.end }
+      range = { start: definition.impact ? availability.start : availability.start > start.toISOString().slice(0, 10) ? availability.start : start.toISOString().slice(0, 10), end: availability.end }
     }
     edit({ metrics, date_range: range })
   }
@@ -426,10 +434,16 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     <section role="tabpanel" id="report-explore" aria-labelledby="tab-explore" hidden={view !== "explore"} className="space-y-6 print:hidden">
       <form onSubmit={event => { event.preventDefault(); void calculate() }}>
         <fieldset disabled={busy} className="min-w-0 space-y-5">
+          {!single && <fieldset className="min-w-0"><legend className="mb-2 text-sm font-medium">What would you like to understand?</legend><div className="inline-flex max-w-full flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1" role="group" aria-label="Report purpose">
+            {[{ label: "Did my change help?", impact: true }, { label: "How are my results moving?", impact: false }].map(mode => <button key={mode.label} type="button" aria-pressed={Boolean(definition.impact) === mode.impact} className={`min-h-10 min-w-0 rounded px-3 text-sm ${Boolean(definition.impact) === mode.impact ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`} onClick={() => {
+              if (Boolean(definition.impact) !== mode.impact) edit({ impact: mode.impact ? newImpactStudy() : null, ...(mode.impact && definition.grain === "quarterly" ? { grain: "weekly" } : {}) })
+            }}>{mode.label}</button>)}
+          </div></fieldset>}
           <div className="grid min-w-0 gap-4 md:grid-cols-2">
             <div className="min-w-0"><label htmlFor="report-name" className="block text-xs font-medium text-gray-700">Report name</label><input id="report-name" aria-describedby="report-name-hint" className={input} required maxLength={120} value={definition.name} onChange={event => edit({ name: event.target.value })} /><p id="report-name-hint" className="mt-1 text-xs text-gray-500">{t("Edit this report name to suit your analysis.")}</p></div>
             <label className="block text-xs font-medium text-gray-700">Business question<input className={input} required minLength={8} maxLength={1000} value={definition.business_question} onChange={event => edit({ business_question: event.target.value })} /></label>
           </div>
+          {definition.impact && <ImpactChange study={definition.impact} onChange={editImpact} />}
           <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <ReportMetricPicker userId={userId} workspaceId={workspaceId} dimensionFilters={definition.dimension_filters} onDimensionFilterChange={(identity, filter) => edit({ dimension_filters: [
               ...(definition.dimension_filters || []).filter(item => item.dataset_id !== identity), ...(filter ? [{ dataset_id: identity, ...filter }] : []),
@@ -441,9 +455,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
               <h2 className="shrink-0 text-base font-semibold">Analysis settings</h2>
               <div className="grid shrink-0 grid-cols-2 gap-3"><label className="block text-xs text-gray-600">Start<input className={input} type="date" required max={definition.date_range.end || undefined} value={definition.date_range.start} onChange={event => edit({ date_range: { ...definition.date_range, start: event.target.value } })} /></label><label className="block text-xs text-gray-600">End<input className={input} type="date" required min={definition.date_range.start || undefined} value={definition.date_range.end} onChange={event => edit({ date_range: { ...definition.date_range, end: event.target.value } })} /></label></div>
               <div role="group" aria-label="Analysis settings" tabIndex={0} className="report-builder-scroll space-y-4 pr-2 focus-visible:outline-2 focus-visible:outline-blue-600">
-                <label className="block text-xs text-gray-600">Group by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{["daily", "weekly", "monthly", "quarterly"].map(value => <option key={value}>{value}</option>)}</select></label>
+                <label className="block text-xs text-gray-600">Group by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{(definition.impact ? ["daily", "weekly", "monthly"] : ["daily", "weekly", "monthly", "quarterly"]).map(value => <option key={value}>{value}</option>)}</select></label>
                 <label className="flex items-start gap-2 text-sm"><input className="mt-0.5 h-4 w-4 shrink-0" type="checkbox" checked={definition.seasonal_business} onChange={event => edit({ seasonal_business: event.target.checked })} />{t("Business has seasonal activity")}</label>
-                {!single && <section aria-label="Relationship analysis" className="border-y border-gray-100 py-3"><h3 className="text-sm font-medium">{t("Relationship analysis")}</h3><div className="mt-3 space-y-3">
+                {definition.impact && <><ImpactSetup study={definition.impact} datasets={datasets} metrics={definition.metrics} onChange={editImpact} /><p className="text-xs leading-5 text-gray-500">The dates must cover both before and after the change. {definition.grain === "weekly" ? "Allow at least 52 complete weeks before and 8 after." : definition.grain === "daily" ? "Allow at least 90 complete days before and 28 after." : "Allow at least 24 complete months before and 6 after."} Seasonal businesses need about two years before the change.</p></>}
+                {!single && !definition.impact && <section aria-label="Relationship analysis" className="border-y border-gray-100 py-3"><h3 className="text-sm font-medium">{t("Relationship analysis")}</h3><div className="mt-3 space-y-3">
                   <label className="block text-xs text-gray-600">Correlation method<select className={input} value={definition.method} onChange={event => edit({ method: event.target.value as ReportDefinition["method"] })}><option value="spearman">Spearman</option><option value="pearson">Pearson</option></select></label>
                   <label className="block text-xs text-gray-600">Minimum historical observations<input className={input} type="number" min={MINIMUM_RELATIONSHIP_OBSERVATIONS} max={MAXIMUM_RELATIONSHIP_OBSERVATIONS} required value={definition.filters.minimum_observations} onChange={event => edit({ filters: { ...definition.filters, minimum_observations: Number(event.target.value) } })} /></label>
                   <section aria-label={t("Evaluate timing")} className="space-y-3"><h4 className="text-sm font-medium">{t("Evaluate timing")}</h4><label className="block text-xs text-gray-600">Maximum lag<input className={input} type="number" min={definition.lag.minimum} max={RELATIONSHIP_DEFAULTS.maximumLag} required value={definition.lag.maximum} onChange={event => edit({ lag: { ...definition.lag, maximum: Number(event.target.value) } })} /></label></section>
@@ -453,7 +468,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
                     onRestore={pair => edit({ excluded_pairs: definition.excluded_pairs.filter(item => unorderedReportPairKey(item) !== unorderedReportPairKey(pair)) })} />}
                 </div></section>}
               </div>
-              <p className="shrink-0 text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets / {taskCount} tests</p>
+              <p className="shrink-0 text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets{!definition.impact && <> / {taskCount} tests</>}</p>
               {taskCount > 1000 && <p className="shrink-0 text-sm text-amber-800">Report analysis exceeds the 1,000-test limit.</p>}
               {previewButton}
             </section>
@@ -465,20 +480,29 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     <section role="tabpanel" id="report-report" aria-labelledby="tab-report" hidden={view !== "report"} className="space-y-6">
       {view !== "report" ? null : !report ? <div className="border-y border-gray-200 py-12 text-center"><FileText className="mx-auto text-gray-400" size={32} /><h2 className="mt-3 text-lg font-medium">No report generated</h2><button type="button" className={`${button} mt-4`} onClick={() => setView("explore")}><ChartNoAxesCombined size={16} />{t("Build report")}</button></div> : <>
         <header className="border-b border-gray-200 pb-5"><div className="flex items-center gap-3"><WorkspaceBrandMark name={brand.name} logoUrl={brand.logoUrl} primaryColor={brand.primaryColor} className="h-10 w-10 rounded-md text-sm" /><span className="text-sm font-medium">{brand.name}</span></div><h2 className="mt-4 break-words text-2xl font-semibold">{report.name}</h2><p className="mt-2 break-words text-base text-gray-700">{report.business_question}</p><p className="mt-2 text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.grain} / {report.dataset_count} datasets / Generated {report.generated_at.slice(0, 10)}</p></header>
+        <ImpactResult analysis={report.impact_analysis} />
+        {report.impact_analysis && <ImpactChart analysis={report.impact_analysis} />}
+        <SupportingEvidence collapsed={Boolean(report.impact_analysis)}>
         <ReportOverview report={report} />
         {(report.definition.dimension_filters || []).map(selection => <p key={selection.dataset_id} className="break-words text-sm text-gray-600"><span className="font-medium">{report.metrics.find(metric => metric.dataset_id === selection.dataset_id)?.dataset_label || `Dataset ${selection.dataset_id}`}</span> / {dimensionFilterLabel(selection)}</p>)}
         {report.ai_analysis && <section aria-label="Report interpretation" className="space-y-3 border-b border-gray-200 pb-5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-lg font-semibold">{t("Report interpretation")}</h3><span className="text-xs text-gray-500">{report.ai_analysis.confidence} confidence</span></div><p className="text-xs text-gray-500">{getAIAnalysisProvenance(report.ai_analysis)}</p><p className="break-words text-sm leading-6 text-gray-700">{report.ai_analysis.summary}</p><Statements statements={report.ai_analysis.recommendations} /><Statements statements={report.ai_analysis.risks} /></section>}
         <MetricTrends report={report} />
         <ReportAnomalies analysis={report.anomaly_analysis} />
-        <section aria-label="Analysis findings" className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">{single ? "Metric findings" : "Combined findings"}</h3>{report.observations.length + report.contrasts.length === 0 && <p className="text-sm text-gray-500">No comparable metric movements are available. Check coverage and previous-period baselines.</p>}<Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
+        <section aria-label="Analysis findings" className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">{single ? "Metric findings" : "What changed across your business"}</h3>{report.observations.length + report.contrasts.length === 0 && <p className="text-sm text-gray-500">There is no complete earlier period to compare these totals with. The relationship and business-change results below are checked separately.</p>}<Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
         {!single && <ReportRelationshipFindings report={report} />}
-        <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Follow-up actions</h3><Statements statements={report.recommendations} /></section>
+        {!report.impact_analysis && <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Follow-up actions</h3><Statements statements={report.recommendations} /></section>}
+        <details className="space-y-2 border-t border-gray-200 pt-5"><summary className="cursor-pointer text-sm font-medium">More about the evidence</summary><p className="text-xs text-gray-500">Calculated from your selected data{!single && <> / Earlier relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.limitations} /></details>
+        </SupportingEvidence>
         <ReportDecisions report={report} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />
-        <section className="space-y-2 border-t border-gray-200 pt-5"><h3 className="text-base font-semibold">Evidence limitations</h3><p className="text-xs text-gray-500">Rule-based interpretation{!single && <> / Historical relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.limitations} /></section>
       </>}
     </section>
     {!single && <div className="print:hidden"><CorrelationInsights key={`${userId}:${workspaceId}`} userId={userId} workspaceId={workspaceId} /></div>}
   </div>
+}
+
+function SupportingEvidence({ collapsed, children }: { collapsed: boolean; children: ReactNode }) {
+  const content = <div className="min-w-0 space-y-6">{children}</div>
+  return collapsed ? <details className="min-w-0 border-y border-gray-200 py-4"><summary className="cursor-pointer text-sm font-medium">Supporting business results</summary><div className="mt-5">{content}</div></details> : content
 }
 
 function Statements({ statements }: { statements: string[] }) {

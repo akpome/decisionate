@@ -24,6 +24,7 @@ const narrative = load("../features/decisions/lib/decision-evidence-text.ts")
 const { decisionNarrativeText } = narrative
 const { DecisionEvidenceContext } = load("../features/decisions/components/decision-evidence-context.tsx", {
   "../lib/decision-evidence-text": narrative,
+  "@/features/reports/impact-types": load("../features/reports/impact-types.ts"),
 })
 const fields = [
   { dataset_id: 1, metric_key: "spend", label: "Spend" }, { dataset_id: 1, metric_key: "clicks", label: "Clicks" },

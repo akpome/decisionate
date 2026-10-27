@@ -702,7 +702,7 @@ def build_weekly_report_digest(
     ai_analysis = None
     recommendations = fallback_recommendations
 
-    if include_ai_analysis and cross_report["status"] == "ready":
+    if include_ai_analysis and cross_report["status"] == "ready" and not cross_report.get("impact_analysis"):
         ai_facts = {
             "metrics": digest_metrics[:10],
             "relationships": relationship_results[:10],
@@ -847,7 +847,14 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
                                    if metric_key(pair["metric_a"]) in selected_keys and metric_key(pair["metric_b"]) in selected_keys]
     selected_frames = {key: value for key, value in frames.items() if any(item["dataset_id"] == key for item in references)}
     anchor = analysis_date or datetime.now(ZoneInfo(reporting_timezone())).date()
-    result = build_report(selected_frames, definition, unavailable=warnings, history_anchor=anchor)
+    impact_definition = None
+    if template and template.get("impact"):
+        # A weekly email updates the original study, not a seven-day causal model.
+        from app.modules.reports.anomalies import historical_start
+        impact_definition = {"impact": template["impact"], "grain": template["grain"],
+                             "date_range": {"start": max(template["date_range"]["start"], historical_start(anchor)),
+                                            "end": definition["date_range"]["end"]}}
+    result = build_report(selected_frames, definition, unavailable=warnings, history_anchor=anchor, impact_definition=impact_definition)
     evaluated = {item["metric_id"] for item in result["anomaly_analysis"]["metrics"]}
     omitted = [item for item in requested_references if f"{item['dataset_id']}:{item['metric_key']}" not in evaluated]
     if omitted:

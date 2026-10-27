@@ -35,6 +35,20 @@ or quarterly units is not silently relabeled as days; it is disabled for that
 daily review with a warning. Keep the original report for the intended timing
 study. Per-metric anomaly results include seasonal support and history warnings.
 
+## Follow up on a business change
+
+A template built with **Did my change help?** also updates that business-change
+study. The weekly email includes its answer, estimated range when available,
+and what to do next. It keeps the original change date, result, unaffected
+comparison and grouping. Its study starts no earlier than the saved study start
+or the rolling three-year cutoff and ends with the latest completed week.
+This is separate from the email's seven-day KPI totals; it does not attempt to
+estimate a business impact from seven days alone.
+
+As old history leaves the three-year window, the study can lose enough earlier
+data to support an estimate. The email then explains the missing evidence rather
+than repeating an old number. The original saved snapshot remains unchanged.
+
 ## Stop or remove a template
 
 Remove weekly report template pauses its delivery role while retaining the saved

@@ -12,6 +12,9 @@ const namePattern = /^Report \([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-
 const pairs = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/reports/pair-directions.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
   { module: pairs, exports: pairs.exports })
+const impact = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/reports/impact-types.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
+  { module: impact, exports: impact.exports })
 
 function draft(url = "https://decisionate.test/dashboard/reports") {
   const changes = []
@@ -69,7 +72,7 @@ function editor({ name = draft().defaultReportName(), saved = false } = {}) {
   visit(ast)
   const state = { definition: { name, metrics: [], included_findings: ["finding-1"] }, report: saved ? { report_id: "report-1" } : null }
   const bindings = {
-    definition: state.definition, report: state.report, ...draft(), ...pairs.exports,
+    definition: state.definition, report: state.report, ...draft(), ...pairs.exports, ...impact.exports,
     setDefinition: update => { state.definition = update(state.definition); bindings.definition = state.definition },
     setReport: value => { state.report = value; bindings.report = value }, setError: () => {}, setMessage: () => {},
     setAnalysisJob: () => {}, URLSearchParams, window: { location: { search: "" } },

@@ -2,9 +2,10 @@ import type { CorrelationDefinition, CorrelationMetric } from "@/features/relati
 import type { AIAnalysis, DatasetDimensionFilter } from "@/lib/api"
 import { reportExcludedPairs, reportPairDirections, type ReportMetricPair, type ReportPairDirection } from "./pair-directions"
 import { MINIMUM_RELATIONSHIP_OBSERVATIONS, RELATIONSHIP_DEFAULTS } from "@/features/relationships/defaults"
+import type { ImpactAnalysis, ImpactStudy } from "./impact-types"
 
 export type ReportScope = "single" | "multi"
-export type ReportDefinition = CorrelationDefinition & { scope: ReportScope; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[] }
+export type ReportDefinition = CorrelationDefinition & { scope: ReportScope; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[]; impact?: ImpactStudy | null }
 export type ReportAnomalyMetric = {
   metric_id: string; dataset_id: number; dataset_label: string; metric_key: string; label: string
   unit?: string | null; currency?: string | null; status: "ready" | "limited_history" | "insufficient_history" | "unavailable"
@@ -28,6 +29,7 @@ export type ReportFinding = {
   id: string; metric_a: CorrelationMetric; metric_b: CorrelationMetric; coefficient: number | null
   lag: number; lag_unit: string; lead_metric: string; observations: number; eligible: boolean
   adjusted_p_value: number | null; reliability: string; warnings: string[]; interpretation: string
+  business_summary?: string
   history_window: { start: string; end: string }; evidence: { period: string; a: number; b: number }[]
 }
 export type ReportDecision = {
@@ -46,6 +48,7 @@ export type BusinessReport = {
   observations: string[]; contrasts: string[]; recommendations: string[]; warnings: string[]; limitations: string[]
   decisions: ReportDecision[]; decision_drafts?: ReportDecision[]
   anomaly_analysis?: ReportAnomalyAnalysis
+  impact_analysis?: ImpactAnalysis | null
   ai_analysis?: AIAnalysis | null
   source_analysis?: { run_id: string; engine_version: string; computed_at: string | null; note: string }
 }
@@ -60,6 +63,7 @@ export function editableDefinition(value: Partial<ReportDefinition>): ReportDefi
   return { name: value.name ?? "", business_question: value.business_question || "", scope: value.scope ?? "multi",
     seasonal_business: value.seasonal_business ?? false,
     include_ai_analysis: true,
+    impact: value.scope === "single" ? null : value.impact ?? null,
     metrics: value.metrics || [], method: value.method || RELATIONSHIP_DEFAULTS.method, grain: value.grain || RELATIONSHIP_DEFAULTS.period,
     dimension_filters: value.dimension_filters || [],
     date_range: value.date_range || { start: "", end: "" }, advanced: false,

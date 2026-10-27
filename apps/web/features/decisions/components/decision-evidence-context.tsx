@@ -1,18 +1,21 @@
 import type { DecisionEvidenceMetric } from "@/lib/api"
 import { formatMetricLabel } from "@/features/dashboard/components/metric-selector"
 import { decisionNarrativeText } from "../lib/decision-evidence-text"
+import { impactEvidenceSummary } from "@/features/reports/impact-types"
 
 export function DecisionEvidenceContext({ context, recommendationText, description, metrics, loading, unavailable }: {
   context?: string | null; recommendationText?: string | null; description?: string | null
   metrics: DecisionEvidenceMetric[]; loading: boolean; unavailable: boolean
 }) {
   const recommendation = decisionNarrativeText(recommendationText)
+  const impact = impactEvidenceSummary(context)
   const originals = [
     { label: "Recommendation", value: recommendationText },
     { label: "Description", value: description && decisionNarrativeText(description) !== description ? description : null },
     { label: "Context", value: context },
   ].filter(item => item.value)
   return <div className="mt-3 min-w-0 space-y-3 text-sm">
+    {impact && <section aria-label="Business change evidence" className="space-y-2 border-b border-gray-200 pb-3"><h3 className="font-semibold">{impact.headline}</h3><p className="break-words leading-6 text-gray-700">{impact.summary}</p><p className="text-xs text-gray-500">Model-based evidence from the saved report, not a randomized test.</p></section>}
     {recommendation && <p className="whitespace-pre-wrap break-words leading-6 text-gray-800">{recommendation}</p>}
     <div>
       <h3 className="font-medium text-gray-700">Selected evidence metrics</h3>

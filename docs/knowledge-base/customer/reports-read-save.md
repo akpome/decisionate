@@ -1,5 +1,23 @@
 # Read and manage report evidence
 
+## Read a business-change result
+
+A report built with Did my change help? starts with a direct answer, its
+estimated difference and range, and what to do next. A range including no effect
+means the result is unclear. A failed comparison gives no impact amount at all.
+This is not a guarantee that the action caused the result.
+
+Its main chart compares the actual result with the model's estimate without the
+change, in the result's original units. The dashed estimate is not observed data,
+and the effect range is not a prediction band around each chart point. Check the
+dates: the estimated difference covers the complete periods after the change,
+while the supporting metric cards can cover the full before-and-after window.
+
+Supporting business results contains the selected-metric charts, unusual
+changes and exploratory relationships. These support the main answer rather
+than replacing it. Decisions and outcomes remains the place to open the central
+decision workflow with this report's evidence.
+
 Read the metric movements, unusual changes, relationship findings, follow-up
 actions and limitations together. A significant relationship is not required for
 a period comparison to be useful; nor does it establish that a change caused

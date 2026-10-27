@@ -67,5 +67,12 @@ function DecisionRow({ decision, report }: { decision: ReportDecision; report: B
 }
 
 function Finding({ finding }: { finding: ReportFinding }) {
-  return <><span className="block break-words text-sm font-semibold">{finding.metric_a.dataset_label} / {finding.metric_a.label} <span className="font-normal text-gray-500">and</span> {finding.metric_b.dataset_label} / {finding.metric_b.label}</span><span className="mt-1 block text-xs text-gray-500">{finding.reliability.replaceAll("_", " ")} / {finding.observations} observations / Lag {finding.lag} {finding.lag_unit}</span><span className="mt-2 block text-sm leading-6 text-gray-700">{finding.interpretation}</span>{finding.warnings.length > 0 && <span className="mt-1 block break-words text-xs text-amber-800">{finding.warnings.map(value => value.replaceAll("_", " ")).join("; ")}</span>}</>
+  const available = finding.eligible && finding.coefficient !== null
+  const pattern = !available ? "We do not have enough matching history or variation to draw a useful conclusion yet."
+    : Math.abs(finding.coefficient!) < .3 ? "These results did not show a clear pattern of moving together."
+      : finding.coefficient! >= 0 ? "These results tended to rise and fall together." : "When one result rose, the other tended to fall."
+  return <><span className="block break-words text-sm font-semibold">{finding.metric_a.dataset_label} / {finding.metric_a.label} <span className="font-normal text-gray-500">and</span> {finding.metric_b.dataset_label} / {finding.metric_b.label}</span>
+    <p className="mt-2 text-sm leading-6 text-gray-700">{finding.business_summary || <>{pattern} {available && "That can be worth investigating, but does not tell us whether changing one caused the other to change."}</>}</p>
+    {available && finding.lag > 0 && <p className="mt-1 text-xs text-gray-600">The strongest pattern was {finding.lag} grouped periods apart.</p>}
+    <details className="mt-2 text-xs text-gray-500"><summary className="cursor-pointer">How we checked this relationship</summary><p className="mt-2">{finding.reliability.replaceAll("_", " ")} / {finding.observations} observations / Lag {finding.lag} {finding.lag_unit}</p><p className="mt-2 leading-5">{finding.interpretation}</p>{finding.warnings.length > 0 && <p className="mt-1 break-words text-amber-800">{finding.warnings.map(value => value.replaceAll("_", " ")).join("; ")}</p>}</details></>
 }

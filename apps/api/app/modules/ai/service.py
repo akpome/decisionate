@@ -109,6 +109,7 @@ def _build_analysis_cache_key(
             "model": model,
             "endpoint": endpoint,
             "workspace_id": workspace_id,
+            "narrative_version": "business_language.v2",
         },
         default=str,
         sort_keys=True,
@@ -257,6 +258,11 @@ def generate_structured_analysis(
                     "to refine the learning recommendation without "
                     "treating it as proven fact. "
                     "Never invent values, causes, or events. "
+                    "Write for an everyday business owner, not a business analyst. "
+                    "Use short sentences and familiar words: what changed, why it matters, and what to do next. "
+                    "Explain unavoidable technical terms. A relationship alone is not a cause. "
+                    "If impact_analysis is supplied, preserve its verdict, uncertainty and failed checks. "
+                    "Never upgrade not_established evidence to a causal claim or invent an impact estimate. "
                     "Return valid JSON with exactly these keys: "
                     "summary (string), recommendations (array of up to 5 "
                     "strings), risks (array of up to 5 strings), and "

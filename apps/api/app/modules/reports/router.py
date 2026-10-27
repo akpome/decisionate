@@ -23,7 +23,7 @@ from .decision_drafts import is_report_decision_draft
 from .models import BusinessReport
 from .catalog import prepare_report_source, report_metric_catalog
 from .schemas import ReportDecision, ReportDefinition
-from .service import attach_report_decisions, build_report, report_analysis_facts, report_anomalies, report_dates
+from .service import attach_report_decisions, build_report, report_analysis_facts, report_anomalies, report_dates, report_summary
 from .relationships import report_test_count
 from .jobs import (allowed_job, cancel_job, enqueue, enqueue_report, enqueue_weekly, job_response,
                    save_completed_job, wait_for_job, worker_ready)
@@ -87,13 +87,14 @@ def generate(db, payload, user, workspace, progress=None):
                                      "definition": json.loads(source_run.definition),
                                      "computed_at": source_run.completed_at.isoformat() if source_run.completed_at else None,
                                      "note": "This report recalculates the selected sources. The original analysis run remains available for comparison."}
-    if payload.include_ai_analysis:
+    # The computed impact answer is authoritative, even if a language model is available.
+    if payload.include_ai_analysis and not payload.impact:
         if progress:
             progress("interpreting")
         result["ai_analysis"] = generate_structured_analysis(
             context="business report selected-metric interpretation",
             facts=report_analysis_facts(result),
-            fallback_summary=" ".join(result["observations"] + result["contrasts"]) or "No comparable metric movements are available. Review coverage and baseline warnings.",
+            fallback_summary=report_summary(result),
             fallback_recommendations=result["recommendations"],
             fallback_risks=result["warnings"] + result["limitations"],
             workspace_id=workspace, actor_user_id=user,
@@ -371,6 +372,9 @@ def report_decision_evidence(report):
                 "metrics": [{key: value for key, value in item.items() if key != "trend"} for item in metrics],
                 "findings": findings, "definition": snapshot["definition"], "warnings": snapshot["warnings"],
                 "limitations": snapshot["limitations"], "generated_at": snapshot["generated_at"]}
+    if snapshot.get("impact_analysis"):
+        from .impact import impact_facts
+        evidence["impact_analysis"] = impact_facts(snapshot["impact_analysis"])
     descriptors = [{"dataset_id": item["dataset_id"], "file_name": item["dataset_label"],
                     "metric_column": item["metric_key"], "label": item["label"], "column_type": "numeric"} for item in metrics]
     return snapshot, metrics, evidence, descriptors
