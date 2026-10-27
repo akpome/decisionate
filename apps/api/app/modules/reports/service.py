@@ -133,7 +133,8 @@ def report_anomalies(frames, references, definition, metadata, *, anchor=None):
     return anomaly_summary(results, definition.get("seasonal_business", False), window, anchor)
 
 
-def build_report(frames, definition, *, unavailable=None, history_anchor=None, impact_definition=None):
+def build_report(frames, definition, *, unavailable=None, history_anchor=None, impact_definition=None,
+                 summary_grain=None, relationship_history_end=None):
     """Frames must already be authorized; source data and selections are never changed."""
     definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
     single = definition.get("scope", "multi") == "single"
@@ -141,7 +142,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
         raise ValueError("Reports support at most 1,000 pair-lag tests")
     frames = {identity: prepare_report_source(dataset, frame) for identity, (dataset, frame) in frames.items()}
     window, analysis_grain, references = definition["date_range"], definition["grain"], definition["metrics"]
-    grain = analysis_grain
+    grain = summary_grain or analysis_grain
     zone = definition.get("reporting_timezone") or reporting_timezone()
     previous = previous_window(window)
     metadata, series, metrics, warnings = {}, {}, [], list(unavailable or [])
@@ -168,7 +169,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
         identity_key = metric_id(reference)
         metadata[identity_key] = {**reference, **descriptor, "id": identity_key, "dataset_label": dataset.file_name}
 
-    actual_definition = {**definition, "metrics": usable, "reporting_timezone": zone}
+    actual_definition = {**definition, "grain": grain, "metrics": usable, "reporting_timezone": zone}
     prior_series = {}
     if usable:
         series = prepare_report_series(frames, usable, actual_definition)
@@ -214,8 +215,8 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
 
     # Relationship history is separate from the reporting window: interactive
     # reports use at least 90 days; scheduled reviews use a rolling three years.
-    history = {"start": historical_start(history_anchor) if history_anchor else str(min(date.fromisoformat(window["start"]), date.fromisoformat(window["end"]) - timedelta(days=89))), "end": window["end"]}
-    relationship_definition = {**actual_definition, "date_range": history,
+    history = {"start": historical_start(history_anchor) if history_anchor else str(min(date.fromisoformat(window["start"]), date.fromisoformat(window["end"]) - timedelta(days=89))), "end": relationship_history_end or window["end"]}
+    relationship_definition = {**actual_definition, "grain": analysis_grain, "date_range": history,
                                "filters": {**definition["filters"], "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, definition["filters"]["minimum_observations"])}}
     pairs = report_pairs(definition, usable)
     relationship_metrics = {metric_id(item) for pair in pairs for item in pair}

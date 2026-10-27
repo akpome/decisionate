@@ -13,10 +13,11 @@ function visit(node) {
   ts.forEachChild(node, visit)
 }
 visit(ast)
-
 function management(name, overrides = {}) {
   const calls = [], errors = []
-  const state = { saved: [{ report_id: "report-1" }, { report_id: "report-2" }], report: { report_id: "report-1", name: "Selected" }, view: "report", weekly: { enabled: true, definition: {} } }
+  const state = { saved: [{ report_id: "report-1" }, { report_id: "report-2" }],
+    report: { report_id: "report-1", analysis_job_id: "job-1", name: "Selected" }, view: "report", weekly: { enabled: true, definition: {} },
+    analysisJob: { job_id: "job-1" } }
   const managementAction = { current: false }, deletedReports = { current: new Set() }
   const handler = vm.runInNewContext(ts.transpileModule(`${functions.get(name)}\n${name}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
     canManage: true, busy: false, weekly: true, pagePath: "/dashboard/reports", report: state.report, managementAction, deletedReports,
@@ -26,7 +27,7 @@ function management(name, overrides = {}) {
     request: async (path, init) => { calls.push([path, init.method]); return name === "deleteSavedReport" ? { weekly_template_removed: false } : { definition: null, enabled: false, history_window: {} } },
     setSaved: update => { state.saved = update(state.saved) }, setReport: value => { state.report = value },
     setView: value => { state.view = value }, setWeeklySettings: value => { state.weekly = value },
-    setWeeklyDirty: value => { state.dirty = value }, setDefinition: () => {}, setAnalysisJob: () => {},
+    setWeeklyDirty: value => { state.dirty = value }, setDefinition: () => {}, setAnalysisJob: value => { state.analysisJob = value },
     setMessage: value => { state.message = value }, ...overrides,
   })
   return { handler, calls, errors, state, managementAction, deletedReports }
@@ -40,6 +41,14 @@ test("deleting a snapshot leaves independent weekly settings intact", async () =
   assert.equal(state.report, null)
   assert.equal(state.weekly.enabled, true)
   assert.ok(deletedReports.current.has("report-1"))
+})
+
+test("deleting a report clears its selected analysis in both workflows", async () => {
+  for (const weekly of [false, true]) {
+    const { handler, state } = management("deleteSavedReport", { weekly })
+    await handler()
+    assert.equal(state.analysisJob, null)
+  }
 })
 
 test("removing weekly settings pauses delivery but does not delete snapshots", async () => {
@@ -80,6 +89,7 @@ test("failed removals preserve saved state and release retry protection", async 
     assert.deepEqual(errors, ["Unavailable"])
     assert.equal(state.saved.length, 2)
     assert.equal(state.weekly.enabled, true)
+    assert.equal(state.analysisJob.job_id, "job-1")
     assert.equal(managementAction.current, false)
   }
 })

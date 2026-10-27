@@ -80,6 +80,19 @@ class AnalysisJobTests(unittest.TestCase):
         self.assertEqual(self.client.delete(f"/api/v2/business-reports/{saved['report_id']}").status_code, 200)
         self.assertEqual(self.client.get(f"/api/v2/business-reports/jobs/{identity}").status_code, 404)
         self.assertEqual(self.client.post(f"/api/v2/business-reports/jobs/{identity}/save").status_code, 404)
+        self.assertNotIn(identity, [item["job_id"] for item in self.client.get("/api/v2/business-reports/jobs").json()["jobs"]])
+
+    def test_recent_analyses_exclude_legacy_deleted_report_links_before_limiting(self):
+        identity = self.enqueue()
+        with self.Session() as db:
+            source = db.get(ReportAnalysisJob, identity)
+            for index in range(12):
+                db.add(ReportAnalysisJob(user_id="owner", workspace_id="owner", kind="report", request_key=f"deleted-{index}",
+                    definition=source.definition, sources=source.sources, saved_report_id=f"deleted-report-{index}",
+                    status="succeeded", phase="completed"))
+            db.commit()
+        recent = self.client.get("/api/v2/business-reports/jobs").json()["jobs"]
+        self.assertEqual([item["job_id"] for item in recent], [identity])
 
     def test_queued_job_cannot_be_saved_and_cancelled_work_is_not_executed(self):
         identity = self.enqueue()
@@ -192,6 +205,21 @@ class AnalysisJobTests(unittest.TestCase):
                 worker.recover_interrupted_jobs()
                 self.assertEqual(self.state(identity)["status"], "failed")
 
+    def test_restart_leaves_unclaimed_queued_jobs_for_the_next_worker(self):
+        identity = self.enqueue(include_ai_analysis=False)
+        worker.recover_interrupted_jobs()
+        self.assertEqual(self.state(identity)["status"], "queued")
+
+    def test_memory_error_records_a_recoverable_customer_message(self):
+        identity = self.enqueue()
+        with patch.object(fixtures.router, "generate", side_effect=MemoryError), self.assertLogs(worker.logger, level="ERROR"):
+            worker.execute_job(identity)
+        result = self.state(identity)
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("available memory", result["error"])
+        self.assertIn("preserved", result["error"])
+        self.assertIsNone(result["result"])
+
     def test_cleanup_removes_pending_and_completed_derived_data(self):
         self.enqueue()
         with self.Session() as db:
@@ -221,10 +249,82 @@ class AnalysisJobTests(unittest.TestCase):
             db.commit()
         child = MagicMock(pid=12345)
         child.poll.return_value = None
+        child.wait.return_value = -9
         with patch.object(worker.subprocess, "Popen", return_value=child), patch.object(worker.os, "killpg") as kill, \
              patch.object(worker.time, "monotonic", side_effect=[0, 31]), patch.dict("os.environ", {"ANALYSIS_JOB_TIMEOUT_SECONDS": "30"}):
             worker.supervise_job(identity, MagicMock(), "worker.py")
         kill.assert_called_once()
+        child.wait.assert_called_once()
+        self.assertEqual(self.state(identity)["status"], "failed")
+        self.assertIn("execution limit", self.state(identity)["error"])
+
+    def test_supervisor_logs_an_abrupt_exit_without_claiming_a_memory_cause(self):
+        identity = self.enqueue()
+        with self.Session() as db:
+            job = db.get(ReportAnalysisJob, identity)
+            job.status, job.phase, job.attempts = "running", "computing", 1
+            db.commit()
+        child = MagicMock(pid=12345)
+        child.poll.return_value = child.wait.return_value = -9
+        with patch.object(worker.subprocess, "Popen", return_value=child), patch.object(worker.os, "killpg") as kill, \
+             self.assertLogs(worker.logger, level="ERROR") as logs:
+            worker.supervise_job(identity, MagicMock(), "worker.py")
+        kill.assert_not_called()
+        child.wait.assert_called_once()
+        self.assertIn(f"job_id={identity} returncode=-9 timed_out=False phase=computing attempts=1", logs.output[0])
+        result = self.state(identity)
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("interrupted", result["error"])
+        self.assertNotIn("memory", result["error"])
+
+    def test_supervisor_fails_only_the_selected_job_if_child_exits_before_claiming(self):
+        identity = self.enqueue(include_ai_analysis=False)
+        waiting = self.enqueue(include_ai_analysis=False)
+        child = MagicMock(pid=12345)
+        child.poll.return_value = child.wait.return_value = 1
+        with patch.object(worker.subprocess, "Popen", return_value=child), self.assertLogs(worker.logger, level="ERROR"):
+            worker.supervise_job(identity, MagicMock(), "worker.py")
+        self.assertEqual(self.state(identity)["status"], "failed")
+        self.assertEqual(self.state(waiting)["status"], "queued")
+        with self.Session() as db:
+            self.assertEqual(db.get(ReportAnalysisJob, identity).attempts, 0)
+
+    def test_supervisor_records_process_start_failure_without_looping_queued_job(self):
+        identity = self.enqueue()
+        with patch.object(worker.subprocess, "Popen", side_effect=OSError("test process limit")), \
+             self.assertLogs(worker.logger, level="ERROR"):
+            worker.supervise_job(identity, MagicMock(), "worker.py")
+        self.assertEqual(self.state(identity)["status"], "failed")
+        self.assertIn("could not start", self.state(identity)["error"])
+
+    def test_supervisor_does_not_rewrite_completed_or_cancelled_jobs(self):
+        for status in ("succeeded", "cancelled"):
+            with self.subTest(status=status):
+                identity = self.enqueue()
+                with self.Session() as db:
+                    job = db.get(ReportAnalysisJob, identity)
+                    job.status, job.phase = status, status
+                    job.result = '{"unchanged":true}' if status == "succeeded" else None
+                    db.commit()
+                child = MagicMock(pid=12345)
+                child.poll.return_value = child.wait.return_value = 0
+                with patch.object(worker.subprocess, "Popen", return_value=child), patch.object(worker.logger, "error") as error:
+                    worker.supervise_job(identity, MagicMock(), "worker.py")
+                error.assert_not_called()
+                result = self.state(identity)
+                self.assertEqual(result["status"], status)
+                self.assertEqual(result["result"], {"unchanged": True} if status == "succeeded" else None)
+
+    def test_child_exiting_during_timeout_cleanup_does_not_mask_recovery(self):
+        identity = self.enqueue()
+        child = MagicMock(pid=12345)
+        child.poll.return_value = None
+        child.wait.return_value = -9
+        with patch.object(worker.subprocess, "Popen", return_value=child), \
+             patch.object(worker.os, "killpg", side_effect=ProcessLookupError), \
+             patch.object(worker.time, "monotonic", side_effect=[0, 31]), \
+             patch.dict("os.environ", {"ANALYSIS_JOB_TIMEOUT_SECONDS": "30"}), self.assertLogs(worker.logger, level="ERROR"):
+            worker.supervise_job(identity, MagicMock(), "worker.py")
         child.wait.assert_called_once()
         self.assertEqual(self.state(identity)["status"], "failed")
         self.assertIn("execution limit", self.state(identity)["error"])
@@ -248,7 +348,7 @@ class AnalysisJobTests(unittest.TestCase):
         self.assertEqual(result["status"], "succeeded", result)
         report = result["result"]["cross_dataset_report"]
         self.assertEqual(report["window"], {"start": "2026-03-23", "end": "2026-03-29"})
-        self.assertEqual(report["grain"], "weekly")
+        self.assertEqual(report["grain"], "daily")
         self.assertEqual(report["analysis_grain"], "weekly")
         self.assertEqual(report["definition"]["grain"], "weekly")
         self.assertEqual(report["anomaly_analysis"]["lookback_years"], 3)

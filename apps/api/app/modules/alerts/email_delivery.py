@@ -429,6 +429,9 @@ def send_platform_system_email(
 
 
 def report_grouping_lines(report):
+    if report.get("weekly_report") and report["grain"] == "daily" and report.get("analysis_grain") == "weekly":
+        return ["Weekly report: daily detail for the last completed Monday-Sunday; totals cover all seven days.",
+                "Earlier history is grouped weekly. Relationship timing is measured in weeks."]
     if report.get("weekly_report"):
         return ["Weekly report: grouped weekly for totals, unusual changes and relationships.",
                 "Relationship timing is measured in weeks; instant-analysis settings are separate."]

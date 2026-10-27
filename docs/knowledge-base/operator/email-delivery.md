@@ -29,6 +29,17 @@ and recipient delivery. The worker commits the sending boundary before external
 side effects. A restart or partial acceptance requires reconciliation with
 delivery history and provider records; do not automatically replay the send.
 
+The Weekly reports page offers Send report now for an owner-only, one-time send.
+`POST /api/v2/business-reports/weekly-owner-jobs` submits a distinct
+`weekly_owner_send` job, resolving and freezing the workspace owner's address on the
+server, including managed-client owners, and the worker rechecks it before the
+external send. It can run with scheduled sending paused. Its success/failure
+logs do not update the schedule's last-send markers or recipient list, so they
+must not be mistaken for a scheduled delivery. Idempotent retries reuse the
+same job; an interrupted external send is never automatically replayed.
+The page stores the delivery job in its URL while waiting; reloading reconnects
+to that job and does not submit a fresh owner send.
+
 Review only necessary metadata first: subject/category, time, From, recipient
 scope and provider delivery status. Do not copy full private message bodies or
 unrelated mailbox records into an incident article. Do not send a test message

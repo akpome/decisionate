@@ -445,6 +445,7 @@
         "apps/web/features/reports/indexed-trends.ts",
         "apps/web/features/reports/impact-chart.tsx",
         "apps/web/features/reports/report-workspace.tsx",
+        "apps/web/features/reports/analysis-jobs.ts",
         "apps/api/app/modules/reports/router.py",
         "apps/api/app/modules/reports/jobs.py",
         "docs/CROSS_DATASET_REPORTS.md"
@@ -980,6 +981,8 @@
         "apps/api/app/main.py",
         "apps/api/app/infrastructure/readiness.py",
         "apps/api/app/infrastructure/analysis_worker.py",
+        "apps/api/scripts/run_analysis_worker.py",
+        "apps/api/app/modules/reports/job_constants.py",
         "apps/api/app/modules/reports/jobs.py",
         "apps/api/app/modules/reports/router.py"
       ],

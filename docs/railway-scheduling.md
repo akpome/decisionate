@@ -199,6 +199,13 @@ the new service waits for the existing owner. It does not share the ingestion
 queue, lock or heartbeat. Three queued/running analyses per workspace provide
 backpressure, and scheduling gives waiting workspaces a turn.
 
+Schema initialization runs through the API's existing serialized bootstrap in a
+short-lived subprocess before the supervisor starts. Ordinary queue supervision
+does not import the API or numeric-analysis libraries; each analysis child loads
+its own dependencies. The child address-space limit is separate from Railway's
+container memory allocation, which must accommodate the supervisor and child
+together. The start command and environment references do not change.
+
 The API validates permissions and queues immutable settings and source-version
 fingerprints. The worker checks access and revisions before and after analysis;
 changed data or weekly preferences require a new preview. Saving a completed
@@ -211,6 +218,14 @@ cancellation are under `/api/v2/business-reports/jobs/{job_id}`. Cancelling a jo
 stops its subprocess; closing the browser only stops polling. Old preview/save
 HTTP contracts wait up to 45 seconds for worker output and are deprecated;
 new clients use submission/status/save endpoints rather than long HTTP requests.
+Reloading reconnects to the saved job state; it does not restart a failed job.
+Generate a new preview after resolving the failure. An unexpected child exit is
+logged with job identity, return code, timeout state, last phase and attempt
+count. A negative POSIX return code identifies a terminating signal, not its
+cause; correlate it with Railway resource/deployment logs before diagnosing
+memory exhaustion. A child that fails before claiming its selected queued job
+marks that job failed rather than repeatedly relaunching it. Other queued jobs
+remain available to the worker.
 
 The alerts scheduler now returns `queued_count` and per-workspace `job_id` values.
 A successful cron invocation means work was queued, **not** that mail was sent.

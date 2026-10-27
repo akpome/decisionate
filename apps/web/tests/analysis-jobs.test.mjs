@@ -11,7 +11,7 @@ vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/reports/
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText, { module: loaded, exports: loaded.exports, DOMException,
   setTimeout: callback => setTimeout(callback, 0), clearTimeout })
-const { waitForAnalysis, analysisPhaseLabel } = loaded.exports
+const { waitForAnalysis, analysisPhaseLabel, AnalysisUnavailableError } = loaded.exports
 
 test("report polling retrieves the frozen result without resubmitting analysis", async () => {
   const calls = [], progress = []
@@ -29,6 +29,23 @@ test("failed and cancelled jobs stop polling with useful feedback", async () => 
   for (const status of ["failed", "cancelled"]) {
     await assert.rejects(waitForAnalysis(async () => ({ status, phase: status, error: "Your selections remain available" }), "job-1"), /selections remain/)
   }
+})
+
+test("deleted or expired analysis links stop immediately with availability feedback", async () => {
+  for (const status of [404, 410]) {
+    let calls = 0
+    await assert.rejects(waitForAnalysis(async () => {
+      calls++; throw Object.assign(new Error("Analysis job not found"), { status })
+    }, "deleted-job"), error => error instanceof AnalysisUnavailableError && error.status === status && /deleted or expired/.test(error.message))
+    assert.equal(calls, 1)
+  }
+})
+
+test("saved reports remain the only report history selector without background job-history reads", () => {
+  const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  assert.match(source, /Saved reports<select/)
+  assert.doesNotMatch(source, /Recent analyses|Choose an analysis|recentJobs|analysisHistoryReload|visibleAnalysisJobs|deletedJobs/)
+  assert.doesNotMatch(source, /"\/business-reports\/jobs"/)
 })
 
 test("unmount aborts local polling without cancelling durable computation", async () => {

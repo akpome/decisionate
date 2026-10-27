@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
-import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Square, Trash2 } from "lucide-react"
-import { correlationRequest, getMyOrganization, getOrganizationWorkspaces } from "@/lib/api"
+import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Send, Square, Trash2 } from "lucide-react"
+import { correlationRequest, getMyOrganization, getOrganizationWorkspaces, type WeeklyReportDeliveryResult } from "@/lib/api"
 import { defaultWorkspaceBrand, getWorkspaceBrand, type WorkspaceBrand } from "@/lib/workspace-brand"
 import { WorkspaceBrandMark } from "@/app/dashboard/workspace-brand-mark"
 import { useDecisionateText } from "@/app/use-decisionate-language"
@@ -23,7 +23,7 @@ import { ReportPairDirections } from "./report-pair-directions"
 import { ReportAnomalies } from "./report-anomalies"
 import { ReportGrouping } from "./report-grouping"
 import { historicalEvidenceHref } from "./legacy-relationship-destination"
-import { analysisPhaseLabel, waitForAnalysis, type AnalysisJob } from "./analysis-jobs"
+import { AnalysisUnavailableError, analysisPhaseLabel, waitForAnalysis, type AnalysisJob } from "./analysis-jobs"
 import { dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 import { MAXIMUM_RELATIONSHIP_OBSERVATIONS, MINIMUM_RELATIONSHIP_OBSERVATIONS, RELATIONSHIP_DEFAULTS } from "@/features/relationships/defaults"
 import { impactReady, newImpactStudy, retainedImpactStudy, type ImpactStudy } from "./impact-types"
@@ -63,6 +63,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const analysisSubmission = useRef(false)
   const draftName = useRef("")
   const managementAction = useRef(false)
+  const weeklySendRequest = useRef<string | null>(null)
   const catalogRetry = useRef(false)
   const deletedReports = useRef(new Set<string>())
   const routeController = useRef<AbortController | null>(null)
@@ -85,8 +86,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [analysisJob, setAnalysisJob] = useState<AnalysisJob | null>(null)
-  const [recentJobs, setRecentJobs] = useState<AnalysisJob[]>([])
-  const [analysisHistoryReload, setAnalysisHistoryReload] = useState(0)
   const [error, setError] = useState("")
   const [message, setMessage] = useState("")
   const [brand, setBrand] = useState<WorkspaceBrand>(defaultWorkspaceBrand)
@@ -99,14 +98,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const showPairDirections = definition.pair_directions.length > 0
   const previewDisabled = datasetCount < (single ? 1 : 2) || !impactReady(definition.impact, definition.metrics) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
   const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(weekly && weeklyDirty ? "Save and preview" : "Preview report")}</button>
-
-  useEffect(() => {
-    const controller = new AbortController()
-    void correlationRequest<{ jobs: AnalysisJob[] }>(userId, "/business-reports/jobs", { signal: controller.signal }, workspaceId)
-      .then(value => { if (!controller.signal.aborted) setRecentJobs(value.jobs.filter(job => job.kind === (weekly ? "weekly_preview" : "report"))) })
-      .catch(() => { /* A history lookup must not prevent a new analysis. */ })
-    return () => controller.abort()
-  }, [userId, workspaceId, analysisHistoryReload, weekly])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -162,15 +153,17 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           setLoading(false)
           try {
             let restored = false
-            const value = await waitForAnalysis<BusinessReport | { cross_dataset_report: BusinessReport }>(
+            let ownerDelivery = false
+            const value = await waitForAnalysis<BusinessReport | { cross_dataset_report: BusinessReport } | WeeklyReportDeliveryResult>(
               (path, init) => correlationRequest(userId, `/business-reports${path}`, init, workspaceId),
               params.get("job")!, { signal: controller.signal, onUpdate: job => { if (current) {
-                if ((job.kind === "weekly_preview") !== weekly) {
+                if ((job.kind !== "report") !== weekly) {
                   controller.abort()
-                  router.replace(`${job.kind === "weekly_preview" ? "/dashboard/reports/weekly" : "/dashboard/reports"}?job=${job.job_id}`)
+                  router.replace(`${job.kind !== "report" ? "/dashboard/reports/weekly" : "/dashboard/reports"}?job=${job.job_id}`)
                   return
                 }
                 setAnalysisJob({ ...job, result: null })
+                ownerDelivery = job.kind === "weekly_owner_send"
                 if (job.definition && !restored) {
                   restored = true
                   setDefinition(editableDefinition(job.definition))
@@ -179,10 +172,21 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
               } } },
             )
             if (!current) return
-            const result = "cross_dataset_report" in value ? value.cross_dataset_report : value
             controller.signal.throwIfAborted()
-            setReport(result); if (!weekly) setDefinition(editableDefinition(result.definition)); setView("report")
-            void addSelectedDatasets(result.definition)
+            if ("delivered_count" in value) {
+              setMessage(ownerDelivery ? "Weekly report sent to the workspace owner. Scheduled delivery settings are unchanged." : "Weekly report sent.")
+              window.history.replaceState(null, "", window.location.pathname)
+            } else {
+              const result = "cross_dataset_report" in value ? value.cross_dataset_report : value
+              setReport(result); if (!weekly) setDefinition(editableDefinition(result.definition)); setView("report")
+              void addSelectedDatasets(result.definition)
+            }
+          } catch (value) {
+            if (current && !controller.signal.aborted && value instanceof AnalysisUnavailableError) {
+              setAnalysisJob(null); setReport(null); setView("explore")
+              window.history.replaceState(null, "", window.location.pathname)
+            }
+            throw value
           } finally { if (current) setBusy(false) }
         } else if (params.get("report")) {
           const result = await correlationRequest<BusinessReport>(userId, `/business-reports/${encodeURIComponent(params.get("report")!)}`, { signal: controller.signal }, workspaceId)
@@ -230,7 +234,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           }
         }
       } catch (value) { if (current && !controller.signal.aborted) setError(errorMessage(value)) }
-      finally { if (current) { setLoading(false); setBusy(false); setAnalysisHistoryReload(value => value + 1) } }
+      finally { if (current) { setLoading(false); setBusy(false) } }
       try {
         const organization = await getMyOrganization(userId)
         const workspaces = await getOrganizationWorkspaces(userId)
@@ -303,7 +307,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     try { await action() } catch (value) {
       if (errorMessage(value) === "Analysis cancelled") setMessage("Analysis cancelled.")
       else if (!routeController.current?.signal.aborted) setError(errorMessage(value))
-    } finally { setBusy(false); setAnalysisHistoryReload(value => value + 1) }
+    } finally { setBusy(false) }
   }
 
   async function calculate() {
@@ -315,7 +319,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       const job = await request<AnalysisJob>(weekly ? "/weekly-jobs?include_ai_analysis=true" : "/jobs", { method: "POST", signal, headers: { "Idempotency-Key": crypto.randomUUID() }, ...(!weekly ? { body: JSON.stringify({ ...definition, dimension_filters: selectedReportDimensionFilters(definition), included_findings: null }) } : {}) })
       signal?.throwIfAborted()
       setAnalysisJob(job)
-      setRecentJobs(current => [job, ...current.filter(item => item.job_id !== job.job_id)])
       window.history.replaceState(null, "", `${window.location.pathname}?job=${encodeURIComponent(job.job_id)}`)
       const result = await waitForAnalysis<BusinessReport>(request, job.job_id, { signal, onUpdate: setAnalysisJob })
       signal?.throwIfAborted()
@@ -373,6 +376,35 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     } finally { managementAction.current = false }
   }
 
+  async function sendWeeklyNow() {
+    if (!weekly || !canManage || busy || previewDisabled || managementAction.current) return
+    managementAction.current = true
+    try {
+      await execute(async () => {
+        if (weeklyDirty) {
+          await persistWeeklySettings()
+          weeklySendRequest.current = null
+        }
+        weeklySendRequest.current ||= crypto.randomUUID()
+        const signal = routeController.current?.signal
+        const returnUrl = window.location.pathname + window.location.search
+        const job = await request<AnalysisJob<WeeklyReportDeliveryResult>>("/weekly-owner-jobs?include_ai_analysis=true", {
+          method: "POST", signal, headers: { "Idempotency-Key": weeklySendRequest.current },
+        })
+        signal?.throwIfAborted()
+        setAnalysisJob({ ...job, result: null })
+        window.history.replaceState(null, "", `${pagePath}?job=${encodeURIComponent(job.job_id)}`)
+        await waitForAnalysis<WeeklyReportDeliveryResult>(request, job.job_id, {
+          signal, onUpdate: value => setAnalysisJob({ ...value, result: null }),
+        })
+        signal?.throwIfAborted()
+        weeklySendRequest.current = null
+        window.history.replaceState(null, "", returnUrl)
+        setMessage("Weekly report sent to the workspace owner. Scheduled delivery settings are unchanged.")
+      })
+    } finally { managementAction.current = false }
+  }
+
   async function deleteSavedReport() {
     const identity = report?.report_id
     if (!identity || !canManage || busy || managementAction.current) return
@@ -383,7 +415,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         const result = await request<{ weekly_template_removed: boolean }>(`/${encodeURIComponent(identity)}`, { method: "DELETE" })
         deletedReports.current.add(identity)
         setSaved(current => current.filter(item => item.report_id !== identity))
-        setReport(null); setView("explore")
+        setReport(null); setAnalysisJob(null); setView("explore")
         window.history.replaceState(null, "", pagePath)
         setMessage(result.weekly_template_removed ? "Saved report deleted and weekly delivery paused. Linked decisions and datasets were kept." : "Saved report deleted. Linked decisions and datasets were kept.")
       })
@@ -424,15 +456,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {weekly && !weeklySettings && <button type="button" className={button} onClick={() => window.location.reload()}><RefreshCw size={16} />Retry weekly settings</button>}
     {message && <p role="status" className="text-sm text-green-800">{t(message)}</p>}
-    {recentJobs.length > 0 && <label className="block w-full max-w-md text-xs text-gray-600 print:hidden">{t("Recent analyses")}
-      <select className={input} disabled={busy} value={analysisJob?.job_id || ""} onChange={event => {
-        if (event.target.value) window.location.assign(`${window.location.pathname}?job=${encodeURIComponent(event.target.value)}`)
-      }}><option value="">{t("Choose an analysis")}</option>{recentJobs.map(job => <option key={job.job_id} value={job.job_id}>{job.definition?.name || t("Weekly report")} / {t(analysisPhaseLabel(job.job_id === analysisJob?.job_id ? analysisJob.phase : job.phase))}</option>)}</select>
-    </label>}
     {analysisJob && ["queued", "running"].includes(analysisJob.status) && <div className="flex flex-wrap items-center justify-between gap-3 border-y border-gray-200 py-3 print:hidden">
       <p role="status" className="flex items-center gap-2 text-sm"><LoaderCircle size={16} className="shrink-0 animate-spin" />{t(analysisPhaseLabel(analysisJob.phase))}</p>
       {!busy && <button type="button" className={button} onClick={() => window.location.reload()}><RefreshCw size={16} />{t("Reconnect")}</button>}
-      <button type="button" className={button} onClick={() => void request<AnalysisJob>(`/jobs/${encodeURIComponent(analysisJob.job_id)}/cancel`, { method: "POST" }).then(setAnalysisJob).catch(value => setError(errorMessage(value)))}><Square size={14} />{t("Cancel analysis")}</button>
+      <button type="button" className={button} disabled={["weekly_send", "weekly_owner_send"].includes(analysisJob.kind) && analysisJob.phase === "sending"} onClick={() => void request<AnalysisJob>(`/jobs/${encodeURIComponent(analysisJob.job_id)}/cancel`, { method: "POST" }).then(setAnalysisJob).catch(value => setError(errorMessage(value)))}><Square size={14} />{t("Cancel analysis")}</button>
     </div>}
     <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
       <div className="flex w-full max-w-md items-end gap-2"><label className="block min-w-0 flex-1 text-xs text-gray-600">Saved reports<select className={input} disabled={busy} value={report?.report_id || ""} onChange={event => {
@@ -457,6 +484,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           {!single && !weekly && canManage && report.report_id && <Link href={`/dashboard/reports/weekly?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />Copy selection to weekly reports</Link>}
           {view === "report" && <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>}
         </>}
+        {weekly && canManage && <button type="button" className={button} disabled={previewDisabled} title="Email the current weekly report to the workspace owner" onClick={() => void sendWeeklyNow()}><Send size={16} />Send report now</button>}
         {weekly && <Link href="/dashboard/alerts#weekly-delivery" className={button}><CalendarDays size={16} />Delivery settings</Link>}
       </div>
     </div>
@@ -490,7 +518,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
               <h2 className="shrink-0 text-base font-semibold">{weekly ? "Weekly settings" : "Analysis settings"}</h2>
               {weekly ? <div className="shrink-0 space-y-2 text-sm"><p className="font-medium">Last completed week</p><p>{weeklySettings?.window.start} to {weeklySettings?.window.end}</p><p className="text-xs text-gray-500">Monday-Sunday / {weeklySettings?.reporting_timezone}</p></div> : <div className="grid shrink-0 grid-cols-2 gap-3"><label className="block text-xs text-gray-600">Start<input className={input} type="date" required max={definition.date_range.end || undefined} value={definition.date_range.start} onChange={event => edit({ date_range: { ...definition.date_range, start: event.target.value } })} /></label><label className="block text-xs text-gray-600">End<input className={input} type="date" required min={definition.date_range.start || undefined} value={definition.date_range.end} onChange={event => edit({ date_range: { ...definition.date_range, end: event.target.value } })} /></label></div>}
               <div role="group" aria-label="Analysis settings" tabIndex={0} className="report-builder-scroll space-y-4 pr-2 focus-visible:outline-2 focus-visible:outline-blue-600">
-                {weekly ? <div className="space-y-2 border-b border-gray-100 pb-3 text-xs text-gray-600"><p className="text-sm font-medium text-gray-950">Grouped weekly</p><p>Previous week: the preceding Monday-Sunday.</p><p>Historical window: {weeklySettings?.history_window.start} to {weeklySettings?.history_window.end} (up to 3 years).</p></div> : <label className="block text-xs text-gray-600">Analysis group by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{(definition.impact ? ["daily", "weekly", "monthly"] : ["daily", "weekly", "monthly", "quarterly"]).map(value => <option key={value}>{value}</option>)}</select></label>}
+                {weekly ? <div className="space-y-2 border-b border-gray-100 pb-3 text-xs text-gray-600"><p className="text-sm font-medium text-gray-950">Report week: daily detail</p><p>Earlier history: grouped weekly.</p><p>Historical window: {weeklySettings?.history_window.start} to {weeklySettings?.history_window.end} (up to 3 years).</p></div> : <label className="block text-xs text-gray-600">Analysis group by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{(definition.impact ? ["daily", "weekly", "monthly"] : ["daily", "weekly", "monthly", "quarterly"]).map(value => <option key={value}>{value}</option>)}</select></label>}
                 <label className="flex items-start gap-2 text-sm"><input className="mt-0.5 h-4 w-4 shrink-0" type="checkbox" checked={definition.seasonal_business} onChange={event => edit({ seasonal_business: event.target.checked })} />{t("Business has seasonal activity")}</label>
                 {definition.impact && <><ImpactSetup study={definition.impact} datasets={datasets} metrics={definition.metrics} onChange={editImpact} /><p className="text-xs leading-5 text-gray-500">The dates must cover both before and after the change. {definition.grain === "weekly" ? "Allow at least 52 complete weeks before and 8 after." : definition.grain === "daily" ? "Allow at least 90 complete days before and 28 after." : "Allow at least 24 complete months before and 6 after."} Seasonal businesses need about two years before the change.</p></>}
                 {!single && !definition.impact && <section aria-label="Relationship analysis" className="border-y border-gray-100 py-3"><h3 className="text-sm font-medium">{t("Relationship analysis")}</h3><div className="mt-3 space-y-3">

@@ -282,7 +282,7 @@ class BusinessImpactTests(unittest.TestCase):
             digest = build_weekly_report_digest(preference, [pair[0] for pair in frames.values()], report_definition=definition,
                                                 analysis_date=date(2025, 12, 29), include_ai_analysis=True)
         result = digest.cross_dataset_report
-        self.assertEqual(result["grain"], "weekly")
+        self.assertEqual(result["grain"], "daily")
         self.assertEqual(result["analysis_grain"], "weekly")
         self.assertEqual(result["definition"]["grain"], "weekly")
         self.assertEqual(result["impact_analysis"]["grain"], "weekly")
@@ -298,7 +298,7 @@ class BusinessImpactTests(unittest.TestCase):
         self.assertNotIn("<script>", html)
         self.assertIn("Study dates:", text)
         for content in (html, text):
-            self.assertIn("Weekly report: grouped weekly", content)
+            self.assertIn("Weekly report: daily detail", content)
             self.assertIn("Relationship timing is measured in weeks", content)
 
 

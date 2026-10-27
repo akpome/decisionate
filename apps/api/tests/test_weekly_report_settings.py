@@ -2,7 +2,7 @@ import ast
 import json
 from pathlib import Path
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import patch
 
 import pandas as pd
@@ -41,6 +41,7 @@ class WeeklyReportSettingsTests(unittest.TestCase):
         self.assertEqual((end - start).days, 6)
         self.assertEqual(start.weekday(), 0)
         self.assertEqual(end.weekday(), 6)
+        self.assertEqual(date.fromisoformat(value["history_window"]["end"]), start - timedelta(days=1))
         bad = {**self.settings(), "grain": "daily"}
         self.assertEqual(self.client.put("/api/v2/business-reports/weekly-settings", json=bad).status_code, 422)
         with self.Session() as db:
@@ -148,10 +149,10 @@ class WeeklyReportSettingsTests(unittest.TestCase):
         self.assertEqual(response["status"], "succeeded", response)
         report = response["result"]
         self.assertTrue(report["weekly_report"])
-        self.assertEqual(report["grain"], "weekly")
+        self.assertEqual(report["grain"], "daily")
         self.assertEqual(report["analysis_grain"], "weekly")
         self.assertEqual(report["definition"]["filters"]["minimum_observations"], 52)
-        self.assertTrue(all(metric["grain"] == "weekly" for metric in report["anomaly_analysis"]["metrics"]))
+        self.assertTrue(all(metric["grain"] == "daily" for metric in report["anomaly_analysis"]["metrics"]))
         saved = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save")
         self.assertEqual(saved.status_code, 201, saved.text)
         self.assertEqual(len(self.client.get("/api/v2/business-reports?workflow=weekly").json()), 1)
@@ -188,7 +189,7 @@ class WeeklyReportSettingsTests(unittest.TestCase):
             frames[identity] = dataset, pd.DataFrame({"date": dates, metric: range(1, len(dates) + 1)})
         preference = alerts.build_weekly_report_preference_response(None)
         report = alerts.build_weekly_cross_dataset_report(frames, preference, self.settings(), analysis_date=date(2026, 4, 1))
-        expected = len(pd.date_range("2023-04-03", "2026-03-23", freq="W-MON"))
+        expected = len(pd.date_range("2023-04-03", "2026-03-16", freq="W-MON"))
         self.assertEqual(report["findings"][0]["observations"], expected)
 
     def test_startup_migration_copies_only_same_workspace_legacy_settings_once(self):

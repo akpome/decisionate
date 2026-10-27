@@ -206,7 +206,10 @@ def create_job(request: Request, payload: ReportDefinition, db=Depends(database)
 def active_jobs(request: Request, db=Depends(database)):
     user, workspace = identity(request)
     result = []
-    for job in db.query(ReportAnalysisJob).filter_by(workspace_id=workspace, user_id=user).order_by(ReportAnalysisJob.created_at.desc()).limit(10):
+    saved_reports = db.query(BusinessReport.id).filter_by(workspace_id=workspace)
+    jobs = db.query(ReportAnalysisJob).filter_by(workspace_id=workspace, user_id=user).filter(
+        ReportAnalysisJob.saved_report_id.is_(None) | ReportAnalysisJob.saved_report_id.in_(saved_reports))
+    for job in jobs.order_by(ReportAnalysisJob.created_at.desc()).limit(10):
         try:
             allowed_job(db, job.id, user, workspace)
             result.append(job_response(job))
@@ -258,6 +261,17 @@ def weekly_job(request: Request, send: bool = False, include_ai_analysis: bool =
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).first()
     return job_response(enqueue_weekly(db, user, workspace, preference, send=send, include_ai=include_ai_analysis,
                                      request_key=request.headers.get("Idempotency-Key"), report_only=report_only))
+
+
+@router.post("/weekly-owner-jobs", status_code=202)
+def weekly_owner_job(request: Request, include_ai_analysis: bool = True, db=Depends(database)):
+    from app.modules.alerts.router import require_weekly_report_manager
+
+    user, workspace = identity(request)
+    require_weekly_report_manager(get_workspace_role(request))
+    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).first()
+    return job_response(enqueue_weekly(db, user, workspace, preference, send=True, owner_only=True,
+        include_ai=include_ai_analysis, request_key=request.headers.get("Idempotency-Key")))
 
 
 @router.post("/preview", deprecated=True)

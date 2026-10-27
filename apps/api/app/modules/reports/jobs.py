@@ -16,10 +16,7 @@ from app.modules.correlation.catalog import reporting_timezone
 from app.modules.correlation.service import allowed_run, authorize_datasets, digest, encode, snapshot
 from .models import BusinessReport, ReportAnalysisJob
 from .relationships import report_test_count
-
-
-ACTIVE = {"queued", "running"}
-WORKER_NAME = "reports-analysis"
+from .job_constants import ACTIVE, WORKER_NAME
 
 
 def worker_ready(db):
@@ -77,14 +74,32 @@ def enqueue_report(db, payload, user, workspace, request_key=None):
     return enqueue(db, user, workspace, "report", definition, datasets, request_key)
 
 
-def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=False, include_ai=True, request_key=None, report_only=False):
+def weekly_owner_recipient(db, workspace):
+    from app.db.models import Organization
+    from app.modules.billing.notifications import get_workspace_owner_email
+    from app.modules.alerts.router import clean_recipient_emails
+
+    organization = db.query(Organization).filter_by(owner_user_id=workspace).first()
+    email = get_workspace_owner_email(db, organization) if organization else None
+    if not email:
+        raise HTTPException(400, "The workspace owner's email is unavailable. Update the owner's account before sending.")
+    return clean_recipient_emails([email])[0]
+
+
+def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=False, include_ai=True, request_key=None, report_only=False, owner_only=False):
     from app.modules.alerts.router import get_alert_datasets
     from .service import complete_week
 
     anchor = datetime.now(ZoneInfo(reporting_timezone())).date()
     definition = {"configuration": weekly_configuration(db, preference, workspace), "anchor": str(anchor),
                   "include_ai_analysis": include_ai, "scheduled": scheduled, "reporting_timezone": reporting_timezone(), "report_only": report_only}
-    if send and not definition["configuration"]["preference"]["enabled"]:
+    if owner_only:
+        if not send or scheduled:
+            raise HTTPException(400, "Owner delivery is available only for a manual weekly report send.")
+        if not definition["configuration"]["template"]:
+            raise HTTPException(400, "Save weekly report settings before sending to the workspace owner.")
+        definition["delivery"] = {"mode": "workspace_owner", "recipient": weekly_owner_recipient(db, workspace)}
+    if send and not owner_only and not definition["configuration"]["preference"]["enabled"]:
         raise HTTPException(400, "Weekly KPI email notifications are not enabled")
     if scheduled:
         # One claim per workspace and completed week, even when the template changes.
@@ -94,7 +109,8 @@ def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=Fal
             return existing
     datasets = {item.id: item for item in get_alert_datasets(db, workspace)}
     authorize_datasets(db, user, workspace, datasets)
-    return enqueue(db, user, workspace, "weekly_send" if send else "weekly_preview", definition, datasets, request_key)
+    kind = "weekly_owner_send" if owner_only else "weekly_send" if send else "weekly_preview"
+    return enqueue(db, user, workspace, kind, definition, datasets, request_key)
 
 
 def verify_job_actor(job):
@@ -110,7 +126,7 @@ def verify_job_actor(job):
         role = verify_workspace_membership(job.user_id, job.workspace_id)
         if ":client:" in job.workspace_id and role == "owner":
             role = "client_owner"
-    if job.kind == "weekly_send" or job.kind == "weekly_preview" and not json.loads(job.definition).get("report_only"):
+    if job.kind in {"weekly_send", "weekly_owner_send"} or job.kind == "weekly_preview" and not json.loads(job.definition).get("report_only"):
         from app.modules.alerts.router import require_weekly_report_manager
         require_weekly_report_manager(role)
 
@@ -120,7 +136,7 @@ def allowed_job(db, identity, user, workspace, *, for_update=False):
     job = (query.with_for_update() if for_update else query).first()
     if job is None:
         raise HTTPException(404, "Analysis job not found")
-    if job.kind == "weekly_send" or job.kind == "weekly_preview" and not json.loads(job.definition).get("report_only"):
+    if job.kind in {"weekly_send", "weekly_owner_send"} or job.kind == "weekly_preview" and not json.loads(job.definition).get("report_only"):
         verify_job_actor(job)
     authorize_datasets(db, user, workspace, [int(key) for key in json.loads(job.sources)])
     return job
@@ -135,7 +151,7 @@ def job_response(job, *, include_result=False):
 
 
 def cancel_job(db, job):
-    if job.kind == "weekly_send" and job.phase == "sending":
+    if job.kind in {"weekly_send", "weekly_owner_send"} and job.phase == "sending":
         raise HTTPException(409, "Email delivery has already started and cannot be cancelled.")
     db.query(ReportAnalysisJob).filter(ReportAnalysisJob.id == job.id, ReportAnalysisJob.status.in_(ACTIVE)).update(
         {"status": "cancelled", "phase": "cancelled", "result": None, "completed_at": utc_now()}, synchronize_session=False)

@@ -23,6 +23,13 @@ and email readiness. Enable delivery only after confirming the intended audience
 A successful scheduler invocation means a job was queued, not that an email was
 delivered. Check terminal analysis status and delivery history separately.
 
+Send report now emails the current weekly report only to the workspace owner,
+including the client owner in a managed client workspace. Unsaved weekly changes
+are saved first. This one-time send can run while scheduled delivery is paused;
+it does not change recipients, enable delivery or replace a scheduled send.
+Only authorized workspace managers can use it. If the owner's account has no
+usable email address, sending is blocked rather than using another recipient.
+
 KPI targets are benchmark context for the digest and interpretation. Setting a
 target does not by itself create a separate immediate threshold-triggered alert.
 Use the current delivery settings rather than assuming every metric anomaly
@@ -35,7 +42,11 @@ reporting timezone, compared with the preceding week. The manual report's Start
 and End are not a permanent weekly window. Historical context rolls with the
 current run date and is capped at three years where used for weekly analysis.
 
-Weekly totals, unusual-change checks and relationships are always grouped weekly.
+The last completed week's charts and unusual-change checks use daily detail:
+one point for each Monday-Sunday date. KPI totals still cover the full week and
+are compared with the preceding full week. Earlier relationship history is
+grouped into complete weekly periods, ending on the Sunday before the report
+week; daily points are not mixed into the weekly relationship series.
 There is no manual Start/End or Group by selector on the weekly page. Relationship
 defaults are Spearman, 52 minimum matched weeks, same-period comparison, and a
 maximum directional lag of 12 weeks. The minimum can be changed independently

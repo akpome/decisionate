@@ -273,7 +273,7 @@ class BusinessReportEngineTests(unittest.TestCase):
         self.assertTrue(report["definition"]["lag"]["enabled"])
         self.assertEqual(report["definition"]["grain"], "weekly")
         self.assertEqual(report["analysis_grain"], "weekly")
-        self.assertEqual(report["grain"], "weekly")
+        self.assertEqual(report["grain"], "daily")
         self.assertEqual(report["definition"]["lag"]["maximum"], 12)
         self.assertTrue(all(item["lag"] == 0 and item["lag_unit"] == "calendar weekly periods" for item in report["findings"]))
         self.assertFalse(any("not reused" in warning for warning in report["warnings"]))
@@ -291,9 +291,11 @@ class BusinessReportEngineTests(unittest.TestCase):
                 self.assertEqual(report["window"], complete_week(date(2026, 4, 1)))
                 self.assertEqual(report["definition"]["grain"], "weekly")
                 self.assertEqual(report["definition"]["pair_directions"][0]["direction"], "a_leads_b" if grain == "weekly" else "same_period")
-                self.assertEqual(report["metrics"][0]["expected_periods"], 1)
-                self.assertEqual(len(report["metrics"][0]["trend"]), 1)
-                self.assertTrue(all(item["grain"] == "weekly" for item in report["anomaly_analysis"]["metrics"]))
+                self.assertEqual(report["metrics"][0]["expected_periods"], 7)
+                self.assertEqual(len(report["metrics"][0]["trend"]), 7)
+                self.assertTrue(all(item["grain"] == "daily" for item in report["anomaly_analysis"]["metrics"]))
+                self.assertEqual(report["history_window"]["end"], "2026-03-22")
+                self.assertTrue(all(point["period"] < "2026-03-23" for finding in report["findings"] for point in finding["evidence"]))
                 summary = {key: report[key] for key in ("metrics", "anomaly_analysis", "window", "previous_window")}
                 if original is None:
                     original = summary
@@ -319,11 +321,29 @@ class BusinessReportEngineTests(unittest.TestCase):
         self.assertIn("2 weeks ahead", finding["business_summary"])
         self.assertAlmostEqual(report["metrics"][0]["value"], 7 * lead[-1])
 
+    def test_report_week_changes_do_not_leak_into_earlier_weekly_relationships(self):
+        preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday",
+            recipient_emails=[], metric_focus=[], include_recommendations=True)
+        template = definition(grain="weekly")
+        original = build_weekly_cross_dataset_report(self.frames, preference, template, analysis_date=date(2026, 4, 1))
+        changed_frames = {identity: (dataset, frame.copy()) for identity, (dataset, frame) in self.frames.items()}
+        changed_frames[1][1].loc[changed_frames[1][1].date >= "2026-03-23", "spend"] = 1e9
+        changed = build_weekly_cross_dataset_report(changed_frames, preference, template, analysis_date=date(2026, 4, 1))
+        self.assertEqual(changed["findings"], original["findings"])
+        self.assertNotEqual(changed["metrics"][0]["value"], original["metrics"][0]["value"])
+        self.assertEqual([point["period"] for point in changed["metrics"][0]["trend"]],
+                         [str(day.date()) for day in pd.date_range("2026-03-23", "2026-03-29")])
+        changed_frames[1] = changed_frames[1][0], changed_frames[1][1].loc[changed_frames[1][1].date != "2026-03-25"].copy()
+        missing = build_weekly_cross_dataset_report(changed_frames, preference, template, analysis_date=date(2026, 4, 1))
+        self.assertEqual(missing["metrics"][0]["observations"], 6)
+        self.assertIsNone(missing["metrics"][0]["change_percent"])
+        self.assertIsNone(missing["metrics"][0]["trend"][2]["value"])
+
     def test_weekly_default_analysis_uses_weekly_without_changing_its_completed_week_window(self):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=["owner@example.test"], metric_focus=["1:spend", "2:net_sales"], include_recommendations=True)
         report = build_weekly_cross_dataset_report(self.frames, preference, analysis_date=date(2026, 4, 1))
         self.assertEqual(report["analysis_grain"], "weekly")
-        self.assertEqual(report["grain"], "weekly")
+        self.assertEqual(report["grain"], "daily")
         self.assertEqual(report["window"], {"start": "2026-03-23", "end": "2026-03-29"})
         self.assertEqual(report["definition"]["filters"]["minimum_observations"], 52)
         self.assertTrue(all(item["lag_unit"] == "calendar weekly periods" for item in report["findings"]))
@@ -335,7 +355,7 @@ class BusinessReportEngineTests(unittest.TestCase):
              patch("app.modules.alerts.router.generate_structured_analysis", return_value=None) as ai:
             build_weekly_report_digest(preference, [pair[0] for pair in self.frames.values()])
         facts = ai.call_args.kwargs["facts"]["cross_dataset_report"]
-        self.assertEqual(facts["summary_grouping"], "weekly")
+        self.assertEqual(facts["summary_grouping"], "daily")
         self.assertEqual(facts["analysis_grouping"], "weekly")
         self.assertEqual(len(facts["metrics"]), 2)
         self.assertTrue(all("trend" not in metric for metric in facts["metrics"]))
@@ -748,7 +768,7 @@ class BusinessReportWorkflowTests(unittest.TestCase):
              patch("app.modules.alerts.router.get_weekly_report_branding", return_value={"brand_name": "Decisionate"}):
             response = self.client.get("/api/v2/business-reports/weekly-preview")
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(response.json()["grain"], "weekly")
+        self.assertEqual(response.json()["grain"], "daily")
         self.assertEqual(response.json()["analysis_grain"], "weekly")
         self.assertEqual(response.json()["definition"]["grain"], "weekly")
         reopened = self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()

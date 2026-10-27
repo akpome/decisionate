@@ -1,16 +1,24 @@
 import importlib.util
 import os
 from pathlib import Path
+import subprocess
 import sys
 from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 
-from app.infrastructure import analysis_worker, ingestion_worker
+from app.infrastructure import analysis_worker, ingestion_worker, monitoring
 from app.modules.marketing import config, worker
 
 
 class WorkerBootstrapTests(unittest.TestCase):
+    def analysis_script(self):
+        script = Path(__file__).resolve().parents[1] / "scripts" / "run_analysis_worker.py"
+        spec = importlib.util.spec_from_file_location("run_analysis_worker", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return script, module
+
     def test_supervisors_keep_schema_bootstrap_without_an_unused_module_binding(self):
         for script_name, worker_module in (
             ("run_ingestion_worker", ingestion_worker),
@@ -21,7 +29,7 @@ class WorkerBootstrapTests(unittest.TestCase):
                 spec = importlib.util.spec_from_file_location(script_name, script)
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
-                with patch.object(module, "import_module") as bootstrap, patch.object(
+                with patch.object(module, "import_module") as bootstrap, patch.object(subprocess, "run") as bootstrap_child, patch.object(
                     worker_module, "run_worker"
                 ) as run, patch(
                     "app.db.database.engine", SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
@@ -29,10 +37,47 @@ class WorkerBootstrapTests(unittest.TestCase):
                     sys, "path", sys.path.copy()
                 ), patch.dict(
                     os.environ, {}, clear=False
-                ), patch.object(module.logging, "basicConfig"):
+                ), patch.object(module.logging, "basicConfig"), patch.object(monitoring, "configure_error_monitoring") as configure_monitoring:
                     module.main()
-                bootstrap.assert_called_once_with("app.main")
+                if script_name == "run_analysis_worker":
+                    bootstrap.assert_not_called()
+                    bootstrap_child.assert_called_once_with(
+                        [sys.executable, "-B", str(script), "--bootstrap", "--parent-pid", str(os.getpid())], check=True)
+                    configure_monitoring.assert_called_once_with()
+                else:
+                    bootstrap.assert_called_once_with("app.main")
+                    bootstrap_child.assert_not_called()
+                    configure_monitoring.assert_not_called()
                 run.assert_called_once_with(str(script), once=True)
+
+    def test_analysis_queue_does_not_start_after_failed_schema_bootstrap(self):
+        script, module = self.analysis_script()
+        with patch.object(subprocess, "run", side_effect=subprocess.CalledProcessError(1, "bootstrap")), \
+             patch.object(analysis_worker, "run_worker") as run, \
+             patch("app.db.database.engine", SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))), \
+             patch.object(sys, "argv", [str(script), "--once"]), patch.object(sys, "path", sys.path.copy()), \
+             patch.dict(os.environ, {}, clear=False), patch.object(module.logging, "basicConfig"), \
+             patch.object(monitoring, "configure_error_monitoring") as configure_monitoring:
+            with self.assertRaises(subprocess.CalledProcessError):
+                module.main()
+        run.assert_not_called()
+        configure_monitoring.assert_not_called()
+
+    def test_bootstrap_child_initializes_api_schema_without_running_queue_or_job(self):
+        script, module = self.analysis_script()
+        with patch.object(module, "import_module") as bootstrap, patch.object(analysis_worker, "run_worker") as run, \
+             patch.object(analysis_worker, "execute_job") as execute, \
+             patch.object(module.ctypes, "CDLL") as library, patch.object(module.os, "getppid", return_value=123), \
+             patch.object(module.resource, "setrlimit") as limit, patch.object(sys, "platform", "linux"), \
+             patch.object(sys, "argv", [str(script), "--bootstrap", "--parent-pid", "123"]), \
+             patch.object(sys, "path", sys.path.copy()), patch.dict(os.environ, {}, clear=False), \
+             patch.object(module.logging, "basicConfig"):
+            library.return_value.prctl.return_value = 0
+            module.main()
+        bootstrap.assert_called_once_with("app.main")
+        run.assert_not_called()
+        execute.assert_not_called()
+        limit.assert_not_called()
 
 
 class WorkerLifecycleTests(unittest.TestCase):

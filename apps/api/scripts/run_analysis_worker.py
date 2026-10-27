@@ -9,29 +9,37 @@ import os
 from pathlib import Path
 import resource
 import signal
+import subprocess
 import sys
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--once", action="store_true")
-    parser.add_argument("--job-id", help=argparse.SUPPRESS)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--job-id", help=argparse.SUPPRESS)
+    mode.add_argument("--bootstrap", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--parent-pid", type=int, help=argparse.SUPPRESS)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    if args.job_id:
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["NUMEXPR_MAX_THREADS"] = "2"
+    if args.job_id or args.bootstrap:
         if not sys.platform.startswith("linux") or not args.parent_pid:
             raise RuntimeError("Isolated analysis jobs require the Linux supervisor.")
         if ctypes.CDLL(None).prctl(1, signal.SIGKILL) != 0:
             raise RuntimeError("Could not configure analysis worker parent-death protection.")
         if os.getppid() != args.parent_pid:
             return
-        os.environ["OPENBLAS_NUM_THREADS"] = "1"
-        os.environ["OMP_NUM_THREADS"] = "1"
-        os.environ["NUMEXPR_MAX_THREADS"] = "2"
+    if args.job_id:
         memory = max(1024, int(os.getenv("ANALYSIS_JOB_MEMORY_MB", "2048"))) * 1024 * 1024
         resource.setrlimit(resource.RLIMIT_AS, (memory, memory))
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    if args.bootstrap:
+        import_module("app.main")
+        return
     if args.job_id:
         from app.security.config import validate_production_security_configuration
         from app.infrastructure.monitoring import configure_error_monitoring
@@ -43,7 +51,11 @@ def main():
         from app.db.database import engine
         if engine.dialect.name != "postgresql":
             raise RuntimeError("The durable analysis worker requires PostgreSQL.")
-        import_module("app.main")  # Run the API's serialized schema bootstrap.
+        # Release the API/bootstrap imports before starting the persistent supervisor.
+        subprocess.run([sys.executable, "-B", str(Path(__file__).resolve()), "--bootstrap",
+                        "--parent-pid", str(os.getpid())], check=True)
+        from app.infrastructure.monitoring import configure_error_monitoring
+        configure_error_monitoring()
         from app.infrastructure.analysis_worker import run_worker
         run_worker(str(Path(__file__).resolve()), once=args.once)
 

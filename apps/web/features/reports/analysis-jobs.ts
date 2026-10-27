@@ -1,7 +1,7 @@
 import type { BusinessReport, ReportDefinition } from "./types"
 
 export type AnalysisJob<T = BusinessReport> = {
-  job_id: string; kind: "report" | "weekly_preview" | "weekly_send"
+  job_id: string; kind: "report" | "weekly_preview" | "weekly_send" | "weekly_owner_send"
   status: "queued" | "running" | "succeeded" | "failed" | "cancelled"
   phase: string; error: string | null; result: T | null
   definition?: ReportDefinition | null
@@ -9,6 +9,13 @@ export type AnalysisJob<T = BusinessReport> = {
 }
 
 export type AnalysisRequest = <T>(path: string, init?: RequestInit) => Promise<T>
+
+export class AnalysisUnavailableError extends Error {
+  constructor(readonly status: 404 | 410) {
+    super("This analysis is no longer available. It may have been deleted or expired. Choose a saved report or generate a new preview.")
+    this.name = "AnalysisUnavailableError"
+  }
+}
 
 export function analysisPhaseLabel(phase: string) {
   return ({ queued: "Analysis queued", loading: "Loading selected data", computing: "Analyzing selected data",
@@ -39,7 +46,8 @@ export async function waitForAnalysis<T>(request: AnalysisRequest, identity: str
       options.signal?.throwIfAborted()
       const status = (error as { status?: number } | null)?.status
       if (status === 429) { await pause(options.signal, 5000); continue }
-      if (status && [401, 403, 404, 410].includes(status)) throw error
+      if (status === 404 || status === 410) throw new AnalysisUnavailableError(status)
+      if (status === 401 || status === 403) throw error
       if (++failures >= 3) throw error
       await pause(options.signal)
       continue

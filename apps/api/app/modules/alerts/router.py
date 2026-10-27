@@ -61,7 +61,7 @@ from app.modules.datasets.services.relationships import (
 )
 from app.modules.decisions.models import Decision
 from app.modules.reports.models import BusinessReport
-from app.modules.reports.service import attach_report_decisions, build_report, complete_week, report_analysis_facts, report_anomalies, scoped_frame
+from app.modules.reports.service import attach_report_decisions, build_report, complete_week, previous_window, report_analysis_facts, report_anomalies, scoped_frame
 from app.modules.reports.catalog import prepare_report_source
 from app.modules.reports.relationships import metric_key
 from app.modules.reports.schemas import MINIMUM_REPORT_OBSERVATIONS
@@ -857,7 +857,8 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
                              "date_range": {"start": historical_start(anchor),
                                             "end": definition["date_range"]["end"]}}
     result = build_report(selected_frames, definition, unavailable=warnings, history_anchor=anchor,
-                          impact_definition=impact_definition)
+                          impact_definition=impact_definition, summary_grain="daily",
+                          relationship_history_end=previous_window(definition["date_range"])["end"])
     result["weekly_report"] = True
     evaluated = {item["metric_id"] for item in result["anomaly_analysis"]["metrics"]}
     omitted = [item for item in requested_references if f"{item['dataset_id']}:{item['metric_key']}" not in evaluated]

@@ -238,7 +238,7 @@ class ReportAnomalyTests(unittest.TestCase):
         text, markup = build_weekly_report_email_text(digest), build_weekly_report_email_html(digest)
         for value in (text, markup):
             self.assertIn("Unusual changes (anomaly detection)", value)
-            self.assertIn("2026-08-03", value)
+            self.assertIn("2026-08-04", value)
             self.assertIn("expected range:", value)
             self.assertIn("residual mad", value)
         self.assertIn("&lt;script&gt;unsafe", markup)

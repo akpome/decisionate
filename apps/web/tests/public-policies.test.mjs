@@ -137,7 +137,7 @@ test("security distinguishes analysis-job cleanup from snapshots and retained de
   }
   const worker = read("../../api/app/infrastructure/analysis_worker.py")
   assert.match(worker, /ReportAnalysisJob\.status\.notin_\(ACTIVE\)/)
-  assert.match(worker, /ReportAnalysisJob\.kind != "weekly_send"[\s\S]*timedelta\(days=7\)/)
+  assert.match(worker, /ReportAnalysisJob\.kind.notin_\(\{"weekly_send", "weekly_owner_send"\}\)[\s\S]*timedelta\(days=7\)/)
   assert.match(worker, /ReportAnalysisJob\.completed_at < utc_now\(\) - timedelta\(days=90\)/)
   assert.match(worker, /time\.monotonic\(\) - last_cleanup > 3600/)
 })

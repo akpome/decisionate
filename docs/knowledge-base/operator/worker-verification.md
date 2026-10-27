@@ -41,6 +41,33 @@ address-space cap, not a guaranteed provider container memory allocation.
 At most three queued/running jobs are allowed per workspace. Preserve queued
 work and inspect job errors before retrying.
 
+The supervisor runs schema initialization in a short-lived subprocess before
+consuming jobs. Ordinary queue supervision avoids retaining API and numerical
+imports. Container memory must still cover both the supervisor and analysis
+child; increasing the child address-space cap does not increase Railway RAM.
+
+For an unexpected child exit, find `Report analysis child stopped` and match the
+job identity, return code, `timed_out`, phase and attempts to the failed job.
+The older `Analysis worker stopped before completion` message and the newer
+interruption message do not identify the underlying cause. A negative POSIX
+return code means termination by that signal, but even `-9` alone does not prove
+an out-of-memory kill. Inspect Railway resource graphs and deployment logs, and
+the child traceback immediately before the exit. A Python `MemoryError` has a
+separate worker log and customer message. A process-start failure or pre-claim
+exit fails only the selected job, leaving other queued work intact.
+
+Reloading a report reconnects to its job; it cannot restart a failed analysis.
+After correcting the cause, generate a new preview with the preserved selections.
+Never infer success from a reload or a healthy heartbeat alone.
+
+If the customer opened an old analysis URL, check whether its saved report was
+deleted or the temporary job expired. Missing-job HTTP 404/410
+responses are availability errors, not evidence that a worker stopped. Deleted
+snapshots remove their linked jobs, and the frontend clears stale selections and
+URLs. Report pages offer Saved reports, not a recent-analysis selector or a
+background job-history lookup. Active job progress, cancellation and URL-based
+reload recovery remain available.
+
 Source or permission changes can invalidate a job. Safe interrupted computation
 has bounded recovery; AI interpretation and email side effects are not blindly
 replayed. A scheduler success is only an enqueue acknowledgement. Check job and

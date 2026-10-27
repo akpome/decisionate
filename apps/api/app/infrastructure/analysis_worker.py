@@ -14,8 +14,7 @@ from sqlalchemy import func, text
 
 from app.db.database import SessionLocal, engine
 from app.db.models import IngestionWorkerHeartbeat, WeeklyReportPreference, utc_now
-from app.modules.correlation.service import authorize_datasets, encode, snapshot
-from app.modules.reports.jobs import ACTIVE, WORKER_NAME, verify_job_actor, weekly_configuration
+from app.modules.reports.job_constants import ACTIVE, WORKER_NAME
 from app.modules.reports.models import ReportAnalysisJob
 
 
@@ -36,6 +35,8 @@ def record_heartbeat():
 
 def check_inputs(db, job):
     from app.modules.correlation.catalog import reporting_timezone
+    from app.modules.correlation.service import authorize_datasets, snapshot
+    from app.modules.reports.jobs import verify_job_actor, weekly_configuration, weekly_owner_recipient
 
     db.expire_all()
     db.refresh(job)
@@ -49,10 +50,15 @@ def check_inputs(db, job):
     if snapshot(datasets) != expected:
         raise HTTPException(409, "A selected dataset changed during analysis. Generate a new preview with its latest data.")
     if job.kind.startswith("weekly_"):
+        delivery = json.loads(job.definition).get("delivery", {})
+        if job.kind == "weekly_owner_send" and delivery.get("mode") != "workspace_owner":
+            raise HTTPException(400, "The owner delivery settings are unavailable. Request a new report send.")
+        if delivery.get("mode") == "workspace_owner" and weekly_owner_recipient(db, job.workspace_id) != delivery["recipient"]:
+            raise HTTPException(409, "The workspace owner's email changed. Send a new report after reviewing the current owner.")
         preference = db.query(WeeklyReportPreference).filter_by(workspace_id=job.workspace_id).first()
         if weekly_configuration(db, preference, job.workspace_id) != json.loads(job.definition)["configuration"]:
             raise HTTPException(409, "Weekly report settings changed. Generate a new preview before sending.")
-        if job.kind == "weekly_send":
+        if job.kind in {"weekly_send", "weekly_owner_send"}:
             from datetime import date, datetime
             from zoneinfo import ZoneInfo
             from app.modules.reports.service import complete_week
@@ -62,6 +68,8 @@ def check_inputs(db, job):
 
 
 def set_phase(db, job, phase, *, intermediate_result=None):
+    from app.modules.correlation.service import encode
+
     check_inputs(db, job)
     values = {"phase": phase}
     if intermediate_result is not None:
@@ -78,12 +86,16 @@ def fail_job(db, identity, message, status=503):
         return
     changed = db.query(ReportAnalysisJob).filter(ReportAnalysisJob.id == identity, ReportAnalysisJob.status.in_(ACTIVE)).update(
         {"status": "failed", "phase": "failed", "error": message, "error_status": status, "completed_at": utc_now(), "result": None}, synchronize_session=False)
-    if changed and job.kind == "weekly_send" and job.phase != "sending":
+    if changed and job.kind in {"weekly_send", "weekly_owner_send"} and job.phase != "sending":
         from app.modules.alerts.router import record_weekly_report_delivery_log, update_weekly_report_delivery_status
-        configuration = json.loads(job.definition).get("configuration", {}).get("preference", {})
+        definition = json.loads(job.definition)
+        configuration = definition.get("configuration", {}).get("preference", {})
+        delivery = definition.get("delivery", {})
         preference = db.query(WeeklyReportPreference).filter_by(workspace_id=job.workspace_id).first()
-        update_weekly_report_delivery_status(preference, "failed", message)
-        record_weekly_report_delivery_log(db, job.workspace_id, "failed", configuration.get("recipient_emails", []), error=message)
+        if delivery.get("mode") != "workspace_owner":
+            update_weekly_report_delivery_status(preference, "failed", message)
+        recipients = [delivery["recipient"]] if delivery.get("mode") == "workspace_owner" else configuration.get("recipient_emails", [])
+        record_weekly_report_delivery_log(db, job.workspace_id, "failed", recipients, error=message)
     db.commit()
 
 
@@ -101,6 +113,9 @@ def run_weekly(db, job, definition):
     if job.kind == "weekly_preview":
         check_inputs(db, job)
         return digest.cross_dataset_report if definition.get("report_only") else digest.model_dump(mode="json")
+    owner_delivery = definition.get("delivery", {}).get("mode") == "workspace_owner"
+    if owner_delivery:
+        digest = digest.model_copy(update={"enabled": True, "recipient_emails": [definition["delivery"]["recipient"]]})
     alerts.validate_weekly_report_digest_for_delivery(digest)
     # Commit before external side effects. A restart in this phase needs operator
     # reconciliation, never an automatic resend (SMTP cannot guarantee exactly once).
@@ -109,14 +124,16 @@ def run_weekly(db, job, definition):
         delivery = alerts.send_weekly_report_email(digest)
     except Exception as error:
         recipients, count = alerts.get_weekly_report_delivery_failure_details(error, digest)
-        alerts.update_weekly_report_delivery_status(preference, "failed", "Weekly report delivery failed; inspect delivery history before retrying.")
+        if not owner_delivery:
+            alerts.update_weekly_report_delivery_status(preference, "failed", "Weekly report delivery failed; inspect delivery history before retrying.")
         db.commit()
         alerts.record_weekly_report_delivery_log(db, job.workspace_id, "failed", recipients, digest.subject,
                                                 delivered_count=count, metrics_count=len(digest.metrics),
                                                 error="Delivery failed or was partially accepted. No automatic resend.")
         raise HTTPException(502, "Weekly report delivery failed. Inspect delivery history before retrying.") from error
     sent_at = alerts.get_utc_now()
-    alerts.update_weekly_report_delivery_status(preference, "sent", sent_at=sent_at)
+    if not owner_delivery:
+        alerts.update_weekly_report_delivery_status(preference, "sent", sent_at=sent_at)
     db.commit()
     alerts.record_weekly_report_delivery_log(db, job.workspace_id, "sent", delivery["recipients"], digest.subject,
                                             delivery["delivered_count"], len(digest.metrics))
@@ -124,6 +141,8 @@ def run_weekly(db, job, definition):
 
 
 def execute_job(identity):
+    from app.modules.correlation.service import encode
+
     with SessionLocal() as db:
         claimed = db.query(ReportAnalysisJob).filter_by(id=identity, status="queued").update(
             {"status": "running", "phase": "loading", "started_at": utc_now(),
@@ -145,7 +164,7 @@ def execute_job(identity):
                                   progress=lambda phase: set_phase(db, job, phase))[1]
                 result["analysis_job_id"] = job.id
                 check_inputs(db, job)
-            elif job.kind in {"weekly_preview", "weekly_send"}:
+            elif job.kind in {"weekly_preview", "weekly_send", "weekly_owner_send"}:
                 result = run_weekly(db, job, definition)
             elif job.kind == "dataset_anomalies":
                 from app.modules.reports.router import calculate_dataset_anomalies
@@ -162,6 +181,10 @@ def execute_job(identity):
             logger.warning("Report analysis %s stopped (HTTP %s)", identity, error.status_code)
             db.rollback()
             fail_job(db, identity, str(error.detail), error.status_code)
+        except MemoryError:
+            logger.exception("Report analysis exhausted available memory", extra={"job_id": identity})
+            db.rollback()
+            fail_job(db, identity, "Analysis ran out of available memory. Your selections have been preserved. Try fewer metrics or a shorter reporting window.")
         except Exception:
             logger.exception("Report analysis failed", extra={"job_id": identity})
             db.rollback()
@@ -170,13 +193,15 @@ def execute_job(identity):
 
 def recover_interrupted_jobs(identity=None, *, retry=True, reason="Analysis worker restarted before completion."):
     with SessionLocal() as db:
-        query = db.query(ReportAnalysisJob).filter_by(status="running")
+        query = db.query(ReportAnalysisJob)
         if identity:
-            query = query.filter_by(id=identity)
+            query = query.filter(ReportAnalysisJob.id == identity, ReportAnalysisJob.status.in_(ACTIVE))
+        else:
+            query = query.filter_by(status="running")
         for job in query.all():
             definition = json.loads(job.definition)
             # AI charges and external sends are not blindly replayed.
-            safe = job.phase not in {"sending", "interpreting"} and not definition.get("include_ai_analysis", False)
+            safe = job.status == "running" and job.phase not in {"sending", "interpreting"} and not definition.get("include_ai_analysis", False)
             if retry and safe and job.attempts < 2:
                 job.status, job.phase = "queued", "queued"
             else:
@@ -185,12 +210,15 @@ def recover_interrupted_jobs(identity=None, *, retry=True, reason="Analysis work
                 job.error = ("Email delivery was interrupted; check provider logs before retrying. No automatic resend."
                              if sending else reason)
                 job.error_status, job.completed_at = 503, utc_now()
-                if job.kind == "weekly_send":
+                if job.kind in {"weekly_send", "weekly_owner_send"}:
                     from app.modules.alerts.router import record_weekly_report_delivery_log, update_weekly_report_delivery_status
                     configuration = definition.get("configuration", {}).get("preference", {})
+                    delivery = definition.get("delivery", {})
                     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=job.workspace_id).first()
-                    update_weekly_report_delivery_status(preference, "failed", job.error)
-                    record_weekly_report_delivery_log(db, job.workspace_id, "unknown" if sending else "failed", configuration.get("recipient_emails", []), error=job.error)
+                    if delivery.get("mode") != "workspace_owner":
+                        update_weekly_report_delivery_status(preference, "failed", job.error)
+                    recipients = [delivery["recipient"]] if delivery.get("mode") == "workspace_owner" else configuration.get("recipient_emails", [])
+                    record_weekly_report_delivery_log(db, job.workspace_id, "unknown" if sending else "failed", recipients, error=job.error)
         db.commit()
 
 
@@ -206,7 +234,13 @@ def next_job():
 
 def supervise_job(identity, connection, script):
     timeout = max(30, min(int(os.getenv("ANALYSIS_JOB_TIMEOUT_SECONDS", "900")), 7200))
-    child = subprocess.Popen([sys.executable, "-B", script, "--job-id", identity, "--parent-pid", str(os.getpid())], start_new_session=True)
+    try:
+        child = subprocess.Popen([sys.executable, "-B", script, "--job-id", identity, "--parent-pid", str(os.getpid())], start_new_session=True)
+    except OSError:
+        logger.exception("Report analysis child could not start: job_id=%s", identity)
+        recover_interrupted_jobs(identity, retry=False,
+                                 reason="Analysis could not start. Your selections have been preserved. Please try again.")
+        return
     deadline = time.monotonic() + timeout
     timed_out = False
     try:
@@ -224,10 +258,18 @@ def supervise_job(identity, connection, script):
             time.sleep(1)
     finally:
         if child.poll() is None:
-            os.killpg(child.pid, signal.SIGKILL)
-        child.wait()
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        returncode = child.wait()
+        with SessionLocal() as db:
+            row = db.get(ReportAnalysisJob, identity)
+            if row is not None and row.status in ACTIVE:
+                logger.error("Report analysis child stopped: job_id=%s returncode=%s timed_out=%s phase=%s attempts=%s",
+                             identity, returncode, timed_out, row.phase, row.attempts)
         recover_interrupted_jobs(identity, retry=not timed_out,
-                                 reason="Analysis exceeded its execution limit. Reduce the selected metrics or reporting window." if timed_out else "Analysis worker stopped before completion.")
+                                 reason="Analysis exceeded its execution limit. Reduce the selected metrics or reporting window." if timed_out else "Analysis was interrupted before it finished. Your selections have been preserved. Please try again.")
 
 
 def run_worker(script, once=False):
@@ -257,7 +299,7 @@ def run_worker(script, once=False):
                 if time.monotonic() - last_cleanup > 3600:
                     with SessionLocal() as db:
                         db.query(ReportAnalysisJob).filter(ReportAnalysisJob.status.notin_(ACTIVE),
-                            ((ReportAnalysisJob.kind != "weekly_send") & (ReportAnalysisJob.completed_at < utc_now() - timedelta(days=7))) |
+                            (ReportAnalysisJob.kind.notin_({"weekly_send", "weekly_owner_send"}) & (ReportAnalysisJob.completed_at < utc_now() - timedelta(days=7))) |
                             (ReportAnalysisJob.completed_at < utc_now() - timedelta(days=90))).delete(synchronize_session=False)
                         db.commit()
                     last_cleanup = time.monotonic()

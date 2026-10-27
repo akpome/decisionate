@@ -51,5 +51,10 @@ Remove weekly settings keeps saved snapshots and linked decisions while clearing
 the weekly configuration and pausing delivery. Read the confirmation and use only
 actions allowed by your workspace role.
 
+Saved reports is the only report-history selector. Deleting a saved report also
+removes its associated temporary preview. An old link to a deleted or expired
+analysis cannot restore it. Choose a saved report or generate a new preview;
+this is different from an analysis failing.
+
 Decisions and outcomes shows linked work, not a requirement for a fixed number
 of decisions. A legacy editable draft is not a recorded business action.

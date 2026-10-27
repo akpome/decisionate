@@ -6,13 +6,13 @@ from zoneinfo import ZoneInfo
 from app.modules.correlation.catalog import reporting_timezone
 from app.modules.correlation.defaults import MAXIMUM_LAG
 from .anomalies import historical_start
-from .service import complete_week
+from .service import complete_week, previous_window
 
 
 def weekly_context(anchor=None):
     anchor = anchor or datetime.now(ZoneInfo(reporting_timezone())).date()
     window = complete_week(anchor)
-    return {"window": window, "history_window": {"start": historical_start(anchor), "end": window["end"]},
+    return {"window": window, "history_window": {"start": historical_start(anchor), "end": previous_window(window)["end"]},
             "reporting_timezone": reporting_timezone()}
 
 

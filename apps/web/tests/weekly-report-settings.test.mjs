@@ -58,7 +58,7 @@ test("weekly route and saved histories stay separate from instant analysis", () 
   assert.match(read("../app/dashboard/reports/weekly/page.tsx"), /<ReportPage weekly/)
   const workspace = read("../features/reports/report-workspace.tsx")
   assert.match(workspace, /workflow=\$\{weekly \? "weekly" : "instant"\}/)
-  assert.match(workspace, /job.kind === \(weekly \? "weekly_preview" : "report"\)/)
+  assert.doesNotMatch(workspace, /Recent analyses|"\/business-reports\/jobs"/)
   assert.match(workspace, /weekly \? "\/weekly-jobs\?include_ai_analysis=true" : "\/jobs"/)
   assert.match(workspace, /weekly \? <div[^>]*>[\s\S]*?Last completed week[\s\S]*? : <div[^>]*>[\s\S]*?type="date"/)
   assert.match(workspace, /weekly \? "Maximum lag \(weeks\)" : "Maximum lag"/)
@@ -80,7 +80,7 @@ test("weekly preview persists its own edits before enqueueing, without sending m
     weekly: true, weeklyDirty: true, busy: false, analysisSubmission: { current: false }, routeController: { current: null },
     execute: async action => action(), persistWeeklySettings: async () => calls.push("save-weekly"), crypto: { randomUUID: () => "unique" },
     request: async (path, init) => { calls.push(path); assert.equal(init.body, undefined); return { job_id: "weekly-job" } },
-    setAnalysisJob() {}, setRecentJobs() {}, encodeURIComponent,
+    setAnalysisJob() {}, encodeURIComponent,
     window: { location: { pathname: "/dashboard/reports/weekly" }, history: { replaceState() {} } },
     waitForAnalysis: async () => ({ weekly_report: true }), setReport() {}, setView() {},
     setDefinition: () => { throw new Error("A weekly snapshot must not replace editable weekly settings") },

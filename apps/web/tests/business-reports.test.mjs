@@ -95,7 +95,6 @@ test("a fresh preview includes findings automatically and keeps the returned sel
     definition: original, execute: async action => action(), editableDefinition, selectedReportDimensionFilters,
     crypto: { randomUUID: () => "request-1" }, setAnalysisJob: () => {}, routeController: { current: null },
     analysisSubmission: { current: false }, busy: false, weekly: false,
-    setRecentJobs: () => {},
     window: { location: { pathname: "/dashboard/reports" }, history: { replaceState() {} } }, encodeURIComponent,
     waitForAnalysis: async (request, identity) => {
       assert.equal(identity, "job-1")

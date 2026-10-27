@@ -185,10 +185,15 @@ Weekly values cover the latest complete Monday-Sunday week in the platform
 reporting timezone, compared with the preceding complete week. Relationships
 use a rolling historical window capped at three calendar years, anchored to the
 current run date. Manual report dates do not constrain scheduled reporting or
-its historical context. Weekly totals, coverage, anomalies, relationships and
-business-impact studies use fixed weekly grouping. Weekly relationship defaults are
+its historical context. Report-week charts, coverage and anomaly checks use seven
+daily periods; KPI values still aggregate the full completed week and compare
+with the preceding full week. Earlier relationship history uses complete weekly
+buckets ending before the report week. Raw daily history remains available for
+seasonal anomaly baselines; weekly and daily observations are never mixed in
+one relationship series. Business-impact studies retain weekly grouping.
+Weekly relationship defaults are
 Spearman, 52 matched weeks (floor 24), same-period comparison, maximum lag 12 weeks.
-The worker enforces weekly grouping, including legacy fallback paths. A non-weekly
+The worker enforces this split, including legacy fallback paths. A non-weekly
 legacy template keeps its selected metrics/date columns/dimension filters/question,
 but resets directional timing to same-period; a numeric daily lag never becomes
 the same number of weeks. Deliberate weekly timing is retained. Startup backfills
@@ -207,6 +212,16 @@ per-metric anomaly findings, selected relationship evidence, limitations and dec
 agency branding, logo rules, recipients, provider and delivery safeguards are
 preserved. Review links open `/dashboard/reports/weekly?weekly=1`; legacy
 `/dashboard/reports?weekly=1` links redirect to the weekly page.
+
+The weekly page's Send report now action uses `POST /weekly-owner-jobs` to submit
+a durable `weekly_owner_send` job. Its distinct route and kind fail closed on
+older API/worker deployments instead of sending to scheduled recipients.
+The server resolves the workspace owner's email through the
+existing identity/organization model, freezes it and rechecks it before sending.
+The client cannot supply an arbitrary recipient. The manual action works with
+scheduled delivery paused and does not change schedule preferences, recipient
+lists or the scheduled last-send marker. It uses the existing worker, email
+provider, delivery logs, permission checks and no-automatic-resend boundary.
 
 ## Selected-Metric Anomalies
 
@@ -331,6 +346,18 @@ reconnect using the job URL. The worker rejects source revisions changing during
 calculation instead of mixing different versions into a report. Queued weekly
 jobs freeze their reporting date, preserve the three-year seasonal lookback,
 and cannot silently use changed preferences or send an expired reporting week.
+Schema bootstrap runs in a short-lived subprocess. Ordinary queue supervision
+does not retain the API or numerical libraries, and error monitoring is
+initialized separately in the persistent supervisor.
+Unexpected exits record the child return code and last job phase; the customer
+interruption message is not a diagnosis of memory exhaustion. Reloads preserve
+failed-job state; a deliberate new preview is required to retry.
+Saved reports is the only report-history selector; report pages do not fetch or
+display recent-analysis history. Active job progress, cancellation and URL-based
+reload recovery remain available. Deleting a snapshot also removes its linked
+jobs and clears the selected analysis in the client. Missing or expired job links
+show an availability message and return to the builder without replaying analysis
+or recreating data.
 
 ## Verification
 
