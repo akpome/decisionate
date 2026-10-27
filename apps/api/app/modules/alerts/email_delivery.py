@@ -430,7 +430,7 @@ def send_platform_system_email(
 
 def report_grouping_lines(report):
     if report.get("weekly_report") and report["grain"] == "daily" and report.get("analysis_grain") == "weekly":
-        return ["Weekly report: daily detail for the last completed Monday-Sunday; totals cover all seven days.",
+        return (["The completed week is assessed as a whole and day by day."] if report.get("weekly_anomaly_analysis") else []) + ["Weekly report: daily detail for the last completed Monday-Sunday; totals cover all seven days.",
                 "Earlier history is grouped weekly. Relationship timing is measured in weeks."]
     if report.get("weekly_report"):
         return ["Weekly report: grouped weekly for totals, unusual changes and relationships.",
@@ -449,10 +449,17 @@ def report_dimension_lines(report):
 
 
 def report_anomaly_lines(report):
-    analysis = report.get("anomaly_analysis")
+    if report.get("weekly_anomaly_analysis"):
+        return ["Whole-week assessment", *anomaly_analysis_lines(report["weekly_anomaly_analysis"]),
+                "Daily changes", *anomaly_analysis_lines(report.get("anomaly_analysis"))]
+    return anomaly_analysis_lines(report.get("anomaly_analysis"))
+
+
+def anomaly_analysis_lines(analysis):
     if not analysis:
         return ["Anomaly detection was not recorded in this report."]
-    lines = [f"Rolling history: up to {analysis['lookback_years']} years. Seasonal adjustment: "
+    lines = [f"Assessed window: {analysis['window']['start']} to {analysis['window']['end']}.",
+             f"Rolling history: up to {analysis['lookback_years']} years. Seasonal adjustment: "
              + ("enabled when supported." if analysis["seasonal_business"] else "off.")]
     for metric in analysis["metrics"]:
         label = f"{metric['dataset_label']} / {metric['label']}"
@@ -464,8 +471,9 @@ def report_anomaly_lines(report):
             lines.append(f"Baseline: trend" + (" + " + " + ".join(metric["seasonalities"]) if metric["seasonalities"] else " only")
                          + f"; {baseline['method'].replace('_', ' ')}; history {baseline['history_start']} to {baseline['history_end']}.")
         unit = metric.get("currency") or metric.get("unit") or "number"
-        for point in metric["anomalies"]:
-            lines.append(f"{point['period']}: {'above' if point['direction'] == 'high' else 'below'} expected. "
+        for point in metric.get("assessments", metric["anomalies"]):
+            outcome = "within expected range" if point.get("unusual") is False else "above expected" if point["direction"] == "high" else "below expected"
+            lines.append(f"{point['period']}: {outcome}. "
                          f"Actual: {format_anomaly_number(point['value'])}; expected: {format_anomaly_number(point['expected'])}; "
                          f"expected range: {format_anomaly_number(point['lower'])} to {format_anomaly_number(point['upper'])}; "
                          f"deviation: {format_anomaly_number(point['deviation'])} ({unit}).")

@@ -17,11 +17,12 @@ function statusLabel(metric: ReportAnomalyMetric) {
   return metric.status === "limited_history" ? `${findings} / Partial assessment` : findings
 }
 
-export function ReportAnomalies({ analysis }: { analysis?: ReportAnomalyAnalysis }) {
-  return <section aria-label="Anomaly detection" className="min-w-0 space-y-4 border-t border-gray-200 pt-5">
-    <h3 className="text-lg font-semibold">Anomaly detection</h3>
+export function ReportAnomalies({ analysis, title = "Anomaly detection" }: { analysis?: ReportAnomalyAnalysis; title?: string }) {
+  return <section aria-label={title} className="min-w-0 space-y-4 border-t border-gray-200 pt-5">
+    <h3 className="text-lg font-semibold">{title}</h3>
     {!analysis ? <p className="text-sm text-gray-600">Anomaly detection was not recorded in this saved report.</p> : <>
       <p className="text-sm text-gray-600">Rolling history: up to {analysis.lookback_years} years / Seasonal adjustment: {analysis.seasonal_business ? "Enabled when supported" : "Off"}</p>
+      {analysis.metrics.some(metric => metric.assessments) && <p className="text-sm text-gray-600">Whole week: {analysis.window.start} to {analysis.window.end}</p>}
       <ul className="min-w-0 list-none divide-y divide-gray-200" aria-label="Selected metric anomaly results">
         {analysis.metrics.map(metric => <li key={metric.metric_id} className="min-w-0 space-y-3 py-4 first:pt-0">
           <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
@@ -30,11 +31,11 @@ export function ReportAnomalies({ analysis }: { analysis?: ReportAnomalyAnalysis
           </div>
           <p className="text-xs leading-5 text-gray-600">Assessed: {metric.evaluated_observations}/{metric.observations} observed periods / Missing: {metric.missing_observations} / Units: {metric.currency || metric.unit || "number"}{metric.evaluated_observations > 0 ? ` / Baseline: trend${metric.seasonalities.length ? ` + ${metric.seasonalities.join(" + ")}` : " only"}` : ""}</p>
           {metric.warnings.map(warning => <p key={warning} className="break-words text-xs leading-5 text-amber-800">{warning}</p>)}
-          {metric.anomalies.length > 0 && <div className="max-h-80 overflow-auto" tabIndex={0} role="region" aria-label={`${metric.label} unusual changes`}>
+          {(metric.assessments ?? metric.anomalies).length > 0 && <div className="max-h-80 overflow-auto" tabIndex={0} role="region" aria-label={`${metric.label} ${metric.assessments ? "whole-week assessment" : "unusual changes"}`}>
             <table className="w-full min-w-[760px] text-left text-sm [overflow-wrap:normal]">
               <thead className="sticky top-0 bg-gray-50 text-xs text-gray-600"><tr>{["Period", "Change", "Actual", "Expected", "Expected range", "Deviation"].map(label => <th key={label} scope="col" className="whitespace-nowrap px-3 py-2 font-medium">{label}</th>)}</tr></thead>
-              <tbody>{metric.anomalies.map(point => <tr key={point.period} className="border-b border-gray-100">
-                <td className="whitespace-nowrap px-3 py-2">{point.period}</td><td className="whitespace-nowrap px-3 py-2">{point.direction === "high" ? "Above expected" : "Below expected"}</td>
+              <tbody>{(metric.assessments ?? metric.anomalies).map(point => <tr key={point.period} className="border-b border-gray-100">
+                <td className="whitespace-nowrap px-3 py-2">{point.period}</td><td className="whitespace-nowrap px-3 py-2">{point.unusual === false ? "Within expected range" : point.direction === "high" ? "Above expected" : "Below expected"}</td>
                 <td className="whitespace-nowrap px-3 py-2">{evidenceValue(point.value, metric.currency)}</td><td className="whitespace-nowrap px-3 py-2">{evidenceValue(point.expected, metric.currency)}</td>
                 <td className="whitespace-nowrap px-3 py-2">{evidenceValue(point.lower, metric.currency)} to {evidenceValue(point.upper, metric.currency)}</td>
                 <td className="whitespace-nowrap px-3 py-2">{evidenceValue(point.deviation, metric.currency)}{point.deviation_percent !== null ? ` (${point.deviation_percent.toFixed(1)}%)` : ""}</td>

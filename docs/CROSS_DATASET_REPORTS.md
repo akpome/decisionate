@@ -187,7 +187,17 @@ use a rolling historical window capped at three calendar years, anchored to the
 current run date. Manual report dates do not constrain scheduled reporting or
 its historical context. Report-week charts, coverage and anomaly checks use seven
 daily periods; KPI values still aggregate the full completed week and compare
-with the preceding full week. Earlier relationship history uses complete weekly
+with the preceding full week. A separate `weekly_anomaly_analysis` assesses each
+selected metric's full-week value against earlier complete weekly observations;
+`anomaly_analysis` retains the daily checks. Both hold out the full report week
+from their own baselines and honor the rolling three-year cap and seasonal
+setting. Full-week expected ranges are retained even for normal results, in a
+bounded `assessments` list. Weeks with missing daily observations, including a
+partial week at the historical cutoff, are excluded instead of assuming zeros.
+Weekly values preserve raw/curated aggregation policies, not sums of daily
+averages or ratios. Both assessments reach preview, HTML/plain-text email and
+bounded interpretation facts; legacy snapshots are not retroactively relabeled.
+Earlier relationship history uses complete weekly
 buckets ending before the report week. Raw daily history remains available for
 seasonal anomaly baselines; weekly and daily observations are never mixed in
 one relationship series. Business-impact studies retain weekly grouping.

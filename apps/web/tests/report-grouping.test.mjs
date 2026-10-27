@@ -26,6 +26,11 @@ test("weekly reports distinguish daily report-week detail from earlier weekly hi
   assert.doesNotMatch(markup, /Weekly report \/ Grouped weekly/)
 })
 
+test("whole-week assessment is labeled only when the snapshot actually contains it", () => {
+  assert.match(render({ weekly_report: true, grain: "daily", analysis_grain: "weekly", weekly_anomaly_analysis: { metrics: [] } }), /Whole-week assessment and daily checks/)
+  assert.doesNotMatch(render({ weekly_report: true, grain: "daily", analysis_grain: "weekly" }), /Whole-week assessment/)
+})
+
 test("a known legacy weekly snapshot retains its originally calculated units", () => {
   const markup = render({ weekly_report: true, grain: "daily", analysis_grain: "monthly" })
   assert.match(markup, /Weekly report/)

@@ -5,6 +5,14 @@ independently of whether relationship analysis finds an eligible or significant
 pair. No unusual change detected is a valid outcome; it is not proof that a
 worker failed.
 
+Weekly reports assess the last completed Monday-Sunday in two ways: the whole
+week against earlier complete weeks, and individual days against their daily
+baseline. Each selected metric has separate results for both. A normal weekly
+value can hide unusual daily ups and downs; a run of small daily changes can
+produce an unusual week. Whole-week results include an expected range even
+when the week is not unusual. Missing dates prevent a complete-week assessment;
+they are not replaced with invented zero values.
+
 ## How expected behavior is built
 
 The detector uses preceding history inside a rolling three-calendar-year cap.

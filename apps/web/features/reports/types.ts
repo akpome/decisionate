@@ -6,6 +6,7 @@ import type { ImpactAnalysis, ImpactStudy } from "./impact-types"
 
 export type ReportScope = "single" | "multi"
 export type ReportDefinition = CorrelationDefinition & { scope: ReportScope; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[]; impact?: ImpactStudy | null }
+export type ReportAnomalyPoint = { period: string; value: number; expected: number; lower: number; upper: number; deviation: number; deviation_percent: number | null; score: number | null; direction: "high" | "low"; seasonalities: string[]; unusual?: boolean }
 export type ReportAnomalyMetric = {
   metric_id: string; dataset_id: number; dataset_label: string; metric_key: string; label: string
   unit?: string | null; currency?: string | null; status: "ready" | "limited_history" | "insufficient_history" | "unavailable"
@@ -14,7 +15,8 @@ export type ReportAnomalyMetric = {
   seasonal_requested: boolean; seasonalities: string[]; method: string[]; warnings: string[]
   history_window: { start: string; end: string }
   baselines: { start: string; end: string; history_start: string; history_end: string; observations: number; calibration_observations: number; seasonalities: string[]; method: string; spread: number }[]
-  anomalies: { period: string; value: number; expected: number; lower: number; upper: number; deviation: number; deviation_percent: number | null; score: number | null; direction: "high" | "low"; seasonalities: string[] }[]
+  anomalies: ReportAnomalyPoint[]
+  assessments?: ReportAnomalyPoint[]
 }
 export type ReportAnomalyAnalysis = {
   engine_version: string; lookback_years: number; seasonal_business: boolean; anchor_date: string | null
@@ -49,6 +51,7 @@ export type BusinessReport = {
   observations: string[]; contrasts: string[]; recommendations: string[]; warnings: string[]; limitations: string[]
   decisions: ReportDecision[]; decision_drafts?: ReportDecision[]
   anomaly_analysis?: ReportAnomalyAnalysis
+  weekly_anomaly_analysis?: ReportAnomalyAnalysis
   impact_analysis?: ImpactAnalysis | null
   ai_analysis?: AIAnalysis | null
   source_analysis?: { run_id: string; engine_version: string; computed_at: string | null; note: string }

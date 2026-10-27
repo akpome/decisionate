@@ -717,9 +717,11 @@ def build_weekly_report_digest(
             ai_facts["historical_decision_learning"] = learning_context
 
         report_facts = report_analysis_facts(cross_report)
-        ai_facts["cross_dataset_report"] = {key: value for key, value in report_facts.items() if key != "anomaly_analysis"}
+        ai_facts["cross_dataset_report"] = {key: value for key, value in report_facts.items() if key not in {"anomaly_analysis", "weekly_anomaly_analysis"}}
         ai_facts["limitations"] = cross_report["limitations"]
         ai_facts["anomaly_analysis"] = report_facts["anomaly_analysis"]
+        if "weekly_anomaly_analysis" in report_facts:
+            ai_facts["weekly_anomaly_analysis"] = report_facts["weekly_anomaly_analysis"]
         ai_facts["reporting_window"] = cross_report["window"]
 
         ai_analysis = generate_structured_analysis(
@@ -858,15 +860,17 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
                                             "end": definition["date_range"]["end"]}}
     result = build_report(selected_frames, definition, unavailable=warnings, history_anchor=anchor,
                           impact_definition=impact_definition, summary_grain="daily",
-                          relationship_history_end=previous_window(definition["date_range"])["end"])
+                          relationship_history_end=previous_window(definition["date_range"])["end"], include_whole_week=True)
     result["weekly_report"] = True
     evaluated = {item["metric_id"] for item in result["anomaly_analysis"]["metrics"]}
     omitted = [item for item in requested_references if f"{item['dataset_id']}:{item['metric_key']}" not in evaluated]
     if omitted:
-        unavailable_metrics = report_anomalies({}, omitted, {**definition, "grain": result["grain"], "reporting_timezone": reporting_timezone()}, {}, anchor=anchor)["metrics"]
-        for metric in unavailable_metrics:
-            metric["warnings"] = ["The selected metric or its dataset is unavailable under the current policy; it could not be assessed."]
-        result["anomaly_analysis"]["metrics"].extend(unavailable_metrics)
+        for key, grain in (("anomaly_analysis", "daily"), ("weekly_anomaly_analysis", "weekly")):
+            unavailable_metrics = report_anomalies({}, omitted, {**definition, "grain": grain, "reporting_timezone": reporting_timezone()}, {},
+                                                   anchor=anchor, whole_week=key == "weekly_anomaly_analysis")["metrics"]
+            for metric in unavailable_metrics:
+                metric["warnings"] = ["The selected metric or its dataset is unavailable under the current policy; it could not be assessed."]
+            result[key]["metrics"].extend(unavailable_metrics)
     selection = template.get("included_findings") if template else None
     if selection is not None:
         selected_pairs = {"|".join(key.split("|")[:2]) for key in selection}

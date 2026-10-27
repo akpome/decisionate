@@ -95,6 +95,8 @@ test("weekly delivery documents independent settings, fixed weekly grouping and 
   assert.match(text, /does not itself enable delivery or change recipients/)
   assert.match(text, /independent of Instant analysis/)
   assert.match(text, /last completed Monday-Sunday is analyzed daily/)
+  assert.match(text, /daily and as a whole week/)
+  assert.match(text, /Whole-week assessment compares each selected metric with its normal weekly range/)
   assert.match(text, /earlier relationship history is grouped into complete weeks/)
   assert.match(text, /Send report now emails the current weekly report only to the workspace owner/)
   assert.match(text, /daily lags are not interpreted as weeks/)

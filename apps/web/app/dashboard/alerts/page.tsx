@@ -1380,7 +1380,8 @@ function WeeklyReportDigestPreview({
         {digest.cross_dataset_report.warnings.length > 0 && <ul className="space-y-2 text-amber-800">{digest.cross_dataset_report.warnings.map((value, index) => <li key={index}>{value}</li>)}</ul>}
         <p className="text-xs text-gray-500">Historical relationship window: {digest.cross_dataset_report.history_window.start} to {digest.cross_dataset_report.history_window.end}. Association does not establish causation.</p>
       </section>}
-      {digest.cross_dataset_report && <ReportAnomalies analysis={digest.cross_dataset_report.anomaly_analysis} />}
+      {digest.cross_dataset_report?.weekly_anomaly_analysis && <ReportAnomalies analysis={digest.cross_dataset_report.weekly_anomaly_analysis} title="Whole-week assessment" />}
+      {digest.cross_dataset_report && <ReportAnomalies analysis={digest.cross_dataset_report.anomaly_analysis} title={digest.cross_dataset_report.weekly_anomaly_analysis ? "Daily changes" : "Anomaly detection"} />}
 
       {digest.decision_template_url && (
         <Link

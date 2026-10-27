@@ -54,6 +54,16 @@ test("no-anomaly, partial, unavailable and legacy snapshots are distinguished", 
   assert.match(render(undefined), /not recorded in this saved report/)
 })
 
+test("whole-week results show the expected range even when the week was not unusual", () => {
+  const html = renderToStaticMarkup(React.createElement(ReportAnomalies, { title: "Whole-week assessment", analysis: {
+    ...analysis, window: { start: "2026-10-12", end: "2026-10-18" },
+    metrics: [{ ...metric, grain: "weekly", observations: 1, evaluated_observations: 1, anomaly_count: 0, anomalies: [],
+      assessments: [{ ...metric.anomalies[0], unusual: false }] }],
+  } }))
+  for (const value of ["Whole-week assessment", "2026-10-12 to 2026-10-18", "Within expected range", "Expected range", "Actual"]) assert.ok(html.includes(value), value)
+  assert.doesNotMatch(html, /Above expected|Below expected/)
+})
+
 test("zero expected values retain their units without inventing percentage changes", () => {
   const html = render({ ...analysis, metrics: [{ ...metric, anomalies: [{ ...metric.anomalies[0], value: 0, expected: 0, lower: -1, upper: 1, deviation: 0, deviation_percent: null, direction: "low" }] }] })
   assert.match(html, /Below expected/)
@@ -86,8 +96,10 @@ test("both report tabs and weekly delivery use the shared anomaly display", () =
   assert.match(workspace, /checked=\{definition.seasonal_business\}/)
   assert.match(workspace, /edit\(\{ seasonal_business: event.target.checked \}\)/)
   assert.match(workspace, /<ReportAnomalies analysis=\{report.anomaly_analysis\}/)
+  assert.match(workspace, /<ReportAnomalies analysis=\{report.weekly_anomaly_analysis\} title="Whole-week assessment"/)
   assert.match(single, /<ReportPage scope="single"/)
   assert.match(weekly, /<ReportAnomalies analysis=\{digest.cross_dataset_report.anomaly_analysis\}/)
+  assert.match(weekly, /<ReportAnomalies analysis=\{digest.cross_dataset_report.weekly_anomaly_analysis\} title="Whole-week assessment"/)
 })
 
 test("anomaly table labels remain readable inside their mobile horizontal scroll region", () => {

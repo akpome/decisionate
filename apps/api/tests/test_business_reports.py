@@ -357,6 +357,9 @@ class BusinessReportEngineTests(unittest.TestCase):
         facts = ai.call_args.kwargs["facts"]["cross_dataset_report"]
         self.assertEqual(facts["summary_grouping"], "daily")
         self.assertEqual(facts["analysis_grouping"], "weekly")
+        whole = ai.call_args.kwargs["facts"]["weekly_anomaly_analysis"]
+        self.assertTrue(all(metric["grain"] == "weekly" for metric in whole["metrics"]))
+        self.assertTrue(all("baselines" not in metric for metric in whole["metrics"]))
         self.assertEqual(len(facts["metrics"]), 2)
         self.assertTrue(all("trend" not in metric for metric in facts["metrics"]))
         self.assertTrue(all("evidence" not in finding for finding in facts["findings"]))

@@ -44,7 +44,15 @@ current run date and is capped at three years where used for weekly analysis.
 
 The last completed week's charts and unusual-change checks use daily detail:
 one point for each Monday-Sunday date. KPI totals still cover the full week and
-are compared with the preceding full week. Earlier relationship history is
+are compared with the preceding full week. A separate Whole-week assessment
+checks each selected metric's full-week value against its expected weekly range,
+using earlier complete weeks and seasonal adjustment when supported. Daily
+changes and whole-week results can differ: opposing daily changes may cancel
+out, or small daily changes may add up to an unusual week. Incomplete weeks are
+excluded rather than treating missing dates as zero. If there is not enough
+usable weekly history, the whole-week assessment is labeled unassessed.
+Both views are included in the preview and email, and supplied as bounded facts
+for interpretation. Earlier relationship history is
 grouped into complete weekly periods, ending on the Sunday before the report
 week; daily points are not mixed into the weekly relationship series.
 There is no manual Start/End or Group by selector on the weekly page. Relationship

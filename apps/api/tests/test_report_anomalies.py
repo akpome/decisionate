@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import unittest
 from unittest.mock import patch
 
@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from app.modules.reports.anomalies import detect_report_metric, historical_start
-from app.modules.reports.service import build_report
+from app.modules.reports.service import build_report, report_anomalies, report_analysis_facts
 from app.modules.alerts.router import build_weekly_cross_dataset_report, build_weekly_report_digest
 from app.modules.alerts.schemas import WeeklyReportPreferenceResponse
 from app.modules.alerts.email_delivery import build_weekly_report_email_html, build_weekly_report_email_text
@@ -191,6 +191,7 @@ class ReportAnomalyTests(unittest.TestCase):
         self.assertEqual([item["metric_id"] for item in result["anomaly_analysis"]["metrics"]], ["1:spend", "2:net_sales"])
         self.assertTrue(result["anomaly_analysis"]["seasonal_business"])
         self.assertEqual(result["definition"]["metrics"], definition()["metrics"])
+        self.assertNotIn("weekly_anomaly_analysis", result)
 
     @patch.dict("os.environ", FLAGS)
     def test_unavailable_selected_dataset_has_an_explicit_anomaly_result(self):
@@ -206,6 +207,95 @@ class ReportAnomalyTests(unittest.TestCase):
         results = {item["metric_id"]: item for item in report["anomaly_analysis"]["metrics"]}
         self.assertEqual(set(results), {"1:spend", "2:net_sales"})
         self.assertEqual(results["2:net_sales"]["status"], "unavailable")
+        weekly = {item["metric_id"]: item for item in report["weekly_anomaly_analysis"]["metrics"]}
+        self.assertEqual(set(weekly), set(results))
+        self.assertEqual(weekly["2:net_sales"]["status"], "unavailable")
+        self.assertEqual(weekly["2:net_sales"]["assessments"], [])
+
+    def weekly(self, points, seasonal=False):
+        frames = {identity: (dataset, points.rename(columns={"period": "date", "value": "spend" if identity == 1 else "net_sales"}).assign(currency="CAD"))
+                  for identity, (dataset, _) in fixture().items()}
+        return build_weekly_cross_dataset_report(frames,
+            WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=[], include_recommendations=True),
+            definition(seasonal_business=seasonal), analysis_date=date(2026, 8, 12))
+
+    @patch.dict("os.environ", FLAGS)
+    def test_whole_week_detects_sustained_change_that_is_not_unusual_on_individual_days(self):
+        points = series()
+        points["value"] = 100 + 20 * np.sin(2 * np.pi * points.period.dt.dayofweek / 7) + np.random.default_rng(12).normal(0, .15, len(points))
+        points.loc[points.period >= WINDOW["start"], "value"] += 2
+        report = self.weekly(points)
+        self.assertEqual(report["anomaly_analysis"]["anomaly_count"], 0)
+        whole = report["weekly_anomaly_analysis"]["metrics"][0]
+        self.assertEqual(whole["status"], "ready")
+        self.assertEqual(whole["grain"], "weekly")
+        self.assertEqual(whole["evaluated_observations"], 1)
+        self.assertEqual(whole["anomaly_count"], 1)
+        self.assertEqual(whole["anomalies"][0]["direction"], "high")
+        self.assertTrue(whole["assessments"][0]["unusual"])
+        self.assertAlmostEqual(whole["assessments"][0]["value"], report["metrics"][0]["value"])
+        self.assertEqual(report["history_window"]["end"], "2026-08-02")
+        self.assertLess(whole["baselines"][0]["history_end"], WINDOW["start"])
+        self.assertGreaterEqual(whole["baselines"][0]["history_start"], "2023-08-12")
+
+    @patch.dict("os.environ", FLAGS)
+    def test_opposite_daily_changes_can_leave_the_whole_week_within_its_expected_range(self):
+        points = series()
+        points.loc[points.period == "2026-08-04", "value"] += 100
+        points.loc[points.period == "2026-08-06", "value"] -= 100
+        report = self.weekly(points)
+        self.assertEqual(report["anomaly_analysis"]["anomaly_count"], 4)
+        whole = report["weekly_anomaly_analysis"]["metrics"][0]
+        self.assertEqual(whole["status"], "ready")
+        self.assertEqual(whole["anomaly_count"], 0)
+        self.assertEqual(len(whole["assessments"]), 1)
+        self.assertFalse(whole["assessments"][0]["unusual"])
+        facts = report_analysis_facts(report)
+        self.assertEqual(facts["weekly_anomaly_analysis"]["metrics"][0]["assessments"], whole["assessments"])
+        self.assertNotIn("baselines", facts["weekly_anomaly_analysis"]["metrics"][0])
+
+    @patch.dict("os.environ", FLAGS)
+    def test_whole_week_respects_seasonality_and_does_not_train_on_its_own_week(self):
+        points = series(True)
+        original = self.weekly(points, True)
+        self.assertEqual(original["weekly_anomaly_analysis"]["anomaly_count"], 0)
+        baseline = original["weekly_anomaly_analysis"]["metrics"][0]["baselines"]
+        self.assertEqual(baseline[0]["seasonalities"], ["annual"])
+        points.loc[points.period >= WINDOW["start"], "value"] += 400
+        modified = self.weekly(points, True)
+        self.assertEqual(baseline, modified["weekly_anomaly_analysis"]["metrics"][0]["baselines"])
+        self.assertEqual(modified["weekly_anomaly_analysis"]["anomaly_count"], 2)
+        points.loc[points.period < "2023-08-12", "value"] = 1e12
+        future = pd.DataFrame({"period": pd.date_range("2026-08-10", periods=30), "value": 1e12})
+        unchanged = self.weekly(pd.concat([points, future], ignore_index=True), True)
+        self.assertEqual(modified["weekly_anomaly_analysis"], unchanged["weekly_anomaly_analysis"])
+
+    @patch.dict("os.environ", FLAGS)
+    def test_incomplete_whole_week_is_not_scored_as_a_false_drop(self):
+        points = series()
+        points.loc[points.period == "2026-08-05", "value"] = np.nan
+        report = self.weekly(points)
+        self.assertEqual(report["anomaly_analysis"]["metrics"][0]["evaluated_observations"], 6)
+        whole = report["weekly_anomaly_analysis"]["metrics"][0]
+        self.assertEqual(whole["status"], "unavailable")
+        self.assertEqual(whole["evaluated_observations"], 0)
+        self.assertEqual(whole["assessments"], [])
+        self.assertTrue(any("all seven dates" in warning for warning in whole["warnings"]))
+
+    @patch.dict("os.environ", FLAGS)
+    def test_whole_week_preserves_raw_average_aggregation_instead_of_summing_daily_averages(self):
+        points = series()
+        points["value"] = 10.
+        extra = points.loc[points.period.dt.dayofweek == 0].copy()
+        extra["value"] = 90.
+        frame = pd.concat([points, extra], ignore_index=True).rename(columns={"period": "date", "value": "spend"})
+        metadata = {"1:spend": {**METRIC, "aggregation": "avg"}}
+        reference = {"dataset_id": 1, "metric_key": "spend", "date_column": "date", "aggregation": "avg"}
+        result = report_anomalies({1: (fixture()[1][0], frame)}, [reference],
+            {**definition(grain="weekly"), "date_range": WINDOW, "reporting_timezone": "UTC"}, metadata,
+            anchor=date(2026, 8, 12), whole_week=True)
+        self.assertAlmostEqual(result["metrics"][0]["assessments"][0]["value"], 20.)
+        self.assertEqual(result["anomaly_count"], 0)
 
     @patch.dict("os.environ", FLAGS)
     def test_weekly_anomalies_use_current_three_year_history_not_template_dates_and_reach_both_email_parts(self):
@@ -231,6 +321,7 @@ class ReportAnomalyTests(unittest.TestCase):
         self.assertEqual(report["window"], WINDOW)
         self.assertEqual(report["history_window"]["start"], "2023-08-12")
         analysis = report["anomaly_analysis"]
+        self.assertEqual(report["weekly_anomaly_analysis"]["metrics"][0]["evaluated_observations"], 1)
         self.assertTrue(analysis["seasonal_business"])
         self.assertEqual(analysis["anchor_date"], "2026-08-12")
         self.assertEqual(analysis["anomaly_count"], 2)
@@ -238,6 +329,8 @@ class ReportAnomalyTests(unittest.TestCase):
         text, markup = build_weekly_report_email_text(digest), build_weekly_report_email_html(digest)
         for value in (text, markup):
             self.assertIn("Unusual changes (anomaly detection)", value)
+            self.assertIn("Whole-week assessment", value)
+            self.assertIn("Daily changes", value)
             self.assertIn("2026-08-04", value)
             self.assertIn("expected range:", value)
             self.assertIn("residual mad", value)

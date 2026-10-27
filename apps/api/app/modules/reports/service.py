@@ -110,12 +110,13 @@ def prepare_report_series(frames, references, definition):
     return result
 
 
-def report_anomalies(frames, references, definition, metadata, *, anchor=None):
+def report_anomalies(frames, references, definition, metadata, *, anchor=None, whole_week=False):
     window = definition["date_range"]
     start = historical_start(anchor or window["start"])
     history_definition = {**definition, "date_range": {"start": start, "end": window["end"]}}
     available = [reference for reference in references if metric_id(reference) in metadata]
     points = prepare_report_series(frames, available, history_definition) if available else {}
+    daily = prepare_report_series(frames, available, {**history_definition, "grain": "daily"}) if whole_week and available else {}
     periods = period_index(history_definition["date_range"], definition["grain"])
     results = []
     for reference in references:
@@ -123,18 +124,29 @@ def report_anomalies(frames, references, definition, metadata, *, anchor=None):
         if key not in points:
             descriptor = {**reference, "id": key, "dataset_label": f"Dataset {reference['dataset_id']}", "label": reference["metric_key"]}
             empty = pd.DataFrame({"period": pd.DatetimeIndex([]), "value": pd.Series(dtype=float)})
-            missing = detect_report_metric(empty, descriptor, window, definition["grain"], definition.get("seasonal_business", False), anchor)
+            missing = detect_report_metric(empty, descriptor, window, definition["grain"], definition.get("seasonal_business", False), anchor,
+                                           include_assessments=whole_week)
             missing["warnings"] = ["The selected dataset is unavailable; this metric could not be assessed."]
             results.append(missing)
             continue
         values = points[key].set_index("period").reindex(periods).rename_axis("period").reset_index()
-        results.append(detect_report_metric(values, metadata[key], window, definition["grain"],
-                                            definition.get("seasonal_business", False), anchor))
+        incomplete = 0
+        if whole_week:
+            # Compare complete weeks only. Missing dates cannot become implicit zeros.
+            days = daily[key]
+            coverage = days.value.notna().groupby(_bucket_dates(days.period, "weekly")).sum().reindex(periods, fill_value=0)
+            incomplete = int(((coverage < 7) & (periods >= pd.Timestamp(start)) & values.value.notna().to_numpy()).sum())
+            values["value"] = values.value.where(coverage.to_numpy() == 7)
+        result = detect_report_metric(values, metadata[key], window, definition["grain"],
+                                      definition.get("seasonal_business", False), anchor, include_assessments=whole_week)
+        if incomplete:
+            result["warnings"].append("Weeks without observations for all seven dates are excluded from the whole-week assessment; missing dates are not assumed to be zero.")
+        results.append(result)
     return anomaly_summary(results, definition.get("seasonal_business", False), window, anchor)
 
 
 def build_report(frames, definition, *, unavailable=None, history_anchor=None, impact_definition=None,
-                 summary_grain=None, relationship_history_end=None):
+                 summary_grain=None, relationship_history_end=None, include_whole_week=False):
     """Frames must already be authorized; source data and selections are never changed."""
     definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
     single = definition.get("scope", "multi") == "single"
@@ -300,7 +312,9 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
         actions.append("Compare the selected metrics with their previous-period baselines and business targets before acting." if single else
                        "Collect comparable history across the selected datasets before drawing a relationship conclusion.")
     anomalies = report_anomalies(frames, references, actual_definition, metadata, anchor=history_anchor)
-    if anomalies["anomaly_count"]:
+    weekly_anomalies = report_anomalies(frames, references, {**actual_definition, "grain": "weekly"}, metadata,
+                                       anchor=history_anchor, whole_week=True) if include_whole_week else None
+    if anomalies["anomaly_count"] or weekly_anomalies and weekly_anomalies["anomaly_count"]:
         actions.append("Check unusual changes against your normal busy and quiet times, recent business events, and whether the data import finished.")
     impact = None
     if definition.get("impact"):
@@ -324,6 +338,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
             "analysis_source": "deterministic", "generated_at": datetime.now(timezone.utc).isoformat(),
             "metrics": metrics, "findings": findings, "included_findings": selected_ids,
             "anomaly_analysis": anomalies,
+            **({"weekly_anomaly_analysis": weekly_anomalies} if weekly_anomalies is not None else {}),
             "impact_analysis": impact,
             "observations": observations, "contrasts": contrasts[:5], "recommendations": actions, "warnings": warnings,
             "limitations": ["Missing observations remain unavailable and are not zero-filled.",
@@ -348,12 +363,15 @@ def report_analysis_facts(report):
     facts["analysis_grouping"] = report.get("analysis_grain", report["grain"])
     facts["findings"] = [{key: value for key, value in item.items() if key != "evidence"}
                          for item in report["findings"] if item["id"] in report["included_findings"]][:10]
-    analysis = report.get("anomaly_analysis")
-    if analysis:
-        facts["anomaly_analysis"] = {
+    for key in ("anomaly_analysis", "weekly_anomaly_analysis"):
+        analysis = report.get(key)
+        if not analysis:
+            continue
+        facts[key] = {
             **{key: value for key, value in analysis.items() if key != "metrics"},
-            "metrics": [{key: value for key, value in item.items() if key not in {"baselines", "anomalies"}}
-                        | {"anomalies": item["anomalies"][:7]} for item in analysis["metrics"]],
+            "metrics": [{key: value for key, value in item.items() if key not in {"baselines", "anomalies", "assessments"}}
+                        | {"anomalies": item["anomalies"][:7]}
+                        | ({"assessments": item["assessments"][:7]} if "assessments" in item else {}) for item in analysis["metrics"]],
         }
     if report.get("impact_analysis"):
         facts["impact_analysis"] = impact_facts(report["impact_analysis"])
@@ -370,7 +388,7 @@ def report_summary(report):
     findings = [item for item in report["findings"] if item["id"] in selected and item["eligible"]]
     if findings:
         return " ".join(item.get("business_summary") or relationship_summary(item, report.get("analysis_grain", report["grain"])) for item in findings[:2])
-    if report.get("anomaly_analysis", {}).get("anomaly_count"):
+    if any(report.get(key, {}).get("anomaly_count") for key in ("anomaly_analysis", "weekly_anomaly_analysis")):
         return "Some selected results changed unusually. Check the unusual changes below before deciding what to do."
     return "There is not enough comparable history to explain these results yet. Check the dates and missing-data notes below."
 

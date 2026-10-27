@@ -17,7 +17,7 @@ def _number(value):
     return number if np.isfinite(number) else None
 
 
-def detect_report_metric(points, descriptor, window, grain, seasonal=False, anchor=None):
+def detect_report_metric(points, descriptor, window, grain, seasonal=False, anchor=None, *, include_assessments=False):
     """Evaluate chronological blocks; no point trains its own block's baseline."""
     first, end = pd.Timestamp(window["start"]), pd.Timestamp(window["end"])
     values = points.set_index("period").value.sort_index()
@@ -39,6 +39,8 @@ def detect_report_metric(points, descriptor, window, grain, seasonal=False, anch
               "missing_observations": int(targets.isna().sum()), "anomaly_count": 0,
               "method": [], "history_window": {"start": historical_start(anchor or first), "end": str((first - pd.Timedelta(days=1)).date())},
               "anomalies": [], "warnings": [], "baselines": []}
+    if include_assessments:
+        result["assessments"] = []
     if partial_periods:
         result["warnings"].append("Partial calendar reporting periods are not compared with complete historical periods for anomaly detection.")
     if available.empty:
@@ -91,13 +93,18 @@ def detect_report_metric(points, descriptor, window, grain, seasonal=False, anch
             "observations": len(baseline["train"]), "calibration_observations": baseline["calibration_observations"],
             "seasonalities": list(baseline["seasonalities"]), "method": baseline["method"], "spread": _number(baseline["spread"])})
         for period, actual, prediction, residual in zip(block.index, block.to_numpy(), expected, residuals):
-            if abs(residual) <= half_width:
+            unusual = abs(residual) > half_width
+            if not unusual and not include_assessments:
                 continue
-            result["anomalies"].append({"period": str(period.date()), "value": _number(actual),
+            point = {"period": str(period.date()), "value": _number(actual),
                 "expected": _number(prediction), "lower": _number(prediction - half_width), "upper": _number(prediction + half_width),
                 "deviation": _number(residual), "deviation_percent": _number(residual / abs(prediction) * 100) if abs(prediction) > baseline["tolerance"] else None,
                 "score": _number(residual / baseline["spread"]) if baseline["spread"] > 0 else None,
-                "direction": "high" if residual > 0 else "low", "seasonalities": list(baseline["seasonalities"])})
+                "direction": "high" if residual > 0 else "low", "seasonalities": list(baseline["seasonalities"])}
+            if include_assessments:
+                result["assessments"].append({**point, "unusual": bool(unusual)})
+            if unusual:
+                result["anomalies"].append(point)
     result["seasonalities"], result["method"] = sorted(seasonalities_used), sorted(methods)
     result["anomaly_count"] = len(result["anomalies"])
     evaluated = result["evaluated_observations"]
