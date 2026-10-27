@@ -69,7 +69,7 @@ business change. Existing saved reports keep their original workflow.
 
 ## Limits and evidence
 
-New analyses share their defaults with Relationships: Spearman, weekly grouping,
+New analyses share their defaults with Relationships: Spearman, daily grouping,
 Sum aggregation where applicable, 52 minimum historical observations, maximum
 lag 12 grouped periods and same-period comparison. Valid saved choices are
 retained rather than replaced simply because the defaults changed.

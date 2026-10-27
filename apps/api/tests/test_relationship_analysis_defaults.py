@@ -11,7 +11,7 @@ from app.modules.datasets.services import relationships
 from app.modules.reports.schemas import ReportDefinition
 
 
-def sources(count=80, frequency="W-MON"):
+def sources(count=80, frequency="D"):
     dates = pd.date_range("2000-01-01", periods=count, freq=frequency)
     return [(SimpleNamespace(id=identity, file_name=f"Source {identity}.csv"), pd.DataFrame({"date": dates, "value": range(count)}))
             for identity in (1, 2)]
@@ -29,7 +29,7 @@ class RelationshipAnalysisDefaultTests(unittest.TestCase):
                                   metrics=[{"dataset_id": identity, "date_column": "date", "metric_key": "value"} for identity in (1, 2)],
                                   date_range={"start": "2000-01-01", "end": "2000-02-01"})
         self.assertEqual((monitor.method, monitor.period, monitor.aggregation, monitor.minimum_observations, monitor.maximum_lag, monitor.lag_periods),
-                         ("spearman", "weekly", "sum", 52, 12, 0))
+                         ("spearman", "daily", "sum", 52, 12, 0))
         self.assertEqual((monitor.method, monitor.period, monitor.minimum_observations, monitor.maximum_lag),
                          (report.method, report.grain, report.filters.minimum_observations, report.lag.maximum))
         self.assertEqual(DatasetRelationshipResponse.model_fields["lag_mode"].default, monitor.lag_mode)

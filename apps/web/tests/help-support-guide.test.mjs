@@ -61,7 +61,7 @@ test("Reports is the documented analysis entry and date and dimension filtering 
   assert.match(chapter("troubleshooting"), /Retry filtered dashboard/)
 })
 
-test("report timing guidance matches the 52-observation weekly default and pair-specific calendar lags", () => {
+test("report timing guidance matches the 52-observation daily default and pair-specific calendar lags", () => {
   const text = chapter("analysis")
   assert.match(text, /New multi dataset reports open with Correlation analysis/)
   assert.match(text, /Business impact analysis is a separate optional analysis type/)
@@ -73,7 +73,7 @@ test("report timing guidance matches the 52-observation weekly default and pair-
   assert.match(read("../features/reports/types.ts"), /minimum_observations: Math.max\(MINIMUM_RELATIONSHIP_OBSERVATIONS/)
   assert.match(read("../features/reports/report-pair-directions.tsx"), /Same-period comparison only/)
   assert.match(text, /Reports and Relationships share the same new-analysis defaults/)
-  assert.match(chapter("relationships-alerts"), /Spearman, weekly Group by, Sum aggregation, 52 Minimum historical observations, Maximum lag 12, and Same-period comparison only/)
+  assert.match(chapter("relationships-alerts"), /Spearman, daily Group by, Sum aggregation, 52 Minimum historical observations, Maximum lag 12, and Same-period comparison only/)
   assert.match(chapter("relationships-alerts"), /Maximum lag appears only for a directional timing search/)
 })
 

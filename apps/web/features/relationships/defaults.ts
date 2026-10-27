@@ -1,6 +1,6 @@
 export const RELATIONSHIP_DEFAULTS = {
   method: "spearman",
-  period: "weekly",
+  period: "daily",
   aggregation: "sum",
   minimumObservations: 52,
   maximumLag: 12,

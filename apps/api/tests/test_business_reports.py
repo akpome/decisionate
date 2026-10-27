@@ -109,6 +109,14 @@ class BusinessReportEngineTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 definition(filters={"minimum_observations": minimum})
 
+    def test_report_schema_defaults_to_daily_and_preserves_explicit_groupings(self):
+        payload = definition()
+        payload.pop("grain")
+        self.assertEqual(ReportDefinition(**payload).grain, "daily")
+        for grain in ("daily", "weekly", "monthly", "quarterly"):
+            self.assertEqual(ReportDefinition(**{**payload, "grain": grain}).grain, grain)
+        self.assertEqual(ReportDefinition(**{**payload, "grain": "week"}).grain, "weekly")
+
     def test_relationship_eligibility_uses_24_observations_without_a_hidden_30_floor(self):
         window = {"start": "2026-01-01", "end": "2026-01-24"}
         for observations in (23, 24):
@@ -311,13 +319,14 @@ class BusinessReportEngineTests(unittest.TestCase):
         self.assertIn("2 weeks ahead", finding["business_summary"])
         self.assertAlmostEqual(report["metrics"][0]["value"], 7 * lead[-1])
 
-    def test_weekly_default_analysis_uses_shared_weekly_default_not_daily_summary_units(self):
+    def test_weekly_default_analysis_uses_daily_without_changing_its_completed_week_window(self):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=["owner@example.test"], metric_focus=["1:spend", "2:net_sales"], include_recommendations=True)
         report = build_weekly_cross_dataset_report(self.frames, preference, analysis_date=date(2026, 4, 1))
-        self.assertEqual(report["analysis_grain"], "weekly")
+        self.assertEqual(report["analysis_grain"], "daily")
         self.assertEqual(report["grain"], "daily")
+        self.assertEqual(report["window"], {"start": "2026-03-23", "end": "2026-03-29"})
         self.assertEqual(report["definition"]["filters"]["minimum_observations"], 52)
-        self.assertTrue(all(item["lag_unit"] == "calendar weekly periods" for item in report["findings"]))
+        self.assertTrue(all(item["lag_unit"] == "calendar daily periods" for item in report["findings"]))
 
     def test_weekly_ai_receives_bounded_summaries_not_raw_trends_or_evidence(self):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=["1:spend", "2:net_sales"], include_recommendations=True)
@@ -327,7 +336,7 @@ class BusinessReportEngineTests(unittest.TestCase):
             build_weekly_report_digest(preference, [pair[0] for pair in self.frames.values()])
         facts = ai.call_args.kwargs["facts"]["cross_dataset_report"]
         self.assertEqual(facts["summary_grouping"], "daily")
-        self.assertEqual(facts["analysis_grouping"], "weekly")
+        self.assertEqual(facts["analysis_grouping"], "daily")
         self.assertEqual(len(facts["metrics"]), 2)
         self.assertTrue(all("trend" not in metric for metric in facts["metrics"]))
         self.assertTrue(all("evidence" not in finding for finding in facts["findings"]))
@@ -745,6 +754,18 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         reopened = self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()
         self.assertEqual(reopened["definition"], saved["definition"])
         self.assertEqual(reopened["metrics"], saved["metrics"])
+
+    def test_new_report_defaults_do_not_overwrite_a_saved_weekly_grouping(self):
+        saved = self.client.post("/api/v2/business-reports", json=definition(grain="weekly")).json()
+        fresh = definition()
+        fresh.pop("grain")
+        response = self.client.post("/api/v2/business-reports/preview", json=fresh)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["definition"]["grain"], "daily")
+        reopened = self.client.get(f"/api/v2/business-reports/{saved['report_id']}")
+        self.assertEqual(reopened.status_code, 200, reopened.text)
+        self.assertEqual(reopened.json()["definition"]["grain"], "weekly")
+        self.assertEqual(reopened.json()["metrics"], saved["metrics"])
 
     def test_read_only_users_can_explore_but_not_save_shared_reports(self):
         with patch.object(router, "get_workspace_role", return_value="viewer"):

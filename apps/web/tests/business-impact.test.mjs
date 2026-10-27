@@ -135,7 +135,7 @@ test("fresh reports open with correlation settings and do not initialize an impa
     assert.equal(value.scope, scope)
     assert.equal(value.impact, null)
     assert.equal(value.method, "spearman")
-    assert.equal(value.grain, "weekly")
+    assert.equal(value.grain, "daily")
     assert.equal(value.filters.minimum_observations, 52)
   }
   assert.match(workspace, /<ImpactResult analysis=\{report.impact_analysis\}/)

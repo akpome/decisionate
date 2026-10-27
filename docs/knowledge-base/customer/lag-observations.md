@@ -31,7 +31,7 @@ zero also restricts every retained pair to its same-period test.
 ## Why one year can be insufficient
 
 Reports and Relationships share a default minimum of 52 matched observations
-and weekly grouping, not 52 dates in the form. Explicit saved grouping and
+and daily grouping, not 52 dates in the form. Explicit saved grouping and
 thresholds are retained, including the previously saved 24-observation setting.
 The editable minimum remains 24; 52 is the new default, not a new lower bound. Twelve
 monthly source points fail that threshold. Filtering, non-overlapping dates,

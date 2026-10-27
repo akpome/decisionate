@@ -20,7 +20,7 @@ const { editableDefinition, formatReportValue, selectedReportDimensionFilters } 
 
 test("report defaults share the monitor's method, grouping, observation floor and lag limit", () => {
   const defaultsValue = defaults.exports.RELATIONSHIP_DEFAULTS
-  assert.deepEqual(JSON.parse(JSON.stringify(defaultsValue)), { method: "spearman", period: "weekly", aggregation: "sum", minimumObservations: 52, maximumLag: 12, minimumAbsCoefficient: .3, lagMode: "manual", lagPeriods: 0, lagDirection: "a_leads_b" })
+  assert.deepEqual(JSON.parse(JSON.stringify(defaultsValue)), { method: "spearman", period: "daily", aggregation: "sum", minimumObservations: 52, maximumLag: 12, minimumAbsCoefficient: .3, lagMode: "manual", lagPeriods: 0, lagDirection: "a_leads_b" })
   const value = editableDefinition({})
   assert.equal(value.method, defaultsValue.method)
   assert.equal(value.grain, defaultsValue.period)
@@ -33,6 +33,9 @@ test("report defaults share the monitor's method, grouping, observation floor an
   assert.equal(saved.grain, "monthly")
   assert.equal(saved.filters.minimum_observations, 60)
   assert.equal(saved.lag.maximum, 3)
+  for (const grain of ["daily", "weekly", "monthly", "quarterly"]) {
+    assert.equal(editableDefinition({ grain }).grain, grain)
+  }
 })
 
 test("report editor removes server-only fields while preserving cross-dataset scope and provenance", () => {

@@ -187,7 +187,7 @@ the weekly summary: `ReportDefinition.grain` retains the saved relationship and
 business-impact units, while `build_report(reporting_grain="daily")` selects daily
 summary trends, coverage and anomaly checks inside the completed week. Results
 expose `grain` for summary detail and `analysis_grain` for analytical units.
-Without a template, analytical grouping uses the shared weekly default. Saved
+Without a template, analytical grouping uses the shared daily default. Saved
 lags and minimum observation thresholds are retained, not disabled or relabeled
 as days. Coarser analysis may lack enough observations within three years; it is
 not silently replaced with a finer, statistically different analysis. Weekly

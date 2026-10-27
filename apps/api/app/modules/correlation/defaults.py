@@ -1,7 +1,7 @@
 """Defaults shared by report analysis and saved two-metric monitors."""
 
 DEFAULT_METHOD = "spearman"
-DEFAULT_PERIOD = "weekly"
+DEFAULT_PERIOD = "daily"
 DEFAULT_AGGREGATION = "sum"
 MINIMUM_OBSERVATIONS = 24
 DEFAULT_MINIMUM_OBSERVATIONS = 52

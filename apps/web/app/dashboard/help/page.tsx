@@ -101,7 +101,7 @@ const faqItems = [
   {
     question: "Why can a year-long report have insufficient relationship evidence?",
     answer:
-      "The default minimum is 52 matched historical observations after grouping and filtering, with weekly grouping by default, not 52 calendar days selected in the form. A year of monthly source data provides only 12 monthly observations. Different date ranges, missing periods, dimension filters, constant values, and lag tests can reduce usable evidence further. Choose more overlapping source history or a finer grouping only when the source really contains observations at that frequency.",
+      "The default minimum is 52 matched historical observations after grouping and filtering, with daily grouping by default, not simply 52 calendar days selected in the form. A year of monthly source data provides only 12 observations; daily grouping does not manufacture more. Different date ranges, missing periods, dimension filters, constant values, and lag tests can reduce usable evidence further. Choose more overlapping source history or a finer grouping only when the source really contains observations at that frequency.",
   },
   {
     question: "How much connector history is imported?",
@@ -422,7 +422,7 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Set relationship timing and historical coverage",
         steps: [
           "Choose Spearman or Pearson in Relationship analysis. Minimum historical observations defaults to 52 and counts usable matched observations after grouping and filtering, not the number of dates entered.",
-          "Reports and Relationships share the same new-analysis defaults: Spearman, weekly grouping, sum aggregation where applicable, 52 minimum historical observations, a maximum lag of 12 grouped periods, and same-period comparison. Valid deliberately saved settings are retained, including a saved 24-observation minimum or daily grouping.",
+          "Reports and Relationships share the same new-analysis defaults: Spearman, daily grouping, sum aggregation where applicable, 52 minimum historical observations, a maximum lag of 12 grouped periods, and same-period comparison. Valid deliberately saved settings are retained, including a saved 24-observation minimum or weekly grouping.",
           "Evaluate timing is always visible above Relationship directions, without an enable checkbox. Choose Same-period comparison only or name which metric leads for each pair. Only directed pairs run positive-lag tests, up to Maximum lag; all pairs include the same-period comparison.",
           "Remove relationship pairs you do not want to analyze. Restore them from Removed pairs when needed. These choices are saved with the report and weekly template; removing a pair does not remove its metrics from KPI or anomaly analysis.",
           "Maximum lag is measured in the selected Group by period and is limited to 12. A lag of 2 means two daily, weekly, monthly, or quarterly periods, depending on that setting. A directional timing test also includes lag zero.",
@@ -477,7 +477,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Generate a multi dataset report and choose Use for weekly report. The saved template retains selected source metrics, date columns, dimension filters, and the seasonal-business setting.",
           "Open Weekly delivery to review recipients, schedule, and sending preferences in Alerts. Selecting a template does not itself enable delivery or change recipients.",
           "Weekly reports assess the latest completed week with up to a rolling three years of available history, including unusual changes in the selected metrics. Manual Start and End dates are for the generated snapshot and do not fix the weekly reporting window.",
-          "Analysis group by is separate from weekly delivery. Weekly totals cover the latest completed Monday-Sunday week, with daily coverage and anomaly checks. Relationship analysis keeps the template's saved grouping, minimum observations, pair directions, and lag units; a two-week lag stays two weeks. Without a saved template, relationship grouping defaults to weekly. A monthly analysis can still lack enough observations within three years.",
+          "Analysis group by is separate from weekly delivery. Weekly totals cover the latest completed Monday-Sunday week, with daily coverage and anomaly checks. Relationship analysis keeps the template's saved grouping, minimum observations, pair directions, and lag units; a two-week lag stays two weeks. Without a saved template, relationship grouping defaults to daily. A monthly analysis can still lack enough observations within three years.",
           "Use Remove weekly report template to pause delivery and remove the template selection while keeping the saved report and linked decisions.",
         ],
       },
@@ -506,7 +506,7 @@ const referenceChapters: ReferenceChapter[] = [
         steps: [
           "Open Analysis -> Relationships.",
           "Choose the left and right datasets, date columns, and metrics. Each side has an independent Dimension column filter with Unique values and Search values; choose at least one value for any selected dimension.",
-          "The defaults match Reports: Spearman, weekly Group by, Sum aggregation, 52 Minimum historical observations, Maximum lag 12, and Same-period comparison only. Verify actual overlapping dates after applying filters to each source.",
+          "The defaults match Reports: Spearman, daily Group by, Sum aggregation, 52 Minimum historical observations, Maximum lag 12, and Same-period comparison only. Verify actual overlapping dates after applying filters to each source.",
           "Choose Relationship direction using the named metric that leads, or keep Same-period comparison only. Maximum lag appears only for a directional timing search and tests zero through that limit. Either metric can lead; labels and dimension filters keep their original dataset identities. The maximum is 12 grouped periods for every grouping.",
           "The old fixed-lag editor is removed. Existing saved fixed-lag monitors keep their original timing and show it as Saved fixed lag until you explicitly choose a new direction. Saved observation thresholds and grouping are not replaced by the new defaults.",
           "The selected observation minimum is enforced after filtering, grouping and lagging. Too few matched observations produce insufficient data, not a usable correlation. Custom observation and lag settings are saved with the monitor and reused during scheduled evaluation.",

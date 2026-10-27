@@ -13,7 +13,7 @@ dates with trustworthy zeros.
 
 Minimum historical observations counts usable matched grouped observations for
 relationship testing. Reports and Relationships default to 52 observations and
-weekly grouping; valid saved settings are retained. A long form date range can still
+daily grouping; valid saved settings are retained. A long form date range can still
 have too few observations because the source is sparse, dates do not overlap,
 filters remove rows, values do not vary or lagging removes matched pairs.
 

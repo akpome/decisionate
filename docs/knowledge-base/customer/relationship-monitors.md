@@ -11,7 +11,7 @@ and apply each side's Dimension column and Unique values independently when
 needed. Set the period and aggregation to fit the business question, then check
 the actual overlapping source dates.
 
-New analyses on both pages default to Spearman, weekly grouping, Sum aggregation
+New analyses on both pages default to Spearman, daily grouping, Sum aggregation
 where applicable, 52 minimum historical observations, a maximum lag of 12 grouped
 periods, and same-period comparison. Correlation method, Minimum historical
 observations and Maximum lag are visible in Relationship analysis rather than
@@ -26,7 +26,7 @@ quarterly grouping; it is not an automatic conversion into days.
 
 There is no new fixed-lag editor. Existing saved fixed-lag monitors retain their
 original timing, shown as Saved fixed lag, until the user explicitly chooses a
-new direction. Saved grouping and observation thresholds, including daily
+new direction. Saved grouping and observation thresholds, including weekly
 grouping and a 24-observation threshold, are not overwritten by the new defaults.
 
 The observation minimum is enforced after filtering, grouping and lagging.

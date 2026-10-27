@@ -35,7 +35,7 @@ completed week, with daily detail for coverage and anomaly checks. Relationship
 analysis retains the template's daily, weekly, monthly or quarterly grouping,
 minimum observations, pair directions and lag limits. A two-week lag remains
 two weeks; sending weekly does not turn it into two days or disable timing.
-Without a template, relationship analysis defaults to weekly grouping.
+Without a template, relationship analysis defaults to daily grouping.
 
 Changing the analysis grouping does not change the weekly summary window or
 the metric's approved aggregation policy. Monthly and quarterly analyses may

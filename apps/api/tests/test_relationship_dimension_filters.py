@@ -86,13 +86,13 @@ class RelationshipDimensionFilterTests(unittest.TestCase):
         self.assertEqual(response.json()[0]["evidence"], saved["evidence"])
         self.assertEqual(response.json()[0]["left"], saved["left"])
 
-    def test_public_defaults_are_spearman_weekly_same_period_with_52_observations_and_12_maximum_lag(self):
+    def test_public_defaults_are_spearman_daily_same_period_with_52_observations_and_12_maximum_lag(self):
         payload = self.payload()
         for setting in ("period", "method", "lag_mode", "lag_periods", "minimum_observations"):
             payload.pop(setting)
         result = self.save(payload)
         self.assertEqual((result["method"], result["period"], result["aggregation"], result["minimum_observations"], result["maximum_lag"], result["lag_mode"], result["lag_periods"]),
-                         ("spearman", "weekly", "sum", 52, 12, "manual", 0))
+                         ("spearman", "daily", "sum", 52, 12, "manual", 0))
         self.assertEqual(len(result["lag_candidates"]), 1)
         self.assertIsNone(result["correlation"])
         self.assertEqual(result["status"], "insufficient_data")
