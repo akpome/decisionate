@@ -14,12 +14,16 @@ dates: the estimated difference covers the complete periods after the change,
 while the supporting metric cards can cover the full before-and-after window.
 
 Supporting business results contains the selected-metric charts, unusual
-changes and exploratory relationships. These support the main answer rather
-than replacing it. Decisions and outcomes remains the place to open the central
+changes and metric movements, not a second correlation analysis. Relationship
+findings are available in Correlation analysis instead. Older impact snapshots
+also omit their old relationship findings when displayed, without changing the
+stored snapshot. These results support the main answer rather than replacing
+it. Decisions and outcomes remains the place to open the central
 decision workflow with this report's evidence.
 
-Read the metric movements, unusual changes, relationship findings, follow-up
-actions and limitations together. A significant relationship is not required for
+Read the metric movements, unusual changes, impact checks, follow-up
+actions and limitations together. In Correlation analysis, read the relationship
+findings alongside the other evidence. A significant relationship is not required for
 a period comparison to be useful; nor does it establish that a change caused
 the business outcome.
 

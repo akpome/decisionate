@@ -213,7 +213,7 @@ test("report dates stay in a nonshrinking row outside the settings scroll area",
 
 test("the builder shows timing above pairs without checkboxes and invalidates results on pair changes", () => {
   const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
-  assert.match(source, /const taskCount = reportTestCount/)
+  assert.match(source, /const taskCount = definition\.impact \? 0 : reportTestCount/)
   assert.match(source, /const showPairDirections = definition\.pair_directions\.length > 0/)
   const settings = source.slice(source.indexOf('aria-label="Analysis settings"'), source.indexOf('id="report-report"'))
   assert.match(settings, /showPairDirections && <ReportPairDirections/)

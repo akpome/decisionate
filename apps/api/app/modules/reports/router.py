@@ -30,6 +30,7 @@ from .jobs import (allowed_job, cancel_job, enqueue, enqueue_report, enqueue_wee
 from .models import ReportAnalysisJob
 from .decision_reviews import (allowed_decision, attach_review_target, bind_decision_review,
                                decision_reviews, review_choices, review_context, REVIEW_ROLES)
+from .impact import is_impact_report
 
 
 router = APIRouter(prefix="/api/v2/business-reports", tags=["business-reports"])
@@ -58,7 +59,7 @@ def allowed_report(db, report_id, user, workspace, *, for_update=False):
 
 def generate(db, payload, user, workspace, progress=None):
     source_run = allowed_run(db, payload.source_run_id, user, workspace)[0] if payload.source_run_id else None
-    if len(payload.metrics) > 25 or payload.lag.maximum > 12:
+    if len(payload.metrics) > 25 or (not payload.impact and payload.lag.maximum > 12):
         raise HTTPException(400, "Reports support at most 25 metrics and 12 lag periods")
     definition = payload.model_dump(mode="json")
     bind_decision_review(db, definition, user, workspace)
@@ -480,7 +481,7 @@ def report_decision_evidence(report):
     if not metrics or snapshot["status"] != "ready":
         raise HTTPException(400, "Resolve report coverage before using this report as decision evidence")
     metric_ids = {item["id"] for item in metrics}
-    findings = [{key: value for key, value in item.items() if key != "evidence"}
+    findings = [] if is_impact_report(snapshot) else [{key: value for key, value in item.items() if key != "evidence"}
                 for item in snapshot["findings"] if item["id"] in snapshot["included_findings"]
                 and item["metric_a"]["id"] in metric_ids and item["metric_b"]["id"] in metric_ids]
     evidence = {"evidence_kind": "business_report", "report_id": report.id, "business_question": snapshot["business_question"],
@@ -491,6 +492,7 @@ def report_decision_evidence(report):
     if snapshot.get("impact_analysis"):
         from .impact import impact_facts
         evidence["impact_analysis"] = impact_facts(snapshot["impact_analysis"])
+        evidence["limitations"] = snapshot["impact_analysis"]["limitations"]
     descriptors = [{"dataset_id": item["dataset_id"], "file_name": item["dataset_label"],
                     "metric_column": item["metric_key"], "label": item["label"], "column_type": "numeric"} for item in metrics]
     return snapshot, metrics, evidence, descriptors

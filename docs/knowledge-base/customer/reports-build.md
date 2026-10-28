@@ -62,6 +62,12 @@ events. The main answer is calculated directly, so an AI provider cannot invent
 an impact amount or upgrade weak evidence. Details are available under the checks.
 Supporting charts and unusual-change tables are kept in Supporting business
 results, rather than crowding the main answer and decision links.
+Business impact analysis does not run a separate correlation or lag search and
+does not show Relationship findings. Its own comparison checks and estimated
+impact are independent of the correlation settings. This applies to instant
+analysis and weekly reports. Reopened older impact snapshots also omit their
+old correlation findings from the preview; their stored calculations are not
+rewritten or recalculated.
 
 Choose **Correlation analysis** for exploratory relationships without a recorded
 business change. Existing saved reports keep their original workflow.
@@ -90,8 +96,10 @@ Sum aggregation where applicable, 52 minimum historical observations, maximum
 lag 12 grouped periods and same-period comparison. Valid saved choices are
 retained rather than replaced simply because the defaults changed.
 
-A report supports at most 25 selected metrics, a maximum of 12 lag periods and
-1,000 cross-dataset pair/lag tests. Reduce metrics or timing complexity if the
+A report supports at most 25 selected metrics. Correlation analysis supports
+a maximum of 12 lag periods and 1,000 cross-dataset pair/lag tests; those timing
+and test-count limits do not apply to Business impact analysis, which does not
+run those tests. Reduce metrics or timing complexity if the correlation
 analysis exceeds these limits. Removed pairs do not consume relationship tests;
 they can be restored without removing the selected metrics. The default
 relationship observation threshold is 52 matched periods; selecting more calendar

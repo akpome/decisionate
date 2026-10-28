@@ -91,6 +91,9 @@ three-year cutoff and ending with the latest completed week. It needs at least
 52 complete weeks before the change and 8 after, plus the other comparison checks.
 This is separate from the email's seven-day KPI totals; it does not attempt to
 estimate a business impact from seven days alone.
+An impact report keeps its own comparison checks and anomaly detection, but
+does not also run an exploratory correlation or include Relationship findings
+in its preview or email. Choose Correlation analysis for those relationships.
 Previewing or emailing a weekly report does not create a decision or overwrite
 its outcome. Explicitly saving a linked assessment attaches it to the selected
 decision. Existing standalone weekly studies can continue under their original

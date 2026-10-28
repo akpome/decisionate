@@ -107,7 +107,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const single = definition.scope === "single"
   const pagePath = weekly ? "/dashboard/reports/weekly" : single ? "/dashboard/reports/dataset" : "/dashboard/reports"
   const navigation = weekly ? "weekly" : "reports"
-  const taskCount = reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs)
+  const taskCount = definition.impact ? 0 : reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs)
   const showPairDirections = definition.pair_directions.length > 0
   const previewDisabled = datasetCount < (single ? 1 : 2) || !impactReady(definition.impact, definition.metrics) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
   const weeklySendIssue = weekly && !weeklyDirty ? weeklyDeliveryIssue(report, weeklySettings?.window) : ""
@@ -607,15 +607,15 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         <MetricTrends report={report} />
         {report.weekly_anomaly_analysis && <ReportAnomalies analysis={report.weekly_anomaly_analysis} title="Whole-week assessment" />}
         <ReportAnomalies analysis={report.anomaly_analysis} title={report.weekly_anomaly_analysis ? "Daily changes" : "Anomaly detection"} />
-        <section aria-label="Analysis findings" className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">{single ? "Metric findings" : "What changed across your business"}</h3>{report.observations.length + report.contrasts.length === 0 && <p className="text-sm text-gray-500">There is no complete earlier period to compare these totals with. The relationship and business-change results below are checked separately.</p>}<Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
+        <section aria-label="Analysis findings" className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">{single ? "Metric findings" : "What changed across your business"}</h3>{report.observations.length + report.contrasts.length === 0 && <p className="text-sm text-gray-500">There is no complete earlier period to compare these totals with. {report.definition.impact || report.impact_analysis ? "The business impact assessment uses its own before-and-after checks." : "The relationship and business-change results below are checked separately."}</p>}<Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
         {!single && <ReportRelationshipFindings report={report} />}
         {!report.impact_analysis && <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Follow-up actions</h3><Statements statements={report.recommendations} /></section>}
-        <details className="space-y-2 border-t border-gray-200 pt-5"><summary className="cursor-pointer text-sm font-medium">More about the evidence</summary><p className="text-xs text-gray-500">Calculated from your selected data{!single && <> / Earlier relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.limitations} /></details>
+        <details className="space-y-2 border-t border-gray-200 pt-5"><summary className="cursor-pointer text-sm font-medium">More about the evidence</summary><p className="text-xs text-gray-500">Calculated from your selected data{!single && !report.definition.impact && !report.impact_analysis && <> / Earlier relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.impact_analysis?.limitations || report.limitations} /></details>
         </SupportingEvidence>
         <ReportDecisions report={report} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />
       </>}
     </section>
-    {!single && !weekly && <div className="print:hidden"><CorrelationInsights key={`${userId}:${workspaceId}`} userId={userId} workspaceId={workspaceId} /></div>}
+    {!single && !weekly && !definition.impact && <div className="print:hidden"><CorrelationInsights key={`${userId}:${workspaceId}`} userId={userId} workspaceId={workspaceId} /></div>}
   </div>
 }
 

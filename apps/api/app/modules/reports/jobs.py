@@ -31,7 +31,7 @@ def require_worker(db):
 
 def validate_definition(db, payload, user, workspace):
     from .decision_reviews import bind_decision_review
-    if len(payload.metrics) > 25 or payload.lag.maximum > 12 or report_test_count(payload.model_dump(mode="json")) > 1000:
+    if len(payload.metrics) > 25 or (not payload.impact and payload.lag.maximum > 12) or report_test_count(payload.model_dump(mode="json")) > 1000:
         raise HTTPException(400, "Reports support at most 25 metrics, 12 lag periods and 1,000 pair-lag tests.")
     if payload.source_run_id:
         allowed_run(db, payload.source_run_id, user, workspace)

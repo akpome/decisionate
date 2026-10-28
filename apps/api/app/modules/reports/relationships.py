@@ -14,6 +14,8 @@ def pair_key(left, right):
 
 
 def report_pairs(definition, metrics=None):
+    if definition.get("impact"):
+        return []
     excluded = {pair_key(item["metric_a"], item["metric_b"]) for item in definition.get("excluded_pairs", [])}
     return [(left, right) for left, right in combinations(definition["metrics"] if metrics is None else metrics, 2)
             if left["dataset_id"] != right["dataset_id"] and pair_key(left, right) not in excluded]

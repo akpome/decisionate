@@ -25,7 +25,7 @@ from app.modules.alerts.schemas import (
     WeeklyReportAIAnalysis,
 )
 from app.security.secrets import decrypt_secret
-from app.modules.reports.impact import impact_lines
+from app.modules.reports.impact import impact_lines, is_impact_report
 
 
 logger = logging.getLogger(__name__)
@@ -429,11 +429,15 @@ def send_platform_system_email(
 
 
 def report_grouping_lines(report):
+    impact = is_impact_report(report)
     if report.get("weekly_report") and report["grain"] == "daily" and report.get("analysis_grain") == "weekly":
         return (["The completed week is assessed as a whole and day by day."] if report.get("weekly_anomaly_analysis") else []) + ["Weekly report: daily detail for the last completed Monday-Sunday; totals cover all seven days.",
+                "Earlier history is grouped weekly. Business impact is assessed separately using weekly history." if impact else
                 "Earlier history is grouped weekly. Relationship timing is measured in weeks."]
     if report.get("weekly_report"):
-        return ["Weekly report: grouped weekly for totals, unusual changes and relationships.",
+        return ["Weekly report: grouped weekly for totals and unusual changes." if impact else
+                "Weekly report: grouped weekly for totals, unusual changes and relationships.",
+                "Business impact is assessed using weekly history; instant-analysis settings are separate." if impact else
                 "Relationship timing is measured in weeks; instant-analysis settings are separate."]
     return [f"Weekly summary: {report['grain']} detail.",
             f"Analysis group by: {report.get('analysis_grain', report['grain'])}."]
@@ -507,12 +511,14 @@ def build_weekly_report_email_text(
         review_lines.extend(impact_lines(report))
         review_lines.extend(report["observations"])
         review_lines.extend(report["contrasts"])
-        review_lines.extend(["", "Unusual changes (anomaly detection)", *report_anomaly_lines(report), "", "Relationship findings"])
-        review_lines.extend(item.get("business_summary", item["interpretation"]) for item in report["findings"] if item["id"] in report["included_findings"])
+        review_lines.extend(["", "Unusual changes (anomaly detection)", *report_anomaly_lines(report)])
+        if not is_impact_report(report):
+            review_lines.extend(["", "Relationship findings"])
+            review_lines.extend(item.get("business_summary", item["interpretation"]) for item in report["findings"] if item["id"] in report["included_findings"])
         review_lines.extend("Warning: " + warning for warning in report["warnings"])
         review_lines.extend(f"Decision: {item['title']} ({item['status']}). Expected: {item['expected_outcome'] or 'Not recorded'}. Actual: {item['actual_outcome'] or 'Not yet recorded'}."
                             for item in report.get("decisions", []))
-        if not report.get("impact_analysis"):
+        if not is_impact_report(report):
             review_lines.extend(report["limitations"])
         lines[4:4] = review_lines + [""]
 
@@ -826,11 +832,12 @@ def build_weekly_report_email_html(
     if digest.cross_dataset_report:
         report = digest.cross_dataset_report
         statements = report_grouping_lines(report) + report_dimension_lines(report) + report["observations"] + report["contrasts"]
-        statements += [item.get("business_summary", item["interpretation"]) for item in report["findings"] if item["id"] in report["included_findings"]]
+        if not is_impact_report(report):
+            statements += [item.get("business_summary", item["interpretation"]) for item in report["findings"] if item["id"] in report["included_findings"]]
         statements += ["Warning: " + warning for warning in report["warnings"]]
         statements += [f"Decision: {item['title']} ({item['status']}). Expected: {item['expected_outcome'] or 'Not recorded'}. Actual: {item['actual_outcome'] or 'Not yet recorded'}."
                        for item in report.get("decisions", [])]
-        if not report.get("impact_analysis"):
+        if not is_impact_report(report):
             statements += report["limitations"]
         cross_markup = (
             '<section style="margin-top:24px;color:#334155;font-size:14px;line-height:1.6;">'

@@ -18,7 +18,7 @@ from .anomalies import anomaly_summary, detect_report_metric, historical_start
 from .decision_drafts import is_report_decision_draft
 from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, report_pairs, report_test_count
 from .schemas import MINIMUM_REPORT_OBSERVATIONS
-from .impact import evaluate_impact, impact_facts
+from .impact import evaluate_impact, impact_facts, is_impact_report
 from app.modules.decisions.duplicates import canonical_decisions
 
 
@@ -233,7 +233,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     pairs = report_pairs(definition, usable)
     relationship_metrics = {metric_id(item) for pair in pairs for item in pair}
     historical = prepare_report_series(frames, [item for item in usable if metric_id(item) in relationship_metrics], relationship_definition) if pairs and not single else {}
-    history_periods = period_index(history, analysis_grain)
+    history_periods = period_index(history, analysis_grain) if historical else pd.DatetimeIndex([])
     if history_anchor and analysis_grain == "weekly":
         history_periods = history_periods[history_periods >= pd.Timestamp(history["start"])]
     for identity, points in list(historical.items()):
@@ -244,7 +244,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     rows, directions = [], direction_lookup(definition)
     for left, right in pairs:
         rows.extend(compute_report_pair(metadata[metric_id(left)], metadata[metric_id(right)], historical, relationship_definition, directions))
-    adjusted = adjust_bh([row["p_value"] for row in rows])
+    adjusted = adjust_bh([row["p_value"] for row in rows]) if rows else []
     findings = []
     for row, adjusted_p in zip(rows, adjusted):
         if not row["selected"]:
@@ -278,7 +278,8 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
                          "evidence": row["evidence"]})
         findings[-1]["business_summary"] = relationship_summary(findings[-1], analysis_grain)
     findings.sort(key=lambda item: (item["eligible"], abs(item["coefficient"] or 0)), reverse=True)
-    requested = definition.get("included_findings")
+    # Older impact snapshots may still contain correlation finding selections.
+    requested = None if definition.get("impact") else definition.get("included_findings")
     if requested is not None:
         unknown = set(requested) - {finding["id"] for finding in findings}
         if unknown:
@@ -293,7 +294,9 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     if any(metric["observations"] < metric["expected_periods"] for metric in metrics):
         warnings.append("Some selected metrics have gaps in this report's dates. Check their coverage notes.")
     if any(metric["change_percent"] is None for metric in metrics):
-        warnings.append("A previous-period comparison is unavailable for some metrics. This does not by itself prevent a relationship or business-change analysis.")
+        warnings.append("A previous-period comparison is unavailable for some metrics. This does not by itself prevent the business impact assessment."
+                        if definition.get("impact") else
+                        "A previous-period comparison is unavailable for some metrics. This does not by itself prevent a relationship or business-change analysis.")
     movements = sorted((metric for metric in metrics if metric["change_percent"] is not None), key=lambda item: abs(item["change_percent"]), reverse=True)
     observations = [f"{metric['dataset_label']} / {metric['label']}: {metric['change_percent']:+.1f}% versus the previous comparable period."
                     for metric in movements[:6]]
@@ -341,7 +344,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
             **({"weekly_anomaly_analysis": weekly_anomalies} if weekly_anomalies is not None else {}),
             "impact_analysis": impact,
             "observations": observations, "contrasts": contrasts[:5], "recommendations": actions, "warnings": warnings,
-            "limitations": ["Missing observations remain unavailable and are not zero-filled.",
+            "limitations": impact["limitations"] if impact else ["Missing observations remain unavailable and are not zero-filled.",
                             "An unusual change is not proof of its cause. Check source quality and business context.",
                             "No attribution, currency conversion, profit or ROAS is inferred from unrelated totals."] if single else
                            ["Association does not establish causation. Shared seasonality and other channels may explain co-movement.",
@@ -361,8 +364,11 @@ def report_analysis_facts(report):
     facts["dimension_filters"] = report["definition"].get("dimension_filters", [])
     facts["summary_grouping"] = report["grain"]
     facts["analysis_grouping"] = report.get("analysis_grain", report["grain"])
-    facts["findings"] = [{key: value for key, value in item.items() if key != "evidence"}
-                         for item in report["findings"] if item["id"] in report["included_findings"]][:10]
+    facts["findings"] = [] if is_impact_report(report) else [
+        {key: value for key, value in item.items() if key != "evidence"}
+        for item in report["findings"] if item["id"] in report["included_findings"]][:10]
+    if report.get("impact_analysis"):
+        facts["limitations"] = report["impact_analysis"]["limitations"]
     for key in ("anomaly_analysis", "weekly_anomaly_analysis"):
         analysis = report.get(key)
         if not analysis:

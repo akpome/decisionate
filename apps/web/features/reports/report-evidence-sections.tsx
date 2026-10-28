@@ -5,6 +5,7 @@ import { decisionEvidenceHref } from "@/features/decisions/lib/report-metric-sco
 import type { BusinessReport, ReportDecision, ReportFinding } from "./types"
 
 export function ReportRelationshipFindings({ report }: { report: BusinessReport }) {
+  if (report.definition?.impact || report.impact_analysis) return null
   const included = new Set(report.included_findings)
   const findings = report.findings.filter(finding => included.has(finding.id))
   return <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Relationship findings">

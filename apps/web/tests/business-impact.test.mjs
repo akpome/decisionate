@@ -208,3 +208,35 @@ test("saved impact reports restore their explicit analysis type without changing
   assert.equal(JSON.stringify(saved), before)
   assert.equal(editableDefinition({ metrics }).impact, null)
 })
+
+test("impact previews are not blocked by unused correlation tests and do not label earlier relationships", () => {
+  const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  assert.match(source, /!single && !weekly && !definition\.impact && <div[^>]*><CorrelationInsights/)
+  const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let count, evidence
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === "taskCount") count = node.initializer.getText(ast)
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === "details" && node.getText(ast).includes("Earlier relationships:")) evidence = node.getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(count)
+  assert.ok(evidence)
+  const computeCount = impact => vm.runInNewContext(ts.transpileModule(count, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText, { definition: { impact }, reportTestCount: () => 3900 })
+  assert.equal(computeCount(study), 0)
+  assert.equal(computeCount(null), 3900)
+  const renderEvidence = impact => {
+    const report = { definition: { impact }, impact_analysis: impact ? analysis : null,
+      limitations: ["Old correlation-only caution"], history_window: { start: "2023-01-01", end: "2025-12-31" } }
+    const node = vm.runInNewContext(ts.transpileModule(`(${evidence})`, { compilerOptions: {
+      module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
+    } }).outputText, { require, exports: {}, report, single: false,
+      Statements: ({ statements }) => React.createElement("p", null, statements.join("; ")) })
+    return renderToStaticMarkup(node)
+  }
+  assert.doesNotMatch(renderEvidence(study), /Earlier relationships|Old correlation-only caution/)
+  assert.match(renderEvidence(study), /Not a randomized test/)
+  assert.match(renderEvidence(null), /Earlier relationships/)
+})

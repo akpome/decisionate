@@ -65,6 +65,13 @@ test("historical finding exclusions remain excluded in both preview and print", 
   assert.doesNotMatch(html, /Website visits|Insufficient matched history/)
 })
 
+test("impact previews and older impact snapshots omit relationship findings entirely", () => {
+  for (const patch of [{ definition: { impact: { decision_id: 4 } } }, { impact_analysis: { status: "not_ready" } }]) {
+    assert.equal(renderFindings(patch), "")
+  }
+  assert.match(renderFindings({ definition: { impact: null }, impact_analysis: null }), /Relationship findings/)
+})
+
 test("the three older joined-data entries from the screenshot are not report decisions", () => {
   const html = renderDecisions({ decisions: legacy })
   assert.match(html, /No active decisions linked to this report/)

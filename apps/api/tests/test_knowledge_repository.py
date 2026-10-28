@@ -45,7 +45,7 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         self.assertEqual(summary["customer_articles"], 28)
         self.assertEqual(summary["operator_articles"], 6)
         self.assertEqual(summary["connectors"], 27)
-        self.assertEqual(summary["evaluation_cases"], 35)
+        self.assertEqual(summary["evaluation_cases"], 36)
         self.assertGreater(summary["customer_chunks"], 100)
 
     def test_default_export_contains_only_customer_content_and_safe_metadata(self):

@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from app.modules.reports.impact import evaluate_impact, impact_facts
 from app.modules.reports.schemas import ReportDefinition
 from app.modules.reports.service import build_report, report_analysis_facts, report_summary
+from app.modules.reports.relationships import report_pairs, report_test_count
 
 
 def experiment(effect=30., seed=42, seasonal=False, periods=156, before=110):
@@ -266,6 +267,64 @@ class BusinessImpactTests(unittest.TestCase):
             filtered = build_report(frames, definition)
             self.assertIsNone(filtered["impact_analysis"]["estimate"])
 
+    def test_impact_reports_skip_correlation_and_keep_the_impact_and_anomaly_results(self):
+        definition, metadata, series = experiment()
+        original = copy.deepcopy(definition)
+        expected = evaluate_impact(series, definition, metadata)
+        definition.update(included_findings=["old-correlation-finding"], pair_directions=[{
+            "metric_a": definition["impact"]["outcome"], "metric_b": definition["impact"]["comparison"], "direction": "a_leads_b"}])
+        definition["lag"].update(enabled=True, maximum=60)
+        with patch.dict("os.environ", {"CURATED_METRIC_DEFAULTS_BACKEND": "false", "CORRELATION_REPORTING_TIMEZONE": "UTC"}), \
+             patch("app.modules.reports.service.compute_report_pair", side_effect=AssertionError("Impact must not run correlations")) as correlate, \
+             patch("app.modules.reports.service.adjust_bh", side_effect=AssertionError("No correlation tests to adjust")):
+            report = build_report(source_frames(definition, series), definition)
+        correlate.assert_not_called()
+        self.assertEqual(report["impact_analysis"]["estimate"], expected["estimate"])
+        self.assertTrue(report["impact_analysis"]["checks"])
+        self.assertTrue(report["impact_analysis"]["trend"])
+        self.assertEqual(len(report["metrics"]), 2)
+        self.assertEqual(len(report["anomaly_analysis"]["metrics"]), 2)
+        for key in ("findings", "included_findings"):
+            self.assertEqual(report[key], [])
+        self.assertEqual(report["definition"]["included_findings"], [])
+        self.assertEqual(report["limitations"], report["impact_analysis"]["limitations"])
+        self.assertTrue(any("does not by itself prevent the business impact assessment" in item for item in report["warnings"]))
+        self.assertEqual(definition["included_findings"], ["old-correlation-finding"])
+        self.assertEqual(report_pairs(definition), [])
+        self.assertEqual(report_test_count(definition), 0)
+        correlation = {**original, "impact": None}
+        with patch.dict("os.environ", {"CURATED_METRIC_DEFAULTS_BACKEND": "false", "CORRELATION_REPORTING_TIMEZONE": "UTC"}):
+            self.assertTrue(build_report(source_frames(correlation, series), correlation)["findings"])
+
+    def test_unused_correlation_test_budget_does_not_block_impact_reports(self):
+        definition, _, _ = experiment()
+        definition["metrics"] = [{"dataset_id": index, "metric_key": "orders", "date_column": "date", "aggregation": "sum"}
+                                 for index in range(1, 26)]
+        definition["lag"].update(enabled=True, maximum=12)
+        definition["pair_directions"] = None
+        self.assertEqual(report_test_count({**definition, "impact": None}), 3900)
+        self.assertEqual(report_test_count(definition), 0)
+
+    def test_old_impact_snapshot_correlations_are_not_used_as_interpretation_or_decision_evidence(self):
+        from app.modules.reports.router import report_decision_evidence
+
+        definition, _, series = experiment()
+        with patch.dict("os.environ", {"CURATED_METRIC_DEFAULTS_BACKEND": "false", "CORRELATION_REPORTING_TIMEZONE": "UTC"}):
+            report = build_report(source_frames(definition, series), definition)
+        report["findings"] = [{"id": "old-correlation", "metric_a": report["metrics"][0], "metric_b": report["metrics"][1],
+                               "interpretation": "Old exploratory correlation", "evidence": {"raw": "not for reuse"}}]
+        report["included_findings"] = ["old-correlation"]
+        report["definition"]["included_findings"] = ["old-correlation"]
+        report["limitations"] = ["Old correlation-only caution"]
+        before = copy.deepcopy(report)
+        facts = report_analysis_facts(report)
+        evidence = report_decision_evidence(SimpleNamespace(id="old-impact", snapshot=json.dumps(report)))[2]
+        for data in (facts, evidence):
+            self.assertEqual(data["findings"], [])
+            self.assertEqual(data["impact_analysis"]["estimate"], report["impact_analysis"]["estimate"])
+            self.assertEqual(data["limitations"], report["impact_analysis"]["limitations"])
+        self.assertEqual(report, before)
+
     def test_weekly_updates_use_weekly_rolling_history_and_escape_email_content(self):
         from app.modules.alerts.router import build_weekly_report_digest
         from app.modules.alerts.schemas import WeeklyReportPreferenceResponse
@@ -278,7 +337,8 @@ class BusinessImpactTests(unittest.TestCase):
             recipient_emails=["owner@example.test"], metric_focus=["1:orders", "2:comparison_orders"], include_recommendations=True)
         with patch.dict("os.environ", {"CURATED_METRIC_DEFAULTS_BACKEND": "false", "CORRELATION_REPORTING_TIMEZONE": "UTC"}), \
              patch("app.modules.alerts.router.load_dataframe_from_dataset", side_effect=lambda dataset: frames[dataset.id][1]), \
-             patch("app.modules.alerts.router.generate_structured_analysis") as ai:
+             patch("app.modules.alerts.router.generate_structured_analysis") as ai, \
+             patch("app.modules.reports.service.compute_report_pair", side_effect=AssertionError("Weekly impact must not run correlations")) as correlate:
             digest = build_weekly_report_digest(preference, [pair[0] for pair in frames.values()], report_definition=definition,
                                                 analysis_date=date(2025, 12, 29), include_ai_analysis=True)
         result = digest.cross_dataset_report
@@ -291,6 +351,11 @@ class BusinessImpactTests(unittest.TestCase):
         self.assertEqual(result["impact_analysis"]["after_periods"], 46)
         self.assertEqual(result["impact_analysis"]["window"]["start"], "2022-12-29")
         ai.assert_not_called()
+        correlate.assert_not_called()
+        self.assertEqual(result["findings"], [])
+        self.assertEqual(result["included_findings"], [])
+        self.assertEqual(len(result["anomaly_analysis"]["metrics"]), 2)
+        self.assertEqual(len(result["weekly_anomaly_analysis"]["metrics"]), 2)
         html, text = build_weekly_report_email_html(digest), build_weekly_report_email_text(digest)
         self.assertIn("Did your business change help?", html)
         self.assertIn("Your change appears to have helped.", text)
@@ -299,7 +364,16 @@ class BusinessImpactTests(unittest.TestCase):
         self.assertIn("Study dates:", text)
         for content in (html, text):
             self.assertIn("Weekly report: daily detail", content)
-            self.assertIn("Relationship timing is measured in weeks", content)
+            self.assertIn("Business impact is assessed separately using weekly history", content)
+            self.assertNotIn("Relationship timing", content)
+            self.assertNotIn("Relationship findings", content)
+            self.assertIn("Unusual changes (anomaly detection)", content)
+        result["findings"] = [{"id": "legacy", "business_summary": "Old exploratory correlation", "interpretation": "Old interpretation"}]
+        result["included_findings"] = ["legacy"]
+        for content in (build_weekly_report_email_html(digest), build_weekly_report_email_text(digest)):
+            self.assertNotIn("Old exploratory correlation", content)
+            self.assertNotIn("Relationship findings", content)
+        self.assertEqual(result["included_findings"], ["legacy"])
 
 
 class BusinessImpactWorkflowTests(unittest.TestCase):
@@ -329,7 +403,9 @@ class BusinessImpactWorkflowTests(unittest.TestCase):
         from app.modules.reports.models import BusinessReport
         from app.modules.decisions.models import Decision
 
-        with patch.object(router, "generate_structured_analysis") as ai:
+        with patch.object(router, "generate_structured_analysis") as ai, \
+             patch("app.modules.reports.service.compute_report_pair", side_effect=AssertionError("Impact worker must not run correlations")) as correlate:
+            self.definition["lag"].update(enabled=True, maximum=60)
             response = self.client.post("/api/v2/business-reports/jobs", json=self.definition, headers={"Idempotency-Key": "impact-1"})
             self.assertEqual(response.status_code, 202, response.text)
             identity = response.json()["job_id"]
@@ -341,6 +417,8 @@ class BusinessImpactWorkflowTests(unittest.TestCase):
             self.assertEqual(saved_response.status_code, 201, saved_response.text)
             saved = saved_response.json()
             self.assertEqual(saved["impact_analysis"]["status"], "estimated")
+            self.assertEqual(saved["findings"], [])
+            self.assertEqual(saved["included_findings"], [])
             self.frames[1][1]["orders"] = 10000000
             reopened = self.client.get(f"/api/v2/business-reports/{saved['report_id']}").json()
             self.assertEqual(reopened["impact_analysis"], saved["impact_analysis"])
@@ -351,6 +429,7 @@ class BusinessImpactWorkflowTests(unittest.TestCase):
                 self.assertEqual(db.query(Decision).count(), 1)
                 self.assertIsNotNone(saved.get("decision_review_id"))
             ai.assert_not_called()
+            correlate.assert_not_called()
             self.assertEqual(self.client.get(f"/api/v2/business-reports/{saved['report_id']}", headers={"X-Workspace-Id": "other"}).status_code, 404)
 
     def test_private_comparison_never_reaches_the_worker_or_loader(self):

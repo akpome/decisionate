@@ -226,6 +226,10 @@ def impact_facts(analysis):
     return {key: value for key, value in analysis.items() if key != "trend"}
 
 
+def is_impact_report(report):
+    return bool(report.get("impact_analysis") or report.get("definition", {}).get("impact"))
+
+
 def impact_lines(report):
     analysis = report.get("impact_analysis")
     if not analysis:
