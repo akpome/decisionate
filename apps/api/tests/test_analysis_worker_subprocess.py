@@ -12,7 +12,7 @@ import pandas as pd
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 
-from app.db.models import Dataset
+from app.db.models import AppUser, Dataset, IngestionWorkerHeartbeat, Organization, WeeklyReportPreference, utc_now
 from app.modules.decisions.models import Decision
 from app.modules.correlation.service import encode, snapshot
 from app.modules.reports.models import ReportAnalysisJob
@@ -91,3 +91,48 @@ class AnalysisWorkerSubprocessTests(unittest.TestCase):
                 job = db.get(ReportAnalysisJob, identity)
                 self.assertEqual(job.status, "succeeded", f"{job.error}\n{result.stderr[-6000:]}")
                 self.assertEqual(len(json.loads(job.result)["metrics"]), 2)
+
+    def test_real_owner_send_child_handles_historical_files_without_crashing_or_sending(self):
+        from app.modules.reports.jobs import enqueue_weekly, job_response
+
+        with tempfile.TemporaryDirectory() as directory:
+            url = "sqlite:///" + str(Path(directory) / "weekly.db")
+            engine = create_engine(url)
+            self.addCleanup(engine.dispose)
+            Decision.metadata.create_all(engine)
+            sessions = sessionmaker(bind=engine)
+            end = pd.Timestamp.now(tz="UTC").tz_localize(None).normalize() - pd.Timedelta(days=400)
+            dates = pd.date_range(end=end, periods=60)
+            metrics = []
+            with sessions() as db:
+                for identity, metric in ((1, "spend"), (2, "orders")):
+                    path = Path(directory) / f"source-{identity}.csv"
+                    pd.DataFrame({"date": dates, metric: [100 + i % 17 for i in range(60)]}).to_csv(path, index=False)
+                    db.add(Dataset(id=identity, user_id="smoke-owner", workspace_id="smoke-owner", file_name=path.name,
+                        file_path=str(path), source_type="csv", source_config=json.dumps({"selected_metric_columns": [metric]}),
+                        row_count=60, column_count=2))
+                    metrics.append({"dataset_id": identity, "metric_key": metric, "date_column": "date", "aggregation": "sum"})
+                db.add(Dataset(id=3, user_id="smoke-owner", workspace_id="smoke-owner", file_name="Unrelated source",
+                    file_path="do-not-load.csv", source_type="csv", row_count=1000000, column_count=300))
+                db.add(AppUser(id="smoke-owner", email="owner@example.test"))
+                db.add(Organization(owner_user_id="smoke-owner", name="Smoke test"))
+                db.add(IngestionWorkerHeartbeat(name="reports-analysis", last_seen_at=utc_now()))
+                definition = ReportDefinition(name="Weekly historical files", business_question="How do spending and orders change together?",
+                    metrics=metrics, grain="weekly", date_range={"start": str(dates[0].date()), "end": str(dates[-1].date())})
+                preference = WeeklyReportPreference(workspace_id="smoke-owner", enabled=0, metric_focus='["1:spend","2:orders"]',
+                    weekly_report_definition=encode(definition.model_dump(mode="json")))
+                db.add(preference); db.commit()
+                job = enqueue_weekly(db, "smoke-owner", "smoke-owner", preference, send=True, owner_only=True, include_ai=True)
+                identity = job.id
+                self.assertEqual(set(json.loads(job.sources)), {"1", "2"})
+            environment = worker_environment(url)
+            environment.pop("ANALYSIS_JOB_MEMORY_MB", None)
+            result = subprocess.run([sys.executable, "-B", "scripts/run_analysis_worker.py", "--job-id", identity,
+                "--parent-pid", str(os.getpid())], cwd=API_ROOT, env=environment, capture_output=True, text=True, timeout=180)
+            self.assertEqual(result.returncode, 0, result.stderr[-6000:])
+            with sessions() as db:
+                job = db.get(ReportAnalysisJob, identity)
+                self.assertEqual(job.status, "failed", result.stderr[-6000:])
+                self.assertEqual(job.error_status, 400, f"{job.error}\n{result.stderr[-6000:]}")
+                self.assertIn("Instant analysis", job.error)
+                self.assertTrue(job_response(job)["retry_safe"])

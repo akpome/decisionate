@@ -1,0 +1,152 @@
+"""Immutable impact assessments belong to existing decisions, not new actions."""
+
+import json
+
+from fastapi import HTTPException
+from sqlalchemy import and_, or_
+
+from app.modules.correlation.service import authorize_datasets, digest, encode
+from app.modules.decisions.duplicates import canonical_decisions
+from app.modules.decisions.models import Decision
+from .decision_drafts import is_report_decision_draft
+from .models import DecisionImpactReview
+
+
+REVIEW_ROLES = {"owner", "member", "managed_client"}
+
+
+def decision_scope(user, workspace):
+    return or_(Decision.workspace_id == workspace,
+               and_(Decision.workspace_id.is_(None), Decision.clerk_user_id == user))
+
+
+def allowed_decision(db, identity, user, workspace, *, lock=False):
+    from app.modules.decisions.router import resolve_canonical_decision
+
+    query = db.query(Decision).filter(Decision.id == identity, decision_scope(user, workspace)).populate_existing()
+    decision = (query.with_for_update() if lock else query).first()
+    if decision is None:
+        raise HTTPException(404, "Decision not found")
+    decision = resolve_canonical_decision(db, decision)
+    if lock:
+        decision = db.query(Decision).filter_by(id=decision.id).populate_existing().with_for_update().one()
+    return decision
+
+
+def decision_revision(decision):
+    return digest({"id": decision.id, "action": decision.action, "expected_outcome": decision.expected_outcome,
+                   "dataset_id": decision.dataset_id, "outcome_dataset_id": decision.outcome_dataset_id,
+                   "metric_column": decision.metric_column, "evidence_metrics": decision.evidence_metrics})
+
+
+def review_study(definition):
+    return (definition.get("configuration", {}).get("template") or definition).get("impact")
+
+
+def bind_decision_review(db, definition, user, workspace, *, required=False, editable=False, lock=False):
+    study = review_study(definition)
+    if not study:
+        return None
+    if not study.get("decision_id"):
+        if required:
+            raise HTTPException(400, "Choose an existing decision to assess its business impact.")
+        return None  # Previously saved standalone studies remain readable and schedulable.
+    decision = allowed_decision(db, study["decision_id"], user, workspace, lock=lock)
+    if editable and decision.status in {"archived", "cancelled"}:
+        raise HTTPException(409, "Restore this decision to active work before saving another impact assessment.")
+    if is_report_decision_draft(decision) or not (decision.action or "").strip():
+        raise HTTPException(400, "Record the decision's actual action before assessing its impact.")
+    if len(decision.action.strip()) > 10000:
+        raise HTTPException(400, "Use a decision action of at most 10,000 characters for impact assessment.")
+    if not decision.metric_column:
+        raise HTTPException(400, "Choose an outcome metric in Decision Details before assessing impact.")
+    outcome = {"dataset_id": decision.outcome_dataset_id or decision.dataset_id, "metric_key": decision.metric_column}
+    if study["outcome"] != outcome:
+        raise HTTPException(409, "The outcome metric must match this decision. Reload its impact review.")
+    revision = decision_revision(decision)
+    if study.get("decision_revision") and study["decision_revision"] != revision:
+        raise HTTPException(409, "The decision changed. Reload its impact review before calculating or saving another assessment.")
+    study.update(decision_id=decision.id, decision_revision=revision, change=decision.action.strip())
+    return decision
+
+
+def review_record(review, decision):
+    return {"review_id": review.id, "decision_id": review.decision_id, "report_id": review.report_id,
+            "created_at": review.created_at.isoformat() + "Z", "definition": json.loads(review.definition),
+            "analysis": json.loads(review.analysis), "matches_current_decision": review.decision_revision == decision_revision(decision)}
+
+
+def decision_reviews(db, decision, user, workspace, offset=0):
+    rows = db.query(DecisionImpactReview).filter_by(decision_id=decision.id, workspace_id=workspace).order_by(
+        DecisionImpactReview.created_at.desc(), DecisionImpactReview.id.desc()).offset(offset).limit(21).all()
+    result, restricted = [], False
+    for row in rows[:20]:
+        definition = json.loads(row.definition)
+        try:
+            authorize_datasets(db, user, workspace, [item["dataset_id"] for item in definition["metrics"]])
+        except HTTPException as error:
+            if error.status_code in {403, 404}:
+                restricted = True
+                continue
+            raise
+        result.append(review_record(row, decision))
+    return {"decision_id": decision.id, "reviews": result, "restricted": restricted,
+            "next_offset": offset + 20 if len(rows) > 20 else None}
+
+
+def review_context(db, decision, user, workspace):
+    from .service import report_decision_record
+
+    outcome = {"dataset_id": decision.outcome_dataset_id or decision.dataset_id, "metric_key": decision.metric_column} if decision.metric_column else None
+    if outcome:
+        authorize_datasets(db, user, workspace, [outcome["dataset_id"]])
+    history = decision_reviews(db, decision, user, workspace)
+    return {"decision": report_decision_record(decision), "outcome": outcome,
+            "decision_revision": decision_revision(decision), "latest_review": next(iter(history["reviews"]), None)}
+
+
+def review_choices(db, user, workspace, *, search="", offset=0):
+    query = db.query(Decision).filter(decision_scope(user, workspace), canonical_decisions(),
+        Decision.status.notin_({"archived", "cancelled"}), Decision.action.isnot(None))
+    if search:
+        query = query.filter(Decision.title.ilike(f"%{search}%"))
+    rows = query.order_by(Decision.created_at.desc(), Decision.id.desc()).offset(offset).limit(26).all()
+    return {"decisions": [{"id": row.id, "title": row.title} for row in rows[:25] if not is_report_decision_draft(row) and row.action.strip()],
+            "next_offset": offset + 25 if len(rows) > 25 else None}
+
+
+def attach_review_target(report, db, user, workspace):
+    from .service import report_decision_record
+
+    study = report["definition"].get("impact")
+    if not study or not study.get("decision_id"):
+        return
+    try:
+        decision = allowed_decision(db, study["decision_id"], user, workspace)
+    except HTTPException as error:
+        if error.status_code not in {404, 410}:
+            raise
+        report["review_decision_missing"] = True
+        return
+    report["review_decision"] = report_decision_record(decision)
+    review = db.query(DecisionImpactReview).filter_by(report_id=report.get("report_id"), workspace_id=workspace).first() if report.get("report_id") else None
+    if review:
+        report["decision_review_id"] = review.id
+
+
+def save_decision_review(db, job, result, report):
+    from app.modules.decisions.router import record_decision_activity
+    from app.modules.decisions.schemas import OUTCOME_DECISION_ACTIVITY
+
+    definition = json.loads(report.definition)
+    decision = bind_decision_review(db, definition, job.user_id, job.workspace_id, editable=True, lock=True)
+    if decision is None:
+        return
+    review = DecisionImpactReview(decision_id=decision.id, workspace_id=job.workspace_id, user_id=job.user_id,
+        job_id=job.id, report_id=report.id, definition=encode(definition), analysis=encode(result["impact_analysis"]),
+        decision_revision=decision_revision(decision))
+    db.add(review)
+    db.flush()
+    result["decision_review_id"] = review.id
+    record_decision_activity(db, decision, OUTCOME_DECISION_ACTIVITY,
+        f"Business impact assessment saved ({review.id}): {result['impact_analysis']['headline']}", actor_user_id=job.user_id)

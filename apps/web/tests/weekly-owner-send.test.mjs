@@ -5,6 +5,9 @@ import vm from "node:vm"
 import test from "node:test"
 
 const require = createRequire(import.meta.url), ts = require("typescript")
+class AnalysisFailedError extends Error {
+  constructor(message, retrySafe) { super(message); this.retrySafe = retrySafe }
+}
 const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
 const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 let declaration
@@ -20,7 +23,8 @@ function harness(overrides = {}) {
   const handler = vm.runInNewContext(ts.transpileModule(`${declaration}\nsendWeeklyNow`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    weekly: true, canManage: true, busy: false, previewDisabled: false, weeklyDirty: false,
+    weekly: true, canManage: true, busy: false, previewDisabled: false, weeklyDirty: false, weeklySendIssue: "", uncertainDelivery: false, report: null,
+    AnalysisFailedError,
     managementAction: action, weeklySendRequest: requestKey, routeController: { current: null },
     pagePath: "/dashboard/reports/weekly", encodeURIComponent,
     window: { location: { pathname: "/dashboard/reports/weekly", search: "" }, history: { replaceState: (...args) => { state.url = args[2] } } },
@@ -49,7 +53,7 @@ test("manual weekly sends save pending settings and target the owner without cli
 })
 
 test("read-only, nonweekly, incomplete, busy and repeated send clicks cannot queue duplicates", async () => {
-  for (const overrides of [{ weekly: false }, { canManage: false }, { busy: true }, { previewDisabled: true }]) {
+  for (const overrides of [{ weekly: false }, { canManage: false }, { busy: true }, { previewDisabled: true }, { weeklySendIssue: "No data this week" }, { uncertainDelivery: true }]) {
     const { handler, calls } = harness(overrides)
     await handler()
     assert.equal(calls.length, 0)
@@ -57,6 +61,37 @@ test("read-only, nonweekly, incomplete, busy and repeated send clicks cannot que
   const { handler, calls } = harness()
   await Promise.all([handler(), handler(), handler()])
   assert.equal(calls.length, 1)
+})
+
+test("a confirmed failure before sending releases the request key for a deliberate fresh attempt", async () => {
+  let attempts = 0
+  const { handler, errors, requestKey } = harness({
+    waitForAnalysis: async () => { if (++attempts === 1) throw new AnalysisFailedError("No current-week coverage", true); return { status: "sent" } },
+  })
+  await handler()
+  assert.equal(requestKey.current, null)
+  await handler()
+  assert.deepEqual(errors, ["No current-week coverage"])
+  assert.equal(attempts, 2)
+})
+
+test("a failure after delivery could have started preserves duplicate-send protection", async () => {
+  const { handler, requestKey } = harness({ waitForAnalysis: async () => { throw new AnalysisFailedError("Check delivery history", false) } })
+  await handler()
+  assert.equal(requestKey.current, "owner-request")
+})
+
+test("successful retries return to the report rather than an earlier failed delivery job", async () => {
+  for (const [report, expected] of [[{ report_id: "saved-report" }, "?report=saved-report"],
+    [{ analysis_job_id: "preview-job" }, "?job=preview-job"], [null, ""]]) {
+    const { handler, state } = harness({ report, window: {
+      location: { pathname: "/dashboard/reports/weekly", search: "?job=earlier-failed-send" },
+      history: { replaceState: (_value, _unused, value) => { state.url = value } },
+    } })
+    await handler()
+    assert.equal(state.url, "/dashboard/reports/weekly" + expected)
+    assert.match(state.message, /sent to the workspace owner/)
+  }
 })
 
 test("uncertain status reads preserve the same idempotency key on a deliberate retry", async () => {
@@ -76,4 +111,20 @@ test("send controls and grouping labels are specific to the weekly page", () => 
   assert.match(source, /Report week: daily detail/)
   assert.match(source, /Earlier history: grouped weekly/)
   assert.match(source, /\["weekly_send", "weekly_owner_send"\].includes\(analysisJob.kind\) && analysisJob.phase === "sending"/)
+})
+
+test("coverage feedback blocks a current empty week without shifting it to historical file dates", () => {
+  const loaded = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/reports/weekly-settings.ts", import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText, { module: loaded, exports: loaded.exports, require: () => ({ editableDefinition: value => value }) })
+  const window = { start: "2026-10-19", end: "2026-10-25" }
+  const report = { weekly_report: true, window, status: "limited_coverage", dataset_count: 0 }
+  const issue = loaded.exports.weeklyDeliveryIssue(report, window)
+  assert.match(issue, /2026-10-19 to 2026-10-25/)
+  assert.match(issue, /Instant analysis/)
+  assert.equal(loaded.exports.weeklyDeliveryIssue({ ...report, status: "ready", dataset_count: 2 }, window), "")
+  assert.equal(loaded.exports.weeklyDeliveryIssue(null, window), "")
+  assert.equal(loaded.exports.weeklyDeliveryIssue({ ...report, window: { start: "2025-01-01", end: "2025-01-07" } }, window), "")
+  assert.match(source, /\{weeklySendIssue && <p role="status"/)
 })

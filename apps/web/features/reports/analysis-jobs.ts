@@ -6,6 +6,7 @@ export type AnalysisJob<T = BusinessReport> = {
   phase: string; error: string | null; result: T | null
   definition?: ReportDefinition | null
   created_at?: string
+  retry_safe?: boolean
 }
 
 export type AnalysisRequest = <T>(path: string, init?: RequestInit) => Promise<T>
@@ -14,6 +15,13 @@ export class AnalysisUnavailableError extends Error {
   constructor(readonly status: 404 | 410) {
     super("This analysis is no longer available. It may have been deleted or expired. Choose a saved report or generate a new preview.")
     this.name = "AnalysisUnavailableError"
+  }
+}
+
+export class AnalysisFailedError extends Error {
+  constructor(message: string, readonly retrySafe: boolean) {
+    super(message)
+    this.name = "AnalysisFailedError"
   }
 }
 
@@ -54,7 +62,8 @@ export async function waitForAnalysis<T>(request: AnalysisRequest, identity: str
     }
     options.onUpdate?.(job)
     if (job.status === "succeeded" && job.result) return job.result
-    if (job.status === "failed" || job.status === "cancelled") throw new Error(job.error || analysisPhaseLabel(job.phase))
+    if (job.status === "failed") throw new AnalysisFailedError(job.error || analysisPhaseLabel(job.phase), job.retry_safe === true)
+    if (job.status === "cancelled") throw new Error(job.error || analysisPhaseLabel(job.phase))
     await pause(options.signal)
   }
 }

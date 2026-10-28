@@ -35,7 +35,9 @@ class ReportPairDirection(ReportMetricPair):
 
 
 class ImpactStudy(StrictModel):
-    change: str = Field(min_length=8, max_length=500)
+    decision_id: int | None = Field(default=None, ge=1)
+    decision_revision: str | None = Field(default=None, max_length=100)
+    change: str = Field(default="Decision outcome review", min_length=1, max_length=10000)
     change_date: date
     outcome: ReportMetricKey
     comparison: ReportMetricKey
@@ -49,6 +51,12 @@ class ImpactStudy(StrictModel):
     @classmethod
     def trim_text(cls, value):
         return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def validate_change(self):
+        if self.decision_id is None and len(self.change) < 8:
+            raise ValueError("Describe the business change")
+        return self
 
 
 class ReportDefinition(AnalysisCreate):

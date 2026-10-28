@@ -39,10 +39,11 @@ change the deterministic analysis, expand metric selection or create decisions.
 
 New multi-dataset reports start with **Correlation analysis**, with relationship
 settings expanded. **Business impact analysis** is a separately labelled, explicit
-choice in Analysis type; it is not decision review. Saved definitions retain
+choice in Analysis type and is the measurement step of an existing decision's
+review. New submissions require `impact.decision_id`. Saved definitions retain
 their original type and settings. Definitions without `impact` remain exploratory.
-The optional impact study records a sustained change/date,
-an outcome and one unaffected comparison from a different selected dataset,
+The optional impact study reuses the decision's action and outcome, records the
+actual implementation date and one unaffected comparison from a different selected dataset,
 business-context confirmations, desired direction and optional worthwhile target.
 All inputs use approved metric/date/aggregation policies and dataset-local filters.
 
@@ -52,8 +53,10 @@ level-change model using the installed statsmodels OLS implementation:
 Daily data includes weekday terms. Seasonal businesses add two annual Fourier
 harmonics and need approximately two full years of pre-change coverage. This is
 not the Bayesian CausalImpact algorithm, causal discovery, an experiment or a
-generic attribution/marketing-mix model. No new service, migration or env flag is
-required. A user confirmation is a recorded assumption, not independent proof.
+generic attribution/marketing-mix model. No new service or env flag is required.
+The serialized API/bootstrap creates the new `decision_impact_reviews` table;
+deploy the API and analytics worker together. A user confirmation is a recorded
+assumption, not independent proof.
 
 ### Checks and Uncertainty
 
@@ -100,6 +103,41 @@ templates update the original study through the completed week, preserve study
 grouping, and cap history at rolling three years. Weekly KPI/anomaly windows remain
 separate; a seven-day KPI window is not reused as the causal study. Aged-out
 pre-history can withhold future updates without rewriting saved snapshots.
+
+### Decision Review Integration
+
+The decision page links to `/dashboard/reports?decision=<id>`. The builder selects
+an existing canonical, workspace-authorized decision and locks its action and
+outcome metric; it never treats record creation time as the implementation date.
+`GET /review-decisions` provides bounded searchable choices; `/review-decisions/{id}`
+provides authorized context and the latest compatible assessment. The source
+catalog supplies the approved outcome date and aggregation policy.
+
+The API stamps `impact.decision_revision` from the action, outcome selection,
+expected outcome and evidence scope. The worker checks it before and after
+calculation. Save checks it again under a decision-row lock. Changed actions,
+outcomes, archived/cancelled decisions or revoked rights cannot receive a stale
+assessment. Client/read-only roles cannot attach assessments. The action is
+always copied from the server's decision record, including weekly settings.
+
+Save assessment to decision reuses the completed job's idempotent save transaction.
+One `DecisionImpactReview` per job retains immutable study/analysis data and the
+existing decision ID, with an optional report link. An outcome activity records
+the attachment; actual outcome, status, notes, lessons and creation evidence are
+not overwritten or classified automatically. `/decision-reviews/{id}` returns
+paginated, source-authorized history. Job expiry and report deletion keep the
+assessment; source/workspace deletion removes derived data, and permanent
+decision deletion removes its assessment records. Report snapshots remain
+immutable. Old standalone snapshots and existing scheduled studies remain
+readable/runnable; new interactive studies and changed settings require a decision.
+
+Weekly delivery snapshots and loads only the datasets named by saved weekly
+settings. Unrelated imports cannot invalidate that source snapshot. Insufficient
+current-week coverage is a dated validation error and never moves the week to
+match an old file. Job responses expose an explicit `retry_safe` flag: deliberate
+retries may obtain a new request key only after a confirmed pre-delivery failure;
+uncertain/provider-started sends retain duplicate-send protection and require
+delivery-history review. No external email is automatically replayed.
 
 ### Method References
 

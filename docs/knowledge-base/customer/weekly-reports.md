@@ -30,6 +30,17 @@ it does not change recipients, enable delivery or replace a scheduled send.
 Only authorized workspace managers can use it. If the owner's account has no
 usable email address, sending is blocked rather than using another recipient.
 
+Sending requires usable data from at least two selected datasets in the last
+completed week. If the preview has insufficient coverage, Send report now is
+disabled and shows the exact dates needed. Sync or upload data for that week,
+then preview again. Historical demo files belong in Instant analysis; weekly
+reports do not shift to the most recent dates in an old file. Saved weekly
+settings load only their selected datasets, not unrelated workspace sources.
+
+After a confirmed failure before delivery starts, a deliberate retry starts a
+fresh attempt. If delivery might have started, check delivery history before
+trying again. Uncertain status reads keep the same request to avoid duplicates.
+
 KPI targets are benchmark context for the digest and interpretation. Setting a
 target does not by itself create a separate immediate threshold-triggered alert.
 Use the current delivery settings rather than assuming every metric anomaly
@@ -69,13 +80,18 @@ not alter instant reports or either workflow's saved snapshots.
 ## Follow up on a business change
 
 A weekly configuration using **Business impact analysis** also updates that business-change
-study. The weekly email includes its answer, estimated range when available,
+study for its selected decision. Set up or select an existing decision rather
+than recording a second action. The weekly email includes its answer, estimated range when available,
 and what to do next. It keeps the original change date, result, unaffected
 comparison. Its study always uses weekly grouping, starting at the rolling
 three-year cutoff and ending with the latest completed week. It needs at least
 52 complete weeks before the change and 8 after, plus the other comparison checks.
 This is separate from the email's seven-day KPI totals; it does not attempt to
 estimate a business impact from seven days alone.
+Previewing or emailing a weekly report does not create a decision or overwrite
+its outcome. Explicitly saving a linked assessment attaches it to the selected
+decision. Existing standalone weekly studies can continue under their original
+saved configuration; changing those settings requires selecting a decision.
 
 As old history leaves the three-year window, the study can lose enough earlier
 data to support an estimate. The email then explains the missing evidence rather

@@ -28,6 +28,8 @@ from .relationships import report_test_count
 from .jobs import (allowed_job, cancel_job, enqueue, enqueue_report, enqueue_weekly, job_response,
                    save_completed_job, wait_for_job, worker_ready)
 from .models import ReportAnalysisJob
+from .decision_reviews import (allowed_decision, attach_review_target, bind_decision_review,
+                               decision_reviews, review_choices, review_context, REVIEW_ROLES)
 
 
 router = APIRouter(prefix="/api/v2/business-reports", tags=["business-reports"])
@@ -59,6 +61,7 @@ def generate(db, payload, user, workspace, progress=None):
     if len(payload.metrics) > 25 or payload.lag.maximum > 12:
         raise HTTPException(400, "Reports support at most 25 metrics and 12 lag periods")
     definition = payload.model_dump(mode="json")
+    bind_decision_review(db, definition, user, workspace)
     if report_test_count(definition) > 1000:
         raise HTTPException(400, "Reduce the report's metrics or lag window to at most 1,000 pair-lag tests.")
     definition["reporting_timezone"] = reporting_timezone()
@@ -100,6 +103,7 @@ def generate(db, payload, user, workspace, progress=None):
             workspace_id=workspace, actor_user_id=user,
         )
     attach_report_decisions(result, db, workspace, {item["dataset_id"] for item in result["definition"]["metrics"]})
+    attach_review_target(result, db, user, workspace)
     return result["definition"], result
 
 
@@ -199,6 +203,8 @@ def calculate_dataset_anomalies(db, dataset_id, user, workspace, metric=None, st
 @router.post("/jobs", status_code=202)
 def create_job(request: Request, payload: ReportDefinition, db=Depends(database)):
     user, workspace = identity(request)
+    if payload.impact:
+        require_review_writer(request)
     return job_response(enqueue_report(db, payload, user, workspace, request.headers.get("Idempotency-Key")))
 
 
@@ -248,6 +254,10 @@ def require_report_writer(request):
 def save_job(job_id: str, request: Request, db=Depends(database)):
     user, workspace = identity(request)
     require_report_writer(request)
+    from .decision_reviews import review_study
+    study = review_study(json.loads(allowed_job(db, job_id, user, workspace).definition))
+    if study and study.get("decision_id"):
+        require_review_writer(request)
     return save_completed_job(db, job_id, user, workspace)
 
 
@@ -277,6 +287,8 @@ def weekly_owner_job(request: Request, include_ai_analysis: bool = True, db=Depe
 @router.post("/preview", deprecated=True)
 async def preview(request: Request, payload: ReportDefinition, db=Depends(database)):
     user, workspace = identity(request)
+    if payload.impact:
+        require_review_writer(request)
     job = enqueue_report(db, payload, user, workspace, request.headers.get("Idempotency-Key"))
     return await wait_for_job(job.id, user, workspace)
 
@@ -285,6 +297,8 @@ async def preview(request: Request, payload: ReportDefinition, db=Depends(databa
 async def save(request: Request, payload: ReportDefinition, db=Depends(database)):
     user, workspace = identity(request)
     require_report_writer(request)
+    if payload.impact:
+        require_review_writer(request)
     job = enqueue_report(db, payload, user, workspace, request.headers.get("Idempotency-Key"))
     await wait_for_job(job.id, user, workspace)
     return save_completed_job(db, job.id, user, workspace)
@@ -340,13 +354,14 @@ def update_weekly_settings(request: Request, payload: WeeklyReportSettings, db=D
 
     user, workspace = identity(request)
     require_workspace_data_manager(request)
-    validate_definition(db, payload, user, workspace)
+    definition, _ = validate_definition(db, payload, user, workspace)
+    definition.pop("reporting_timezone", None)
     lock_workspace_queue(db, "weekly-settings:" + workspace)
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
     if preference is None:
         preference = WeeklyReportPreference(workspace_id=workspace, enabled=0)
         db.add(preference)
-    preference.weekly_report_definition = encode(payload.model_dump(mode="json"))
+    preference.weekly_report_definition = encode(definition)
     preference.business_report_id = None
     preference.metric_focus = encode([metric_id(item) for item in payload.model_dump(mode="json")["metrics"]])
     db.commit()
@@ -397,6 +412,29 @@ def remove_weekly_template(request: Request, report_id: str = Query(..., min_len
     return {"report_id": None, "name": None, "enabled": bool(preference.enabled) if preference else False}
 
 
+def require_review_writer(request):
+    if get_workspace_role(request) not in REVIEW_ROLES:
+        raise HTTPException(403, "Read-only users can view assessments but cannot save decision reviews.")
+
+
+@router.get("/review-decisions")
+def impact_decision_choices(request: Request, db=Depends(database), search: str = Query("", max_length=200), offset: int = Query(0, ge=0)):
+    user, workspace = identity(request)
+    return review_choices(db, user, workspace, search=search.strip(), offset=offset)
+
+
+@router.get("/review-decisions/{decision_id}")
+def impact_decision_context(decision_id: int, request: Request, db=Depends(database)):
+    user, workspace = identity(request)
+    return review_context(db, allowed_decision(db, decision_id, user, workspace), user, workspace)
+
+
+@router.get("/decision-reviews/{decision_id}")
+def impact_decision_history(decision_id: int, request: Request, db=Depends(database), offset: int = Query(0, ge=0)):
+    user, workspace = identity(request)
+    return decision_reviews(db, allowed_decision(db, decision_id, user, workspace), user, workspace, offset)
+
+
 @router.get("/{report_id}")
 def detail(report_id: str, request: Request, db=Depends(database)):
     user, workspace = identity(request)
@@ -406,7 +444,9 @@ def detail(report_id: str, request: Request, db=Depends(database)):
             workspace_id=workspace, saved_report_id=report.id, kind="weekly_preview").first():
         snapshot["weekly_report"] = True
     attach_report_decisions(snapshot, db, workspace, {item["dataset_id"] for item in snapshot["definition"]["metrics"]}, report.id)
-    return {**snapshot, "report_id": report.id}
+    snapshot["report_id"] = report.id
+    attach_review_target(snapshot, db, user, workspace)
+    return snapshot
 
 
 @router.delete("/{report_id}")
@@ -424,6 +464,8 @@ def delete_report(report_id: str, request: Request, db=Depends(database)):
     elif linked_template:
         preference.business_report_id = None
     db.query(ReportAnalysisJob).filter_by(saved_report_id=report.id).delete(synchronize_session=False)
+    from .models import DecisionImpactReview
+    db.query(DecisionImpactReview).filter_by(report_id=report.id).update({"report_id": None}, synchronize_session=False)
     db.delete(report)
     db.commit()
     return {"report_id": report_id, "deleted": True, "weekly_template_removed": removed_template}

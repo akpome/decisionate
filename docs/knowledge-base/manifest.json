@@ -410,7 +410,11 @@
         "apps/api/app/modules/reports/jobs.py",
         "apps/api/app/modules/reports/router.py",
         "apps/api/app/modules/reports/impact.py",
+        "apps/api/app/modules/reports/decision_reviews.py",
+        "apps/api/app/modules/reports/models.py",
         "apps/web/features/reports/impact-types.ts",
+        "apps/web/features/reports/decision-review.ts",
+        "apps/web/features/reports/impact-decision-picker.tsx",
         "apps/web/features/reports/impact-setup.tsx",
         "apps/web/features/reports/impact-result.tsx"
       ],
@@ -721,6 +725,8 @@
         "apps/api/app/modules/decisions/duplicates.py",
         "apps/api/app/modules/reports/decision_drafts.py",
         "apps/web/features/decisions/components/decision-report-evidence.tsx",
+        "apps/web/features/decisions/components/decision-impact-reviews.tsx",
+        "apps/web/app/dashboard/decisions/[id]/page.tsx",
         "docs/CROSS_DATASET_REPORTS.md"
       ],
       "related": [

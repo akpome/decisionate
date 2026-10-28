@@ -49,6 +49,8 @@ def check_inputs(db, job):
     datasets = authorize_datasets(db, job.user_id, job.workspace_id, [int(key) for key in expected])
     if snapshot(datasets) != expected:
         raise HTTPException(409, "A selected dataset changed during analysis. Generate a new preview with its latest data.")
+    from app.modules.reports.decision_reviews import bind_decision_review
+    bind_decision_review(db, json.loads(job.definition), job.user_id, job.workspace_id, editable=job.kind == "report")
     if job.kind.startswith("weekly_"):
         delivery = json.loads(job.definition).get("delivery", {})
         if job.kind == "weekly_owner_send" and delivery.get("mode") != "workspace_owner":
@@ -84,8 +86,11 @@ def fail_job(db, identity, message, status=503):
     job = db.get(ReportAnalysisJob, identity, populate_existing=True)
     if job is None or job.status not in ACTIVE:
         return
+    is_delivery = job.kind in {"weekly_send", "weekly_owner_send"}
+    sending = is_delivery and job.phase == "sending"
     changed = db.query(ReportAnalysisJob).filter(ReportAnalysisJob.id == identity, ReportAnalysisJob.status.in_(ACTIVE)).update(
-        {"status": "failed", "phase": "failed", "error": message, "error_status": status, "completed_at": utc_now(), "result": None}, synchronize_session=False)
+        {"status": "failed", "phase": "failed", "error": message, "error_status": status, "completed_at": utc_now(),
+         "result": json.dumps({"delivery_started": sending}) if is_delivery else None}, synchronize_session=False)
     if changed and job.kind in {"weekly_send", "weekly_owner_send"} and job.phase != "sending":
         from app.modules.alerts.router import record_weekly_report_delivery_log, update_weekly_report_delivery_status
         definition = json.loads(job.definition)
@@ -210,6 +215,8 @@ def recover_interrupted_jobs(identity=None, *, retry=True, reason="Analysis work
                 job.error = ("Email delivery was interrupted; check provider logs before retrying. No automatic resend."
                              if sending else reason)
                 job.error_status, job.completed_at = 503, utc_now()
+                if job.kind in {"weekly_send", "weekly_owner_send"}:
+                    job.result = json.dumps({"delivery_started": sending})
                 if job.kind in {"weekly_send", "weekly_owner_send"}:
                     from app.modules.alerts.router import record_weekly_report_delivery_log, update_weekly_report_delivery_status
                     configuration = definition.get("configuration", {}).get("preference", {})

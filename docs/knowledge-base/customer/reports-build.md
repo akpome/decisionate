@@ -2,23 +2,28 @@
 
 Instant analysis is the on-demand analysis workspace. Multi dataset report opens by
 default; Single dataset report is available separately for one source. Weekly reports
-has its own page and settings, with fixed weekly grouping and automatic dates.
+has its own page and settings, with automatic dates, whole-week and daily checks,
+and earlier relationship history grouped weekly.
 Instant analysis uses approved
 dataset metrics, date policies, anomaly detection and report snapshots.
 
 New multi dataset reports open with **Correlation analysis**. The correlation
 method, minimum historical observations, timing and relationship-pair settings
 are available under the expanded Relationship analysis section. Under Analysis
-type, choose **Business impact analysis** only when assessing a recorded business
-change. Saved reports keep their original analysis type. Neither mode replaces
+type, choose **Business impact analysis** to review an existing decision.
+Saved reports keep their original analysis type. Neither mode replaces
 decision creation or decision review on the Decisions page.
 
 ## Did my business change help?
 
-For Business impact analysis, record an ongoing
-change and its start date, such as extended opening hours or a price change.
-Choose the result you want to improve and an unaffected comparison from another
-dataset. A similar store that did not make the change may help; increased ad
+Open an existing decision and choose Assess business impact, or select Decision
+to review in the report builder. The decision's action and outcome metric are
+reused, not entered as a second decision. If no outcome metric was recorded,
+choose it in Decision Details first. Confirm when the action actually started;
+the decision creation date is not assumed to be the implementation date.
+
+Choose an unaffected comparison from another dataset. A similar store that did
+not make the change may help; increased ad
 spending is not unaffected if the change was to increase that spending.
 
 Explain why the comparison was unaffected, confirm you checked for indirect
@@ -26,6 +31,15 @@ effects, and say whether another major change happened at the same time. Choose
 whether more or less of the result is better. An optional minimum worthwhile
 improvement expresses your business target in the result's own units. Costs are
 not automatically deducted.
+
+Save assessment to decision attaches the calculated assessment to that same
+decision and saves its report snapshot. It does not create a new decision or
+mark an outcome successful. Return to decision to review the assessment and
+record the actual outcome and lessons yourself. Later reviews retain earlier
+assessments; changed actions or outcome metrics mark older results as historical.
+Archived decisions can show their history but cannot receive new assessments.
+Old standalone impact snapshots remain readable; new assessments require an
+existing decision.
 
 Include dates before and after the change. At least 52 complete weeks before and
 8 after are needed with weekly grouping; daily needs 90 before and 28 after,

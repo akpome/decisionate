@@ -30,6 +30,7 @@ def require_worker(db):
 
 
 def validate_definition(db, payload, user, workspace):
+    from .decision_reviews import bind_decision_review
     if len(payload.metrics) > 25 or payload.lag.maximum > 12 or report_test_count(payload.model_dump(mode="json")) > 1000:
         raise HTTPException(400, "Reports support at most 25 metrics, 12 lag periods and 1,000 pair-lag tests.")
     if payload.source_run_id:
@@ -37,6 +38,7 @@ def validate_definition(db, payload, user, workspace):
     definition = payload.model_dump(mode="json")
     definition["reporting_timezone"] = reporting_timezone()
     datasets = authorize_datasets(db, user, workspace, [item.dataset_id for item in payload.metrics])
+    bind_decision_review(db, definition, user, workspace, required=True, editable=True)
     return definition, datasets
 
 
@@ -107,7 +109,9 @@ def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=Fal
         existing = db.query(ReportAnalysisJob).filter_by(request_key=digest([workspace, user, "weekly_send", request_key])).first()
         if existing:
             return existing
-    datasets = {item.id: item for item in get_alert_datasets(db, workspace)}
+    template = definition["configuration"]["template"]
+    datasets = (authorize_datasets(db, user, workspace, [item["dataset_id"] for item in template["metrics"]])
+                if template else {item.id: item for item in get_alert_datasets(db, workspace)})
     authorize_datasets(db, user, workspace, datasets)
     kind = "weekly_owner_send" if owner_only else "weekly_send" if send else "weekly_preview"
     return enqueue(db, user, workspace, kind, definition, datasets, request_key)
@@ -129,6 +133,10 @@ def verify_job_actor(job):
     if job.kind in {"weekly_send", "weekly_owner_send"} or job.kind == "weekly_preview" and not json.loads(job.definition).get("report_only"):
         from app.modules.alerts.router import require_weekly_report_manager
         require_weekly_report_manager(role)
+    from .decision_reviews import review_study, REVIEW_ROLES
+    study = review_study(json.loads(job.definition))
+    if job.kind == "report" and study and study.get("decision_id") and role not in REVIEW_ROLES:
+        raise HTTPException(403, "Read-only users can view assessments but cannot save decision reviews.")
 
 
 def allowed_job(db, identity, user, workspace, *, for_update=False):
@@ -136,18 +144,22 @@ def allowed_job(db, identity, user, workspace, *, for_update=False):
     job = (query.with_for_update() if for_update else query).first()
     if job is None:
         raise HTTPException(404, "Analysis job not found")
-    if job.kind in {"weekly_send", "weekly_owner_send"} or job.kind == "weekly_preview" and not json.loads(job.definition).get("report_only"):
+    if job.kind in {"weekly_send", "weekly_owner_send"} or job.kind == "weekly_preview" and not json.loads(job.definition).get("report_only") or (json.loads(job.definition).get("impact") or {}).get("decision_id"):
         verify_job_actor(job)
     authorize_datasets(db, user, workspace, [int(key) for key in json.loads(job.sources)])
     return job
 
 
 def job_response(job, *, include_result=False):
+    result = json.loads(job.result) if job.result else None
+    is_delivery = job.kind in {"weekly_send", "weekly_owner_send"}
+    retry_safe = not is_delivery or bool(result is not None and result.get("delivery_started") is False)
     return {"job_id": job.id, "kind": job.kind, "status": job.status, "phase": job.phase,
             "created_at": job.created_at.isoformat() + "Z", "error": job.error,
             "definition": json.loads(job.definition) if job.kind == "report" else None,
             "error_status": job.error_status, "saved_report_id": job.saved_report_id,
-            "result": json.loads(job.result) if include_result and job.status == "succeeded" and job.result else None}
+            "retry_safe": job.status == "failed" and retry_safe,
+            "result": result if include_result and job.status == "succeeded" else None}
 
 
 def cancel_job(db, job):
@@ -161,13 +173,16 @@ def cancel_job(db, job):
 
 
 def save_completed_job(db, identity, user, workspace):
+    from .decision_reviews import attach_review_target, save_decision_review
     job = allowed_job(db, identity, user, workspace, for_update=True)
     if job.status != "succeeded" or job.kind not in {"report", "weekly_preview"}:
         raise HTTPException(409, "Wait for report analysis to finish before saving.")
     if job.saved_report_id:
         existing = db.get(BusinessReport, job.saved_report_id)
         if existing:
-            return {**json.loads(existing.snapshot), "report_id": existing.id, "analysis_job_id": job.id}
+            result = {**json.loads(existing.snapshot), "report_id": existing.id, "analysis_job_id": job.id}
+            attach_review_target(result, db, user, workspace)
+            return result
         raise HTTPException(410, "This saved report was deleted. Generate a new preview to save it again.")
     result = json.loads(job.result)
     if job.kind == "weekly_preview":
@@ -179,6 +194,8 @@ def save_completed_job(db, identity, user, workspace):
                             definition=encode(result["definition"]), snapshot=encode(result))
     db.add(report)
     db.flush()
+    save_decision_review(db, job, result, report)
+    report.snapshot = encode(result)
     job.saved_report_id = report.id
     db.commit()
     return {**result, "report_id": report.id, "analysis_job_id": job.id}

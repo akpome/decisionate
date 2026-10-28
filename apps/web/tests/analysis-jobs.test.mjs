@@ -11,7 +11,7 @@ vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/reports/
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText, { module: loaded, exports: loaded.exports, DOMException,
   setTimeout: callback => setTimeout(callback, 0), clearTimeout })
-const { waitForAnalysis, analysisPhaseLabel, AnalysisUnavailableError } = loaded.exports
+const { waitForAnalysis, analysisPhaseLabel, AnalysisUnavailableError, AnalysisFailedError } = loaded.exports
 
 test("report polling retrieves the frozen result without resubmitting analysis", async () => {
   const calls = [], progress = []
@@ -28,6 +28,13 @@ test("report polling retrieves the frozen result without resubmitting analysis",
 test("failed and cancelled jobs stop polling with useful feedback", async () => {
   for (const status of ["failed", "cancelled"]) {
     await assert.rejects(waitForAnalysis(async () => ({ status, phase: status, error: "Your selections remain available" }), "job-1"), /selections remain/)
+  }
+})
+
+test("terminal failures expose only explicit server approval for retrying a send", async () => {
+  for (const retry of [true, false, undefined]) {
+    await assert.rejects(waitForAnalysis(async () => ({ status: "failed", phase: "failed", error: "Delivery failed", retry_safe: retry }), "send-1"),
+      error => error instanceof AnalysisFailedError && error.retrySafe === (retry === true))
   }
 })
 

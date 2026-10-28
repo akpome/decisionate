@@ -5,12 +5,14 @@ import json
 from sqlalchemy import inspect
 
 from app.db.models import WeeklyReportPreference
-from .models import BusinessReport, ReportAnalysisJob
+from .models import BusinessReport, DecisionImpactReview, ReportAnalysisJob
 
 
 def delete_reports(db, identities):
     if not identities:
         return
+    if inspect(db.connection()).has_table(DecisionImpactReview.__tablename__):
+        db.query(DecisionImpactReview).filter(DecisionImpactReview.report_id.in_(identities)).update({"report_id": None}, synchronize_session=False)
     if inspect(db.connection()).has_table(WeeklyReportPreference.__tablename__):
         db.query(WeeklyReportPreference).filter(WeeklyReportPreference.business_report_id.in_(identities)).update(
             {WeeklyReportPreference.business_report_id: None, WeeklyReportPreference.weekly_report_definition: None,
@@ -19,6 +21,11 @@ def delete_reports(db, identities):
 
 
 def cleanup_source(db, dataset_id):
+    if inspect(db.connection()).has_table(DecisionImpactReview.__tablename__):
+        identities = [row.id for row in db.query(DecisionImpactReview) if any(
+            item["dataset_id"] == dataset_id for item in json.loads(row.definition)["metrics"])]
+        if identities:
+            db.query(DecisionImpactReview).filter(DecisionImpactReview.id.in_(identities)).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(WeeklyReportPreference.__tablename__):
         for preference in db.query(WeeklyReportPreference).filter(WeeklyReportPreference.weekly_report_definition.isnot(None)):
             if any(item["dataset_id"] == dataset_id for item in json.loads(preference.weekly_report_definition)["metrics"]):
@@ -42,6 +49,8 @@ def cleanup_source(db, dataset_id):
 
 
 def cleanup_workspace(db, workspace_id):
+    if inspect(db.connection()).has_table(DecisionImpactReview.__tablename__):
+        db.query(DecisionImpactReview).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(WeeklyReportPreference.__tablename__):
         db.query(WeeklyReportPreference).filter_by(workspace_id=workspace_id).update(
             {WeeklyReportPreference.business_report_id: None, WeeklyReportPreference.weekly_report_definition: None,

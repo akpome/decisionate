@@ -2,6 +2,7 @@ import type { CorrelationMetric, MetricRef } from "@/features/relationships/type
 
 type MetricKey = { dataset_id: number; metric_key: string }
 export type ImpactStudy = {
+  decision_id?: number | null; decision_revision?: string | null
   change: string; change_date: string; outcome: MetricKey | null; comparison: MetricKey | null
   comparison_reason: string; comparison_unaffected: boolean; other_changes: "none_known" | "yes" | "not_sure"
   desired_direction: "increase" | "decrease"; worthwhile_change: number | null
@@ -34,7 +35,7 @@ export function retainedImpactStudy(study: ImpactStudy | null | undefined, metri
 export function impactReady(study: ImpactStudy | null | undefined, metrics: MetricRef[]) {
   if (!study) return true
   const selected = (key: MetricKey | null) => key && metrics.some(item => item.dataset_id === key.dataset_id && item.metric_key === key.metric_key)
-  return Boolean(study.change.trim().length >= 8 && study.change_date && study.comparison_reason.trim().length >= 10 &&
+  return Boolean(study.decision_id && study.change.trim() && study.change_date && study.comparison_reason.trim().length >= 10 &&
     selected(study.outcome) && selected(study.comparison) && study.outcome!.dataset_id !== study.comparison!.dataset_id)
 }
 

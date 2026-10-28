@@ -53,6 +53,9 @@ export type BusinessReport = {
   anomaly_analysis?: ReportAnomalyAnalysis
   weekly_anomaly_analysis?: ReportAnomalyAnalysis
   impact_analysis?: ImpactAnalysis | null
+  review_decision?: ReportDecision
+  decision_review_id?: string
+  review_decision_missing?: boolean
   ai_analysis?: AIAnalysis | null
   source_analysis?: { run_id: string; engine_version: string; computed_at: string | null; note: string }
 }

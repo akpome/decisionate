@@ -564,6 +564,9 @@ def build_weekly_report_digest(
     report_definition: dict | None = None,
     analysis_date: date | None = None,
 ) -> WeeklyReportDigestResponse:
+    if report_definition:
+        selected = {item["dataset_id"] for item in report_definition["metrics"]}
+        datasets = [item for item in datasets if item.id in selected]
     branding = branding or {}
     clean_brand_name = clean_weekly_report_brand_name(
         brand_name,
@@ -900,6 +903,7 @@ def weekly_business_template(db, preference, workspace_id):
 def get_alert_datasets(
     db,
     workspace_id: str,
+    dataset_ids: set[int] | None = None,
 ):
     return (
         db.query(Dataset)
@@ -908,6 +912,7 @@ def get_alert_datasets(
                 workspace_id,
             )
         )
+        .filter(Dataset.id.in_(dataset_ids) if dataset_ids is not None else True)
         .order_by(
             Dataset.created_at.desc(),
             Dataset.id.desc(),
@@ -1099,9 +1104,11 @@ def build_weekly_report_digest_for_workspace(
     preference_response = build_weekly_report_preference_response(
         preference
     )
+    template = weekly_business_template(db, preference, workspace_id)
     datasets = get_alert_datasets(
         db,
         workspace_id,
+        {item["dataset_id"] for item in template["metrics"]} if template else None,
     )
     relationship_results = build_weekly_report_relationships(
         db,
@@ -1131,7 +1138,7 @@ def build_weekly_report_digest_for_workspace(
         workspace_id,
         relationship_results,
         branding=branding,
-        report_definition=weekly_business_template(db, preference, workspace_id),
+        report_definition=template,
         include_ai_analysis=include_ai_analysis,
         analysis_date=analysis_date,
     )
@@ -1165,7 +1172,11 @@ def validate_weekly_report_digest_for_delivery(
 
     if digest.cross_dataset_report is not None and (digest.cross_dataset_report.get("status") != "ready"
                                                   or digest.cross_dataset_report.get("dataset_count", 0) < 2):
-        raise HTTPException(400, "Weekly reports require usable metrics from at least two datasets in the latest complete week. Review report coverage and selections.")
+        window = digest.cross_dataset_report.get("window", {})
+        dates = f" ({window['start']} to {window['end']})" if window.get("start") and window.get("end") else ""
+        raise HTTPException(400, f"Weekly reports require usable metrics from at least two datasets in the latest complete week{dates}. "
+                            "Sync or upload data covering that week, then generate a new preview. "
+                            "Use Instant analysis for older data; weekly reports do not move their dates to match historical files.")
 
     if not digest.recipient_emails:
         raise HTTPException(

@@ -2812,6 +2812,10 @@ async def delete_decision(
             {"decision_id": None},
             synchronize_session=False,
         )
+        from app.modules.reports.models import DecisionImpactReview
+        from sqlalchemy import inspect
+        if inspect(db.connection()).has_table(DecisionImpactReview.__tablename__):
+            db.query(DecisionImpactReview).filter_by(decision_id=decision.id).delete(synchronize_session=False)
         db.delete(decision)
         db.commit()
 

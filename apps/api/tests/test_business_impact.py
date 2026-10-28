@@ -308,12 +308,19 @@ class BusinessImpactWorkflowTests(unittest.TestCase):
         from app.db.models import Dataset
         BusinessReportWorkflowTests.setUp(self)
         self.definition, _, series = experiment()
+        from app.modules.decisions.models import Decision
         self.frames = source_frames(self.definition, series)
         with self.Session() as db:
             for identity, (source, frame) in self.frames.items():
                 record = db.get(Dataset, identity)
                 record.source_config = source.source_config
                 record.row_count = len(frame)
+            decision = Decision(clerk_user_id="owner", workspace_id="owner", dataset_id=1, metric_column="orders",
+                title="Increase store staffing", action=self.definition["impact"]["change"], expected_outcome="Complete more orders",
+                status="in_progress")
+            db.add(decision); db.flush()
+            self.definition["impact"]["decision_id"] = decision.id
+            self.decision_id = decision.id
             db.commit()
 
     def test_enqueue_worker_save_reopen_and_decision_evidence_keep_the_same_estimate(self):
@@ -341,7 +348,8 @@ class BusinessImpactWorkflowTests(unittest.TestCase):
                 evidence = router.report_decision_evidence(db.get(BusinessReport, saved["report_id"]))[2]
                 self.assertEqual(evidence["impact_analysis"]["estimate"], saved["impact_analysis"]["estimate"])
                 self.assertNotIn("trend", evidence["impact_analysis"])
-                self.assertEqual(db.query(Decision).count(), 0)
+                self.assertEqual(db.query(Decision).count(), 1)
+                self.assertIsNotNone(saved.get("decision_review_id"))
             ai.assert_not_called()
             self.assertEqual(self.client.get(f"/api/v2/business-reports/{saved['report_id']}", headers={"X-Workspace-Id": "other"}).status_code, 404)
 

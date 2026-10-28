@@ -40,6 +40,19 @@ same job; an interrupted external send is never automatically replayed.
 The page stores the delivery job in its URL while waiting; reloading reconnects
 to that job and does not submit a fresh owner send.
 
+For saved weekly settings, enqueue snapshots and computation are restricted to
+the selected dataset IDs. Changes or heavy files in unrelated datasets do not
+invalidate or inflate that send. Legacy configurations without a template retain
+their existing scope. Missing current-week coverage fails before provider calls
+with HTTP 400 and the actual required dates, not a shifted historical week.
+
+Job status includes `retry_safe`, true for a failed send only when the worker
+explicitly records that delivery had not started. Provider failures and interrupted
+or legacy-unknown sends are not assumed safe. Failed delivery jobs retain a small
+delivery-boundary marker; the public result stays null. The frontend releases its
+request key only for an explicitly safe, deliberate retry and blocks a known
+insufficient-coverage preview. It never automatically replays an external send.
+
 Review only necessary metadata first: subject/category, time, From, recipient
 scope and provider delivery status. Do not copy full private message bodies or
 unrelated mailbox records into an incident article. Do not send a test message

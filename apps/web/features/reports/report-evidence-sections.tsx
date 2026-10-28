@@ -17,6 +17,14 @@ export function ReportRelationshipFindings({ report }: { report: BusinessReport 
 export function ReportDecisions({ report, onOpenDraft, busy = false }: {
   report: BusinessReport; onOpenDraft?: (decisionId?: number) => Promise<void>; busy?: boolean
 }) {
+  const reviewedDecision = report.definition?.impact?.decision_id
+  if (reviewedDecision) return <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Decisions and outcomes">
+    <h3 className="text-lg font-semibold">Decision under review</h3>
+    {report.review_decision_missing ? <p className="text-sm text-gray-600">The decision is no longer available. This report remains historical evidence.</p> : <>
+      <Link className="break-words font-medium text-blue-700 underline" href={`/dashboard/decisions/${reviewedDecision}#business-impact-review`}>{report.review_decision ? getDecisionDisplayTitle(report.review_decision) : `Decision #${reviewedDecision}`}</Link>
+      <p className="text-sm text-gray-600">{report.decision_review_id ? "Assessment attached to this decision." : "Assessment not yet saved to this decision."}</p>
+    </>}
+  </section>
   const seen = new Set<number>()
   const reportId = report.report_id || report.decision_report_id
   const decisions = reportId ? report.decisions.filter(decision => {

@@ -54,6 +54,7 @@ import {
 } from "@/lib/decision-activity-style"
 import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
 import { DecisionEvidenceContext } from "@/features/decisions/components/decision-evidence-context"
+import { DecisionImpactReviews } from "@/features/decisions/components/decision-impact-reviews"
 import { decisionNarrativeText } from "@/features/decisions/lib/decision-evidence-text"
 import { selectedDecisionEvidence } from "@/features/decisions/lib/report-metric-scope"
 import {
@@ -2373,9 +2374,10 @@ export default function DecisionPage() {
         </div>
       </DashboardCard>
 
-      {/* =========================
-          Decision Outcome And Overview Editable Cards
-      ========================= */}
+      <DashboardCard>
+        <DecisionImpactReviews key={`${user?.id}:${activeWorkspaceId}:${decision.id}:${decision.updated_at || ""}`} decision={decision} userId={user!.id} workspaceId={activeWorkspaceId}
+          canReview={!decisionIsReadOnly && !isArchivedDecision && decision.status !== "cancelled" && !isLegacyEvidencePlaceholder(decision)} />
+      </DashboardCard>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <DashboardCard className="flex h-full flex-col">
@@ -2549,7 +2551,7 @@ export default function DecisionPage() {
                 disabled={decisionIsReadOnly || savingSection !== null}
                 className="mt-3 inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {decision.outcome_measured_at ? "Refresh metric outcome" : "Measure metric outcome"}
+                {decision.outcome_measured_at ? "Refresh before-and-after comparison" : "Compare before and after"}
               </button>
             )}
           </SectionSaveActions>

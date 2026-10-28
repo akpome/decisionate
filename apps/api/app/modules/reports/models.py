@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 
 from app.db.database import Base
 from app.db.models import utc_now
@@ -36,3 +36,17 @@ class ReportAnalysisJob(Base):
     created_at = Column(DateTime, nullable=False, default=utc_now, index=True)
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
+
+
+class DecisionImpactReview(Base):
+    __tablename__ = "decision_impact_reviews"
+    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
+    decision_id = Column(Integer, ForeignKey("decisions.id", ondelete="CASCADE"), nullable=False, index=True)
+    workspace_id = Column(String, nullable=False, index=True)
+    user_id = Column(String, nullable=False)
+    job_id = Column(String, nullable=False, unique=True)
+    report_id = Column(String, ForeignKey("business_reports.id", ondelete="SET NULL"), nullable=True, unique=True)
+    definition = Column(Text, nullable=False)
+    analysis = Column(Text, nullable=False)
+    decision_revision = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utc_now)

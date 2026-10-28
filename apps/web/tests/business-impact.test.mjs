@@ -23,7 +23,7 @@ const { editableDefinition } = load("../features/reports/types.ts", {
   "@/features/relationships/defaults": load("../features/relationships/defaults.ts"),
 })
 const metrics = [{ dataset_id: 1, metric_key: "orders" }, { dataset_id: 2, metric_key: "orders" }]
-const study = { ...newImpactStudy(), change: "Extended opening hours", change_date: "2025-01-01", outcome: metrics[0], comparison: metrics[1],
+const study = { ...newImpactStudy(), decision_id: 7, decision_revision: "decision-revision", change: "Extended opening hours", change_date: "2025-01-01", outcome: metrics[0], comparison: metrics[1],
   comparison_reason: "Another shop did not change its opening hours.", comparison_unaffected: true, other_changes: "none_known" }
 const analysis = {
   engine_version: "controlled_change.v1", status: "estimated", evidence_grade: "model_estimated", change: study.change, change_date: study.change_date,
@@ -44,6 +44,7 @@ test("new impact studies never invent a change, comparison, or confirmation", ()
   assert.equal(value.other_changes, "not_sure")
   assert.equal(impactReady(value, metrics), false)
   assert.equal(impactReady(study, metrics), true)
+  assert.equal(impactReady({ ...study, decision_id: null }, metrics), false)
   assert.equal(impactReady(null, metrics), true)
 })
 
@@ -94,7 +95,8 @@ test("plain-language study controls show only selected comparison candidates and
   const changes = []
   const props = { study, metrics, datasets: [], onChange: value => changes.push(value) }
   const html = renderToStaticMarkup(React.createElement(ImpactSetup, props))
-  assert.match(html, /Which result should improve/)
+  assert.match(html, /Outcome from the decision/)
+  assert.doesNotMatch(html, /Choose a selected result|Which result should improve/)
   assert.match(html, /Why was the comparison unaffected/)
   assert.doesNotMatch(html, /value="1:orders">Dataset 1 \/ orders<\/option><\/select><\/label><p/)
   const elements = []
@@ -104,10 +106,14 @@ test("plain-language study controls show only selected comparison candidates and
     React.Children.forEach(node.props?.children, visit)
   }
   visit(ImpactSetup(props))
-  elements[2].props.onChange({ target: { value: "2:orders" } })
+  elements[1].props.onChange({ target: { value: "2:orders" } })
   assert.equal(changes[0].comparison.dataset_id, 2)
   assert.equal(changes[0].comparison_unaffected, false)
-  assert.match(renderToStaticMarkup(React.createElement(ImpactChange, { study, onChange() {} })), /What ongoing change did you make/)
+  const change = renderToStaticMarkup(React.createElement(ImpactChange, { study, onChange() {} }))
+  assert.match(change, /Decision action/)
+  assert.match(change, /When did the action actually start/)
+  assert.match(change, /Edit this action on the decision/)
+  assert.doesNotMatch(change, /value="Extended opening hours"|What ongoing change did you make/)
 })
 
 test("decision evidence reads only a stored report summary and tolerates malformed legacy contexts", () => {

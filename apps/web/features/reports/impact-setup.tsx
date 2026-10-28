@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import type { CatalogDataset, MetricRef } from "@/features/relationships/types"
 import type { ImpactStudy } from "./impact-types"
 
@@ -8,8 +9,8 @@ const key = (value: { dataset_id: number; metric_key: string } | null) => value 
 
 export function ImpactChange({ study, onChange }: { study: ImpactStudy; onChange: (patch: Partial<ImpactStudy>) => void }) {
   return <section aria-label="Your business change" className="grid min-w-0 gap-4 border-y border-gray-200 py-4 sm:grid-cols-[minmax(0,1fr)_200px]">
-    <label className="min-w-0 text-sm font-medium">What ongoing change did you make?<input className={input} required minLength={8} maxLength={500} placeholder="For example, increased the budget for our spring campaign" value={study.change} onChange={event => onChange({ change: event.target.value })} /></label>
-    <label className="min-w-0 text-sm font-medium">When did it start?<input className={input} required type="date" value={study.change_date} onChange={event => onChange({ change_date: event.target.value })} /></label>
+    <div className="min-w-0 space-y-2 text-sm"><h3 className="font-medium">Decision action</h3><p className="break-words leading-6">{study.decision_id ? study.change || "No action recorded." : "Choose a decision to review."}</p>{study.decision_id && <Link className="text-xs text-blue-700 underline" href={`/dashboard/decisions/${study.decision_id}#decision-title`}>Edit this action on the decision</Link>}</div>
+    <label className="min-w-0 text-sm font-medium">When did the action actually start?<input className={input} required type="date" value={study.change_date} onChange={event => onChange({ change_date: event.target.value })} /></label>
   </section>
 }
 
@@ -28,10 +29,7 @@ export function ImpactSetup({ study, datasets, metrics, onChange }: {
   const comparisons = selected.filter(item => item.dataset_id !== study.outcome?.dataset_id)
   return <section aria-label="Measure the business change" className="min-w-0 space-y-4">
     <h3 className="text-sm font-semibold">Did the change help?</h3>
-    <label className="block min-w-0 text-xs font-medium text-gray-700">Which result should improve?<select className={input} required value={key(study.outcome)} onChange={event => {
-      const outcome = choose(event.target.value)
-      onChange({ outcome, ...(outcome?.dataset_id === study.comparison?.dataset_id ? { comparison: null } : {}), comparison_unaffected: false })
-    }}><option value="">Choose a selected result</option>{selected.map(item => <option key={key(item)} value={key(item)}>{item.label}</option>)}</select></label>
+    <div className="space-y-2 text-sm"><p className="text-xs font-medium text-gray-700">Outcome from the decision</p><p className="break-words">{selected.find(item => key(item) === key(study.outcome))?.label || "Choose an outcome metric in Decision Details."}</p>{study.decision_id && <Link className="text-xs text-blue-700 underline" href={`/dashboard/decisions/${study.decision_id}#decision-title`}>Open Decision Details</Link>}</div>
     <label className="block text-xs font-medium text-gray-700">What would be better?<select className={input} value={study.desired_direction} onChange={event => onChange({ desired_direction: event.target.value as ImpactStudy["desired_direction"] })}><option value="increase">More of this result</option><option value="decrease">Less of this result</option></select></label>
     <label className="block min-w-0 text-xs font-medium text-gray-700">What can we compare it with?<select className={input} required value={key(study.comparison)} onChange={event => onChange({ comparison: choose(event.target.value), comparison_unaffected: false })}><option value="">Choose from another dataset</option>{comparisons.map(item => <option key={key(item)} value={key(item)}>{item.label}</option>)}</select></label>
     <p className="text-xs leading-5 text-gray-600">A similar store or region that did not make the change can be useful. Spending is not an unaffected comparison if your change increased that spending.</p>
