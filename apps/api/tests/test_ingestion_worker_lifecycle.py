@@ -5,7 +5,7 @@ import subprocess
 import sys
 from types import SimpleNamespace
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from app.infrastructure import analysis_worker, ingestion_worker, monitoring
 from app.modules.marketing import config, worker
@@ -42,7 +42,9 @@ class WorkerBootstrapTests(unittest.TestCase):
                 if script_name == "run_analysis_worker":
                     bootstrap.assert_not_called()
                     bootstrap_child.assert_called_once_with(
-                        [sys.executable, "-B", str(script), "--bootstrap", "--parent-pid", str(os.getpid())], check=True)
+                        [sys.executable, "-B", str(script), "--bootstrap", "--parent-pid", str(os.getpid())], check=True, env=ANY)
+                    self.assertEqual(bootstrap_child.call_args.kwargs["env"]["MALLOC_ARENA_MAX"], "2")
+                    self.assertEqual(bootstrap_child.call_args.kwargs["env"]["OMP_THREAD_LIMIT"], "1")
                     configure_monitoring.assert_called_once_with()
                 else:
                     bootstrap.assert_called_once_with("app.main")
@@ -68,7 +70,7 @@ class WorkerBootstrapTests(unittest.TestCase):
         with patch.object(module, "import_module") as bootstrap, patch.object(analysis_worker, "run_worker") as run, \
              patch.object(analysis_worker, "execute_job") as execute, \
              patch.object(module.ctypes, "CDLL") as library, patch.object(module.os, "getppid", return_value=123), \
-             patch.object(module.resource, "setrlimit") as limit, patch.object(sys, "platform", "linux"), \
+             patch("resource.setrlimit") as limit, patch.object(sys, "platform", "linux"), \
              patch.object(sys, "argv", [str(script), "--bootstrap", "--parent-pid", "123"]), \
              patch.object(sys, "path", sys.path.copy()), patch.dict(os.environ, {}, clear=False), \
              patch.object(module.logging, "basicConfig"):

@@ -277,6 +277,67 @@ class AnalysisJobTests(unittest.TestCase):
         self.assertIn("interrupted", result["error"])
         self.assertNotIn("memory", result["error"])
 
+    def test_supervisor_stops_resident_budget_excess_without_automatically_replaying_work(self):
+        identity = self.enqueue(include_ai_analysis=False)
+        with self.Session() as db:
+            job = db.get(ReportAnalysisJob, identity)
+            job.status, job.phase, job.attempts = "running", "computing", 1
+            db.commit()
+        child = MagicMock(pid=12345)
+        child.poll.return_value = None
+        child.wait.return_value = -9
+        memory = {"rss_bytes": 129 * 1024 * 1024, "virtual_bytes": 4 * 1024**3, "threads": 2}
+        with patch.object(worker.subprocess, "Popen", return_value=child) as start, \
+             patch.object(worker, "process_memory", return_value=memory), patch.object(worker.os, "killpg") as kill, \
+             patch.dict("os.environ", {"ANALYSIS_JOB_MEMORY_MB": "128"}), self.assertLogs(worker.logger, level="ERROR") as logs:
+            worker.supervise_job(identity, MagicMock(), "worker.py")
+        kill.assert_called_once_with(child.pid, worker.signal.SIGKILL)
+        self.assertEqual(start.call_args.kwargs["env"]["MALLOC_ARENA_MAX"], "2")
+        result = self.state(identity)
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("memory budget", result["error"])
+        self.assertIn("memory_exceeded=True", logs.output[0])
+
+    def test_virtual_reservations_above_budget_do_not_trigger_a_resident_memory_failure(self):
+        identity = self.enqueue(include_ai_analysis=False)
+        with self.Session() as db:
+            job = db.get(ReportAnalysisJob, identity)
+            job.status, job.phase, job.attempts = "running", "computing", 1
+            db.commit()
+        child = MagicMock(pid=12345)
+        child.poll.side_effect = [None, 0, 0]
+        child.wait.return_value = 0
+        memory = {"rss_bytes": 64 * 1024 * 1024, "virtual_bytes": 4 * 1024**3, "threads": 2}
+        with patch.object(worker.subprocess, "Popen", return_value=child), \
+             patch.object(worker, "process_memory", return_value=memory), patch.object(worker.os, "killpg") as kill, \
+             patch.object(worker.time, "sleep"), patch.dict("os.environ", {"ANALYSIS_JOB_MEMORY_MB": "128"}), \
+             self.assertLogs(worker.logger, level="ERROR"):
+            worker.supervise_job(identity, MagicMock(), "worker.py")
+        kill.assert_not_called()
+        self.assertEqual(self.state(identity)["status"], "queued")
+
+    def test_real_supervisor_budget_tracks_ram_not_reserved_virtual_address_space(self):
+        from pathlib import Path
+        fixture = str(Path(__file__).parent / "fixtures/analysis_memory_child.py")
+        for mode in ("resident", "virtual"):
+            identity = self.enqueue(include_ai_analysis=False)
+            with self.Session() as db:
+                job = db.get(ReportAnalysisJob, identity)
+                job.status, job.phase, job.attempts = "running", "computing", 1
+                db.commit()
+            with patch.dict("os.environ", {"ANALYSIS_JOB_MEMORY_MB": "128", "DECISIONATE_TEST_MEMORY_MODE": mode}), \
+                 self.assertLogs(worker.logger, level="ERROR") as logs:
+                worker.supervise_job(identity, MagicMock(), fixture)
+            result = self.state(identity)
+            if mode == "resident":
+                self.assertEqual(result["status"], "failed")
+                self.assertIn("memory budget", result["error"])
+                self.assertIn("memory_exceeded=True", logs.output[0])
+            else:
+                self.assertEqual(result["status"], "queued")
+                self.assertIn("returncode=0", logs.output[0])
+                self.assertIn("memory_exceeded=False", logs.output[0])
+
     def test_supervisor_fails_only_the_selected_job_if_child_exits_before_claiming(self):
         identity = self.enqueue(include_ai_analysis=False)
         waiting = self.enqueue(include_ai_analysis=False)

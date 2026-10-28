@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -33,6 +34,36 @@ def worker_environment(url):
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "The isolated worker uses Linux process protection")
 class AnalysisWorkerSubprocessTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("gcc"), "Native TLS regression probe requires a C compiler")
+    def test_real_child_allows_native_tls_with_large_virtual_reservations_and_low_resident_usage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            library = str(Path(directory) / "native_tls_probe.so")
+            compiled = subprocess.run([shutil.which("gcc"), "-shared", "-fPIC", "-O0",
+                str(API_ROOT / "tests/fixtures/native_tls_probe.c"), "-o", library], capture_output=True, text=True, timeout=30)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            code = """
+import ctypes, json, mmap, os, resource, runpy, sys
+from unittest.mock import patch
+from app.infrastructure.analysis_resources import process_memory
+initial = resource.getrlimit(resource.RLIMIT_AS)
+library = sys.argv[1]
+def probe(identity):
+    assert resource.getrlimit(resource.RLIMIT_AS) == initial
+    reservation = mmap.mmap(-1, 3 * 1024**3, prot=0)
+    native = ctypes.CDLL(library)
+    assert native.probe() == 1
+    print(json.dumps(process_memory(os.getpid())))
+with patch('app.infrastructure.analysis_worker.execute_job', probe):
+    sys.argv = ['scripts/run_analysis_worker.py', '--job-id', 'tls-regression', '--parent-pid', str(os.getppid())]
+    runpy.run_path('scripts/run_analysis_worker.py', run_name='__main__')
+"""
+            result = subprocess.run([sys.executable, "-B", "-c", code, library], cwd=API_ROOT,
+                env=worker_environment("sqlite://"), capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr[-6000:])
+            memory = json.loads(result.stdout.strip())
+            self.assertGreater(memory["virtual_bytes"], 3 * 1024**3)
+            self.assertLess(memory["rss_bytes"], 256 * 1024 * 1024)
+
     def test_supervisor_import_does_not_retain_api_or_numeric_libraries(self):
         result = subprocess.run([sys.executable, "-B", "-c",
             "import sys; import app.infrastructure.analysis_worker; "

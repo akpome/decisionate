@@ -987,6 +987,7 @@
         "apps/api/app/main.py",
         "apps/api/app/infrastructure/readiness.py",
         "apps/api/app/infrastructure/analysis_worker.py",
+        "apps/api/app/infrastructure/analysis_resources.py",
         "apps/api/scripts/run_analysis_worker.py",
         "apps/api/app/modules/reports/job_constants.py",
         "apps/api/app/modules/reports/jobs.py",

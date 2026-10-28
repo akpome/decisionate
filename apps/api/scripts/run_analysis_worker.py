@@ -7,7 +7,6 @@ from importlib import import_module
 import logging
 import os
 from pathlib import Path
-import resource
 import signal
 import subprocess
 import sys
@@ -22,10 +21,9 @@ def main():
     parser.add_argument("--parent-pid", type=int, help=argparse.SUPPRESS)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    os.environ["OPENBLAS_NUM_THREADS"] = "1"
-    os.environ["OMP_NUM_THREADS"] = "1"
-    os.environ["MKL_NUM_THREADS"] = "1"
-    os.environ["NUMEXPR_MAX_THREADS"] = "2"
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from app.infrastructure.analysis_resources import NATIVE_ENVIRONMENT, child_environment
+    os.environ.update(NATIVE_ENVIRONMENT)
     if args.job_id or args.bootstrap:
         if not sys.platform.startswith("linux") or not args.parent_pid:
             raise RuntimeError("Isolated analysis jobs require the Linux supervisor.")
@@ -33,10 +31,6 @@ def main():
             raise RuntimeError("Could not configure analysis worker parent-death protection.")
         if os.getppid() != args.parent_pid:
             return
-    if args.job_id:
-        memory = max(1024, int(os.getenv("ANALYSIS_JOB_MEMORY_MB", "2048"))) * 1024 * 1024
-        resource.setrlimit(resource.RLIMIT_AS, (memory, memory))
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     if args.bootstrap:
         import_module("app.main")
         return
@@ -53,7 +47,7 @@ def main():
             raise RuntimeError("The durable analysis worker requires PostgreSQL.")
         # Release the API/bootstrap imports before starting the persistent supervisor.
         subprocess.run([sys.executable, "-B", str(Path(__file__).resolve()), "--bootstrap",
-                        "--parent-pid", str(os.getpid())], check=True)
+                        "--parent-pid", str(os.getpid())], check=True, env=child_environment())
         from app.infrastructure.monitoring import configure_error_monitoring
         configure_error_monitoring()
         from app.infrastructure.analysis_worker import run_worker

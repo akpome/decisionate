@@ -16,6 +16,7 @@ from app.db.database import SessionLocal, engine
 from app.db.models import IngestionWorkerHeartbeat, WeeklyReportPreference, utc_now
 from app.modules.reports.job_constants import ACTIVE, WORKER_NAME
 from app.modules.reports.models import ReportAnalysisJob
+from app.infrastructure.analysis_resources import child_environment, memory_budget_bytes, process_memory
 
 
 logger = logging.getLogger(__name__)
@@ -241,8 +242,10 @@ def next_job():
 
 def supervise_job(identity, connection, script):
     timeout = max(30, min(int(os.getenv("ANALYSIS_JOB_TIMEOUT_SECONDS", "900")), 7200))
+    memory_budget = memory_budget_bytes()
     try:
-        child = subprocess.Popen([sys.executable, "-B", script, "--job-id", identity, "--parent-pid", str(os.getpid())], start_new_session=True)
+        child = subprocess.Popen([sys.executable, "-B", script, "--job-id", identity, "--parent-pid", str(os.getpid())],
+                                 start_new_session=True, env=child_environment())
     except OSError:
         logger.exception("Report analysis child could not start: job_id=%s", identity)
         recover_interrupted_jobs(identity, retry=False,
@@ -250,8 +253,20 @@ def supervise_job(identity, connection, script):
         return
     deadline = time.monotonic() + timeout
     timed_out = False
+    memory_exceeded = False
+    peak_rss = peak_virtual = max_threads = 0
+    logger.info("Report analysis resource budget: job_id=%s resident_limit_bytes=%s timeout_seconds=%s",
+                identity, memory_budget, timeout)
     try:
         while child.poll() is None:
+            memory = process_memory(child.pid)
+            if memory:
+                peak_rss = max(peak_rss, memory["rss_bytes"])
+                peak_virtual = max(peak_virtual, memory["virtual_bytes"])
+                max_threads = max(max_threads, memory["threads"])
+                if memory["rss_bytes"] > memory_budget:
+                    memory_exceeded = True
+                    break
             connection.execute(text("SELECT 1"))
             connection.commit()
             record_heartbeat()
@@ -273,10 +288,13 @@ def supervise_job(identity, connection, script):
         with SessionLocal() as db:
             row = db.get(ReportAnalysisJob, identity)
             if row is not None and row.status in ACTIVE:
-                logger.error("Report analysis child stopped: job_id=%s returncode=%s timed_out=%s phase=%s attempts=%s",
-                             identity, returncode, timed_out, row.phase, row.attempts)
-        recover_interrupted_jobs(identity, retry=not timed_out,
-                                 reason="Analysis exceeded its execution limit. Reduce the selected metrics or reporting window." if timed_out else "Analysis was interrupted before it finished. Your selections have been preserved. Please try again.")
+                logger.error("Report analysis child stopped: job_id=%s returncode=%s timed_out=%s phase=%s attempts=%s memory_exceeded=%s peak_rss_bytes=%s peak_virtual_bytes=%s max_threads=%s resident_limit_bytes=%s",
+                             identity, returncode, timed_out, row.phase, row.attempts, memory_exceeded,
+                             peak_rss, peak_virtual, max_threads, memory_budget)
+        reason = ("Analysis exceeded its memory budget. Your selections have been preserved. Try fewer selected metrics."
+                  if memory_exceeded else "Analysis exceeded its execution limit. Reduce the selected metrics or reporting window."
+                  if timed_out else "Analysis was interrupted before it finished. Your selections have been preserved. Please try again.")
+        recover_interrupted_jobs(identity, retry=not (timed_out or memory_exceeded), reason=reason)
 
 
 def run_worker(script, once=False):

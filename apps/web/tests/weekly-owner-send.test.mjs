@@ -111,6 +111,8 @@ test("send controls and grouping labels are specific to the weekly page", () => 
   assert.match(source, /Report week: daily detail/)
   assert.match(source, /Earlier history: grouped weekly/)
   assert.match(source, /\["weekly_send", "weekly_owner_send"\].includes\(analysisJob.kind\) && analysisJob.phase === "sending"/)
+  assert.match(source, /const deliveryNotStarted = .*retry_safe === true/)
+  assert.match(source, /\{deliveryNotStarted && <p role="status"[^>]*>Report preparation stopped before email delivery started\. No email was sent\./)
 })
 
 test("coverage feedback blocks a current empty week without shifting it to historical file dates", () => {

@@ -192,8 +192,8 @@ ANALYSIS_JOB_TIMEOUT_SECONDS=900
 ANALYSIS_JOB_MEMORY_MB=2048
 ```
 
-Each job runs in a separate Linux subprocess with a deadline, address-space cap,
-restricted numeric-library threads and parent-death protection. An independent
+Each job runs in a separate Linux subprocess with a deadline, supervised resident
+memory budget, restricted native-library threads and parent-death protection. An independent
 PostgreSQL advisory lock prevents duplicate consumers during deployment overlap;
 the new service waits for the existing owner. It does not share the ingestion
 queue, lock or heartbeat. Three queued/running analyses per workspace provide
@@ -202,9 +202,29 @@ backpressure, and scheduling gives waiting workspaces a turn.
 Schema initialization runs through the API's existing serialized bootstrap in a
 short-lived subprocess before the supervisor starts. Ordinary queue supervision
 does not import the API or numeric-analysis libraries; each analysis child loads
-its own dependencies. The child address-space limit is separate from Railway's
-container memory allocation, which must accommodate the supervisor and child
-together. The start command and environment references do not change.
+its own dependencies. `ANALYSIS_JOB_MEMORY_MB` now budgets the child's resident
+memory (RAM), not its virtual address space. The supervisor samples Linux
+`/proc/<pid>/status` once per loop and kills the process group on an observed
+budget excess, preserving the job's failure and delivery boundary. This is a
+sampled guard, not an instantaneous kernel hard limit; a rapid allocation can
+overshoot it. Railway's container limit remains the hard boundary and must
+accommodate the supervisor and child together. The start command and environment
+references do not change; do not increase Railway RAM solely because virtual
+memory is large.
+
+The old `RLIMIT_AS` address-space cap could cause glibc's
+`cannot allocate memory for thread-local data: ABORT` and exit 127 while resident
+usage was low. Analysis children no longer install that cap. Numeric/Arrow
+thread limits and `MALLOC_ARENA_MAX=2` are passed before child exec. Diagnostics
+record sampled resident/virtual peaks, thread count and the configured budget
+alongside a failed child's exit code. Virtual reservations are not billed to the
+resident budget. A standalone regression probe reproduced the old exit with
+about 12 MB resident usage; this is not a measurement of a production container.
+
+References: [Python resource limits](https://docs.python.org/3.12/library/resource.html),
+[Linux process status](https://man7.org/linux/man-pages/man5/proc_pid_status.5.html),
+[glibc allocator tunables](https://sourceware.org/glibc/manual/latest/html_node/Memory-Allocation-Tunables.html),
+[Arrow CPU thread settings](https://arrow.apache.org/docs/python/generated/pyarrow.cpu_count.html).
 
 The API validates permissions and queues immutable settings and source-version
 fingerprints. The worker checks access and revisions before and after analysis;

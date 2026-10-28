@@ -40,6 +40,9 @@ settings load only their selected datasets, not unrelated workspace sources.
 After a confirmed failure before delivery starts, a deliberate retry starts a
 fresh attempt. If delivery might have started, check delivery history before
 trying again. Uncertain status reads keep the same request to avoid duplicates.
+When the server confirms report preparation stopped before delivery, the page
+explicitly says no email was sent. Older attempts without that confirmation
+remain conservative; they are not silently resent.
 
 KPI targets are benchmark context for the digest and interpretation. Setting a
 target does not by itself create a separate immediate threshold-triggered alert.

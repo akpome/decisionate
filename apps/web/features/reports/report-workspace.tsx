@@ -112,6 +112,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const previewDisabled = datasetCount < (single ? 1 : 2) || !impactReady(definition.impact, definition.metrics) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
   const weeklySendIssue = weekly && !weeklyDirty ? weeklyDeliveryIssue(report, weeklySettings?.window) : ""
   const uncertainDelivery = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && !analysisJob.retry_safe
+  const deliveryNotStarted = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && analysisJob.retry_safe === true
   const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(weekly && weeklyDirty ? "Save and preview" : "Preview report")}</button>
 
   useEffect(() => {
@@ -544,6 +545,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     </section>}
     {weeklySendIssue && <p role="status" className="border-l-2 border-amber-500 pl-3 text-sm leading-6 text-amber-900">{weeklySendIssue}</p>}
     {uncertainDelivery && <p role="status" className="text-sm leading-6 text-amber-900">Delivery could not be confirmed. Check <Link href="/dashboard/alerts#weekly-delivery" className="text-blue-700 underline">delivery history</Link> before attempting another send.</p>}
+    {deliveryNotStarted && <p role="status" className="text-sm leading-6 text-amber-900">Report preparation stopped before email delivery started. No email was sent. Generate a new preview, then try sending again.</p>}
 
     <section role="tabpanel" id="report-explore" aria-labelledby="tab-explore" hidden={view !== "explore"} className="space-y-6 print:hidden">
       <form onSubmit={event => { event.preventDefault(); void calculate() }}>
