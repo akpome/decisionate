@@ -215,13 +215,15 @@ run's frozen results. See [retirement and deployment cleanup](MULTI_METRIC_CORRE
 
 ## Weekly Delivery
 
-Instant analysis (`/dashboard/reports`, single source at `/dashboard/reports/dataset`)
-and Weekly reports (`/dashboard/reports/weekly`) are separate workflows. Instant
-analysis has selectable dates and defaults to daily grouping. Weekly reports stores
+Business Analysis (`/dashboard/reports`, single source at `/dashboard/reports/dataset`)
+and Weekly Business Review (`/dashboard/reports/weekly`, Weekly Review in the sidebar)
+are separate workflows, reached from the sidebar rather than a cross-workflow tab bar.
+Business Analysis has Build analysis / Analysis preview, selectable dates and
+daily grouping by default. Weekly Business Review has Report setup / Report preview and stores
 an independent JSON configuration on `WeeklyReportPreference.weekly_report_definition`,
 managed through GET/PUT/DELETE `/api/v2/business-reports/weekly-settings`.
 Saving it does not enable sending or change recipients. Alerts retains delivery settings.
-Copy selection to weekly reports is an explicit editable copy, not a live template link.
+Copy selection to Weekly Review is an explicit editable copy, not a live template link.
 
 Weekly values cover the latest complete Monday-Sunday week in the platform
 reporting timezone, compared with the preceding complete week. Relationships

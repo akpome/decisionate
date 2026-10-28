@@ -11,12 +11,12 @@ orders. Do not compare raw spend amounts and order counts as equivalent units.
 3. Wait for a successful import. Inspect actual columns and available dates.
 4. Review the dataset's saved metric selection and business objective. Keep the
    measures relevant to the question; date and dimension fields are separate.
-5. Open Reports and choose Multi dataset report.
+5. Open Business Analysis and choose Multi dataset report.
 6. Select approved metrics from at least two datasets. Review each Date column
    and any Dimension column filter.
 7. Enter a useful report name and business question. Choose dates and grouping
    consistent with the actual frequency and overlapping history of the sources.
-8. Preview the report. Read coverage, anomalies, relationships and limitations
+8. Choose Preview analysis. Read coverage, anomalies, relationships and limitations
    before treating a finding as actionable. Save a snapshot when appropriate.
 9. Create the business action centrally in Decisions, attaching the saved report
    when it supplies the evidence. Record an expected result and review date.

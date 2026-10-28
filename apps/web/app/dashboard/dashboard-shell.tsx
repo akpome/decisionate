@@ -168,12 +168,12 @@ const dashboardNavGroups: DashboardNavGroup[] = [
     items: [
       {
         href: "/dashboard/reports",
-        label: "Instant analysis",
+        label: "Business Analysis",
         icon: <FileText size={18} />,
       },
       {
         href: "/dashboard/reports/weekly",
-        label: "Weekly reports",
+        label: "Weekly Review",
         icon: <CalendarDays size={18} />,
       },
       {

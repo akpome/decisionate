@@ -29,7 +29,7 @@ and recipient delivery. The worker commits the sending boundary before external
 side effects. A restart or partial acceptance requires reconciliation with
 delivery history and provider records; do not automatically replay the send.
 
-The Weekly reports page offers Send report now for an owner-only, one-time send.
+The Weekly Review page offers Send report now for an owner-only, one-time send.
 `POST /api/v2/business-reports/weekly-owner-jobs` submits a distinct
 `weekly_owner_send` job, resolving and freezing the workspace owner's address on the
 server, including managed-client owners, and the worker rechecks it before the

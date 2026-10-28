@@ -1,19 +1,21 @@
-# Configure a meaningful weekly report
+# Configure Weekly Business Review
 
 Weekly reports are cross-dataset reviews, not a repeated single-metric screenshot.
-They have their own Weekly reports page and require usable metrics from at least
-two datasets for delivery. Instant analysis is a separate page and does not
+Open Weekly Review in the sidebar for the Weekly Business Review page. It requires usable metrics from at least
+two datasets for delivery. Business Analysis is a separate page and does not
 control the weekly report's dates or time grouping.
+The pages do not share a workflow tab bar. Weekly Business Review uses Report
+setup and Report preview; Business Analysis uses Build analysis and Analysis preview.
 
 ## Configure weekly analysis and sending separately
 
-Open Analysis -> Weekly reports. Select metrics, date columns, dimension filters,
+Open Analysis -> Weekly Review. Select metrics, date columns, dimension filters,
 business question, seasonal setting and relationship pairs. Save weekly settings,
 or use Save and preview to save and calculate them. Removed pairs remain excluded
 from weekly relationship analysis, while their selected metrics still receive
 KPI and anomaly analysis. Saving settings does not enable sending or change recipients.
 
-A saved instant report offers Copy selection to weekly reports. This is an
+A saved business analysis offers Copy selection to Weekly Review. This is an
 editable copy, not a live link. Non-weekly timing choices reset to same-period
 comparison, with a default maximum of 12 weeks; a three-day lag is not converted
 to three weeks. Check and save the independent weekly settings before use.
@@ -33,7 +35,7 @@ usable email address, sending is blocked rather than using another recipient.
 Sending requires usable data from at least two selected datasets in the last
 completed week. If the preview has insufficient coverage, Send report now is
 disabled and shows the exact dates needed. Sync or upload data for that week,
-then preview again. Historical demo files belong in Instant analysis; weekly
+then preview again. Historical demo files belong in Business Analysis; weekly
 reports do not shift to the most recent dates in an old file. Saved weekly
 settings load only their selected datasets, not unrelated workspace sources.
 
@@ -76,9 +78,9 @@ within allowed bounds. Lag zero compares the same week. The selected metric's
 approved aggregation policy is preserved: weekly grouping does not turn every
 metric into a sum. Per-metric anomaly results include seasonal support and history warnings.
 
-Changing Instant analysis dates, daily/weekly/monthly/quarterly grouping, or timing
+Changing Business Analysis dates, daily/weekly/monthly/quarterly grouping, or timing
 settings does not change the saved weekly settings. Changing weekly settings does
-not alter instant reports or either workflow's saved snapshots.
+not alter Business Analysis or either workflow's saved snapshots.
 
 ## Follow up on a business change
 

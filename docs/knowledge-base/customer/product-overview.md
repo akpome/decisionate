@@ -8,8 +8,11 @@ outcomes in another. It does not establish that one activity caused the outcome.
 ## Choose the right page
 
 - Dashboard and Dashboards show supporting KPIs, trends, mappings and targets.
-- Reports is the analysis workspace. Multi dataset report opens by default;
+- Business Analysis is the on-demand analysis workspace. Multi dataset report opens by default;
   Single dataset report analyzes one source with the same report engine.
+- Weekly Review opens Weekly Business Review for independently configured weekly
+  performance reviews and email delivery. Navigate between the workflows in the
+  sidebar, not a shared page tab bar.
 - Forecasts estimates future values and presents validation information.
 - Relationships maintains saved two-metric, cross-source monitors.
 - Decisions is the central place to create and track accountable actions.
@@ -18,11 +21,15 @@ outcomes in another. It does not establish that one activity caused the outcome.
 - Alerts manages weekly report recipients, schedule and delivery preferences.
 - Help & Support provides guidance and a support, bug or feature request form.
 
+Business Analysis was previously called Instant analysis. Weekly Review replaces
+Weekly reports in navigation. Existing analysis/report URLs and saved snapshots
+remain valid; these names do not merge the two workflows or their settings.
+
 ## Where Insights went
 
 Insights is no longer a separate analysis destination. Old Insights links
-redirect to Reports. The dashboard Analysis tab and its panels were removed;
-they should not be restored as a troubleshooting step. Reports contains metric
+redirect to Business Analysis. The dashboard Analysis tab and its panels were removed;
+they should not be restored as a troubleshooting step. Business Analysis contains metric
 findings, anomalies, relationships, limitations and decision evidence together.
 
 The advanced relationship explorer and its dedicated worker were also retired.

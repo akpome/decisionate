@@ -6,8 +6,8 @@ does not become a numerical outcome merely by being selected.
 
 ## Apply a dimension filter
 
-1. On dashboards, open Filters beside the other controls. Reports, Forecasts and
-   Relationships provide their own date/dimension controls.
+1. On dashboards, open Filters beside the other controls. Business Analysis,
+   Weekly Review, Forecasts and Relationships provide their own date/dimension controls.
 2. Review Date column and choose Dimension column.
 3. Choose one or more Unique values from the dropdown. Search values narrows the
    list of choices; entering search text alone is not the selected-value filter.

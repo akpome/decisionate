@@ -891,7 +891,7 @@ function AlertsPageContent({
               </h2>
 
               <p className="mt-1.5 max-w-3xl text-sm text-gray-500">
-                Manage recipients and weekly delivery. <Link href="/dashboard/reports/weekly" className="text-blue-700 underline">Weekly reports</Link> has the analysis settings and preview.
+                Manage recipients and weekly delivery. <Link href="/dashboard/reports/weekly" className="text-blue-700 underline">Weekly Review</Link> has the analysis settings and preview.
               </p>
             </div>
 
@@ -1044,7 +1044,7 @@ function AlertsPageContent({
                 </p>
 
                 <p className="mt-1 text-xs text-gray-500">
-                  {weeklyReportPreference.weekly_settings_configured ? <>Metrics are selected on the <Link href="/dashboard/reports/weekly" className="text-blue-700 underline">Weekly reports page</Link>.</> : "Select the specific dataset metrics that should shape the digest."}
+                  {weeklyReportPreference.weekly_settings_configured ? <>Metrics are selected on the <Link href="/dashboard/reports/weekly" className="text-blue-700 underline">Weekly Review page</Link>.</> : "Select the specific dataset metrics that should shape the digest."}
                 </p>
 
                 {metricOptions.length > 0 ? (

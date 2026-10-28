@@ -12,7 +12,6 @@ import { useDecisionateText } from "@/app/use-decisionate-language"
 import type { CatalogDataset } from "@/features/relationships/types"
 import { CorrelationInsights } from "@/features/relationships/correlation-widgets"
 import { getAIAnalysisProvenance } from "@/features/ai/lib/analysis-copy"
-import { AnalysisNavigation } from "./analysis-navigation"
 import { ReportMetricPicker, reportDateColumn } from "./report-metric-picker"
 import { loadReportCatalogDataset, loadReportCatalogPage, mergeReportCatalog as mergeCatalog } from "./report-catalog-loading"
 import { editableDefinition, selectedReportDimensionFilters, type BusinessReport, type ReportDefinition } from "./types"
@@ -107,14 +106,16 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const datasetCount = new Set(definition.metrics.map(metric => metric.dataset_id)).size
   const single = definition.scope === "single"
   const pagePath = weekly ? "/dashboard/reports/weekly" : single ? "/dashboard/reports/dataset" : "/dashboard/reports"
-  const navigation = weekly ? "weekly" : "reports"
+  const pageTitle = weekly ? "Weekly Business Review" : "Business Analysis"
+  const setupLabel = weekly ? "Report setup" : "Build analysis"
+  const previewLabel = weekly ? "Report preview" : "Analysis preview"
   const taskCount = definition.impact ? 0 : reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs)
   const showPairDirections = definition.pair_directions.length > 0
   const previewDisabled = datasetCount < (single ? 1 : 2) || !impactReady(definition.impact, definition.metrics) || Boolean(impactSetupIssue(definition, datasets)) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
   const weeklySendIssue = weekly && !weeklyDirty ? weeklyDeliveryIssue(report, weeklySettings?.window) : ""
   const uncertainDelivery = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && !analysisJob.retry_safe
   const deliveryNotStarted = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && analysisJob.retry_safe === true
-  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(definition.impact ? busy ? "Checking decision..." : "Check this decision" : weekly && weeklyDirty ? "Save and preview" : "Preview report")}</button>
+  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(definition.impact ? busy ? "Checking decision..." : "Check this decision" : weekly && weeklyDirty ? "Save and preview" : weekly ? "Preview report" : "Preview analysis")}</button>
 
   useEffect(() => {
     const controller = new AbortController()
@@ -496,18 +497,17 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   </div>
   const catalogFooter = nextOffset !== null && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>
   const weeklySaveButton = weekly && canManage && <button type="button" className={`${button} w-full`} disabled={previewDisabled || !weeklyDirty} onClick={event => { if (event.currentTarget.form?.reportValidity()) void saveWeeklySettings() }}><Save size={16} />Save weekly settings</button>
-  if (loading) return <div className="min-w-0 w-full space-y-5"><AnalysisNavigation active={navigation} /><p role="status" className="py-8 text-sm text-gray-600">Loading reports...</p></div>
+  if (loading) return <div className="min-w-0 w-full space-y-5"><h1 className="text-2xl font-semibold">{t(pageTitle)}</h1><p role="status" className="py-8 text-sm text-gray-600">{t(weekly ? "Loading weekly review..." : "Loading business analysis...")}</p></div>
   return <div className="min-w-0 w-full space-y-5">
-    <AnalysisNavigation active={navigation} />
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
-      <h1 className="text-2xl font-semibold">{t(weekly ? "Weekly reports" : "Instant analysis")}</h1>
-      <div role="tablist" aria-label="Report workspace" className="flex w-full min-w-0 gap-1 rounded-md border border-gray-200 bg-white p-1 sm:w-auto">
+      <h1 className="text-2xl font-semibold">{t(pageTitle)}</h1>
+      <div role="tablist" aria-label={t(weekly ? "Weekly review workspace" : "Business analysis workspace")} className="flex w-full min-w-0 gap-1 rounded-md border border-gray-200 bg-white p-1 sm:w-auto">
         {(["explore", "report"] as const).map(mode => <button key={mode} type="button" role="tab" tabIndex={view === mode ? 0 : -1} aria-selected={view === mode} aria-controls={`report-${mode}`} id={`tab-${mode}`} onClick={() => setView(mode)} onKeyDown={event => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
           event.preventDefault()
           const next = event.key === "Home" ? "explore" : event.key === "End" ? "report" : mode === "explore" ? "report" : "explore"
           setView(next); document.getElementById(`tab-${next}`)?.focus()
-        }} className={`inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded px-3 text-sm sm:flex-none ${view === mode ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`}>{mode === "explore" ? <ChartNoAxesCombined size={16} aria-hidden="true" className="shrink-0" /> : <FileText size={16} aria-hidden="true" className="shrink-0" />}<span className="min-w-0 break-words">{t(mode === "explore" ? "Build report" : "Report preview")}</span></button>)}
+        }} className={`inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded px-3 text-sm sm:flex-none ${view === mode ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`}>{mode === "explore" ? <ChartNoAxesCombined size={16} aria-hidden="true" className="shrink-0" /> : <FileText size={16} aria-hidden="true" className="shrink-0" />}<span className="min-w-0 break-words">{t(mode === "explore" ? setupLabel : previewLabel)}</span></button>)}
       </div>
     </header>
     {!weekly && <nav aria-label="Analysis sources" className="flex flex-wrap gap-4 text-sm print:hidden">{[{ scope: "multi", href: "/dashboard/reports", label: "Multi dataset report" }, { scope: "single", href: "/dashboard/reports/dataset", label: "Single dataset report" }].map(item => <Link key={item.scope} href={item.href} aria-current={definition.scope === item.scope ? "page" : undefined} className={definition.scope === item.scope ? "font-semibold text-blue-800 underline underline-offset-8" : "text-gray-600"}>{t(item.label)}</Link>)}</nav>}
@@ -540,7 +540,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         {report && <>
           <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id) || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void execute(async () => { const saved = await saveSnapshot(); setMessage(saved.decision_review_id ? "Assessment saved to the existing decision. Its recorded outcome and lessons are unchanged." : "Report snapshot saved.") })}><Save size={16} />{report.definition.impact?.decision_id ? "Save assessment to decision" : "Save snapshot"}</button>
           {report.definition.impact?.decision_id && <Link className={button} href={`/dashboard/decisions/${report.definition.impact.decision_id}#business-impact-review`}>Return to decision</Link>}
-          {!single && !weekly && canManage && report.report_id && <Link href={`/dashboard/reports/weekly?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />Copy selection to weekly reports</Link>}
+          {!single && !weekly && canManage && report.report_id && <Link href={`/dashboard/reports/weekly?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />{t("Copy selection to Weekly Review")}</Link>}
           {view === "report" && <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>}
         </>}
         {weekly && canManage && <button type="button" className={button} disabled={previewDisabled || Boolean(weeklySendIssue) || uncertainDelivery} title="Email the current weekly report to the workspace owner" onClick={() => void sendWeeklyNow()}><Send size={16} />Send report now</button>}
@@ -604,7 +604,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     </section>
 
     <section role="tabpanel" id="report-report" aria-labelledby="tab-report" hidden={view !== "report"} className="space-y-6">
-      {view !== "report" ? null : !report ? <div className="border-y border-gray-200 py-12 text-center"><FileText className="mx-auto text-gray-400" size={32} /><h2 className="mt-3 text-lg font-medium">No report generated</h2><button type="button" className={`${button} mt-4`} onClick={() => setView("explore")}><ChartNoAxesCombined size={16} />{t("Build report")}</button></div> : <>
+      {view !== "report" ? null : !report ? <div className="border-y border-gray-200 py-12 text-center"><FileText className="mx-auto text-gray-400" size={32} /><h2 className="mt-3 text-lg font-medium">{t(weekly ? "No report generated" : "No analysis generated")}</h2><button type="button" className={`${button} mt-4`} onClick={() => setView("explore")}><ChartNoAxesCombined size={16} />{t(setupLabel)}</button></div> : <>
         <header className="border-b border-gray-200 pb-5"><div className="flex items-center gap-3"><WorkspaceBrandMark name={brand.name} logoUrl={brand.logoUrl} primaryColor={brand.primaryColor} className="h-10 w-10 rounded-md text-sm" /><span className="text-sm font-medium">{brand.name}</span></div><h2 className="mt-4 break-words text-2xl font-semibold">{report.name}</h2><p className="mt-2 break-words text-base text-gray-700">{report.business_question}</p><p className="mt-2 text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.dataset_count} datasets / Generated {report.generated_at.slice(0, 10)}</p><ReportGrouping report={report} /></header>
         <ImpactResult analysis={report.impact_analysis} />
         {report.impact_analysis && <ImpactChart analysis={report.impact_analysis} />}

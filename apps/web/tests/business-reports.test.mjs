@@ -145,7 +145,7 @@ test("main Reports route opens the combined workspace while dataset inspection r
   assert.doesNotMatch(page, /SingleDatasetReport|single-dataset-report|redirect\(/)
   assert.match(readFileSync(new URL("../features/reports/report-page.tsx", import.meta.url), "utf8"), /canCreateDecisions/)
   const workspace = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
-  assert.match(workspace, /<AnalysisNavigation active=\{navigation\}/)
+  assert.doesNotMatch(workspace, /AnalysisNavigation/)
   assert.match(inspection, /single-dataset-report/)
 })
 
@@ -154,7 +154,7 @@ test("multi dataset Reports fills the available shell width during loading and a
   const ast = ts.createSourceFile("report-workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const roots = []
   function visit(node) {
-    if (ts.isReturnStatement(node) && node.expression && ts.isJsxElement(node.expression) && node.expression.children.some(child => ts.isJsxSelfClosingElement(child) && child.tagName.getText(ast) === "AnalysisNavigation")) roots.push(node.expression)
+    if (ts.isReturnStatement(node) && node.expression && ts.isJsxElement(node.expression) && node.expression.children.some(child => ts.isJsxElement(child) && ["header", "h1"].includes(child.openingElement.tagName.getText(ast)))) roots.push(node.expression)
     ts.forEachChild(node, visit)
   }
   visit(ast)

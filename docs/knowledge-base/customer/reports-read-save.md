@@ -74,7 +74,7 @@ names should be edited to describe the analysis, not treated as an overwrite key
 ## Delete versus remove weekly settings
 
 Delete saved report removes that snapshot, not its source datasets or linked
-decisions. Independent weekly settings and delivery are unchanged. On Weekly reports,
+decisions. Independent weekly settings and delivery are unchanged. On Weekly Review,
 Remove weekly settings keeps saved snapshots and linked decisions while clearing
 the weekly configuration and pausing delivery. Read the confirmation and use only
 actions allowed by your workspace role.

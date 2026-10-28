@@ -56,7 +56,7 @@ const gettingStartedItems = [
   },
   {
     id: "analysis",
-    title: "Compare datasets in Reports",
+    title: "Compare datasets in Business Analysis",
     description: "Connect selected metrics across sources to answer a business question.",
     href: "/dashboard/reports",
     action: "Open reports",
@@ -96,7 +96,7 @@ const faqItems = [
   {
     question: "Where have Insights and dashboard Analysis moved?",
     answer:
-      "Instant analysis is the on-demand workspace, with Multi dataset report opening by default and Single dataset report available separately. Weekly reports has its own page and independent settings. Old Insights links redirect to Instant analysis. Dashboard Analysis controls and their panels have been removed; use dashboards for charts and KPIs and Forecasts for forward-looking estimates.",
+      "Business Analysis is the on-demand workspace, with Multi dataset report opening by default and Single dataset report available separately. Weekly Review opens the separate Weekly Business Review page with independent settings. Use the sidebar to move between these workflows, not tabs inside the pages. Old Insights links redirect to Business Analysis. Dashboard Analysis controls and their panels have been removed; use dashboards for charts and KPIs and Forecasts for forward-looking estimates.",
   },
   {
     question: "Why can a year-long report have insufficient relationship evidence?",
@@ -159,7 +159,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Write the decision you need to make in plain language, such as whether to increase campaign spend, change pricing, or address a sales bottleneck.",
           "Identify the outcome measure and the related measures from other datasets, such as advertising spend in a marketing source and orders or revenue in a commerce source.",
           "Choose the period and aggregation that match the question. A daily operational question should not be answered with a yearly total unless that is intentional.",
-          "Use Reports to analyze the selected evidence across datasets. Use dashboards, forecasts, saved relationships, and alerts as supporting context, then record the action and expected outcome in Decisions.",
+          "Use Business Analysis to analyze the selected evidence across datasets. Use dashboards, forecasts, saved relationships, and alerts as supporting context, then record the action and expected outcome in Decisions.",
         ],
       },
       {
@@ -316,7 +316,7 @@ const referenceChapters: ReferenceChapter[] = [
     id: "reference-dashboards",
     title: "5. Dashboards and chart controls",
     summary:
-      "Dashboards provide charts, KPIs, and targets for decision work. Dataset dashboards have a Filters control alongside their other toolbar controls. Reports is the analysis workspace; dashboards no longer have an Analysis panel.",
+      "Dashboards provide charts, KPIs, and targets for decision work. Dataset dashboards have a Filters control alongside their other toolbar controls. Business Analysis is the analysis workspace; dashboards no longer have an Analysis panel.",
     howTos: [
       {
         title: "Open and configure a dashboard",
@@ -394,25 +394,25 @@ const referenceChapters: ReferenceChapter[] = [
     notes: [
       "A join is an analysis operation, not proof that one source caused movement in another.",
       "A join can fail when normalized periods do not overlap or when the date columns contain incompatible or invalid values.",
-      "Use Reports for multi-metric, multi-dataset analysis and saved report snapshots. Use Relationships for a saved two-metric monitor instead of repeatedly rebuilding an ad hoc dashboard join.",
+      "Use Business Analysis for multi-metric, multi-dataset analysis and saved report snapshots. Use Relationships for a saved two-metric monitor instead of repeatedly rebuilding an ad hoc dashboard join.",
     ],
   },
   {
     id: "reference-analysis",
     title: "7. Analysis, reports, and forecasts",
     summary:
-      "Reports contains single- and multi-dataset analysis: choose metrics, dates, and dimension filters, review the findings, and save a report snapshot. Multi dataset report opens by default. Forecasts remains a separate forward-looking workflow; old Insights links redirect to Reports.",
+      "Business Analysis contains single- and multi-dataset analysis: choose metrics, dates, and dimension filters, review the findings, and save a report snapshot. Multi dataset report opens by default. Forecasts remains a separate forward-looking workflow; old Insights links redirect to Business Analysis.",
     howTos: [
       {
         title: "Analyze metrics and findings",
         steps: [
-          "Open Analysis -> Instant analysis. Multi dataset report opens by default; Single dataset report uses the same analysis engine for one source.",
+          "Open Analysis -> Business Analysis. Multi dataset report opens by default; Single dataset report uses the same analysis engine for one source. Use Build analysis and Analysis preview to move between setup and results.",
           "Select the approved metrics needed to answer your business question. Multi dataset reports require metrics from at least two datasets.",
           "Under Datasets and metrics, review each source's preselected Date column. If needed, choose its Dimension column and add Unique values from the dropdown; Search values narrows the available choices.",
           "New multi dataset reports open with Correlation analysis. Relationship analysis is expanded, with the correlation method, Minimum historical observations, timing and relationship-pair controls. Business impact analysis is a separate optional analysis type; saved reports retain their original type.",
           "Set Start and End for the period you want to analyze, Analysis group by, and Business has seasonal activity when appropriate. Missing history cannot be replaced by a wider date selection.",
           "Choose Business impact analysis to review an existing decision, or open the decision and choose Assess business impact. Select Decision to review; its action and outcome metric are reused. Confirm when the action actually started, then choose an unaffected comparison from another dataset. Explain why it was unaffected and check for other major changes. Include dates before and after the action: weekly impact studies need at least 52 complete weeks before and 8 after; seasonal businesses also need about two years before. Save assessment to decision attaches the result to that same decision, without creating another decision or overwriting its recorded outcome or lessons.",
-          "Choose Preview report and wait for the queued analysis to finish. Review metric movements, anomaly findings, relationship evidence, coverage, and limitations together in Report preview.",
+          "Choose Preview analysis and wait for the queued analysis to finish. Review metric movements, anomaly findings, relationship evidence, coverage, and limitations together in Analysis preview.",
           "Business-change reports lead with a calculated answer: the change appears to have helped, worked against your goal, or remains unclear. A failed comparison produces no impact amount. The range and checks are explained in ordinary language; model-based evidence is not a randomized test or a guarantee of cause and effect.",
           "Exploratory report interpretation is requested automatically for each new preview. If the AI provider is unavailable or AI credits are exhausted, the report shows clearly labeled deterministic baseline rules instead. Business-change answers are calculated directly and do not need an external AI response. Opening a saved snapshot does not rerun AI.",
           "Treat recommendations as prompts for review. Create decisions from the Decisions page after confirming the source data and business context.",
@@ -422,7 +422,7 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Set relationship timing and historical coverage",
         steps: [
           "Choose Spearman or Pearson in Relationship analysis. Minimum historical observations defaults to 52 and counts usable matched observations after grouping and filtering, not the number of dates entered.",
-          "Reports and Relationships share the same new-analysis defaults: Spearman, daily grouping, sum aggregation where applicable, 52 minimum historical observations, a maximum lag of 12 grouped periods, and same-period comparison. Valid deliberately saved settings are retained, including a saved 24-observation minimum or weekly grouping.",
+          "Business Analysis and Relationships share the same new-analysis defaults: Spearman, daily grouping, sum aggregation where applicable, 52 minimum historical observations, a maximum lag of 12 grouped periods, and same-period comparison. Valid deliberately saved settings are retained, including a saved 24-observation minimum or weekly grouping.",
           "Evaluate timing is always visible above Relationship directions, without an enable checkbox. Choose Same-period comparison only or name which metric leads for each pair. Only directed pairs run positive-lag tests, up to Maximum lag; all pairs include the same-period comparison.",
           "Remove relationship pairs you do not want to analyze. Restore them from Removed pairs when needed. These choices are saved with the report and weekly template; removing a pair does not remove its metrics from KPI or anomaly analysis.",
           "Maximum lag is measured in the selected Group by period and is limited to 12. A lag of 2 means two daily, weekly, monthly, or quarterly periods, depending on that setting. A directional timing test also includes lag zero.",
@@ -433,7 +433,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Read the combined chart",
         steps: [
-          "In Report preview, use Indexed metric comparison to compare selected metrics on one chart. Each line is identified by its dataset and metric, using distinct colors and, where needed, line styles.",
+          "In Analysis preview or the weekly Report preview, use Indexed metric comparison to compare selected metrics on one chart. Each line is identified by its dataset and metric, using distinct colors and, where needed, line styles.",
           "Switch between Indexed and Actual beside the chart title. Actual shows original values and units on one numeric scale; different units are not directly comparable. This display choice does not rerun the analysis or change saved evidence.",
           "The chart uses the displayed shared positive baseline date as 100. An index of 120 means 20 percent above that metric's baseline value, not 120 orders or 120 currency units.",
           "Use the metric cards and tooltip for original values and units. Read coverage and baseline warnings; metrics without a usable positive baseline cannot be plotted on the indexed scale.",
@@ -444,7 +444,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Review anomaly findings",
         steps: [
-          "Open Analysis -> Instant analysis, select metrics and dates, and enable Business has seasonal activity when appropriate. Preview the report to assess every selected metric with the shared anomaly engine. Weekly reports checks the completed week as a whole and each day separately, with its own settings.",
+          "Open Analysis -> Business Analysis, select metrics and dates, and enable Business has seasonal activity when appropriate. Preview the analysis to assess every selected metric with the shared anomaly engine. Weekly Business Review checks the completed week as a whole and each day separately, with its own settings.",
           "Review any anomaly finding alongside the underlying chart and time periods. Confirm that the finding is not caused by an incomplete connector sync, a date change, a join, or a source-schema change.",
           "The seasonal setting requests validation of repeating patterns; it does not force seasonal adjustment when history is insufficient. Read any limited-history or trend-only warning, and consider promotions or holidays that are not automatically known to the model.",
           "Record the business response as a decision when action is needed. Include the suspected cause, the expected result, and the date on which the result will be reviewed.",
@@ -466,7 +466,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Build a report",
         steps: [
-          "Open Analysis -> Instant analysis and configure the selected datasets and metrics in Build report.",
+          "Open Analysis -> Business Analysis and configure the selected datasets and metrics in Build analysis.",
           "Rename the report to suit your analysis, enter a business question, and preview the findings. Save snapshot stores the generated report; reopening a snapshot preserves its analysis.",
           "Generated report names are unique starting labels, not descriptions of the business question. Edit them before saving so saved reports are easy to distinguish.",
           "Changing metric, date, dimension, seasonal, or timing settings requires a fresh preview before saving the changed analysis.",
@@ -476,12 +476,12 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Set up or remove weekly report settings",
         steps: [
-          "Open Analysis -> Weekly reports. Select source metrics, date columns, dimension filters, business question, relationship pairs and the seasonal-business setting. Save weekly settings or choose Save and preview. These settings are independent of Instant analysis.",
+          "Open Analysis -> Weekly Review to see Weekly Business Review. Use Report setup and Report preview on this page. Select source metrics, date columns, dimension filters, business question, relationship pairs and the seasonal-business setting. Save weekly settings or choose Save and preview. These settings are independent of Business Analysis.",
           "Open Delivery settings to review recipients, schedule, and sending preferences in Alerts. Saving weekly settings does not itself enable delivery or change recipients.",
           "Weekly reports assess the latest completed week with up to a rolling three years of available history, including unusual changes in the selected metrics. Manual Start and End dates are for the generated snapshot and do not fix the weekly reporting window.",
-          "The last completed Monday-Sunday is analyzed daily and as a whole week, while earlier relationship history is grouped into complete weeks ending before that report week. Totals cover the full week and compare with the preceding week. Whole-week assessment compares each selected metric with its normal weekly range; Daily changes checks individual dates. These can differ: daily ups and downs may cancel out, or small daily changes may add up to an unusual week. Incomplete weeks are not scored against complete historical weeks. The weekly page has automatic dates, 52 minimum matched weeks by default and a maximum lag of 12 weeks. Instant analysis settings remain independent.",
+          "The last completed Monday-Sunday is analyzed daily and as a whole week, while earlier relationship history is grouped into complete weeks ending before that report week. Totals cover the full week and compare with the preceding week. Whole-week assessment compares each selected metric with its normal weekly range; Daily changes checks individual dates. These can differ: daily ups and downs may cancel out, or small daily changes may add up to an unusual week. Incomplete weeks are not scored against complete historical weeks. The weekly page has automatic dates, 52 minimum matched weeks by default and a maximum lag of 12 weeks. Business Analysis settings remain independent.",
           "Send report now emails the current weekly report only to the workspace owner. Unsaved weekly settings are saved first. This one-time action works while scheduled delivery is paused and does not change scheduled recipients or mark the scheduled email as already sent.",
-          "Copy selection to weekly reports copies a saved instant report into an editable weekly configuration. Non-weekly timing resets to same-period so daily lags are not interpreted as weeks. Review and save before using it. Delivery settings manages recipients and the sending switch.",
+          "Copy selection to Weekly Review copies a saved business analysis into an editable weekly configuration. Non-weekly timing resets to same-period so daily lags are not interpreted as weeks. Review and save before using it. Delivery settings manages recipients and the sending switch.",
           "Use Remove weekly settings to pause delivery and clear its configuration while keeping saved snapshots and linked decisions.",
         ],
       },
@@ -490,7 +490,7 @@ const referenceChapters: ReferenceChapter[] = [
         steps: [
           "Choose the saved report from Saved reports and use Delete saved report when your workspace permissions allow it.",
           "Read the confirmation before deleting. Linked decisions and datasets are kept. Deleting a saved snapshot does not remove independent weekly settings or change delivery.",
-          "To clear weekly settings and pause delivery while retaining snapshots, use Remove weekly settings on the Weekly reports page.",
+          "To clear weekly settings and pause delivery while retaining snapshots, use Remove weekly settings on the Weekly Review page.",
         ],
       },
     ],
@@ -510,7 +510,7 @@ const referenceChapters: ReferenceChapter[] = [
         steps: [
           "Open Analysis -> Relationships.",
           "Choose the left and right datasets, date columns, and metrics. Each side has an independent Dimension column filter with Unique values and Search values; choose at least one value for any selected dimension.",
-          "The defaults match Reports: Spearman, daily Group by, Sum aggregation, 52 Minimum historical observations, Maximum lag 12, and Same-period comparison only. Verify actual overlapping dates after applying filters to each source.",
+          "The defaults match Business Analysis: Spearman, daily Group by, Sum aggregation, 52 Minimum historical observations, Maximum lag 12, and Same-period comparison only. Verify actual overlapping dates after applying filters to each source.",
           "Choose Relationship direction using the named metric that leads, or keep Same-period comparison only. Maximum lag appears only for a directional timing search and tests zero through that limit. Either metric can lead; labels and dimension filters keep their original dataset identities. The maximum is 12 grouped periods for every grouping.",
           "The old fixed-lag editor is removed. Existing saved fixed-lag monitors keep their original timing and show it as Saved fixed lag until you explicitly choose a new direction. Saved observation thresholds and grouping are not replaced by the new defaults.",
           "The selected observation minimum is enforced after filtering, grouping and lagging. Too few matched observations produce insufficient data, not a usable correlation. Custom observation and lag settings are saved with the monitor and reused during scheduled evaluation.",
@@ -541,7 +541,7 @@ const referenceChapters: ReferenceChapter[] = [
     ],
     notes: [
       "A relationship reports association, not proven causation.",
-      "Relationships saves a two-metric monitor. For multiple metrics across multiple datasets, use Multi dataset report in Reports. The retired advanced relationship explorer has been removed.",
+      "Relationships saves a two-metric monitor. For multiple metrics across multiple datasets, use Multi dataset report in Business Analysis. The retired advanced relationship explorer has been removed.",
       "The current KPI target is a digest and AI benchmark; it does not by itself create a separate threshold-triggered alert.",
       "Alerts are workspace-scoped. A workspace must not receive another workspace's datasets, targets, relationships, recipients, or recommendations.",
     ],
@@ -710,7 +710,7 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Understand the AI analysis path",
         steps: [
           "The user selects report metrics, source date columns, dimension filters, analysis settings, or a forecast or decision context.",
-          "Changing dashboard charts or opening Filters does not request the removed dashboard AI Analysis panel. Open Reports when you need interpretation of the selected evidence.",
+          "Changing dashboard charts or opening Filters does not request the removed dashboard AI Analysis panel. Open Business Analysis when you need interpretation of the selected evidence.",
           "Decisionate computes or retrieves the permitted data summary and supporting evidence for that workspace.",
           "Where the AI provider is configured and credits are available, the application sends the configured analysis context to the AI service and receives a structured summary, recommendations, risks, and confidence information.",
           "Where the provider is unavailable or unsupported, the feature may use a deterministic fallback when one is implemented for that page.",
@@ -774,7 +774,7 @@ const referenceChapters: ReferenceChapter[] = [
           "On a dataset dashboard, open Filters beside the toolbar controls to reveal Date column and Dimension column. The panel starts closed; this does not mean filtering has been removed.",
           "If a dimension is selected, choose at least one Unique value. Clear dimension filter restores all rows; closing the Filters panel does not clear it.",
           "If filtering is loading or failed, use the visible status or Retry filtered dashboard control. Do not interpret previous or unfiltered figures as a successful filtered result.",
-          "Dashboard Analysis panels and a separate Insights workspace are no longer part of this workflow. Open Reports for single- or multi-dataset analysis, or Forecasts for projections.",
+          "Dashboard Analysis panels and a separate Insights workspace are no longer part of this workflow. Open Business Analysis for single- or multi-dataset analysis, or Forecasts for projections.",
           "For a period change, new or reset dashboards use 1 year, while other supported saved periods remain. Saved 5-year or All selections reopen as 1 year.",
         ],
       },
@@ -1228,7 +1228,7 @@ export default function HelpSupportPage() {
         <div className="mt-5 grid gap-4 md:grid-cols-4">
           {[
             ["1", "Observe", "Load data and select the metrics and period that frame the question."],
-            ["2", "Interpret", "Compare selected metrics across datasets in Reports; use forecasts, relationships, and alerts for context."],
+            ["2", "Interpret", "Compare selected metrics across datasets in Business Analysis; use forecasts, relationships, and alerts for context."],
             ["3", "Decide", "Record the chosen action, expected outcome, owner, and review date."],
             ["4", "Learn", "Capture what happened and what to repeat or avoid next time."],
           ].map(([number, title, description]) => (

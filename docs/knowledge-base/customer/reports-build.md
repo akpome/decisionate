@@ -1,10 +1,13 @@
 # Build single and multi dataset reports
 
-Instant analysis is the on-demand analysis workspace. Multi dataset report opens by
-default; Single dataset report is available separately for one source. Weekly reports
-has its own page and settings, with automatic dates, whole-week and daily checks,
+Business Analysis is the on-demand analysis workspace. Multi dataset report opens by
+default; Single dataset report is available separately for one source. Weekly Review
+in the sidebar opens Weekly Business Review, with its own page and settings, automatic dates, whole-week and daily checks,
 and earlier relationship history grouped weekly.
-Instant analysis uses approved
+Use the sidebar to move between these separate workflows; neither page has tabs
+for the other workflow. Business Analysis has Build analysis and Analysis preview;
+Weekly Business Review has Report setup and Report preview.
+Business Analysis uses approved
 dataset metrics, date policies, anomaly detection and report snapshots.
 
 New multi dataset reports open with **Correlation analysis**. The correlation
@@ -85,8 +88,8 @@ Supporting charts and unusual-change tables are kept in Supporting business
 results, rather than crowding the main answer and decision links.
 Business impact analysis does not run a separate correlation or lag search and
 does not show Relationship findings. Its own comparison checks and estimated
-impact are independent of the correlation settings. This applies to instant
-analysis and weekly reports. Reopened older impact snapshots also omit their
+impact are independent of the correlation settings. This applies to Business
+Analysis and Weekly Business Review. Reopened older impact snapshots also omit their
 old correlation findings from the preview; their stored calculations are not
 rewritten or recalculated.
 
@@ -95,7 +98,7 @@ business change. Existing saved reports keep their original workflow.
 
 ## Build an analysis
 
-1. Select the intended report tab and name the business question.
+1. Open Business Analysis from the sidebar, select the intended dataset scope and name the business question.
 2. Replace the generated report name with a useful description. Its unique
    starting label prevents name collisions; it is not a business conclusion.
 3. In Datasets and metrics, select only relevant approved measures. Multi dataset
@@ -108,7 +111,7 @@ business change. Existing saved reports keep their original workflow.
    available above the pairs; set Maximum lag for directional tests. Pairs left
    at Same-period comparison only do not test positive lags. Single dataset
    reports omit cross-source relationships.
-7. Choose Preview report and wait for analysis to finish before saving.
+7. Choose Preview analysis and wait for analysis to finish before saving.
 
 ## Limits and evidence
 
@@ -133,5 +136,5 @@ retains its original result; changing a filter, metric, date, pair selection or
 timing setting requires a new preview to calculate new evidence.
 
 Reports show evidence and linked decisions. Create a new business decision in
-the central Decisions workflow rather than expecting Preview report to execute
+the central Decisions workflow rather than expecting Preview analysis to execute
 an action or create a decision automatically.
