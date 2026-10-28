@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-10-28",
-  "base_git_revision": "3208b5e6e68f1189e1b8aaa59f319023a9d3d5cc",
+  "base_git_revision": "3c022cb33dc279bf3962ef5e4cf8538f475f278f",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/features/reports/report-metric-picker.tsx"
+    "apps/web/features/reports/impact-builder.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -92,7 +92,7 @@
     "apps/web/features/reports/decision-review.ts": "b2e3f362bf0aea0d56393cd9eb181ee0a8f912bd1351217ca727245f450ac725",
     "apps/web/features/reports/historical-relationship-evidence.tsx": "fab85cbc48754146099e5f3a0b75b4eb664f382d0478932a0c495b39c0ec60b2",
     "apps/web/features/reports/impact-builder-state.ts": "ebd7620e23aa3ac2fbee5acac99a09119bd16b7e0d52372f805c360c61aa0292",
-    "apps/web/features/reports/impact-builder.tsx": "1051ea884d597d403272ee750326415565cde1685d1db695ba94ce4d8519f387",
+    "apps/web/features/reports/impact-builder.tsx": "e9dae8da27373e02dde1163c9743a7547a1d76f8adb766fdf6049234b9b94779",
     "apps/web/features/reports/impact-chart.tsx": "1bf323b9fcae4636c36078c43a96d6fa8c0caaf6499c768b7b31e6a075be7a64",
     "apps/web/features/reports/impact-decision-picker.tsx": "239272fa94b98b44b9a51d8194dc8bd1060c81224e40dce43c932fa6cc03df3e",
     "apps/web/features/reports/impact-result.tsx": "7adaf8af6872b0d9abc3785d7b36a9e24049a10e0bccb4707e50dd035162f6ff",
@@ -134,7 +134,7 @@
     "customer/time-aggregation.md": "ea885c2a1354db8806e6a5c268f0f37cec8dfb62363190ce946e1dc05cc9b722",
     "customer/dimension-filters.md": "6120d38135d80c675925864e780ae0fc51cc42a8e79b826827030998cb74948b",
     "customer/dashboards.md": "dba8922d9e0fc15211788cfe5c59a47ce180372f8a393f2b28fa1388a1abf6b3",
-    "customer/reports-build.md": "dbd468a778e2a40c69a4728d1196bbf1559646b2ee83876e3b43ab4af31c5783",
+    "customer/reports-build.md": "df6253328c8e789ad4ef8ea7adbfebdc53224babe5f2fd5d094275c9814ddcca",
     "customer/reports-read-save.md": "b4a8ae0bb4def86b459e5e71f5eb77071bcab6425b8a492c0e598b55f444aa8c",
     "customer/relationship-evidence.md": "34f620ab3006115989851937b3dd3dc8bb9decc2e43818059da8b553b0825185",
     "customer/lag-observations.md": "5872aa25a7c411f09f27e463273722a83439df4f3058a59f396790bac1d53479",

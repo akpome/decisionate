@@ -26,15 +26,22 @@ const datasets = [1, 2, 3].map(dataset_id => ({ dataset_id, dataset_label: `Stor
   metrics: [{ metric_key: "orders", label: "Orders", aggregation: "sum" }, { metric_key: "visits", label: "Visits", aggregation: "sum" }],
   date_columns: ["date"], availability: { date: definition.date_range } }))
 const imports = { "./report-metric-picker": { reportDateColumn: source => source.date_columns[0] || "" } }
+const dimensionProps = new Map()
 const { ImpactBuilder } = load("../features/reports/impact-builder.tsx", {
   "./impact-builder-state": state, "./impact-setup": load("../features/reports/impact-setup.tsx", imports), ...imports,
-  "@/features/datasets/components/dimension-filter": { DatasetDimensionFilter: () => React.createElement("span", null, "Dimension filter") },
+  "@/features/datasets/components/dimension-filter": { DatasetDimensionFilter: props => {
+    dimensionProps.set(props.datasetId, props)
+    return React.createElement("span", null, "Dimension filter")
+  } },
 })
-const render = patch => renderToStaticMarkup(React.createElement(ImpactBuilder, {
-  definition, datasets, userId: "owner", workspaceId: "owner", weekly: false, weeklySettings: null, decisionPicker: React.createElement("select", { "aria-label": "Decision to review" }),
-  reportDetails: React.createElement("input", { "aria-label": "Report name" }), actions: React.createElement("button", { type: "submit" }, "Check this decision"),
-  onChange() {}, onStudyChange() {}, onRetry() {}, onRetryDataset() {}, loading: false, catalogError: false, ...patch,
-}))
+const render = patch => {
+  dimensionProps.clear()
+  return renderToStaticMarkup(React.createElement(ImpactBuilder, {
+    definition, datasets, userId: "owner", workspaceId: "owner", weekly: false, weeklySettings: null, decisionPicker: React.createElement("select", { "aria-label": "Decision to review" }),
+    reportDetails: React.createElement("input", { "aria-label": "Report name" }), actions: React.createElement("button", { type: "submit" }, "Check this decision"),
+    onChange() {}, onStudyChange() {}, onRetry() {}, onRetryDataset() {}, loading: false, catalogError: false, ...patch,
+  }))
+}
 
 test("changing a comparison selects its approved reference once and preserves the outcome and deliberate extra metrics", () => {
   const original = structuredClone({ ...definition, metrics: [outcome, comparison, extra] })
@@ -81,7 +88,13 @@ test("the impact builder presents three questions, direct comparison selectors a
   assert.match(html, /Comparison dataset/)
   assert.match(html, /Result to compare/)
   assert.match(html, /52 full weeks before the change and 8 weeks after/)
-  assert.match(html, /<summary[^>]*>Date columns and filters/)
+  const filters = html.match(/<section aria-labelledby="impact-filters-heading"[\s\S]*?<\/section>/)?.[0]
+  assert.ok(filters)
+  assert.match(filters, /Date columns and dimension filters/)
+  assert.match(filters, /Result to measure/)
+  assert.match(filters, /Comparison result/)
+  assert.doesNotMatch(filters, /<details|<summary/)
+  assert.deepEqual([...dimensionProps.keys()], [1, 2])
   assert.match(html, /<summary[^>]*>Report details/)
   assert.match(html, /<summary[^>]*>Business target \(optional\)/)
   assert.doesNotMatch(html, /report-builder-scroll|Maximum lag|Minimum historical observations|Select metrics/)
@@ -90,13 +103,42 @@ test("the impact builder presents three questions, direct comparison selectors a
 test("the first view starts with one decision choice and does not ask for a comparison prematurely", () => {
   const html = render({ definition: { ...definition, metrics: [], impact: { ...definition.impact, decision_id: null, comparison: null, outcome: null } } })
   assert.match(html, /Which decision are you checking/)
-  assert.doesNotMatch(html, /Comparison dataset|History starts|Other selected results/)
+  assert.doesNotMatch(html, /Comparison dataset|History starts|Other selected results|Date columns and dimension filters/)
+  assert.equal(dimensionProps.size, 0)
   assert.match(html, /Choose the decision you want to check/)
+})
+
+test("outcome dimension selection is available before choosing a comparison", () => {
+  const html = render({ definition: { ...definition, metrics: [outcome], impact: { ...definition.impact, comparison: null } } })
+  assert.match(html, /Date columns and dimension filters/)
+  assert.match(html, /Result to measure/)
+  assert.doesNotMatch(html, /Comparison result|Which dates should we check/)
+  assert.deepEqual([...dimensionProps.keys()], [1])
+})
+
+test("dataset dimension controls restore saved choices and only change or clear their own source", () => {
+  const filters = [{ dataset_id: 1, column: "region", values: ["East", null] }, { dataset_id: 2, column: "store", values: ["B"] }]
+  let patch
+  render({ definition: { ...definition, dimension_filters: filters }, onChange: value => { patch = value } })
+  const outcomeFilter = dimensionProps.get(1), comparisonFilter = dimensionProps.get(2)
+  assert.deepEqual(outcomeFilter.value, filters[0])
+  assert.deepEqual(comparisonFilter.value, filters[1])
+  assert.equal(outcomeFilter.userId, "owner")
+  assert.equal(outcomeFilter.workspaceId, "owner")
+  assert.equal(outcomeFilter.embedded, true)
+  outcomeFilter.onChange({ column: "region", values: ["West"] })
+  assert.deepEqual(JSON.parse(JSON.stringify(patch.dimension_filters)), [filters[1], { dataset_id: 1, column: "region", values: ["West"] }])
+  comparisonFilter.onChange(undefined)
+  assert.deepEqual(JSON.parse(JSON.stringify(patch.dimension_filters)), [filters[0]])
+  assert.equal(definition.impact.comparison_unaffected, true)
+  assert.deepEqual(filters[0].values, ["East", null])
 })
 
 test("weekly impact setup keeps automatic weekly history and never exposes manual email dates or grouping", () => {
   const html = render({ weekly: true, weeklySettings: { window: { start: "2025-12-22", end: "2025-12-28" }, history_window: { start: "2022-12-29", end: "2025-12-21" } } })
   assert.match(html, /Report week: 2025-12-22 to 2025-12-28/)
   assert.match(html, /compared week by week/)
+  assert.match(html, /Date columns and dimension filters/)
+  assert.deepEqual([...dimensionProps.keys()], [1, 2])
   assert.doesNotMatch(html, /History starts|History ends|Compare results by/)
 })

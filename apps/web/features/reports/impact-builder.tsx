@@ -41,6 +41,28 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
         onExplore={() => onChange({ impact: null })} loading={loading} retryingDataset={retryingDataset} />
       {footer}
     </section>}
+    {study.decision_id && study.outcome && <section aria-labelledby="impact-filters-heading" className="min-w-0 space-y-4 border-t border-gray-200 pt-5">
+      <h2 id="impact-filters-heading" className="text-base font-semibold">Date columns and dimension filters</h2>
+      {selectedDatasets.map(identity => {
+        const source = datasets.find(dataset => dataset.dataset_id === identity)
+        if (!source) return <p key={identity} className="text-sm text-amber-900">Dataset {identity} is not available yet.</p>
+        const column = reportDateColumn(source, definition.metrics, {})
+        const role = identity === study.outcome?.dataset_id ? "Result to measure" : identity === study.comparison?.dataset_id ? "Comparison result" : "Other selected result"
+        return <fieldset key={identity} className="@container min-w-0 space-y-3 border-b border-gray-100 pb-4">
+          <legend className="max-w-full break-words text-sm font-medium">{source.dataset_label}</legend>
+          <p className="text-xs text-gray-600">{role}</p>
+          <div className="grid min-w-0 gap-4 @min-[40rem]:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
+            <label className="min-w-0 text-xs font-medium text-gray-600">Date column<select className={input} required value={column} onChange={event => onChange({ metrics: definition.metrics.map(metric => metric.dataset_id === identity ? { ...metric, date_column: event.target.value } : metric) })}>
+              {!source.date_columns.includes(column) && <option value={column} disabled>Selected date unavailable</option>}
+              {source.date_columns.map(date => <option key={date} value={date}>{date}</option>)}
+            </select>{source.availability[column] && <span className="mt-1 block text-xs font-normal text-gray-500">{source.availability[column].start} to {source.availability[column].end}</span>}</label>
+            <DatasetDimensionFilter key={`${userId}:${workspaceId}:${identity}`} datasetId={identity} userId={userId} workspaceId={workspaceId} embedded deferLoad value={definition.dimension_filters?.find(filter => filter.dataset_id === identity)} onChange={filter => onChange({ dimension_filters: [
+              ...(definition.dimension_filters || []).filter(item => item.dataset_id !== identity), ...(filter ? [{ dataset_id: identity, ...filter }] : []),
+            ] })} />
+          </div>
+        </fieldset>
+      })}
+    </section>}
     {study.decision_id && study.comparison && <section aria-labelledby="impact-history-heading" className="min-w-0 space-y-4 border-t border-gray-200 pt-5">
       <h2 id="impact-history-heading" className="text-base font-semibold">3. Which dates should we check?</h2>
       {weekly ? <div className="space-y-2 text-sm"><p>Report week: {weeklySettings?.window.start} to {weeklySettings?.window.end}</p><p className="text-gray-600">Impact history: {weeklySettings?.history_window.start} to {weeklySettings?.window.end}, compared week by week.</p></div> : <div className="grid min-w-0 gap-4 sm:grid-cols-3">
@@ -51,25 +73,6 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
       <p className="text-sm leading-6 text-gray-600">Minimum history: {definition.grain === "daily" ? "90 days before the change and 28 days after." : definition.grain === "weekly" ? "52 full weeks before the change and 8 weeks after." : "24 full months before the change and 6 months after."} Both results need matching records.</p>
       <label className="flex items-start gap-3 text-sm leading-6"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={definition.seasonal_business} onChange={event => onChange({ seasonal_business: event.target.checked })} /><span>This business has busy and quiet seasons.</span></label>
       {definition.seasonal_business && <p className="text-sm leading-6 text-gray-600">Seasonal businesses need about two years of records before the change.</p>}
-      <details className="min-w-0 border-t border-gray-100 pt-3"><summary className="cursor-pointer text-sm font-medium">Date columns and filters{definition.dimension_filters?.some(filter => selectedDatasets.includes(filter.dataset_id)) ? " (filters applied)" : ""}</summary>
-        <div className="mt-4 space-y-5">{selectedDatasets.map(identity => {
-          const source = datasets.find(dataset => dataset.dataset_id === identity)
-          if (!source) return <p key={identity} className="text-sm text-amber-900">Dataset {identity} is not available yet.</p>
-          const column = reportDateColumn(source, definition.metrics, {})
-          return <fieldset key={identity} className="@container min-w-0 space-y-3 border-b border-gray-100 pb-4">
-            <legend className="max-w-full break-words text-sm font-medium">{source.dataset_label}</legend>
-            <div className="grid min-w-0 gap-4 @min-[40rem]:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
-              <label className="min-w-0 text-xs font-medium text-gray-600">Date column<select className={input} required value={column} onChange={event => onChange({ metrics: definition.metrics.map(metric => metric.dataset_id === identity ? { ...metric, date_column: event.target.value } : metric) })}>
-                {!source.date_columns.includes(column) && <option value={column} disabled>Selected date unavailable</option>}
-                {source.date_columns.map(date => <option key={date} value={date}>{date}</option>)}
-              </select>{source.availability[column] && <span className="mt-1 block text-xs font-normal text-gray-500">{source.availability[column].start} to {source.availability[column].end}</span>}</label>
-              <DatasetDimensionFilter key={`${userId}:${workspaceId}:${identity}`} datasetId={identity} userId={userId} workspaceId={workspaceId} embedded deferLoad value={definition.dimension_filters?.find(filter => filter.dataset_id === identity)} onChange={filter => onChange({ dimension_filters: [
-                ...(definition.dimension_filters || []).filter(item => item.dataset_id !== identity), ...(filter ? [{ dataset_id: identity, ...filter }] : []),
-              ] })} />
-            </div>
-          </fieldset>
-        })}</div>
-      </details>
       <details className="min-w-0 border-t border-gray-100 pt-3"><summary className="cursor-pointer text-sm font-medium">Business target (optional){study.worthwhile_change != null ? " (set)" : ""}</summary><label className="mt-3 block max-w-md text-sm font-medium">Smallest improvement worth the cost<input className={input} type="number" min={0} max={1e15} step="any" value={study.worthwhile_change ?? ""} onChange={event => onStudyChange({ worthwhile_change: event.target.value === "" ? null : Number(event.target.value) })} /><span className="mt-1 block text-xs font-normal leading-5 text-gray-600">In the result&apos;s units, not a percentage. Total improvement for orders or revenue; improvement per period for an average or rate. Costs are not deducted.</span></label></details>
     </section>}
     {extras.length > 0 && <details className="min-w-0 border-t border-gray-200 pt-4"><summary className="cursor-pointer text-sm font-medium">Other selected results ({extras.length})</summary><ul className="mt-3 divide-y divide-gray-100">{extras.map(metric => {

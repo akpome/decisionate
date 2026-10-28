@@ -67,10 +67,17 @@ effects, and say whether another major change happened at the same time. Choose
 whether more or less of the result is better. An optional minimum worthwhile
 improvement expresses your business target in the result's own units. Costs are
 not automatically deducted.
-The optional target is under Business target. Date column selectors and dataset-local
-dimension filters remain under Date columns and filters. Changing the selected
-comparison, date column or dimension filters requires the comparison confirmation
-again. Existing extra selected results stay visible under Other selected results
+The optional target is under Business target. Date columns and dimension filters
+are visible directly in the setup, not hidden in a collapsed section. The outcome
+dataset's controls appear once a decision with an outcome is selected; the
+comparison dataset's controls appear after choosing its result. Each dataset has
+its own Date column, Dimension column and Unique values selections. All rows
+keeps that source unfiltered; choosing a dimension without any values blocks the
+assessment until values are selected or the filter is cleared. Saved assessments
+restore these choices. Changing the selected comparison, date column or dimension
+filters requires the comparison confirmation again. These controls are available
+in both Business Analysis and Weekly Business Review.
+Existing extra selected results stay visible under Other selected results
 and can be removed deliberately. Report name and business question are editable
 under Report details. Weekly impact setup keeps automatic dates and weekly study
 grouping; it does not expose manual weekly email dates.
