@@ -99,20 +99,26 @@ test("all 25 supported metrics have distinct colors and safe data keys even with
   assert.deepEqual(Object.values(result.rows[0].indexed), Array(25).fill(100))
 })
 
-const recorded = { charts: [], lines: [], references: [] }
+const language = { useDecisionateText: () => ({ t: value => value }) }
+const controls = load("../features/reports/chart-scale-control.tsx", { "@/app/use-decisionate-language": language })
+const recorded = { charts: [], lines: [], references: [], axes: [], controls: [] }
+let currentScale = "indexed"
 const { MetricTrends, IndexedTrendTooltip } = load("../features/reports/report-metric-trends.tsx", {
   "./types": types, "./indexed-trends": indexed,
-  "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: value => value }) },
+  "./chart-scale-control": { ChartScaleControl: props => { recorded.controls.push(props); return React.createElement(controls.ChartScaleControl, props) } },
+  react: { ...React, useState: () => [currentScale, value => { currentScale = value }] },
+  "@/app/use-decisionate-language": language,
   recharts: {
     ResponsiveContainer: props => React.createElement(React.Fragment, null, props.children),
     LineChart: props => { recorded.charts.push(props); return React.createElement("svg", null, props.children) },
     Line: props => { recorded.lines.push(props); return React.createElement("path", { "data-indexed-line": props.name, stroke: props.stroke }) },
     ReferenceLine: props => { recorded.references.push(props); return null },
-    CartesianGrid: () => null, Tooltip: () => null, XAxis: () => null, YAxis: () => null,
+    CartesianGrid: () => null, Tooltip: () => null, XAxis: () => null, YAxis: props => { recorded.axes.push(props); return null },
   },
 })
-function render(metrics) {
-  recorded.charts = []; recorded.lines = []; recorded.references = []
+function render(metrics, scale = "indexed") {
+  currentScale = scale
+  recorded.charts = []; recorded.lines = []; recorded.references = []; recorded.axes = []; recorded.controls = []
   return renderToStaticMarkup(React.createElement(MetricTrends, { report: { metrics } }))
 }
 
@@ -151,6 +157,81 @@ test("the tooltip separates indexed values from original currency and missing ob
   assert.equal(renderToStaticMarkup(React.createElement(IndexedTrendTooltip, { active: true, series: data.plotted })), "")
 })
 
+test("the scale control exposes the selected mode and sends changes without submitting a form", () => {
+  const changes = [], element = controls.ChartScaleControl({ value: "indexed", onChange: mode => changes.push(mode) })
+  assert.equal(element.props["aria-label"], "Chart scale")
+  const [indexedButton, actualButton] = element.props.children
+  assert.equal(indexedButton.props["aria-pressed"], true)
+  assert.equal(actualButton.props["aria-pressed"], false)
+  assert.equal(actualButton.props.type, "button")
+  actualButton.props.onClick()
+  indexedButton.props.onClick()
+  assert.deepEqual(changes, ["actual", "indexed"])
+})
+
+test("switching to actual plots original values, changes labels and keeps colors, cards and dates unchanged", () => {
+  const metrics = [metric(1, [10, 12]), metric(2, [1000, 800])], original = structuredClone(metrics)
+  render(metrics)
+  const colors = recorded.lines.map(line => line.stroke)
+  recorded.controls[0].onChange("actual")
+  const html = render(metrics, currentScale)
+  assert.match(html, /Actual metric comparison/)
+  assert.match(html, /Actual scale: original values, not indexed/)
+  assert.match(html, /different units are not directly comparable/)
+  assert.doesNotMatch(html, /100 =|Metrics not indexed|Indexed scale:/)
+  assert.match(html, /CAD \/ sum/)
+  assert.equal(recorded.axes[0].label.value, "Actual value")
+  assert.equal(recorded.references.length, 0)
+  assert.deepEqual(recorded.lines.map(line => line.stroke), colors)
+  assert.equal(recorded.lines[0].dataKey(recorded.charts[0].data[1]), 12)
+  assert.equal(recorded.lines[1].dataKey(recorded.charts[0].data[1]), 800)
+  assert.equal((html.match(/<article/g) || []).length, 2)
+  recorded.controls[0].onChange("indexed")
+  render(metrics, currentScale)
+  assert.equal(recorded.lines[0].dataKey(recorded.charts[0].data[1]), 120)
+  assert.equal(recorded.references[0].y, 100)
+  assert.deepEqual(metrics, original)
+})
+
+test("actual plots zero and negative series without a positive baseline and preserves missing periods", () => {
+  const html = render([metric(1, [0, 0]), metric(2, [-10, null, -20]), metric(3, [null, null])], "actual")
+  assert.equal(recorded.charts.length, 1)
+  assert.equal(recorded.lines.length, 2)
+  assert.doesNotMatch(html, /An indexed comparison is unavailable|Metrics not indexed/)
+  assert.equal(recorded.lines[0].dataKey(recorded.charts[0].data[0]), 0)
+  assert.equal(recorded.lines[1].dataKey(recorded.charts[0].data[0]), -10)
+  assert.equal(recorded.lines[1].dataKey(recorded.charts[0].data[1]), null)
+  assert.equal(recorded.lines[1].dataKey(recorded.charts[0].data[2]), -20)
+  assert.ok(recorded.lines.every(line => line.connectNulls === false))
+})
+
+test("actual plots disjoint dates without inventing a shared baseline or dropping valid observations", () => {
+  render([metric(1, [10, null]), metric(2, [null, 20])], "actual")
+  assert.equal(recorded.lines.length, 2)
+  assert.equal(recorded.lines[0].dataKey(recorded.charts[0].data[0]), 10)
+  assert.equal(recorded.lines[1].dataKey(recorded.charts[0].data[0]), null)
+  assert.equal(recorded.lines[1].dataKey(recorded.charts[0].data[1]), 20)
+})
+
+test("actual tooltip shows original currency and units rather than index values", () => {
+  const data = indexedMetricTrends([metric(1, [10, null]), metric(2, [100, 80])])
+  const html = renderToStaticMarkup(React.createElement(IndexedTrendTooltip, { active: true, row: data.rows[1], series: data.actual, scale: "actual" }))
+  assert.match(html, /Actual values/)
+  assert.match(html, /Original value: CA\$80\.00 \/ CAD/)
+  assert.match(html, /Original value: Unavailable \/ count/)
+  assert.doesNotMatch(html, /Index \(base 100\)|Index:/)
+})
+
+test("actual-only large values survive index overflow and no-data reports remain explicit", () => {
+  const html = render([metric(1, [1e-300, 1e300]), metric(2, [1, 2])], "actual")
+  assert.equal(recorded.lines[0].dataKey(recorded.charts[0].data[1]), 1e300)
+  assert.doesNotMatch(html, /outside the supported index range/)
+  const empty = render([metric(1, [null, NaN, Infinity])], "actual")
+  assert.equal(recorded.charts.length, 0)
+  assert.match(empty, /No actual values are available/)
+  assert.match(empty, /Chart scale/)
+})
+
 test("unavailable indexed comparisons retain all original summaries and an explicit limitation", () => {
   const html = render([metric(1, [0, 0]), metric(2, [0, 0])])
   assert.equal(recorded.charts.length, 0)
@@ -179,5 +260,5 @@ test("only the combined trend component is wired into the report workspace", () 
   assert.equal((source.match(/<MetricTrends report=\{report\}/g) || []).length, 1)
   assert.doesNotMatch(source, /<LineChart|<ResponsiveContainer/)
   const translations = readFileSync(new URL("../lib/language.ts", import.meta.url), "utf8")
-  for (const key of ["Indexed metric comparison", "Indexed values", "Index (base 100)", "Chart legend", "Metrics not indexed"]) assert.ok(translations.includes(`"${key}":`))
+  for (const key of ["Indexed metric comparison", "Indexed values", "Index (base 100)", "Chart legend", "Metrics not indexed", "Chart scale", "Indexed", "Actual metric comparison", "Actual values"]) assert.ok(translations.includes(`"${key}":`))
 })

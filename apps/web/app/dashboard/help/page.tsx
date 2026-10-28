@@ -431,12 +431,14 @@ const referenceChapters: ReferenceChapter[] = [
         ],
       },
       {
-        title: "Read the combined indexed chart",
+        title: "Read the combined chart",
         steps: [
           "In Report preview, use Indexed metric comparison to compare selected metrics on one chart. Each line is identified by its dataset and metric, using distinct colors and, where needed, line styles.",
+          "Switch between Indexed and Actual beside the chart title. Actual shows original values and units on one numeric scale; different units are not directly comparable. This display choice does not rerun the analysis or change saved evidence.",
           "The chart uses the displayed shared positive baseline date as 100. An index of 120 means 20 percent above that metric's baseline value, not 120 orders or 120 currency units.",
           "Use the metric cards and tooltip for original values and units. Read coverage and baseline warnings; metrics without a usable positive baseline cannot be plotted on the indexed scale.",
           "Compare movement without treating equal index levels as equal business quantities or proof that one metric caused another.",
+          "The business impact chart opens in Actual. Its Indexed view uses the same estimated baseline for both actual and without-change lines, so their estimated difference is preserved. Changing After the change to Full history does not change that baseline.",
         ],
       },
       {

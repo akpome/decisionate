@@ -15,7 +15,12 @@ do next remains visible, while the full calculation narrative, checks, earlier
 history and assumptions are under What we checked and what could change the answer.
 
 Its main chart compares the actual result with the model's estimate without the
-change, in the result's original units. The dashed estimate is not observed data,
+change, initially in the result's original units. Switch between Actual and
+Indexed beside the chart title. Indexed uses the first positive estimated
+without-change value after the change as 100 for both lines, keeping the
+actual-versus-estimated gap visible rather than normalizing each line separately.
+That same baseline is retained when changing the visible history. If no positive
+estimated baseline exists, use Actual instead. The dashed estimate is not observed data,
 and the effect range is not a prediction band around each chart point. Check the
 dates: the estimated difference covers the complete periods after the change,
 while the supporting metric cards can cover the full before-and-after window.
@@ -38,10 +43,16 @@ findings alongside the other evidence. A significant relationship is not require
 a period comparison to be useful; nor does it establish that a change caused
 the business outcome.
 
-## Indexed metric comparison
+## Indexed and actual metric comparison
 
 The combined chart identifies each selected dataset/metric with a colored line.
-It uses the displayed shared positive baseline date as index 100. The index is
+It opens in Indexed. Switch to Actual beside the chart title for original
+values on one numeric scale, with each metric's units in the legend and tooltip.
+Different units are not directly comparable, and a large-valued metric can
+visually flatten smaller-valued metrics. Switching the scale changes only the
+chart, not the calculations, KPI cards, saved evidence or selected metrics.
+
+Indexed uses the displayed shared positive baseline date as index 100. The index is
 value divided by that metric's baseline value, multiplied by 100. An index of
 120 means 20 percent above its baseline, not 120 orders or currency units.
 
@@ -50,6 +61,8 @@ index levels across spend and orders do not mean equal units, profitability or
 advertising return. Missing periods remain gaps. Zero, negative or unavailable
 baselines can prevent indexing; warnings should not be removed by inventing
 positive values or assigning unrelated baseline dates.
+Actual can still plot available zero and negative values, or metrics without a
+shared positive baseline. Missing observations remain gaps in either view.
 
 ## Save and update
 

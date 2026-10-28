@@ -186,8 +186,12 @@ run's frozen results. See [retirement and deployment cleanup](MULTI_METRIC_CORRE
 - Only server-approved, saved metric selections are eligible. Date columns and
   aggregation policies are checked again on calculation.
 - Values use the metric's approved aggregation, including distinct counts and
-  component-weighted ratios. The combined trend chart uses an explicitly labelled
-  indexed scale; KPI values keep their original units. Currency is
+  component-weighted ratios. The combined trend chart defaults to an explicitly
+  labelled indexed scale and can switch to Actual, showing original values on
+  one numeric axis with units in the legend and tooltip. The impact chart
+  defaults to Actual; its Indexed view uses a shared without-change baseline for
+  both lines, preserving their difference. Scale switches are display-only;
+  calculations and KPI values keep their original units. Currency is
   labelled, never converted or assumed equivalent.
 - Previous-period comparisons use the immediately preceding equal-length date
   window. Incomplete coverage withholds changes; zero baselines withhold
