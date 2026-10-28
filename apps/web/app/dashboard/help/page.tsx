@@ -407,6 +407,7 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Analyze metrics and findings",
         steps: [
           "Open Analysis -> Business Analysis. Multi dataset report opens by default; Single dataset report uses the same analysis engine for one source. Use Build analysis and Analysis preview to move between setup and results.",
+          "For Single dataset report, choose one Dataset from the dropdown in Dataset and metrics. Only its metrics, Date column and Dimension column are shown. Choose Unique values to filter that source. Changing the dataset clears the previous metrics, filters and date choices; removing every metric does not clear the chosen dataset.",
           "Select the approved metrics needed to answer your business question. Multi dataset reports require metrics from at least two datasets.",
           "Under Datasets and metrics, review each source's preselected Date column. If needed, choose its Dimension column and add Unique values from the dropdown; Search values narrows the available choices.",
           "New multi dataset reports open with Correlation analysis. Relationship analysis is expanded, with the correlation method, Minimum historical observations, timing and relationship-pair controls. Business impact analysis is a separate optional analysis type; saved reports retain their original type.",

@@ -37,7 +37,7 @@ export function filterReportDatasets(datasets: CatalogDataset[], search: string)
   })
 }
 
-export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, onRetryDataset, retryingDataset = null, footer, singleDataset = false, userId, workspaceId, dimensionFilters = [], onDimensionFilterChange, lockedMetric }: {
+export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, onRetryDataset, retryingDataset = null, footer, singleDataset = false, selectedDatasetId = metrics[0]?.dataset_id ?? null, onDatasetChange, selectionDisabled = false, userId, workspaceId, dimensionFilters = [], onDimensionFilterChange, lockedMetric }: {
   datasets: CatalogDataset[]
   metrics: MetricRef[]
   dateColumns: Record<number, string>
@@ -50,6 +50,9 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   retryingDataset?: number | null
   footer?: ReactNode
   singleDataset?: boolean
+  selectedDatasetId?: number | null
+  onDatasetChange?: (datasetId: number | null) => void
+  selectionDisabled?: boolean
   userId?: string
   workspaceId?: string
   dimensionFilters?: DimensionSelection[]
@@ -59,7 +62,8 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   const { t } = useDecisionateText()
   const [search, setSearch] = useState("")
   const deferredSearch = useDeferredValue(search)
-  const visible = useMemo(() => filterReportDatasets(datasets, deferredSearch), [datasets, deferredSearch])
+  const scoped = useMemo(() => singleDataset ? datasets.filter(dataset => dataset.dataset_id === selectedDatasetId) : datasets, [datasets, singleDataset, selectedDatasetId])
+  const visible = useMemo(() => filterReportDatasets(scoped, deferredSearch), [scoped, deferredSearch])
   const selected = useMemo(() => new Set(metrics.map(metricIdentity)), [metrics])
   const counts = useMemo(() => {
     const result = new Map<number, number>()
@@ -68,21 +72,33 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   }, [metrics])
   const issueText = (issue: CatalogMetricIssue) => t(issueLabels[issue.code] || "Metric unavailable for this analysis.")
 
-  return <section aria-label={t("Datasets and metrics")} className="report-builder-section">
+  return <section aria-label={t(singleDataset ? "Dataset and metrics" : "Datasets and metrics")} className="report-builder-section">
     <div className="mb-4 shrink-0 space-y-4">
-      <h2 className="text-base font-semibold">{t("Datasets and metrics")}</h2>
-      <div className="w-full max-w-sm">
-        <label className="block text-xs font-medium text-gray-600" htmlFor="report-metric-search">{t("Search datasets and metrics")}</label>
+      <h2 className="text-base font-semibold">{t(singleDataset ? "Dataset and metrics" : "Datasets and metrics")}</h2>
+      {singleDataset && <div className="w-full max-w-xl">
+        <label htmlFor="report-dataset" className="block text-xs font-medium text-gray-600">{t("Dataset")}</label>
+        <select id="report-dataset" className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950" value={selectedDatasetId ?? ""} disabled={selectionDisabled || loading && !datasets.length} onChange={event => {
+          const identity = event.target.value ? Number(event.target.value) : null
+          if (identity !== null && !datasets.some(dataset => dataset.dataset_id === identity)) return
+          setSearch(""); onDatasetChange?.(identity)
+        }}>
+          <option value="">{t("Choose a dataset")}</option>
+          {selectedDatasetId !== null && !datasets.some(dataset => dataset.dataset_id === selectedDatasetId) && <option value={selectedDatasetId} disabled>{t("Selected dataset unavailable.")}</option>}
+          {datasets.map(dataset => <option key={dataset.dataset_id} value={dataset.dataset_id}>{dataset.dataset_label} / {dataset.connector}</option>)}
+        </select>
+      </div>}
+      {(!singleDataset || scoped.length > 0) && <div className="w-full max-w-sm">
+        <label className="block text-xs font-medium text-gray-600" htmlFor="report-metric-search">{t(singleDataset ? "Search metrics" : "Search datasets and metrics")}</label>
         <div className="relative mt-1 flex items-center">
           <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 text-gray-400" />
-          <input id="report-metric-search" className="min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white py-2 pl-9 pr-11 text-sm text-gray-950 [&::-webkit-search-cancel-button]:appearance-none" type="search" placeholder={t("Dataset or metric name")} value={search} onChange={event => setSearch(event.target.value)} />
+          <input id="report-metric-search" className="min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white py-2 pl-9 pr-11 text-sm text-gray-950 [&::-webkit-search-cancel-button]:appearance-none" type="search" placeholder={t(singleDataset ? "Metric name" : "Dataset or metric name")} value={search} onChange={event => setSearch(event.target.value)} />
           {search && <button type="button" className="absolute right-0 inline-flex h-10 w-10 items-center justify-center text-gray-500 hover:text-gray-950" aria-label={t("Clear search")} title={t("Clear search")} onClick={() => setSearch("")}><X size={16} aria-hidden="true" /></button>}
         </div>
-      </div>
+      </div>}
     </div>
     {error && <div className="mb-3 flex shrink-0 flex-wrap items-center gap-3 border-l-2 border-amber-500 pl-3 text-sm text-amber-900"><p role="alert">{t("Dataset list could not be loaded. Your selections are unchanged.")}</p>{onRetry && <button type="button" disabled={loading} onClick={onRetry} className="inline-flex min-h-10 items-center gap-2 font-medium text-blue-700 underline disabled:opacity-50"><RefreshCw size={16} aria-hidden="true" />{t("Retry")}</button>}</div>}
     {loading && <p role="status" className="mb-3 flex shrink-0 items-center gap-2 text-sm text-gray-600"><LoaderCircle size={16} aria-hidden="true" className="animate-spin" />{t(datasets.length ? "Loading metrics..." : "Loading datasets...")}</p>}
-    <div role="group" aria-label={t("Datasets and metrics")} aria-busy={search !== deferredSearch} tabIndex={0} className="report-builder-scroll space-y-1 pr-2 focus-visible:outline-2 focus-visible:outline-blue-600">
+    <div role="group" aria-label={t(singleDataset ? "Dataset and metrics" : "Datasets and metrics")} aria-busy={search !== deferredSearch} tabIndex={0} className="report-builder-scroll space-y-1 pr-2 focus-visible:outline-2 focus-visible:outline-blue-600">
       {visible.map(dataset => {
         const count = counts.get(dataset.dataset_id) || 0
         const dateColumn = reportDateColumn(dataset, metrics, dateColumns)
@@ -127,7 +143,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
           {!pending && (unavailable || !dataset.metrics.length || !usableDate || metricIssues.length > 0) && <Link href={`/dashboard/datasets/${dataset.dataset_id}`} className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline">{t("Review dataset")}</Link>}
         </fieldset>
       })}
-      {visible.length === 0 && (datasets.length > 0 || !loading && !error) && <div className="border-y border-gray-200 py-8 text-sm text-gray-600"><p role="status">{t(datasets.length ? "No matching datasets or metrics." : "No datasets available.")}</p>{datasets.length === 0 && <Link href="/dashboard/datasets" className="mt-2 inline-flex min-h-10 items-center font-medium text-blue-700 underline">{t("Open datasets")}</Link>}</div>}
+      {visible.length === 0 && (datasets.length > 0 || !loading && !error) && <div className="border-y border-gray-200 py-8 text-sm text-gray-600"><p role="status">{t(!datasets.length ? "No datasets available." : singleDataset ? selectedDatasetId === null ? "No dataset selected." : !scoped.length ? "Selected dataset unavailable." : "No matching metrics." : "No matching datasets or metrics.")}</p>{datasets.length === 0 && <Link href="/dashboard/datasets" className="mt-2 inline-flex min-h-10 items-center font-medium text-blue-700 underline">{t("Open datasets")}</Link>}</div>}
     </div>
     {footer && <div className="mt-3 shrink-0">{footer}</div>}
   </section>

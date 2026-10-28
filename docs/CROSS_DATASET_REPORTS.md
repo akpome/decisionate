@@ -185,6 +185,10 @@ run's frozen results. See [retirement and deployment cleanup](MULTI_METRIC_CORRE
 
 - Only server-approved, saved metric selections are eligible. Date columns and
   aggregation policies are checked again on calculation.
+- Single-dataset analysis uses a single dataset dropdown. Metric, date and dimension
+  controls are scoped to that source. Switching sources clears the prior metrics,
+  filters, dates and preview. The list loads metadata only; the selected metric
+  catalog is loaded on demand, with cancellation on a source/workspace change.
 - Values use the metric's approved aggregation, including distinct counts and
   component-weighted ratios. The combined trend chart defaults to an explicitly
   labelled indexed scale and can switch to Actual, showing original values on

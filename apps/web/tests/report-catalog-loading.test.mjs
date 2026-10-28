@@ -83,6 +83,16 @@ test("pagination and older ready catalog responses do not cause unnecessary repe
   assert.equal(pages[0].next_offset, 50)
 })
 
+test("single dataset catalogs publish paginated names without scanning unselected sources", async () => {
+  const paths = [], pages = []
+  await loadReportCatalogPage(async path => { paths.push(path); return { ...page([1, 2, 3]), next_offset: 25 } },
+    0, new AbortController().signal, value => pages.push(value), () => assert.fail("Unselected sources must not be scanned"), { metadataOnly: true })
+  assert.deepEqual(paths, ["/catalog?metadata_only=true&offset=0"])
+  assert.equal(pages[0].datasets.length, 3)
+  assert.equal(pages[0].next_offset, 25)
+  assert.ok(pages[0].datasets.every(dataset => dataset.catalog_status === "pending"))
+})
+
 test("a source retry makes one request instead of rescanning the catalog page", async () => {
   const paths = [], controller = new AbortController()
   const result = await loadReportCatalogDataset(async (path, init) => {

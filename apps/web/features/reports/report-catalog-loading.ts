@@ -28,11 +28,12 @@ export async function loadReportCatalogDataset(request: CatalogRequest, dataset:
 }
 
 export async function loadReportCatalogPage(request: CatalogRequest, offset: number, signal: AbortSignal,
-  onPage: (page: CatalogPage) => void, onDataset: (dataset: CatalogDataset) => void) {
+  onPage: (page: CatalogPage) => void, onDataset: (dataset: CatalogDataset) => void, options: { metadataOnly?: boolean } = {}) {
   signal.throwIfAborted()
   const page = await request<CatalogPage>(`/catalog?metadata_only=true&offset=${offset}`, { signal })
   if (signal.aborted) return
   onPage(page)
+  if (options.metadataOnly) return
   const pending = page.datasets.filter(dataset => dataset.catalog_status === "pending")
   let index = 0
   async function worker() {

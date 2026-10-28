@@ -81,7 +81,7 @@ test("single dataset selections replace another source; multi selections retain 
   for (const single of [false, true]) {
     let patch
     const toggle = vm.runInNewContext(ts.transpileModule(declaration + "\ntoggleMetric", { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
-      single, datasetCount: 1, dateColumns: {}, definition: {
+      single, singleDatasetId: 2, setSelectedDatasetId() {}, datasetCount: 1, dateColumns: {}, definition: {
         metrics: [{ dataset_id: 1, metric_key: "spend" }], date_range: { start: "", end: "" },
       }, reportDateColumn: () => "date", edit: value => { patch = value },
     })

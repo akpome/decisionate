@@ -81,6 +81,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const deletedReports = useRef(new Set<string>())
   const routeController = useRef<AbortController | null>(null)
   const [datasets, setDatasets] = useState<CatalogDataset[]>([])
+  const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(null)
   const [dateColumns, setDateColumns] = useState<Record<number, string>>({})
   const [nextOffset, setNextOffset] = useState<number | null>(null)
   const [catalogOffset, setCatalogOffset] = useState(0)
@@ -105,13 +106,15 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
   const datasetCount = new Set(definition.metrics.map(metric => metric.dataset_id)).size
   const single = definition.scope === "single"
+  const singleDatasetId = single ? definition.metrics[0]?.dataset_id ?? selectedDatasetId : null
+  const singleDataset = single ? datasets.find(dataset => dataset.dataset_id === singleDatasetId) : undefined
   const pagePath = weekly ? "/dashboard/reports/weekly" : single ? "/dashboard/reports/dataset" : "/dashboard/reports"
   const pageTitle = weekly ? "Weekly Business Review" : "Business Analysis"
   const setupLabel = weekly ? "Report setup" : "Build analysis"
   const previewLabel = weekly ? "Report preview" : "Analysis preview"
   const taskCount = definition.impact ? 0 : reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs)
   const showPairDirections = definition.pair_directions.length > 0
-  const previewDisabled = datasetCount < (single ? 1 : 2) || !impactReady(definition.impact, definition.metrics) || Boolean(impactSetupIssue(definition, datasets)) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
+  const previewDisabled = datasetCount < (single ? 1 : 2) || single && (!singleDataset || singleDataset.catalog_status === "pending" || Boolean(singleDataset.error_code)) || !impactReady(definition.impact, definition.metrics) || Boolean(impactSetupIssue(definition, datasets)) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
   const weeklySendIssue = weekly && !weeklyDirty ? weeklyDeliveryIssue(report, weeklySettings?.window) : ""
   const uncertainDelivery = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && !analysisJob.retry_safe
   const deliveryNotStarted = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && analysisJob.retry_safe === true
@@ -122,11 +125,21 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     const request = <T,>(path: string, init: RequestInit) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
     void loadReportCatalogPage(request, catalogOffset, controller.signal, page => {
       setDatasets(current => mergeCatalog(current, page.datasets)); setNextOffset(page.next_offset)
-    }, dataset => setDatasets(current => mergeCatalog(current, [dataset])))
+    }, dataset => setDatasets(current => mergeCatalog(current, [dataset])), { metadataOnly: single })
       .catch(() => { if (!controller.signal.aborted) setCatalogError(true) })
       .finally(() => { if (!controller.signal.aborted) setCatalogBusy(false) })
     return () => controller.abort()
-  }, [userId, workspaceId, catalogOffset, catalogReload])
+  }, [userId, workspaceId, catalogOffset, catalogReload, single])
+
+  useEffect(() => {
+    if (!singleDataset || singleDataset.catalog_status !== "pending") return
+    const controller = new AbortController()
+    const request = <T,>(path: string, init: RequestInit) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
+    void loadReportCatalogDataset(request, singleDataset, controller.signal)
+      .then(dataset => { if (!controller.signal.aborted) setDatasets(current => mergeCatalog(current, [dataset])) })
+      .catch(() => { /* A different dataset or workspace cancels this read. */ })
+    return () => controller.abort()
+  }, [singleDataset, userId, workspaceId])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -252,6 +265,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           if (Number.isSafeInteger(identity) && identity > 0) {
             const selectedDataset = await correlationRequest<{ datasets: CatalogDataset[] }>(userId, `/business-reports/catalog?dataset_id=${identity}`, { signal: controller.signal }, workspaceId)
             if (!current) return
+            setSelectedDatasetId(identity)
             setDatasets(existing => mergeCatalog(existing, selectedDataset.datasets))
             const dataset = selectedDataset.datasets[0]
             const metric = dataset?.metrics.find(item => item.metric_key === params.get("metric")) || dataset?.metrics[0]
@@ -276,7 +290,15 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   function refreshCatalog() {
     if (catalogBusy || catalogRetry.current) return
     setCatalogBusy(true); setCatalogError(false)
+    if (singleDataset) setDatasets(current => current.map(dataset => dataset.dataset_id === singleDataset.dataset_id ? { ...dataset, catalog_status: "pending" } : dataset))
     setCatalogOffset(0); setCatalogReload(value => value + 1)
+  }
+
+  function chooseSingleDataset(identity: number | null) {
+    if (!single || busy || identity === singleDatasetId || identity !== null && !datasets.some(dataset => dataset.dataset_id === identity)) return
+    setSelectedDatasetId(identity)
+    setDateColumns({})
+    edit({ metrics: [], dimension_filters: [], date_range: { start: "", end: "" }, source_run_id: null })
   }
 
   async function retryDataset(dataset: CatalogDataset) {
@@ -331,7 +353,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   }
 
   function toggleMetric(dataset: CatalogDataset, key: string) {
-    const metric = dataset.metrics.find(item => item.metric_key === key)!
+    if (single && dataset.dataset_id !== singleDatasetId) return
+    const metric = dataset.metrics.find(item => item.metric_key === key)
+    if (!metric) return
+    if (single) setSelectedDatasetId(dataset.dataset_id)
     const existing = definition.metrics.find(item => item.dataset_id === dataset.dataset_id && item.metric_key === key)
     if (existing && definition.impact?.decision_id && definition.impact.outcome?.dataset_id === dataset.dataset_id && definition.impact.outcome.metric_key === key) return
     const dateColumn = reportDateColumn(dataset, definition.metrics, dateColumns)
@@ -570,7 +595,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             onChange={edit} onStudyChange={editImpact} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} /> : <>
           {reportDetails}
           <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <ReportMetricPicker userId={userId} workspaceId={workspaceId} dimensionFilters={definition.dimension_filters} onDimensionFilterChange={(identity, filter) => edit({ dimension_filters: [
+            <ReportMetricPicker key={single ? `single-${singleDatasetId ?? "none"}` : "multi"} userId={userId} workspaceId={workspaceId} selectedDatasetId={singleDatasetId} onDatasetChange={chooseSingleDataset} selectionDisabled={busy} dimensionFilters={definition.dimension_filters} onDimensionFilterChange={(identity, filter) => edit({ dimension_filters: [
               ...(definition.dimension_filters || []).filter(item => item.dataset_id !== identity), ...(filter ? [{ dataset_id: identity, ...filter }] : []),
             ] })} datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} singleDataset={single} loading={catalogBusy} error={catalogError} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} retryingDataset={retryingDataset} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
               setDateColumns(current => ({ ...current, [dataset.dataset_id]: column }))

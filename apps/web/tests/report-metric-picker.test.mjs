@@ -38,7 +38,7 @@ const render = (updates = {}) => renderToStaticMarkup(React.createElement(Report
 test("a single report at the metric limit can switch sources without widening a multi report's limit", () => {
   const metrics = Array.from({ length: 25 }, (_, index) => reference(`metric_${index}`))
   const datasets = [dataset({ dataset_id: 2, metrics: [metric("sales", 2)] })]
-  assert.doesNotMatch(render({ metrics, datasets, singleDataset: true }), /disabled=""/)
+  assert.doesNotMatch(render({ metrics, datasets, singleDataset: true, selectedDatasetId: 2 }), /disabled=""/)
   assert.match(render({ metrics, datasets }), /disabled=""/)
 })
 
@@ -56,25 +56,25 @@ test("search and date selection are visibly labelled before any metrics are sele
   assert.doesNotMatch(html, /Selected metrics/)
 })
 
-test("single and multi reports expose separate dimension selectors before metric selection", () => {
+test("single reports expose only the chosen source's dimension selector while multi reports retain all sources", () => {
   for (const singleDataset of [true, false]) {
     dimensionProps.length = 0
     const calls = []
-    const html = render({ singleDataset, userId: "owner", workspaceId: "workspace", datasets: [dataset(), dataset({ dataset_id: 2 })],
+    const html = render({ singleDataset, selectedDatasetId: singleDataset ? 2 : null, userId: "owner", workspaceId: "workspace", datasets: [dataset(), dataset({ dataset_id: 2, metrics: [metric("orders", 2)] })],
       onDimensionFilterChange: (identity, value) => calls.push({ identity, value }) })
-    assert.equal((html.match(/Dimension column/g) || []).length, 2)
+    assert.equal((html.match(/Dimension column/g) || []).length, singleDataset ? 1 : 2)
     assert.ok(html.indexOf("Dimension column") < html.indexOf('type="checkbox"'))
-    assert.deepEqual(dimensionProps.map(item => item.datasetId), [1, 2])
+    assert.deepEqual(dimensionProps.map(item => item.datasetId), singleDataset ? [2] : [1, 2])
     assert.ok(dimensionProps.every(item => item.deferLoad && item.embedded && item.workspaceId === "workspace"))
     const filter = { column: "region", values: ["East", "West"] }
-    dimensionProps[1].onChange(filter)
+    dimensionProps.at(-1).onChange(filter)
     assert.deepEqual(calls, [{ identity: 2, value: filter }])
   }
 })
 
 test("date and dimension columns share a top-aligned responsive row in single and multi reports", () => {
   for (const singleDataset of [true, false]) {
-    const html = render({ singleDataset, userId: "owner", workspaceId: "workspace", onDimensionFilterChange() {} })
+    const html = render({ singleDataset, selectedDatasetId: singleDataset ? 1 : null, userId: "owner", workspaceId: "workspace", onDimensionFilterChange() {} })
     assert.match(html, /@min-\[28rem\]:grid-cols-\[minmax\(0,1fr\)_minmax\(0,3fr\)\]/)
     assert.match(html, /grid min-w-0 items-start gap-3/)
     assert.ok(html.indexOf("Date column") < html.indexOf("Dimension column"))
@@ -271,6 +271,60 @@ test("date defaults prefer usable values and restored report selections over old
   assert.equal(reportDateColumn(data, [reference()], { 1: "override" }), "date")
   assert.equal(reportDateColumn(data, [], { 2: "override" }), "date")
   assert.equal(reportDateColumn(dataset({ date_columns: [], availability: {} }), [], {}), "")
+})
+
+test("single dataset analysis starts with one dataset dropdown and no unrelated metric or dimension controls", () => {
+  dimensionProps.length = 0
+  const html = render({ singleDataset: true, datasets: [dataset(), dataset({ dataset_id: 2, dataset_label: "Orders.csv" })],
+    userId: "owner", onDimensionFilterChange() {} })
+  assert.match(html, /Dataset and metrics/)
+  assert.match(html, /for="report-dataset"[^>]*>Dataset<\/label>/)
+  assert.match(html, /Choose a dataset/)
+  assert.match(html, /Advertising\.csv \/ csv/)
+  assert.match(html, /Orders\.csv \/ csv/)
+  assert.match(html, /No dataset selected/)
+  assert.equal((html.match(/<select/g) || []).length, 1)
+  assert.doesNotMatch(html, /multiple=""|type="checkbox"|Dimension column|Date column|Search metrics/)
+  assert.equal(dimensionProps.length, 0)
+})
+
+test("choosing one dataset shows only its metrics, dates and dimension filter before metrics are selected", () => {
+  dimensionProps.length = 0
+  const html = render({ singleDataset: true, selectedDatasetId: 2, userId: "owner", workspaceId: "workspace", onDimensionFilterChange() {},
+    datasets: [dataset(), dataset({ dataset_id: 2, dataset_label: "Orders.csv", metrics: [metric("orders", 2)] })],
+    dimensionFilters: [{ dataset_id: 2, column: "region", values: ["East"] }] })
+  assert.match(html, /<option value="2" selected="">Orders\.csv/)
+  assert.equal((html.match(/<legend/g) || []).length, 1)
+  assert.equal((html.match(/type="checkbox"/g) || []).length, 1)
+  assert.match(html, /Search metrics/)
+  assert.match(html, /placeholder="Metric name"/)
+  assert.match(html, /report-date-column-2/)
+  assert.doesNotMatch(html, /report-date-column-1|>spend<|>revenue</)
+  assert.deepEqual(dimensionProps.map(item => item.datasetId), [2])
+  assert.deepEqual(dimensionProps[0].value, { dataset_id: 2, column: "region", values: ["East"] })
+})
+
+test("saved single-dataset metrics restore the dataset selector without choosing another source", () => {
+  const html = render({ singleDataset: true, metrics: [{ ...reference("orders"), dataset_id: 2 }],
+    datasets: [dataset(), dataset({ dataset_id: 2, dataset_label: "Orders.csv", metrics: [metric("orders", 2)] })] })
+  assert.match(html, /<option value="2" selected="">Orders\.csv/)
+  assert.match(html, /type="checkbox"[^>]*checked=""/)
+  assert.doesNotMatch(html, /report-date-column-1|>spend<|>revenue</)
+})
+
+test("an unavailable saved dataset does not expose or automatically select another dataset", () => {
+  const html = render({ singleDataset: true, selectedDatasetId: 99, metrics: [{ ...reference(), dataset_id: 99 }] })
+  assert.match(html, /<option value="99" disabled="" selected="">Selected dataset unavailable/)
+  assert.doesNotMatch(html, /type="checkbox"|report-date-column-1/)
+})
+
+test("pending and failed single datasets stay selected and have source-local retry controls", () => {
+  const pending = render({ singleDataset: true, selectedDatasetId: 1, datasets: [dataset({ catalog_status: "pending" }), dataset({ dataset_id: 2 })] })
+  assert.match(pending, /Loading metrics/)
+  assert.doesNotMatch(pending, /type="checkbox"|No dataset selected/)
+  const failed = render({ singleDataset: true, selectedDatasetId: 1, datasets: [dataset({ error_code: "dataset_unavailable" }), dataset({ dataset_id: 2 })], onRetryDataset() {} })
+  assert.match(failed, /Retry: Advertising\.csv/)
+  assert.doesNotMatch(failed, /type="checkbox"|report-date-column-2/)
 })
 
 test("report builder uses the picker and still clears calculated results on edits", () => {

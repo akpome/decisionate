@@ -394,6 +394,7 @@
       ],
       "questions": [
         "How do I select metrics from multiple datasets?",
+        "How do I choose one dataset and filter its metrics by dimension?",
         "How many metrics and lag tests are supported?",
         "Does preview create a decision?"
       ],
@@ -403,6 +404,8 @@
       ],
       "sources": [
         "apps/web/features/reports/report-workspace.tsx",
+        "apps/web/features/reports/report-metric-picker.tsx",
+        "apps/web/features/reports/report-catalog-loading.ts",
         "apps/web/features/reports/types.ts",
         "apps/web/features/relationships/defaults.ts",
         "apps/api/app/modules/correlation/defaults.py",

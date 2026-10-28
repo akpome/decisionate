@@ -17,6 +17,25 @@ type, choose **Business impact analysis** to review an existing decision.
 Saved reports keep their original analysis type. Neither mode replaces
 decision creation or decision review on the Decisions page.
 
+## Analyze one dataset
+
+Open Business Analysis and choose Single dataset report. Under Dataset and
+metrics, choose one Dataset from the dropdown. Before this choice, no source's
+metrics or dimension controls are displayed. Afterward, select the metrics from
+that dataset and review its preselected Date column. Choose Dimension column and
+Unique values to restrict the rows included in the analysis. All rows keeps the
+dataset unfiltered. A chosen dimension with no values blocks preview until values
+are selected or the filter is cleared.
+
+Changing Dataset clears the previous source's metrics, dimension filters, date
+choices and calculated preview. Select the new source's metrics before previewing.
+Removing all metrics leaves the chosen dataset visible. A saved single-dataset
+analysis restores its dataset, selected metrics and dimension filter rather than
+showing every workspace source. Unavailable sources remain explicit and retryable;
+they are not replaced with another dataset. Dataset names load first, and only
+the selected source's metric catalog is read in this workflow. More names can be
+loaded with Load more datasets when the catalog is paginated.
+
 ## Did my business change help?
 
 Open an existing decision and choose Assess business impact, or select Decision
