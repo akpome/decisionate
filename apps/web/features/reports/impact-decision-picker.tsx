@@ -30,7 +30,7 @@ export function ImpactDecisionPicker({ userId, workspaceId, decisionId, disabled
     }, 200)
     return () => { clearTimeout(timer); controller.abort() }
   }, [userId, workspaceId, search, offset, retry])
-  return <section aria-label="Decision to review" className="space-y-3 border-y border-gray-200 py-4">
+  return <section aria-label="Decision to review" className="space-y-3">
     <div className="grid min-w-0 gap-4 sm:grid-cols-2">
       <label className="min-w-0 text-xs font-medium text-gray-700">Search decisions<input type="search" className={input} value={search} disabled={disabled} onChange={event => { setSearch(event.target.value); setOffset(0) }} /></label>
       <label className="min-w-0 text-xs font-medium text-gray-700">Decision to review<select className={input} required value={decisionId || ""} disabled={disabled || loading} onChange={event => { if (event.target.value) onChoose(Number(event.target.value)) }}>

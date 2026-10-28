@@ -27,7 +27,8 @@ import { AnalysisFailedError, AnalysisUnavailableError, analysisPhaseLabel, wait
 import { dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 import { MAXIMUM_RELATIONSHIP_OBSERVATIONS, MINIMUM_RELATIONSHIP_OBSERVATIONS, RELATIONSHIP_DEFAULTS } from "@/features/relationships/defaults"
 import { impactReady, newImpactStudy, retainedImpactStudy, type ImpactStudy } from "./impact-types"
-import { ImpactChange, ImpactSetup } from "./impact-setup"
+import { ImpactBuilder } from "./impact-builder"
+import { impactSetupIssue } from "./impact-builder-state"
 import { ImpactResult } from "./impact-result"
 import { weeklyDefinition, weeklyDeliveryIssue, type WeeklySettings } from "./weekly-settings"
 import { decisionReviewDefinition, type DecisionReviewContext } from "./decision-review"
@@ -109,11 +110,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const navigation = weekly ? "weekly" : "reports"
   const taskCount = definition.impact ? 0 : reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs)
   const showPairDirections = definition.pair_directions.length > 0
-  const previewDisabled = datasetCount < (single ? 1 : 2) || !impactReady(definition.impact, definition.metrics) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
+  const previewDisabled = datasetCount < (single ? 1 : 2) || !impactReady(definition.impact, definition.metrics) || Boolean(impactSetupIssue(definition, datasets)) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
   const weeklySendIssue = weekly && !weeklyDirty ? weeklyDeliveryIssue(report, weeklySettings?.window) : ""
   const uncertainDelivery = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && !analysisJob.retry_safe
   const deliveryNotStarted = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && analysisJob.retry_safe === true
-  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(weekly && weeklyDirty ? "Save and preview" : "Preview report")}</button>
+  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(definition.impact ? busy ? "Checking decision..." : "Check this decision" : weekly && weeklyDirty ? "Save and preview" : "Preview report")}</button>
 
   useEffect(() => {
     const controller = new AbortController()
@@ -236,9 +237,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           const chosen = await loadDecisionDefinition(userId, workspaceId,
             weekly ? weeklyDefinition(weeklyContext?.definition || {}) : editableDefinition({ scope: "multi", name: draftName.current }), identity, controller.signal)
           if (!current) return
-          setDefinition(chosen.definition); setDatasets(existing => mergeCatalog(existing, chosen.datasets))
+          const selected = weekly ? weeklyDefinition(chosen.definition, weeklyContext?.history_window) : chosen.definition
+          setDefinition(selected); setDatasets(existing => mergeCatalog(existing, chosen.datasets))
           if (weekly) setWeeklyDirty(true)
-          void addSelectedDatasets(chosen.definition)
+          void addSelectedDatasets(selected)
         } else if (!weekly && params.get("run")) {
           const result = await correlationRequest<ReportDefinition>(userId, `/business-reports/from-run/${encodeURIComponent(params.get("run")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
@@ -315,11 +317,12 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     try {
       await execute(async () => {
         const chosen = await loadDecisionDefinition(userId, workspaceId, definition, identity, routeController.current?.signal)
+        const selected = weekly ? weeklyDefinition(chosen.definition, weeklySettings?.history_window) : chosen.definition
         setDatasets(existing => mergeCatalog(existing, chosen.datasets))
-        edit(chosen.definition)
+        edit(selected)
         window.history.replaceState(null, "", `${pagePath}?decision=${identity}`)
         const signal = routeController.current?.signal
-        if (signal) void hydrateCatalog(userId, workspaceId, chosen.datasets, chosen.definition, signal)
+        if (signal) void hydrateCatalog(userId, workspaceId, chosen.datasets, selected, signal)
           .then(hydrated => { if (!signal.aborted) setDatasets(existing => mergeCatalog(existing, hydrated)) })
           .catch(() => { if (!signal.aborted) setCatalogError(true) })
       })
@@ -487,6 +490,12 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     } finally { managementAction.current = false }
   }
 
+  const reportDetails = <div className="grid min-w-0 gap-4 md:grid-cols-2">
+    <div className="min-w-0"><label htmlFor="report-name" className="block text-xs font-medium text-gray-700">Report name</label><input id="report-name" aria-describedby="report-name-hint" className={input} required maxLength={120} value={definition.name} onChange={event => edit({ name: event.target.value })} /><p id="report-name-hint" className="mt-1 text-xs text-gray-500">{t("Edit this report name to suit your analysis.")}</p></div>
+    <label className="block text-xs font-medium text-gray-700">Business question<input className={input} required minLength={8} maxLength={1000} value={definition.business_question} onChange={event => edit({ business_question: event.target.value })} /></label>
+  </div>
+  const catalogFooter = nextOffset !== null && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>
+  const weeklySaveButton = weekly && canManage && <button type="button" className={`${button} w-full`} disabled={previewDisabled || !weeklyDirty} onClick={event => { if (event.currentTarget.form?.reportValidity()) void saveWeeklySettings() }}><Save size={16} />Save weekly settings</button>
   if (loading) return <div className="min-w-0 w-full space-y-5"><AnalysisNavigation active={navigation} /><p role="status" className="py-8 text-sm text-gray-600">Loading reports...</p></div>
   return <div className="min-w-0 w-full space-y-5">
     <AnalysisNavigation active={navigation} />
@@ -555,25 +564,24 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
               if (Boolean(definition.impact) !== mode.impact) edit({ impact: mode.impact ? newImpactStudy() : null, ...(mode.impact && definition.grain === "quarterly" ? { grain: "weekly" } : {}) })
             }}>{mode.label}</button>)}
           </div></fieldset>}
-          <div className="grid min-w-0 gap-4 md:grid-cols-2">
-            <div className="min-w-0"><label htmlFor="report-name" className="block text-xs font-medium text-gray-700">Report name</label><input id="report-name" aria-describedby="report-name-hint" className={input} required maxLength={120} value={definition.name} onChange={event => edit({ name: event.target.value })} /><p id="report-name-hint" className="mt-1 text-xs text-gray-500">{t("Edit this report name to suit your analysis.")}</p></div>
-            <label className="block text-xs font-medium text-gray-700">Business question<input className={input} required minLength={8} maxLength={1000} value={definition.business_question} onChange={event => edit({ business_question: event.target.value })} /></label>
-          </div>
-          {definition.impact && <><ImpactDecisionPicker userId={userId} workspaceId={workspaceId} decisionId={definition.impact.decision_id} disabled={!canEditDecisions || busy} onChoose={identity => void chooseReviewDecision(identity)} /><ImpactChange study={definition.impact} onChange={editImpact} /></>}
+          {definition.impact ? <ImpactBuilder definition={definition} datasets={datasets} userId={userId} workspaceId={workspaceId} weekly={weekly} weeklySettings={weeklySettings}
+            decisionPicker={<ImpactDecisionPicker userId={userId} workspaceId={workspaceId} decisionId={definition.impact.decision_id} disabled={!canEditDecisions || busy} onChoose={identity => void chooseReviewDecision(identity)} />}
+            reportDetails={reportDetails} actions={<>{previewButton}{weeklySaveButton}</>} loading={catalogBusy} catalogError={catalogError} retryingDataset={retryingDataset} footer={catalogFooter}
+            onChange={edit} onStudyChange={editImpact} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} /> : <>
+          {reportDetails}
           <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <ReportMetricPicker userId={userId} workspaceId={workspaceId} lockedMetric={definition.impact?.decision_id ? definition.impact.outcome : null} dimensionFilters={definition.dimension_filters} onDimensionFilterChange={(identity, filter) => edit({ dimension_filters: [
+            <ReportMetricPicker userId={userId} workspaceId={workspaceId} dimensionFilters={definition.dimension_filters} onDimensionFilterChange={(identity, filter) => edit({ dimension_filters: [
               ...(definition.dimension_filters || []).filter(item => item.dataset_id !== identity), ...(filter ? [{ dataset_id: identity, ...filter }] : []),
             ] })} datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} singleDataset={single} loading={catalogBusy} error={catalogError} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} retryingDataset={retryingDataset} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
               setDateColumns(current => ({ ...current, [dataset.dataset_id]: column }))
               edit({ metrics: definition.metrics.map(item => item.dataset_id === dataset.dataset_id ? { ...item, date_column: column } : item) })
-            }} footer={nextOffset !== null && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>} />
+            }} footer={catalogFooter} />
             <section className="report-builder-section gap-4" aria-label="Analysis settings">
               <h2 className="shrink-0 text-base font-semibold">{weekly ? "Weekly settings" : "Analysis settings"}</h2>
               {weekly ? <div className="shrink-0 space-y-2 text-sm"><p className="font-medium">Last completed week</p><p>{weeklySettings?.window.start} to {weeklySettings?.window.end}</p><p className="text-xs text-gray-500">Monday-Sunday / {weeklySettings?.reporting_timezone}</p></div> : <div className="grid shrink-0 grid-cols-2 gap-3"><label className="block text-xs text-gray-600">Start<input className={input} type="date" required max={definition.date_range.end || undefined} value={definition.date_range.start} onChange={event => edit({ date_range: { ...definition.date_range, start: event.target.value } })} /></label><label className="block text-xs text-gray-600">End<input className={input} type="date" required min={definition.date_range.start || undefined} value={definition.date_range.end} onChange={event => edit({ date_range: { ...definition.date_range, end: event.target.value } })} /></label></div>}
               <div role="group" aria-label="Analysis settings" tabIndex={0} className="report-builder-scroll space-y-4 pr-2 focus-visible:outline-2 focus-visible:outline-blue-600">
-                {weekly ? <div className="space-y-2 border-b border-gray-100 pb-3 text-xs text-gray-600"><p className="text-sm font-medium text-gray-950">Report week: daily detail</p><p>Earlier history: grouped weekly.</p><p>Historical window: {weeklySettings?.history_window.start} to {weeklySettings?.history_window.end} (up to 3 years).</p></div> : <label className="block text-xs text-gray-600">Analysis group by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{(definition.impact ? ["daily", "weekly", "monthly"] : ["daily", "weekly", "monthly", "quarterly"]).map(value => <option key={value}>{value}</option>)}</select></label>}
+                {weekly ? <div className="space-y-2 border-b border-gray-100 pb-3 text-xs text-gray-600"><p className="text-sm font-medium text-gray-950">Report week: daily detail</p><p>Earlier history: grouped weekly.</p><p>Historical window: {weeklySettings?.history_window.start} to {weeklySettings?.history_window.end} (up to 3 years).</p></div> : <label className="block text-xs text-gray-600">Analysis group by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{["daily", "weekly", "monthly", "quarterly"].map(value => <option key={value}>{value}</option>)}</select></label>}
                 <label className="flex items-start gap-2 text-sm"><input className="mt-0.5 h-4 w-4 shrink-0" type="checkbox" checked={definition.seasonal_business} onChange={event => edit({ seasonal_business: event.target.checked })} />{t("Business has seasonal activity")}</label>
-                {definition.impact && <><ImpactSetup study={definition.impact} datasets={datasets} metrics={definition.metrics} onChange={editImpact} /><p className="text-xs leading-5 text-gray-500">The dates must cover both before and after the change. {definition.grain === "weekly" ? "Allow at least 52 complete weeks before and 8 after." : definition.grain === "daily" ? "Allow at least 90 complete days before and 28 after." : "Allow at least 24 complete months before and 6 after."} Seasonal businesses need about two years before the change.</p></>}
                 {!single && !definition.impact && <section aria-label="Relationship analysis" className="border-y border-gray-100 py-3"><h3 className="text-sm font-medium">{t("Relationship analysis")}</h3><div className="mt-3 space-y-3">
                   <label className="block text-xs text-gray-600">Correlation method<select className={input} value={definition.method} onChange={event => edit({ method: event.target.value as ReportDefinition["method"] })}><option value="spearman">Spearman</option><option value="pearson">Pearson</option></select></label>
                   <label className="block text-xs text-gray-600">{weekly ? "Minimum matched weeks" : "Minimum historical observations"}<input className={input} type="number" min={MINIMUM_RELATIONSHIP_OBSERVATIONS} max={MAXIMUM_RELATIONSHIP_OBSERVATIONS} required value={definition.filters.minimum_observations} onChange={event => edit({ filters: { ...definition.filters, minimum_observations: Number(event.target.value) } })} /></label>
@@ -587,9 +595,9 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
               <p className="shrink-0 text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets{!definition.impact && <> / {taskCount} tests</>}</p>
               {taskCount > 1000 && <p className="shrink-0 text-sm text-amber-800">Report analysis exceeds the 1,000-test limit.</p>}
               {previewButton}
-              {weekly && canManage && <button type="button" className={`${button} w-full`} disabled={previewDisabled || !weeklyDirty} onClick={event => { if (event.currentTarget.form?.reportValidity()) void saveWeeklySettings() }}><Save size={16} />Save weekly settings</button>}
+              {weeklySaveButton}
             </section>
-          </div>
+          </div></>}
         </fieldset>
         {weekly && !canManage && <button type="submit" className={primaryButton} disabled={previewDisabled}><Play size={16} />Preview weekly report</button>}
       </form>

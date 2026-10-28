@@ -7,11 +7,22 @@ estimated difference and range, and what to do next. A range including no effect
 means the result is unclear. A failed comparison gives no impact amount at all.
 This is not a guarantee that the action caused the result.
 
+Estimated change in the chosen result is the leading number, with its estimated
+range and the time after the change that it covers. Actual result and Without the
+change (estimated) show what is being compared. Rates and averages are labeled
+per period, not as totals. An unclear result is not presented as a win. What to
+do next remains visible, while the full calculation narrative, checks, earlier
+history and assumptions are under What we checked and what could change the answer.
+
 Its main chart compares the actual result with the model's estimate without the
 change, in the result's original units. The dashed estimate is not observed data,
 and the effect range is not a prediction band around each chart point. Check the
 dates: the estimated difference covers the complete periods after the change,
 while the supporting metric cards can cover the full before-and-after window.
+The chart opens with After the change. Full history can show the earlier records
+without changing the calculation or the saved assessment. The legend names the
+actual result and the estimate without the change separately. The start of the
+first measured period is not presented as a guessed implementation date.
 
 Supporting business results contains the selected-metric charts, unusual
 changes and metric movements, not a second correlation analysis. Relationship

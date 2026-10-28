@@ -17,7 +17,9 @@ function load(path, imports = {}) {
 const { newImpactStudy, retainedImpactStudy, impactReady, impactEvidenceSummary } = load("../features/reports/impact-types.ts")
 const formatReportValue = (value, currency) => `${currency ? `${currency} ` : ""}${value}`
 const { ImpactResult } = load("../features/reports/impact-result.tsx", { "./types": { formatReportValue } })
-const { ImpactSetup, ImpactChange } = load("../features/reports/impact-setup.tsx")
+const { ImpactSetup, ImpactChange } = load("../features/reports/impact-setup.tsx", {
+  "./report-metric-picker": { reportDateColumn: source => source.date_columns[0] || "" },
+})
 const { editableDefinition } = load("../features/reports/types.ts", {
   "./pair-directions": load("../features/reports/pair-directions.ts"),
   "@/features/relationships/defaults": load("../features/relationships/defaults.ts"),
@@ -32,7 +34,7 @@ const analysis = {
   next_steps: ["Check the benefit against the cost before expanding."], before_periods: 104, after_periods: 20,
   comparison_reason: study.comparison_reason, checks: [{ key: "earlier_prediction", passed: true, message: "Earlier results matched well." }],
   assumptions: ["The comparison was unaffected."], limitations: ["Not a randomized test."],
-  estimate: { effect: 200, actual: 2000, expected_without_change: 1800, worthwhile_change: null, is_total: true },
+  estimate: { effect: 200, lower: 100, upper: 300, verdict: "helped", actual: 2000, expected_without_change: 1800, worthwhile_change: null, is_total: true },
 }
 const render = value => renderToStaticMarkup(React.createElement(ImpactResult, { analysis: value }))
 
@@ -67,11 +69,14 @@ test("the report leads with a business answer, original units and a next step", 
   const html = render(analysis)
   assert.match(html, /Did your change help/)
   assert.match(html, /Your change appears to have helped/)
-  assert.match(html, /What actually happened/)
-  assert.match(html, /Expected without the change/)
-  assert.match(html, /Estimated total difference/)
+  assert.match(html, /Actual result/)
+  assert.match(html, /Without the change \(estimated\)/)
+  assert.match(html, /Estimated change in Orders/)
+  assert.match(html, /\+200/)
+  assert.match(html, /Estimated range: \+100 to \+300/)
+  assert.match(html, /20 complete weeks after the change/)
   assert.match(html, /What to do next/)
-  assert.match(html, /Model-based estimate/)
+  assert.match(html, /Estimated impact/)
   assert.match(html, /<details[^>]*>/)
   assert.doesNotMatch(html, /<details[^>]*open|p-value|statistically significant|95% probability of causation/)
 })
@@ -80,40 +85,54 @@ test("a withheld estimate has no invented numbers or business win", () => {
   const html = render({ ...analysis, status: "not_ready", estimate: null, headline: "We cannot tell yet.", summary: "More history is needed." })
   assert.match(html, /Not enough reliable evidence/)
   assert.match(html, /More history is needed/)
-  assert.doesNotMatch(html, /Estimated total difference|>2000<|>1800</)
+  assert.doesNotMatch(html, /Estimated change in|>2000<|>1800</)
   assert.equal(render(null), "")
 })
 
 test("average metrics explicitly avoid total language and outcomes respect a worthwhile target", () => {
   const html = render({ ...analysis, estimate: { ...analysis.estimate, is_total: false, worthwhile_change: 250, worthwhile_result: "unclear" } })
-  assert.match(html, /Estimated difference per period/)
-  assert.match(html, /not totals/)
+  assert.match(html, /Average difference per week, not a total/)
   assert.match(html, /not clear whether the benefit reaches/)
 })
 
-test("plain-language study controls show only selected comparison candidates and reset confirmation on change", () => {
+test("plain-language comparison controls use available datasets without a second metric-selection step", () => {
   const changes = []
-  const props = { study, metrics, datasets: [], onChange: value => changes.push(value) }
+  const datasets = [1, 2, 3].map(dataset_id => ({ dataset_id, dataset_label: `Store ${dataset_id}`, metrics: [{ metric_key: "orders", label: "Orders", aggregation: "sum" }],
+    date_columns: ["date"], availability: { date: { start: "2023-01-01", end: "2026-01-01" } } }))
+  const props = { study, metrics, datasets, onChange: value => changes.push(value), onComparisonChange() {}, onRetryDataset() {}, onExplore() {} }
   const html = renderToStaticMarkup(React.createElement(ImpactSetup, props))
-  assert.match(html, /Outcome from the decision/)
-  assert.doesNotMatch(html, /Choose a selected result|Which result should improve/)
-  assert.match(html, /Why was the comparison unaffected/)
-  assert.doesNotMatch(html, /value="1:orders">Dataset 1 \/ orders<\/option><\/select><\/label><p/)
+  assert.match(html, /Comparison dataset/)
+  assert.match(html, /Result to compare/)
+  assert.match(html, /Why was this comparison not affected/)
+  assert.match(html, /value="3">Store 3/)
+  assert.doesNotMatch(html, /value="1">Store 1/)
+  assert.doesNotMatch(html, /Choose a selected result|Choose from another dataset/)
+  const change = renderToStaticMarkup(React.createElement(ImpactChange, { study, datasets, onChange() {} }))
+  assert.match(change, /What you changed/)
+  assert.match(change, /Result to measure/)
+  assert.match(change, /When did you start/)
+  assert.match(change, /Success means/)
+  assert.match(change, /Edit the action or result in Decision Details/)
+  assert.doesNotMatch(change, /value="Extended opening hours"|What ongoing change did you make/)
   const elements = []
   const visit = node => {
     if (!node || typeof node !== "object") return
     if (node.type === "select") elements.push(node)
     React.Children.forEach(node.props?.children, visit)
   }
-  visit(ImpactSetup(props))
-  elements[1].props.onChange({ target: { value: "2:orders" } })
-  assert.equal(changes[0].comparison.dataset_id, 2)
-  assert.equal(changes[0].comparison_unaffected, false)
-  const change = renderToStaticMarkup(React.createElement(ImpactChange, { study, onChange() {} }))
-  assert.match(change, /Decision action/)
-  assert.match(change, /When did the action actually start/)
-  assert.match(change, /Edit this action on the decision/)
-  assert.doesNotMatch(change, /value="Extended opening hours"|What ongoing change did you make/)
+  visit(ImpactChange(props))
+  elements[0].props.onChange({ target: { value: "decrease" } })
+  assert.equal(changes[0].desired_direction, "decrease")
+})
+
+test("unclear and negative results are not presented as a positive business win", () => {
+  const unclear = render({ ...analysis, headline: "It is not clear yet whether your change helped.", estimate: { ...analysis.estimate, effect: 0, lower: -10, upper: 10, verdict: "unclear" } })
+  assert.match(unclear, /cannot yet say this helped or hurt/)
+  assert.match(unclear, /Estimated range: -10 to \+10/)
+  assert.doesNotMatch(unclear, /text-green-800/)
+  const hurt = render({ ...analysis, headline: "Your change appears to have worked against your goal.", estimate: { ...analysis.estimate, effect: -200, lower: -300, upper: -100, verdict: "hurt" } })
+  assert.match(hurt, />-200</)
+  assert.match(hurt, /against your goal/)
 })
 
 test("decision evidence reads only a stored report summary and tolerates malformed legacy contexts", () => {

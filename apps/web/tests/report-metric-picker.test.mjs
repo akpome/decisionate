@@ -119,7 +119,9 @@ test("empty states remain in the scroll area rather than being pushed to the bot
 test("catalog pagination stays inside the section and outside its scroll area", () => {
   const html = render({ footer: React.createElement("button", { type: "button" }, "Load more datasets") })
   assert.match(html, /<div class="mt-3 shrink-0"><button type="button">Load more datasets<\/button><\/div><\/section>$/)
-  assert.match(readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8"), /footer=\{nextOffset !== null && <button/)
+  const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  assert.match(source, /const catalogFooter = nextOffset !== null && <button/)
+  assert.match(source, /footer=\{catalogFooter\}/)
 })
 
 test("a single date column remains a preselected selector with its available range", () => {

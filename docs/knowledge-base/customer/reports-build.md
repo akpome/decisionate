@@ -22,6 +22,20 @@ reused, not entered as a second decision. If no outcome metric was recorded,
 choose it in Decision Details first. Confirm when the action actually started;
 the decision creation date is not assumed to be the implementation date.
 
+The setup is arranged around three questions: which decision you are checking,
+what you can fairly compare it with, and which dates to check. The recorded action
+and result appear together. Choose Success means to say whether more or less is
+better. A new decision review starts with its recorded outcome, not unrelated
+metrics from a previous correlation analysis. A matching earlier saved assessment
+can retain its deliberate study choices and extra results.
+
+Choose Comparison dataset and Result to compare directly from the available
+approved dataset results; there is no separate metric-checkbox selection first.
+If you do not have a fair comparison, Explore relationships instead switches back
+to Correlation analysis without creating a decision or inventing an impact amount.
+Missing choices are named beside Check this decision. If a selected result or
+date is unavailable, review that dataset or choose another comparison.
+
 Choose an unaffected comparison from another dataset. A similar store that did
 not make the change may help; increased ad
 spending is not unaffected if the change was to increase that spending.
@@ -31,6 +45,13 @@ effects, and say whether another major change happened at the same time. Choose
 whether more or less of the result is better. An optional minimum worthwhile
 improvement expresses your business target in the result's own units. Costs are
 not automatically deducted.
+The optional target is under Business target. Date column selectors and dataset-local
+dimension filters remain under Date columns and filters. Changing the selected
+comparison, date column or dimension filters requires the comparison confirmation
+again. Existing extra selected results stay visible under Other selected results
+and can be removed deliberately. Report name and business question are editable
+under Report details. Weekly impact setup keeps automatic dates and weekly study
+grouping; it does not expose manual weekly email dates.
 
 Save assessment to decision attaches the calculated assessment to that same
 decision and saves its report snapshot. It does not create a new decision or

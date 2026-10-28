@@ -415,6 +415,8 @@
         "apps/web/features/reports/impact-types.ts",
         "apps/web/features/reports/decision-review.ts",
         "apps/web/features/reports/impact-decision-picker.tsx",
+        "apps/web/features/reports/impact-builder.tsx",
+        "apps/web/features/reports/impact-builder-state.ts",
         "apps/web/features/reports/impact-setup.tsx",
         "apps/web/features/reports/impact-result.tsx"
       ],
@@ -448,6 +450,7 @@
       "sources": [
         "apps/web/features/reports/indexed-trends.ts",
         "apps/web/features/reports/impact-chart.tsx",
+        "apps/web/features/reports/impact-result.tsx",
         "apps/web/features/reports/report-workspace.tsx",
         "apps/web/features/reports/analysis-jobs.ts",
         "apps/api/app/modules/reports/router.py",

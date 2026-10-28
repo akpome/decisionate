@@ -66,6 +66,14 @@ test("a new review prefers a usable date field rather than an empty date column"
   assert.equal(value.date_range.start, "2023-01-01")
 })
 
+test("choosing a decision does not carry unrelated correlation metrics into a new impact study", () => {
+  const existing = types.editableDefinition({ metrics: [{ dataset_id: 3, metric_key: "visits", aggregation: "sum", date_column: "date" }] })
+  const result = decisionReviewDefinition(existing, context, source)
+  assert.equal(result.metrics.length, 1)
+  assert.equal(result.metrics[0].metric_key, "orders")
+  assert.equal(existing.metrics[0].metric_key, "visits")
+})
+
 test("impact reports link back to the same decision instead of exposing another decision draft", () => {
   const scopes = load("../features/decisions/lib/report-metric-scope.ts")
   const titles = load("../features/decisions/lib/decision-title.ts")

@@ -19,7 +19,7 @@ export function decisionReviewDefinition(current: ReportDefinition, context: Dec
   const descriptor = source?.metrics.find(item => item.metric_key === outcome?.metric_key)
   const dateColumn = previous?.metrics.find(item => item.dataset_id === outcome?.dataset_id)?.date_column || source?.date_columns.find(column => source.availability[column]) || source?.date_columns[0]
   const reference = descriptor && dateColumn && outcome ? { ...outcome, date_column: dateColumn, aggregation: descriptor.aggregation } : null
-  const metrics = reference ? [reference, ...base.metrics.filter(item => item.dataset_id !== reference.dataset_id || item.metric_key !== reference.metric_key)] : base.metrics
+  const metrics = reference ? [reference, ...(previous?.metrics || []).filter(item => item.dataset_id !== reference.dataset_id || item.metric_key !== reference.metric_key)] : []
   const availability = dateColumn && source?.availability[dateColumn]
   return editableDefinition({ ...base, scope: "multi", name: current.name, included_findings: null, source_run_id: null,
     business_question: current.business_question || `Did this decision improve the result: ${context.decision.title}?`.slice(0, 1000),
