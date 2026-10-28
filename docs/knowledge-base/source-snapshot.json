@@ -1,13 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-10-28",
-  "base_git_revision": "845a9a7b060766976f11a889fa5dee284bfe7efb",
+  "base_git_revision": "3208b5e6e68f1189e1b8aaa59f319023a9d3d5cc",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/app/dashboard/help/page.tsx",
-    "apps/web/features/reports/report-catalog-loading.ts",
-    "apps/web/features/reports/report-metric-picker.tsx",
-    "apps/web/features/reports/report-workspace.tsx",
-    "docs/CROSS_DATASET_REPORTS.md"
+    "apps/web/features/reports/report-metric-picker.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -109,7 +105,7 @@
     "apps/web/features/reports/pair-directions.ts": "b0d03f9ffc1ecb201bfbe49f4cbb669d28d740c891fb930bd22285b039065c60",
     "apps/web/features/reports/report-anomalies.tsx": "d342d13d86ea156151f0a793aee4cc574b00afa780f07d8639b5686b1750fd9a",
     "apps/web/features/reports/report-catalog-loading.ts": "2caab9787683917479fff92c781acf4296a4585d3c42adb133a19169ee49512a",
-    "apps/web/features/reports/report-metric-picker.tsx": "f852ab6d1217a7bd0d30006ba8897baf62b1cc93862742dd2d8cd9d7e4e7fea1",
+    "apps/web/features/reports/report-metric-picker.tsx": "774ff6534ca20613f1d1396cfa0e178f16cde1f566284db46b6c06964f8422bb",
     "apps/web/features/reports/report-metric-trends.tsx": "40536cb7b2a04a2bdb559d68f50b2a3c88d715e7ad26d60ba9890c32f2aaab90",
     "apps/web/features/reports/report-pair-directions.tsx": "604420ab440b5184e55de5b1a49bf7b374aac1f5cb57ccec164071942bde8ce2",
     "apps/web/features/reports/report-workspace.tsx": "2fbcc5bfc0e7379d05d241b752d9b9e766d00a672ea9f9e39788116625b1f45d",

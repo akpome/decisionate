@@ -296,8 +296,7 @@ test("choosing one dataset shows only its metrics, dates and dimension filter be
   assert.match(html, /<option value="2" selected="">Orders\.csv/)
   assert.equal((html.match(/<legend/g) || []).length, 1)
   assert.equal((html.match(/type="checkbox"/g) || []).length, 1)
-  assert.match(html, /Search metrics/)
-  assert.match(html, /placeholder="Metric name"/)
+  assert.doesNotMatch(html, /report-metric-search|Search metrics|placeholder="Metric name"/)
   assert.match(html, /report-date-column-2/)
   assert.doesNotMatch(html, /report-date-column-1|>spend<|>revenue</)
   assert.deepEqual(dimensionProps.map(item => item.datasetId), [2])
@@ -309,6 +308,7 @@ test("saved single-dataset metrics restore the dataset selector without choosing
     datasets: [dataset(), dataset({ dataset_id: 2, dataset_label: "Orders.csv", metrics: [metric("orders", 2)] })] })
   assert.match(html, /<option value="2" selected="">Orders\.csv/)
   assert.match(html, /type="checkbox"[^>]*checked=""/)
+  assert.doesNotMatch(html, /report-metric-search|Search metrics/)
   assert.doesNotMatch(html, /report-date-column-1|>spend<|>revenue</)
 })
 
