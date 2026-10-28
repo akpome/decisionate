@@ -9,9 +9,9 @@ const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg
 export const dimensionValueLabel = (value: string | null) => value === null ? "Missing" : value === "" ? "Empty string" : value
 export const dimensionFilterLabel = (value: DimensionFilter) => `${value.column}: ${value.values.map(dimensionValueLabel).join(", ")}`
 
-export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, onChange, disabled = false, deferLoad = false, embedded = false }: {
+export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, onChange, disabled = false, deferLoad = false, embedded = false, singleValue = false }: {
   datasetId: number; userId: string; workspaceId?: string; value?: DimensionFilter
-  onChange: (value: DimensionFilter | undefined) => void; disabled?: boolean; deferLoad?: boolean; embedded?: boolean
+  onChange: (value: DimensionFilter | undefined) => void; disabled?: boolean; deferLoad?: boolean; embedded?: boolean; singleValue?: boolean
 }) {
   const { t } = useDecisionateText()
   const id = useId()
@@ -59,6 +59,7 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
 
   const selectedValues = value?.values || []
   const visible = [...new Set([...selectedValues, ...(currentOptions ? options.values : [])])]
+  const savedMultiple = singleValue && selectedValues.length > 1
   return <fieldset ref={fieldset} disabled={disabled} aria-label={t("Filter by column values")} onFocusCapture={() => setActivated(true)} onMouseEnter={() => setActivated(true)} className={`@container min-w-0 space-y-3 ${embedded ? "" : "mt-4 border-t border-gray-100 pt-3"}`}>
     <div className={`grid min-w-0 items-end gap-3 ${column ? "grid-cols-[minmax(0,1fr)_auto] @min-[28rem]:grid-cols-[repeat(3,minmax(0,1fr))_auto]" : "grid-cols-1"}`}>
       <div className="min-w-0">
@@ -75,14 +76,16 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
       </div>
       {column && <>
         <div className="col-span-full min-w-0 @min-[28rem]:col-span-1">
-          <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-values`}>{t("Unique values")}</label>
-          <select id={`${id}-values`} className={input} value="" disabled={selectedValues.length >= 50} onChange={event => {
-            if (!event.target.value || selectedValues.length >= 50) return
+          <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-values`}>{t(singleValue ? "Unique value" : "Unique values")}</label>
+          <select id={`${id}-values`} className={input} value={singleValue ? savedMultiple ? "saved-multiple" : selectedValues.length ? JSON.stringify(selectedValues[0]) : "" : ""} disabled={!singleValue && selectedValues.length >= 50} onChange={event => {
+            if (!event.target.value || !singleValue && selectedValues.length >= 50) return
             const selected = JSON.parse(event.target.value) as string | null
-            if (!selectedValues.includes(selected)) onChange({ column, values: [...selectedValues, selected] })
+            if (singleValue) onChange({ column, values: [selected] })
+            else if (!selectedValues.includes(selected)) onChange({ column, values: [...selectedValues, selected] })
           }}>
-            <option value="">{t("Select values")}</option>
-            {visible.map(item => <option key={JSON.stringify(item)} value={JSON.stringify(item)} disabled={selectedValues.includes(item)}>{dimensionValueLabel(item)}</option>)}
+            <option value="">{t(singleValue ? "Select a value" : "Select values")}</option>
+            {savedMultiple && <option value="saved-multiple" disabled>{t("Saved values")}: {selectedValues.length}</option>}
+            {visible.map(item => <option key={JSON.stringify(item)} value={JSON.stringify(item)} disabled={!singleValue && selectedValues.includes(item)}>{dimensionValueLabel(item)}</option>)}
           </select>
         </div>
         <div className="col-span-full min-w-0 @min-[28rem]:col-span-1">
@@ -93,7 +96,7 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
       {value && <button type="button" className="col-start-2 row-start-1 inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 @min-[28rem]:col-start-4" title={t("Clear dimension filter")} aria-label={t("Clear dimension filter")} onClick={() => { onChange(undefined); setSearch(""); setOffset(0) }}><X size={16} /></button>}
     </div>
     {column && <div className="min-w-0 space-y-2">
-      {selectedValues.length > 0 && <div role="group" aria-label={`${column} ${t("selected values")}`} className="flex max-h-40 min-w-0 flex-wrap gap-2 overflow-y-auto">
+      {!singleValue && selectedValues.length > 0 && <div role="group" aria-label={`${column} ${t("selected values")}`} className="flex max-h-40 min-w-0 flex-wrap gap-2 overflow-y-auto">
         {selectedValues.map(item => <span key={JSON.stringify(item)} className="inline-flex min-h-10 max-w-full min-w-0 items-center gap-2 rounded-md border border-gray-200 bg-gray-50 pl-3 text-sm">
           <span className="min-w-0 break-words [overflow-wrap:anywhere]">{dimensionValueLabel(item)}</span>
           <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100" title={`${t("Remove value")}: ${dimensionValueLabel(item)}`} aria-label={`${t("Remove value")}: ${dimensionValueLabel(item)}`} onClick={() => onChange({ column, values: selectedValues.filter(selected => selected !== item) })}><X size={14} /></button>
@@ -101,7 +104,8 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
       </div>}
       {!loading && !error && currentOptions && options.values.length === 0 && <p role="status" className="text-xs text-gray-500">{t("No matching values.")}</p>}
       {selectedValues.length === 0 && <p className="text-xs text-amber-800">{t("No dimension values selected.")}</p>}
-      {selectedValues.length > 0 && <p className="text-xs text-gray-600">{t("Selected values")}: {selectedValues.length} / 50</p>}
+      {!singleValue && selectedValues.length > 0 && <p className="text-xs text-gray-600">{t("Selected values")}: {selectedValues.length} / 50</p>}
+      {savedMultiple && <p className="break-words text-xs text-amber-800">{t("Saved values")}: {selectedValues.map(dimensionValueLabel).join(", ")}</p>}
       {currentOptions && options.next_offset !== null && <button type="button" className="min-h-10 text-sm font-medium text-blue-700 underline disabled:opacity-50" disabled={loading} onClick={() => setOffset(options.next_offset!)}>{t("Load more values")}</button>}
     </div>}
     {loading && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><LoaderCircle size={14} className="animate-spin" />{t("Loading dimensions...")}</p>}

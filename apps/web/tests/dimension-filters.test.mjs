@@ -54,6 +54,42 @@ test("unique values use a dropdown with a search field instead of a checkbox lis
   assert.doesNotMatch(html, /type="checkbox"|role="checkbox"|<select[^>]*multiple/)
 })
 
+test("single-value comparisons show their selected value directly without multi-selection chips", () => {
+  for (const value of ["East", null, "", "null"]) {
+    const html = render({ singleValue: true, value: { column: "region", values: [value] } })
+    assert.match(html, /<label[^>]*>Unique value<\/label>/)
+    assert.match(html, /<option[^>]*selected=""/)
+    assert.match(html, /Clear dimension filter/)
+    assert.doesNotMatch(html, /Remove value:|selected values|Selected values|\/ 50/)
+  }
+  const legacy = render({ singleValue: true, value: { column: "region", values: ["East", "West"] } })
+  assert.match(legacy, /value="saved-multiple" disabled="" selected="">Saved values: 2/)
+  assert.match(legacy, /East, West/)
+  assert.doesNotMatch(legacy, /Remove value:/)
+})
+
+test("single-value selection replaces saved segments and preserves literal missing and empty values", () => {
+  const hooks = { ...React, useEffect() {}, useId: () => "dimension", useRef: () => ({ current: null }),
+    useState: initial => [typeof initial === "function" ? initial() : initial, () => {}] }
+  const { DatasetDimensionFilter: Control } = load(readFileSync(new URL("../features/datasets/components/dimension-filter.tsx", import.meta.url), "utf8"), {
+    require: name => name === "react" ? hooks : name === "@/app/use-decisionate-language" ? { useDecisionateText: () => ({ t: value => value }) } : name === "@/lib/api" ? {} : require(name),
+  })
+  const changes = []
+  const tree = Control({ datasetId: 7, userId: "owner", singleValue: true, value: { column: "region", values: ["East", "West"] }, onChange: value => changes.push(value) })
+  let selector
+  function visit(node) {
+    if (!node || typeof node !== "object") return
+    if (node.type === "select" && node.props.id === "dimension-values") selector = node
+    React.Children.forEach(node.props?.children, visit)
+  }
+  visit(tree)
+  assert.ok(selector)
+  for (const value of ["West", null, "", "null"]) {
+    selector.props.onChange({ target: { value: JSON.stringify(value) } })
+    assert.deepEqual(JSON.parse(JSON.stringify(changes.at(-1))), { column: "region", values: [value] })
+  }
+})
+
 test("dimension, unique values and search share a responsive equal-width control row", () => {
   const html = render({ value: { column: "region", values: ["East"] } })
   assert.match(html, /class="@container /)

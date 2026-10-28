@@ -44,8 +44,8 @@ reused, not entered as a second decision. If no outcome metric was recorded,
 choose it in Decision Details first. Confirm when the action actually started;
 the decision creation date is not assumed to be the implementation date.
 
-The setup is arranged around three questions: which decision you are checking,
-what you can fairly compare it with, and which dates to check. The recorded action
+The setup is arranged around choosing the decision, choosing one fair comparison,
+and checking the analysis. The recorded action
 and result appear together. Choose Success means to say whether more or less is
 better. A new decision review starts with its recorded outcome, not unrelated
 metrics from a previous correlation analysis. A matching earlier saved assessment
@@ -67,16 +67,26 @@ effects, and say whether another major change happened at the same time. Choose
 whether more or less of the result is better. An optional minimum worthwhile
 improvement expresses your business target in the result's own units. Costs are
 not automatically deducted.
-The optional target is under Business target. Date columns and dimension filters
-are visible directly in the setup, not hidden in a collapsed section. The outcome
-dataset's controls appear once a decision with an outcome is selected; the
-comparison dataset's controls appear after choosing its result. Each dataset has
-its own Date column, Dimension column and Unique values selections. All rows
-keeps that source unfiltered; choosing a dimension without any values blocks the
-assessment until values are selected or the filter is cleared. Saved assessments
-restore these choices. Changing the selected comparison, date column or dimension
-filters requires the comparison confirmation again. These controls are available
-in both Business Analysis and Weekly Business Review.
+The optional target is under Business target. The decision supplies the outcome;
+the main setup has only one Comparison dataset, Result to compare, Dimension
+column and Unique value selection. The dimension controls belong to that
+comparison, not to a second editable outcome dataset. All rows keeps the
+comparison unfiltered; choosing a dimension without a value blocks the assessment.
+Choosing another value replaces the current value rather than adding a segment.
+Saved multi-value comparison filters remain visible and require an explicit
+single-value choice before another assessment. A saved outcome segment is retained
+and displayed beside the decision, with a clear control; it is not silently removed.
+
+When a comparison result is chosen in Business Analysis, its date column is
+preselected and the analysis uses the two results' overlapping available history.
+The action's start date is the only date input visible in the main setup.
+Analysis settings contains optional date-column overrides, one shared history
+range and grouping. Changing a date column recalculates overlapping history.
+Datasets with no overlapping dates are blocked with an explicit message; a wider
+date range cannot invent overlap. Saved snapshots keep their stored date choices.
+Changing the selected comparison, date column or dimension filters requires the
+comparison confirmation again. Weekly Business Review uses the same single
+comparison controls, but retains its automatic weekly dates and grouping.
 Existing extra selected results stay visible under Other selected results
 and can be removed deliberately. Report name and business question are editable
 under Report details. Weekly impact setup keeps automatic dates and weekly study
@@ -91,7 +101,7 @@ Archived decisions can show their history but cannot receive new assessments.
 Old standalone impact snapshots remain readable; new assessments require an
 existing decision.
 
-Include dates before and after the change. At least 52 complete weeks before and
+The history must include dates before and after the change. At least 52 complete weeks before and
 8 after are needed with weekly grouping; daily needs 90 before and 28 after,
 and monthly needs 24 before and 6 after. Seasonal businesses also need about two
 years before the change. A partial week or month, or a period crossing the
