@@ -97,13 +97,116 @@ class BusinessImpactTests(unittest.TestCase):
         self.assertAlmostEqual(result["estimate"]["effect"], 30, delta=2)
         self.assertIn("per measured period", result["summary"])
 
-    def test_seasonality_requires_two_prior_cycles_and_is_modeled(self):
+    def test_yearly_adjustment_is_automatic_and_requires_supported_earlier_history(self):
         result = self.evaluate(seasonal=True)
         self.assertEqual(result["status"], "estimated", result)
         self.assertAlmostEqual(result["estimate"]["per_period_effect"], 30, delta=3)
+        self.assertTrue(result["baseline"]["annual_adjustment"])
         short = self.evaluate(seasonal=True, before=60)
         self.assertIsNone(short["estimate"])
-        self.assertIn("two years", short["summary"])
+        self.assertFalse(short["baseline"]["annual_history_available"])
+        self.assertFalse(short["baseline"]["annual_adjustment"])
+        self.assertTrue(any("two years" in item for item in short["limitations"]))
+
+    def test_legacy_checkbox_neither_forces_nor_disables_the_comparison_baseline(self):
+        for seasonal in (False, True):
+            definition, metadata, series = experiment(seasonal=seasonal)
+            definition["seasonal_business"] = False
+            automatic = evaluate_impact(series, definition, metadata)
+            definition["seasonal_business"] = True
+            self.assertEqual(evaluate_impact(series, definition, metadata), automatic)
+            self.assertEqual(automatic["status"], "estimated", automatic)
+            self.assertEqual(automatic["baseline"]["annual_adjustment"], seasonal)
+        definition, metadata, series = experiment(before=60)
+        definition["seasonal_business"] = True
+        result = evaluate_impact(series, definition, metadata)
+        self.assertEqual(result["status"], "estimated", result)
+        self.assertFalse(result["baseline"]["annual_adjustment"])
+
+    def test_shared_seasons_are_carried_by_the_comparison_without_a_forced_equal_baseline(self):
+        for effect in (0, 30, -30):
+            definition, metadata, series = experiment(effect)
+            cycle = 40 * np.sin(2 * np.pi * np.arange(156) * 7 / 365.2425)
+            series["2:comparison_orders"]["value"] += cycle
+            series["1:orders"]["value"] += .8 * cycle
+            result = evaluate_impact(series, definition, metadata)
+            self.assertEqual(result["status"], "estimated", result)
+            self.assertEqual(result["baseline"]["kind"], "comparison")
+            self.assertAlmostEqual(result["estimate"]["per_period_effect"], effect, delta=2)
+            self.assertLessEqual(result["estimate"]["lower"], effect * result["after_periods"])
+            self.assertGreaterEqual(result["estimate"]["upper"], effect * result["after_periods"])
+
+    def test_baseline_selection_cannot_see_the_action_or_its_reserved_pre_action_holdout(self):
+        from app.modules.reports.impact import _baseline
+
+        definition, metadata, series = experiment(seasonal=True)
+        periods = pd.DatetimeIndex(series["1:orders"].period)
+        control = series["2:comparison_orders"].value.to_numpy()
+        values = series["1:orders"].value.to_numpy()
+        before = periods < pd.Timestamp(definition["impact"]["change_date"])
+        original = _baseline(periods, control, values, before, "weekly", 88)
+        changed = values.copy(); changed[88:] += 10000
+        replacement = _baseline(periods, control, changed, before, "weekly", 88)
+        self.assertEqual(original[1:], replacement[1:])
+        self.assertLess(original[2]["selection_end"], str(periods[88].date()))
+        changed_control = control.copy(); changed_control[110:] += 10000
+        replacement = _baseline(periods, changed_control, changed, before, "weekly", 88)
+        self.assertEqual(original[1:], replacement[1:])
+        self.assertTrue(original[1]["annual_adjustment"])
+
+    def test_yearly_adjustment_cannot_make_an_unhelpful_comparison_pass(self):
+        definition, metadata, series = experiment(seasonal=True)
+        series["1:orders"]["value"] -= .8 * series["2:comparison_orders"].value
+        result = evaluate_impact(series, definition, metadata)
+        self.assertIsNone(result["estimate"])
+        check = next(item for item in result["checks"] if item["key"] == "earlier_prediction")
+        self.assertFalse(check["passed"])
+        self.assertIn("without_comparison_error", check["details"])
+
+    def test_calendar_yearly_baselines_for_daily_and_monthly_studies_do_not_bypass_reliability_checks(self):
+        for grain, frequency, count, before_count in (("daily", "D", 1000, 750), ("monthly", "MS", 36, 27)):
+            with self.subTest(grain=grain):
+                rng = np.random.default_rng(42)
+                definition, metadata, _ = experiment()
+                dates = pd.date_range("2023-01-01", periods=count, freq=frequency)
+                elapsed = (dates - dates[0]).days.to_numpy()
+                control = 100 + rng.normal(0, 20, count)
+                values = 200 + .02 * elapsed + .8 * control + 25 * np.sin(2 * np.pi * elapsed / 365.2425) + rng.normal(0, 2, count)
+                values[before_count:] += 30
+                end = dates[-1] if grain == "daily" else dates[-1] + pd.offsets.MonthEnd(0)
+                definition.update(grain=grain, seasonal_business=False, date_range={"start": str(dates[0].date()), "end": str(end.date())})
+                definition["impact"]["change_date"] = str(dates[before_count].date())
+                result = evaluate_impact({"1:orders": pd.DataFrame({"period": dates, "value": values}),
+                    "2:comparison_orders": pd.DataFrame({"period": dates, "value": control})}, definition, metadata)
+                self.assertTrue(result["baseline"]["annual_adjustment"])
+                if grain == "daily":
+                    self.assertEqual(result["status"], "estimated", result)
+                    self.assertAlmostEqual(result["estimate"]["per_period_effect"], 30, delta=3)
+                else:
+                    self.assertIsNone(result["estimate"])
+                    self.assertFalse(next(check for check in result["checks"] if check["key"] == "earlier_false_alarms")["passed"])
+
+    def test_repeated_shared_and_different_seasons_include_null_and_negative_interventions(self):
+        for shared in (False, True):
+            for effect in (0, 30, -30):
+                accepted, covered, false_direction = 0, 0, 0
+                for seed in range(20):
+                    definition, metadata, series = experiment(effect, seed=seed, seasonal=not shared)
+                    definition["seasonal_business"] = False
+                    if shared:
+                        cycle = 40 * np.sin(2 * np.pi * np.arange(156) * 7 / 365.2425)
+                        series["2:comparison_orders"]["value"] += cycle
+                        series["1:orders"]["value"] += .8 * cycle
+                    result = evaluate_impact(series, definition, metadata)
+                    estimate = result["estimate"]
+                    if estimate is None:
+                        continue
+                    accepted += 1
+                    covered += estimate["lower"] <= effect * result["after_periods"] <= estimate["upper"]
+                    false_direction += estimate["verdict"] != ("unclear" if effect == 0 else "helped" if effect > 0 else "hurt")
+                self.assertGreaterEqual(accepted, 12, (shared, effect, accepted))
+                self.assertGreaterEqual(covered / accepted, .8, (shared, effect, accepted, covered))
+                self.assertLessEqual(false_direction, 3, (shared, effect, accepted, false_direction))
 
     def test_context_checks_cannot_be_bypassed_by_a_strong_numeric_pattern(self):
         for changes in ({"comparison_unaffected": False}, {"other_changes": "yes"}, {"other_changes": "not_sure"}):

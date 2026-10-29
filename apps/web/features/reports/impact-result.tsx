@@ -14,6 +14,7 @@ export function ImpactResult({ analysis, compact = false }: { analysis?: ImpactA
     <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-lg font-semibold">Did your change help?</h3><span className="text-xs font-medium text-gray-600">{estimate ? "Estimated impact" : "Not enough reliable evidence"}</span></div>
     <p className="break-words text-sm text-gray-600">{analysis.change} / Started {analysis.change_date}</p>
     <p className="break-words text-xl font-semibold">{analysis.headline}</p>
+    {estimate && analysis.baseline && <p className="break-words text-sm leading-6 text-gray-600">{analysis.baseline.message}</p>}
     {estimate ? <div className="space-y-2 border-l-2 border-blue-600 pl-4">
       <p className="text-sm font-medium text-gray-700">Estimated change in {analysis.outcome?.label || "your result"}</p>
       <p className={`break-words text-2xl font-semibold tabular-nums ${estimate.verdict === "helped" ? "text-green-800" : estimate.verdict === "hurt" ? "text-red-800" : "text-gray-950"}`}>{signed(estimate.effect)}</p>

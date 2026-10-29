@@ -9,7 +9,7 @@ from statsmodels.regression.linear_model import OLS
 from app.modules.correlation.engine import metric_id
 
 
-ENGINE_VERSION = "controlled_change.v1"
+ENGINE_VERSION = "controlled_change.v2"
 MINIMUM_BEFORE = {"daily": 90, "weekly": 52, "monthly": 24}
 MINIMUM_AFTER = {"daily": 28, "weekly": 8, "monthly": 6}
 
@@ -49,6 +49,47 @@ def _design(periods, comparison, before, grain, seasonal):
     return pd.DataFrame(columns, index=periods)
 
 
+def _prediction_error(values, design, train_end, test_end, grain):
+    training = design.iloc[:train_end]
+    if np.linalg.matrix_rank(training) < training.shape[1] or np.linalg.cond(training) > 1e8:
+        raise ImpactUnavailable("The earlier comparison does not support a stable baseline.")
+    fit = _fit(values[:train_end], training, grain)
+    predictions = np.asarray(fit.predict(design.iloc[train_end:test_end]))
+    if not np.isfinite(predictions).all():
+        raise ImpactUnavailable("The earlier comparison does not support a stable baseline.")
+    return float(np.mean(np.abs(values[train_end:test_end] - predictions)))
+
+
+def _baseline(periods, control, values, before, grain, selection_end):
+    designs = {False: _design(periods, control, before, grain, False)}
+    pre_periods, pre_y = periods[before], values[before]
+    yearly_history = (_end(pre_periods, grain)[-1] - pre_periods[0]).days >= 728
+    cuts = [int(selection_end * .7), int(selection_end * .85), selection_end]
+    yearly_training = cuts[0] > 0 and (_end(pre_periods[:cuts[0]], grain)[-1] - pre_periods[0]).days >= 364
+    details = {"selection_uses": "pre_action_only", "annual_history_available": bool(yearly_history),
+               "selection_end": str(pre_periods[selection_end - 1].date()), "required_improvement": .15,
+               "comparison_errors": [], "adjusted_errors": [], "annual_adjustment": False}
+    # Reserve the last pre-action holdout for a separate reliability check.
+    if yearly_history and yearly_training:
+        designs[True] = _design(periods, control, before, grain, True)
+        for seasonal, key in ((False, "comparison_errors"), (True, "adjusted_errors")):
+            try:
+                pre_x = designs[seasonal].loc[before]
+                details[key] = [_prediction_error(pre_y, pre_x, start, end, grain)
+                                for start, end in zip(cuts, cuts[1:])]
+            except (ImpactUnavailable, ValueError, np.linalg.LinAlgError):
+                details[key] = []
+        plain, adjusted = details["comparison_errors"], details["adjusted_errors"]
+        details["annual_adjustment"] = bool(plain and adjusted and
+            np.mean(adjusted) <= np.mean(plain) * .85 and all(a <= p for p, a in zip(plain, adjusted)))
+    seasonal = details["annual_adjustment"]
+    baseline = {"kind": "comparison_with_yearly_adjustment" if seasonal else "comparison",
+                "annual_adjustment": seasonal, "annual_history_available": bool(yearly_history),
+                "message": "The comparison provides the expected baseline, with an extra yearly adjustment supported by earlier checks." if seasonal else
+                           "The comparison's normal movement provides the expected baseline; earlier records were used to check its reliability."}
+    return designs[seasonal], baseline, details
+
+
 def _step_fit(values, design, after, grain):
     matrix = design.assign(change=after.astype(float))
     if np.linalg.matrix_rank(matrix) < matrix.shape[1] or np.linalg.cond(matrix) > 1e8:
@@ -74,13 +115,14 @@ def evaluate_impact(series, definition, metadata):
               "change_date": study["change_date"], "window": window, "grain": grain,
               "outcome": outcome, "comparison": comparison, "comparison_reason": study["comparison_reason"],
               "headline": "We cannot tell whether this change helped yet.", "summary": "", "next_steps": [],
-              "checks": [], "estimate": None, "trend": [], "before_periods": None, "after_periods": None,
+              "checks": [], "estimate": None, "trend": [], "baseline": None, "before_periods": None, "after_periods": None,
               "assumptions": ["The comparison was not affected by your change, including indirect effects.",
                               "No other event changed the result at the same time in a way the comparison cannot explain.",
                               "The earlier link between the result and comparison continued after the change.",
                               "This first version measures a lasting level change, not a one-day event or a gradually changing effect."],
               "limitations": ["This is an estimate from business records, not a randomized experiment or a guarantee of cause and effect.",
                               "The range allows for short-term ups and downs in the model, but not unknown events or a wrong comparison.",
+                              "The range does not include every uncertainty from choosing the baseline.",
                               "Passing the checks cannot prove the comparison was unaffected or rule out every other explanation."]}
 
     def check(key, passed, message, details=None):
@@ -124,26 +166,29 @@ def evaluate_impact(series, definition, metadata):
     values, control = joined[outcome_id].to_numpy(dtype=float), joined[comparison_id].to_numpy(dtype=float)
     if float(np.std(control[before])) <= max(1e-10, abs(float(np.mean(control[before]))) * 1e-10) or float(np.std(values[before])) < 1e-10:
         return stop("There is not enough earlier variation to check whether this comparison is useful.", "Choose a comparison with a meaningful, changing history before the business change.")
-    seasonal = definition.get("seasonal_business", False)
-    if seasonal and (_end(periods[before], grain)[-1] - periods[before][0]).days < 728:
-        return stop("A seasonal business needs about two years of history before the change to check its usual yearly pattern.", "Import more earlier history or choose a later business change. Do not switch off seasonality just to obtain an answer.")
-    design = _design(periods, control, before, grain, seasonal)
-    pre_y, pre_x = values[before], design.loc[before]
-    count = len(pre_y)
+    count = int(before.sum())
     holdout = max(MINIMUM_AFTER[grain], count // 5)
     split = count - holdout
     try:
+        design, baseline, baseline_details = _baseline(periods, control, values, before, grain, split)
+        result["baseline"] = baseline
+        if not baseline["annual_history_available"]:
+            result["limitations"].append("There is less than two years of history before the action. Separate yearly differences cannot be checked reliably; the baseline relies on the comparison and the earlier history available.")
+        pre_y, pre_x = values[before], design.loc[before]
         if np.linalg.matrix_rank(pre_x.iloc[:split]) < design.shape[1]:
             raise ImpactUnavailable("The earlier comparison is too repetitive to separate it from ordinary trends or seasons.")
         pre_fit = _fit(pre_y[:split], pre_x.iloc[:split], grain)
         predicted = np.asarray(pre_fit.predict(pre_x.iloc[split:]))
         error = float(np.mean(np.abs(pre_y[split:] - predicted)))
         baseline_error = float(np.mean(np.abs(pre_y[split:] - np.mean(pre_y[:split]))))
+        without_comparison = _prediction_error(pre_y, pre_x.drop(columns="comparison"), split, count, grain)
         typical = max(float(np.mean(np.abs(pre_y))), float(np.std(pre_y)), 1e-10)
-        useful = error <= typical * .25 and error <= baseline_error * .9
+        useful = error <= typical * .25 and error <= baseline_error * .9 and error <= without_comparison * .9
         check("earlier_prediction", useful, "The comparison explained earlier business results reasonably well." if useful else "The comparison did not explain earlier business results well enough.",
               {"held_back_periods": holdout, "mean_absolute_error": error, "simple_baseline_error": baseline_error,
+               "without_comparison_error": without_comparison,
                "maximum_relative_error": .25, "required_baseline_improvement": .1})
+        check("seasonal_baseline", useful, baseline["message"] if useful else "The selected baseline did not pass the separate earlier-history check.", baseline_details)
         if not useful:
             return stop("Before your change, this comparison could not reliably explain the result. An impact estimate could be misleading.",
                         "Choose a better unaffected comparison, such as a similar location that did not make the change.")

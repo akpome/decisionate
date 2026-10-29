@@ -89,6 +89,13 @@ test("a withheld estimate has no invented numbers or business win", () => {
   assert.equal(render(null), "")
 })
 
+test("new results disclose the validated comparison baseline while old snapshots remain readable", () => {
+  const html = render({ ...analysis, baseline: { kind: "comparison", annual_adjustment: false, annual_history_available: true,
+    message: "The comparison's normal movement provides the expected baseline." } })
+  assert.match(html, /normal movement provides the expected baseline/)
+  assert.doesNotMatch(render(analysis), /undefined|null/)
+})
+
 test("average metrics explicitly avoid total language and outcomes respect a worthwhile target", () => {
   const html = render({ ...analysis, estimate: { ...analysis.estimate, is_total: false, worthwhile_change: 250, worthwhile_result: "unclear" } })
   assert.match(html, /Average difference per week, not a total/)

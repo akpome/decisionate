@@ -80,7 +80,7 @@ test("unconfirmed context remains truthful and unavailable source policies canno
   assert.match(state.impactSetupIssue(definition, [datasets[0], { ...datasets[1], availability: {} }]), /unavailable/)
 })
 
-test("the impact builder keeps one comparison filter with date overrides only in optional settings", () => {
+test("the impact builder keeps the comparison date column beside its one dimension filter without a seasonality checkbox", () => {
   const html = render()
   assert.match(html, /1\. Which decision are you checking/)
   assert.match(html, /2\. What can we fairly compare it with/)
@@ -90,17 +90,21 @@ test("the impact builder keeps one comparison filter with date overrides only in
   assert.match(html, /52 full weeks before the change and 8 weeks after/)
   const comparisonSection = html.match(/<section aria-labelledby="impact-comparison-heading"[\s\S]*?<\/section>/)?.[0]
   assert.match(comparisonSection, /Dimension filter/)
-  assert.doesNotMatch(comparisonSection, /<details|Date column|type="date"/)
+  assert.match(comparisonSection, /Date column/)
+  assert.match(comparisonSection, /@min-\[40rem\]:grid-cols-\[minmax\(0,1fr\)_minmax\(0,3fr\)\]/)
+  assert.doesNotMatch(comparisonSection, /<details|type="date"/)
   assert.deepEqual([...dimensionProps.keys()], [2])
   assert.equal(dimensionProps.get(2).singleValue, true)
   const settings = html.match(/<details[^>]*><summary[^>]*>Analysis settings<\/summary>[\s\S]*?<\/details>/)?.[0]
   assert.match(settings, /History starts/)
   assert.match(settings, /Store 1 \/ Date column/)
-  assert.match(settings, /Store 2 \/ Date column/)
+  assert.doesNotMatch(settings, /Store 2 \/ Date column/)
   assert.doesNotMatch(settings, /^<details[^>]*\sopen/)
   const main = html.replace(/<details[\s\S]*?<\/details>/g, "")
   assert.equal((main.match(/type="date"/g) || []).length, 1)
-  assert.doesNotMatch(main, /History starts|History ends|Date column/)
+  assert.doesNotMatch(main, /History starts|History ends|busy and quiet seasons|Seasonal businesses need/)
+  assert.match(main, /Analysis period: 2023-01-02 to 2025-12-28/)
+  assert.match(main, /Baseline: the comparison/)
   assert.match(html, /<summary[^>]*>Report details/)
   assert.match(html, /<summary[^>]*>Business target \(optional\)/)
   assert.doesNotMatch(html, /report-builder-scroll|Maximum lag|Minimum historical observations|Select metrics/)
@@ -117,6 +121,7 @@ test("the first view starts with one decision choice and does not ask for a comp
 test("the decision fixes the outcome without adding a second dataset filter picker", () => {
   const html = render({ definition: { ...definition, metrics: [outcome], impact: { ...definition.impact, comparison: null } } })
   assert.match(html, /Result to measure/)
+  assert.match(html, /aria-label="Decision data period"/)
   assert.doesNotMatch(html, /Dimension filter|Date column|3\. Check the analysis/)
   assert.equal(dimensionProps.size, 0)
 })
@@ -149,24 +154,29 @@ test("weekly impact setup keeps automatic weekly history and never exposes manua
   assert.doesNotMatch(html, /History starts|History ends|Compare results by/)
 })
 
-test("new comparisons use the overlapping history of the two chosen results only", () => {
+test("comparison changes preserve the decision period while checking overlap separately", () => {
   const sources = [{ ...datasets[0], availability: { date: { start: "2023-01-02", end: "2025-12-28" } } },
     { ...datasets[1], availability: { date: { start: "2024-01-01", end: "2026-06-30" } } },
     { ...datasets[2], availability: { date: { start: "2000-01-01", end: "2000-12-31" } } }]
   const original = { ...definition, metrics: [outcome, comparison, extra] }
   assert.deepEqual(JSON.parse(JSON.stringify(state.impactHistoryWindow(original, sources))), { start: "2024-01-01", end: "2025-12-28" })
-  const changed = state.changeImpactComparison(original, comparison, sources)
-  assert.deepEqual(JSON.parse(JSON.stringify(changed.date_range)), { start: "2024-01-01", end: "2025-12-28" })
+  const changed = state.changeImpactComparison(original, comparison)
+  assert.equal(changed.date_range, undefined)
   assert.equal(state.changeImpactComparison(original, comparison).date_range, undefined)
   assert.equal(state.impactHistoryWindow(original, [sources[0]]), null)
   assert.deepEqual(original.date_range, definition.date_range)
 })
 
-test("nonoverlapping years are explicitly rejected rather than retaining the outcome's unrelated dates", () => {
+test("nonoverlapping sources are rejected without silently changing the decision period", () => {
   const sources = [{ ...datasets[0], availability: { date: { start: "2000-01-01", end: "2000-12-31" } } }, datasets[1]]
-  const changed = state.changeImpactComparison(definition, comparison, sources)
-  assert.deepEqual(JSON.parse(JSON.stringify(changed.date_range)), { start: "", end: "" })
+  const changed = state.changeImpactComparison(definition, comparison)
+  assert.equal(changed.date_range, undefined)
   assert.match(state.impactSetupIssue({ ...definition, ...changed }, sources), /no overlapping dates/)
+})
+
+test("overlapping sources outside the selected decision period cannot be reported as usable", () => {
+  assert.match(state.impactSetupIssue({ ...definition, date_range: { start: "2000-01-01", end: "2000-12-31" } }, datasets), /no data in the decision's analysis period/)
+  assert.match(state.impactSetupIssue({ ...definition, date_range: { start: "", end: "" } }, datasets), /Choose the history start and end dates/)
 })
 
 test("shared history follows each result's configured date column and saved multi-value comparisons need an explicit choice", () => {

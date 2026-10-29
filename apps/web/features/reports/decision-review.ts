@@ -10,6 +10,7 @@ export type DecisionImpactReview = {
 export type DecisionReviewContext = {
   decision: ReportDecision; outcome: { dataset_id: number; metric_key: string } | null
   decision_revision: string; latest_review: DecisionImpactReview | null
+  decision_period?: { start: string; end: string } | null; outcome_date_column?: string | null
 }
 
 export function decisionReviewDefinition(current: ReportDefinition, context: DecisionReviewContext, source?: CatalogDataset) {
@@ -17,14 +18,14 @@ export function decisionReviewDefinition(current: ReportDefinition, context: Dec
   const base = previous || current
   const outcome = context.outcome
   const descriptor = source?.metrics.find(item => item.metric_key === outcome?.metric_key)
-  const dateColumn = previous?.metrics.find(item => item.dataset_id === outcome?.dataset_id)?.date_column || source?.date_columns.find(column => source.availability[column]) || source?.date_columns[0]
+  const dateColumn = previous?.metrics.find(item => item.dataset_id === outcome?.dataset_id)?.date_column || context.outcome_date_column || source?.date_columns.find(column => source.availability[column]) || source?.date_columns[0]
   const reference = descriptor && dateColumn && outcome ? { ...outcome, date_column: dateColumn, aggregation: descriptor.aggregation } : null
   const metrics = reference ? [reference, ...(previous?.metrics || []).filter(item => item.dataset_id !== reference.dataset_id || item.metric_key !== reference.metric_key)] : []
   const availability = dateColumn && source?.availability[dateColumn]
   return editableDefinition({ ...base, scope: "multi", name: current.name, included_findings: null, source_run_id: null,
     business_question: current.business_question || `Did this decision improve the result: ${context.decision.title}?`.slice(0, 1000),
     metrics, grain: base.grain === "quarterly" ? "weekly" : base.grain,
-    date_range: availability ? { start: previous?.date_range.start || availability.start, end: availability.end } : base.date_range,
+    date_range: previous?.date_range || context.decision_period || availability || { start: "", end: "" },
     impact: { ...newImpactStudy(), ...(previous?.impact || {}), decision_id: context.decision.id, decision_revision: context.decision_revision,
       change: context.decision.action || "", outcome, comparison_unaffected: false, other_changes: "not_sure" },
   })

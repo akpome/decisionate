@@ -15,7 +15,7 @@ export function impactHistoryWindow(definition: ReportDefinition, datasets: Cata
   return { start: windows.map(window => window!.start).sort().at(-1)!, end: windows.map(window => window!.end).sort()[0] }
 }
 
-export function changeImpactComparison(definition: ReportDefinition, comparison: MetricRef | null, datasets?: CatalogDataset[]): Partial<ReportDefinition> {
+export function changeImpactComparison(definition: ReportDefinition, comparison: MetricRef | null): Partial<ReportDefinition> {
   const study = definition.impact
   if (!study || comparison?.dataset_id === study.outcome?.dataset_id) return {}
   const metrics = definition.metrics.filter(metric => !matches(metric, study.comparison) || matches(metric, study.outcome))
@@ -23,8 +23,7 @@ export function changeImpactComparison(definition: ReportDefinition, comparison:
   const impact = { ...study, comparison: comparison ? { dataset_id: comparison.dataset_id, metric_key: comparison.metric_key } : null,
     comparison_reason: comparison && matches(comparison, study.comparison) ? study.comparison_reason : "",
     comparison_unaffected: false }
-  const history = datasets && impactHistoryWindow({ ...definition, metrics, impact }, datasets)
-  return { metrics, impact, ...(history ? { date_range: history.start <= history.end ? history : { start: "", end: "" } } : {}) }
+  return { metrics, impact }
 }
 
 export function impactSetupIssue(definition: ReportDefinition, datasets?: CatalogDataset[]): string {
@@ -44,6 +43,7 @@ export function impactSetupIssue(definition: ReportDefinition, datasets?: Catalo
   }
   const shared = datasets && impactHistoryWindow(definition, datasets)
   if (shared && shared.start > shared.end) return "These datasets have no overlapping dates. Choose another comparison dataset."
+  if (shared && definition.date_range.start && definition.date_range.end && (definition.date_range.end < shared.start || definition.date_range.start > shared.end)) return "The comparison has no data in the decision's analysis period. Choose another comparison or adjust the analysis period explicitly."
   if (study.comparison_reason.trim().length < 10) return "Add a short explanation of why the comparison was not affected."
   if (!definition.date_range.start || !definition.date_range.end) return "Choose the history start and end dates."
   if (definition.date_range.start >= study.change_date || definition.date_range.end < study.change_date) return "Include dates both before and after the change."

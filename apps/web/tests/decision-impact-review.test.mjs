@@ -36,7 +36,7 @@ test("review setup reuses the existing decision without treating its creation da
   assert.equal(value.date_range.start, "2023-01-01")
 })
 
-test("later reviews reuse confirmed action dates and study choices but recheck the comparison and extend available history", () => {
+test("later reviews preserve their recorded period and study choices while rechecking the comparison", () => {
   const previous = decisionReviewDefinition(types.editableDefinition({ name: "Earlier report" }), context, source)
   previous.impact.change_date = "2025-04-01"
   previous.impact.comparison_unaffected = true
@@ -45,11 +45,22 @@ test("later reviews reuse confirmed action dates and study choices but recheck t
     latest_review: { matches_current_decision: true, definition: previous } }, source)
   assert.equal(value.impact.change_date, "2025-04-01")
   assert.equal(value.impact.comparison_unaffected, false)
-  assert.equal(value.date_range.end, "2026-10-25")
+  assert.equal(value.date_range.end, "2025-12-31")
   assert.equal(value.name, "Next report")
   const stale = decisionReviewDefinition(types.editableDefinition({ name: "New review" }), { ...context,
     latest_review: { matches_current_decision: false, definition: previous } }, source)
   assert.equal(stale.impact.change_date, "")
+})
+
+test("the default period and outcome date column come from decision evidence rather than comparison availability or creation time", () => {
+  const period = { start: "2024-01-01", end: "2025-12-31" }
+  const value = decisionReviewDefinition(types.editableDefinition({ date_range: { start: "2000-01-01", end: "2000-12-31" } }),
+    { ...context, decision_period: period, outcome_date_column: "paid_date" }, { ...source, date_columns: ["sale_date", "paid_date"], availability: { ...source.availability, paid_date: source.availability.sale_date } })
+  assert.deepEqual(value.date_range, period)
+  assert.equal(value.metrics[0].date_column, "paid_date")
+  assert.equal(value.impact.change_date, "")
+  const missing = decisionReviewDefinition(types.editableDefinition({ date_range: period }), context, { ...source, availability: {} })
+  assert.deepEqual(JSON.parse(JSON.stringify(missing.date_range)), { start: "", end: "" })
 })
 
 test("missing outcomes are not replaced by a guessed metric", () => {

@@ -39,6 +39,31 @@ class DecisionImpactReviewTests(unittest.TestCase):
         self.assertEqual(context["outcome"], {"dataset_id": 1, "metric_key": "orders"})
         self.assertTrue(context["decision_revision"])
         self.assertIsNone(context["latest_review"])
+        self.assertIsNone(context["decision_period"])
+
+    def test_prefill_uses_the_decisions_saved_evidence_period_and_date_column_without_scanning_sources(self):
+        evidence = {"evidence_kind": "business_report", "definition": {"date_range": {"start": "2024-01-01", "end": "2025-12-28"},
+                    "metrics": [{"dataset_id": 1, "metric_key": "orders", "date_column": "sale_date"}]}}
+        with self.Session() as db:
+            db.get(Decision, self.decision_id).recommendation_context = json.dumps(evidence)
+            db.commit()
+        with patch.object(router, "load_dataframe_from_dataset", side_effect=AssertionError("No source scans")):
+            response = self.client.get(f"/api/v2/business-reports/review-decisions/{self.decision_id}")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["decision_period"], evidence["definition"]["date_range"])
+        self.assertEqual(response.json()["outcome_date_column"], "sale_date")
+
+    def test_invalid_or_unrelated_evidence_cannot_invent_a_decision_period(self):
+        from app.modules.reports.decision_reviews import decision_data_period
+        from types import SimpleNamespace
+
+        outcome = {"dataset_id": 1, "metric_key": "orders"}
+        for value in ("bad-json", "[]", '{"evidence_kind":"other"}', json.dumps({"evidence_kind": "business_report",
+                "definition": {"metrics": [{"dataset_id": 2, "metric_key": "orders"}], "date_range": {"start": "2024-01-01", "end": "2025-01-01"}}})):
+            self.assertEqual(decision_data_period(SimpleNamespace(recommendation_context=value), outcome), (None, None))
+        evidence = {"evidence_kind": "business_report", "definition": {"metrics": [{**outcome, "date_column": "date"}],
+                    "date_range": {"start": "not-a-date", "end": "2025-01-01"}}}
+        self.assertEqual(decision_data_period(SimpleNamespace(recommendation_context=json.dumps(evidence)), outcome), (None, "date"))
 
     def test_one_idempotent_assessment_updates_the_same_decision_without_replacing_its_outcome_or_reasoning(self):
         with self.Session() as db:

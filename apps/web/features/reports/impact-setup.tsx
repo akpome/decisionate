@@ -26,10 +26,10 @@ export function ImpactChange({ study, datasets, onChange }: {
   </div>
 }
 
-export function ImpactSetup({ study, datasets, metrics, onChange, onComparisonChange, onRetryDataset, onExplore, comparisonFilter, loading = false, retryingDataset }: {
+export function ImpactSetup({ study, datasets, metrics, onChange, onComparisonChange, onRetryDataset, onExplore, comparisonFilter, comparisonDate, loading = false, retryingDataset }: {
   study: ImpactStudy; datasets: CatalogDataset[]; metrics: MetricRef[]; onChange: (patch: Partial<ImpactStudy>) => void
   onComparisonChange: (metric: MetricRef | null) => void; onRetryDataset: (dataset: CatalogDataset) => void
-  onExplore: () => void; comparisonFilter?: ReactNode; loading?: boolean; retryingDataset?: number | null
+  onExplore: () => void; comparisonFilter?: ReactNode; comparisonDate?: ReactNode; loading?: boolean; retryingDataset?: number | null
 }) {
   const [pending, setPending] = useState({ decision: study.decision_id, dataset: 0 })
   const datasetId = study.comparison?.dataset_id || (pending.decision === study.decision_id ? pending.dataset : 0)
@@ -47,7 +47,7 @@ export function ImpactSetup({ study, datasets, metrics, onChange, onComparisonCh
         if (source && metric && dates) onComparisonChange({ dataset_id: source.dataset_id, metric_key: metric.metric_key, date_column: dates, aggregation: metric.aggregation })
       }}><option value="">{pendingSource ? "Loading results..." : "Choose a result"}</option>{source?.metrics.map(metric => <option key={metric.metric_key} value={metric.metric_key}>{metric.label}{metric.currency ? ` (${metric.currency})` : ""}</option>)}</select></label>
     </div>
-    {study.comparison && comparisonFilter}
+    {study.comparison && <div className="@container min-w-0"><div className="grid min-w-0 gap-4 @min-[40rem]:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">{comparisonDate}{comparisonFilter}</div></div>}
     {(loading || pendingSource) && <p role="status" className="flex items-center gap-2 text-sm text-gray-600"><LoaderCircle size={16} className="animate-spin" />{pendingSource ? `Loading results for ${source?.dataset_label}...` : "Loading comparison datasets..."}</p>}
     {source && !pendingSource && (source.error_code || !source.metrics.length || !dates || !source.availability[dates]) && <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-amber-900"><p>No usable result and date are available for this dataset.</p><button type="button" className="inline-flex min-h-10 items-center gap-2 text-blue-700 underline" onClick={() => onRetryDataset(source)}><RefreshCw size={16} />Retry dataset</button><Link className="text-blue-700 underline" href={`/dashboard/datasets/${source.dataset_id}`}>Review dataset</Link></div>}
     {!study.comparison && <button type="button" className="inline-flex min-h-10 min-w-0 max-w-full items-center gap-2 text-left text-sm text-blue-700 underline" onClick={onExplore}><span className="min-w-0 break-words">No fair comparison? Explore relationships instead</span><ArrowRight size={16} className="shrink-0" /></button>}

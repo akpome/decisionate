@@ -50,8 +50,12 @@ All inputs use approved metric/date/aggregation policies and dataset-local filte
 The existing supervised Reports worker fits a controlled interrupted time-series
 level-change model using the installed statsmodels OLS implementation:
 `outcome ~ intercept + time + comparison + post_change + seasonal_terms`.
-Daily data includes weekday terms. Seasonal businesses add two annual Fourier
-harmonics and need approximately two full years of pre-change coverage. This is
+Daily data includes weekday terms. Engine `controlled_change.v2` uses the
+comparison as its primary baseline, without a manual seasonal-business switch.
+It calibrates the outcome's level and relationship rather than forcing the two
+series to share a raw baseline. Two annual Fourier harmonics are considered only
+with at least 728 days of complete pre-action coverage and an initial training
+span of at least 364 days. This is
 not the Bayesian CausalImpact algorithm, causal discovery, an experiment or a
 generic attribution/marketing-mix model. No new service or env flag is required.
 The serialized API/bootstrap creates the new `decision_impact_reviews` table;
@@ -66,7 +70,19 @@ assumption, not independent proof.
   varying earlier values and a full-rank, well-conditioned design. No imputation.
 - Hold back the last 20% of earlier history (at least the post minimum). Require
   earlier prediction MAE <=25% of the typical absolute outcome and at least 10%
-  better than predicting the training mean. These are product screening rules,
+  better than predicting the training mean and than the same trend/calendar
+  model without the comparison. The comparison must contribute predictive value,
+  even when an annual adjustment fits well.
+- Within the remaining pre-action selection history, compare the base and annual
+  designs at two expanding-window origins (70% and 85%, ending at 100% of that
+  selection history). Select the annual design only when its average MAE improves
+  by at least 15% and neither validation block worsens. No outcome observations
+  from the reserved final holdout or after the action enter this choice. The
+  selected design must then pass the separate final holdout and all other gates.
+  Shorter histories retain a comparison baseline with an explicit warning that
+  separate yearly differences could not be assessed. The old `seasonal_business`
+  flag remains compatible for other report calculations but cannot force or
+  disable the impact adjustment. These are product screening rules,
   not universal statistical guarantees or proof of causal identification.
 - Test two earlier fake change dates (60% and 75% through pre-history), using
   99% intervals. A clear nonzero historical level change withholds the result.
@@ -85,6 +101,8 @@ assumption, not independent proof.
   to zero, keeping comparison/time/seasonal terms. It is not an observed series
   or an independently validated forecast. Intervals describe the modeled effect,
   not a probability of causation or a prediction range for every chart point.
+  Effect intervals are conditional on the selected baseline, not a correction for
+  every source of model-selection uncertainty.
 
 Unknown/competing changes, an unconfirmed unaffected comparison or a failed check
 produce no effect amount. Valid intervals spanning zero produce an unclear
@@ -110,8 +128,17 @@ The decision page links to `/dashboard/reports?decision=<id>`. The builder selec
 an existing canonical, workspace-authorized decision and locks its action and
 outcome metric; it never treats record creation time as the implementation date.
 `GET /review-decisions` provides bounded searchable choices; `/review-decisions/{id}`
-provides authorized context and the latest compatible assessment. The source
-catalog supplies the approved outcome date and aggregation policy.
+provides authorized context and the latest compatible assessment. It also returns
+the period and date column stored in business-report decision evidence, only if
+that evidence includes the current outcome. Malformed or unrelated contexts do
+not invent a period. A matching previous assessment retains its period; otherwise
+the decision evidence period is preferred, with outcome-source availability as
+the explicit fallback. Comparison/date-column changes never silently replace it.
+The comparison date selector is next to its single-value dimension filter; the
+outcome date override and explicit shared-range changes remain optional settings.
+Weekly studies retain their automatic rolling weekly history rather than adopting
+an instant-analysis evidence period. The source catalog continues to enforce the
+approved date and aggregation policies.
 
 The API stamps `impact.decision_revision` from the action, outcome selection,
 expected outcome and evidence scope. The worker checks it before and after
@@ -146,6 +173,10 @@ delivery-history review. No external email is automatically replayed.
 - [Google CausalImpact assumptions](https://google.github.io/CausalImpact/), for
   the requirement of unaffected controls and stable relationships, not a claim
   that Decisionate implements that package.
+- [Chronological time-series validation](https://otexts.com/fpp3/tscv.html), for
+  held-out predictions using only preceding observations.
+- [statsmodels deterministic seasonal terms](https://www.statsmodels.org/stable/examples/notebooks/generated/deterministics.html),
+  for calendar effects and harmonic regressors; the installed OLS engine is retained.
 
 Synthetic tests use known positive, zero and negative interventions, and include
 missing data, seasonality, poor controls, context failures, permissions and queue,

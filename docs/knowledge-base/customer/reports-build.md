@@ -68,8 +68,8 @@ whether more or less of the result is better. An optional minimum worthwhile
 improvement expresses your business target in the result's own units. Costs are
 not automatically deducted.
 The optional target is under Business target. The decision supplies the outcome;
-the main setup has only one Comparison dataset, Result to compare, Dimension
-column and Unique value selection. The dimension controls belong to that
+the main setup has only one Comparison dataset and Result to compare. Its Date
+column sits alongside Dimension column and Unique value. These controls belong to that
 comparison, not to a second editable outcome dataset. All rows keeps the
 comparison unfiltered; choosing a dimension without a value blocks the assessment.
 Choosing another value replaces the current value rather than adding a segment.
@@ -77,13 +77,18 @@ Saved multi-value comparison filters remain visible and require an explicit
 single-value choice before another assessment. A saved outcome segment is retained
 and displayed beside the decision, with a clear control; it is not silently removed.
 
-When a comparison result is chosen in Business Analysis, its date column is
-preselected and the analysis uses the two results' overlapping available history.
+Business Analysis defaults to the period saved with the decision's report evidence.
+A matching previous assessment keeps its recorded period. If no evidence period
+was saved, the approved outcome dataset's available dates provide the default;
+the decision's creation date is never used as its data period or action date.
+The comparison's date column is preselected, but choosing a comparison or a date
+column does not silently replace the decision's period.
 The action's start date is the only date input visible in the main setup.
-Analysis settings contains optional date-column overrides, one shared history
-range and grouping. Changing a date column recalculates overlapping history.
+Analysis settings contains the outcome date-column override, one shared history
+range and grouping. The comparison date column remains beside its dimension filter.
 Datasets with no overlapping dates are blocked with an explicit message; a wider
-date range cannot invent overlap. Saved snapshots keep their stored date choices.
+date range cannot invent overlap. Comparisons outside the selected decision period
+are also blocked. Saved snapshots keep their stored date choices.
 Changing the selected comparison, date column or dimension filters requires the
 comparison confirmation again. Weekly Business Review uses the same single
 comparison controls, but retains its automatic weekly dates and grouping.
@@ -103,9 +108,25 @@ existing decision.
 
 The history must include dates before and after the change. At least 52 complete weeks before and
 8 after are needed with weekly grouping; daily needs 90 before and 28 after,
-and monthly needs 24 before and 6 after. Seasonal businesses also need about two
-years before the change. A partial week or month, or a period crossing the
+and monthly needs 24 before and 6 after. A partial week or month, or a period crossing the
 change date, is not counted. Missing comparison periods are not filled with zero.
+
+## Usual ups and downs in impact assessments
+
+There is no seasonal-business checkbox in Business impact analysis. The comparison
+provides the expected baseline, with reliability checked on records before the action;
+the two results are not forced to have equal levels or identical seasonal behavior.
+Earlier records must show that the comparison helps explain the outcome beyond
+ordinary trends and calendar effects. Otherwise no impact amount is presented.
+
+An extra yearly adjustment is considered only with about two years of pre-action
+history. It must improve two earlier prediction checks before being used, and
+the chosen baseline must then pass a separate held-back earlier-period check.
+Records after the action are not used to choose the adjustment. A supported yearly
+pattern cannot bypass missing-data, false-alarm, business-context or stability checks.
+With shorter history, the report explicitly says that separate yearly differences
+could not be checked reliably. Existing seasonal settings do not force or disable
+this automatic impact-baseline choice; other report and forecast settings are unchanged.
 
 The report answers whether the change appears to have helped, worked against the
 goal, or remains unclear. It shows the estimated difference and a range, checks
@@ -113,6 +134,8 @@ earlier predictions and false alarms, and explains the next step in ordinary
 business language. If the comparison fails the checks or other changes prevent
 a fair comparison, no impact amount is presented. A range including zero means
 the effect is unclear, not that the action definitely had no effect.
+The range assumes the selected baseline is appropriate and does not cover every
+uncertainty from choosing that baseline.
 
 This is a model-based estimate under stated assumptions, not a randomized test
 or automatic proof of cause and effect. This first version measures an ongoing

@@ -13,6 +13,7 @@ export type ImpactAnalysis = {
   outcome: CorrelationMetric | null; comparison: CorrelationMetric | null; comparison_reason: string
   headline: string; summary: string; next_steps: string[]; assumptions: string[]; limitations: string[]
   before_periods: number | null; after_periods: number | null
+  baseline?: { kind: "comparison" | "comparison_with_yearly_adjustment"; annual_adjustment: boolean; annual_history_available: boolean; message: string } | null
   checks: { key: string; passed: boolean; message: string; details: Record<string, unknown> }[]
   estimate: { effect: number; lower: number; upper: number; confidence_level: number; verdict: "helped" | "hurt" | "unclear"
     per_period_effect: number; actual: number; expected_without_change: number; relative_percent: number | null

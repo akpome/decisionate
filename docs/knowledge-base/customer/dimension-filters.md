@@ -21,7 +21,9 @@ channels in another source. Relationships has independent filters for both sides
 Business impact setup instead offers one comparison dataset and one Unique value
 for its dimension. Selecting a different value replaces the current comparison
 value. The decision supplies the outcome; any saved outcome segment is shown
-read-only with a clear control. Optional date overrides are under Analysis settings.
+read-only with a clear control. The comparison's Date column is beside Dimension
+column; changing it preserves the decision's analysis period. Outcome date
+overrides and a deliberate history-range change are under Analysis settings.
 
 ## Empty results and missing values
 

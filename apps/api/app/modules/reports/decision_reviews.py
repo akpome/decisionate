@@ -3,10 +3,13 @@
 import json
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy import and_, or_
 
+from app.modules.correlation.schemas import DateRange
 from app.modules.correlation.service import authorize_datasets, digest, encode
 from app.modules.decisions.duplicates import canonical_decisions
+from app.modules.decisions.metric_scope import reference_key
 from app.modules.decisions.models import Decision
 from .decision_drafts import is_report_decision_draft
 from .models import DecisionImpactReview
@@ -94,6 +97,28 @@ def decision_reviews(db, decision, user, workspace, offset=0):
             "next_offset": offset + 20 if len(rows) > 20 else None}
 
 
+def decision_data_period(decision, outcome):
+    try:
+        context = json.loads(decision.recommendation_context or "{}")
+    except (TypeError, ValueError):
+        return None, None
+    if not isinstance(context, dict) or context.get("evidence_kind") != "business_report" or not outcome:
+        return None, None
+    definition = context.get("definition")
+    if not isinstance(definition, dict) or not isinstance(definition.get("metrics"), list):
+        return None, None
+    reference = next((item for item in definition["metrics"] if reference_key(item) == reference_key(outcome)), None)
+    if reference is None:
+        return None, None
+    column = reference.get("date_column")
+    column = column if isinstance(column, str) and column.strip() else None
+    try:
+        period = DateRange.model_validate(definition.get("date_range") or context.get("window"))
+    except ValidationError:
+        return None, column
+    return period.model_dump(mode="json"), column
+
+
 def review_context(db, decision, user, workspace):
     from .service import report_decision_record
 
@@ -101,8 +126,10 @@ def review_context(db, decision, user, workspace):
     if outcome:
         authorize_datasets(db, user, workspace, [outcome["dataset_id"]])
     history = decision_reviews(db, decision, user, workspace)
+    period, column = decision_data_period(decision, outcome)
     return {"decision": report_decision_record(decision), "outcome": outcome,
-            "decision_revision": decision_revision(decision), "latest_review": next(iter(history["reviews"]), None)}
+            "decision_revision": decision_revision(decision), "latest_review": next(iter(history["reviews"]), None),
+            "decision_period": period, "outcome_date_column": column}
 
 
 def review_choices(db, user, workspace, *, search="", offset=0):
