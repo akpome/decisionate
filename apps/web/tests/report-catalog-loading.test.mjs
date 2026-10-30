@@ -105,6 +105,13 @@ test("a source retry makes one request instead of rescanning the catalog page", 
   assert.equal(result.metrics.length, 1)
 })
 
+test("single dataset name search remains metadata-only, encoded and paginated across the complete catalog", async () => {
+  const paths = []
+  await loadReportCatalogPage(async path => { paths.push(path); return page([40]) },
+    25, new AbortController().signal, () => {}, () => assert.fail("Search must not open source files"), { metadataOnly: true, search: "Orders & sales" })
+  assert.deepEqual(paths, ["/catalog?metadata_only=true&offset=25&search=Orders%20%26%20sales"])
+})
+
 test("a source retry remains retryable on errors, missing or mismatched source responses", async () => {
   for (const request of [async () => { throw new Error("Private bucket URL") }, async () => page([]), async () => ({ datasets: [ready(2)] })]) {
     const result = await loadReportCatalogDataset(request, entry(1), new AbortController().signal)

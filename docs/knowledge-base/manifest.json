@@ -2,7 +2,7 @@
   "schema_version": 1,
   "product": "Decisionate",
   "language": "en",
-  "reviewed_on": "2026-10-28",
+  "reviewed_on": "2026-10-29",
   "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
   "default_export_audience": "customer",
   "articles": [
@@ -338,6 +338,7 @@
       "sources": [
         "apps/api/app/modules/datasets/services/dimension_filters.py",
         "apps/web/features/datasets/components/dimension-filter.tsx",
+        "apps/web/components/searchable-select.tsx",
         "apps/web/features/reports/report-metric-picker.tsx",
         "apps/web/app/dashboard/help/page.tsx"
       ],
@@ -404,6 +405,7 @@
       ],
       "sources": [
         "apps/web/features/reports/report-workspace.tsx",
+        "apps/web/components/searchable-select.tsx",
         "apps/web/features/reports/report-metric-picker.tsx",
         "apps/web/features/reports/report-catalog-loading.ts",
         "apps/web/features/reports/types.ts",

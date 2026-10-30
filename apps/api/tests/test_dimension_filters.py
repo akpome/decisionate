@@ -77,6 +77,15 @@ class DimensionFilterTests(unittest.TestCase):
         self.assertEqual(dimension_options(self.dataset, frame, "customer_id", "104")["values"], ["Customer 104"])
         self.assertEqual(dimension_options(self.dataset, frame, "customer_id", ".*")["values"], [])
 
+    def test_special_value_search_matches_display_labels_without_changing_literal_tokens(self):
+        available = dimension_options(self.dataset, self.frame, "channel")["values"]
+        self.assertIn(None, available)
+        self.assertIn("", available)
+        self.assertIn("null", available)
+        self.assertEqual(dimension_options(self.dataset, self.frame, "channel", "missing")["values"], [None])
+        self.assertEqual(dimension_options(self.dataset, self.frame, "channel", "EMPTY STRING")["values"], [""])
+        self.assertEqual(dimension_options(self.dataset, self.frame, "channel", "null")["values"], ["null"])
+
     def test_line_dimension_cannot_silently_allocate_invoice_header_totals(self):
         dataset = SimpleNamespace(source_type="shopify", source_config='{"resource":"orders"}')
         frame = pd.DataFrame({"order_id": [1, 1], "total_price": [100, None], "line_total": [40, 60], "product_name": ["A", "B"]})

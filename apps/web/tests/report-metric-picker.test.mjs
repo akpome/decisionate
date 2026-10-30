@@ -10,6 +10,11 @@ const ts = require("typescript")
 const { renderToStaticMarkup } = require("react-dom/server")
 const source = readFileSync(new URL("../features/reports/report-metric-picker.tsx", import.meta.url), "utf8")
 const dimensionProps = []
+const datasetSelectProps = []
+const searchableModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../components/searchable-select.tsx", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2021 },
+}).outputText, { module: searchableModule, exports: searchableModule.exports, require })
 const loadedModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2021 },
@@ -19,6 +24,10 @@ vm.runInNewContext(ts.transpileModule(source, {
     if (name === "next/link") return { __esModule: true, default: props => React.createElement("a", props) }
     if (name === "@/app/use-decisionate-language") return { useDecisionateText: () => ({ t: value => value }) }
     if (name === "@/features/relationships/types") return { metricIdentity: metric => `${metric.dataset_id}:${metric.metric_key}` }
+    if (name === "@/components/searchable-select") return { SearchableSelect: props => {
+      datasetSelectProps.push(props)
+      return React.createElement(searchableModule.exports.SearchableSelect, props)
+    } }
     if (name === "@/features/datasets/components/dimension-filter") return { DatasetDimensionFilter: props => {
       dimensionProps.push(props)
       return React.createElement("label", null, "Dimension column", React.createElement("select", { "data-dataset-id": props.datasetId }))
@@ -279,11 +288,11 @@ test("single dataset analysis starts with one dataset dropdown and no unrelated 
     userId: "owner", onDimensionFilterChange() {} })
   assert.match(html, /Dataset and metrics/)
   assert.match(html, /for="report-dataset"[^>]*>Dataset<\/label>/)
-  assert.match(html, /Choose a dataset/)
-  assert.match(html, /Advertising\.csv \/ csv/)
-  assert.match(html, /Orders\.csv \/ csv/)
+  assert.match(html, /Choose or search datasets/)
+  assert.deepEqual(Array.from(datasetSelectProps.at(-1).options, option => option.label), ["Choose a dataset", "Advertising.csv / csv", "Orders.csv / csv"])
   assert.match(html, /No dataset selected/)
-  assert.equal((html.match(/<select/g) || []).length, 1)
+  assert.equal((html.match(/role="combobox"/g) || []).length, 1)
+  assert.equal((html.match(/<select/g) || []).length, 0)
   assert.doesNotMatch(html, /multiple=""|type="checkbox"|Dimension column|Date column|Search metrics/)
   assert.equal(dimensionProps.length, 0)
 })
@@ -293,7 +302,7 @@ test("choosing one dataset shows only its metrics, dates and dimension filter be
   const html = render({ singleDataset: true, selectedDatasetId: 2, userId: "owner", workspaceId: "workspace", onDimensionFilterChange() {},
     datasets: [dataset(), dataset({ dataset_id: 2, dataset_label: "Orders.csv", metrics: [metric("orders", 2)] })],
     dimensionFilters: [{ dataset_id: 2, column: "region", values: ["East"] }] })
-  assert.match(html, /<option value="2" selected="">Orders\.csv/)
+  assert.match(html, /id="report-dataset"[^>]*value="Orders\.csv \/ csv"/)
   assert.equal((html.match(/<legend/g) || []).length, 1)
   assert.equal((html.match(/type="checkbox"/g) || []).length, 1)
   assert.doesNotMatch(html, /report-metric-search|Search metrics|placeholder="Metric name"/)
@@ -306,7 +315,7 @@ test("choosing one dataset shows only its metrics, dates and dimension filter be
 test("saved single-dataset metrics restore the dataset selector without choosing another source", () => {
   const html = render({ singleDataset: true, metrics: [{ ...reference("orders"), dataset_id: 2 }],
     datasets: [dataset(), dataset({ dataset_id: 2, dataset_label: "Orders.csv", metrics: [metric("orders", 2)] })] })
-  assert.match(html, /<option value="2" selected="">Orders\.csv/)
+  assert.match(html, /id="report-dataset"[^>]*value="Orders\.csv \/ csv"/)
   assert.match(html, /type="checkbox"[^>]*checked=""/)
   assert.doesNotMatch(html, /report-metric-search|Search metrics/)
   assert.doesNotMatch(html, /report-date-column-1|>spend<|>revenue</)
@@ -314,7 +323,7 @@ test("saved single-dataset metrics restore the dataset selector without choosing
 
 test("an unavailable saved dataset does not expose or automatically select another dataset", () => {
   const html = render({ singleDataset: true, selectedDatasetId: 99, metrics: [{ ...reference(), dataset_id: 99 }] })
-  assert.match(html, /<option value="99" disabled="" selected="">Selected dataset unavailable/)
+  assert.match(html, /id="report-dataset"[^>]*value="Selected dataset unavailable\./)
   assert.doesNotMatch(html, /type="checkbox"|report-date-column-1/)
 })
 
@@ -333,4 +342,15 @@ test("report builder uses the picker and still clears calculated results on edit
   assert.match(report, /reportDateColumn\(dataset, definition.metrics, dateColumns\)/)
   assert.match(report, /setReport\(null\)/)
   assert.doesNotMatch(report, /Review dataset metric selection/)
+})
+
+test("dataset search forwards the query without choosing, and only approved choices change the selected source", () => {
+  const searches = [], changes = []
+  render({ singleDataset: true, onDatasetSearch: value => searches.push(value), onDatasetChange: value => changes.push(value) })
+  const control = datasetSelectProps.at(-1)
+  control.onSearchChange("advertising")
+  assert.deepEqual(searches, ["advertising"])
+  assert.deepEqual(changes, [])
+  control.onChange("1"); control.onChange("999"); control.onChange("")
+  assert.deepEqual(changes, [1, null])
 })

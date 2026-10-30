@@ -20,7 +20,9 @@ decision creation or decision review on the Decisions page.
 ## Analyze one dataset
 
 Open Business Analysis and choose Single dataset report. Under Dataset and
-metrics, choose one Dataset from the dropdown. Before this choice, no source's
+metrics, use the searchable Dataset dropdown to choose one source. Type its name
+or connector to filter choices, including sources on later catalog pages. Search
+does not select a dataset or load its data files. Before choosing, no source's
 metrics or dimension controls are displayed. Afterward, select the metrics from
 that dataset and review its preselected Date column. Choose Dimension column and
 Unique values to restrict the rows included in the analysis. All rows keeps the
@@ -39,7 +41,9 @@ loaded with Load more datasets when the catalog is paginated.
 ## Did my business change help?
 
 Open an existing decision and choose Assess business impact, or select Decision
-to review in the report builder. The decision's action and outcome metric are
+to review in the report builder. This is one searchable dropdown: type a decision
+name to filter its choices, then select the decision. Typing alone does not change
+the selected decision. The decision's action and outcome metric are
 reused, not entered as a second decision. If no outcome metric was recorded,
 choose it in Decision Details first. Confirm when the action actually started;
 the decision creation date is not assumed to be the implementation date.
@@ -69,7 +73,9 @@ improvement expresses your business target in the result's own units. Costs are
 not automatically deducted.
 The optional target is under Business target. The decision supplies the outcome;
 the main setup has only one Comparison dataset and Result to compare. Its Date
-column sits alongside Dimension column and Unique value. These controls belong to that
+column sits alongside Dimension column and Unique value. Unique value is a
+searchable dropdown: type to filter choices, then select one. Searching alone
+does not replace the selected comparison value. These controls belong to that
 comparison, not to a second editable outcome dataset. All rows keeps the
 comparison unfiltered; choosing a dimension without a value blocks the assessment.
 Choosing another value replaces the current value rather than adding a segment.

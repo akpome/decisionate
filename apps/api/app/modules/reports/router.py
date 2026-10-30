@@ -6,6 +6,7 @@ from typing import Literal
 import pandas as pd
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import or_
 
 from app.db.database import SessionLocal
 from app.db.models import Dataset, WeeklyReportPreference
@@ -110,11 +111,14 @@ def generate(db, payload, user, workspace, progress=None):
 
 @router.get("/catalog")
 def catalog(request: Request, db=Depends(database), offset: int = Query(0, ge=0), dataset_id: int | None = Query(None, ge=1),
-            metadata_only: bool = Query(False)):
+            metadata_only: bool = Query(False), search: str = Query("", max_length=200)):
     user, workspace = identity(request)
     query = db.query(Dataset).filter(dataset_scope(user, workspace))
     if dataset_id is not None:
         query = query.filter(Dataset.id == dataset_id)
+    if search.strip():
+        query = query.filter(or_(Dataset.file_name.icontains(search.strip(), autoescape=True),
+                                 Dataset.source_type.icontains(search.strip(), autoescape=True)))
     if metadata_only:
         query = query.with_entities(Dataset.id, Dataset.file_name, Dataset.source_type)
     page_size = 1 if dataset_id is not None else 25

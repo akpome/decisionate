@@ -62,9 +62,11 @@ def dimension_options(dataset, frame, column=None, search="", offset=0, limit=10
         return {"columns": columns, "values": [], "next_offset": None}
     if column not in {item["column"] for item in columns}:
         raise DimensionFilterError("The selected dimension column is unavailable")
-    values = frame[column].map(dimension_value).drop_duplicates().tolist()
+    # Keep missing tokens as None instead of allowing pandas to coerce them to NaN.
+    values = list(dict.fromkeys(map(dimension_value, frame[column])))
     if search:
-        values = [value for value in values if search.casefold() in ("Missing" if value is None else value).casefold()]
+        values = [value for value in values if search.casefold() in
+                  ("Missing" if value is None else "Empty string" if value == "" else value).casefold()]
     values.sort(key=lambda value: (value is not None, (value or "").casefold(), value or ""))
     return {"columns": columns, "values": values[offset:offset + limit],
             "next_offset": offset + limit if len(values) > offset + limit else None}

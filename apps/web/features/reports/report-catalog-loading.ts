@@ -28,9 +28,9 @@ export async function loadReportCatalogDataset(request: CatalogRequest, dataset:
 }
 
 export async function loadReportCatalogPage(request: CatalogRequest, offset: number, signal: AbortSignal,
-  onPage: (page: CatalogPage) => void, onDataset: (dataset: CatalogDataset) => void, options: { metadataOnly?: boolean } = {}) {
+  onPage: (page: CatalogPage) => void, onDataset: (dataset: CatalogDataset) => void, options: { metadataOnly?: boolean; search?: string } = {}) {
   signal.throwIfAborted()
-  const page = await request<CatalogPage>(`/catalog?metadata_only=true&offset=${offset}`, { signal })
+  const page = await request<CatalogPage>(`/catalog?metadata_only=true&offset=${offset}${options.search ? `&search=${encodeURIComponent(options.search)}` : ""}`, { signal })
   if (signal.aborted) return
   onPage(page)
   if (options.metadataOnly) return

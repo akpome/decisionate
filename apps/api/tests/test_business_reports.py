@@ -678,6 +678,36 @@ class BusinessReportWorkflowTests(unittest.TestCase):
             self.assertEqual(loader.call_count, 1)
             self.assertEqual(loader.call_args.args[0].id, 2)
 
+    def test_catalog_name_search_finds_later_pages_without_file_reads_or_workspace_leaks(self):
+        with self.Session() as db:
+            for identity in range(4, 35):
+                db.add(Dataset(id=identity, user_id="owner", workspace_id="owner", file_name=f"Sales {identity}.csv",
+                               file_path="private-storage-path", source_type="shopify", source_config="{}", row_count=0, column_count=0))
+            db.commit()
+        with patch.object(router, "load_dataframe_from_dataset", side_effect=AssertionError("No scans")) as loader:
+            result = self.client.get("/api/v2/business-reports/catalog", params={"metadata_only": True, "search": "sAlEs 34"}).json()
+            self.assertEqual([item["dataset_id"] for item in result["datasets"]], [34])
+            first = self.client.get("/api/v2/business-reports/catalog", params={"metadata_only": True, "search": "shopify"}).json()
+            second = self.client.get("/api/v2/business-reports/catalog", params={"metadata_only": True, "search": "shopify", "offset": first["next_offset"]}).json()
+            self.assertEqual(len(first["datasets"]), 25)
+            self.assertEqual(len(second["datasets"]), 6)
+            self.assertIsNone(second["next_offset"])
+            private = self.client.get("/api/v2/business-reports/catalog", params={"metadata_only": True, "search": "private"}).json()
+            self.assertEqual(private["datasets"], [])
+            loader.assert_not_called()
+            self.assertNotIn("private-storage-path", json.dumps(result))
+
+    def test_catalog_search_treats_wildcards_as_literal_text_and_rejects_oversized_queries(self):
+        with self.Session() as db:
+            db.get(Dataset, 1).file_name = "Sales_100%.csv"
+            db.commit()
+        for search in ("_", "%", "100%"):
+            response = self.client.get("/api/v2/business-reports/catalog", params={"metadata_only": True, "search": search})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual([item["dataset_id"] for item in response.json()["datasets"]], [1])
+        response = self.client.get("/api/v2/business-reports/catalog", params={"metadata_only": True, "search": "x" * 201})
+        self.assertEqual(response.status_code, 422)
+
     def test_cross_dataset_validation_and_scope_are_enforced(self):
         payload = definition(); payload["metrics"][1]["dataset_id"] = 3
         self.assertEqual(self.client.post("/api/v2/business-reports/preview", json=payload).status_code, 403)

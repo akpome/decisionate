@@ -15,11 +15,13 @@ function load(source, globals = {}) {
   } }).outputText, { module: loadedModule, exports: loadedModule.exports, require: name => {
     if (name === "@/app/use-decisionate-language") return { useDecisionateText: () => ({ t: value => value }) }
     if (name === "@/lib/api") return { getDatasetDimensions: () => { throw new Error("No requests during server render") } }
+    if (name === "@/components/searchable-select") return load(readFileSync(new URL("../components/searchable-select.tsx", import.meta.url), "utf8"))
     return require(name)
   }, ...globals })
   return loadedModule.exports
 }
 const { DatasetDimensionFilter, dimensionFilterLabel } = load(readFileSync(new URL("../features/datasets/components/dimension-filter.tsx", import.meta.url), "utf8"))
+const { SearchableSelect } = load(readFileSync(new URL("../components/searchable-select.tsx", import.meta.url), "utf8"))
 const render = props => renderToStaticMarkup(React.createElement(DatasetDimensionFilter, { datasetId: 7, userId: "owner", onChange() {}, ...props }))
 
 test("dimension control defaults to all rows with no preselected values", () => {
@@ -58,12 +60,14 @@ test("single-value comparisons show their selected value directly without multi-
   for (const value of ["East", null, "", "null"]) {
     const html = render({ singleValue: true, value: { column: "region", values: [value] } })
     assert.match(html, /<label[^>]*>Unique value<\/label>/)
-    assert.match(html, /<option[^>]*selected=""/)
+    assert.match(html, /role="combobox"/)
+    assert.match(html, /Choose or search values/)
+    assert.doesNotMatch(html, /Search values|Search unique values/)
     assert.match(html, /Clear dimension filter/)
     assert.doesNotMatch(html, /Remove value:|selected values|Selected values|\/ 50/)
   }
   const legacy = render({ singleValue: true, value: { column: "region", values: ["East", "West"] } })
-  assert.match(legacy, /value="saved-multiple" disabled="" selected="">Saved values: 2/)
+  assert.match(legacy, /value="Saved values: 2"/)
   assert.match(legacy, /East, West/)
   assert.doesNotMatch(legacy, /Remove value:/)
 })
@@ -72,22 +76,32 @@ test("single-value selection replaces saved segments and preserves literal missi
   const hooks = { ...React, useEffect() {}, useId: () => "dimension", useRef: () => ({ current: null }),
     useState: initial => [typeof initial === "function" ? initial() : initial, () => {}] }
   const { DatasetDimensionFilter: Control } = load(readFileSync(new URL("../features/datasets/components/dimension-filter.tsx", import.meta.url), "utf8"), {
-    require: name => name === "react" ? hooks : name === "@/app/use-decisionate-language" ? { useDecisionateText: () => ({ t: value => value }) } : name === "@/lib/api" ? {} : require(name),
+    require: name => name === "react" ? hooks : name === "@/app/use-decisionate-language" ? { useDecisionateText: () => ({ t: value => value }) } : name === "@/lib/api" ? {} : name === "@/components/searchable-select" ? { SearchableSelect } : require(name),
   })
   const changes = []
   const tree = Control({ datasetId: 7, userId: "owner", singleValue: true, value: { column: "region", values: ["East", "West"] }, onChange: value => changes.push(value) })
   let selector
   function visit(node) {
     if (!node || typeof node !== "object") return
-    if (node.type === "select" && node.props.id === "dimension-values") selector = node
+    if (node.type === SearchableSelect && node.props.id === "dimension-values") selector = node
     React.Children.forEach(node.props?.children, visit)
   }
   visit(tree)
   assert.ok(selector)
   for (const value of ["West", null, "", "null"]) {
-    selector.props.onChange({ target: { value: JSON.stringify(value) } })
+    selector.props.onChange(JSON.stringify(value))
     assert.deepEqual(JSON.parse(JSON.stringify(changes.at(-1))), { column: "region", values: [value] })
   }
+})
+
+test("only single-value comparisons merge search and selection into a two-column row", () => {
+  const html = render({ singleValue: true, value: { column: "region", values: ["West"] } })
+  assert.equal((html.match(/<input/g) || []).length, 1)
+  assert.equal((html.match(/<select/g) || []).length, 1)
+  assert.match(html, /value="West"/)
+  assert.match(html, /@min-\[28rem\]:grid-cols-\[repeat\(2,minmax\(0,1fr\)\)_auto\]/)
+  assert.doesNotMatch(html, /Search unique values|>Search values</)
+  assert.match(render({ value: { column: "region", values: ["West"] } }), /Search unique values/)
 })
 
 test("dimension, unique values and search share a responsive equal-width control row", () => {

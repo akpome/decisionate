@@ -6,6 +6,7 @@ import { LoaderCircle, RefreshCw, Search, X } from "lucide-react"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { metricIdentity, type CatalogDataset, type CatalogMetricIssue, type MetricRef } from "@/features/relationships/types"
 import { DatasetDimensionFilter } from "@/features/datasets/components/dimension-filter"
+import { SearchableSelect } from "@/components/searchable-select"
 import type { DatasetDimensionFilter as DimensionSelection, DimensionFilter } from "@/lib/api"
 
 const issueLabels: Record<string, string> = {
@@ -37,7 +38,7 @@ export function filterReportDatasets(datasets: CatalogDataset[], search: string)
   })
 }
 
-export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, onRetryDataset, retryingDataset = null, footer, singleDataset = false, selectedDatasetId = metrics[0]?.dataset_id ?? null, onDatasetChange, selectionDisabled = false, userId, workspaceId, dimensionFilters = [], onDimensionFilterChange, lockedMetric }: {
+export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, onRetryDataset, retryingDataset = null, footer, singleDataset = false, selectedDatasetId = metrics[0]?.dataset_id ?? null, onDatasetChange, onDatasetSearch, selectionDisabled = false, userId, workspaceId, dimensionFilters = [], onDimensionFilterChange, lockedMetric }: {
   datasets: CatalogDataset[]
   metrics: MetricRef[]
   dateColumns: Record<number, string>
@@ -52,6 +53,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   singleDataset?: boolean
   selectedDatasetId?: number | null
   onDatasetChange?: (datasetId: number | null) => void
+  onDatasetSearch?: (search: string) => void
   selectionDisabled?: boolean
   userId?: string
   workspaceId?: string
@@ -76,16 +78,14 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
     <div className="mb-4 shrink-0 space-y-4">
       <h2 className="text-base font-semibold">{t(singleDataset ? "Dataset and metrics" : "Datasets and metrics")}</h2>
       {singleDataset && <div className="w-full max-w-xl">
-        <label htmlFor="report-dataset" className="block text-xs font-medium text-gray-600">{t("Dataset")}</label>
-        <select id="report-dataset" className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950" value={selectedDatasetId ?? ""} disabled={selectionDisabled || loading && !datasets.length} onChange={event => {
-          const identity = event.target.value ? Number(event.target.value) : null
+        <SearchableSelect id="report-dataset" label={t("Dataset")} placeholder={t("Choose or search datasets")} value={selectedDatasetId === null ? null : String(selectedDatasetId)}
+          selectedLabel={selectedDatasetId === null ? "" : t("Selected dataset unavailable.")} disabled={selectionDisabled} loading={loading} loadingLabel={t("Loading datasets...")} emptyLabel={t("No matching datasets.")}
+          options={[{ value: "", label: t("Choose a dataset") }, ...datasets.map(dataset => ({ value: String(dataset.dataset_id), label: `${dataset.dataset_label} / ${dataset.connector}` }))]}
+          onSearchChange={onDatasetSearch} footer={error && onRetry ? <button type="button" disabled={loading} onClick={onRetry} className="inline-flex min-h-10 items-center gap-2 text-sm text-blue-700 underline"><RefreshCw size={16} aria-hidden="true" />{t("Retry")}</button> : footer} onChange={value => {
+          const identity = value ? Number(value) : null
           if (identity !== null && !datasets.some(dataset => dataset.dataset_id === identity)) return
           onDatasetChange?.(identity)
-        }}>
-          <option value="">{t("Choose a dataset")}</option>
-          {selectedDatasetId !== null && !datasets.some(dataset => dataset.dataset_id === selectedDatasetId) && <option value={selectedDatasetId} disabled>{t("Selected dataset unavailable.")}</option>}
-          {datasets.map(dataset => <option key={dataset.dataset_id} value={dataset.dataset_id}>{dataset.dataset_label} / {dataset.connector}</option>)}
-        </select>
+        }} />
       </div>}
       {!singleDataset && <div className="w-full max-w-sm">
         <label className="block text-xs font-medium text-gray-600" htmlFor="report-metric-search">{t("Search datasets and metrics")}</label>
@@ -145,6 +145,6 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
       })}
       {visible.length === 0 && (datasets.length > 0 || !loading && !error) && <div className="border-y border-gray-200 py-8 text-sm text-gray-600"><p role="status">{t(!datasets.length ? "No datasets available." : singleDataset ? selectedDatasetId === null ? "No dataset selected." : "Selected dataset unavailable." : "No matching datasets or metrics.")}</p>{datasets.length === 0 && <Link href="/dashboard/datasets" className="mt-2 inline-flex min-h-10 items-center font-medium text-blue-700 underline">{t("Open datasets")}</Link>}</div>}
     </div>
-    {footer && <div className="mt-3 shrink-0">{footer}</div>}
+    {!singleDataset && footer && <div className="mt-3 shrink-0">{footer}</div>}
   </section>
 }

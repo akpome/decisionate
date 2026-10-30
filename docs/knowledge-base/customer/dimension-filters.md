@@ -19,7 +19,9 @@ with up to 50 selected values for that column. Report filters are dataset-local:
 filtering one source's channel does not automatically find or filter equivalent
 channels in another source. Relationships has independent filters for both sides.
 Business impact setup instead offers one comparison dataset and one Unique value
-for its dimension. Selecting a different value replaces the current comparison
+for its dimension. Its Unique value control combines search and selection in one
+dropdown. Type to filter choices, then select one; search alone does not change
+the selected value. Selecting a different value replaces the current comparison
 value. The decision supplies the outcome; any saved outcome segment is shown
 read-only with a clear control. The comparison's Date column is beside Dimension
 column; changing it preserves the decision's analysis period. Outcome date

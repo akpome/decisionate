@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { LoaderCircle, RefreshCw, Search, X } from "lucide-react"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { getDatasetDimensions, type DimensionFilter, type DimensionOptions } from "@/lib/api"
+import { SearchableSelect } from "@/components/searchable-select"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 export const dimensionValueLabel = (value: string | null) => value === null ? "Missing" : value === "" ? "Empty string" : value
@@ -16,7 +17,7 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
   const { t } = useDecisionateText()
   const id = useId()
   const fieldset = useRef<HTMLFieldSetElement>(null)
-  const [options, setOptions] = useState<DimensionOptions & { scope?: string; datasetScope?: string }>({ columns: [], values: [], next_offset: null })
+  const [options, setOptions] = useState<DimensionOptions & { scope?: string; datasetScope?: string; valueColumn?: string }>({ columns: [], values: [], next_offset: null })
   const [activated, setActivated] = useState(!deferLoad || Boolean(value))
   const [search, setSearch] = useState("")
   const [offset, setOffset] = useState(0)
@@ -46,7 +47,7 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
       try {
         const result = await getDatasetDimensions(datasetId, userId, workspaceId, { column, search, offset, signal: controller.signal })
         if (!controller.signal.aborted) {
-          setOptions(current => ({ ...result, scope, datasetScope,
+          setOptions(current => ({ ...result, scope, datasetScope, valueColumn: column,
             values: offset && current.scope === scope ? [...new Set([...current.values, ...result.values])] : result.values }))
         }
       } catch (failure) {
@@ -58,10 +59,13 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
   }, [datasetId, userId, workspaceId, column, search, offset, version, activated, scope, datasetScope])
 
   const selectedValues = value?.values || []
-  const visible = [...new Set([...selectedValues, ...(currentOptions ? options.values : [])])]
+  const valuesAvailable = currentOptions || singleValue && options.datasetScope === datasetScope && options.valueColumn === column
+  const visible = [...new Set([...selectedValues, ...(valuesAvailable ? options.values : [])])]
   const savedMultiple = singleValue && selectedValues.length > 1
+  const moreValues = currentOptions && options.next_offset !== null && <button type="button" className="min-h-10 text-sm font-medium text-blue-700 underline disabled:opacity-50" disabled={loading} onClick={() => setOffset(options.next_offset!)}>{t("Load more values")}</button>
+  const errorFeedback = error && <div className="flex min-w-0 items-start gap-2 text-xs text-red-700"><p role="alert" className="min-w-0 flex-1 break-words">{error}</p><button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300" title={t("Retry dimension values")} aria-label={t("Retry dimension values")} onClick={() => setVersion(current => current + 1)}><RefreshCw size={15} /></button></div>
   return <fieldset ref={fieldset} disabled={disabled} aria-label={t("Filter by column values")} onFocusCapture={() => setActivated(true)} onMouseEnter={() => setActivated(true)} className={`@container min-w-0 space-y-3 ${embedded ? "" : "mt-4 border-t border-gray-100 pt-3"}`}>
-    <div className={`grid min-w-0 items-end gap-3 ${column ? "grid-cols-[minmax(0,1fr)_auto] @min-[28rem]:grid-cols-[repeat(3,minmax(0,1fr))_auto]" : "grid-cols-1"}`}>
+    <div className={`grid min-w-0 items-end gap-3 ${column ? `grid-cols-[minmax(0,1fr)_auto] ${singleValue ? "@min-[28rem]:grid-cols-[repeat(2,minmax(0,1fr))_auto]" : "@min-[28rem]:grid-cols-[repeat(3,minmax(0,1fr))_auto]"}` : "grid-cols-1"}`}>
       <div className="min-w-0">
         <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-column`}>{t("Dimension column")}</label>
         <select id={`${id}-column`} className={input} value={column || ""} onChange={event => {
@@ -76,24 +80,31 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
       </div>
       {column && <>
         <div className="col-span-full min-w-0 @min-[28rem]:col-span-1">
-          <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-values`}>{t(singleValue ? "Unique value" : "Unique values")}</label>
-          <select id={`${id}-values`} className={input} value={singleValue ? savedMultiple ? "saved-multiple" : selectedValues.length ? JSON.stringify(selectedValues[0]) : "" : ""} disabled={!singleValue && selectedValues.length >= 50} onChange={event => {
-            if (!event.target.value || !singleValue && selectedValues.length >= 50) return
+          {singleValue ? <SearchableSelect key={JSON.stringify([datasetScope, column])} id={`${id}-values`} label={t("Unique value")} placeholder={t("Choose or search values")}
+            value={selectedValues.length === 1 ? JSON.stringify(selectedValues[0]) : null} selectedLabel={savedMultiple ? `${t("Saved values")}: ${selectedValues.length}` : ""}
+            disabled={disabled} loading={loading} loadingLabel={t("Loading dimensions...")} emptyLabel={error ? "" : t("No matching values.")}
+            options={visible.map(item => ({ value: JSON.stringify(item), label: dimensionValueLabel(item) }))}
+            onChange={selected => onChange({ column, values: [JSON.parse(selected) as string | null] })}
+            onSearchChange={nextSearch => {
+              if (nextSearch === search && offset === 0) return
+              setSearch(nextSearch); setOffset(0); setLoading(true); setError("")
+            }} footer={errorFeedback || moreValues} /> : <>
+          <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-values`}>{t("Unique values")}</label>
+          <select id={`${id}-values`} className={input} value="" disabled={selectedValues.length >= 50} onChange={event => {
+            if (!event.target.value || selectedValues.length >= 50) return
             const selected = JSON.parse(event.target.value) as string | null
-            if (singleValue) onChange({ column, values: [selected] })
-            else if (!selectedValues.includes(selected)) onChange({ column, values: [...selectedValues, selected] })
+            if (!selectedValues.includes(selected)) onChange({ column, values: [...selectedValues, selected] })
           }}>
-            <option value="">{t(singleValue ? "Select a value" : "Select values")}</option>
-            {savedMultiple && <option value="saved-multiple" disabled>{t("Saved values")}: {selectedValues.length}</option>}
-            {visible.map(item => <option key={JSON.stringify(item)} value={JSON.stringify(item)} disabled={!singleValue && selectedValues.includes(item)}>{dimensionValueLabel(item)}</option>)}
-          </select>
+            <option value="">{t("Select values")}</option>
+            {visible.map(item => <option key={JSON.stringify(item)} value={JSON.stringify(item)} disabled={selectedValues.includes(item)}>{dimensionValueLabel(item)}</option>)}
+          </select></>}
         </div>
-        <div className="col-span-full min-w-0 @min-[28rem]:col-span-1">
+        {!singleValue && <div className="col-span-full min-w-0 @min-[28rem]:col-span-1">
           <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-search`}>{t("Search values")}</label>
           <div className="relative"><Search size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-gray-400" /><input id={`${id}-search`} aria-label={t("Search unique values")} type="search" className={`${input} pl-9`} placeholder={t("Search values")} value={search} onChange={event => { setSearch(event.target.value); setOffset(0) }} /></div>
-        </div>
+        </div>}
       </>}
-      {value && <button type="button" className="col-start-2 row-start-1 inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 @min-[28rem]:col-start-4" title={t("Clear dimension filter")} aria-label={t("Clear dimension filter")} onClick={() => { onChange(undefined); setSearch(""); setOffset(0) }}><X size={16} /></button>}
+      {value && <button type="button" className={`col-start-2 row-start-1 inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 ${singleValue ? "@min-[28rem]:col-start-3" : "@min-[28rem]:col-start-4"}`} title={t("Clear dimension filter")} aria-label={t("Clear dimension filter")} onClick={() => { onChange(undefined); setSearch(""); setOffset(0) }}><X size={16} /></button>}
     </div>
     {column && <div className="min-w-0 space-y-2">
       {!singleValue && selectedValues.length > 0 && <div role="group" aria-label={`${column} ${t("selected values")}`} className="flex max-h-40 min-w-0 flex-wrap gap-2 overflow-y-auto">
@@ -102,14 +113,14 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
           <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100" title={`${t("Remove value")}: ${dimensionValueLabel(item)}`} aria-label={`${t("Remove value")}: ${dimensionValueLabel(item)}`} onClick={() => onChange({ column, values: selectedValues.filter(selected => selected !== item) })}><X size={14} /></button>
         </span>)}
       </div>}
-      {!loading && !error && currentOptions && options.values.length === 0 && <p role="status" className="text-xs text-gray-500">{t("No matching values.")}</p>}
+      {!singleValue && !loading && !error && currentOptions && options.values.length === 0 && <p role="status" className="text-xs text-gray-500">{t("No matching values.")}</p>}
       {selectedValues.length === 0 && <p className="text-xs text-amber-800">{t("No dimension values selected.")}</p>}
       {!singleValue && selectedValues.length > 0 && <p className="text-xs text-gray-600">{t("Selected values")}: {selectedValues.length} / 50</p>}
       {savedMultiple && <p className="break-words text-xs text-amber-800">{t("Saved values")}: {selectedValues.map(dimensionValueLabel).join(", ")}</p>}
-      {currentOptions && options.next_offset !== null && <button type="button" className="min-h-10 text-sm font-medium text-blue-700 underline disabled:opacity-50" disabled={loading} onClick={() => setOffset(options.next_offset!)}>{t("Load more values")}</button>}
+      {!singleValue && moreValues}
     </div>}
-    {loading && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><LoaderCircle size={14} className="animate-spin" />{t("Loading dimensions...")}</p>}
-    {error && <div className="flex min-w-0 items-start gap-2 text-xs text-red-700"><p role="alert" className="min-w-0 flex-1 break-words">{error}</p><button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300" title={t("Retry dimension values")} aria-label={t("Retry dimension values")} onClick={() => setVersion(current => current + 1)}><RefreshCw size={15} /></button></div>}
+    {loading && (!singleValue || !column) && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><LoaderCircle size={14} className="animate-spin" />{t("Loading dimensions...")}</p>}
+    {(!singleValue || !column) && errorFeedback}
     {!loading && !error && options.datasetScope === datasetScope && !columns.length && <p className="text-xs text-gray-500">{t("No filterable columns available.")}</p>}
   </fieldset>
 }
