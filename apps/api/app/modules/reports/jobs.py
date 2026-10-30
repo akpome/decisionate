@@ -42,13 +42,17 @@ def validate_definition(db, payload, user, workspace):
     return definition, datasets
 
 
-def weekly_configuration(db, preference, workspace):
+def weekly_configuration(db, preference, workspace, user=None):
     from app.modules.alerts.router import build_weekly_report_preference_response, weekly_business_template
 
     configuration = build_weekly_report_preference_response(preference).model_dump(mode="json")
     for key in ("last_sent_at", "last_send_status", "last_send_error"):
         configuration.pop(key, None)
-    return {"preference": configuration, "template": weekly_business_template(db, preference, workspace)}
+    template = weekly_business_template(db, preference, workspace)
+    if template and template.get("impact"):
+        from .decision_reviews import bind_decision_review
+        bind_decision_review(db, template, user or workspace, workspace)
+    return {"preference": configuration, "template": template}
 
 
 def enqueue(db, user, workspace, kind, definition, datasets, request_key=None):
@@ -93,7 +97,7 @@ def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=Fal
     from .service import complete_week
 
     anchor = datetime.now(ZoneInfo(reporting_timezone())).date()
-    definition = {"configuration": weekly_configuration(db, preference, workspace), "anchor": str(anchor),
+    definition = {"configuration": weekly_configuration(db, preference, workspace, user), "anchor": str(anchor),
                   "include_ai_analysis": include_ai, "scheduled": scheduled, "reporting_timezone": reporting_timezone(), "report_only": report_only}
     if owner_only:
         if not send or scheduled:

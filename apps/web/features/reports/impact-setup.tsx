@@ -6,6 +6,7 @@ import { ArrowRight, LoaderCircle, RefreshCw } from "lucide-react"
 import type { CatalogDataset, MetricRef } from "@/features/relationships/types"
 import type { ImpactStudy } from "./impact-types"
 import { reportDateColumn } from "./report-metric-picker"
+import { ImpactTiming } from "./impact-timing"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 export function ImpactChange({ study, datasets, onChange }: {
@@ -20,9 +21,10 @@ export function ImpactChange({ study, datasets, onChange }: {
     </dl>
     {study.decision_id && <Link className="inline-flex min-h-10 items-center text-sm text-blue-700 underline" href={`/dashboard/decisions/${study.decision_id}#decision-title`}>Edit the action or result in Decision Details</Link>}
     <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-      <label className="min-w-0 text-sm font-medium">When did you start?<input className={input} required type="date" value={study.change_date} onChange={event => onChange({ change_date: event.target.value })} /></label>
+      <label className="min-w-0 text-sm font-medium">When did you implement the change?<input className={input} required type="date" value={study.change_date} onChange={event => onChange({ change_date: event.target.value })} /></label>
       <label className="min-w-0 text-sm font-medium">Success means<select className={input} value={study.desired_direction} onChange={event => onChange({ desired_direction: event.target.value as ImpactStudy["desired_direction"] })}><option value="increase">More of this result</option><option value="decrease">Less of this result</option></select></label>
     </div>
+    <ImpactTiming study={study} onChange={onChange} />
   </div>
 }
 

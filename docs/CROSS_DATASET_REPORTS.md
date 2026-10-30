@@ -47,10 +47,12 @@ actual implementation date and one unaffected comparison from a different select
 business-context confirmations, desired direction and optional worthwhile target.
 All inputs use approved metric/date/aggregation policies and dataset-local filters.
 
-The existing supervised Reports worker fits a controlled interrupted time-series
-level-change model using the installed statsmodels OLS implementation:
-`outcome ~ intercept + time + comparison + post_change + seasonal_terms`.
-Daily data includes weekday terms. Engine `controlled_change.v2` uses the
+The existing supervised Reports worker uses installed statsmodels OLS. For new
+decision-linked assessments, engine `controlled_change.v3` fits only pre-action
+outcomes: `outcome ~ intercept + time + comparison + seasonal_terms`, then predicts
+the no-change result at the actual contemporaneous comparison values. No post-action
+outcome enters the baseline fit or chooses a favorable lag. Daily data includes
+weekday terms. The model uses the
 comparison as its primary baseline, without a manual seasonal-business switch.
 It calibrates the outcome's level and relationship rather than forcing the two
 series to share a raw baseline. Two annual Fourier harmonics are considered only
@@ -61,6 +63,46 @@ generic attribution/marketing-mix model. No new service or env flag is required.
 The serialized API/bootstrap creates the new `decision_impact_reviews` table;
 deploy the API and analytics worker together. A user confirmation is a recorded
 assumption, not independent proof.
+
+### Historical Response Timing
+
+- The actual implementation date stays unchanged. There is no manual lag input.
+  Timing comes from a directed driver-to-outcome finding in the decision's original,
+  authorized, immutable saved correlation report, not the outcome/comparison pair.
+- Original correlation runs qualify their selected lag using first differences
+  in two chronological historical blocks. Each block needs at least
+  `max(12, ceil(minimum_observations / 2)) + maximum_lag + 1` complete buckets.
+  The same lag and sign must win both blocks, absolute correlation must be at least
+  `max(0.3, configured threshold)`, separation from every competing lag at least
+  0.05, and BH-adjusted p <= 0.05 across both blocks' candidate lags. The original
+  finding must also pass its report-wide adjusted significance screen. This is
+  a conservative historical consistency screen, not independent out-of-sample
+  validation or evidence of an exact causal delay.
+- Same-period-only comparisons do not establish zero delay. A zero winner can be
+  reused only when a directed timing search and consistency checks actually tested
+  competing delays. Gaps, unstable timing and insufficient history withhold advice.
+- The source history must end strictly before implementation. Outcome identity,
+  date column, aggregation, dimension filter and timezone must match. A changed
+  driver cannot also be the unaffected comparison. Multiple supported drivers
+  require choosing the relevant existing relationship, never a numeric delay.
+- Client timing metadata is replaced from the authorized database record. Queue
+  execution, calculation and assessment saving recheck its identity. The choice is
+  frozen before post-action assessment; deleted/restricted/changed source evidence
+  invalidates new work. Already saved snapshots remain historical, not recalculated.
+- Add the original lag in its original calendar units to implementation: daily
+  stays days, weekly stays weeks, monthly/quarterly use calendar offsets. Changing
+  impact grouping never reinterprets a daily lag as weeks. The first complete later
+  bucket starts on/after that date; a bucket straddling it stays in the early phase.
+- Early effects are estimated rather than forced to zero or discarded. Reports
+  retain all complete post-action buckets and show early, later and total results.
+  Later observations must independently meet the post minimum. Otherwise the
+  result says Waiting for enough results, without a success/failure amount.
+  Future dates and the current incomplete local day do not count.
+- Existing source snapshots without qualification cannot supply an invented lag;
+  regenerate directed correlation evidence using pre-action history. Legacy
+  standalone impact calculations remain compatible with their explicit immediate,
+  constant-level-change assumption; all new decision-linked assessments require
+  supported timing. No migration rewrites existing reports or decisions.
 
 ### Checks and Uncertainty
 
@@ -94,15 +136,17 @@ assumption, not independent proof.
   95% intervals. Maximum residual lags are daily 14, weekly 4, monthly 2, capped
   at one fifth of available observations. This allows short-range dependence;
   it does not remove unknown confounding, spillovers or model misspecification.
-- The post indicator coefficient is the estimated constant effect per period.
-  Multiply it and its interval by matched post periods only for approved additive
-  metrics. Rates, averages, distinct/nonadditive measures and balances remain
-  per-period estimates. The chart's no-change line sets the fitted post indicator
-  to zero, keeping comparison/time/seasonal terms. It is not an observed series
-  or an independently validated forecast. Intervals describe the modeled effect,
-  not a probability of causation or a prediction range for every chart point.
-  Effect intervals are conditional on the selected baseline, not a correction for
-  every source of model-selection uncertainty.
+- For timed assessments the actual-minus-pre-action-prediction contrast is summed
+  only for approved additive metrics. Rates, averages, distinct/nonadditive measures
+  and balances use a mean, not a sum. Early/later totals reconcile to the overall
+  total; phase means instead reconcile using observation weights. Their approximate
+  conditional 95% intervals combine HAC baseline-parameter covariance with
+  pre-action residual autocovariance/Bartlett weights for each contrast. This also
+  gives a one-observation early phase nonzero uncertainty. Total intervals are
+  calculated jointly, not by adding phase limits. They do not cover every model,
+  timing, spillover or unknown-event uncertainty and are not pointwise chart bands.
+  Both phase estimates are descriptive, not two independent causal discoveries.
+  The legacy standalone model still uses a fitted constant post indicator.
 
 Unknown/competing changes, an unconfirmed unaffected comparison or a failed check
 produce no effect amount. Valid intervals spanning zero produce an unclear
@@ -170,6 +214,10 @@ delivery-history review. No external email is automatically replayed.
 
 - [statsmodels OLS fitting](https://www.statsmodels.org/stable/generated/statsmodels.regression.linear_model.OLS.fit.html)
 - [statsmodels HAC covariance and correction](https://www.statsmodels.org/stable/generated/statsmodels.regression.linear_model.RegressionResults.get_robustcov_results.html)
+- [statsmodels prediction variance](https://www.statsmodels.org/stable/generated/statsmodels.regression.linear_model.RegressionResults.get_prediction.html)
+- [statsmodels residual autocovariance](https://www.statsmodels.org/stable/generated/statsmodels.tsa.stattools.acovf.html)
+- [Prespecifying an interrupted-time-series impact model](https://pubmed.ncbi.nlm.nih.gov/29885427/),
+  for separating impact/timing assumptions from post-hoc model selection.
 - [Google CausalImpact assumptions](https://google.github.io/CausalImpact/), for
   the requirement of unaffected controls and stable relationships, not a claim
   that Decisionate implements that package.

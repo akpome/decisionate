@@ -262,6 +262,7 @@ def generate_structured_analysis(
                     "Use short sentences and familiar words: what changed, why it matters, and what to do next. "
                     "Explain unavoidable technical terms. A relationship alone is not a cause. "
                     "If impact_analysis is supplied, preserve its verdict, uncertainty and failed checks. "
+                    "Preserve its historical timing, early/later results and waiting status. Never invent a delay, assume zero early effect, or call correlation a causal delay. "
                     "Never upgrade not_established evidence to a causal claim or invent an impact estimate. "
                     "Return valid JSON with exactly these keys: "
                     "summary (string), recommendations (array of up to 5 "

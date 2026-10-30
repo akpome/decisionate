@@ -47,6 +47,19 @@ the selected decision. The decision's action and outcome metric are
 reused, not entered as a second decision. If no outcome metric was recorded,
 choose it in Decision Details first. Confirm when the action actually started;
 the decision creation date is not assumed to be the implementation date.
+When did you implement the change? means the real action date, not the date you
+expect results. Do not shift it to make the result look better.
+
+Timing from earlier analysis uses the decision's original saved correlation,
+checking the changed driver and the result to measure. It does not use the
+unaffected comparison to invent a delay. A timing guide is available only when
+the same delay stands out across two separate earlier-history checks. The source
+history must end before implementation and use matching outcome date, aggregation,
+dimension filter and timezone settings. Same-period-only analysis does not prove
+zero delay. Old snapshots without these checks cannot supply a verified delay.
+If several earlier relationships qualify, choose which one informed the decision.
+There is no numeric lag input. Unknown or inconsistent timing produces an
+explanation and no impact amount, not an assumed immediate effect.
 
 The setup is arranged around choosing the decision, choosing one fair comparison,
 and checking the analysis. The recorded action
@@ -116,6 +129,20 @@ The history must include dates before and after the change. At least 52 complete
 8 after are needed with weekly grouping; daily needs 90 before and 28 after,
 and monthly needs 24 before and 6 after. A partial week or month, or a period crossing the
 change date, is not counted. Missing comparison periods are not filled with zero.
+The required later observations must also be available after the suggested
+response window. For example, a two-week historical lead suggests a response
+around two weeks after implementation. The real implementation date stays fixed;
+those first two weeks are not discarded or treated as zero effect. Early results,
+later results and the overall estimate are reported separately. A daily lag keeps
+its original days even when impact is grouped weekly. Later weekly results start
+at the first complete week after the suggested date.
+
+Waiting for enough results means there are too few complete later observations to
+assess the change yet. Future dates and today's incomplete day do not count. Check
+that your analysis history includes newer results; choosing an old snapshot does
+not automatically extend its saved dates. Weekly reviews use their automatic
+rolling history. Historical timing is advice, not a promise about when results
+will arrive or proof of cause and effect.
 
 ## Usual ups and downs in impact assessments
 
@@ -144,10 +171,12 @@ The range assumes the selected baseline is appropriate and does not cover every
 uncertainty from choosing that baseline.
 
 This is a model-based estimate under stated assumptions, not a randomized test
-or automatic proof of cause and effect. This first version measures an ongoing
-level change with one comparison. It does not establish the impact of a one-off
-event, a changing effect, an ad-spend correlation alone, or unknown concurrent
-events. The main answer is calculated directly, so an AI provider cannot invent
+or automatic proof of cause and effect. New timed assessments compare actual
+results with a baseline fitted before implementation; early and later results
+can differ. They do not establish an exact causal delay, attribute an ad-spend
+correlation alone, or rule out unknown concurrent events. Old standalone snapshots
+can retain their original immediate, ongoing-level-change assumption. The main
+answer is calculated directly, so an AI provider cannot invent
 an impact amount or upgrade weak evidence. Details are available under the checks.
 Supporting charts and unusual-change tables are kept in Supporting business
 results, rather than crowding the main answer and decision links.
@@ -157,6 +186,10 @@ impact are independent of the correlation settings. This applies to Business
 Analysis and Weekly Business Review. Reopened older impact snapshots also omit their
 old correlation findings from the preview; their stored calculations are not
 rewritten or recalculated.
+The original timing evidence is reused, not searched again against post-action
+results. Timing, phase estimates and waiting status are included in weekly emails.
+Saved assessments keep their historical evidence even if the source report is
+later deleted; new calculations cannot reuse a deleted or inaccessible source.
 
 Choose **Correlation analysis** for exploratory relationships without a recorded
 business change. Existing saved reports keep their original workflow.

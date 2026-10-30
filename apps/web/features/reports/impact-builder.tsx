@@ -24,6 +24,10 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
   const study = definition.impact
   if (!study) return null
   const issue = impactSetupIssue(definition, datasets)
+  const timing = study.timing_evidence
+  const timingNote = !timing || timing.status === "unavailable" ? "Timing has not been established. This check may return no impact estimate."
+    : timing.status === "choose_relationship" && !timing.choices?.some(item => item.finding_id === study.timing_finding_id)
+      ? "Choose the earlier relationship that informed this decision." : ""
   const roles = [study.outcome, study.comparison].filter(item => item !== null)
   const extras = definition.metrics.filter(metric => !roles.some(role => role?.dataset_id === metric.dataset_id && role.metric_key === metric.metric_key))
   const selectedDatasets = [...new Set(roles.map(role => role!.dataset_id))]
@@ -76,7 +80,7 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
               {source.date_columns.map(date => <option key={date} value={date}>{date}</option>)}
             </select></label>
           })}</div>
-          <p className="text-sm leading-6 text-gray-600">Minimum history: {definition.grain === "daily" ? "90 days before the change and 28 days after." : definition.grain === "weekly" ? "52 full weeks before the change and 8 weeks after." : "24 full months before the change and 6 months after."} Both results need matching records.</p>
+          <p className="text-sm leading-6 text-gray-600">Minimum history: {definition.grain === "daily" ? "90 days before the change and 28 days after." : definition.grain === "weekly" ? "52 full weeks before the change and 8 weeks after." : "24 full months before the change and 6 months after."} The minimum after-history must also be available beyond the suggested response window. Both results need matching records.</p>
         </div>
       </details>
       <details className="min-w-0 border-t border-gray-100 pt-3"><summary className="cursor-pointer text-sm font-medium">Business target (optional){study.worthwhile_change != null ? " (set)" : ""}</summary><label className="mt-3 block max-w-md text-sm font-medium">Smallest improvement worth the cost<input className={input} type="number" min={0} max={1e15} step="any" value={study.worthwhile_change ?? ""} onChange={event => onStudyChange({ worthwhile_change: event.target.value === "" ? null : Number(event.target.value) })} /><span className="mt-1 block text-xs font-normal leading-5 text-gray-600">In the result&apos;s units, not a percentage. Total improvement for orders or revenue; improvement per period for an average or rate. Costs are not deducted.</span></label></details>
@@ -87,7 +91,7 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
     })}</ul></details>}
     <details className="min-w-0 border-t border-gray-200 pt-4"><summary className="cursor-pointer text-sm font-medium">Report details</summary><div className="mt-4">{reportDetails}</div></details>
     <div className="flex flex-wrap items-center justify-between gap-4 border-t border-gray-200 pt-4">
-      <p role="status" className="flex min-w-0 items-start gap-2 text-sm text-gray-600">{issue ? <CircleHelp size={18} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-green-700" />}<span className="min-w-0 break-words">{issue || "Ready to check the decision. The data will still need to pass the comparison checks."}</span></p>
+      <p role="status" className="flex min-w-0 items-start gap-2 text-sm text-gray-600">{issue || timingNote ? <CircleHelp size={18} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-green-700" />}<span className="min-w-0 break-words">{issue || timingNote || "Ready to check the decision. The data will still need to pass the comparison checks."}</span></p>
       <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto">{actions}</div>
     </div>
   </section>

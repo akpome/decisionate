@@ -1,5 +1,5 @@
 import type { CatalogDataset } from "@/features/relationships/types"
-import type { ImpactAnalysis } from "./impact-types"
+import type { ImpactAnalysis, ImpactTimingEvidence } from "./impact-types"
 import { newImpactStudy } from "./impact-types"
 import { editableDefinition, type ReportDecision, type ReportDefinition } from "./types"
 
@@ -11,6 +11,7 @@ export type DecisionReviewContext = {
   decision: ReportDecision; outcome: { dataset_id: number; metric_key: string } | null
   decision_revision: string; latest_review: DecisionImpactReview | null
   decision_period?: { start: string; end: string } | null; outcome_date_column?: string | null
+  timing_evidence?: ImpactTimingEvidence | null
 }
 
 export function decisionReviewDefinition(current: ReportDefinition, context: DecisionReviewContext, source?: CatalogDataset) {
@@ -27,6 +28,9 @@ export function decisionReviewDefinition(current: ReportDefinition, context: Dec
     metrics, grain: base.grain === "quarterly" ? "weekly" : base.grain,
     date_range: previous?.date_range || context.decision_period || availability || { start: "", end: "" },
     impact: { ...newImpactStudy(), ...(previous?.impact || {}), decision_id: context.decision.id, decision_revision: context.decision_revision,
-      change: context.decision.action || "", outcome, comparison_unaffected: false, other_changes: "not_sure" },
+      change: context.decision.action || "", outcome, comparison_unaffected: false, other_changes: "not_sure",
+      timing_evidence: context.timing_evidence || null,
+      timing_finding_id: context.timing_evidence?.choices?.some(item => item.finding_id === previous?.impact?.timing_finding_id)
+        ? previous!.impact!.timing_finding_id : context.timing_evidence?.finding_id || null },
   })
 }

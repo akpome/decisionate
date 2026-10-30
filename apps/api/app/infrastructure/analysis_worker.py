@@ -50,8 +50,13 @@ def check_inputs(db, job):
     datasets = authorize_datasets(db, job.user_id, job.workspace_id, [int(key) for key in expected])
     if snapshot(datasets) != expected:
         raise HTTPException(409, "A selected dataset changed during analysis. Generate a new preview with its latest data.")
-    from app.modules.reports.decision_reviews import bind_decision_review
-    bind_decision_review(db, json.loads(job.definition), job.user_id, job.workspace_id, editable=job.kind == "report")
+    from app.modules.reports.decision_reviews import bind_decision_review, review_study
+    frozen_definition = json.loads(job.definition)
+    study = review_study(frozen_definition)
+    frozen_timing = json.dumps(study.get("timing_evidence"), sort_keys=True) if study else None
+    bind_decision_review(db, frozen_definition, job.user_id, job.workspace_id, editable=job.kind == "report")
+    if study and frozen_timing != json.dumps(study.get("timing_evidence"), sort_keys=True):
+        raise HTTPException(409, "The decision's timing evidence changed. Generate a new assessment.")
     if job.kind.startswith("weekly_"):
         delivery = json.loads(job.definition).get("delivery", {})
         if job.kind == "weekly_owner_send" and delivery.get("mode") != "workspace_owner":
@@ -59,7 +64,7 @@ def check_inputs(db, job):
         if delivery.get("mode") == "workspace_owner" and weekly_owner_recipient(db, job.workspace_id) != delivery["recipient"]:
             raise HTTPException(409, "The workspace owner's email changed. Send a new report after reviewing the current owner.")
         preference = db.query(WeeklyReportPreference).filter_by(workspace_id=job.workspace_id).first()
-        if weekly_configuration(db, preference, job.workspace_id) != json.loads(job.definition)["configuration"]:
+        if weekly_configuration(db, preference, job.workspace_id, job.user_id) != json.loads(job.definition)["configuration"]:
             raise HTTPException(409, "Weekly report settings changed. Generate a new preview before sending.")
         if job.kind in {"weekly_send", "weekly_owner_send"}:
             from datetime import date, datetime

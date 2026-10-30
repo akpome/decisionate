@@ -415,6 +415,9 @@
         "apps/api/app/modules/reports/jobs.py",
         "apps/api/app/modules/reports/router.py",
         "apps/api/app/modules/reports/impact.py",
+        "apps/api/app/modules/reports/impact_response.py",
+        "apps/api/app/modules/reports/impact_timing.py",
+        "apps/api/app/modules/reports/timing_validation.py",
         "apps/api/app/modules/reports/decision_reviews.py",
         "apps/api/app/modules/reports/models.py",
         "apps/web/features/reports/impact-types.ts",
@@ -423,6 +426,7 @@
         "apps/web/features/reports/impact-builder.tsx",
         "apps/web/features/reports/impact-builder-state.ts",
         "apps/web/features/reports/impact-setup.tsx",
+        "apps/web/features/reports/impact-timing.tsx",
         "apps/web/features/reports/impact-result.tsx"
       ],
       "related": [

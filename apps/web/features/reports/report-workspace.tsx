@@ -338,7 +338,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   }
 
   function editImpact(patch: Partial<ImpactStudy>) {
-    if (definition.impact) edit({ impact: { ...definition.impact, ...patch, ...("change_date" in patch ? { comparison_unaffected: false } : {}) } })
+    if (definition.impact) edit({ impact: { ...definition.impact, ...patch, ...("change_date" in patch || "timing_finding_id" in patch ? { comparison_unaffected: false } : {}) } })
   }
 
   async function chooseReviewDecision(identity: number) {

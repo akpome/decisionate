@@ -16,7 +16,7 @@ from app.modules.datasets.services.dimension_filters import apply_dimension_filt
 from .catalog import prepare_report_source
 from .anomalies import anomaly_summary, detect_report_metric, historical_start
 from .decision_drafts import is_report_decision_draft
-from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, report_pairs, report_test_count
+from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, pair_direction, report_pairs, report_test_count
 from .schemas import MINIMUM_REPORT_OBSERVATIONS
 from .impact import evaluate_impact, impact_facts, is_impact_report
 from app.modules.decisions.duplicates import canonical_decisions
@@ -277,6 +277,10 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
                          "warnings": flags, "interpretation": interpretation, "history_window": history,
                          "evidence": row["evidence"]})
         findings[-1]["business_summary"] = relationship_summary(findings[-1], analysis_grain)
+        from .timing_validation import validate_timing
+        findings[-1]["timing_validation"] = validate_timing(
+            left, right, historical, relationship_definition, row, pair_direction(left, right, definition, directions)) if reliable else {
+                "status": "unavailable", "message": "The relationship did not pass the report's reliability checks."}
     findings.sort(key=lambda item: (item["eligible"], abs(item["coefficient"] or 0)), reverse=True)
     # Older impact snapshots may still contain correlation finding selections.
     requested = None if definition.get("impact") else definition.get("included_findings")

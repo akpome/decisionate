@@ -70,6 +70,9 @@ def bind_decision_review(db, definition, user, workspace, *, required=False, edi
     if study.get("decision_revision") and study["decision_revision"] != revision:
         raise HTTPException(409, "The decision changed. Reload its impact review before calculating or saving another assessment.")
     study.update(decision_id=decision.id, decision_revision=revision, change=decision.action.strip())
+    from .impact_timing import decision_timing
+    # Never accept a client-supplied lag or copied timing verdict as authority.
+    study["timing_evidence"] = decision_timing(db, decision, outcome, user, workspace, study.get("timing_finding_id"))
     return decision
 
 
@@ -127,9 +130,11 @@ def review_context(db, decision, user, workspace):
         authorize_datasets(db, user, workspace, [outcome["dataset_id"]])
     history = decision_reviews(db, decision, user, workspace)
     period, column = decision_data_period(decision, outcome)
+    from .impact_timing import decision_timing
     return {"decision": report_decision_record(decision), "outcome": outcome,
             "decision_revision": decision_revision(decision), "latest_review": next(iter(history["reviews"]), None),
-            "decision_period": period, "outcome_date_column": column}
+            "decision_period": period, "outcome_date_column": column,
+            "timing_evidence": decision_timing(db, decision, outcome, user, workspace) if outcome else None}
 
 
 def review_choices(db, user, workspace, *, search="", offset=0):
@@ -166,9 +171,13 @@ def save_decision_review(db, job, result, report):
     from app.modules.decisions.schemas import OUTCOME_DECISION_ACTIVITY
 
     definition = json.loads(report.definition)
+    study = review_study(definition)
+    frozen_timing = digest(study.get("timing_evidence")) if study else None
     decision = bind_decision_review(db, definition, job.user_id, job.workspace_id, editable=True, lock=True)
     if decision is None:
         return
+    if frozen_timing != digest(study.get("timing_evidence")):
+        raise HTTPException(409, "The decision's timing evidence changed. Generate a new assessment.")
     review = DecisionImpactReview(decision_id=decision.id, workspace_id=job.workspace_id, user_id=job.user_id,
         job_id=job.id, report_id=report.id, definition=encode(definition), analysis=encode(result["impact_analysis"]),
         decision_revision=decision_revision(decision))

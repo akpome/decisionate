@@ -37,11 +37,12 @@ export function ImpactChart({ analysis }: { analysis: ImpactAnalysis }) {
         <Tooltip formatter={(value, name, item) => [indexed ? `${t("Index")}: ${indexFormat.format(Number(value))} / ${t("Original value")}: ${formatReportValue(item.dataKey === "actual" ? item.payload.raw_actual : item.payload.raw_without_change, analysis.outcome?.currency)}` : formatReportValue(Number(value), analysis.outcome?.currency), name]} />
         {indexed && <ReferenceLine y={100} stroke="#6b7280" strokeDasharray="4 4" />}
         {firstAfter && period === "all" && <ReferenceLine x={firstAfter} stroke="#6b7280" strokeDasharray="3 3" label={{ value: "Measured period starts", position: "insideTopRight", fontSize: 11 }} />}
+        {analysis.timing?.later_period_start && rows.some(row => row.period === analysis.timing?.later_period_start) && <ReferenceLine x={analysis.timing.later_period_start} stroke="#0f766e" strokeDasharray="3 3" />}
         <Line type="linear" dataKey="actual" name="Actual result" stroke="#2563eb" strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
         <Line type="linear" dataKey="without_change" name="Without the change (estimate)" stroke="#b45309" strokeWidth={2} strokeDasharray="6 4" dot={false} connectNulls={false} isAnimationActive={false} />
       </LineChart></ResponsiveContainer>
     </div> : <p role="status" className="border-l-2 border-amber-500 py-2 pl-3 text-sm text-amber-900">{t("An indexed comparison is unavailable because there is no positive estimated baseline after the change. Actual values remain available.")}</p>}
     {indexed && overflow && <p role="status" className="text-sm text-amber-800">{t("Some values are outside the supported index range.")}</p>}
-    <ul aria-label="Impact chart legend" className="flex flex-wrap gap-x-6 gap-y-2 text-xs"><li className="flex items-center gap-2"><span className="w-6 border-t-2 border-blue-600" />Actual result</li><li className="flex items-center gap-2"><span className="w-6 border-t-2 border-dashed border-amber-700" />Without the change (estimate)</li></ul>
+    <ul aria-label="Impact chart legend" className="flex flex-wrap gap-x-6 gap-y-2 text-xs"><li className="flex items-center gap-2"><span className="w-6 shrink-0 border-t-2 border-blue-600" />Actual result</li><li className="flex items-center gap-2"><span className="w-6 shrink-0 border-t-2 border-dashed border-amber-700" />Without the change (estimate)</li>{analysis.timing?.later_period_start && <li className="flex items-center gap-2"><span className="w-6 shrink-0 border-t-2 border-dashed border-teal-700" />First full later period: {analysis.timing.later_period_start}</li>}</ul>
   </figure>
 }

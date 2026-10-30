@@ -505,6 +505,9 @@ class BusinessImpactWorkflowTests(unittest.TestCase):
         from app.modules.reports import router
         from app.modules.reports.models import BusinessReport
         from app.modules.decisions.models import Decision
+        from tests.report_timing_fixtures import attach_timing
+
+        attach_timing(self)
 
         with patch.object(router, "generate_structured_analysis") as ai, \
              patch("app.modules.reports.service.compute_report_pair", side_effect=AssertionError("Impact worker must not run correlations")) as correlate:
@@ -519,7 +522,7 @@ class BusinessImpactWorkflowTests(unittest.TestCase):
             saved_response = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save")
             self.assertEqual(saved_response.status_code, 201, saved_response.text)
             saved = saved_response.json()
-            self.assertEqual(saved["impact_analysis"]["status"], "estimated")
+            self.assertEqual(saved["impact_analysis"]["status"], "estimated", saved["impact_analysis"])
             self.assertEqual(saved["findings"], [])
             self.assertEqual(saved["included_findings"], [])
             self.frames[1][1]["orders"] = 10000000

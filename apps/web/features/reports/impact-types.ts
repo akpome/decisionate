@@ -1,8 +1,19 @@
 import type { CorrelationMetric, MetricRef } from "@/features/relationships/types"
 
 type MetricKey = { dataset_id: number; metric_key: string }
+export type ImpactTimingChoice = {
+  finding_id: string; driver: MetricKey; driver_label: string; lag: number
+  grain: "daily" | "weekly" | "monthly" | "quarterly"
+}
+export type ImpactTimingEvidence = {
+  status: "supported" | "unavailable" | "choose_relationship"; message: string
+  report_id?: string | null; finding_id?: string | null; driver?: MetricKey | null; outcome?: MetricKey | null
+  driver_label?: string | null; lag?: number | null; grain?: ImpactTimingChoice["grain"] | null
+  history_window?: { start: string; end: string } | null; choices?: ImpactTimingChoice[]
+}
 export type ImpactStudy = {
   decision_id?: number | null; decision_revision?: string | null
+  timing_finding_id?: string | null; timing_evidence?: ImpactTimingEvidence | null
   change: string; change_date: string; outcome: MetricKey | null; comparison: MetricKey | null
   comparison_reason: string; comparison_unaffected: boolean; other_changes: "none_known" | "yes" | "not_sure"
   desired_direction: "increase" | "decrease"; worthwhile_change: number | null
@@ -13,12 +24,16 @@ export type ImpactAnalysis = {
   outcome: CorrelationMetric | null; comparison: CorrelationMetric | null; comparison_reason: string
   headline: string; summary: string; next_steps: string[]; assumptions: string[]; limitations: string[]
   before_periods: number | null; after_periods: number | null
+  timing?: (ImpactTimingEvidence & { expected_response_date?: string; later_period_start?: string | null }) | null
+  observed_through?: string; early_periods?: number | null; later_periods?: number | null
+  phases?: { phase: "early" | "later"; effect: number; lower: number; upper: number; actual: number
+    expected_without_change: number; observations: number; start: string; end: string }[]
   baseline?: { kind: "comparison" | "comparison_with_yearly_adjustment"; annual_adjustment: boolean; annual_history_available: boolean; message: string } | null
   checks: { key: string; passed: boolean; message: string; details: Record<string, unknown> }[]
   estimate: { effect: number; lower: number; upper: number; confidence_level: number; verdict: "helped" | "hurt" | "unclear"
     per_period_effect: number; actual: number; expected_without_change: number; relative_percent: number | null
     is_total: boolean; worthwhile_change: number | null; worthwhile_result: "likely" | "unlikely" | "unclear" | null } | null
-  trend: { period: string; actual: number; without_change: number; after_change: boolean }[]
+  trend: { period: string; actual: number; without_change: number; after_change: boolean; response_phase?: "before" | "early" | "later" }[]
 }
 
 export function newImpactStudy(): ImpactStudy {

@@ -1105,6 +1105,9 @@ def build_weekly_report_digest_for_workspace(
         preference
     )
     template = weekly_business_template(db, preference, workspace_id)
+    if template and template.get("impact"):
+        from app.modules.reports.decision_reviews import bind_decision_review
+        bind_decision_review(db, template, user_id, workspace_id)
     datasets = get_alert_datasets(
         db,
         workspace_id,

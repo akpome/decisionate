@@ -19,6 +19,7 @@ const formatReportValue = (value, currency) => `${currency ? `${currency} ` : ""
 const { ImpactResult } = load("../features/reports/impact-result.tsx", { "./types": { formatReportValue } })
 const { ImpactSetup, ImpactChange } = load("../features/reports/impact-setup.tsx", {
   "./report-metric-picker": { reportDateColumn: source => source.date_columns[0] || "" },
+  "./impact-timing": load("../features/reports/impact-timing.tsx"),
 })
 const { editableDefinition } = load("../features/reports/types.ts", {
   "./pair-directions": load("../features/reports/pair-directions.ts"),
@@ -117,7 +118,7 @@ test("plain-language comparison controls use available datasets without a second
   const change = renderToStaticMarkup(React.createElement(ImpactChange, { study, datasets, onChange() {} }))
   assert.match(change, /What you changed/)
   assert.match(change, /Result to measure/)
-  assert.match(change, /When did you start/)
+  assert.match(change, /When did you implement the change/)
   assert.match(change, /Success means/)
   assert.match(change, /Edit the action or result in Decision Details/)
   assert.doesNotMatch(change, /value="Extended opening hours"|What ongoing change did you make/)

@@ -1,15 +1,19 @@
 """A bounded controlled interrupted time series, not automatic causal discovery."""
 
 import math
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
 from statsmodels.regression.linear_model import OLS
 
 from app.modules.correlation.engine import metric_id
+from .impact_timing import check_timing_scope, response_date
+from .impact_response import timed_response
 
 
-ENGINE_VERSION = "controlled_change.v2"
+ENGINE_VERSION = "controlled_change.v3"
 MINIMUM_BEFORE = {"daily": 90, "weekly": 52, "monthly": 24}
 MINIMUM_AFTER = {"daily": 28, "weekly": 8, "monthly": 6}
 
@@ -116,6 +120,7 @@ def evaluate_impact(series, definition, metadata):
               "outcome": outcome, "comparison": comparison, "comparison_reason": study["comparison_reason"],
               "headline": "We cannot tell whether this change helped yet.", "summary": "", "next_steps": [],
               "checks": [], "estimate": None, "trend": [], "baseline": None, "before_periods": None, "after_periods": None,
+              "timing": None, "phases": [], "early_periods": None, "later_periods": None,
               "assumptions": ["The comparison was not affected by your change, including indirect effects.",
                               "No other event changed the result at the same time in a way the comparison cannot explain.",
                               "The earlier link between the result and comparison continued after the change.",
@@ -142,7 +147,27 @@ def evaluate_impact(series, definition, metadata):
         return stop("The result or comparison is unavailable for this analysis.", "Choose available metrics from different datasets, grouped by day, week or month.")
     if outcome.get("currency_unresolved") or comparison.get("currency_unresolved"):
         return stop("One of the selected money amounts contains mixed or unknown currencies.", "Filter each dataset to one known currency before measuring the change. Currencies are not converted automatically.")
-    periods = pd.date_range(pd.Timestamp(window["start"]).normalize(), pd.Timestamp(window["end"]).normalize(), freq="D")
+    timing = None
+    if study.get("decision_id") or study.get("timing_evidence") is not None:
+        timing = check_timing_scope(study.get("timing_evidence"), definition)
+        result["timing"] = timing
+        supported = timing["status"] == "supported"
+        check("response_timing", supported, timing["message"])
+        if not supported:
+            return stop(timing["message"], "Open the decision's original correlation analysis and establish driver-to-outcome timing using history before implementation.")
+        result["method"] = "pre_action_controlled_counterfactual_hac"
+        result["assumptions"][-1] = "Historical timing guides early and later reporting; it does not establish an exact causal delay or require the early effect to be zero."
+        result["limitations"].extend(["The uncertainty range includes baseline-parameter uncertainty and short-range residual variation estimated before implementation.",
+            "It remains conditional on the selected comparison and historical timing; it does not cover every possible timing or model choice.",
+            "Early and later ranges are descriptive, not separate proof of causal effects."])
+    else:
+        result["limitations"].append("This legacy standalone calculation assumes an immediate lasting change. It has no verified response-delay evidence.")
+    observed_end = window["end"]
+    if timing:
+        today = datetime.now(ZoneInfo(definition.get("reporting_timezone") or "UTC")).date()
+        observed_end = min(observed_end, str(today - timedelta(days=1)))
+        result["observed_through"] = observed_end
+    periods = pd.date_range(pd.Timestamp(window["start"]).normalize(), pd.Timestamp(observed_end).normalize(), freq="D")
     if grain == "weekly":
         periods = periods[periods.dayofweek == 0]
     elif grain == "monthly":
@@ -151,9 +176,20 @@ def evaluate_impact(series, definition, metadata):
     change = pd.Timestamp(study["change_date"])
     before, after = ends <= change, periods >= change
     # Discard partial boundary periods and the bucket containing a mid-period change.
-    keep = (ends <= pd.Timestamp(window["end"]) + pd.Timedelta(days=1)) & (before | after)
+    keep = (ends <= pd.Timestamp(observed_end) + pd.Timedelta(days=1)) & (before | after)
     periods, before, after = periods[keep], before[keep], after[keep]
     result.update(before_periods=int(before.sum()), after_periods=int(after.sum()))
+    if timing:
+        expected_date = response_date(study["change_date"], timing["lag"], timing["grain"])
+        later = after & (periods >= pd.Timestamp(expected_date))
+        result.update(early_periods=int((after & ~later).sum()), later_periods=int(later.sum()))
+        result["timing"] = {**timing, "expected_response_date": expected_date,
+                            "later_period_start": str(periods[later][0].date()) if later.any() else None}
+        if later.sum() < MINIMUM_AFTER[grain]:
+            result["headline"] = "Waiting for enough results."
+            unit = {"daily": "days", "weekly": "weeks", "monthly": "months"}[grain]
+            return stop(f"Earlier timing suggests results around {expected_date}. We have {int(later.sum())} complete {unit} after that point; at least {MINIMUM_AFTER[grain]} are needed.",
+                        "Keep collecting results. Early observations are retained, but have not been judged as a success or failure.")
     if before.sum() < MINIMUM_BEFORE[grain] or after.sum() < MINIMUM_AFTER[grain]:
         return stop(f"This comparison needs at least {MINIMUM_BEFORE[grain]} complete {grain} periods before the change and {MINIMUM_AFTER[grain]} after it. We have {int(before.sum())} before and {int(after.sum())} after.",
                     "Include more history before the change, and allow enough time after it. Partial weeks or months do not count.")
@@ -211,13 +247,24 @@ def evaluate_impact(series, definition, metadata):
         check("comparison_range", in_range, "The comparison stayed close to its earlier range." if in_range else "The comparison moved too far outside its earlier range.")
         if not in_range:
             return stop("The comparison changed too much after your action for a dependable estimate.", "Check what changed in the comparison, or select another unaffected comparison.")
-        fitted, matrix = _step_fit(values, design, after, grain)
-        effect = float(fitted.params["change"])
-        lower, upper = map(float, fitted.conf_int(alpha=.05).loc["change"])
-        trimmed = np.arange(len(periods)) >= count // 4
-        sensitivity, _ = _step_fit(values[trimmed], design.loc[trimmed], after[trimmed], grain)
-        alternate = float(sensitivity.params["change"])
-        stable = abs(alternate - effect) <= max(2 * float(fitted.bse["change"]), abs(effect) * .5, typical * .02)
+        response = None
+        if timing:
+            additive = outcome.get("additive", outcome["aggregation"] in {"sum", "count"})
+            response = timed_response(values, design, before, after, grain, timing, study["change_date"], additive, _fit)
+            effect, alternate = response["per_period_effect"], response["alternate_effect"]
+            total = response["total"]
+            multiplier = int(after.sum()) if additive else 1
+            lower, upper = total["lower"] / multiplier, total["upper"] / multiplier
+            standard_error = response["standard_error"]
+        else:
+            fitted, matrix = _step_fit(values, design, after, grain)
+            effect = float(fitted.params["change"])
+            lower, upper = map(float, fitted.conf_int(alpha=.05).loc["change"])
+            trimmed = np.arange(len(periods)) >= count // 4
+            sensitivity, _ = _step_fit(values[trimmed], design.loc[trimmed], after[trimmed], grain)
+            alternate = float(sensitivity.params["change"])
+            standard_error = float(fitted.bse["change"])
+        stable = abs(alternate - effect) <= max(2 * standard_error, abs(effect) * .5, typical * .02)
         check("history_sensitivity", stable, "The answer was similar when some older history was left out." if stable else "The answer changed too much when some older history was left out.",
               {"alternate_effect_per_period": alternate})
         if not stable:
@@ -254,15 +301,19 @@ def evaluate_impact(series, definition, metadata):
                  "unclear": "Do not increase your commitment based on this result alone. Collect more data or test the change in a small, comparable group."}[verdict]
     if meaningful == "unlikely":
         next_step = "The estimated benefit is below your minimum worthwhile improvement. Review the cost or try a different approach."
-    expected = np.asarray(fitted.predict(matrix.assign(change=0)))
+    expected = response["expected"] if response else np.asarray(fitted.predict(matrix.assign(change=0)))
     if not np.isfinite(expected).all() or (np.all(values >= 0) and np.any(expected[after] < 0)):
         return stop("The comparison produced an unrealistic result without the change. We are withholding the estimate.", "Use a better unaffected comparison or a shorter, stable period after the change.")
+    if response:
+        result["phases"] = response["phases"]
+        summary += f" Historical timing suggested a response around {result['timing']['expected_response_date']}. Early results remain included in the total."
     result.update(status="estimated", evidence_grade="model_estimated", headline=headline, summary=summary, next_steps=[next_step],
                   estimate={"effect": amount, "lower": low, "upper": high, "confidence_level": .95, "verdict": verdict,
                             "per_period_effect": effect, "actual": actual_mean * multiplier, "expected_without_change": expected_mean * multiplier,
                             "relative_percent": effect / abs(expected_mean) * 100 if expected_mean != 0 else None,
                             "is_total": additive, "worthwhile_change": worthwhile, "worthwhile_result": meaningful},
-                  trend=[{"period": str(period.date()), "actual": float(actual), "without_change": float(prediction), "after_change": bool(is_after)}
+                  trend=[{"period": str(period.date()), "actual": float(actual), "without_change": float(prediction), "after_change": bool(is_after),
+                          **({"response_phase": "before" if not is_after else "later" if period >= pd.Timestamp(result["timing"]["expected_response_date"]) else "early"} if timing else {})}
                          for period, actual, prediction, is_after in zip(periods, values, expected, after)])
     return result
 
@@ -279,6 +330,19 @@ def impact_lines(report):
     analysis = report.get("impact_analysis")
     if not analysis:
         return []
+    timing = analysis.get("timing") or {}
+    timing_lines = []
+    if timing.get("status") == "supported":
+        unit = {"daily": "day", "weekly": "week", "monthly": "month", "quarterly": "quarter"}[timing["grain"]]
+        description = (f"{timing['driver_label']} led the result by {timing['lag']} {unit}{'' if timing['lag'] == 1 else 's'}."
+                       if timing["lag"] else f"{timing['driver_label']} and the result moved together within the same grouped {unit}.")
+        timing_lines = [f"Earlier timing: {description}",
+                        f"Suggested response window: around {timing.get('expected_response_date', 'not yet available')}. Early results remain included."]
+    phases = [f"{'Early' if phase['phase'] == 'early' else 'Later'} results ({phase['start']} to {phase['end']}): "
+              f"estimated difference {_format(phase['effect'], (analysis.get('outcome') or {}).get('currency'))}; "
+              f"95% range {_format(phase['lower'])} to {_format(phase['upper'])}"
+              f"{' (total).' if (analysis.get('estimate') or {}).get('is_total') else ' per period.'}"
+              for phase in analysis.get("phases", [])]
     return [analysis["headline"], f"Business change: {analysis['change']}. Date: {analysis['change_date']}.",
             f"Study dates: {analysis['window']['start']} to {analysis['window']['end']} ({analysis['grain']}).",
-            analysis["summary"], *analysis["next_steps"], "Model-based evidence, not a randomized test. The comparison must be unaffected by the change."]
+            analysis["summary"], *timing_lines, *phases, *analysis["next_steps"], "Model-based evidence, not a randomized test. The comparison must be unaffected by the change."]

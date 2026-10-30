@@ -127,3 +127,11 @@ test("unavailable impact indexing explains the limitation and keeps switching ba
   assert.equal(recorded.charts[0].data[0].actual, 1200)
   assert.equal(render({ ...analysis, estimate: null }), "")
 })
+
+test("the timing guide has a dated legend instead of a label that can clip against the chart edge", () => {
+  const html = render({ ...analysis, timing: { status: "supported", later_period_start: "2026-01-02" } })
+  const marker = recorded.references.find(line => line.x === "2026-01-02")
+  assert.equal(marker.stroke, "#0f766e")
+  assert.equal(marker.label, undefined)
+  assert.match(html, /First full later period: 2026-01-02/)
+})

@@ -8,12 +8,20 @@ export function ImpactResult({ analysis, compact = false }: { analysis?: ImpactA
   const value = (number: number) => formatReportValue(number, analysis.outcome?.currency)
   const signed = (number: number) => `${number > 0 ? "+" : ""}${value(number)}`
   const period = { daily: "day", weekly: "week", monthly: "month" }[analysis.grain] || "period"
+  const timingUnit = ({ daily: "day", weekly: "week", monthly: "month", quarterly: "quarter" } as Record<string, string>)[analysis.timing?.grain || ""] || "period"
   const scope = estimate?.is_total ? analysis.after_periods != null ? `Across ${analysis.after_periods} complete ${period}${analysis.after_periods === 1 ? "" : "s"} after the change` : "Across the measured time after the change" : `Average difference per ${period}, not a total`
   const hasRange = estimate && Number.isFinite(estimate.lower) && Number.isFinite(estimate.upper)
   return <section aria-label="Business change result" className="min-w-0 space-y-4 border-y border-gray-200 py-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-lg font-semibold">Did your change help?</h3><span className="text-xs font-medium text-gray-600">{estimate ? "Estimated impact" : "Not enough reliable evidence"}</span></div>
-    <p className="break-words text-sm text-gray-600">{analysis.change} / Started {analysis.change_date}</p>
+    <p className="break-words text-sm text-gray-600">{analysis.change} / Implemented {analysis.change_date}</p>
     <p className="break-words text-xl font-semibold">{analysis.headline}</p>
+    {analysis.timing?.status === "supported" && <div className="space-y-1 text-sm leading-6 text-gray-600">
+      <p className="break-words">Earlier analysis: {analysis.timing.lag ? <>{analysis.timing.driver_label} led the result by {analysis.timing.lag} {timingUnit}{analysis.timing.lag === 1 ? "" : "s"}.</>
+        : <>{analysis.timing.driver_label} and the result moved together in the same grouped period.</>}</p>
+      {analysis.timing.expected_response_date && <p>Suggested response window: around {analysis.timing.expected_response_date}. Early results remain included.</p>}
+      {analysis.timing.later_period_start && analysis.timing.later_period_start !== analysis.timing.expected_response_date && <p>First complete later period starts {analysis.timing.later_period_start}.</p>}
+      {analysis.early_periods != null && <p>{analysis.early_periods} early and {analysis.later_periods} later complete {period}s checked.</p>}
+    </div>}
     {estimate && analysis.baseline && <p className="break-words text-sm leading-6 text-gray-600">{analysis.baseline.message}</p>}
     {estimate ? <div className="space-y-2 border-l-2 border-blue-600 pl-4">
       <p className="text-sm font-medium text-gray-700">Estimated change in {analysis.outcome?.label || "your result"}</p>
@@ -25,6 +33,16 @@ export function ImpactResult({ analysis, compact = false }: { analysis?: ImpactA
     {!compact && estimate && <dl className="grid min-w-0 gap-4 border-y border-gray-200 py-4 sm:grid-cols-2">
       {[["Actual result", value(estimate.actual)], ["Without the change (estimated)", value(estimate.expected_without_change)]].map(([label, amount]) => <div key={label} className="min-w-0"><dt className="text-sm text-gray-600">{label}</dt><dd className="mt-1 break-words text-lg font-semibold tabular-nums">{amount}</dd></div>)}
     </dl>}
+    {estimate && Boolean(analysis.phases?.length) && <div className="space-y-3">
+      <h4 className="text-sm font-semibold">Early and later results</h4>
+      <dl className="grid min-w-0 gap-4 sm:grid-cols-2">{analysis.phases!.map(phase => <div key={phase.phase} className="min-w-0 border-t border-gray-200 pt-3">
+        <dt className="text-sm font-medium">{phase.phase === "early" ? "Early results" : "Later results"}</dt>
+        <dd className="mt-1 break-words text-lg font-semibold tabular-nums">{signed(phase.effect)}{!estimate.is_total && <span className="text-sm font-normal"> per {period}</span>}</dd>
+        <dd className="mt-1 text-xs leading-5 text-gray-600">{phase.start} to {phase.end} / {phase.observations} {period}s</dd>
+        <dd className="mt-1 break-words text-sm text-gray-600">Estimated range: {signed(phase.lower)} to {signed(phase.upper)}.</dd>
+      </div>)}</dl>
+      <p className="text-xs leading-5 text-gray-600">These estimates use the same earlier baseline. They are not separate proof of cause and effect.</p>
+    </div>}
     {estimate?.worthwhile_change != null && <p className="text-sm text-gray-700">Minimum worthwhile improvement: {value(estimate.worthwhile_change)}. {estimate.worthwhile_result === "likely" ? "The estimate clears your target." : estimate.worthwhile_result === "unlikely" ? "The estimate does not reach your target." : "It is not clear whether the benefit reaches your target."}</p>}
     <div><h4 className="text-sm font-semibold">What to do next</h4><ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-6 text-gray-700">{analysis.next_steps.map(text => <li key={text}>{text}</li>)}</ul></div>
     <p className="text-xs leading-5 text-gray-600">{estimate ? "An estimate, not a guarantee. Other business changes can affect the result." : "No impact amount has been estimated."}</p>

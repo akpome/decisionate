@@ -125,7 +125,7 @@ test("security describes scoped report-job access, worker checks and bounded exe
   assert.match(jobs, /filter_by\(id=identity, workspace_id=workspace, user_id=user\)/)
   assert.match(jobs, /ReportAnalysisJob\.status\.in_\(ACTIVE\)\)\.count\(\) >= 3/)
   const worker = read("../../api/app/infrastructure/analysis_worker.py")
-  for (const pattern of [/verify_job_actor\(job\)/, /authorize_datasets\(db, job\.user_id, job\.workspace_id/, /snapshot\(datasets\) != expected/, /weekly_configuration\(db, preference, job\.workspace_id\)/, /ANALYSIS_JOB_TIMEOUT_SECONDS/, /No automatic resend/]) {
+  for (const pattern of [/verify_job_actor\(job\)/, /authorize_datasets\(db, job\.user_id, job\.workspace_id/, /snapshot\(datasets\) != expected/, /weekly_configuration\(db, preference, job\.workspace_id, job\.user_id\)/, /ANALYSIS_JOB_TIMEOUT_SECONDS/, /No automatic resend/]) {
     assert.match(worker, pattern)
   }
 })

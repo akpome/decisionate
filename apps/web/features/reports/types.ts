@@ -28,6 +28,7 @@ export type ReportMetric = CorrelationMetric & {
   observations: number; expected_periods: number; warnings: string[]; trend: { period: string; value: number | null }[]
 }
 export type ReportFinding = {
+  timing_validation?: { status: "supported" | "unavailable"; message: string }
   id: string; metric_a: CorrelationMetric; metric_b: CorrelationMetric; coefficient: number | null
   lag: number; lag_unit: string; lead_metric: string; observations: number; eligible: boolean
   adjusted_p_value: number | null; reliability: string; warnings: string[]; interpretation: string

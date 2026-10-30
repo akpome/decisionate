@@ -25,7 +25,8 @@ const definition = {
 const datasets = [1, 2, 3].map(dataset_id => ({ dataset_id, dataset_label: `Store ${dataset_id}`, connector: "csv",
   metrics: [{ metric_key: "orders", label: "Orders", aggregation: "sum" }, { metric_key: "visits", label: "Visits", aggregation: "sum" }],
   date_columns: ["date"], availability: { date: definition.date_range } }))
-const imports = { "./report-metric-picker": { reportDateColumn: source => source.date_columns[0] || "" } }
+const imports = { "./report-metric-picker": { reportDateColumn: source => source.date_columns[0] || "" },
+  "./impact-timing": load("../features/reports/impact-timing.tsx") }
 const dimensionProps = new Map()
 const { ImpactBuilder } = load("../features/reports/impact-builder.tsx", {
   "./impact-builder-state": state, "./impact-setup": load("../features/reports/impact-setup.tsx", imports), ...imports,

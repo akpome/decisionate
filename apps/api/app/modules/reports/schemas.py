@@ -34,6 +34,33 @@ class ReportPairDirection(ReportMetricPair):
         return "same_period" if value == "both" else value
 
 
+class ImpactTimingChoice(StrictModel):
+    finding_id: str = Field(min_length=1, max_length=500)
+    driver: ReportMetricKey
+    driver_label: str = Field(min_length=1, max_length=1000)
+    lag: int = Field(ge=0, le=MAXIMUM_LAG)
+    grain: Literal["daily", "weekly", "monthly", "quarterly"]
+
+
+class ImpactTimingEvidence(StrictModel):
+    status: Literal["supported", "unavailable", "choose_relationship"]
+    message: str = Field(max_length=1500)
+    report_id: str | None = Field(default=None, max_length=100)
+    finding_id: str | None = Field(default=None, max_length=500)
+    driver: ReportMetricKey | None = None
+    outcome: ReportMetricKey | None = None
+    driver_label: str | None = Field(default=None, max_length=1000)
+    lag: int | None = Field(default=None, ge=0, le=MAXIMUM_LAG)
+    grain: Literal["daily", "weekly", "monthly", "quarterly"] | None = None
+    history_window: DateRange | None = None
+    reporting_timezone: str | None = Field(default=None, max_length=100)
+    outcome_date_column: str | None = Field(default=None, max_length=200)
+    outcome_aggregation: str | None = Field(default=None, max_length=30)
+    outcome_filter: DatasetDimensionFilter | None = None
+    evidence_digest: str | None = Field(default=None, max_length=100)
+    choices: list[ImpactTimingChoice] = Field(default_factory=list, max_length=25)
+
+
 class ImpactStudy(StrictModel):
     decision_id: int | None = Field(default=None, ge=1)
     decision_revision: str | None = Field(default=None, max_length=100)
@@ -46,6 +73,8 @@ class ImpactStudy(StrictModel):
     other_changes: Literal["none_known", "yes", "not_sure"] = "not_sure"
     desired_direction: Literal["increase", "decrease"] = "increase"
     worthwhile_change: float | None = Field(default=None, ge=0, le=1e15, allow_inf_nan=False)
+    timing_finding_id: str | None = Field(default=None, max_length=500)
+    timing_evidence: ImpactTimingEvidence | None = None
 
     @field_validator("change", "comparison_reason", mode="before")
     @classmethod
