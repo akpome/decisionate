@@ -51,7 +51,7 @@ const ast = ts.createSourceFile("api.ts", apiSource, ts.ScriptTarget.Latest, tru
 const forecastFunction = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "getForecast")
 const metricsFunction = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "getDatasetMetrics")
 const apiErrorClass = ast.statements.find(node => ts.isClassDeclaration(node) && node.name?.text === "ApiError")
-const { ApiError } = load(apiErrorClass.getText(ast))
+const { ApiError } = load(apiErrorClass.getText(ast), { Error })
 const { ApiReadCache } = load(readFileSync(new URL("../lib/api-read-cache.ts", import.meta.url), "utf8"))
 function client(legacy = false) {
   const requests = [], cache = new ApiReadCache()
@@ -208,4 +208,11 @@ test("expected service rollout failures use the unavailable state rather than th
   const error = new ApiError("Seasonal forecasting is temporarily unavailable. Please try again shortly.", 503)
   assert.equal(getForecastUnavailableMessage(error), error.message)
   assert.equal(getForecastUnavailableMessage(new Error("Unexpected failure")), "")
+})
+
+test("forecast date validation shows the API guidance without presenting a service outage", () => {
+  const message = "This date column needs a year, for example 2025-01. Choose a date column with years or update the dataset with the actual dates."
+  assert.equal(getForecastUnavailableMessage(new ApiError(message, 400)), message)
+  assert.equal(getForecastUnavailableMessage(new ApiError("The request could not be completed.", 500)), "")
+  assert.match(getForecastUnavailableMessage(new ApiError("Not enough data", 400)), /enough grouped periods/)
 })

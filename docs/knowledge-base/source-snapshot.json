@@ -1,12 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-10-31",
-  "base_git_revision": "eb8a67654bbf94a462cababa1166a4537071b971",
+  "base_git_revision": "c2334b3c53ddfee5439df0f2e2047a5478205b08",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/reports/decision_reviews.py",
-    "apps/web/features/reports/decision-review.ts",
-    "apps/web/features/reports/impact-decision-picker.tsx",
-    "apps/web/features/reports/report-workspace.tsx"
+    "apps/api/app/modules/forecasting/services.py"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -51,7 +48,7 @@
     "apps/api/app/modules/decisions/metric_scope.py": "75ff22e77f4e45bc0a14304b330ddebf0cd668c90b6849555e13a5c759e6cb6c",
     "apps/api/app/modules/decisions/router.py": "c6f3d5dadced6fdfc68db120df66b353f22b57d5887de02418da8618846db05b",
     "apps/api/app/modules/forecasting/router.py": "915428acd8e8d1d3202a29f9250f5cf2640f8c193cbd78c41239c86b79b60464",
-    "apps/api/app/modules/forecasting/services.py": "ae9adb7608a1596cd9166b12367917b9bf92bbc4658ad382f3f915c30cf1de31",
+    "apps/api/app/modules/forecasting/services.py": "72519291aa581d042ac1d7d6b77867a9d7dee6d87c897db82d4be1d10be8cadf",
     "apps/api/app/modules/marketing/config.py": "089681ca86246fc90e636568a388affd4c4ef624be4374ef7278888df9a5b379",
     "apps/api/app/modules/organizations/router.py": "d136c676c0e5a2a4504e7a4a956d217b977a1a3c5fe829ae9850c4ecc38b9905",
     "apps/api/app/modules/platform_admin.py": "6145f52bc042193c6aaed1a4c0475d435d9868e7935ed4e4b42f7d32a3f59535",
@@ -152,7 +149,7 @@
     "customer/lag-observations.md": "5872aa25a7c411f09f27e463273722a83439df4f3058a59f396790bac1d53479",
     "customer/relationship-monitors.md": "11876880420e287b336bc8dc049f7e97dcc06c549e575a90d8f86ef2fc5ab0ea",
     "customer/anomalies-seasonality.md": "c999b5512bdd48ba512285e36335ec45c7197b9d19c7dd155fb0f2512cb908af",
-    "customer/forecasts.md": "4a1595c0568b7f92b08be5e9b5ea075930d3786b65b812ba81c2065b0222900c",
+    "customer/forecasts.md": "1a2edbe220961bb7211cbd51492f28862d3ab75e2e2ca0aafca53a5d576ade7e",
     "customer/weekly-reports.md": "a84f86deb699213d7c5093dd3eca39cb406313e95deaaffe30c4c48bda18dc98",
     "customer/email-branding.md": "88d7da08f05daeecc0a4afadb7a7fc6d8b99aa16b18105eceab82259027cc92a",
     "customer/decisions-outcomes.md": "ef70afb954d581bb67941eb0d39d0b879fe6e128fda85d6f6dcd97f51adc69bd",

@@ -1,7 +1,9 @@
 import warnings
+from datetime import date, datetime
 
 import pandas as pd
 import numpy as np
+from dateutil.parser import parse as parse_date
 from statsmodels.regression.linear_model import OLS
 
 from app.modules.decisions.schemas import (
@@ -265,6 +267,36 @@ def identify_forecast_columns(
         date_column,
         value_column,
     )
+
+
+def forecast_dates_need_year(values: pd.Series) -> bool:
+    if pd.api.types.is_datetime64_any_dtype(values):
+        return bool(values.dt.year.le(LOOKBACK_YEARS).any())
+
+    # Changing the default year must not change a date's year. Both defaults
+    # are leap years so a yearless February 29 is also detected.
+    default = datetime(2000, 1, 1)
+    for value in values.dropna().unique():
+        if isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value)
+            except ValueError:
+                try:
+                    parsed = parse_date(value, default=default)
+                    if (
+                        parsed.year == default.year
+                        and parse_date(value, default=default.replace(year=2004)).year != parsed.year
+                    ):
+                        return True
+                except (ValueError, OverflowError):
+                    continue
+        elif isinstance(value, (date, np.datetime64)):
+            parsed = pd.Timestamp(value)
+        else:
+            continue
+        if parsed.year <= LOOKBACK_YEARS:
+            return True
+    return False
 
 
 def prepare_forecast_dataframe(
@@ -760,12 +792,19 @@ def generate_forecast(
     requested_date_column = date_column
     date_column, value_column = identify_forecast_columns(dataframe)
     if requested_date_column is not None:
-        if requested_date_column not in forecast_date_columns(dataframe):
+        matching_columns = [column for column in dataframe.columns if str(column) == requested_date_column]
+        if not matching_columns:
             return {"error": "The selected date column is unavailable or does not contain usable dates."}
-        date_column = next(column for column in dataframe.columns if str(column) == requested_date_column)
+        date_column = matching_columns[0]
 
     if not date_column:
         return {"error": "No date column found"}
+
+    if forecast_dates_need_year(dataframe[date_column]):
+        return {"error": "This date column needs a year, for example 2025-01. Choose a date column with years or update the dataset with the actual dates."}
+
+    if requested_date_column is not None and requested_date_column not in forecast_date_columns(dataframe):
+        return {"error": "The selected date column is unavailable or does not contain usable dates."}
 
     dataframe = prepare_forecast_dataframe(
         dataframe,

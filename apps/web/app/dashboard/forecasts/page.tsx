@@ -86,6 +86,10 @@ function getForecastUnavailableMessage(
     return "This forecast window does not contain enough grouped periods to model a trend. Choose a longer duration or a finer group-by interval."
   }
 
+  if (error instanceof ApiError && error.status === 400) {
+    return message
+  }
+
   return ""
 }
 

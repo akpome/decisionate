@@ -23,8 +23,65 @@ def sample():
 class ForecastDateColumnTests(unittest.TestCase):
     def setUp(self):
         analysis = patch("app.modules.forecasting.services.generate_structured_analysis", return_value={})
-        analysis.start()
+        self.analysis = analysis.start()
         self.addCleanup(analysis.stop)
+
+    def test_month_names_without_years_are_rejected_before_forecasting(self):
+        for dates in (["Jan", "Feb", "Mar"], ["January", "February", "March"],
+                      ["Jan 01", "Feb 01", "Mar 01"], ["01/01", "02/01", "03/01"],
+                      ["Jan 31", "Feb 29", "Mar 31"]):
+            for period in ("all", "1y"):
+                with self.subTest(dates=dates, period=period):
+                    frame = pd.DataFrame({"month": dates, "revenue": [100, 110, 120]})
+                    original = frame.copy(deep=True)
+                    result = generate_forecast(frame, date_column="month", period_filter=period,
+                                               aggregation="monthly", aggregation_type="sum")
+                    self.assertIn("date column needs a year", result["error"])
+                    self.assertNotIn("forecast", result)
+                    pd.testing.assert_frame_equal(frame, original)
+        self.analysis.assert_not_called()
+
+    def test_automatic_date_and_metric_selection_reject_yearless_months(self):
+        frame = pd.DataFrame({"month": ["Jan", "Feb", "Mar"], "revenue": [100, 110, 120]})
+        result = generate_forecast(frame, aggregation="monthly")
+        self.assertIn("date column needs a year", result["error"])
+        self.analysis.assert_not_called()
+
+    def test_yearless_rows_are_not_silently_dropped_from_mixed_dates(self):
+        for label in ("April", "Feb 29", "01/02", "15:30"):
+            with self.subTest(label=label):
+                frame = sample()
+                frame.loc[89, "date"] = label
+                result = generate_forecast(frame, date_column="date", start_date="2026-02-01", aggregation="daily")
+                self.assertIn("date column needs a year", result["error"])
+        self.analysis.assert_not_called()
+
+    def test_months_with_explicit_years_still_forecast_without_a_selected_metric(self):
+        for dates in (["2025-01", "2025-02", "2025-03"],
+                      ["Jan 2025", "Feb 2025", "Mar 2025"],
+                      pd.date_range("2025-01-01", periods=3, freq="MS")):
+            with self.subTest(dates=list(dates)):
+                frame = pd.DataFrame({"month": dates, "revenue": [100, 110, 120]})
+                result = generate_forecast(frame, date_column="month", aggregation="monthly", aggregation_type="sum")
+                self.assertNotIn("error", result)
+                self.assertEqual(result["value_column"], "revenue")
+                self.assertEqual(result["historical"][-1]["month"], "2025-03-01")
+                self.assertEqual(result["forecast_periods"][0], "2025-04-01")
+
+    def test_explicit_default_year_is_not_mistaken_for_a_missing_year(self):
+        frame = pd.DataFrame({"month": ["Jan 2000", "Feb 2000", "Mar 2000"], "revenue": [100, 110, 120]})
+        result = generate_forecast(frame, date_column="month", aggregation="monthly")
+        self.assertNotIn("error", result)
+        self.assertEqual(result["forecast_periods"][0], "2000-04-01")
+
+    def test_already_parsed_year_one_dates_cannot_underflow_the_history_window(self):
+        dates = pd.Series([pd.Timestamp("0001-01-01"), pd.Timestamp("0001-02-01")], dtype="datetime64[us]")
+        for values in (dates, dates.dt.date):
+            with self.subTest(dtype=values.dtype):
+                frame = pd.DataFrame({"month": values, "revenue": [100, 110]})
+                result = generate_forecast(frame, date_column="month", aggregation="monthly")
+                self.assertIn("date column needs a year", result["error"])
+        self.analysis.assert_not_called()
 
     def test_date_options_preserve_the_existing_default_and_exclude_non_dates(self):
         frame = sample()
@@ -88,6 +145,22 @@ class ForecastDateColumnRouteTests(unittest.TestCase):
         app.include_router(forecasts.router, prefix="/forecasting")
         app.include_router(datasets.router, prefix="/datasets")
         self.client = TestClient(app)
+
+    def test_yearless_dates_return_actionable_400_for_get_and_filtered_post(self):
+        self.load.return_value = pd.DataFrame({
+            "month": ["Jan", "Feb", "Mar"], "revenue": [100, 110, 120], "region": ["East"] * 3,
+        })
+        url = "/forecasting/1?date_column=month&period_filter=all&aggregation=monthly&aggregation_type=sum&seasonal_business=false"
+        for response in (self.client.get(url), self.client.post(url, json={"column": "region", "values": ["East"]})):
+            self.assertEqual(response.status_code, 400, response.text)
+            self.assertIn("date column needs a year", response.json()["detail"])
+            self.assertIn("2025-01", response.json()["detail"])
+        self.db.close.assert_called()
+
+        self.load.return_value["month"] = pd.date_range("2025-01-01", periods=3, freq="MS")
+        recovered = self.client.get(url)
+        self.assertEqual(recovered.status_code, 200, recovered.text)
+        self.assertEqual(recovered.json()["forecast"]["value_column"], "revenue")
 
     def test_get_and_filtered_post_use_the_selected_date_column(self):
         response = self.client.get("/forecasting/1?metric=revenue&date_column=paid_date&aggregation=daily")

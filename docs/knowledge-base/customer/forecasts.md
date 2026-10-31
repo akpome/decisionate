@@ -27,6 +27,12 @@ a seasonal model or that a fallback has the same capabilities.
 
 ## Quality and unavailable results
 
+If Forecast unavailable says the date column needs a year, its values include
+month names or month/day labels without a year. Forecasts cannot infer the real
+year from labels such as Jan or 01/15. Choose another date column with years or
+update the dataset with the actual dates, for example 2025-01. Retrying unchanged
+data will not resolve this validation issue. No year is guessed for you.
+
 Validation errors describe performance on the available held-out history, not a
 guaranteed future error bound. Gaps, changing business conditions, source delays
 and exceptional events can undermine a forecast. Do not infer promotions or
