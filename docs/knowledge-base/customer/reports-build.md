@@ -50,6 +50,18 @@ manual decisions without that evidence, and unfinished evidence placeholders
 are not offered. Search and pagination use the same eligibility rule. Existing
 decisions and saved assessments are not deleted by this filter. Being listed
 does not establish reliable timing or an impact estimate; those checks still apply.
+Each dropdown choice shows its evidence readiness and a reason. Ready to set up
+impact analysis means the original saved analysis has a reliable relationship
+and verified timing for this decision's outcome. It does not guarantee an impact
+estimate: the implementation date, unaffected comparison and before-and-after
+records still need checking. Missing relationship or timing evidence explains
+what is unavailable, including a deleted or inaccessible original analysis.
+Missing outcome metric means the decision needs a result selected in Decision
+Details. Choose the supporting relationship means several reliable relationships
+are available and one must be selected. These decisions stay visible and selectable
+so their details can be inspected. The selected decision's status stays visible
+below the selector. Older API responses without a check say Readiness not checked,
+not Ready.
 The decision's action and outcome metric are
 reused, not entered as a second decision. The Edit decision pencil beside the
 selected decision opens its Decision Details. Use it to update the original action

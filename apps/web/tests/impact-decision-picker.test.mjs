@@ -219,3 +219,47 @@ test("read-only mode hides the dropdown and workspace changes reset the scoped p
   const workspace = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
   assert.match(workspace, /<ImpactDecisionPicker key=\{JSON.stringify\(\[userId, workspaceId\]\)\}/)
 })
+
+test("every choice explains evidence readiness without hiding or disabling incomplete decisions", async () => {
+  const h = harness()
+  h.runTimers()
+  await h.settle(h.requests[0], response([
+    { ...decisions[0], readiness: { status: "ready", reason: "Relationship and timing recorded. The comparison still needs checking." } },
+    { ...decisions[1], readiness: { status: "needs_evidence", reason: "The original correlation report is unavailable." } },
+    { ...decisions[2], readiness: { status: "needs_outcome", reason: "Choose the outcome metric in Decision Details." } },
+    { id: 4, title: "Open another store", readiness: { status: "needs_relationship", reason: "Choose the relationship behind this decision." } },
+  ]))
+  h.focus()
+  assert.equal(h.options().length, 4)
+  for (const text of ["Ready to set up impact analysis", "Missing relationship or timing evidence", "Missing outcome metric",
+    "Choose the supporting relationship", "The comparison still needs checking", "original correlation report is unavailable"]) {
+    assert.ok(h.html().includes(text), text)
+  }
+  h.key("ArrowDown"); h.key("ArrowDown"); h.key("Enter")
+  assert.deepEqual(h.chosen, [2])
+  h.props.decisionId = 2; h.render()
+  assert.equal(h.control().props["aria-describedby"], "picker-readiness")
+  assert.match(h.html(), /original correlation report is unavailable/)
+})
+
+test("selected readiness persists across searches and fresh context overrides stale list evidence", async () => {
+  const h = harness({ decisionId: 1 })
+  h.runTimers()
+  await h.settle(h.requests[0], response([{ ...decisions[0], readiness: { status: "ready", reason: "Timing recorded." } }]))
+  h.focus(); h.type("staff"); h.runTimers()
+  await h.settle(h.requests.at(-1), response([decisions[1]]))
+  h.blur()
+  assert.match(h.html(), /Ready to set up impact analysis/)
+  h.props.readiness = { status: "needs_evidence", reason: "The original report is no longer available." }
+  h.render()
+  assert.match(h.html(), /original report is no longer available/)
+  assert.doesNotMatch(h.html(), /Ready to set up impact analysis/)
+})
+
+test("legacy API responses and selected ids outside the current page never imply readiness", async () => {
+  const h = harness({ decisionId: 97 })
+  h.runTimers(); await h.settle(h.requests[0], response())
+  h.focus()
+  assert.match(h.html(), /Readiness not checked/)
+  assert.doesNotMatch(h.html(), /Ready to set up impact analysis/)
+})

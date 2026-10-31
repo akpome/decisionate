@@ -2,14 +2,30 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react"
 import Link from "next/link"
-import { Check, ChevronDown, RefreshCw } from "lucide-react"
+import { Check, CircleCheck, CircleHelp, ChevronDown, RefreshCw } from "lucide-react"
 import { correlationRequest } from "@/lib/api"
+import type { ImpactReadiness } from "./decision-review"
 
-type Choice = { id: number; title: string }
+type Choice = { id: number; title: string; readiness?: ImpactReadiness | null }
 const label = (choice: Choice) => `${choice.title} (#${choice.id})`
 
-export function ImpactDecisionPicker({ userId, workspaceId, decisionId, disabled, onChoose }: {
-  userId: string; workspaceId?: string; decisionId?: number | null; disabled: boolean; onChoose: (id: number) => void
+function Readiness({ value }: { value?: ImpactReadiness | null }) {
+  const labels = { ready: "Ready to set up impact analysis", needs_outcome: "Missing outcome metric",
+    needs_relationship: "Choose the supporting relationship", needs_evidence: "Missing relationship or timing evidence" }
+  const ready = value?.status === "ready"
+  const Icon = ready ? CircleCheck : CircleHelp
+  return <span className="mt-1 block min-w-0 text-xs leading-5">
+    <span className={`flex items-start gap-1.5 font-medium ${ready ? "text-emerald-800" : "text-amber-900"}`}>
+      <Icon size={14} aria-hidden="true" className="mt-0.5 shrink-0" />
+      <span>{value ? labels[value.status] || "Readiness not checked" : "Readiness not checked"}</span>
+    </span>
+    {value?.reason && <span className="mt-0.5 block text-gray-600">{value.reason}</span>}
+  </span>
+}
+
+export function ImpactDecisionPicker({ userId, workspaceId, decisionId, readiness, disabled, onChoose }: {
+  userId: string; workspaceId?: string; decisionId?: number | null; readiness?: ImpactReadiness | null
+  disabled: boolean; onChoose: (id: number) => void
 }) {
   const id = useId()
   const input = useRef<HTMLInputElement>(null)
@@ -93,6 +109,7 @@ export function ImpactDecisionPicker({ userId, workspaceId, decisionId, disabled
     <div className="relative mt-1">
       <input ref={input} id={id} type="text" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded={expanded}
         aria-controls={expanded ? `${id}-choices` : undefined} aria-activedescendant={activeChoice ? `${id}-option-${activeChoice.id}` : undefined}
+        aria-describedby={decisionId ? `${id}-readiness` : undefined}
         aria-required="true" autoComplete="off" maxLength={200} placeholder="Search multi-dataset decisions" value={search ?? selectedLabel} disabled={disabled}
         className="min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white py-2 pl-3 pr-12 text-sm text-gray-950 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
         onFocus={event => { setOpen(true); event.target.select() }} onClick={() => setOpen(true)} onKeyDown={navigate}
@@ -107,10 +124,10 @@ export function ImpactDecisionPicker({ userId, workspaceId, decisionId, disabled
       <ul id={`${id}-choices`} role="listbox" aria-label="Decisions" aria-busy={loading} className="max-h-60 overflow-y-auto overscroll-contain py-1">
         {visibleChoices.map(choice => <li key={choice.id} id={`${id}-option-${choice.id}`} role="option" tabIndex={-1}
           aria-selected={choice.id === (activeChoice?.id ?? decisionId)}
-          className={`flex min-h-10 cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-950 ${choice.id === activeId ? "bg-blue-50" : "hover:bg-gray-50"}`}
+          className={`flex min-h-10 cursor-pointer items-start gap-2 px-3 py-2 text-sm text-gray-950 ${choice.id === activeId ? "bg-blue-50" : "hover:bg-gray-50"}`}
           onMouseDown={event => event.preventDefault()} onPointerMove={() => setActiveId(choice.id)} onClick={() => choose(choice)}>
-          <span className="min-w-0 flex-1 break-words">{label(choice)}</span>
-          {choice.id === decisionId && <Check size={16} aria-hidden="true" className="shrink-0 text-blue-700" />}
+          <span className="min-w-0 flex-1 break-words"><span className="font-medium">{label(choice)}</span><Readiness value={choice.readiness} /></span>
+          {choice.id === decisionId && <Check size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-blue-700" />}
         </li>)}
       </ul>
       <div role="status" className="px-3 py-2 text-xs text-gray-600">{loading ? "Loading decisions..." : failed ? "Decisions could not be loaded." : `${visibleChoices.length} matching ${visibleChoices.length === 1 ? "decision" : "decisions"}`}</div>
@@ -118,5 +135,6 @@ export function ImpactDecisionPicker({ userId, workspaceId, decisionId, disabled
       {!loading && !failed && visibleChoices.length === 0 && <p className="px-3 pb-3 text-sm text-gray-600">No matching active decisions from multi-dataset analysis. <Link className="text-blue-700 underline" href="/dashboard/decisions">Open decisions</Link></p>}
       {!failed && resultSearch === query && next !== null && <button type="button" disabled={loading} className="min-h-10 w-full border-t border-gray-100 px-3 py-2 text-left text-sm text-blue-700 disabled:opacity-50" onMouseDown={event => event.preventDefault()} onClick={() => { input.current?.focus(); setLoading(true); setOffset(next) }}>Load more decisions</button>}
     </div>}
+    {decisionId && <div id={`${id}-readiness`} role="status" className="mt-2 break-words"><Readiness value={readiness || selectedChoice?.readiness} /></div>}
   </section>
 }

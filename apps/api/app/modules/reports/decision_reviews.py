@@ -137,11 +137,23 @@ def review_context(db, decision, user, workspace):
     period, column, grain = decision_data_period(decision, outcome)
     available_through = datetime.now(ZoneInfo(reporting_timezone())).date() - timedelta(days=1)
     from .impact_timing import decision_timing
+    timing = decision_timing(db, decision, outcome, user, workspace) if outcome else None
     return {"decision": report_decision_record(decision), "outcome": outcome,
             "decision_revision": decision_revision(decision), "latest_review": next(iter(history["reviews"]), None),
             "decision_period": period, "outcome_date_column": column, "decision_grain": grain,
             "available_through": available_through.isoformat(),
-            "timing_evidence": decision_timing(db, decision, outcome, user, workspace) if outcome else None}
+            "timing_evidence": timing, "readiness": impact_readiness(outcome, timing)}
+
+
+def impact_readiness(outcome, timing):
+    # This is evidence readiness, not a promise that the full impact checks will pass.
+    if not outcome:
+        return {"status": "needs_outcome", "reason": "Choose the outcome metric in Decision Details before assessing this decision."}
+    if timing and timing.get("status") == "supported":
+        return {"status": "ready", "reason": "A reliable relationship and timing are recorded. The implementation date, comparison and before-and-after data still need checking."}
+    if timing and timing.get("status") == "choose_relationship":
+        return {"status": "needs_relationship", "reason": "More than one reliable relationship is available. Choose the one this decision was based on."}
+    return {"status": "needs_evidence", "reason": (timing or {}).get("message") or "No reliable relationship and timing evidence are available for this decision."}
 
 
 def has_multi_dataset_analysis(decision):
@@ -165,6 +177,8 @@ def has_multi_dataset_analysis(decision):
 
 
 def review_choices(db, user, workspace, *, search="", offset=0):
+    from .impact_timing import decision_timing
+
     query = db.query(Decision).filter(decision_scope(user, workspace), canonical_decisions(),
         Decision.status.notin_({"archived", "cancelled"}), Decision.action.isnot(None),
         Decision.recommendation_context.isnot(None))
@@ -180,7 +194,9 @@ def review_choices(db, user, workspace, *, search="", offset=0):
                 continue
             if len(choices) == 25:
                 return {"decisions": choices, "next_offset": offset + index}
-            choices.append({"id": row.id, "title": row.title})
+            outcome = {"dataset_id": row.outcome_dataset_id or row.dataset_id, "metric_key": row.metric_column} if row.metric_column else None
+            timing = decision_timing(db, row, outcome, user, workspace) if outcome else None
+            choices.append({"id": row.id, "title": row.title, "readiness": impact_readiness(outcome, timing)})
         if len(rows) < 100:
             return {"decisions": choices, "next_offset": None}
         offset += len(rows)

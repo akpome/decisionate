@@ -653,7 +653,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             if (window.confirm("Switch this weekly setup to metric monitoring? The current setup is replaced only after you preview and save. Saved decision assessments and historical reports are kept.")) edit({ impact: null })
           } : undefined} /> : definition.impact && !weekly ? <ImpactBuilder definition={definition} datasets={datasets} userId={userId} workspaceId={workspaceId} weekly={false} weeklySettings={null}
             periodIssue={periodIssue} onRetryPeriod={impactContextError ? () => setImpactContextReload(value => value + 1) : undefined}
-            decisionPicker={<ImpactDecisionPicker key={JSON.stringify([userId, workspaceId])} userId={userId} workspaceId={workspaceId} decisionId={definition.impact.decision_id} disabled={!canEditDecisions || busy} onChoose={identity => void chooseReviewDecision(identity)} />}
+            decisionPicker={<ImpactDecisionPicker key={JSON.stringify([userId, workspaceId])} userId={userId} workspaceId={workspaceId} decisionId={definition.impact.decision_id} readiness={currentImpactContext?.readiness} disabled={!canEditDecisions || busy} onChoose={identity => void chooseReviewDecision(identity)} />}
             actions={previewButton} loading={catalogBusy} catalogError={catalogError} retryingDataset={retryingDataset} footer={catalogFooter}
             onChange={edit} onStudyChange={editImpact} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} /> : <>
           {reportDetails}

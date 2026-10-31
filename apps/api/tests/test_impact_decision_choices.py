@@ -2,12 +2,13 @@ from datetime import datetime
 import json
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.modules.decisions.models import Decision, DecisionDuplicate
-from app.modules.reports.decision_reviews import has_multi_dataset_analysis, review_choices
+from app.modules.reports.decision_reviews import has_multi_dataset_analysis, impact_readiness, review_choices
 
 
 def evidence(**updates):
@@ -145,9 +146,43 @@ class ImpactDecisionChoiceTests(unittest.TestCase):
             self.add({}, title="Improve store orders")
         self.db.commit()
         result = self.choices(search="store")
-        self.assertEqual(result, {"decisions": [{"id": match.id, "title": match.title}], "next_offset": None})
+        self.assertEqual(result, {"decisions": [{"id": match.id, "title": match.title,
+                                                "readiness": impact_readiness(None, None)}], "next_offset": None})
         self.assertEqual(self.choices(search="missing"), {"decisions": [], "next_offset": None})
         self.assertEqual(self.choices(offset=1000), {"decisions": [], "next_offset": None})
+
+    def test_readiness_keeps_missing_evidence_visible_and_uses_the_authorized_timing_check(self):
+        missing_outcome = self.add()
+        needs_evidence = self.add(metric_column="orders", outcome_dataset_id=2)
+        needs_relationship = self.add(metric_column="orders", outcome_dataset_id=2)
+        ready = self.add(metric_column="orders", outcome_dataset_id=2)
+        results = {ready.id: {"status": "supported"}, needs_relationship.id: {"status": "choose_relationship"},
+                   needs_evidence.id: {"status": "unavailable", "message": "The original correlation report is unavailable. Timing has not been assumed."}}
+        with patch("app.modules.reports.impact_timing.decision_timing", side_effect=lambda db, row, outcome, user, workspace: results[row.id]) as timing:
+            choices = {item["id"]: item["readiness"] for item in self.choices()["decisions"]}
+        self.assertEqual(choices[ready.id]["status"], "ready")
+        self.assertIn("still need checking", choices[ready.id]["reason"])
+        self.assertEqual(choices[needs_relationship.id]["status"], "needs_relationship")
+        self.assertEqual(choices[needs_evidence.id]["reason"], results[needs_evidence.id]["message"])
+        self.assertEqual(choices[missing_outcome.id]["status"], "needs_outcome")
+        self.assertEqual(timing.call_count, 3)
+        for call in timing.call_args_list:
+            self.assertEqual(call.args[2:], ({"dataset_id": 2, "metric_key": "orders"}, "owner", "workspace"))
+
+    def test_readiness_is_checked_only_for_the_returned_page_not_all_eligible_decisions(self):
+        for _ in range(27):
+            self.add(metric_column="orders")
+        with patch("app.modules.reports.impact_timing.decision_timing", return_value={"status": "unavailable", "message": "Timing needs checking."}) as timing:
+            first = self.choices()
+            self.assertEqual(timing.call_count, 25)
+            self.assertEqual(len(first["decisions"]), 25)
+            last = self.choices(offset=first["next_offset"])
+            self.assertEqual(timing.call_count, 27)
+            self.assertEqual(len(last["decisions"]), 2)
+
+    def test_absent_or_unknown_timing_never_claims_readiness(self):
+        for timing in (None, {}, {"status": "unknown"}):
+            self.assertEqual(impact_readiness({"dataset_id": 1, "metric_key": "orders"}, timing)["status"], "needs_evidence")
 
 
 if __name__ == "__main__":

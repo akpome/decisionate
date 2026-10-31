@@ -8,12 +8,17 @@ export type DecisionImpactReview = {
   review_id: string; decision_id: number; report_id: string | null; created_at: string
   definition: ReportDefinition; analysis: ImpactAnalysis; matches_current_decision: boolean
 }
+export type ImpactReadiness = {
+  status: "ready" | "needs_outcome" | "needs_relationship" | "needs_evidence"
+  reason: string
+}
 export type DecisionReviewContext = {
   decision: ReportDecision; outcome: { dataset_id: number; metric_key: string } | null
   decision_revision: string; latest_review: DecisionImpactReview | null
   decision_period?: { start: string; end: string } | null; outcome_date_column?: string | null
   decision_grain?: string | null; available_through?: string
   timing_evidence?: ImpactTimingEvidence | null
+  readiness?: ImpactReadiness | null
 }
 
 export function automaticImpactDefinition(definition: ReportDefinition, context: DecisionReviewContext, datasets: CatalogDataset[]): ReportDefinition {

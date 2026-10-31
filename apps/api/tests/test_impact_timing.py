@@ -203,6 +203,57 @@ class ImpactTimingWorkflowTests(unittest.TestCase):
     def setUp(self):
         fixtures.BusinessImpactWorkflowTests.setUp(self)
 
+    def test_picker_and_selected_decision_agree_on_authorized_evidence_readiness_without_scanning_data(self):
+        from app.modules.decisions.models import Decision
+        from app.modules.reports.models import BusinessReport
+
+        source_id, snapshot = attach_timing(self)
+        with self.Session() as db:
+            db.get(Decision, self.decision_id).recommendation_context = json.dumps({
+                "evidence_kind": "business_report", "report_id": source_id, "definition": snapshot["definition"],
+            })
+            db.commit()
+
+        def check(status, reason=None):
+            with patch("app.modules.reports.router.load_dataframe_from_dataset", side_effect=AssertionError("No source scans")):
+                response = self.client.get("/api/v2/business-reports/review-decisions")
+                self.assertEqual(response.status_code, 200, response.text)
+                choice = response.json()["decisions"][0]
+                context = self.client.get(f"/api/v2/business-reports/review-decisions/{self.decision_id}").json()
+            self.assertEqual(choice["readiness"], context["readiness"])
+            self.assertEqual(choice["readiness"]["status"], status)
+            if reason:
+                self.assertIn(reason, choice["readiness"]["reason"])
+
+        check("ready")
+        # A high coefficient alone must not qualify a relationship with unverified timing.
+        snapshot["findings"][0]["timing_validation"]["status"] = "unavailable"
+        with self.Session() as db:
+            db.get(BusinessReport, source_id).snapshot = json.dumps(snapshot)
+            db.commit()
+        check("needs_evidence", "No reliable")
+        with self.Session() as db:
+            db.delete(db.get(BusinessReport, source_id))
+            db.commit()
+        check("needs_evidence", "original correlation report is unavailable")
+
+    def test_picker_readiness_does_not_leak_revoked_source_names(self):
+        from app.db.models import Dataset
+        from app.modules.decisions.models import Decision
+
+        source_id, snapshot = attach_timing(self)
+        with self.Session() as db:
+            db.get(Decision, self.decision_id).recommendation_context = json.dumps({
+                "evidence_kind": "business_report", "report_id": source_id, "definition": snapshot["definition"],
+            })
+            db.get(Dataset, 4).workspace_id = "private"
+            db.get(Dataset, 4).user_id = "private"
+            db.commit()
+        response = self.client.get("/api/v2/business-reports/review-decisions")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["decisions"][0]["readiness"]["status"], "needs_evidence")
+        self.assertNotIn("Advertising", response.text)
+
     def test_server_uses_authorized_source_not_client_lag_and_freezes_saved_assessment(self):
         from app.infrastructure.analysis_worker import execute_job
         from app.modules.reports.models import BusinessReport
