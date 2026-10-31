@@ -11,8 +11,8 @@ export function WeeklyAssessmentSetup({ definition, issue, onSwitch, preview }: 
   return <section aria-label="Existing decision update" className="min-w-0 space-y-4 border-y border-gray-200 py-5">
     <h2 className="text-base font-semibold">Existing decision update</h2>
     <p className="break-words text-sm text-gray-700">{study.change || "No action recorded."}</p>
-    <p className="text-sm text-gray-600">The existing assessment configuration is retained. Decision assessment is managed in Analysis.</p>
-    <Link href={study.decision_id ? `/dashboard/reports?decision=${study.decision_id}` : "/dashboard/reports"} className="inline-flex min-h-10 items-center gap-2 text-sm text-blue-700 underline"><ArrowUpRight size={16} />Manage assessment in Analysis</Link>
+    <p className="text-sm text-gray-600">The existing assessment configuration is retained. Decision assessment is managed in Business Analysis.</p>
+    <Link href={study.decision_id ? `/dashboard/reports?decision=${study.decision_id}` : "/dashboard/reports"} className="inline-flex min-h-10 items-center gap-2 text-sm text-blue-700 underline"><ArrowUpRight size={16} />Manage assessment in Business Analysis</Link>
     {issue && <p role="status" className="text-sm text-amber-800">{issue}</p>}
     <div className="flex flex-wrap items-center gap-3">
       {onSwitch && <button type="button" onClick={onSwitch} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium"><ChartNoAxesCombined size={16} />Set up metric monitoring</button>}

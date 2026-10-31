@@ -53,7 +53,7 @@ function workspaceHeader(weekly, view = "explore", translate = text => text, loa
 }
 
 test("each separate workflow has its approved title and only its own setup and preview tabs", () => {
-  for (const [weekly, title, setup, preview] of [[false, "Analysis", "Build analysis", "Analysis preview"], [true, "Weekly Reports", "Report setup", "Report preview"]]) {
+  for (const [weekly, title, setup, preview] of [[false, "Business Analysis", "Build analysis", "Analysis preview"], [true, "Weekly Reports", "Report setup", "Report preview"]]) {
     const html = workspaceHeader(weekly)
     assert.match(html, new RegExp(`<h1[^>]*>${title}</h1>`))
     for (const label of [setup, preview]) assert.ok(html.includes(`>${label}</span>`))
@@ -79,23 +79,24 @@ test("setup and preview retain a single selected tab, touch sizing and accessibl
 test("French report labels use the existing translation dictionary", () => {
   const { getLandingText } = compile("../lib/language.ts")
   const html = workspaceHeader(false, "explore", text => getLandingText("fr", text))
-  assert.match(html, />Analyse<\/h1>/)
+  assert.match(html, />Analyse commerciale<\/h1>/)
   assert.match(html, /Préparer une analyse/)
   assert.match(html, /Aperçu de l&#x27;analyse/)
   const weekly = workspaceHeader(true, "explore", text => getLandingText("fr", text))
   assert.match(weekly, /Rapports hebdomadaires/)
   assert.match(weekly, /Configuration du rapport/)
-  for (const label of ["Analysis", "Weekly Reports", "Build analysis", "Analysis preview", "Report setup", "Report preview", "Preview analysis", "Copy selection to Weekly Reports"]) {
+  for (const label of ["Analysis", "Business Analysis", "Business impact analysis", "Weekly Reports", "Build analysis", "Analysis preview", "Report setup", "Report preview", "Preview analysis", "Copy selection to Weekly Reports"]) {
     assert.notEqual(getLandingText("fr", label), label)
   }
 })
 
-test("Relationships is directly discoverable in the Analysis sidebar", () => {
+test("Business Analysis has a distinct label in the Analysis sidebar alongside Weekly Reports and Relationships", () => {
   const source = read("../app/dashboard/dashboard-shell.tsx")
   const analysis = source.slice(source.indexOf('label: "Analysis"'), source.indexOf('label: "Data"'))
   assert.match(analysis, /href: "\/dashboard\/relationships",\s+label: "Relationships"/)
-  assert.ok(analysis.indexOf('label: "Analysis"') >= 0)
-  assert.ok(analysis.indexOf('label: "Analysis"') < analysis.indexOf('label: "Weekly Reports"'))
+  assert.equal((analysis.match(/label: "Analysis"/g) ?? []).length, 1)
+  assert.match(analysis, /href: "\/dashboard\/reports",\s+label: "Business Analysis"/)
+  assert.ok(analysis.indexOf('label: "Business Analysis"') < analysis.indexOf('label: "Weekly Reports"'))
   assert.ok(analysis.indexOf('label: "Weekly Reports"') < analysis.indexOf('label: "Relationships"'))
 })
 

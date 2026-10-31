@@ -1,25 +1,25 @@
 # Build single and multi dataset reports
 
-Analysis is the on-demand analysis workspace. Multi dataset report opens by
+Business Analysis is the on-demand analysis workspace. Multi dataset report opens by
 default; Single dataset report is available separately for one source. Weekly Reports
 has its own page and settings, automatic dates, whole-week and daily checks,
 and earlier relationship history grouped weekly.
 Use the sidebar to move between these separate workflows; neither page has tabs
-for the other workflow. Analysis has Build analysis and Analysis preview;
+for the other workflow. Business Analysis has Build analysis and Analysis preview;
 Weekly Reports has Report setup and Report preview.
-Analysis uses approved
+Business Analysis uses approved
 dataset metrics, date policies, anomaly detection and report snapshots.
 
 New multi dataset reports open with **Explore relationships**. The correlation
 method, minimum matching periods, timing and metric-pair settings
 are available under the expanded Relationship analysis section. Under Analysis
-type, choose **Assess a decision** to review an existing decision.
+type, choose **Business impact analysis** to review an existing decision.
 Saved reports keep their original analysis type. Neither mode replaces
 decision creation or decision review on the Decisions page.
 
 ## Analyze one dataset
 
-Open Analysis and choose Single dataset report. Under Dataset and
+Open Business Analysis and choose Single dataset report. Under Dataset and
 metrics, use the searchable Dataset dropdown to choose one source. Type its name
 or connector to filter choices, including sources on later catalog pages. Search
 does not select a dataset or load its data files. Before choosing, no source's
@@ -100,7 +100,7 @@ Saved multi-value comparison filters remain visible and require an explicit
 single-value choice before another assessment. A saved outcome segment is retained
 and displayed beside the decision, with a clear control; it is not silently removed.
 
-Analysis defaults to the period saved with the decision's report evidence.
+Business Analysis defaults to the period saved with the decision's report evidence.
 A matching previous assessment keeps its recorded period. If no evidence period
 was saved, the approved outcome dataset's available dates provide the default;
 the decision's creation date is never used as its data period or action date.
@@ -109,8 +109,8 @@ column does not silently replace the decision's period.
 The action's start date is the only date input visible in the main setup.
 The outcome Date column is beside Outcome metric and starts with the decision's
 saved selection. The comparison date column remains beside its dimension filter.
-In Analysis, Analysis settings contains only the shared history range and grouping.
-Assess a decision is available only in Analysis, also accessible from Decision
+In Business Analysis, Analysis settings contains only the shared history range and grouping.
+Business impact analysis is available only in Business Analysis, also accessible from Decision
 Details. Weekly Reports has no assessment tab or setup form. Minimum history
 requirements appear beside assessment readiness, outside the settings disclosures.
 Datasets with no overlapping dates are blocked with an explicit message; a wider
@@ -118,7 +118,7 @@ date range cannot invent overlap. Comparisons outside the selected decision peri
 are also blocked. Saved snapshots keep their stored date choices.
 Changing the selected comparison, date column or dimension filters requires the
 comparison confirmation again. Existing weekly assessment configurations remain
-read-only in Weekly Reports, with a link to Analysis and an explicit option to
+read-only in Weekly Reports, with a link to Business Analysis and an explicit option to
 switch to metric monitoring after preview and save. Historical evidence is kept.
 Existing extra selected results stay visible under Other selected results
 and can be removed deliberately. Report name and business question are editable
@@ -155,7 +155,7 @@ will arrive or proof of cause and effect.
 
 ## Usual ups and downs in impact assessments
 
-There is no seasonal-business checkbox in Assess a decision. The comparison
+There is no seasonal-business checkbox in Business impact analysis. The comparison
 provides the expected baseline, with reliability checked on records before the action;
 the two results are not forced to have equal levels or identical seasonal behavior.
 Earlier records must show that the comparison helps explain the outcome beyond
@@ -189,9 +189,9 @@ answer is calculated directly, so an AI provider cannot invent
 an impact amount or upgrade weak evidence. Details are available under the checks.
 Supporting charts and unusual-change tables are kept in Supporting business
 results, rather than crowding the main answer and decision links.
-Assess a decision does not run a separate correlation or lag search and
+Business impact analysis does not run a separate correlation or lag search and
 does not show Relationship findings. Its own comparison checks and estimated
-impact are independent of the correlation settings. This applies to Analysis
+impact are independent of the correlation settings. This applies to Business Analysis
 and Weekly Reports. Reopened older impact snapshots also omit their
 old correlation findings from the preview; their stored calculations are not
 rewritten or recalculated.
@@ -205,7 +205,7 @@ business change. Existing saved reports keep their original workflow.
 
 ## Build an analysis
 
-1. Open Analysis from the sidebar, select the intended dataset scope and name the business question.
+1. Open Business Analysis from the sidebar, select the intended dataset scope and name the business question.
 2. Replace the generated report name with a useful description. Its unique
    starting label prevents name collisions; it is not a business conclusion.
 3. In Datasets and metrics, select only relevant approved measures. Multi dataset
@@ -230,11 +230,11 @@ lag 12 grouped periods and same-period comparison. Valid saved choices are
 retained rather than replaced simply because the defaults changed.
 Minimum matching days/weeks/months/quarters counts matched observations in the
 chosen grouping, not just the length of the calendar window. Weekly Reports uses
-weeks for its relationship history regardless of the grouping on Analysis.
+weeks for its relationship history regardless of the grouping on Business Analysis.
 
 A report supports at most 25 selected metrics. Explore relationships supports
 a maximum of 12 lag periods and 1,000 cross-dataset pair/lag tests; those timing
-and test-count limits do not apply to Assess a decision, which does not
+and test-count limits do not apply to Business impact analysis, which does not
 run those tests. Reduce metrics or timing complexity if the correlation
 analysis exceeds these limits. Removed pairs do not consume relationship tests;
 they can be restored without removing the selected metrics. The default

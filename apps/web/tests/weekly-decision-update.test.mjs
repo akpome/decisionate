@@ -21,6 +21,7 @@ test("weekly assessment setup is read-only and preserves its decision link witho
   const html = render(WeeklyAssessmentSetup, { definition, issue: "More matching records needed", onSwitch() {}, preview: React.createElement("button", null, "Preview report") })
   assert.match(html, /Existing decision update/)
   assert.match(html, /href="\/dashboard\/reports\?decision=7"/)
+  assert.match(html, /Manage assessment in Business Analysis/)
   assert.match(html, /Set up metric monitoring/)
   assert.match(html, /Preview report/)
   assert.match(html, /More matching records needed/)
@@ -49,7 +50,7 @@ test("weekly decision update is a dated summary with retained evidence, not an a
   assert.match(render(WeeklyDecisionUpdate, { report: { ...report, impact_analysis: { ...report.impact_analysis, estimate: { effect: 10 } } } }), /Estimated impact, not proof of cause and effect/)
 })
 
-test("only Analysis exposes the assessment tabs and form; switching legacy weekly setup needs confirmation", () => {
+test("only Business Analysis exposes the assessment tabs and form; switching legacy weekly setup needs confirmation", () => {
   const source = read("../features/reports/report-workspace.tsx")
   assert.match(source, /!single && !weekly && <fieldset[^\n]+Analysis type/)
   assert.match(source, /definition.impact && !weekly \? <ImpactBuilder/)

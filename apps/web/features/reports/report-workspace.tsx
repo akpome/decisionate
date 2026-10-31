@@ -112,7 +112,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const singleDatasetId = single ? definition.metrics[0]?.dataset_id ?? selectedDatasetId : null
   const singleDataset = single ? datasets.find(dataset => dataset.dataset_id === singleDatasetId) : undefined
   const pagePath = weekly ? "/dashboard/reports/weekly" : single ? "/dashboard/reports/dataset" : "/dashboard/reports"
-  const pageTitle = weekly ? "Weekly Reports" : "Analysis"
+  const pageTitle = weekly ? "Weekly Reports" : "Business Analysis"
   const setupLabel = weekly ? "Report setup" : "Build analysis"
   const previewLabel = weekly ? "Report preview" : "Analysis preview"
   const taskCount = definition.impact ? 0 : reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs)
@@ -621,7 +621,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       <form onSubmit={event => { event.preventDefault(); void calculate() }}>
         <fieldset disabled={busy || weekly && !canManage || weekly && !weeklySettings} className="min-w-0 space-y-5">
           {!single && !weekly && <fieldset className="min-w-0"><legend className="mb-2 text-sm font-medium">Analysis type</legend><div className="inline-flex max-w-full flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1" role="group" aria-label="Analysis type">
-            {[{ label: "Explore relationships", impact: false }, { label: "Assess a decision", impact: true }].map(mode => <button key={mode.label} type="button" aria-pressed={Boolean(definition.impact) === mode.impact} className={`min-h-10 min-w-0 rounded px-3 text-sm ${Boolean(definition.impact) === mode.impact ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`} onClick={() => {
+            {[{ label: "Explore relationships", impact: false }, { label: "Business impact analysis", impact: true }].map(mode => <button key={mode.label} type="button" aria-pressed={Boolean(definition.impact) === mode.impact} className={`min-h-10 min-w-0 rounded px-3 text-sm ${Boolean(definition.impact) === mode.impact ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`} onClick={() => {
               if (Boolean(definition.impact) !== mode.impact) edit({ impact: mode.impact ? newImpactStudy() : null, ...(mode.impact && definition.grain === "quarterly" ? { grain: "weekly" } : {}) })
             }}>{t(mode.label)}</button>)}
           </div></fieldset>}

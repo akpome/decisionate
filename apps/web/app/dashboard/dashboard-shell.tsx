@@ -168,7 +168,7 @@ const dashboardNavGroups: DashboardNavGroup[] = [
     items: [
       {
         href: "/dashboard/reports",
-        label: "Analysis",
+        label: "Business Analysis",
         icon: <FileText size={18} />,
       },
       {

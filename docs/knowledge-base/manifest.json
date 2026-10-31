@@ -2,7 +2,7 @@
   "schema_version": 1,
   "product": "Decisionate",
   "language": "en",
-  "reviewed_on": "2026-10-30",
+  "reviewed_on": "2026-10-31",
   "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
   "default_export_audience": "customer",
   "articles": [
@@ -27,6 +27,7 @@
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
+        "apps/web/app/dashboard/dashboard-shell.tsx",
         "docs/CROSS_DATASET_REPORTS.md",
         "apps/web/features/reports/legacy-insights-destination.ts"
       ],

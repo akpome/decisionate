@@ -2,10 +2,10 @@
 
 Weekly reports are cross-dataset reviews, not a repeated single-metric screenshot.
 Open Weekly Reports in the sidebar. It requires usable metrics from at least
-two datasets for delivery. Analysis is a separate page and does not
+two datasets for delivery. Business Analysis is a separate page and does not
 control the weekly report's dates or time grouping.
 The pages do not share a workflow tab bar. Weekly Reports uses Report
-setup and Report preview; Analysis uses Build analysis and Analysis preview.
+setup and Report preview; Business Analysis uses Build analysis and Analysis preview.
 
 ## Configure weekly analysis and sending separately
 
@@ -53,7 +53,7 @@ usable email address, sending is blocked rather than using another recipient.
 Sending requires usable data from at least two selected datasets in the last
 completed week. If the preview has insufficient coverage, Send report now is
 disabled and shows the exact dates needed. Sync or upload data for that week,
-then preview again. Historical demo files belong in Analysis; weekly
+then preview again. Historical demo files belong in Business Analysis; weekly
 reports do not shift to the most recent dates in an old file. Saved weekly
 settings load only their selected datasets, not unrelated workspace sources.
 
@@ -96,25 +96,25 @@ within allowed bounds. Lag zero compares the same week. The selected metric's
 approved aggregation policy is preserved: weekly grouping does not turn every
 metric into a sum. Per-metric anomaly results include seasonal support and history warnings.
 
-Changing Analysis dates, daily/weekly/monthly/quarterly grouping, or timing
+Changing Business Analysis dates, daily/weekly/monthly/quarterly grouping, or timing
 settings does not change the saved weekly settings. Changing weekly settings does
-not alter Analysis or either workflow's saved snapshots.
+not alter Business Analysis or either workflow's saved snapshots.
 
 ## Follow up on a business change
 
-Weekly Reports has no **Assess a decision** tab or assessment setup form. Configure
-assessments in Analysis, or open Assess business impact from Decision Details.
+Weekly Reports has no **Business impact analysis** tab or assessment setup form. Configure
+assessments in Business Analysis, or open Assess business impact from Decision Details.
 Weekly Reports focuses on selected metrics, unusual changes and relationships.
 Copying a saved assessment to Weekly Reports copies its metric selection and
-dimension filters, not the assessment. Old weekly decision links open Analysis.
+dimension filters, not the assessment. Old weekly decision links open Business Analysis.
 
 Existing weekly assessment configurations are preserved, not silently converted
-or deleted. Their setup is read-only, with a Manage assessment in Analysis link.
+or deleted. Their setup is read-only, with a Manage assessment in Business Analysis link.
 Set up metric monitoring explicitly starts an unsaved monitoring setup using the
 same selected metrics. The existing weekly configuration is replaced only after
 preview and Save changes; saved decision assessments and report history remain.
 Simply opening the page, following the link or previewing does not change the saved
-weekly configuration. Changes in Analysis do not silently update that configuration.
+weekly configuration. Changes in Business Analysis do not silently update that configuration.
 
 An existing assessment's weekly preview includes a short Decision update with
 the assessment period and a link to the decision, when available. Its evidence
@@ -131,7 +131,7 @@ in its preview or email. A monitoring configuration checks selected relationship
 Previewing or emailing a weekly report does not create a decision or overwrite
 its outcome. Explicitly saving a linked assessment attaches it to the selected
 decision. Existing standalone weekly studies can continue under their original
-saved configuration; new assessments require selecting a decision in Analysis.
+saved configuration; new assessments require selecting a decision in Business Analysis.
 
 As old history leaves the three-year window, the study can lose enough earlier
 data to support an estimate. The email then explains the missing evidence rather

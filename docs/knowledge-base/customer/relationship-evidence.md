@@ -7,7 +7,7 @@ explanation.
 
 ## Read the evidence
 
-Analysis and Weekly Reports display the Correlation coefficient and Lag
+Business Analysis and Weekly Reports display the Correlation coefficient and Lag
 (observed) directly on each included relationship finding, without opening the
 detailed explanation. Relationships shows these values in the opened saved
 result too. Positive lags include their time unit and metric order. A valid

@@ -2,7 +2,7 @@
 
 ## Read a business-change result
 
-A report built with Assess a decision starts with a direct answer, its
+A report built with Business impact analysis starts with a direct answer, its
 estimated difference and range, and what to do next. A range including no effect
 means the result is unclear. A failed comparison gives no impact amount at all.
 This is not a guarantee that the action caused the result.
@@ -75,7 +75,7 @@ shared positive baseline. Missing observations remain gaps in either view.
 Success confirmations disappear after five seconds. The saved-report status,
 delivery status, errors and delivery warnings remain visible independently.
 
-On Analysis, Save snapshot stores the server-generated completed analysis. Reopening it does
+On Business Analysis, Save snapshot stores the server-generated completed analysis. Reopening it does
 not silently recalculate the data or update its narrative. Editing the settings
 starts an unsaved analysis; preview again and save a new snapshot. Generated
 names should be edited to describe the analysis, not treated as an overwrite key.
@@ -96,7 +96,7 @@ Remove weekly settings keeps saved snapshots and linked decisions while clearing
 the weekly configuration and pausing delivery. Read the confirmation and use only
 actions allowed by your workspace role.
 
-Analysis uses Saved reports; Weekly Reports uses Weekly history. Deleting a historical report also
+Business Analysis uses Saved reports; Weekly Reports uses Weekly history. Deleting a historical report also
 removes its associated temporary preview. An old link to a deleted or expired
 analysis cannot restore it. Choose a saved report or generate a new preview;
 this is different from an analysis failing.

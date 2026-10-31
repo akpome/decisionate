@@ -66,7 +66,7 @@ test("deliberate weekly timing is retained", () => {
   assert.equal(value.pair_directions[0].direction, "a_leads_b")
 })
 
-test("weekly decision deep links go to Analysis before loading weekly settings or starting an assessment", () => {
+test("weekly decision deep links go to Business Analysis before loading weekly settings or starting an assessment", () => {
   const source = read("../features/reports/report-workspace.tsx")
   const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   let redirect
@@ -212,7 +212,7 @@ test("weekly saving appears only after preview, with no competing save controls"
   assert.match(source, /setReport\(null\);[\s\S]*?setAnalysisJob\(null\)/)
 })
 
-test("Assess a decision receives only the preview action, never a weekly settings save", () => {
+test("Business impact analysis receives only the preview action, never a weekly settings save", () => {
   const source = read("../features/reports/report-workspace.tsx")
   const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const actions = []

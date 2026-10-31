@@ -212,7 +212,7 @@ test("explicitly named modes switch without changing selected metrics, dates or 
     return result
   }
   let options = buttons()
-  assert.deepEqual(options.map(button => button.props.children), ["Explore relationships", "Assess a decision"])
+  assert.deepEqual(options.map(button => button.props.children), ["Explore relationships", "Business impact analysis"])
   assert.equal(options[0].props["aria-pressed"], true)
   assert.equal(options[1].props["aria-pressed"], false)
   options[0].props.onClick()

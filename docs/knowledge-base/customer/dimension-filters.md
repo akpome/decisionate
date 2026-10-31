@@ -6,7 +6,7 @@ does not become a numerical outcome merely by being selected.
 
 ## Apply a dimension filter
 
-1. On dashboards, open Filters beside the other controls. Analysis,
+1. On dashboards, open Filters beside the other controls. Business Analysis,
    Weekly Reports, Forecasts and Relationships provide their own date/dimension controls.
 2. Review Date column and choose Dimension column.
 3. Choose one or more Unique values from the dropdown. Search values narrows the
@@ -25,9 +25,9 @@ the selected value. Selecting a different value replaces the current comparison
 value. The decision supplies the outcome; any saved outcome segment is shown
 read-only with a clear control. The comparison's Date column is beside Dimension
 column; changing it preserves the decision's analysis period. The outcome Date
-column is beside Outcome metric and starts with the saved selection. In Analysis,
+column is beside Outcome metric and starts with the saved selection. In Business Analysis,
 deliberate history-range and grouping changes remain under Analysis settings.
-Decision assessment controls are in Analysis, not Weekly Reports. Weekly monitoring
+Decision assessment controls are in Business Analysis, not Weekly Reports. Weekly monitoring
 has its own dataset date and dimension selectors and automatic weekly dates and grouping.
 
 ## Empty results and missing values

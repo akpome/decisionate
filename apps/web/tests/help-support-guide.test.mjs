@@ -50,12 +50,12 @@ test("dashboard period guidance matches one-year defaults and removed five-year 
   assert.match(JSON.stringify(faqItems), /Other valid saved periods are preserved/)
 })
 
-test("Analysis is the documented analysis entry and date and dimension filtering is explained for each workflow", () => {
+test("Business Analysis is the documented analysis entry and date and dimension filtering is explained for each workflow", () => {
   assert.match(chapter("orientation"), /cross-dataset decision-intelligence/)
   assert.match(chapter("analysis"), /Multi dataset report opens by default/)
   assert.match(chapter("analysis"), /choose one Dataset from the dropdown/)
   assert.match(chapter("analysis"), /Changing the dataset clears the previous metrics, filters and date choices/)
-  assert.match(chapter("analysis"), /old Insights links redirect to Analysis/)
+  assert.match(chapter("analysis"), /old Insights links redirect to Business Analysis/)
   assert.match(chapter("analysis"), /preselected Date column beside Dimension column/)
   assert.match(chapter("analysis"), /Each source's|each source's preselected Date column/)
   assert.match(chapter("relationships-alerts"), /independent Dimension column filter/)
@@ -66,7 +66,7 @@ test("Analysis is the documented analysis entry and date and dimension filtering
 test("report timing guidance matches the 52-observation daily default and pair-specific calendar lags", () => {
   const text = chapter("analysis")
   assert.match(text, /New multi dataset reports open with Explore relationships/)
-  assert.match(text, /Assess a decision is a separate optional analysis type/)
+  assert.match(text, /Business impact analysis is a separate optional analysis type/)
   assert.match(text, /defaults to 52/)
   assert.match(text, /limited to 12/)
   assert.match(text, /includes lag zero/)
@@ -74,7 +74,7 @@ test("report timing guidance matches the 52-observation daily default and pair-s
   assert.match(text, /Twelve monthly observations do not meet the default minimum of 52/)
   assert.match(read("../features/reports/types.ts"), /minimum_observations: Math.max\(MINIMUM_RELATIONSHIP_OBSERVATIONS/)
   assert.match(read("../features/reports/report-pair-directions.tsx"), /Same period only/)
-  assert.match(text, /Analysis and Relationships share the same new-analysis defaults/)
+  assert.match(text, /Business Analysis and Relationships share the same new-analysis defaults/)
   assert.match(chapter("relationships-alerts"), /Spearman, daily Group by, Sum aggregation, 52 Minimum historical observations, Maximum lag 12, and Same-period comparison only/)
   assert.match(chapter("relationships-alerts"), /Maximum lag appears only for a directional timing search/)
 })
@@ -100,7 +100,7 @@ test("weekly delivery documents independent settings, fixed weekly grouping and 
   assert.match(text, /latest completed week/)
   assert.match(text, /rolling three years/)
   assert.match(text, /does not itself enable delivery or change recipients/)
-  assert.match(text, /independent of Analysis/)
+  assert.match(text, /independent of Business Analysis/)
   assert.match(text, /last completed Monday-Sunday is analyzed daily/)
   assert.match(text, /daily and as a whole week/)
   assert.match(text, /Whole-week assessment compares each selected metric with its normal weekly range/)
