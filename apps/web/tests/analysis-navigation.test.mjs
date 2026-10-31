@@ -130,7 +130,7 @@ test("cross-workflow navigation is removed without losing source scope, delivery
   assert.match(report, /<h1[^>]*>\{t\(pageTitle\)\}<\/h1>/)
   assert.match(report, /<nav aria-label="Analysis sources"/)
   assert.match(report, /mode === "explore" \? setupLabel : previewLabel/)
-  assert.match(report, /weekly \? "Preview report" : definition.impact \? busy \? "Checking decision\.\.\." : "Check this decision" : "Preview analysis"/)
+  assert.match(report, /weekly \? "Preview report" : definition.impact \? busy \? "Analyzing business impact\.\.\." : "Analyze business impact" : "Preview analysis"/)
   assert.match(report, /Copy selection to Weekly Reports/)
   assert.match(report, /href="\/dashboard\/alerts#weekly-delivery"/)
   assert.doesNotMatch(report, /href="\/dashboard\/relationships\/explorer"/)

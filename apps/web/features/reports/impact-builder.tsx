@@ -14,10 +14,10 @@ import type { WeeklySettings } from "./weekly-settings"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 
-export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekly, weeklySettings, decisionPicker, reportDetails, actions,
+export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekly, weeklySettings, decisionPicker, actions,
   loading, catalogError, retryingDataset, footer, onChange, onStudyChange, onRetry, onRetryDataset }: {
   definition: ReportDefinition; datasets: CatalogDataset[]; userId: string; workspaceId?: string
-  weekly: boolean; weeklySettings: WeeklySettings | null; decisionPicker: ReactNode; reportDetails: ReactNode; actions: ReactNode
+  weekly: boolean; weeklySettings: WeeklySettings | null; decisionPicker: ReactNode; actions: ReactNode
   loading: boolean; catalogError: boolean; retryingDataset?: number | null; footer: ReactNode
   onChange: (patch: Partial<ReportDefinition>) => void; onStudyChange: (patch: Partial<ImpactStudy>) => void
   onRetry: () => void; onRetryDataset: (dataset: CatalogDataset) => void
@@ -83,10 +83,9 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
       const dataset = datasets.find(dataset => dataset.dataset_id === metric.dataset_id)
       return <li key={`${metric.dataset_id}:${metric.metric_key}`} className="flex min-w-0 items-center justify-between gap-3 py-2 text-sm"><span className="min-w-0 break-words">{dataset?.dataset_label || `Dataset ${metric.dataset_id}`} / {dataset?.metrics.find(item => item.metric_key === metric.metric_key)?.label || metric.metric_key}</span><button type="button" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300" title="Remove extra result" aria-label={`Remove extra result: ${metric.metric_key}`} onClick={() => onChange({ metrics: definition.metrics.filter(item => item !== metric) })}><X size={16} /></button></li>
     })}</ul></details>}
-    <details className="min-w-0 border-t border-gray-200 pt-4"><summary className="cursor-pointer text-sm font-medium">Report details</summary><div className="mt-4">{reportDetails}</div></details>
     <div className="flex flex-wrap items-center justify-between gap-4 border-t border-gray-200 pt-4">
       <div className="min-w-0 flex-1 space-y-2">
-        <p role="status" className="flex min-w-0 items-start gap-2 text-sm text-gray-600">{issue || timingNote ? <CircleHelp size={18} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-green-700" />}<span className="min-w-0 break-words">{issue || timingNote || "Ready to check the decision. The data will still need to pass the comparison checks."}</span></p>
+        <p role="status" className="flex min-w-0 items-start gap-2 text-sm text-gray-600">{issue || timingNote ? <CircleHelp size={18} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-green-700" />}<span className="min-w-0 break-words">{issue || timingNote || "Ready to analyze business impact. The data will still need to pass the comparison checks."}</span></p>
         {study.decision_id && study.comparison && <p className="text-sm leading-6 text-gray-600">Minimum history: {definition.grain === "daily" ? "90 days before the change and 28 days after." : definition.grain === "weekly" ? "52 full weeks before the change and 8 weeks after." : "24 full months before the change and 6 months after."} The required later periods start after the timing reference date. Both metrics need matching records.</p>}
       </div>
       <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto">{actions}</div>

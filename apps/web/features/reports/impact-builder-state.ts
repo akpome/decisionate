@@ -49,6 +49,5 @@ export function impactSetupIssue(definition: ReportDefinition, datasets?: Catalo
   if (definition.date_range.start >= study.change_date || definition.date_range.end < study.change_date) return "Include dates both before and after the change."
   if (definition.dimension_filters?.some(filter => definition.metrics.some(metric => metric.dataset_id === filter.dataset_id) && !filter.values.length)) return "Choose at least one value for each active dimension filter."
   if (definition.dimension_filters?.some(filter => filter.dataset_id === study.comparison?.dataset_id && filter.values.length > 1)) return "Choose one unique value for the comparison."
-  if (!definition.name.trim() || definition.business_question.trim().length < 8) return "Complete the report name and business question under Report details."
   return ""
 }

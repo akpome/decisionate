@@ -30,7 +30,7 @@ import { ImpactBuilder } from "./impact-builder"
 import { impactSetupIssue } from "./impact-builder-state"
 import { ImpactResult } from "./impact-result"
 import { weeklyDefinition, weeklyDeliveryIssue, type WeeklySettings } from "./weekly-settings"
-import { decisionReviewDefinition, type DecisionReviewContext } from "./decision-review"
+import { decisionReviewDefinition, decisionReviewDetails, type DecisionReviewContext } from "./decision-review"
 import { ImpactDecisionPicker } from "./impact-decision-picker"
 import { WeeklyAssessmentSetup, WeeklyDecisionUpdate } from "./weekly-decision-update"
 
@@ -124,7 +124,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const weeklyPreviewReady = Boolean(weekly && report?.analysis_job_id && report.analysis_job_id === analysisJob?.job_id && analysisJob.kind === "weekly_preview" && analysisJob.status === "succeeded" && analysisJob.definition)
   const weeklySendReady = Boolean(report?.weekly_current && report.analysis_job_id && !weeklyDirty && weeklySettings?.definition
     && report.window.start === weeklySettings.window.start && report.window.end === weeklySettings.window.end)
-  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(weekly ? "Preview report" : definition.impact ? busy ? "Checking decision..." : "Check this decision" : "Preview analysis")}</button>
+  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(weekly ? "Preview report" : definition.impact ? busy ? "Analyzing business impact..." : "Analyze business impact" : "Preview analysis")}</button>
 
   useEffect(() => {
     if (!message) return
@@ -415,6 +415,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     try { await execute(async () => {
       const signal = routeController.current?.signal
       const payload = { ...(weekly ? weeklyDefinition(definition, weeklySettings?.history_window) : definition), dimension_filters: selectedReportDimensionFilters(definition), included_findings: null }
+      if (!weekly && payload.impact?.decision_id) {
+        const context = await request<DecisionReviewContext>(`/review-decisions/${payload.impact.decision_id}`, { signal })
+        Object.assign(payload, decisionReviewDetails(context.decision))
+      }
+      signal?.throwIfAborted()
       const job = await request<AnalysisJob>(weekly ? canManage ? "/weekly-preview-jobs" : "/weekly-jobs?include_ai_analysis=true" : "/jobs", { method: "POST", signal, headers: { "Idempotency-Key": crypto.randomUUID() }, ...(!weekly || canManage ? { body: JSON.stringify(payload) } : {}) })
       signal?.throwIfAborted()
       setAnalysisJob(job)
@@ -629,7 +634,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             if (window.confirm("Switch this weekly setup to metric monitoring? The current setup is replaced only after you preview and save. Saved decision assessments and historical reports are kept.")) edit({ impact: null })
           } : undefined} /> : definition.impact && !weekly ? <ImpactBuilder definition={definition} datasets={datasets} userId={userId} workspaceId={workspaceId} weekly={false} weeklySettings={null}
             decisionPicker={<ImpactDecisionPicker key={JSON.stringify([userId, workspaceId])} userId={userId} workspaceId={workspaceId} decisionId={definition.impact.decision_id} disabled={!canEditDecisions || busy} onChoose={identity => void chooseReviewDecision(identity)} />}
-            reportDetails={reportDetails} actions={previewButton} loading={catalogBusy} catalogError={catalogError} retryingDataset={retryingDataset} footer={catalogFooter}
+            actions={previewButton} loading={catalogBusy} catalogError={catalogError} retryingDataset={retryingDataset} footer={catalogFooter}
             onChange={edit} onStudyChange={editImpact} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} /> : <>
           {reportDetails}
           <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">

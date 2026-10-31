@@ -16,7 +16,7 @@ function load(path, imports = {}) {
 const impact = load("../features/reports/impact-types.ts")
 const types = load("../features/reports/types.ts", { "./pair-directions": load("../features/reports/pair-directions.ts"),
   "@/features/relationships/defaults": load("../features/relationships/defaults.ts") })
-const { decisionReviewDefinition } = load("../features/reports/decision-review.ts", { "./impact-types": impact, "./types": types })
+const { decisionReviewDefinition, decisionReviewDetails } = load("../features/reports/decision-review.ts", { "./impact-types": impact, "./types": types })
 const context = { decision: { id: 7, title: "Improve staffing", action: "Add one employee to the store", created_at: "2025-01-01" },
   outcome: { dataset_id: 1, metric_key: "orders" }, decision_revision: "current-revision", latest_review: null }
 const source = { dataset_id: 1, dataset_label: "Store A", date_columns: ["sale_date"],
@@ -34,6 +34,8 @@ test("review setup reuses the existing decision without treating its creation da
   assert.equal(value.impact.comparison_unaffected, false)
   assert.equal(value.impact.other_changes, "not_sure")
   assert.equal(value.date_range.start, "2023-01-01")
+  assert.equal(value.name, "Business impact: Improve staffing (#7)")
+  assert.equal(value.business_question, 'Did the action in "Improve staffing" improve its recorded outcome?')
 })
 
 test("later reviews preserve their recorded period and study choices while rechecking the comparison", () => {
@@ -46,10 +48,39 @@ test("later reviews preserve their recorded period and study choices while reche
   assert.equal(value.impact.change_date, "2025-04-01")
   assert.equal(value.impact.comparison_unaffected, false)
   assert.equal(value.date_range.end, "2025-12-31")
-  assert.equal(value.name, "Next report")
+  assert.equal(value.name, "Business impact: Improve staffing (#7)")
   const stale = decisionReviewDefinition(types.editableDefinition({ name: "New review" }), { ...context,
     latest_review: { matches_current_decision: false, definition: previous } }, source)
   assert.equal(stale.impact.change_date, "")
+})
+
+test("impact titles and questions always follow the chosen decision, not an unrelated or earlier report", () => {
+  const current = types.editableDefinition({ name: "Other report", business_question: "Is ad spending related to orders?" })
+  const before = JSON.stringify(current)
+  const first = decisionReviewDefinition(current, context, source)
+  const next = decisionReviewDefinition(first, { ...context, decision: { ...context.decision, id: 8, title: "Reduce returns" } }, source)
+  assert.equal(next.name, "Business impact: Reduce returns (#8)")
+  assert.equal(next.business_question, 'Did the action in "Reduce returns" improve its recorded outcome?')
+  assert.equal(JSON.stringify(current), before)
+  const previous = { ...first, name: "Old saved name", business_question: "Old custom question" }
+  const savedBefore = JSON.stringify(previous)
+  const renamed = decisionReviewDefinition(current, { ...context, decision: { ...context.decision, title: "Staff the evening shift" },
+    latest_review: { matches_current_decision: true, definition: previous } }, source)
+  assert.equal(renamed.name, "Business impact: Staff the evening shift (#7)")
+  assert.match(renamed.business_question, /Staff the evening shift/)
+  assert.equal(JSON.stringify(previous), savedBefore)
+})
+
+test("derived report metadata fits API limits and distinguishes decisions with identical names", () => {
+  for (const title of ["", "   ", "A", "A".repeat(2000), "Same decision name"]) {
+    const first = decisionReviewDetails({ id: 7, title })
+    const second = decisionReviewDetails({ id: 8, title })
+    assert.ok(first.name.length > 0 && first.name.length <= 120)
+    assert.ok(first.business_question.length >= 8 && first.business_question.length <= 1000)
+    assert.match(first.name, /\(#7\)$/)
+    assert.notEqual(first.name, second.name)
+  }
+  assert.match(decisionReviewDetails({ id: 7, title: "   " }).name, /Untitled decision/)
 })
 
 test("the default period and outcome date column come from decision evidence rather than comparison availability or creation time", () => {
@@ -109,4 +140,10 @@ test("decision detail and the report builder share the linked review entry and e
   assert.match(workspace, /Save assessment to decision/)
   assert.match(workspace, /params.get\("decision"\)/)
   assert.match(workspace, /<ImpactDecisionPicker/)
+  const calculate = workspace.slice(workspace.indexOf("async function calculate()"), workspace.indexOf("async function saveSnapshot()"))
+  assert.match(calculate, /if \(!weekly && payload.impact\?\.decision_id\)/)
+  assert.match(calculate, /\/review-decisions\/\$\{payload.impact.decision_id\}/)
+  assert.match(calculate, /Object.assign\(payload, decisionReviewDetails\(context.decision\)\)/)
+  assert.doesNotMatch(calculate, /saveSnapshot\(|\/save|\/decisions\/from-report/)
+  assert.doesNotMatch(workspace, /reportDetails=|Check this decision|Checking decision/)
 })

@@ -14,6 +14,15 @@ export type DecisionReviewContext = {
   timing_evidence?: ImpactTimingEvidence | null
 }
 
+export function decisionReviewDetails(decision: Pick<ReportDecision, "id" | "title">) {
+  const title = decision.title.trim() || "Untitled decision"
+  const prefix = "Business impact: ", suffix = ` (#${decision.id})`
+  return {
+    name: `${prefix}${title.slice(0, 120 - prefix.length - suffix.length)}${suffix}`,
+    business_question: `Did the action in "${title.slice(0, 900)}" improve its recorded outcome?`,
+  }
+}
+
 export function decisionReviewDefinition(current: ReportDefinition, context: DecisionReviewContext, source?: CatalogDataset) {
   const previous = context.latest_review?.matches_current_decision ? context.latest_review.definition : null
   const base = previous || current
@@ -23,8 +32,7 @@ export function decisionReviewDefinition(current: ReportDefinition, context: Dec
   const reference = descriptor && dateColumn && outcome ? { ...outcome, date_column: dateColumn, aggregation: descriptor.aggregation } : null
   const metrics = reference ? [reference, ...(previous?.metrics || []).filter(item => item.dataset_id !== reference.dataset_id || item.metric_key !== reference.metric_key)] : []
   const availability = dateColumn && source?.availability[dateColumn]
-  return editableDefinition({ ...base, scope: "multi", name: current.name, included_findings: null, source_run_id: null,
-    business_question: current.business_question || `Did this decision improve the result: ${context.decision.title}?`.slice(0, 1000),
+  return editableDefinition({ ...base, ...decisionReviewDetails(context.decision), scope: "multi", included_findings: null, source_run_id: null,
     metrics, grain: base.grain === "quarterly" ? "weekly" : base.grain,
     date_range: previous?.date_range || context.decision_period || availability || { start: "", end: "" },
     impact: { ...newImpactStudy(), ...(previous?.impact || {}), decision_id: context.decision.id, decision_revision: context.decision_revision,

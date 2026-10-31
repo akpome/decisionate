@@ -43,7 +43,7 @@ const render = patch => {
   dimensionProps.clear()
   return renderToStaticMarkup(React.createElement(ImpactBuilder, {
     definition, datasets, userId: "owner", workspaceId: "owner", weekly: false, weeklySettings: null, decisionPicker: React.createElement("select", { "aria-label": "Decision to review" }),
-    reportDetails: React.createElement("input", { "aria-label": "Report name" }), actions: React.createElement("button", { type: "submit" }, "Check this decision"),
+    actions: React.createElement("button", { type: "submit" }, "Analyze business impact"),
     onChange() {}, onStudyChange() {}, onRetry() {}, onRetryDataset() {}, loading: false, catalogError: false, ...patch,
   }))
 }
@@ -74,7 +74,7 @@ test("setup states name the next missing choice rather than only disabling the a
   ]) assert.ok(state.impactSetupIssue({ ...definition, impact: { ...definition.impact, ...patch } }).includes(phrase))
   assert.match(state.impactSetupIssue({ ...definition, date_range: { start: "2025-03-01", end: "2025-04-01" } }), /before and after/)
   assert.match(state.impactSetupIssue({ ...definition, dimension_filters: [{ dataset_id: 1, column: "region", values: [] }] }), /at least one value/)
-  assert.match(state.impactSetupIssue({ ...definition, business_question: "" }), /Report details/)
+  assert.equal(state.impactSetupIssue({ ...definition, name: "", business_question: "" }, datasets), "")
 })
 
 test("unconfirmed context remains truthful and unavailable source policies cannot become ready", () => {
@@ -111,7 +111,7 @@ test("the impact builder keeps the comparison date column beside its one dimensi
   assert.doesNotMatch(main, /History starts|History ends|busy and quiet seasons|Seasonal businesses need/)
   assert.match(main, /Analysis period: 2023-01-02 to 2025-12-28/)
   assert.match(main, /Expected result without the action/)
-  assert.match(html, /<summary[^>]*>Report details/)
+  assert.doesNotMatch(html, /Report details|Report name|Business question|Check this decision/)
   assert.match(html, /<summary[^>]*>Improvement target \(optional\)/)
   assert.doesNotMatch(html, /report-builder-scroll|Maximum lag|Minimum historical observations|Select metrics/)
 })
@@ -119,7 +119,7 @@ test("the impact builder keeps the comparison date column beside its one dimensi
 test("the first view starts with one decision choice and does not ask for a comparison prematurely", () => {
   const html = render({ definition: { ...definition, metrics: [], impact: { ...definition.impact, decision_id: null, comparison: null, outcome: null } } })
   assert.match(html, /Which decision are you checking/)
-  assert.doesNotMatch(html, /Comparison dataset|History starts|Other selected results|Date column|Minimum history|Edit decision/)
+  assert.doesNotMatch(html, /Comparison dataset|History starts|Other selected results|Date column|Minimum history|Edit decision|Report details|Report name|Business question/)
   assert.equal(dimensionProps.size, 0)
   assert.match(html, /Choose the decision you want to check/)
 })
@@ -194,7 +194,7 @@ test("weekly impact setup keeps automatic weekly history and never exposes manua
   assert.equal((html.match(/aria-label="Outcome date column"/g) || []).length, 1)
   assert.match(html, /role="status"[\s\S]*Minimum history: 52 full weeks before the change and 8 weeks after/)
   assert.doesNotMatch(html.match(/<section aria-labelledby="impact-history-heading"[\s\S]*?<\/section>/)?.[0], /Minimum history/)
-  assert.equal((html.match(/Check this decision/g) || []).length, 1)
+  assert.equal((html.match(/Analyze business impact/g) || []).length, 1)
   assert.doesNotMatch(html, /Save weekly settings|Save and preview|Save weekly report|Save snapshot/)
 })
 

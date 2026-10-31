@@ -78,7 +78,7 @@ approved dataset results; there is no separate metric-checkbox selection first.
 Without a fair comparison, the impact estimate remains unavailable. The form has
 no shortcut that clears the assessment and switches to relationship analysis;
 use the analysis-type tabs to deliberately change workflows.
-Missing choices are named beside Check this decision. If a selected result or
+Missing choices are named beside Analyze business impact. If a selected result or
 date is unavailable, review that dataset or choose another comparison.
 
 Choose an unaffected comparison from another dataset. A similar store that did
@@ -127,10 +127,15 @@ comparison confirmation again. Existing weekly assessment configurations remain
 read-only in Weekly Reports, with a link to Business Analysis and an explicit option to
 switch to metric monitoring after preview and save. Historical evidence is kept.
 Existing extra selected results stay visible under Other selected results
-and can be removed deliberately. Report name and business question are editable
-under Report details. Existing weekly assessments keep automatic dates and weekly study
+and can be removed deliberately. Business impact analysis has no Report details
+section: its title and question are derived from the selected decision. The title
+includes the decision ID to distinguish decisions with the same name. Each new
+calculation uses the current decision name; existing saved snapshots stay unchanged.
+Existing weekly assessments keep automatic dates and weekly study
 grouping; they do not expose manual weekly email dates.
 
+Analyze business impact runs the assessment and opens its preview. It does not
+create a decision, save the assessment, or change the decision's recorded outcome.
 Save assessment to decision attaches the calculated assessment to that same
 decision and saves its report snapshot. It does not create a new decision or
 mark an outcome successful. Return to decision to review the assessment and
