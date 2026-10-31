@@ -66,23 +66,42 @@ test("deliberate weekly timing is retained", () => {
   assert.equal(value.pair_directions[0].direction, "a_leads_b")
 })
 
-test("opening a decision directly gives an unsaved weekly report a name and preserves a saved name", () => {
+test("weekly decision deep links go to Analysis before loading weekly settings or starting an assessment", () => {
+  const source = read("../features/reports/report-workspace.tsx")
+  const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let redirect
+  function visit(node) {
+    if (ts.isIfStatement(node) && node.expression.getText(ast) === 'weekly && params.has("decision")') redirect = node.getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(redirect)
+  assert.ok(source.indexOf(redirect) < source.indexOf('"/business-reports/weekly-settings"'))
+  for (const [weekly, query, expected] of [[true, "decision=7&weekly=1", "/dashboard/reports?decision=7"], [true, "decision=bad%26weekly%3D1", "/dashboard/reports?decision=bad%26weekly%3D1"], [false, "decision=7", undefined], [true, "", undefined]]) {
+    let path
+    vm.runInNewContext(ts.transpileModule(`(() => { ${redirect} })()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
+      { weekly, params: new URLSearchParams(query), router: { replace: value => { path = value } }, encodeURIComponent })
+    assert.equal(path, expected)
+  }
+})
+
+test("copying an assessment to weekly monitoring omits the study without changing its evidence", () => {
   const source = read("../features/reports/report-workspace.tsx")
   const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   let expression
   function visit(node) {
-    if (ts.isCallExpression(node) && node.expression.getText(ast) === "loadDecisionDefinition" && node.arguments[2]?.getText(ast).includes("weeklyContext")) expression = node.arguments[2].getText(ast)
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === "copied") expression = node.initializer.getText(ast)
     ts.forEachChild(node, visit)
   }
   visit(ast)
-  assert.ok(expression)
-  for (const definition of [null, { name: "", metrics }, { name: "My weekly review", metrics }]) {
-    const value = vm.runInNewContext(`(${expression})`, { weekly: true, weeklyDefinition,
-      weeklyContext: { definition }, draftName: { current: "Report (unique-test-id)" } })
-    assert.equal(value.name, definition?.name || "Weekly Business Report")
-    assert.equal(value.grain, "weekly")
-    if (definition) assert.equal(value.metrics, metrics)
-  }
+  const original = { name: "Assess staffing", definition: { metrics, grain: "daily", impact: { decision_id: 7 }, dimension_filters: [{ dataset_id: 1, column: "region", values: ["East"] }] } }
+  const before = structuredClone(original)
+  const value = vm.runInNewContext(`(${expression})`, { source: original, weeklyDefinition, weeklyContext: { history_window: { start: "2023-01-01", end: "2025-12-31" } } })
+  assert.equal(value.impact, null)
+  assert.equal(value.metrics, original.definition.metrics)
+  assert.equal(value.dimension_filters, original.definition.dimension_filters)
+  assert.deepEqual(original, before)
+  assert.equal(weeklyDefinition(original.definition).impact, original.definition.impact, "Existing saved setups must retain their study")
 })
 
 test("weekly route and saved histories stay separate from instant analysis", () => {

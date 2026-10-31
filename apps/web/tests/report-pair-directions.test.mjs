@@ -236,7 +236,7 @@ test("the builder shows timing above pairs without checkboxes and invalidates re
   assert.doesNotMatch(settings, /overflow-y-|max-h-/)
   assert.equal((source.match(/<ReportPairDirections /g) || []).length, 1)
   assert.equal((source.match(/\{previewButton\}/g) || []).length, 2)
-  assert.match(source, /definition\.impact \? <ImpactBuilder/)
+  assert.match(source, /definition\.impact && !weekly \? <ImpactBuilder/)
   assert.match(source, /"filters", "lag", "pair_directions"/)
   assert.match(source, /"pair_directions", "excluded_pairs"/)
   assert.match(source, /definition\.lag, definition\.excluded_pairs\)/)

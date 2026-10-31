@@ -102,27 +102,36 @@ not alter Analysis or either workflow's saved snapshots.
 
 ## Follow up on a business change
 
-A weekly configuration using **Assess a decision** also updates that business-change
-study for its selected decision. Set up or select an existing decision rather
-than recording a second action. The weekly email includes its answer, estimated range when available,
-and what to do next. It keeps the original change date, result, unaffected
-comparison. Its study always uses weekly grouping, starting at the rolling
+Weekly Reports has no **Assess a decision** tab or assessment setup form. Configure
+assessments in Analysis, or open Assess business impact from Decision Details.
+Weekly Reports focuses on selected metrics, unusual changes and relationships.
+Copying a saved assessment to Weekly Reports copies its metric selection and
+dimension filters, not the assessment. Old weekly decision links open Analysis.
+
+Existing weekly assessment configurations are preserved, not silently converted
+or deleted. Their setup is read-only, with a Manage assessment in Analysis link.
+Set up metric monitoring explicitly starts an unsaved monitoring setup using the
+same selected metrics. The existing weekly configuration is replaced only after
+preview and Save changes; saved decision assessments and report history remain.
+Simply opening the page, following the link or previewing does not change the saved
+weekly configuration. Changes in Analysis do not silently update that configuration.
+
+An existing assessment's weekly preview includes a short Decision update with
+the assessment period and a link to the decision, when available. Its evidence
+remains available under Assessment evidence. The weekly email retains its answer,
+estimated range when available, and next steps. It keeps the original change date,
+result and unaffected comparison. Its study uses weekly grouping, starting at the rolling
 three-year cutoff and ending with the latest completed week. It needs at least
 52 complete weeks before the change and 8 after, plus the other comparison checks.
 This is separate from the email's seven-day KPI totals; it does not attempt to
 estimate a business impact from seven days alone.
-The outcome Date column is beside Outcome metric, preselected from the decision's
-saved evidence. The comparison date column stays beside its dimension filter.
-There is no Analysis settings section in the weekly decision assessment: the week,
-history window and grouping are automatic. Minimum history requirements appear
-beside assessment readiness rather than inside a settings disclosure.
 An impact report keeps its own comparison checks and anomaly detection, but
 does not also run an exploratory correlation or include Relationship findings
-in its preview or email. Choose Explore relationships for those relationships.
+in its preview or email. A monitoring configuration checks selected relationships.
 Previewing or emailing a weekly report does not create a decision or overwrite
 its outcome. Explicitly saving a linked assessment attaches it to the selected
 decision. Existing standalone weekly studies can continue under their original
-saved configuration; changing those settings requires selecting a decision.
+saved configuration; new assessments require selecting a decision in Analysis.
 
 As old history leaves the three-year window, the study can lose enough earlier
 data to support an estimate. The email then explains the missing evidence rather

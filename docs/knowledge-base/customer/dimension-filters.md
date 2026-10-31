@@ -27,7 +27,8 @@ read-only with a clear control. The comparison's Date column is beside Dimension
 column; changing it preserves the decision's analysis period. The outcome Date
 column is beside Outcome metric and starts with the saved selection. In Analysis,
 deliberate history-range and grouping changes remain under Analysis settings.
-Weekly Reports keeps its dates and weekly grouping automatic, without that section.
+Decision assessment controls are in Analysis, not Weekly Reports. Weekly monitoring
+has its own dataset date and dimension selectors and automatic weekly dates and grouping.
 
 ## Empty results and missing values
 

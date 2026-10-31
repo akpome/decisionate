@@ -32,6 +32,7 @@ import { ImpactResult } from "./impact-result"
 import { weeklyDefinition, weeklyDeliveryIssue, type WeeklySettings } from "./weekly-settings"
 import { decisionReviewDefinition, type DecisionReviewContext } from "./decision-review"
 import { ImpactDecisionPicker } from "./impact-decision-picker"
+import { WeeklyAssessmentSetup, WeeklyDecisionUpdate } from "./weekly-decision-update"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
@@ -123,7 +124,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const weeklyPreviewReady = Boolean(weekly && report?.analysis_job_id && report.analysis_job_id === analysisJob?.job_id && analysisJob.kind === "weekly_preview" && analysisJob.status === "succeeded" && analysisJob.definition)
   const weeklySendReady = Boolean(report?.weekly_current && report.analysis_job_id && !weeklyDirty && weeklySettings?.definition
     && report.window.start === weeklySettings.window.start && report.window.end === weeklySettings.window.end)
-  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(definition.impact ? busy ? "Checking decision..." : "Check this decision" : weekly ? "Preview report" : "Preview analysis")}</button>
+  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(weekly ? "Preview report" : definition.impact ? busy ? "Checking decision..." : "Check this decision" : "Preview analysis")}</button>
 
   useEffect(() => {
     const controller = new AbortController()
@@ -168,6 +169,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     async function load() {
       try {
         const params = new URLSearchParams(window.location.search)
+        if (weekly && params.has("decision")) {
+          router.replace(`/dashboard/reports?decision=${encodeURIComponent(params.get("decision")!)}`)
+          return
+        }
         if (!weekly && params.has("weekly")) {
           router.replace(`/dashboard/reports/weekly?${params}`)
           return
@@ -239,10 +244,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         } else if (weekly && canManage && params.get("copy")) {
           const source = await correlationRequest<BusinessReport>(userId, `/business-reports/${encodeURIComponent(params.get("copy")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
-          const copied = weeklyDefinition({ ...source.definition, name: `Weekly ${source.name}`.slice(0, 120) }, weeklyContext?.history_window)
+          const copied = weeklyDefinition({ ...source.definition, impact: null, name: `Weekly ${source.name}`.slice(0, 120) }, weeklyContext?.history_window)
           setDefinition(copied); setWeeklyDirty(true)
           void addSelectedDatasets(copied)
-          setMessage("Selection copied. Check the weekly settings before saving. Instant-analysis dates and non-weekly lags were not copied.")
+          setMessage("Metric selection copied. Decision assessments, analysis dates and non-weekly lags were not copied. Preview before saving.")
         } else if (params.get("weekly")) {
           const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, { ...init, signal: controller.signal }, workspaceId)
           const selected = weeklyContext?.definition
@@ -261,11 +266,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           const identity = Number(params.get("decision"))
           if (!Number.isSafeInteger(identity) || identity < 1) throw new Error("Choose a valid existing decision.")
           const chosen = await loadDecisionDefinition(userId, workspaceId,
-            weekly ? weeklyDefinition(weeklyContext?.definition || {}) : editableDefinition({ scope: "multi", name: draftName.current }), identity, controller.signal)
+            editableDefinition({ scope: "multi", name: draftName.current }), identity, controller.signal)
           if (!current) return
-          const selected = weekly ? weeklyDefinition(chosen.definition, weeklyContext?.history_window) : chosen.definition
+          const selected = chosen.definition
           setDefinition(selected); setDatasets(existing => mergeCatalog(existing, chosen.datasets))
-          if (weekly) setWeeklyDirty(true)
           void addSelectedDatasets(selected)
         } else if (!weekly && params.get("run")) {
           const result = await correlationRequest<ReportDefinition>(userId, `/business-reports/from-run/${encodeURIComponent(params.get("run")!)}`, { signal: controller.signal }, workspaceId)
@@ -352,12 +356,12 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   }
 
   async function chooseReviewDecision(identity: number) {
-    if (!canEditDecisions || busy || managementAction.current) return
+    if (weekly || !canEditDecisions || busy || managementAction.current) return
     managementAction.current = true
     try {
       await execute(async () => {
         const chosen = await loadDecisionDefinition(userId, workspaceId, definition, identity, routeController.current?.signal)
-        const selected = weekly ? weeklyDefinition(chosen.definition, weeklySettings?.history_window) : chosen.definition
+        const selected = chosen.definition
         setDatasets(existing => mergeCatalog(existing, chosen.datasets))
         edit(selected)
         window.history.replaceState(null, "", `${pagePath}?decision=${identity}`)
@@ -610,12 +614,14 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     <section role="tabpanel" id="report-explore" aria-labelledby="tab-explore" hidden={view !== "explore"} className="space-y-6 print:hidden">
       <form onSubmit={event => { event.preventDefault(); void calculate() }}>
         <fieldset disabled={busy || weekly && !canManage || weekly && !weeklySettings} className="min-w-0 space-y-5">
-          {!single && <fieldset className="min-w-0"><legend className="mb-2 text-sm font-medium">Analysis type</legend><div className="inline-flex max-w-full flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1" role="group" aria-label="Analysis type">
+          {!single && !weekly && <fieldset className="min-w-0"><legend className="mb-2 text-sm font-medium">Analysis type</legend><div className="inline-flex max-w-full flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1" role="group" aria-label="Analysis type">
             {[{ label: "Explore relationships", impact: false }, { label: "Assess a decision", impact: true }].map(mode => <button key={mode.label} type="button" aria-pressed={Boolean(definition.impact) === mode.impact} className={`min-h-10 min-w-0 rounded px-3 text-sm ${Boolean(definition.impact) === mode.impact ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`} onClick={() => {
               if (Boolean(definition.impact) !== mode.impact) edit({ impact: mode.impact ? newImpactStudy() : null, ...(mode.impact && definition.grain === "quarterly" ? { grain: "weekly" } : {}) })
             }}>{t(mode.label)}</button>)}
           </div></fieldset>}
-          {definition.impact ? <ImpactBuilder definition={definition} datasets={datasets} userId={userId} workspaceId={workspaceId} weekly={weekly} weeklySettings={weeklySettings}
+          {definition.impact && weekly ? <WeeklyAssessmentSetup definition={definition} issue={impactSetupIssue(definition, datasets)} preview={canManage ? previewButton : null} onSwitch={canManage ? () => {
+            if (window.confirm("Switch this weekly setup to metric monitoring? The current setup is replaced only after you preview and save. Saved decision assessments and historical reports are kept.")) edit({ impact: null })
+          } : undefined} /> : definition.impact && !weekly ? <ImpactBuilder definition={definition} datasets={datasets} userId={userId} workspaceId={workspaceId} weekly={false} weeklySettings={null}
             decisionPicker={<ImpactDecisionPicker key={JSON.stringify([userId, workspaceId])} userId={userId} workspaceId={workspaceId} decisionId={definition.impact.decision_id} disabled={!canEditDecisions || busy} onChoose={identity => void chooseReviewDecision(identity)} />}
             reportDetails={reportDetails} actions={previewButton} loading={catalogBusy} catalogError={catalogError} retryingDataset={retryingDataset} footer={catalogFooter}
             onChange={edit} onStudyChange={editImpact} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} /> : <>
@@ -656,15 +662,16 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     <section role="tabpanel" id="report-report" aria-labelledby="tab-report" hidden={view !== "report"} className="space-y-6">
       {view !== "report" ? null : !report ? <div className="border-y border-gray-200 py-12 text-center"><FileText className="mx-auto text-gray-400" size={32} /><h2 className="mt-3 text-lg font-medium">{t(weekly ? "No report generated" : "No analysis generated")}</h2><button type="button" className={`${button} mt-4`} onClick={() => setView("explore")}><ChartNoAxesCombined size={16} />{t(setupLabel)}</button></div> : <>
         <header className="border-b border-gray-200 pb-5"><div className="flex items-center gap-3"><WorkspaceBrandMark name={brand.name} logoUrl={brand.logoUrl} primaryColor={brand.primaryColor} className="h-10 w-10 rounded-md text-sm" /><span className="text-sm font-medium">{brand.name}</span></div><h2 className="mt-4 break-words text-2xl font-semibold">{report.name}</h2><p className="mt-2 break-words text-base text-gray-700">{report.business_question}</p><p className="mt-2 text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.dataset_count} datasets / Generated {report.generated_at.slice(0, 10)}</p><ReportGrouping report={report} /></header>
-        <ImpactResult analysis={report.impact_analysis} />
-        {report.impact_analysis && <ImpactChart analysis={report.impact_analysis} />}
-        <SupportingEvidence collapsed={Boolean(report.impact_analysis)}>
+        {!weekly && <ImpactResult analysis={report.impact_analysis} />}
+        {!weekly && report.impact_analysis && <ImpactChart analysis={report.impact_analysis} />}
+        <SupportingEvidence collapsed={!weekly && Boolean(report.impact_analysis)}>
         <ReportOverview report={report} />
         {(report.definition.dimension_filters || []).map(selection => <p key={selection.dataset_id} className="break-words text-sm text-gray-600"><span className="font-medium">{report.metrics.find(metric => metric.dataset_id === selection.dataset_id)?.dataset_label || `Dataset ${selection.dataset_id}`}</span> / {dimensionFilterLabel(selection)}</p>)}
         {report.ai_analysis && <section aria-label="Report interpretation" className="space-y-3 border-b border-gray-200 pb-5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-lg font-semibold">{t("Report interpretation")}</h3><span className="text-xs text-gray-500">{report.ai_analysis.confidence} confidence</span></div><p className="text-xs text-gray-500">{getAIAnalysisProvenance(report.ai_analysis)}</p><p className="break-words text-sm leading-6 text-gray-700">{report.ai_analysis.summary}</p><Statements statements={report.ai_analysis.recommendations} /><Statements statements={report.ai_analysis.risks} /></section>}
         <MetricTrends report={report} />
         {report.weekly_anomaly_analysis && <ReportAnomalies analysis={report.weekly_anomaly_analysis} title="Whole-week assessment" />}
         <ReportAnomalies analysis={report.anomaly_analysis} title={report.weekly_anomaly_analysis ? "Daily changes" : "Unusual changes"} />
+        {weekly && <WeeklyDecisionUpdate report={report} />}
         <section aria-label="Analysis findings" className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">{single ? "Metric findings" : "Changes in selected metrics"}</h3>{report.observations.length + report.contrasts.length === 0 && <p className="text-sm text-gray-500">There is no complete earlier period to compare these totals with. {report.definition.impact || report.impact_analysis ? "The decision assessment uses its own before-and-after checks." : single ? "Unusual changes are checked separately." : "Relationships between the selected metrics are checked separately."}</p>}<Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
         {!single && <ReportRelationshipFindings report={report} />}
         {!report.impact_analysis && <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Follow-up actions</h3><Statements statements={report.recommendations} /></section>}

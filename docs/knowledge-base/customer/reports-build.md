@@ -110,19 +110,20 @@ The action's start date is the only date input visible in the main setup.
 The outcome Date column is beside Outcome metric and starts with the decision's
 saved selection. The comparison date column remains beside its dimension filter.
 In Analysis, Analysis settings contains only the shared history range and grouping.
-Weekly Reports has no Analysis settings section in Assess a decision: its report
-week, history window and weekly grouping are automatic. Minimum history requirements
-appear beside the assessment readiness message, outside the settings disclosures.
+Assess a decision is available only in Analysis, also accessible from Decision
+Details. Weekly Reports has no assessment tab or setup form. Minimum history
+requirements appear beside assessment readiness, outside the settings disclosures.
 Datasets with no overlapping dates are blocked with an explicit message; a wider
 date range cannot invent overlap. Comparisons outside the selected decision period
 are also blocked. Saved snapshots keep their stored date choices.
 Changing the selected comparison, date column or dimension filters requires the
-comparison confirmation again. Weekly Reports uses the same single
-comparison controls, but retains its automatic weekly dates and grouping.
+comparison confirmation again. Existing weekly assessment configurations remain
+read-only in Weekly Reports, with a link to Analysis and an explicit option to
+switch to metric monitoring after preview and save. Historical evidence is kept.
 Existing extra selected results stay visible under Other selected results
 and can be removed deliberately. Report name and business question are editable
-under Report details. Weekly impact setup keeps automatic dates and weekly study
-grouping; it does not expose manual weekly email dates.
+under Report details. Existing weekly assessments keep automatic dates and weekly study
+grouping; they do not expose manual weekly email dates.
 
 Save assessment to decision attaches the calculated assessment to that same
 decision and saves its report snapshot. It does not create a new decision or
