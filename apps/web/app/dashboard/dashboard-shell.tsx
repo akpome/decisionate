@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Bell,
   CalendarDays,
+  ChartNoAxesCombined,
   CreditCard,
   Database,
   ChevronDown,
@@ -171,6 +172,11 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/dashboard/reports",
         label: "Business Analysis",
         icon: <FileText size={18} />,
+      },
+      {
+        href: "/dashboard/business-impact",
+        label: "Business Impact",
+        icon: <ChartNoAxesCombined size={18} />,
       },
       {
         href: "/dashboard/budget-planner",

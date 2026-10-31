@@ -96,7 +96,9 @@ Remove weekly settings keeps saved snapshots and linked decisions while clearing
 the weekly configuration and pausing delivery. Read the confirmation and use only
 actions allowed by your workspace role.
 
-Business Analysis uses Saved reports; Weekly Reports uses Weekly history. Deleting a historical report also
+Business Analysis uses Saved reports; Business Impact uses Saved assessments;
+Weekly Reports uses Weekly history. Metric analyses and impact assessments appear
+only in their own page's list. Deleting a historical report also
 removes its associated temporary preview. An old link to a deleted or expired
 analysis cannot restore it. Choose a saved report or generate a new preview;
 this is different from an analysis failing.

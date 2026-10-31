@@ -31,7 +31,7 @@ function compile(path, imports = {}) {
   return loadedModule.exports
 }
 
-function workspaceHeader(weekly, view = "explore", translate = text => text, loading = false) {
+function workspaceHeader(weekly, view = "explore", translate = text => text, loading = false, impactPage = false) {
   const source = read("../features/reports/report-workspace.tsx")
   const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const definitions = []
@@ -48,26 +48,26 @@ function workspaceHeader(weekly, view = "explore", translate = text => text, loa
   const code = ts.transpileModule(`${definitions.join("\n")} module.exports = ${loading ? loader : header}`, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2021 },
   }).outputText
-  vm.runInNewContext(code, { module: loaded, exports: loaded.exports, require, weekly, view, t: translate, setView() {}, ChartNoAxesCombined: icons.ChartNoAxesCombined, FileText: icons.FileText })
+  vm.runInNewContext(code, { module: loaded, exports: loaded.exports, require, weekly, impactPage, view, t: translate, setView() {}, ChartNoAxesCombined: icons.ChartNoAxesCombined, FileText: icons.FileText })
   return renderToStaticMarkup(loaded.exports)
 }
 
 test("each separate workflow has its approved title and only its own setup and preview tabs", () => {
-  for (const [weekly, title, setup, preview] of [[false, "Business Analysis", "Build analysis", "Analysis preview"], [true, "Weekly Reports", "Report setup", "Report preview"]]) {
-    const html = workspaceHeader(weekly)
+  for (const [weekly, impactPage, title, setup, preview] of [[false, false, "Business Analysis", "Build analysis", "Analysis preview"], [true, false, "Weekly Reports", "Report setup", "Report preview"], [false, true, "Business Impact", "Assessment setup", "Assessment preview"]]) {
+    const html = workspaceHeader(weekly, "explore", text => text, false, impactPage)
     assert.match(html, new RegExp(`<h1[^>]*>${title}</h1>`))
     for (const label of [setup, preview]) assert.ok(html.includes(`>${label}</span>`))
     assert.equal((html.match(/role="tab"/g) ?? []).length, 2)
     assert.doesNotMatch(html, /<nav|href=|Instant analysis/)
-    const loading = workspaceHeader(weekly, "explore", text => text, true)
+    const loading = workspaceHeader(weekly, "explore", text => text, true, impactPage)
     assert.match(loading, new RegExp(`<h1[^>]*>${title}</h1>`))
     assert.doesNotMatch(loading, /<nav|role="tab"/)
   }
 })
 
 test("setup and preview retain a single selected tab, touch sizing and accessible tab panels", () => {
-  for (const weekly of [false, true]) for (const view of ["explore", "report"]) {
-    const html = workspaceHeader(weekly, view)
+  for (const [weekly, impactPage] of [[false, false], [true, false], [false, true]]) for (const view of ["explore", "report"]) {
+    const html = workspaceHeader(weekly, view, text => text, false, impactPage)
     assert.equal((html.match(/aria-selected="true"/g) ?? []).length, 1)
     assert.match(html, new RegExp(`aria-selected="true" aria-controls="report-${view}" id="tab-${view}"`))
     assert.match(html, /min-h-12/)
@@ -85,7 +85,7 @@ test("French report labels use the existing translation dictionary", () => {
   const weekly = workspaceHeader(true, "explore", text => getLandingText("fr", text))
   assert.match(weekly, /Rapports hebdomadaires/)
   assert.match(weekly, /Configuration du rapport/)
-  for (const label of ["Analysis", "Business Analysis", "Business impact analysis", "Weekly Reports", "Build analysis", "Analysis preview", "Report setup", "Report preview", "Preview analysis", "Copy selection to Weekly Reports"]) {
+  for (const label of ["Analysis", "Business Analysis", "Business Impact", "Business impact analysis", "Assessment setup", "Assessment preview", "Saved assessments", "Weekly Reports", "Build analysis", "Analysis preview", "Report setup", "Report preview", "Preview analysis", "Copy selection to Weekly Reports"]) {
     assert.notEqual(getLandingText("fr", label), label)
   }
 })
@@ -96,6 +96,7 @@ test("Business Analysis has a distinct label in the Analysis sidebar alongside W
   assert.match(analysis, /href: "\/dashboard\/relationships",\s+label: "Relationships"/)
   assert.equal((analysis.match(/label: "Analysis"/g) ?? []).length, 1)
   assert.match(analysis, /href: "\/dashboard\/reports",\s+label: "Business Analysis"/)
+  assert.match(analysis, /href: "\/dashboard\/business-impact",\s+label: "Business Impact"/)
   assert.ok(analysis.indexOf('label: "Business Analysis"') < analysis.indexOf('label: "Weekly Reports"'))
   assert.ok(analysis.indexOf('label: "Weekly Reports"') < analysis.indexOf('label: "Relationships"'))
 })
@@ -113,6 +114,9 @@ test("sidebar navigation marks only the current workflow as active, including th
   }
   assert.equal(matches("/dashboard/reports/weekly", "/dashboard/reports"), false)
   assert.equal(matches("/dashboard/reports/weekly", "/dashboard/reports/weekly"), true)
+  assert.equal(matches("/dashboard/business-impact", "/dashboard/business-impact"), true)
+  assert.equal(matches("/dashboard/business-impact", "/dashboard/reports"), false)
+  assert.equal(matches("/dashboard/reports", "/dashboard/business-impact"), false)
 })
 
 test("cross-workflow navigation is removed without losing source scope, delivery or explicit copy actions", () => {

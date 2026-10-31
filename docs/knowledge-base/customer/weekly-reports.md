@@ -103,18 +103,19 @@ not alter Business Analysis or either workflow's saved snapshots.
 ## Follow up on a business change
 
 Weekly Reports has no **Business impact analysis** tab or assessment setup form. Configure
-assessments in Business Analysis, or open Assess business impact from Decision Details.
+assessments on Business Impact, or open Assess business impact from Decision Details.
 Weekly Reports focuses on selected metrics, unusual changes and relationships.
-Copying a saved assessment to Weekly Reports copies its metric selection and
-dimension filters, not the assessment. Old weekly decision links open Business Analysis.
+Old weekly decision links open Business Impact. Older explicit copy links copy
+only metrics and dimension filters, not the assessment; the Business Impact page
+does not offer a Copy selection to Weekly Reports action.
 
 Existing weekly assessment configurations are preserved, not silently converted
-or deleted. Their setup is read-only, with a Manage assessment in Business Analysis link.
+or deleted. Their setup is read-only, with a Manage assessment in Business Impact link.
 Set up metric monitoring explicitly starts an unsaved monitoring setup using the
 same selected metrics. The existing weekly configuration is replaced only after
 preview and Save changes; saved decision assessments and report history remain.
 Simply opening the page, following the link or previewing does not change the saved
-weekly configuration. Changes in Business Analysis do not silently update that configuration.
+weekly configuration. Changes in Business Impact do not silently update that configuration.
 
 An existing assessment's weekly preview includes a short Decision update with
 the assessment period and a link to the decision, when available. Its evidence
@@ -131,7 +132,7 @@ in its preview or email. A monitoring configuration checks selected relationship
 Previewing or emailing a weekly report does not create a decision or overwrite
 its outcome. Explicitly saving a linked assessment attaches it to the selected
 decision. Existing standalone weekly studies can continue under their original
-saved configuration; new assessments require selecting a decision in Business Analysis.
+saved configuration; new assessments require selecting a decision on Business Impact.
 
 As old history leaves the three-year window, the study can lose enough earlier
 data to support an estimate. The email then explains the missing evidence rather

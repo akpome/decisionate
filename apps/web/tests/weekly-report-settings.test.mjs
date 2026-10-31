@@ -66,21 +66,21 @@ test("deliberate weekly timing is retained", () => {
   assert.equal(value.pair_directions[0].direction, "a_leads_b")
 })
 
-test("weekly decision deep links go to Business Analysis before loading weekly settings or starting an assessment", () => {
+test("legacy decision deep links go to Business Impact before loading weekly settings or starting an assessment", () => {
   const source = read("../features/reports/report-workspace.tsx")
   const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   let redirect
   function visit(node) {
-    if (ts.isIfStatement(node) && node.expression.getText(ast) === 'weekly && params.has("decision")') redirect = node.getText(ast)
+    if (ts.isIfStatement(node) && node.expression.getText(ast) === '!impactPage && params.has("decision")') redirect = node.getText(ast)
     ts.forEachChild(node, visit)
   }
   visit(ast)
   assert.ok(redirect)
   assert.ok(source.indexOf(redirect) < source.indexOf('"/business-reports/weekly-settings"'))
-  for (const [weekly, query, expected] of [[true, "decision=7&weekly=1", "/dashboard/reports?decision=7"], [true, "decision=bad%26weekly%3D1", "/dashboard/reports?decision=bad%26weekly%3D1"], [false, "decision=7", undefined], [true, "", undefined]]) {
+  for (const [impactPage, query, expected] of [[false, "decision=7&weekly=1", "/dashboard/business-impact?decision=7"], [false, "decision=bad%26weekly%3D1", "/dashboard/business-impact?decision=bad%26weekly%3D1"], [true, "decision=7", undefined], [false, "", undefined]]) {
     let path
     vm.runInNewContext(ts.transpileModule(`(() => { ${redirect} })()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
-      { weekly, params: new URLSearchParams(query), router: { replace: value => { path = value } }, encodeURIComponent })
+      { impactPage, params: new URLSearchParams(query), router: { replace: value => { path = value } }, encodeURIComponent })
     assert.equal(path, expected)
   }
 })
@@ -107,7 +107,7 @@ test("copying an assessment to weekly monitoring omits the study without changin
 test("weekly route and saved histories stay separate from instant analysis", () => {
   assert.match(read("../app/dashboard/reports/weekly/page.tsx"), /<ReportPage weekly/)
   const workspace = read("../features/reports/report-workspace.tsx")
-  assert.match(workspace, /workflow=\$\{weekly \? "weekly" : "instant"\}/)
+  assert.match(workspace, /reportHistoryQuery\(weekly, impactPage\)/)
   assert.doesNotMatch(workspace, /Recent analyses|"\/business-reports\/jobs"/)
   assert.match(workspace, /weekly \? canManage \? "\/weekly-preview-jobs" : "\/weekly-jobs\?include_ai_analysis=true" : "\/jobs"/)
   assert.match(workspace, /weekly \? <div[^>]*>[\s\S]*?Last completed week[\s\S]*? : <div[^>]*>[\s\S]*?type="date"/)
@@ -203,8 +203,8 @@ test("weekly saving appears only after preview, with no competing save controls"
   assert.doesNotMatch(source, /Save and preview|Save weekly settings|persistWeeklySettings/)
   assert.match(source, /weekly && view === "report" && \(weeklyPreviewReady \|\| report.weekly_current\) && canManage && <button/)
   assert.match(source, /"Changes saved" : "Save changes"/)
-  assert.match(source, /weekly \? "Weekly history" : "Saved reports"/)
-  assert.match(source, /weekly \? "Current weekly report" : "Unsaved analysis"/)
+  assert.match(source, /weekly \? "Weekly history" : impactPage \? "Saved assessments" : "Saved reports"/)
+  assert.match(source, /weekly \? "Current weekly report" : impactPage \? "Unsaved assessment" : "Unsaved analysis"/)
   assert.match(source, /setReport\(weeklyContext.current_report \|\| null\)/)
   assert.match(source, /!weekly && <button[^\n]+Save snapshot/)
   assert.match(source, /setWeeklyDirty\(!job.weekly_settings_saved\)/)

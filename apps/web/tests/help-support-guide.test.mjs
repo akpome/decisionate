@@ -65,8 +65,9 @@ test("Business Analysis is the documented analysis entry and date and dimension 
 
 test("report timing guidance matches the 52-observation daily default and pair-specific calendar lags", () => {
   const text = chapter("analysis")
-  assert.match(text, /New multi dataset reports open with Explore relationships/)
-  assert.match(text, /Business impact analysis is a separate optional analysis type/)
+  assert.match(text, /New multi dataset reports open directly with correlation controls/)
+  assert.match(text, /Business Impact is a separate page under Analysis/)
+  assert.match(text, /Assessment setup, Assessment preview and Saved assessments/)
   assert.match(text, /Edit decision pencil beside Decision to review/)
   assert.match(text, /Decision to review lists only active decisions with a recorded action and saved multi-dataset analysis evidence/)
   assert.match(text, /Business impact analysis derives its title and question from the selected decision/)

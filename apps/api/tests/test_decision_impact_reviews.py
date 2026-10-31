@@ -30,6 +30,39 @@ class DecisionImpactReviewTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return identity, response.json()
 
+    def test_saved_assessment_history_is_separate_from_metric_reports_and_scoped_to_workspace(self):
+        _, assessment = self.save()
+        with self.Session() as db:
+            original = db.get(BusinessReport, assessment["report_id"])
+            definition = json.loads(original.definition)
+            definition["impact"] = None
+            snapshot = json.loads(original.snapshot)
+            snapshot.update(definition=definition, impact_analysis=None, decision_review_id=None)
+            metrics = BusinessReport(workspace_id="owner", user_id="owner", name="Metric analysis",
+                                     definition=json.dumps(definition), snapshot=json.dumps(snapshot))
+            db.add(metrics)
+            db.commit()
+            metric_id = metrics.id
+            frozen = original.snapshot
+        def history(query, **kwargs):
+            response = self.client.get("/api/v2/business-reports?" + query, **kwargs)
+            self.assertEqual(response.status_code, 200, response.text)
+            return {item["report_id"] for item in response.json()}
+        self.assertEqual(history("workflow=instant&analysis_type=impact"), {assessment["report_id"]})
+        self.assertEqual(history("workflow=instant&analysis_type=metrics"), {metric_id})
+        self.assertEqual(history("workflow=instant"), {assessment["report_id"], metric_id})
+        self.assertEqual(history("workflow=weekly&analysis_type=impact"), set())
+        self.assertEqual(history("workflow=instant&analysis_type=impact", headers={"X-Workspace-Id": "other"}), set())
+        self.assertEqual(self.client.get("/api/v2/business-reports?analysis_type=unknown").status_code, 422)
+        with self.Session() as db:
+            self.assertEqual(db.get(BusinessReport, assessment["report_id"]).snapshot, frozen)
+            self.assertEqual(db.query(DecisionImpactReview).count(), 1)
+            db.add_all([BusinessReport(workspace_id="owner", user_id="owner", name=f"Newer metric report {index}",
+                                      definition=json.dumps(definition), snapshot=json.dumps(snapshot)) for index in range(101)])
+            db.commit()
+        self.assertEqual(history("workflow=instant&analysis_type=impact"), {assessment["report_id"]})
+        self.assertEqual(len(history("workflow=instant&analysis_type=metrics")), 100)
+
     def weekly_preview(self):
         payload = copy.deepcopy(self.definition)
         response = self.client.post("/api/v2/business-reports/weekly-preview-jobs", json=payload)

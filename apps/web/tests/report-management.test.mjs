@@ -20,7 +20,7 @@ function management(name, overrides = {}) {
     analysisJob: { job_id: "job-1" } }
   const managementAction = { current: false }, deletedReports = { current: new Set() }
   const handler = vm.runInNewContext(ts.transpileModule(`${functions.get(name)}\n${name}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
-    canManage: true, busy: false, weekly: true, pagePath: "/dashboard/reports", report: state.report, managementAction, deletedReports,
+    canManage: true, busy: false, weekly: true, impactPage: false, pagePath: "/dashboard/reports", report: state.report, managementAction, deletedReports,
     t: value => value, encodeURIComponent, weeklyDefinition: value => ({ name: "Weekly Business Report", ...value }),
     window: { confirm: () => true, history: { replaceState: (...args) => calls.push(["history", ...args]) } },
     execute: async action => { try { await action() } catch (error) { errors.push(error.message) } },
@@ -64,8 +64,8 @@ test("removing weekly settings pauses delivery but does not delete snapshots", a
 })
 
 test("snapshot deletion retains the correct workflow URL", async () => {
-  for (const pagePath of ["/dashboard/reports", "/dashboard/reports/dataset", "/dashboard/reports/weekly"]) {
-    const { handler, calls } = management("deleteSavedReport", { pagePath })
+  for (const pagePath of ["/dashboard/reports", "/dashboard/reports/dataset", "/dashboard/reports/weekly", "/dashboard/business-impact"]) {
+    const { handler, calls } = management("deleteSavedReport", { pagePath, impactPage: pagePath === "/dashboard/business-impact" })
     await handler()
     assert.deepEqual(calls[1], ["history", null, "", pagePath])
   }
@@ -104,7 +104,7 @@ test("repeated removal clicks produce one mutation", async () => {
 })
 
 test("weekly settings commands are separate from the snapshot toolbar", () => {
-  assert.match(source, /canManage && report\?\.report_id && !report.weekly_current && <button[^>]*aria-label=\{t\("Delete saved report"\)\}/)
+  assert.match(source, /canManage && report\?\.report_id && !report.weekly_current && <button[^>]*aria-label=\{t\(impactPage \? "Delete saved assessment" : "Delete saved report"\)\}/)
   assert.match(source, /canManage && weeklySettings\?\.definition && <button[^>]*aria-label="Remove weekly settings"/)
   assert.doesNotMatch(source, /\/weekly-template|saveWeeklyTemplate/)
 })

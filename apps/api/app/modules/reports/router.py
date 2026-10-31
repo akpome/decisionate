@@ -388,17 +388,22 @@ async def save(request: Request, payload: ReportDefinition, db=Depends(database)
 
 
 @router.get("")
-def reports(request: Request, workflow: Literal["instant", "weekly"] | None = None, db=Depends(database)):
+def reports(request: Request, workflow: Literal["instant", "weekly"] | None = None,
+            analysis_type: Literal["metrics", "impact"] | None = None, db=Depends(database)):
     user, workspace = identity(request)
     result = []
-    records = db.query(BusinessReport).filter_by(workspace_id=workspace).order_by(BusinessReport.created_at.desc()).limit(100).all()
+    # Limit matching, authorized results, not the combined history of all pages.
+    records = db.query(BusinessReport).filter_by(workspace_id=workspace).order_by(BusinessReport.created_at.desc()).yield_per(100)
     weekly_ids = {row.saved_report_id for row in db.query(ReportAnalysisJob.saved_report_id).filter(
         ReportAnalysisJob.workspace_id == workspace, ReportAnalysisJob.kind == "weekly_preview",
-        ReportAnalysisJob.saved_report_id.in_([report.id for report in records]))}
+        ReportAnalysisJob.saved_report_id.isnot(None))}
     for report in records:
         snapshot = json.loads(report.snapshot)
         kind = "weekly" if snapshot.get("weekly_report") or report.id in weekly_ids else "instant"
         if workflow and kind != workflow:
+            continue
+        report_type = "impact" if json.loads(report.definition).get("impact") else "metrics"
+        if analysis_type and report_type != analysis_type:
             continue
         history_kind = snapshot.get("weekly_history_kind")
         if workflow == "weekly" and (history_kind == "evidence" or history_kind == "delivery" and snapshot.get("delivery_status") != "sent"):
@@ -409,6 +414,8 @@ def reports(request: Request, workflow: Literal["instant", "weekly"] | None = No
             continue
         result.append({"report_id": report.id, "name": report.name, "workflow": kind, "created_at": report.created_at.isoformat() + "Z",
                        "history_kind": history_kind or "saved", "window": snapshot.get("window"), "sent_at": snapshot.get("sent_at")})
+        if len(result) == 100:
+            break
     return result
 
 

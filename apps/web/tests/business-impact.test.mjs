@@ -170,7 +170,7 @@ test("fresh reports open with correlation settings and do not initialize an impa
   assert.ok(initialize)
   for (const scope of ["single", "multi"]) {
     const value = vm.runInNewContext(ts.transpileModule(`(${initialize})()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
-      { weekly: false, initialScope: scope, editableDefinition, newImpactStudy: () => { throw new Error("Impact must be an explicit choice") } })
+      { weekly: false, impactPage: false, initialScope: scope, editableDefinition, newImpactStudy: () => { throw new Error("Impact must be an explicit choice") } })
     assert.equal(value.scope, scope)
     assert.equal(value.impact, null)
     assert.equal(value.method, "spearman")
@@ -178,57 +178,21 @@ test("fresh reports open with correlation settings and do not initialize an impa
     assert.equal(value.filters.minimum_observations, 52)
   }
   assert.match(workspace, /<ImpactResult analysis=\{report.impact_analysis\}/)
+  const assessment = vm.runInNewContext(ts.transpileModule(`(${initialize})()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
+    { weekly: false, impactPage: true, initialScope: "multi", editableDefinition, newImpactStudy })
+  assert.ok(assessment.impact)
+  assert.equal(assessment.impact.outcome, null)
+  assert.equal(assessment.metrics.length, 0)
   assert.match(workspace, /!single && !definition.impact/)
   assert.doesNotMatch(workspace, /Create decision|createDecision\(/)
 })
 
-test("explicitly named modes switch without changing selected metrics, dates or correlation settings", () => {
+test("business impact is a dedicated page without analysis-type or dataset-scope tabs", () => {
   const workspace = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
-  const ast = ts.createSourceFile("workspace.tsx", workspace, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-  let controls
-  function visit(node) {
-    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === "fieldset" && node.getText(ast).includes('aria-label="Analysis type"')) controls = node.getText(ast)
-    ts.forEachChild(node, visit)
-  }
-  visit(ast)
-  assert.ok(controls)
-  const original = editableDefinition({ metrics, grain: "monthly", method: "pearson", date_range: { start: "2023-01-01", end: "2025-12-31" } })
-  const changes = []
-  const context = { require, exports: {}, t: text => text, newImpactStudy, definition: original, edit: patch => {
-    changes.push(patch)
-    context.definition = editableDefinition({ ...context.definition, ...patch })
-  } }
-  function buttons() {
-    const node = vm.runInNewContext(ts.transpileModule(`(${controls})`, { compilerOptions: {
-      target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
-    } }).outputText, { ...context })
-    const result = []
-    function visit(element) {
-      if (!element || typeof element !== "object") return
-      if (element.type === "button") result.push(element)
-      React.Children.forEach(element.props?.children, visit)
-    }
-    visit(node)
-    return result
-  }
-  let options = buttons()
-  assert.deepEqual(options.map(button => button.props.children), ["Explore relationships", "Business impact analysis"])
-  assert.equal(options[0].props["aria-pressed"], true)
-  assert.equal(options[1].props["aria-pressed"], false)
-  options[0].props.onClick()
-  assert.equal(changes.length, 0)
-  options[1].props.onClick()
-  assert.equal(context.definition.impact.comparison_unaffected, false)
-  assert.equal(context.definition.impact.outcome, null)
-  options = buttons()
-  assert.equal(options[1].props["aria-pressed"], true)
-  options[0].props.onClick()
-  assert.equal(context.definition.impact, null)
-  assert.equal(context.definition.metrics, original.metrics)
-  assert.deepEqual(context.definition.date_range, original.date_range)
-  assert.equal(context.definition.grain, original.grain)
-  assert.equal(context.definition.method, original.method)
-  assert.deepEqual(context.definition.filters, original.filters)
+  assert.match(readFileSync(new URL("../app/dashboard/business-impact/page.tsx", import.meta.url), "utf8"), /<ReportPage impactPage/)
+  assert.doesNotMatch(workspace, /aria-label="Analysis type"/)
+  assert.match(workspace, /!weekly && !impactPage && <nav aria-label="Analysis sources"/)
+  assert.match(workspace, /!single && !weekly && !impactPage && canManage && report.report_id/)
 })
 
 test("saved impact reports restore their explicit analysis type without changing the saved definition", () => {

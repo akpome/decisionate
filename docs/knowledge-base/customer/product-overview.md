@@ -13,6 +13,8 @@ an impact estimate depends on the comparison and stated business assumptions.
 - Dashboard and Dashboards show supporting KPIs, trends, mappings and targets.
 - Business Analysis is the on-demand analysis workspace. Multi dataset report opens by default;
   Single dataset report analyzes one source with the same report engine.
+- Business Impact assesses an existing decision using its outcome, implementation
+  date and an unaffected comparison. Preview before saving the assessment to the decision.
 - Weekly Reports provides independently configured weekly
   performance reviews and email delivery. Navigate between the workflows in the
   sidebar, not a shared page tab bar.
@@ -28,7 +30,8 @@ an impact estimate depends on the comparison and stated business assumptions.
 - Help & Support provides guidance and a support, bug or feature request form.
 
 Business Analysis was also called Analysis and Instant analysis.
-Business impact analysis was previously labeled Assess a decision.
+Business Impact is now a separate page under Analysis, not a tab within Business
+Analysis. Its workflow was previously labeled Business impact analysis or Assess a decision.
 Business Analysis appears under the Analysis sidebar group; the group name is unchanged.
 Weekly Reports replaces Weekly Review and Weekly Business Review in navigation.
 Explore relationships is the correlation workflow; Business impact analysis is the

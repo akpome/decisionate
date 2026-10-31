@@ -33,6 +33,7 @@ import { weeklyDefinition, weeklyDeliveryIssue, type WeeklySettings } from "./we
 import { automaticImpactDefinition, decisionReviewDefinition, decisionReviewDetails, type DecisionReviewContext } from "./decision-review"
 import { ImpactDecisionPicker } from "./impact-decision-picker"
 import { WeeklyAssessmentSetup, WeeklyDecisionUpdate } from "./weekly-decision-update"
+import { reportHistoryQuery, reportPagePath } from "./report-navigation"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
@@ -68,8 +69,8 @@ async function loadDecisionDefinition(userId: string, workspaceId: string | unde
   return { definition: decisionReviewDefinition(current, context, page.datasets[0]), datasets: page.datasets }
 }
 
-export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEditDecisions = false, initialScope = "multi", weekly = false }: {
-  userId: string; workspaceId?: string; canManage: boolean; canSave: boolean; canEditDecisions?: boolean; initialScope?: "single" | "multi"; weekly?: boolean
+export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEditDecisions = false, initialScope = "multi", weekly = false, impactPage = false }: {
+  userId: string; workspaceId?: string; canManage: boolean; canSave: boolean; canEditDecisions?: boolean; initialScope?: "single" | "multi"; weekly?: boolean; impactPage?: boolean
 }) {
   const { t } = useDecisionateText()
   const router = useRouter()
@@ -97,7 +98,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [weeklySettings, setWeeklySettings] = useState<WeeklySettings | null>(null)
   const [weeklyDirty, setWeeklyDirty] = useState(false)
   const [saved, setSaved] = useState<SavedReport[]>([])
-  const [draftDefinition, setDefinition] = useState<ReportDefinition>(() => weekly ? weeklyDefinition({}) : editableDefinition({ scope: initialScope }))
+  const [draftDefinition, setDefinition] = useState<ReportDefinition>(() => weekly ? weeklyDefinition({}) : editableDefinition({ scope: initialScope, impact: impactPage ? newImpactStudy() : null }))
   const [report, setReport] = useState<BusinessReport | null>(null)
   const [view, setView] = useState<"explore" | "report">("explore")
   const [impactContext, setImpactContext] = useState<{ key: string; value: DecisionReviewContext | null; error: boolean } | null>(null)
@@ -119,10 +120,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const single = definition.scope === "single"
   const singleDatasetId = single ? definition.metrics[0]?.dataset_id ?? selectedDatasetId : null
   const singleDataset = single ? datasets.find(dataset => dataset.dataset_id === singleDatasetId) : undefined
-  const pagePath = weekly ? "/dashboard/reports/weekly" : single ? "/dashboard/reports/dataset" : "/dashboard/reports"
-  const pageTitle = weekly ? "Weekly Reports" : "Business Analysis"
-  const setupLabel = weekly ? "Report setup" : "Build analysis"
-  const previewLabel = weekly ? "Report preview" : "Analysis preview"
+  const pagePath = reportPagePath(weekly, impactPage, initialScope)
+  const pageTitle = weekly ? "Weekly Reports" : impactPage ? "Business Impact" : "Business Analysis"
+  const setupLabel = weekly ? "Report setup" : impactPage ? "Assessment setup" : "Build analysis"
+  const previewLabel = weekly ? "Report preview" : impactPage ? "Assessment preview" : "Analysis preview"
+  const historyLabel = weekly ? "Weekly history" : impactPage ? "Saved assessments" : "Saved reports"
   const taskCount = definition.impact ? 0 : reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs)
   const showPairDirections = definition.pair_directions.length > 0
   const previewDisabled = Boolean(periodIssue) || datasetCount < (single ? 1 : 2) || single && (!singleDataset || singleDataset.catalog_status === "pending" || Boolean(singleDataset.error_code)) || !impactReady(definition.impact, definition.metrics) || Boolean(impactSetupIssue(definition, datasets)) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
@@ -173,11 +175,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
 
   useEffect(() => {
     const controller = new AbortController()
-    void correlationRequest<SavedReport[]>(userId, `/business-reports?workflow=${weekly ? "weekly" : "instant"}`, { signal: controller.signal }, workspaceId)
+    void correlationRequest<SavedReport[]>(userId, `/business-reports?${reportHistoryQuery(weekly, impactPage)}`, { signal: controller.signal }, workspaceId)
       .then(history => { if (!controller.signal.aborted) setSaved(current => [...new Map([...history, ...current].filter(item => !deletedReports.current.has(item.report_id)).map(item => [item.report_id, item])).values()]) })
       .catch(() => { if (!controller.signal.aborted) setHistoryError(true) })
     return () => controller.abort()
-  }, [userId, workspaceId, historyReload, weekly])
+  }, [userId, workspaceId, historyReload, weekly, impactPage])
 
   useEffect(() => {
     let current = true
@@ -192,12 +194,16 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     async function load() {
       try {
         const params = new URLSearchParams(window.location.search)
-        if (weekly && params.has("decision")) {
-          router.replace(`/dashboard/reports?decision=${encodeURIComponent(params.get("decision")!)}`)
+        if (!impactPage && params.has("decision")) {
+          router.replace(`/dashboard/business-impact?decision=${encodeURIComponent(params.get("decision")!)}`)
           return
         }
         if (!weekly && params.has("weekly")) {
           router.replace(`/dashboard/reports/weekly?${params}`)
+          return
+        }
+        if (impactPage && !params.has("report") && !params.has("job") && !params.has("decision") && (params.has("run") || params.has("dataset"))) {
+          router.replace(`/dashboard/reports?${params}`)
           return
         }
         let weeklyContext: WeeklySettings | null = null
@@ -210,7 +216,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           setDefinition(selected)
           if (weeklyContext.definition) void addSelectedDatasets(selected)
         }
-        if (!weekly && !params.get("report") && !params.get("weekly")) {
+        if (!weekly && !impactPage && !params.get("report") && !params.get("weekly")) {
           if (!draftName.current) draftName.current = reportDraftName()
           setDefinition(current => ({ ...current, name: current.name || draftName.current }))
         }
@@ -223,9 +229,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             const value = await waitForAnalysis<BusinessReport | { cross_dataset_report: BusinessReport } | WeeklyReportDeliveryResult>(
               (path, init) => correlationRequest(userId, `/business-reports${path}`, init, workspaceId),
               params.get("job")!, { signal: controller.signal, onUpdate: job => { if (current) {
-                if ((job.kind !== "report") !== weekly) {
+                const destination = reportPagePath(job.kind !== "report", Boolean(job.definition?.impact), job.definition?.scope)
+                if (destination !== pagePath) {
                   controller.abort()
-                  router.replace(`${job.kind !== "report" ? "/dashboard/reports/weekly" : "/dashboard/reports"}?job=${job.job_id}`)
+                  router.replace(`${destination}?job=${encodeURIComponent(job.job_id)}`)
                   return
                 }
                 setAnalysisJob({ ...job, result: null })
@@ -258,8 +265,9 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         } else if (params.get("report")) {
           const result = await correlationRequest<BusinessReport>(userId, `/business-reports/${encodeURIComponent(params.get("report")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
-          if (Boolean(result.weekly_report) !== weekly) {
-            router.replace(`${result.weekly_report ? "/dashboard/reports/weekly" : "/dashboard/reports"}?report=${result.report_id}`)
+          const destination = reportPagePath(Boolean(result.weekly_report), Boolean(result.definition.impact), result.definition.scope)
+          if (destination !== pagePath) {
+            router.replace(`${destination}?report=${encodeURIComponent(result.report_id!)}`)
             return
           }
           setReport(result); if (!weekly) setDefinition(editableDefinition(result.definition)); setView("report")
@@ -324,7 +332,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     }
     void load()
     return () => { current = false; controller.abort() }
-  }, [userId, workspaceId, weekly, router, canManage])
+  }, [userId, workspaceId, weekly, impactPage, pagePath, router, canManage])
 
   function refreshCatalog() {
     if (catalogBusy || catalogRetry.current) return
@@ -535,7 +543,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   async function deleteSavedReport() {
     const identity = report?.report_id
     if (!identity || !canManage || busy || managementAction.current) return
-    if (!window.confirm(`${t("Delete saved report")}: "${report.name}"?\n${t("Linked decisions, datasets and independent weekly settings will be kept.")}`)) return
+    if (!window.confirm(`${t(impactPage ? "Delete saved assessment" : "Delete saved report")}: "${report.name}"?\n${t("Linked decisions, datasets and independent weekly settings will be kept.")}`)) return
     managementAction.current = true
     try {
       await execute(async () => {
@@ -544,7 +552,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         setSaved(current => current.filter(item => item.report_id !== identity))
         setReport(null); setAnalysisJob(null); setView("explore")
         window.history.replaceState(null, "", pagePath)
-        setMessage(result.weekly_template_removed ? "Saved report deleted and weekly delivery paused. Linked decisions and datasets were kept." : "Saved report deleted. Linked decisions and datasets were kept.")
+        setMessage(result.weekly_template_removed ? "Saved report deleted and weekly delivery paused. Linked decisions and datasets were kept." : impactPage ? "Saved assessment deleted. Linked decisions and datasets were kept." : "Saved report deleted. Linked decisions and datasets were kept.")
       })
     } finally { managementAction.current = false }
   }
@@ -574,7 +582,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   return <div className="min-w-0 w-full space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
       <h1 className="text-2xl font-semibold">{t(pageTitle)}</h1>
-      <div role="tablist" aria-label={t(weekly ? "Weekly reports workspace" : "Analysis workspace")} className="flex w-full min-w-0 gap-1 rounded-md border border-gray-200 bg-white p-1 sm:w-auto">
+      <div role="tablist" aria-label={t(weekly ? "Weekly reports workspace" : impactPage ? "Business impact workspace" : "Analysis workspace")} className="flex w-full min-w-0 gap-1 rounded-md border border-gray-200 bg-white p-1 sm:w-auto">
         {(["explore", "report"] as const).map(mode => <button key={mode} type="button" role="tab" tabIndex={view === mode ? 0 : -1} aria-selected={view === mode} aria-controls={`report-${mode}`} id={`tab-${mode}`} onClick={() => setView(mode)} onKeyDown={event => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
           event.preventDefault()
@@ -583,7 +591,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         }} className={`inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded px-3 text-sm sm:flex-none ${view === mode ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`}>{mode === "explore" ? <ChartNoAxesCombined size={16} aria-hidden="true" className="shrink-0" /> : <FileText size={16} aria-hidden="true" className="shrink-0" />}<span className="min-w-0 break-words">{t(mode === "explore" ? setupLabel : previewLabel)}</span></button>)}
       </div>
     </header>
-    {!weekly && <nav aria-label="Analysis sources" className="flex flex-wrap gap-4 text-sm print:hidden">{[{ scope: "multi", href: "/dashboard/reports", label: "Multi dataset report" }, { scope: "single", href: "/dashboard/reports/dataset", label: "Single dataset report" }].map(item => <Link key={item.scope} href={item.href} aria-current={definition.scope === item.scope ? "page" : undefined} className={definition.scope === item.scope ? "font-semibold text-blue-800 underline underline-offset-8" : "text-gray-600"}>{t(item.label)}</Link>)}</nav>}
+    {!weekly && !impactPage && <nav aria-label="Analysis sources" className="flex flex-wrap gap-4 text-sm print:hidden">{[{ scope: "multi", href: "/dashboard/reports", label: "Multi dataset report" }, { scope: "single", href: "/dashboard/reports/dataset", label: "Single dataset report" }].map(item => <Link key={item.scope} href={item.href} aria-current={definition.scope === item.scope ? "page" : undefined} className={definition.scope === item.scope ? "font-semibold text-blue-800 underline underline-offset-8" : "text-gray-600"}>{t(item.label)}</Link>)}</nav>}
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {weekly && !weeklySettings && <button type="button" className={button} onClick={() => window.location.reload()}><RefreshCw size={16} />Retry weekly settings</button>}
     {message && <p role="status" className="text-sm text-green-800">{t(message)}</p>}
@@ -593,7 +601,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       <button type="button" className={button} disabled={["weekly_send", "weekly_owner_send"].includes(analysisJob.kind) && analysisJob.phase === "sending"} onClick={() => void request<AnalysisJob>(`/jobs/${encodeURIComponent(analysisJob.job_id)}/cancel`, { method: "POST" }).then(setAnalysisJob).catch(value => setError(errorMessage(value)))}><Square size={14} />{t("Cancel analysis")}</button>
     </div>}
     <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
-      {(!weekly || saved.length > 0) && <div className="flex w-full max-w-md items-end gap-2"><label className="block min-w-0 flex-1 text-xs text-gray-600">{weekly ? "Weekly history" : "Saved reports"}<select aria-label={t(weekly ? "Weekly history" : "Saved reports")} className={input} disabled={busy} value={report?.weekly_current ? "" : report?.report_id || ""} onChange={event => {
+      {(!weekly || saved.length > 0) && <div className="flex w-full max-w-md items-end gap-2"><label className="block min-w-0 flex-1 text-xs text-gray-600">{t(historyLabel)}<select aria-label={t(historyLabel)} className={input} disabled={busy} value={report?.weekly_current ? "" : report?.report_id || ""} onChange={event => {
         const id = event.target.value
         if (!id) {
           if (weekly) void execute(async () => {
@@ -607,6 +615,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         }
         void execute(async () => {
           const result = await request<BusinessReport>(`/${id}`)
+          const destination = reportPagePath(Boolean(result.weekly_report), Boolean(result.definition.impact), result.definition.scope)
+          if (destination !== pagePath) {
+            router.push(`${destination}?report=${encodeURIComponent(id)}`)
+            return
+          }
           setAnalysisJob(null)
           setReport(result); if (!weekly) setDefinition(editableDefinition(result.definition)); setDateColumns({}); setView("report")
           window.history.replaceState(null, "", `${pagePath}?report=${id}`)
@@ -615,8 +628,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             .then(hydrated => { if (!signal.aborted) setDatasets(existing => mergeCatalog(existing, hydrated)) })
             .catch(() => { if (!signal.aborted) setCatalogError(true) })
         })
-      }}><option value="">{weekly ? "Current weekly report" : "Unsaved analysis"}</option>{saved.map(item => <option key={item.report_id} value={item.report_id}>{weekly ? `${item.history_kind === "delivery" ? "Sent" : "Previously saved"} / ${item.window?.start || item.created_at.slice(0, 10)}${item.window?.end ? ` to ${item.window.end}` : ""} / ` : ""}{item.name}{weekly ? "" : ` / ${item.created_at.slice(0, 10)}`}</option>)}</select></label>
-        {canManage && report?.report_id && !report.weekly_current && <button type="button" className={`${button} text-red-700`} disabled={busy} title={t("Delete saved report")} aria-label={t("Delete saved report")} onClick={() => void deleteSavedReport()}><Trash2 size={16} /></button>}
+      }}><option value="">{weekly ? "Current weekly report" : impactPage ? "Unsaved assessment" : "Unsaved analysis"}</option>{saved.map(item => <option key={item.report_id} value={item.report_id}>{weekly ? `${item.history_kind === "delivery" ? "Sent" : "Previously saved"} / ${item.window?.start || item.created_at.slice(0, 10)}${item.window?.end ? ` to ${item.window.end}` : ""} / ` : ""}{item.name}{weekly ? "" : ` / ${item.created_at.slice(0, 10)}`}</option>)}</select></label>
+        {canManage && report?.report_id && !report.weekly_current && <button type="button" className={`${button} text-red-700`} disabled={busy} title={t(impactPage ? "Delete saved assessment" : "Delete saved report")} aria-label={t(impactPage ? "Delete saved assessment" : "Delete saved report")} onClick={() => void deleteSavedReport()}><Trash2 size={16} /></button>}
       </div>}
       <div className="ml-auto flex flex-wrap gap-2">
         <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>
@@ -624,14 +637,14 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           {!weekly && <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id) || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void execute(async () => { const saved = await saveSnapshot(); setMessage(saved.decision_review_id ? "Assessment saved to the existing decision. Its recorded outcome and lessons are unchanged." : "Report snapshot saved.") })}><Save size={16} />{report.definition.impact?.decision_id ? "Save assessment to decision" : "Save snapshot"}</button>}
           {weekly && view === "report" && (weeklyPreviewReady || report.weekly_current) && canManage && <button type="button" className={primaryButton} disabled={busy || !canSave || report.weekly_current || analysisJob?.weekly_settings_saved || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void saveWeeklyReport()}><Save size={16} />{report.weekly_current || analysisJob?.weekly_settings_saved ? "Changes saved" : "Save changes"}</button>}
           {report.definition.impact?.decision_id && <Link className={button} href={`/dashboard/decisions/${report.definition.impact.decision_id}#business-impact-review`}>Return to decision</Link>}
-          {!single && !weekly && canManage && report.report_id && <Link href={`/dashboard/reports/weekly?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />{t("Copy selection to Weekly Reports")}</Link>}
+          {!single && !weekly && !impactPage && canManage && report.report_id && <Link href={`/dashboard/reports/weekly?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />{t("Copy selection to Weekly Reports")}</Link>}
           {view === "report" && <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>}
         </>}
         {weekly && canManage && view === "report" && report && <button type="button" className={button} disabled={!weeklySendReady || previewDisabled || Boolean(weeklySendIssue) || uncertainDelivery} title={weeklySendReady ? "Email the current weekly report to the workspace owner" : "Preview and save the weekly report before sending"} onClick={() => void sendWeeklyNow()}><Send size={16} />Send report now</button>}
         {weekly && <Link href="/dashboard/alerts#weekly-delivery" className={button}><CalendarDays size={16} />Delivery settings</Link>}
       </div>
     </div>
-    {historyError && <div className="flex flex-wrap items-center gap-3 text-sm text-amber-900"><p role="alert">{t("Saved reports could not be loaded.")}</p><button type="button" className={button} onClick={() => { setHistoryError(false); setHistoryReload(value => value + 1) }}><RefreshCw size={16} />{t("Retry")}</button></div>}
+    {historyError && <div className="flex flex-wrap items-center gap-3 text-sm text-amber-900"><p role="alert">{t(impactPage ? "Saved assessments could not be loaded." : "Saved reports could not be loaded.")}</p><button type="button" className={button} onClick={() => { setHistoryError(false); setHistoryReload(value => value + 1) }}><RefreshCw size={16} />{t("Retry")}</button></div>}
     {weekly && view === "report" && report?.report_id && !report.weekly_current && <p role="status" className="border-l-2 border-gray-300 pl-3 text-sm text-gray-600">Historical report / {report.window.start} to {report.window.end}</p>}
     {weekly && <section aria-label="Weekly settings status" className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
       <p className="text-sm text-gray-600">{weeklyDirty ? "Unsaved changes" : weeklySettings?.definition ? "Weekly report configured" : "No weekly report configured"} / {weeklySettings?.enabled ? "Delivery enabled" : "Delivery paused"}</p>
@@ -644,11 +657,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     <section role="tabpanel" id="report-explore" aria-labelledby="tab-explore" hidden={view !== "explore"} className="space-y-6 print:hidden">
       <form onSubmit={event => { event.preventDefault(); void calculate() }}>
         <fieldset disabled={busy || weekly && !canManage || weekly && !weeklySettings} className="min-w-0 space-y-5">
-          {!single && !weekly && <fieldset className="min-w-0"><legend className="mb-2 text-sm font-medium">Analysis type</legend><div className="inline-flex max-w-full flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1" role="group" aria-label="Analysis type">
-            {[{ label: "Explore relationships", impact: false }, { label: "Business impact analysis", impact: true }].map(mode => <button key={mode.label} type="button" aria-pressed={Boolean(definition.impact) === mode.impact} className={`min-h-10 min-w-0 rounded px-3 text-sm ${Boolean(definition.impact) === mode.impact ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`} onClick={() => {
-              if (Boolean(definition.impact) !== mode.impact) edit({ impact: mode.impact ? newImpactStudy() : null, ...(mode.impact && definition.grain === "quarterly" ? { grain: "weekly" } : {}) })
-            }}>{t(mode.label)}</button>)}
-          </div></fieldset>}
           {definition.impact && weekly ? <WeeklyAssessmentSetup definition={definition} issue={impactSetupIssue(definition, datasets)} preview={canManage ? previewButton : null} onSwitch={canManage ? () => {
             if (window.confirm("Switch this weekly setup to metric monitoring? The current setup is replaced only after you preview and save. Saved decision assessments and historical reports are kept.")) edit({ impact: null })
           } : undefined} /> : definition.impact && !weekly ? <ImpactBuilder definition={definition} datasets={datasets} userId={userId} workspaceId={workspaceId} weekly={false} weeklySettings={null}

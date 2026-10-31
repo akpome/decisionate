@@ -128,7 +128,7 @@ test("deliberate names and explicit renames are preserved when editing any analy
 })
 
 test("random names are generated after mount only for one-off analysis", () => {
-  assert.match(workspace, /if \(!weekly && !params\.get\("report"\) && !params\.get\("weekly"\)\)/)
+  assert.match(workspace, /if \(!weekly && !impactPage && !params\.get\("report"\) && !params\.get\("weekly"\)\)/)
   assert.match(workspace, /if \(!draftName\.current\) draftName\.current = reportDraftName\(\)/)
   assert.match(workspace, /editableDefinition\(\{ \.\.\.result, name: draftName\.current \}\)/)
   assert.match(workspace, /setDefinition\(current => editableDefinition\(\{ \.\.\.current, metrics:/)

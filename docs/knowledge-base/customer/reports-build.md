@@ -6,17 +6,19 @@ has its own page and settings, automatic dates, whole-week and daily checks,
 and earlier relationship history grouped weekly.
 Use the sidebar to move between these separate workflows; neither page has tabs
 for the other workflow. Business Analysis has Build analysis and Analysis preview;
-Weekly Reports has Report setup and Report preview.
+Weekly Reports has Report setup and Report preview. Business Impact is a separate
+page under Analysis, with Assessment setup, Assessment preview and Saved assessments.
 Business Analysis uses approved
 dataset metrics, date policies, anomaly detection and report snapshots.
 
 ## Where did correlation settings go? Is Reports a decision review?
 
-New multi dataset reports open with **Explore relationships**. The correlation
+New multi dataset reports open directly with correlation controls. The correlation
 method, minimum matching periods, timing and metric-pair settings
-are available under the expanded Relationship analysis section. Under Analysis
-type, choose **Business impact analysis** to review an existing decision.
-Saved reports keep their original analysis type. Neither mode replaces
+are available under the expanded Relationship analysis section. Open **Business
+Impact** in the sidebar to assess an existing decision; there is no Analysis type
+tab in Business Analysis. Saved reports keep their original analysis type, and
+old decision, assessment and running-job links open the appropriate page. Neither workflow replaces
 decision creation or decision review on the Decisions page.
 
 ## Analyze one dataset
@@ -43,7 +45,7 @@ loaded with Load more datasets when the catalog is paginated.
 ## Did my business change help?
 
 Open an existing decision and choose Assess business impact, or select Decision
-to review in the report builder. This is one searchable dropdown: type a decision
+to review on the Business Impact page. This is one searchable dropdown: type a decision
 name to filter its choices, then select the decision. Typing alone does not change
 the selected decision. The dropdown lists only active decisions with a recorded
 action and saved multi-dataset analysis evidence: the original selection must
@@ -98,7 +100,7 @@ Choose Comparison dataset and Comparison metric directly from the available
 approved dataset results; there is no separate metric-checkbox selection first.
 Without a fair comparison, the impact estimate remains unavailable. The form has
 no shortcut that clears the assessment and switches to relationship analysis;
-use the analysis-type tabs to deliberately change workflows.
+use the sidebar to deliberately change workflows.
 Missing choices are named beside Analyze business impact. If a selected result or
 date is unavailable, review that dataset or choose another comparison.
 
@@ -146,17 +148,17 @@ The outcome Date column is beside Outcome metric and starts with the decision's
 saved selection. The comparison date column remains beside its dimension filter.
 There is no editable Analysis settings section. The analysis period and grouping
 are read-only; data availability and minimum-history warnings remain visible.
-Business impact analysis is available only in Business Analysis, also accessible from Decision
+Business impact analysis is available on the Business Impact page, also accessible from Decision
 Details. Weekly Reports has no assessment tab or setup form. Minimum history
 requirements appear beside assessment readiness, outside the settings disclosures.
 Datasets with no overlapping dates, no completed shared period, or no history
 before or after implementation are blocked with an explicit message.
-Opening a saved snapshot keeps its stored dates and results. Returning to Build
-analysis prepares an updated period for a new calculation; it does not rewrite
+Opening a saved snapshot keeps its stored dates and results. Returning to Assessment
+setup prepares an updated period for a new calculation; it does not rewrite
 the old snapshot or save an assessment automatically.
 Changing the selected comparison, date column or dimension filters requires the
 comparison confirmation again. Existing weekly assessment configurations remain
-read-only in Weekly Reports, with a link to Business Analysis and an explicit option to
+read-only in Weekly Reports, with a link to Business Impact and an explicit option to
 switch to metric monitoring after preview and save. Historical evidence is kept.
 Existing extra selected results stay visible under Other selected results
 and can be removed deliberately. Business impact analysis has no Report details
@@ -234,7 +236,7 @@ Supporting charts and unusual-change tables are kept in Supporting business
 results, rather than crowding the main answer and decision links.
 Business impact analysis does not run a separate correlation or lag search and
 does not show Relationship findings. Its own comparison checks and estimated
-impact are independent of the correlation settings. This applies to Business Analysis
+impact are independent of the correlation settings. This applies to Business Impact
 and Weekly Reports. Reopened older impact snapshots also omit their
 old correlation findings from the preview; their stored calculations are not
 rewritten or recalculated.
@@ -243,7 +245,7 @@ results. Timing, phase estimates and waiting status are included in weekly email
 Saved assessments keep their historical evidence even if the source report is
 later deleted; new calculations cannot reuse a deleted or inaccessible source.
 
-Choose **Explore relationships** for exploratory relationships without a recorded
+Choose **Business Analysis** for exploratory relationships without a recorded
 business change. Existing saved reports keep their original workflow.
 
 ## Build an analysis

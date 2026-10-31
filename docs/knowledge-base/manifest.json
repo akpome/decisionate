@@ -435,15 +435,20 @@
       "questions": [
         "How do I select metrics from multiple datasets?",
         "How do I choose one dataset and filter its metrics by dimension?",
+        "Where is Business Impact and how do I assess an existing decision?",
         "How many metrics and lag tests are supported?",
         "Does preview create a decision?"
       ],
       "routes": [
         "/dashboard/reports",
-        "/dashboard/reports/dataset"
+        "/dashboard/reports/dataset",
+        "/dashboard/business-impact"
       ],
       "sources": [
         "apps/web/features/reports/report-workspace.tsx",
+        "apps/web/app/dashboard/business-impact/page.tsx",
+        "apps/web/features/reports/report-page.tsx",
+        "apps/web/features/reports/report-navigation.ts",
         "apps/web/components/searchable-select.tsx",
         "apps/web/features/reports/report-metric-picker.tsx",
         "apps/web/features/reports/report-catalog-loading.ts",

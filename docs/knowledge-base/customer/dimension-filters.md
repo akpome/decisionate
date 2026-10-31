@@ -28,7 +28,7 @@ column; changing it recalculates the shared analysis period. The outcome Date
 column is beside Outcome metric and starts with the saved selection. Business impact
 analysis uses automatic history and grouping, displayed read-only rather than under
 editable Analysis settings. Dimension filters do not invent missing matching records.
-Decision assessment controls are in Business Analysis, not Weekly Reports. Weekly monitoring
+Decision assessment controls are on Business Impact, not Weekly Reports. Weekly monitoring
 has its own dataset date and dimension selectors and automatic weekly dates and grouping.
 
 ## Empty results and missing values
