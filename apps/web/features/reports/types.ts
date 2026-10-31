@@ -43,6 +43,7 @@ export type ReportDecision = {
 }
 export type BusinessReport = {
   weekly_report?: boolean
+  weekly_current?: boolean
   analysis_job_id?: string
   report_id?: string; decision_report_id?: string | null; name: string; business_question: string; definition: ReportDefinition
   window: { start: string; end: string }; previous_window: { start: string; end: string }

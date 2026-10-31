@@ -37,7 +37,7 @@ const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
 const button = `${command} border-gray-300 bg-white`
 const primaryButton = `${command} border-blue-700 bg-blue-700 text-white`
-type SavedReport = { report_id: string; name: string; created_at: string }
+type SavedReport = { report_id: string; name: string; created_at: string; history_kind?: string; window?: { start: string; end: string } }
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Report unavailable. Your selections have been preserved."
 
 const MetricTrends = dynamic(() => import("./report-metric-trends").then(module => module.MetricTrends), {
@@ -121,8 +121,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const uncertainDelivery = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && !analysisJob.retry_safe
   const deliveryNotStarted = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && analysisJob.retry_safe === true
   const weeklyPreviewReady = Boolean(weekly && report?.analysis_job_id && report.analysis_job_id === analysisJob?.job_id && analysisJob.kind === "weekly_preview" && analysisJob.status === "succeeded" && analysisJob.definition)
-  const weeklySendReady = Boolean(report?.report_id && report.analysis_job_id && !weeklyDirty && weeklySettings?.definition
-    && (weeklyPreviewReady && analysisJob?.weekly_settings_saved || analysisJob?.kind === "weekly_owner_send"))
+  const weeklySendReady = Boolean(report?.weekly_current && report.analysis_job_id && !weeklyDirty && weeklySettings?.definition
+    && report.window.start === weeklySettings.window.start && report.window.end === weeklySettings.window.end)
   const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(definition.impact ? busy ? "Checking decision..." : "Check this decision" : weekly ? "Preview report" : "Preview analysis")}</button>
 
   useEffect(() => {
@@ -177,6 +177,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           weeklyContext = await correlationRequest<WeeklySettings>(userId, "/business-reports/weekly-settings", { signal: controller.signal }, workspaceId)
           if (!current) return
           setWeeklySettings(weeklyContext)
+          setReport(weeklyContext.current_report || null)
           const selected = weeklyDefinition(weeklyContext.definition || {}, weeklyContext.history_window)
           setDefinition(selected)
           if (weeklyContext.definition) void addSelectedDatasets(selected)
@@ -343,7 +344,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     })
     setReport(null); setError(""); setMessage("")
     setAnalysisJob(null)
-    if (new URLSearchParams(window.location.search).has("job")) window.history.replaceState(null, "", window.location.pathname)
+    if (weekly || new URLSearchParams(window.location.search).has("job")) window.history.replaceState(null, "", window.location.pathname)
   }
 
   function editImpact(patch: Partial<ImpactStudy>) {
@@ -418,6 +419,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
 
   async function saveSnapshot() {
     if (report?.report_id) return report
+    if (weekly && report?.weekly_current) return request<BusinessReport>(`/weekly-current/evidence?preview_job_id=${encodeURIComponent(report.analysis_job_id!)}`, { method: "POST" })
     if (!report?.analysis_job_id) throw new Error("Generate a report preview before saving.")
     const result = await request<BusinessReport>(`/jobs/${encodeURIComponent(report.analysis_job_id)}/save`, { method: "POST" })
     setReport(result)
@@ -455,11 +457,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         setReport(result.report); setWeeklySettings(result.settings); setWeeklyDirty(false)
         setDefinition(weeklyDefinition(result.settings.definition || {}, result.settings.history_window))
         setAnalysisJob(current => current ? { ...current, weekly_settings_saved: true } : current)
-        setSaved(current => [{ report_id: result.report.report_id!, name: result.report.name, created_at: result.report.generated_at }, ...current.filter(item => item.report_id !== result.report.report_id)])
         weeklySendRequest.current = null
-        window.history.replaceState(null, "", `${pagePath}?job=${encodeURIComponent(report.analysis_job_id!)}`)
-        setMessage(result.report.decision_review_id ? "Weekly report saved and assessment attached to the decision. Delivery settings are unchanged."
-          : "Weekly report saved for future weeks. This preview is kept in Saved reports. Delivery settings are unchanged.")
+        window.history.replaceState(null, "", pagePath)
+        setMessage(result.report.decision_review_id ? "Weekly report updated and assessment attached to the decision. Delivery settings are unchanged."
+          : "Weekly report updated. Delivery settings are unchanged.")
       })
     } finally { managementAction.current = false }
   }
@@ -472,7 +473,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         if (weeklyPreviewReady) weeklyPreviewBeforeSend.current = analysisJob
         weeklySendRequest.current ||= crypto.randomUUID()
         const signal = routeController.current?.signal
-        const returnUrl = `${pagePath}?job=${encodeURIComponent(report!.analysis_job_id!)}`
+        const returnUrl = pagePath
         const job = await request<AnalysisJob<WeeklyReportDeliveryResult>>(`/weekly-owner-jobs?include_ai_analysis=true&preview_job_id=${encodeURIComponent(report!.analysis_job_id!)}`, {
           method: "POST", signal, headers: { "Idempotency-Key": weeklySendRequest.current },
         })
@@ -491,6 +492,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         weeklySendRequest.current = null
         setAnalysisJob(weeklyPreviewBeforeSend.current?.job_id === report!.analysis_job_id ? weeklyPreviewBeforeSend.current : null)
         window.history.replaceState(null, "", returnUrl)
+        setHistoryReload(value => value + 1)
         setMessage("Weekly report sent to the workspace owner. Scheduled delivery settings are unchanged.")
       })
     } finally { managementAction.current = false }
@@ -557,11 +559,21 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       <button type="button" className={button} disabled={["weekly_send", "weekly_owner_send"].includes(analysisJob.kind) && analysisJob.phase === "sending"} onClick={() => void request<AnalysisJob>(`/jobs/${encodeURIComponent(analysisJob.job_id)}/cancel`, { method: "POST" }).then(setAnalysisJob).catch(value => setError(errorMessage(value)))}><Square size={14} />{t("Cancel analysis")}</button>
     </div>}
     <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
-      <div className="flex w-full max-w-md items-end gap-2"><label className="block min-w-0 flex-1 text-xs text-gray-600">Saved reports<select className={input} disabled={busy} value={report?.report_id || ""} onChange={event => {
+      {(!weekly || saved.length > 0) && <div className="flex w-full max-w-md items-end gap-2"><label className="block min-w-0 flex-1 text-xs text-gray-600">{weekly ? "Weekly history" : "Saved reports"}<select aria-label={t(weekly ? "Weekly history" : "Saved reports")} className={input} disabled={busy} value={report?.weekly_current ? "" : report?.report_id || ""} onChange={event => {
         const id = event.target.value
-        if (!id) return
+        if (!id) {
+          if (weekly) void execute(async () => {
+            const settings = await request<WeeklySettings>("/weekly-settings")
+            setWeeklySettings(settings); setReport(settings.current_report || null); setAnalysisJob(null); setWeeklyDirty(false)
+            setDefinition(weeklyDefinition(settings.definition || {}, settings.history_window))
+            setView(settings.current_report ? "report" : "explore")
+            window.history.replaceState(null, "", pagePath)
+          })
+          return
+        }
         void execute(async () => {
           const result = await request<BusinessReport>(`/${id}`)
+          setAnalysisJob(null)
           setReport(result); if (!weekly) setDefinition(editableDefinition(result.definition)); setDateColumns({}); setView("report")
           window.history.replaceState(null, "", `${pagePath}?report=${id}`)
           const signal = routeController.current?.signal
@@ -569,14 +581,14 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             .then(hydrated => { if (!signal.aborted) setDatasets(existing => mergeCatalog(existing, hydrated)) })
             .catch(() => { if (!signal.aborted) setCatalogError(true) })
         })
-      }}><option value="">{weekly ? "Current report setup" : "Unsaved analysis"}</option>{saved.map(item => <option key={item.report_id} value={item.report_id}>{item.name} / {item.created_at.slice(0, 10)}</option>)}</select></label>
-        {canManage && report?.report_id && <button type="button" className={`${button} text-red-700`} disabled={busy} title={t("Delete saved report")} aria-label={t("Delete saved report")} onClick={() => void deleteSavedReport()}><Trash2 size={16} /></button>}
-      </div>
-      <div className="flex flex-wrap gap-2">
+      }}><option value="">{weekly ? "Current weekly report" : "Unsaved analysis"}</option>{saved.map(item => <option key={item.report_id} value={item.report_id}>{weekly ? `${item.history_kind === "delivery" ? "Sent" : "Previously saved"} / ${item.window?.start || item.created_at.slice(0, 10)}${item.window?.end ? ` to ${item.window.end}` : ""} / ` : ""}{item.name}{weekly ? "" : ` / ${item.created_at.slice(0, 10)}`}</option>)}</select></label>
+        {canManage && report?.report_id && !report.weekly_current && <button type="button" className={`${button} text-red-700`} disabled={busy} title={t("Delete saved report")} aria-label={t("Delete saved report")} onClick={() => void deleteSavedReport()}><Trash2 size={16} /></button>}
+      </div>}
+      <div className="ml-auto flex flex-wrap gap-2">
         <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>
         {report && <>
           {!weekly && <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id) || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void execute(async () => { const saved = await saveSnapshot(); setMessage(saved.decision_review_id ? "Assessment saved to the existing decision. Its recorded outcome and lessons are unchanged." : "Report snapshot saved.") })}><Save size={16} />{report.definition.impact?.decision_id ? "Save assessment to decision" : "Save snapshot"}</button>}
-          {weekly && view === "report" && weeklyPreviewReady && canManage && <button type="button" className={primaryButton} disabled={busy || !canSave || analysisJob?.weekly_settings_saved || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void saveWeeklyReport()}><Save size={16} />{analysisJob?.weekly_settings_saved ? "Weekly report saved" : "Save weekly report"}</button>}
+          {weekly && view === "report" && (weeklyPreviewReady || report.weekly_current) && canManage && <button type="button" className={primaryButton} disabled={busy || !canSave || report.weekly_current || analysisJob?.weekly_settings_saved || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void saveWeeklyReport()}><Save size={16} />{report.weekly_current || analysisJob?.weekly_settings_saved ? "Changes saved" : "Save changes"}</button>}
           {report.definition.impact?.decision_id && <Link className={button} href={`/dashboard/decisions/${report.definition.impact.decision_id}#business-impact-review`}>Return to decision</Link>}
           {!single && !weekly && canManage && report.report_id && <Link href={`/dashboard/reports/weekly?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />{t("Copy selection to Weekly Reports")}</Link>}
           {view === "report" && <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>}
@@ -586,6 +598,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       </div>
     </div>
     {historyError && <div className="flex flex-wrap items-center gap-3 text-sm text-amber-900"><p role="alert">{t("Saved reports could not be loaded.")}</p><button type="button" className={button} onClick={() => { setHistoryError(false); setHistoryReload(value => value + 1) }}><RefreshCw size={16} />{t("Retry")}</button></div>}
+    {weekly && view === "report" && report?.report_id && !report.weekly_current && <p role="status" className="border-l-2 border-gray-300 pl-3 text-sm text-gray-600">Historical report / {report.window.start} to {report.window.end}</p>}
     {weekly && <section aria-label="Weekly settings status" className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
       <p className="text-sm text-gray-600">{weeklyDirty ? "Unsaved changes" : weeklySettings?.definition ? "Weekly report configured" : "No weekly report configured"} / {weeklySettings?.enabled ? "Delivery enabled" : "Delivery paused"}</p>
       {canManage && weeklySettings?.definition && <button type="button" className={`${button} text-red-700`} disabled={busy} title="Remove weekly settings" aria-label="Remove weekly settings" onClick={() => void removeWeeklySettings()}><Trash2 size={16} /></button>}

@@ -16,7 +16,7 @@ from sqlalchemy.orm import sessionmaker
 from app.db.models import AppUser, Dataset, IngestionWorkerHeartbeat, Organization, WeeklyReportPreference, utc_now
 from app.modules.decisions.models import Decision
 from app.modules.correlation.service import encode, snapshot
-from app.modules.reports.models import ReportAnalysisJob
+from app.modules.reports.models import CurrentWeeklyReport, ReportAnalysisJob
 from app.modules.reports.schemas import ReportDefinition
 
 
@@ -83,6 +83,7 @@ with patch('app.infrastructure.analysis_worker.execute_job', probe):
             self.addCleanup(engine.dispose)
             self.assertTrue(inspect(engine).has_table("datasets"))
             self.assertTrue(inspect(engine).has_table(ReportAnalysisJob.__tablename__))
+            self.assertTrue(inspect(engine).has_table(CurrentWeeklyReport.__tablename__))
             with sessionmaker(bind=engine)() as db:
                 self.assertEqual(db.query(ReportAnalysisJob).count(), 0)
 

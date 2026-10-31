@@ -1,6 +1,7 @@
 """Independent weekly settings; instant-analysis time units never become weeks."""
 
 from datetime import datetime
+import json
 from zoneinfo import ZoneInfo
 
 from app.modules.correlation.catalog import reporting_timezone
@@ -40,3 +41,46 @@ def apply_weekly_settings(db, definition, workspace):
     preference.business_report_id = None
     preference.metric_focus = encode([metric_id(item) for item in definition["metrics"]])
     return preference
+
+
+def current_weekly_report(db, user, workspace, definition):
+    from app.modules.correlation.service import authorize_datasets
+    from .decision_reviews import attach_review_target
+    from .models import BusinessReport, CurrentWeeklyReport
+    from .service import attach_report_decisions
+
+    current = db.get(CurrentWeeklyReport, workspace)
+    if current is None or json.loads(current.definition) != definition:
+        return None
+    report = json.loads(current.snapshot)
+    dataset_ids = {item["dataset_id"] for item in report["definition"]["metrics"]}
+    authorize_datasets(db, user, workspace, dataset_ids)
+    if report.get("report_id") and db.get(BusinessReport, report["report_id"]) is None:
+        report.pop("report_id")
+    attach_report_decisions(report, db, workspace, dataset_ids, report.get("report_id"))
+    attach_review_target(report, db, user, workspace)
+    return {**report, "weekly_current": True, "analysis_job_id": current.job_id}
+
+
+def archive_weekly_delivery(db, job, report):
+    """Freeze the exact report before sending, without changing the active setup."""
+    from app.modules.correlation.service import encode
+    from .models import BusinessReport
+
+    if job.saved_report_id:
+        return
+    snapshot = {**report, "weekly_report": True, "weekly_history_kind": "delivery", "delivery_status": "pending"}
+    archived = BusinessReport(workspace_id=job.workspace_id, user_id=job.user_id, name=report["name"],
+                              definition=encode(report["definition"]), snapshot=encode(snapshot))
+    db.add(archived)
+    db.flush()
+    job.saved_report_id = archived.id
+    db.flush()
+
+
+def confirm_weekly_delivery(db, job, sent_at):
+    from app.modules.correlation.service import encode
+    from .models import BusinessReport
+
+    archive = db.get(BusinessReport, job.saved_report_id)
+    archive.snapshot = encode({**json.loads(archive.snapshot), "delivery_status": "sent", "sent_at": sent_at.isoformat()})

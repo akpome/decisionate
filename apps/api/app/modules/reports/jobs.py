@@ -14,7 +14,7 @@ from app.db.models import IngestionWorkerHeartbeat, utc_now
 from app.infrastructure.ingestion_jobs import lock_workspace_queue
 from app.modules.correlation.catalog import reporting_timezone
 from app.modules.correlation.service import allowed_run, authorize_datasets, digest, encode, snapshot
-from .models import BusinessReport, ReportAnalysisJob
+from .models import BusinessReport, CurrentWeeklyReport, ReportAnalysisJob
 from .relationships import report_test_count
 from .job_constants import ACTIVE, WORKER_NAME
 
@@ -84,7 +84,9 @@ def enqueue_weekly_preview(db, payload, user, workspace, preference, request_key
     template, datasets = validate_definition(db, payload, user, workspace)
     template.pop("reporting_timezone", None)
     configuration = weekly_configuration(db, preference, workspace, user)
+    current = db.get(CurrentWeeklyReport, workspace)
     definition = {"configuration": {**configuration, "template": template}, "base_configuration": configuration,
+                  "base_current_job_id": current.job_id if current else None,
                   "draft_preview": True, "anchor": str(datetime.now(ZoneInfo(reporting_timezone())).date()),
                   "include_ai_analysis": payload.include_ai_analysis, "scheduled": False,
                   "reporting_timezone": reporting_timezone(), "report_only": True}
@@ -208,6 +210,7 @@ def save_completed_job(db, identity, user, workspace, *, commit=True):
     if job.kind == "weekly_preview":
         result = result.get("cross_dataset_report", result)
         result["weekly_report"] = True
+        result["weekly_history_kind"] = "evidence"
         if len({item["dataset_id"] for item in result["definition"]["metrics"]}) < 2:
             raise HTTPException(400, "Weekly report snapshots require usable metrics from at least two datasets.")
     report = BusinessReport(workspace_id=workspace, user_id=user, name=result["name"],

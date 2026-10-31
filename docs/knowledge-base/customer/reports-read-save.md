@@ -71,10 +71,13 @@ not silently recalculate the data or update its narrative. Editing the settings
 starts an unsaved analysis; preview again and save a new snapshot. Generated
 names should be edited to describe the analysis, not treated as an overwrite key.
 
-On Weekly Reports, preview first, then choose Save weekly report. This one action
-stores the preview and its setup for future weeks. Previewing alone does not
+On Weekly Reports, preview first, then choose Save changes. This replaces the
+workspace's one current weekly report and its setup for future weeks. It does
+not add another active report, even when the name changes. Previewing alone does not
 save the setup. There is no separate snapshot or settings save on the weekly
 page. Saving does not send email or change delivery preferences.
+Sent reports and decision evidence remain unchanged. Weekly history lists sent
+reports and older saved reports; opening one does not change the active setup.
 
 ## Delete versus remove weekly settings
 
@@ -84,7 +87,7 @@ Remove weekly settings keeps saved snapshots and linked decisions while clearing
 the weekly configuration and pausing delivery. Read the confirmation and use only
 actions allowed by your workspace role.
 
-Saved reports is the only report-history selector. Deleting a saved report also
+Analysis uses Saved reports; Weekly Reports uses Weekly history. Deleting a historical report also
 removes its associated temporary preview. An old link to a deleted or expired
 analysis cannot restore it. Choose a saved report or generate a new preview;
 this is different from an analysis failing.

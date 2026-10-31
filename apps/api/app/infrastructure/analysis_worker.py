@@ -130,6 +130,8 @@ def run_weekly(db, job, definition):
     if owner_delivery:
         digest = digest.model_copy(update={"enabled": True, "recipient_emails": [definition["delivery"]["recipient"]]})
     alerts.validate_weekly_report_digest_for_delivery(digest)
+    from app.modules.reports.weekly import archive_weekly_delivery
+    archive_weekly_delivery(db, job, digest.cross_dataset_report)
     # Commit before external side effects. A restart in this phase needs operator
     # reconciliation, never an automatic resend (SMTP cannot guarantee exactly once).
     set_phase(db, job, "sending", intermediate_result={"digest": digest.model_dump(mode="json")})
@@ -145,6 +147,8 @@ def run_weekly(db, job, definition):
                                                 error="Delivery failed or was partially accepted. No automatic resend.")
         raise HTTPException(502, "Weekly report delivery failed. Inspect delivery history before retrying.") from error
     sent_at = alerts.get_utc_now()
+    from app.modules.reports.weekly import confirm_weekly_delivery
+    confirm_weekly_delivery(db, job, sent_at)
     if not owner_delivery:
         alerts.update_weekly_report_delivery_status(preference, "sent", sent_at=sent_at)
     db.commit()

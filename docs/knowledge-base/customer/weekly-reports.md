@@ -12,12 +12,18 @@ setup and Report preview; Analysis uses Build analysis and Analysis preview.
 Open Analysis -> Weekly Reports. Select metrics, date columns, dimension filters,
 business question, seasonal setting and relationship pairs. Choose Preview report.
 Previewing calculates the draft without changing the saved weekly setup or sending email.
-After a successful preview, choose Save weekly report. This single action keeps
-the preview in Saved reports and saves its setup for future weekly reports.
+After a successful preview, choose Save changes. Each workspace has one current
+weekly report. Saving replaces that report and its setup for future weeks,
+even if you change its name; it does not create another active report.
 There is no separate Save snapshot or Save weekly settings action on this page.
 Changing the setup requires another preview before saving. A failed preview or
 save leaves the previously saved setup unchanged. If the reporting week, source
 data or saved setup changes before saving, generate a fresh preview.
+Weekly history contains sent reports and previously saved legacy reports, not
+alternative active setups. Opening history does not replace the current setup.
+Reports already sent and evidence attached to decisions stay unchanged when
+the current report is replaced. Sent-report history is recorded automatically
+for new deliveries; old delivery logs cannot reconstruct missing report contents.
 Removed pairs remain excluded
 from weekly relationship analysis, while their selected metrics still receive
 KPI and anomaly analysis. Saving settings does not enable sending or change recipients.

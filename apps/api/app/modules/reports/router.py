@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import or_
 
 from app.db.database import SessionLocal
-from app.db.models import Dataset, WeeklyReportPreference
+from app.db.models import Dataset, WeeklyReportPreference, utc_now
 from app.modules.ai.service import generate_structured_analysis
 from app.modules.correlation.catalog import metric_catalog, reporting_timezone
 from app.modules.correlation.engine import metric_id
@@ -21,7 +21,7 @@ from app.modules.datasets.services.dimension_filters import DimensionFilterError
 from app.modules.forecasting.services import prepare_forecast_dataframe
 from app.modules.decisions.metric_scope import selected_report_metrics
 from .decision_drafts import is_report_decision_draft
-from .models import BusinessReport
+from .models import BusinessReport, CurrentWeeklyReport
 from .catalog import prepare_report_source, report_metric_catalog
 from .schemas import ReportDecision, ReportDefinition, WeeklyReportSettings
 from .service import attach_report_decisions, build_report, report_analysis_facts, report_anomalies, report_dates, report_summary
@@ -234,12 +234,17 @@ def job_status(job_id: str, request: Request, db=Depends(database)):
     user, workspace = identity(request)
     job = allowed_job(db, job_id, user, workspace)
     response = job_response(job, include_result=True)
-    if response["result"] is not None and job.saved_report_id:
+    if response["result"] is not None and job.saved_report_id and job.kind in {"report", "weekly_preview"}:
         saved = detail(job.saved_report_id, request, db)
         if job.kind == "weekly_preview" and "cross_dataset_report" in response["result"]:
             response["result"]["cross_dataset_report"] = saved
         else:
             response["result"] = saved
+    if job.kind == "weekly_preview" and response["weekly_settings_saved"]:
+        current = weekly_settings(request, db).get("current_report")
+        response["weekly_settings_saved"] = bool(current and current["analysis_job_id"] == job.id)
+        if response["weekly_settings_saved"]:
+            response["result"] = current
     return response
 
 
@@ -298,6 +303,7 @@ def save_weekly_preview(job_id: str, request: Request, db=Depends(database)):
     user, workspace = identity(request)
     require_workspace_data_manager(request)
     require_report_writer(request)
+    lock_workspace_queue(db, "weekly-settings:" + workspace)
     job = allowed_job(db, job_id, user, workspace, for_update=True)
     frozen = json.loads(job.definition)
     if job.kind != "weekly_preview" or not frozen.get("draft_preview") or job.status != "succeeded":
@@ -305,9 +311,13 @@ def save_weekly_preview(job_id: str, request: Request, db=Depends(database)):
     result = json.loads(job.result)
     if frozen["configuration"]["template"].get("impact"):
         require_review_writer(request)
-    # Retrying a completed save returns the snapshot without reapplying older settings.
+    current = db.query(CurrentWeeklyReport).filter_by(workspace_id=workspace).with_for_update().first()
+    # A lost response can be retried, but an old preview cannot restore replaced work.
     if result.get("weekly_settings_saved"):
-        return {"report": save_completed_job(db, job_id, user, workspace), "settings": weekly_settings(request, db)}
+        settings = weekly_settings(request, db)
+        if not settings["current_report"] or settings["current_report"]["analysis_job_id"] != job.id:
+            raise HTTPException(409, "This preview was replaced. Open the current weekly report and preview your changes again.")
+        return {"report": settings["current_report"], "settings": settings}
     context = weekly_context()
     report = result.get("cross_dataset_report", result)
     if report["window"] != context["window"] or frozen.get("reporting_timezone") != context["reporting_timezone"]:
@@ -317,16 +327,25 @@ def save_weekly_preview(job_id: str, request: Request, db=Depends(database)):
     if snapshot(datasets) != json.loads(job.sources):
         raise HTTPException(409, "A selected dataset changed. Preview the latest data before saving.")
     definition.pop("reporting_timezone", None)
-    lock_workspace_queue(db, "weekly-settings:" + workspace)
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
-    if weekly_configuration(db, preference, workspace, user) != frozen["base_configuration"]:
+    if (weekly_configuration(db, preference, workspace, user) != frozen["base_configuration"]
+            or (current.job_id if current else None) != frozen.get("base_current_job_id")):
         raise HTTPException(409, "Weekly report settings changed. Reload and preview them before saving.")
-    saved = save_completed_job(db, job_id, user, workspace, commit=False)
+    saved = ({**report, "weekly_report": True, "analysis_job_id": job.id}
+             if not definition.get("impact") and not job.saved_report_id else save_completed_job(db, job_id, user, workspace, commit=False))
     preference = apply_weekly_settings(db, definition, workspace)
+    saved_definition = weekly_configuration(db, preference, workspace, user)["template"]
+    if current is None:
+        current = CurrentWeeklyReport(workspace_id=workspace)
+        db.add(current)
+    current.user_id, current.job_id = user, job.id
+    current.definition, current.snapshot = encode(saved_definition), encode(saved)
+    current.updated_at = utc_now()
     job.result = encode({**result, "weekly_settings_saved": True,
-                         "saved_weekly_definition": weekly_configuration(db, preference, workspace, user)["template"]})
+                         "saved_weekly_definition": saved_definition})
     db.commit()
-    return {"report": saved, "settings": weekly_settings(request, db)}
+    settings = weekly_settings(request, db)
+    return {"report": settings["current_report"], "settings": settings}
 
 
 @router.post("/weekly-owner-jobs", status_code=202)
@@ -337,14 +356,11 @@ def weekly_owner_job(request: Request, include_ai_analysis: bool = True, preview
     require_weekly_report_manager(get_workspace_role(request))
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).first()
     if preview_job_id:
-        from .jobs import weekly_configuration
         from .weekly import weekly_context
-        preview = allowed_job(db, preview_job_id, user, workspace)
-        result = json.loads(preview.result) if preview.result else {}
-        if preview.kind != "weekly_preview" or preview.status != "succeeded" or not result.get("weekly_settings_saved"):
+        report = weekly_settings(request, db)["current_report"]
+        if not report or report["analysis_job_id"] != preview_job_id:
             raise HTTPException(409, "Preview and save the weekly report before sending.")
-        report = result.get("cross_dataset_report", result)
-        if report["window"] != weekly_context()["window"] or result["saved_weekly_definition"] != weekly_configuration(db, preference, workspace, user)["template"]:
+        if report["window"] != weekly_context()["window"]:
             raise HTTPException(409, "The reporting week or weekly settings changed. Preview and save again before sending.")
     return job_response(enqueue_weekly(db, user, workspace, preference, send=True, owner_only=True,
         include_ai=include_ai_analysis, request_key=request.headers.get("Idempotency-Key")))
@@ -379,14 +395,19 @@ def reports(request: Request, workflow: Literal["instant", "weekly"] | None = No
         ReportAnalysisJob.workspace_id == workspace, ReportAnalysisJob.kind == "weekly_preview",
         ReportAnalysisJob.saved_report_id.in_([report.id for report in records]))}
     for report in records:
-        kind = "weekly" if json.loads(report.snapshot).get("weekly_report") or report.id in weekly_ids else "instant"
+        snapshot = json.loads(report.snapshot)
+        kind = "weekly" if snapshot.get("weekly_report") or report.id in weekly_ids else "instant"
         if workflow and kind != workflow:
+            continue
+        history_kind = snapshot.get("weekly_history_kind")
+        if workflow == "weekly" and (history_kind == "evidence" or history_kind == "delivery" and snapshot.get("delivery_status") != "sent"):
             continue
         try:
             allowed_report(db, report.id, user, workspace)
         except HTTPException:
             continue
-        result.append({"report_id": report.id, "name": report.name, "workflow": kind, "created_at": report.created_at.isoformat() + "Z"})
+        result.append({"report_id": report.id, "name": report.name, "workflow": kind, "created_at": report.created_at.isoformat() + "Z",
+                       "history_kind": history_kind or "saved", "window": snapshot.get("window"), "sent_at": snapshot.get("sent_at")})
     return result
 
 
@@ -401,16 +422,45 @@ async def weekly_preview(request: Request, db=Depends(database)):
 @router.get("/weekly-settings")
 def weekly_settings(request: Request, db=Depends(database)):
     from app.modules.alerts.router import weekly_business_template
-    from .weekly import weekly_context
+    from .weekly import current_weekly_report, weekly_context
 
     user, workspace = identity(request)
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).first()
     definition = weekly_business_template(db, preference, workspace)
     context = weekly_context()
+    current = current_weekly_report(db, user, workspace, definition) if definition else None
     if definition:
         authorize_datasets(db, user, workspace, [item["dataset_id"] for item in definition["metrics"]])
         definition = {**definition, "date_range": context["history_window"]}
-    return {"definition": definition, "enabled": bool(preference and preference.enabled), **context}
+    return {"definition": definition, "current_report": current, "enabled": bool(preference and preference.enabled), **context}
+
+
+@router.post("/weekly-current/evidence", status_code=201)
+def save_current_weekly_evidence(request: Request, preview_job_id: str = Query(..., min_length=1, max_length=120), db=Depends(database)):
+    from app.infrastructure.ingestion_jobs import lock_workspace_queue
+    user, workspace = identity(request)
+    require_report_writer(request)
+    lock_workspace_queue(db, "weekly-settings:" + workspace)
+    report = weekly_settings(request, db)["current_report"]
+    if not report or report["analysis_job_id"] != preview_job_id:
+        raise HTTPException(409, "The current weekly report changed. Open it again before linking decision evidence.")
+    if report.get("report_id"):
+        return report
+    if report["definition"].get("impact"):
+        raise HTTPException(409, "This assessment's evidence was deleted. Preview and save a new assessment.")
+    frozen = {key: value for key, value in report.items() if key != "weekly_current"}
+    frozen["weekly_history_kind"] = "evidence"
+    archive = BusinessReport(workspace_id=workspace, user_id=user, name=report["name"],
+                             definition=encode(report["definition"]), snapshot=encode(frozen))
+    db.add(archive)
+    db.flush()
+    current = db.get(CurrentWeeklyReport, workspace)
+    current.snapshot = encode({**frozen, "report_id": archive.id})
+    job = db.get(ReportAnalysisJob, current.job_id)
+    if job and not job.saved_report_id:
+        job.saved_report_id = archive.id
+    db.commit()
+    return {**report, "report_id": archive.id}
 
 
 @router.put("/weekly-settings")
@@ -429,12 +479,15 @@ def update_weekly_settings(request: Request, payload: WeeklyReportSettings, db=D
 
 @router.delete("/weekly-settings")
 def delete_weekly_settings(request: Request, db=Depends(database)):
+    from app.infrastructure.ingestion_jobs import lock_workspace_queue
     _, workspace = identity(request)
     require_workspace_data_manager(request)
+    lock_workspace_queue(db, "weekly-settings:" + workspace)
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
     if preference:
         clear_weekly_template(preference)
-        db.commit()
+    db.query(CurrentWeeklyReport).filter_by(workspace_id=workspace).delete(synchronize_session=False)
+    db.commit()
     return weekly_settings(request, db)
 
 

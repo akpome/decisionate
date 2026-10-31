@@ -124,7 +124,7 @@ function saveHarness(overrides = {}) {
     weeklyDefinition, routeController: { current: null }, encodeURIComponent, pagePath: "/dashboard/reports/weekly",
     execute: async action => action(),
     window: { history: { replaceState: (...args) => { state.url = args[2] } } },
-    request: async (path, init) => { calls.push([path, init]); return { report: { report_id: "saved", analysis_job_id: "preview-id", name: "Weekly report" }, settings: { definition } } },
+    request: async (path, init) => { calls.push([path, init]); return { report: { weekly_current: true, analysis_job_id: "preview-id", name: "Weekly report" }, settings: { definition } } },
     setWeeklySettings: value => { state.settings = value }, setWeeklyDirty: value => { state.dirty = value },
     setReport: value => { state.report = value }, setDefinition: value => { state.definition = value },
     setAnalysisJob: update => { state.job = update({ job_id: "preview-id" }) }, setSaved: update => { state.saved = update([]) },
@@ -142,8 +142,9 @@ test("one post-preview save stores the report and weekly setup together, once", 
   assert.equal(calls[0][1].body, undefined, "Save uses the server's preview, not a new client definition")
   assert.equal(state.dirty, false)
   assert.equal(state.job.weekly_settings_saved, true)
-  assert.equal(state.saved.length, 1)
-  assert.equal(state.url, "/dashboard/reports/weekly?job=preview-id")
+  assert.equal(state.saved, undefined, "Updating the current report must not add a historical snapshot")
+  assert.equal(state.report.weekly_current, true)
+  assert.equal(state.url, "/dashboard/reports/weekly")
   assert.match(state.message, /Delivery settings are unchanged/)
   assert.equal(managementAction.current, false)
 })
@@ -169,7 +170,11 @@ test("a failed save preserves the preview and unsaved state for retry", async ()
 test("weekly saving appears only after preview, with no competing save controls", () => {
   const source = read("../features/reports/report-workspace.tsx")
   assert.doesNotMatch(source, /Save and preview|Save weekly settings|persistWeeklySettings/)
-  assert.match(source, /weekly && view === "report" && weeklyPreviewReady && canManage && <button/)
+  assert.match(source, /weekly && view === "report" && \(weeklyPreviewReady \|\| report.weekly_current\) && canManage && <button/)
+  assert.match(source, /"Changes saved" : "Save changes"/)
+  assert.match(source, /weekly \? "Weekly history" : "Saved reports"/)
+  assert.match(source, /weekly \? "Current weekly report" : "Unsaved analysis"/)
+  assert.match(source, /setReport\(weeklyContext.current_report \|\| null\)/)
   assert.match(source, /!weekly && <button[^\n]+Save snapshot/)
   assert.match(source, /setWeeklyDirty\(!job.weekly_settings_saved\)/)
   assert.match(source, /editable \? "\/weekly-preview-jobs" : "\/weekly-jobs\?include_ai_analysis=true"/)

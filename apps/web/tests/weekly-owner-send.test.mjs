@@ -34,7 +34,7 @@ function harness(overrides = {}) {
     execute: async fn => { try { await fn() } catch (error) { errors.push(error.message) } },
     request: async (path, init) => { calls.push([path, init]); return { job_id: "send-job", kind: "weekly_owner_send", status: "queued" } },
     waitForAnalysis: async () => ({ status: "sent", delivered_count: 1 }),
-    setAnalysisJob: value => { state.job = value }, setMessage: value => { state.message = value },
+    setAnalysisJob: value => { state.job = value }, setMessage: value => { state.message = value }, setHistoryReload() {},
     setReport: () => { throw new Error("A send must not replace the report preview") }, ...overrides,
   })
   return { handler, calls, errors, state, requestKey, action }
@@ -50,7 +50,7 @@ test("manual weekly sends reference the saved preview without saving settings or
   assert.equal(calls[0][1].headers["Idempotency-Key"], "owner-request")
   assert.match(state.message, /workspace owner/)
   assert.equal(requestKey.current, null)
-  assert.equal(state.url, "/dashboard/reports/weekly?job=preview-job")
+  assert.equal(state.url, "/dashboard/reports/weekly")
 })
 
 test("read-only, nonweekly, incomplete, busy and repeated send clicks cannot queue duplicates", async () => {
@@ -89,7 +89,7 @@ test("successful retries return to the report rather than an earlier failed deli
       history: { replaceState: (_value, _unused, value) => { state.url = value } },
     } })
     await handler()
-    assert.equal(state.url, "/dashboard/reports/weekly?job=preview-job")
+    assert.equal(state.url, "/dashboard/reports/weekly")
     assert.equal(state.job.kind, "weekly_preview")
     assert.equal(state.job.status, "succeeded")
     assert.match(state.message, /sent to the workspace owner/)
@@ -115,6 +115,23 @@ test("send controls and grouping labels are specific to the weekly page", () => 
   assert.match(source, /\["weekly_send", "weekly_owner_send"\].includes\(analysisJob.kind\) && analysisJob.phase === "sending"/)
   assert.match(source, /const deliveryNotStarted = .*retry_safe === true/)
   assert.match(source, /\{deliveryNotStarted && <p role="status"[^>]*>Report preparation stopped before email delivery started\. No email was sent\./)
+})
+
+test("only the saved current report for this week is eligible for sending", () => {
+  let expression
+  function find(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === "weeklySendReady") expression = node.initializer.getText(ast)
+    ts.forEachChild(node, find)
+  }
+  find(ast)
+  const window = { start: "2026-10-19", end: "2026-10-25" }
+  const report = { weekly_current: true, analysis_job_id: "current", window }
+  const context = { report, weeklyDirty: false, weeklySettings: { definition: { name: "Current" }, window } }
+  assert.equal(vm.runInNewContext(expression, context), true, "No private preview job or immutable snapshot id is needed")
+  for (const overrides of [{ report: null }, { report: { ...report, weekly_current: false, report_id: "history" } },
+    { report: { ...report, window: { start: "2026-10-12", end: "2026-10-18" } } }, { weeklyDirty: true }, { weeklySettings: null }]) {
+    assert.equal(vm.runInNewContext(expression, { ...context, ...overrides }), false)
+  }
 })
 
 test("coverage feedback blocks a current empty week without shifting it to historical file dates", () => {

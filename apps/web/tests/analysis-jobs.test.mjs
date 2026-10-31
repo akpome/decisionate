@@ -50,7 +50,7 @@ test("deleted or expired analysis links stop immediately with availability feedb
 
 test("saved reports remain the only report history selector without background job-history reads", () => {
   const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
-  assert.match(source, /Saved reports<select/)
+  assert.match(source, /"Weekly history" : "Saved reports"\}<select/)
   assert.doesNotMatch(source, /Recent analyses|Choose an analysis|recentJobs|analysisHistoryReload|visibleAnalysisJobs|deletedJobs/)
   assert.doesNotMatch(source, /"\/business-reports\/jobs"/)
 })

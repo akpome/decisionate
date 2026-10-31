@@ -8,7 +8,7 @@ from app.db.models import AppUser, Dataset, Organization, OrganizationMember, We
 from app.infrastructure import analysis_worker as worker
 from app.modules.alerts import router as alerts
 from app.modules.reports import jobs
-from app.modules.reports.models import ReportAnalysisJob
+from app.modules.reports.models import BusinessReport, ReportAnalysisJob
 from tests import test_business_reports as fixtures
 
 
@@ -51,6 +51,15 @@ class WeeklyOwnerSendTests(unittest.TestCase):
         self.assertEqual(digest.recipient_emails, ["actual-owner@example.test"])
         self.assertTrue(digest.enabled)
         self.assertEqual(digest.cross_dataset_report["grain"], "daily")
+        status = self.client.get(f"/api/v2/business-reports/jobs/{identity}").json()
+        self.assertEqual(status["result"]["delivered_count"], 1)
+        history = self.client.get("/api/v2/business-reports?workflow=weekly").json()
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["history_kind"], "delivery")
+        archived = self.client.get(f"/api/v2/business-reports/{history[0]['report_id']}").json()
+        self.assertEqual(archived["window"], digest.cross_dataset_report["window"])
+        self.assertEqual(archived["metrics"], digest.cross_dataset_report["metrics"])
+        self.assertEqual(archived["delivery_status"], "sent")
         with self.Session() as db:
             self.assertEqual(db.get(ReportAnalysisJob, identity).status, "succeeded")
             preference = db.query(WeeklyReportPreference).one()
@@ -60,6 +69,21 @@ class WeeklyOwnerSendTests(unittest.TestCase):
             self.assertEqual(json.loads(preference.recipient_emails), ["scheduled-recipient@example.test"])
             log = db.query(WeeklyReportDeliveryLog).one()
             self.assertEqual(json.loads(log.recipient_emails), ["actual-owner@example.test"])
+            # Queue retention must not remove sent-report history.
+            db.query(ReportAnalysisJob).filter_by(id=identity).delete()
+            db.commit()
+        self.assertEqual(len(self.client.get("/api/v2/business-reports?workflow=weekly").json()), 1)
+
+    def test_failed_send_preserves_evidence_without_claiming_it_was_sent(self):
+        identity = self.enqueue().json()["job_id"]
+        send = self.execute(identity, side_effect=RuntimeError("Provider unavailable"))
+        send.assert_called_once()
+        self.assertEqual(self.client.get("/api/v2/business-reports?workflow=weekly").json(), [])
+        with self.Session() as db:
+            job = db.get(ReportAnalysisJob, identity)
+            archive = db.get(BusinessReport, job.saved_report_id)
+            self.assertEqual(json.loads(archive.snapshot)["delivery_status"], "pending")
+            self.assertFalse(jobs.job_response(job)["retry_safe"])
 
     def test_template_send_only_loads_and_snapshots_selected_datasets(self):
         with self.Session() as db:

@@ -16,7 +16,7 @@ from app.infrastructure import analysis_worker
 from app.modules.alerts import router as alerts
 from app.modules.reports import jobs
 from app.modules.reports.cleanup import cleanup_source, cleanup_workspace
-from app.modules.reports.models import BusinessReport, ReportAnalysisJob
+from app.modules.reports.models import BusinessReport, CurrentWeeklyReport, ReportAnalysisJob
 from tests import test_business_reports as fixtures
 
 
@@ -74,7 +74,9 @@ class WeeklyReportSettingsTests(unittest.TestCase):
         self.assertEqual(saved.json()["settings"]["definition"]["name"], "New preview")
         reopened = self.client.get(f"/api/v2/business-reports/jobs/{identity}").json()
         self.assertTrue(reopened["weekly_settings_saved"])
-        self.assertEqual(reopened["result"]["report_id"], saved.json()["report"]["report_id"])
+        self.assertTrue(reopened["result"]["weekly_current"])
+        self.assertEqual(reopened["result"]["analysis_job_id"], identity)
+        self.assertNotIn("report_id", reopened["result"])
         self.assertEqual(reopened["definition"]["grain"], "weekly")
         with patch.object(jobs, "weekly_owner_recipient", return_value="owner@example.test"):
             send = self.client.post(f"/api/v2/business-reports/weekly-owner-jobs?preview_job_id={identity}")
@@ -84,17 +86,114 @@ class WeeklyReportSettingsTests(unittest.TestCase):
             self.assertEqual(preference.enabled, 1)
             self.assertEqual(preference.delivery_day, "friday")
             self.assertEqual(json.loads(preference.recipient_emails), ["owner@example.test"])
-            self.assertEqual(db.query(BusinessReport).count(), 1)
+            self.assertEqual(db.query(BusinessReport).count(), 0)
+            self.assertEqual(db.query(CurrentWeeklyReport).count(), 1)
+        retry = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(retry.status_code, 201, retry.text)
+        self.assertEqual(retry.json()["report"]["analysis_job_id"], identity)
         # A lost response/retry must not overwrite a later explicitly saved configuration.
         self.put(name="Later settings")
         again = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
-        self.assertEqual(again.status_code, 201, again.text)
-        self.assertEqual(again.json()["report"]["report_id"], saved.json()["report"]["report_id"])
-        self.assertEqual(again.json()["settings"]["definition"]["name"], "Later settings")
+        self.assertEqual(again.status_code, 409, again.text)
+        self.assertEqual(self.client.get("/api/v2/business-reports/weekly-settings").json()["definition"]["name"], "Later settings")
         with self.Session() as db:
-            self.assertEqual(db.query(BusinessReport).count(), 1)
+            self.assertEqual(db.query(BusinessReport).count(), 0)
         stale_send = self.client.post(f"/api/v2/business-reports/weekly-owner-jobs?preview_job_id={identity}")
         self.assertEqual(stale_send.status_code, 409, stale_send.text)
+
+    def save_preview(self, **updates):
+        identity, _ = self.draft_preview(**updates)
+        response = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(response.status_code, 201, response.text)
+        return identity, response.json()["report"]
+
+    def test_new_preview_replaces_one_current_report_even_when_the_name_changes(self):
+        first, _ = self.save_preview(name="First report")
+        second, report = self.save_preview(name="Replacement")
+        self.assertNotEqual(first, second)
+        self.assertEqual(report["name"], "Replacement")
+        settings = self.client.get("/api/v2/business-reports/weekly-settings").json()
+        self.assertEqual(settings["current_report"]["analysis_job_id"], second)
+        self.assertEqual(self.client.get("/api/v2/business-reports?workflow=weekly").json(), [])
+        with self.Session() as db:
+            self.assertEqual(db.query(CurrentWeeklyReport).count(), 1)
+            self.assertEqual(db.query(BusinessReport).count(), 0)
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/jobs/{first}/save-weekly").status_code, 409)
+        self.assertFalse(self.client.get(f"/api/v2/business-reports/jobs/{first}").json()["weekly_settings_saved"])
+
+    def test_concurrent_previews_with_identical_settings_cannot_overwrite_a_newer_save(self):
+        self.save_preview()
+        first, _ = self.draft_preview()
+        second, _ = self.draft_preview()
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/jobs/{second}/save-weekly").status_code, 201)
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/jobs/{first}/save-weekly").status_code, 409)
+        self.assertEqual(self.client.get("/api/v2/business-reports/weekly-settings").json()["current_report"]["analysis_job_id"], second)
+
+    def test_decision_evidence_is_immutable_and_survives_replacement_and_job_expiry(self):
+        identity, _ = self.save_preview(name="Original evidence")
+        # Preview jobs expire after a week; the current report must not depend on them.
+        with self.Session() as db:
+            db.query(ReportAnalysisJob).filter_by(id=identity).delete()
+            db.commit()
+        self.assertTrue(self.client.get("/api/v2/business-reports/weekly-settings").json()["current_report"]["weekly_current"])
+        evidence = self.client.post(f"/api/v2/business-reports/weekly-current/evidence?preview_job_id={identity}")
+        self.assertEqual(evidence.status_code, 201, evidence.text)
+        evidence_id = evidence.json()["report_id"]
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/weekly-current/evidence?preview_job_id={identity}").json()["report_id"], evidence_id)
+        self.save_preview(name="New current report")
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/weekly-current/evidence?preview_job_id={identity}").status_code, 409)
+        self.assertEqual(self.client.get(f"/api/v2/business-reports/{evidence_id}").json()["name"], "Original evidence")
+        self.assertEqual(self.client.get("/api/v2/business-reports?workflow=weekly").json(), [])
+        self.client.delete("/api/v2/business-reports/weekly-settings")
+        with self.Session() as db:
+            self.assertEqual(db.query(CurrentWeeklyReport).count(), 0)
+            self.assertEqual(db.query(BusinessReport).count(), 1)
+
+    def test_current_report_is_workspace_scoped_and_source_cleanup_removes_it(self):
+        identity, _ = self.save_preview()
+        other = self.client.get("/api/v2/business-reports/weekly-settings", headers={"X-Workspace-Id": "someone-else"})
+        self.assertIsNone(other.json()["current_report"])
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/weekly-current/evidence?preview_job_id={identity}", headers={"X-Workspace-Id": "someone-else"}).status_code, 409)
+        with patch("app.modules.correlation.service.authorize_datasets", side_effect=HTTPException(403, "Access revoked")):
+            self.assertEqual(self.client.get("/api/v2/business-reports/weekly-settings").status_code, 403)
+        with self.Session() as db:
+            cleanup_source(db, 1)
+            db.commit()
+            self.assertEqual(db.query(CurrentWeeklyReport).count(), 0)
+
+    def test_current_report_and_settings_rollback_together(self):
+        first, report = self.save_preview()
+        identity, _ = self.draft_preview(name="Must not replace")
+        with patch("app.modules.reports.weekly.apply_weekly_settings", side_effect=RuntimeError("Write failed")):
+            with self.assertRaisesRegex(RuntimeError, "Write failed"):
+                self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        settings = self.client.get("/api/v2/business-reports/weekly-settings").json()
+        self.assertEqual(settings["current_report"]["analysis_job_id"], first)
+        self.assertEqual(settings["definition"]["name"], report["name"])
+
+    def test_another_authorized_workspace_manager_can_use_the_current_report(self):
+        identity, _ = self.save_preview()
+        with patch.object(fixtures.router, "get_user_id", return_value="member"), \
+                patch.object(jobs, "weekly_owner_recipient", return_value="owner@example.test"):
+            self.assertEqual(self.client.get(f"/api/v2/business-reports/jobs/{identity}").status_code, 404)
+            settings = self.client.get("/api/v2/business-reports/weekly-settings")
+            self.assertEqual(settings.status_code, 200, settings.text)
+            self.assertEqual(settings.json()["current_report"]["analysis_job_id"], identity)
+            self.assertEqual(self.client.post(f"/api/v2/business-reports/weekly-current/evidence?preview_job_id={identity}").status_code, 201)
+            send = self.client.post(f"/api/v2/business-reports/weekly-owner-jobs?preview_job_id={identity}")
+            self.assertEqual(send.status_code, 202, send.text)
+
+    def test_a_preview_already_frozen_as_decision_evidence_is_reused(self):
+        identity, _ = self.draft_preview()
+        evidence = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save").json()
+        saved = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(saved.status_code, 201, saved.text)
+        self.assertEqual(saved.json()["report"]["report_id"], evidence["report_id"])
+        frozen = self.client.post(f"/api/v2/business-reports/weekly-current/evidence?preview_job_id={identity}")
+        self.assertEqual(frozen.json()["report_id"], evidence["report_id"])
+        with self.Session() as db:
+            self.assertEqual(db.query(BusinessReport).count(), 1)
+            self.assertEqual(db.query(CurrentWeeklyReport).count(), 1)
 
     def test_weekly_save_requires_completed_preview_and_current_settings(self):
         response = self.client.post("/api/v2/business-reports/weekly-preview-jobs", json=self.settings())
@@ -234,9 +333,10 @@ class WeeklyReportSettingsTests(unittest.TestCase):
             self.assertEqual(preference.enabled, 0)
 
     def test_workspace_retention_cleanup_removes_weekly_configuration_only_in_that_workspace(self):
-        self.put()
+        self.save_preview()
         with self.Session() as db:
             db.add(WeeklyReportPreference(workspace_id="other", enabled=1, weekly_report_definition='{"private":"other workspace"}'))
+            db.add(CurrentWeeklyReport(workspace_id="other", user_id="other", job_id="other-preview", definition="{}", snapshot="{}"))
             db.commit()
             cleanup_workspace(db, "owner")
             db.commit()
@@ -245,6 +345,8 @@ class WeeklyReportSettingsTests(unittest.TestCase):
             other = db.query(WeeklyReportPreference).filter_by(workspace_id="other").one()
             self.assertEqual(other.enabled, 1)
             self.assertEqual(json.loads(other.weekly_report_definition), {"private": "other workspace"})
+            self.assertIsNone(db.get(CurrentWeeklyReport, "owner"))
+            self.assertIsNotNone(db.get(CurrentWeeklyReport, "other"))
 
     def test_worker_uses_weekly_settings_and_lists_snapshots_separately(self):
         self.put(filters={"minimum_observations": 52})
@@ -268,13 +370,14 @@ class WeeklyReportSettingsTests(unittest.TestCase):
         self.assertTrue(all(metric["grain"] == "daily" for metric in report["anomaly_analysis"]["metrics"]))
         saved = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save")
         self.assertEqual(saved.status_code, 201, saved.text)
-        self.assertEqual(len(self.client.get("/api/v2/business-reports?workflow=weekly").json()), 1)
+        self.assertEqual(self.client.get("/api/v2/business-reports?workflow=weekly").json(), [])
         self.assertEqual(self.client.get("/api/v2/business-reports?workflow=instant").json(), [])
         # Older weekly snapshots have job provenance but no workflow marker.
         with self.Session() as db:
             snapshot = db.get(BusinessReport, saved.json()["report_id"])
             legacy = json.loads(snapshot.snapshot)
             legacy.pop("weekly_report")
+            legacy.pop("weekly_history_kind")
             legacy["grain"] = "daily"
             snapshot.snapshot = json.dumps(legacy)
             db.commit()

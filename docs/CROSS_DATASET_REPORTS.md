@@ -305,13 +305,21 @@ Analysis has Build analysis / Analysis preview, selectable dates and
 daily grouping by default. Weekly Reports has Report setup / Report preview and stores
 an independent JSON configuration on `WeeklyReportPreference.weekly_report_definition`,
 read and removed through GET/DELETE `/api/v2/business-reports/weekly-settings`.
-The weekly UI follows Preview report, then Save weekly report. Draft previews
+The weekly UI follows Preview report, then Save changes. Draft previews
 use POST `/weekly-preview-jobs` with an authorized frozen definition and the
 original saved configuration. The worker computes that draft without persisting
 weekly settings or a report snapshot. POST `/jobs/{id}/save-weekly` atomically
-saves the completed snapshot and weekly setup; repeated saves return the same
-snapshot without reapplying older settings. It rechecks permissions, sources,
-the reporting week/timezone and concurrent settings changes before saving.
+updates `CurrentWeeklyReport` (workspace primary key) and the weekly setup.
+Ordinary saves do not create `BusinessReport` snapshots. The current report
+survives preview-job expiry and is returned by GET `/weekly-settings`.
+Repeated saves return the current report; superseded previews cannot restore
+older work. A frozen current-job revision also rejects concurrent previews
+with identical settings. Saving rechecks permissions, sources, the reporting
+week/timezone and concurrent settings changes under the workspace settings lock.
+Decision assessments keep immutable evidence snapshots and assessment history.
+POST `/weekly-current/evidence` freezes a current correlation report only when
+decision evidence is explicitly requested; it is workspace-authorized, not
+dependent on another manager's private or expired preview job.
 Failed previews or saves preserve the previous configuration. The legacy PUT
 settings endpoint remains compatible, but the weekly UI no longer uses it.
 Saving does not enable sending or change recipients. Alerts retains delivery settings.
@@ -344,8 +352,15 @@ legacy template keeps its selected metrics/date columns/dimension filters/questi
 but resets directional timing to same-period; a numeric daily lag never becomes
 the same number of weeks. Deliberate weekly timing is retained. Startup backfills
 existing template definitions into independent settings without changing sending.
-Saved snapshots are immutable and listed separately by workflow. Removing settings
-pauses delivery; deleting an independent snapshot does not alter weekly settings.
+Weekly history shows confirmed sent reports and preserved legacy snapshots,
+not current reports or decision-only evidence copies. The worker freezes the
+exact report before the external-send boundary, then marks it sent only after
+provider acceptance. Failed/uncertain sends retain evidence without being
+labelled sent; existing no-automatic-resend protections remain. Delivery history
+survives queue-job expiry. Existing delivery logs are not fabricated into reports.
+Saved snapshots are immutable. Removing settings clears the current report and
+pauses delivery while keeping history; deleting a historical snapshot does not
+alter independent weekly settings.
 Source deletion clears affected weekly settings and pauses sending. Configuration
 changes invalidate queued weekly jobs under the existing worker checks.
 Changed or unavailable policies are
@@ -501,7 +516,7 @@ initialized separately in the persistent supervisor.
 Unexpected exits record the child return code and last job phase; the customer
 interruption message is not a diagnosis of memory exhaustion. Reloads preserve
 failed-job state; a deliberate new preview is required to retry.
-Saved reports is the only report-history selector; report pages do not fetch or
+Analysis uses Saved reports and Weekly Reports uses Weekly history; report pages do not fetch or
 display recent-analysis history. Active job progress, cancellation and URL-based
 reload recovery remain available. Deleting a snapshot also removes its linked
 jobs and clears the selected analysis in the client. Missing or expired job links

@@ -17,6 +17,16 @@ class BusinessReport(Base):
     created_at = Column(DateTime, nullable=False, default=utc_now)
 
 
+class CurrentWeeklyReport(Base):
+    __tablename__ = "current_weekly_reports"
+    workspace_id = Column(String, primary_key=True)
+    user_id = Column(String, nullable=False)
+    job_id = Column(String, nullable=False)
+    definition = Column(Text, nullable=False)
+    snapshot = Column(Text, nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=utc_now)
+
+
 class ReportAnalysisJob(Base):
     __tablename__ = "report_analysis_jobs"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))

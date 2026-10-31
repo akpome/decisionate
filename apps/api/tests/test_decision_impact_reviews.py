@@ -8,7 +8,7 @@ from app.modules.decisions.activity_models import DecisionActivity
 from app.modules.decisions.models import Decision
 from app.modules.reports import router
 from app.modules.reports.cleanup import cleanup_source, cleanup_workspace
-from app.modules.reports.models import BusinessReport, DecisionImpactReview, ReportAnalysisJob
+from app.modules.reports.models import BusinessReport, CurrentWeeklyReport, DecisionImpactReview, ReportAnalysisJob
 from tests import test_business_impact as fixtures
 
 
@@ -74,6 +74,26 @@ class DecisionImpactReviewTests(unittest.TestCase):
             self.assertEqual(db.query(DecisionImpactReview).count(), 0)
             self.assertEqual(db.query(BusinessReport).count(), 0)
             self.assertEqual(db.query(WeeklyReportPreference).count(), 0)
+
+    def test_replacing_current_weekly_assessment_preserves_previous_decision_evidence(self):
+        first = self.weekly_preview()
+        original = self.client.post(f"/api/v2/business-reports/jobs/{first}/save-weekly").json()["report"]
+        second = self.weekly_preview()
+        updated = self.client.post(f"/api/v2/business-reports/jobs/{second}/save-weekly")
+        self.assertEqual(updated.status_code, 201, updated.text)
+        self.assertNotEqual(updated.json()["report"]["report_id"], original["report_id"])
+        original_again = self.client.get(f"/api/v2/business-reports/{original['report_id']}").json()
+        self.assertEqual(original_again["impact_analysis"], original["impact_analysis"])
+        self.assertEqual(original_again["decision_review_id"], original["decision_review_id"])
+        self.assertEqual(self.client.get("/api/v2/business-reports?workflow=weekly").json(), [])
+        with self.Session() as db:
+            self.assertEqual(db.query(CurrentWeeklyReport).count(), 1)
+            self.assertEqual(db.query(DecisionImpactReview).count(), 2)
+            self.assertEqual(db.query(Decision).count(), 1)
+            db.get(Decision, self.decision_id).action = "Updated action"
+            db.commit()
+        # A historical assessment must not prevent opening and editing the setup.
+        self.assertEqual(self.client.get("/api/v2/business-reports/weekly-settings").status_code, 200)
 
     def test_choices_and_prefill_reuse_existing_action_outcome_and_revision_without_loading_files(self):
         with patch.object(router, "load_dataframe_from_dataset", side_effect=AssertionError("No source scans")):

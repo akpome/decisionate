@@ -3,6 +3,7 @@ import { editableDefinition, type BusinessReport, type ReportDefinition } from "
 export type WeeklySettings = {
   definition: ReportDefinition | null; enabled: boolean; reporting_timezone: string
   window: { start: string; end: string }; history_window: { start: string; end: string }
+  current_report?: BusinessReport | null
 }
 
 export function weeklyDefinition(value: Partial<ReportDefinition>, history?: WeeklySettings["history_window"]): ReportDefinition {
