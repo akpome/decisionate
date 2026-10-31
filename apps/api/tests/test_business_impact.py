@@ -228,14 +228,16 @@ class BusinessImpactTests(unittest.TestCase):
                 points["2:comparison_orders"]["value"] = 1
             else:
                 points["2:comparison_orders"].loc[90, "value"] = float("inf")
-            self.assertIsNone(evaluate_impact(points, definition, metadata)["estimate"], change)
+            result = evaluate_impact(points, definition, metadata)
+            self.assertIsNone(result["estimate"], change)
+            self.assertNotIn("choose a fully covered date range", " ".join(result["next_steps"]).lower())
 
     def test_not_enough_before_or_after_history_has_a_useful_next_step(self):
         for before in (20, 150):
             result = self.evaluate(before=before)
             self.assertIsNone(result["estimate"])
             self.assertIn("52 complete weekly", result["summary"])
-            self.assertTrue(result["next_steps"])
+            self.assertIn("Add earlier records to both datasets", result["next_steps"][0])
 
     def test_partial_and_straddling_weeks_do_not_mix_before_and_after(self):
         definition, metadata, series = experiment()

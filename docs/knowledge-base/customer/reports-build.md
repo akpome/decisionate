@@ -113,22 +113,33 @@ Saved multi-value comparison filters remain visible and require an explicit
 single-value choice before another assessment. A saved outcome segment is retained
 and displayed beside the decision, with a clear control; it is not silently removed.
 
-Business Analysis defaults to the period saved with the decision's report evidence.
-A matching previous assessment keeps its recorded period. If no evidence period
-was saved, the approved outcome dataset's available dates provide the default;
-the decision's creation date is never used as its data period or action date.
-The comparison's date column is preselected, but choosing a comparison or a date
-column does not silently replace the decision's period.
-The action's start date is the only date input visible in the main setup.
+Business impact analysis sets its history period and grouping automatically.
+The history starts from the decision's original report evidence, or the beginning
+of shared data if that is later. The end extends to the latest available date
+in both selected date columns, capped at yesterday in the reporting timezone.
+The period also stays within the API's maximum ten-year history window.
+Changing the comparison or date column recalculates this shared range. It cannot
+create missing records; gaps within the period still prevent a reliable estimate.
+If no source period was saved, a matching previous assessment's start or the
+outcome dataset's available dates provide the starting point. The decision's
+creation date is never used as its data period or action date.
+Grouping follows the decision's source analysis. Legacy sources without grouping
+use verified timing, a matching earlier assessment, or daily grouping, in that order.
+Quarterly sources use weekly impact analysis because the impact model supports
+daily, weekly and monthly periods. Historical lag always keeps its original units.
+The action's implementation date is the only date input.
 The outcome Date column is beside Outcome metric and starts with the decision's
 saved selection. The comparison date column remains beside its dimension filter.
-In Business Analysis, Analysis settings contains only the shared history range and grouping.
+There is no editable Analysis settings section. The analysis period and grouping
+are read-only; data availability and minimum-history warnings remain visible.
 Business impact analysis is available only in Business Analysis, also accessible from Decision
 Details. Weekly Reports has no assessment tab or setup form. Minimum history
 requirements appear beside assessment readiness, outside the settings disclosures.
-Datasets with no overlapping dates are blocked with an explicit message; a wider
-date range cannot invent overlap. Comparisons outside the selected decision period
-are also blocked. Saved snapshots keep their stored date choices.
+Datasets with no overlapping dates, no completed shared period, or no history
+before or after implementation are blocked with an explicit message.
+Opening a saved snapshot keeps its stored dates and results. Returning to Build
+analysis prepares an updated period for a new calculation; it does not rewrite
+the old snapshot or save an assessment automatically.
 Changing the selected comparison, date column or dimension filters requires the
 comparison confirmation again. Existing weekly assessment configurations remain
 read-only in Weekly Reports, with a link to Business Analysis and an explicit option to
@@ -165,9 +176,9 @@ its original days even when impact is grouped weekly. Later weekly results start
 at the first complete week after the suggested date.
 
 Waiting for enough results means there are too few complete later observations to
-assess the change yet. Future dates and today's incomplete day do not count. Check
-that your analysis history includes newer results; choosing an old snapshot does
-not automatically extend its saved dates. Weekly reviews use their automatic
+assess the change yet. Future dates and today's incomplete day do not count. Keep
+both datasets up to date; a new impact analysis includes their latest shared dates,
+while saved snapshots retain their original dates and results. Weekly reviews use their automatic
 rolling history. Historical timing is advice, not a promise about when results
 will arrive or proof of cause and effect.
 

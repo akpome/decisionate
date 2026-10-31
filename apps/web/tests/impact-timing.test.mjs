@@ -17,7 +17,7 @@ const { ImpactTiming } = load("../features/reports/impact-timing.tsx")
 const impact = load("../features/reports/impact-types.ts")
 const types = load("../features/reports/types.ts", { "./pair-directions": load("../features/reports/pair-directions.ts"),
   "@/features/relationships/defaults": load("../features/relationships/defaults.ts") })
-const { decisionReviewDefinition } = load("../features/reports/decision-review.ts", { "./impact-types": impact, "./types": types })
+const { decisionReviewDefinition } = load("../features/reports/decision-review.ts", { "./impact-types": impact, "./types": types, "./impact-builder-state": load("../features/reports/impact-builder-state.ts") })
 const { ImpactResult } = load("../features/reports/impact-result.tsx", { "./types": { formatReportValue: value => String(value) } })
 const evidence = { status: "supported", report_id: "source", finding_id: "driver-a", driver_label: "Meta / Spend", lag: 2, grain: "weekly",
   message: "Consistent earlier timing.", history_window: { start: "2023-01-01", end: "2024-12-31" },

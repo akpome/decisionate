@@ -161,7 +161,7 @@ test("fresh reports open with correlation settings and do not initialize an impa
   const ast = ts.createSourceFile("workspace.tsx", workspace, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   let initialize
   function visit(node) {
-    if (ts.isVariableDeclaration(node) && ts.isArrayBindingPattern(node.name) && node.name.elements[0]?.getText(ast) === "definition") {
+    if (ts.isVariableDeclaration(node) && ts.isArrayBindingPattern(node.name) && node.name.elements[1]?.getText(ast) === "setDefinition") {
       initialize = node.initializer.arguments[0].getText(ast)
     }
     ts.forEachChild(node, visit)

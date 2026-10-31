@@ -24,9 +24,10 @@ dropdown. Type to filter choices, then select one; search alone does not change
 the selected value. Selecting a different value replaces the current comparison
 value. The decision supplies the outcome; any saved outcome segment is shown
 read-only with a clear control. The comparison's Date column is beside Dimension
-column; changing it preserves the decision's analysis period. The outcome Date
-column is beside Outcome metric and starts with the saved selection. In Business Analysis,
-deliberate history-range and grouping changes remain under Analysis settings.
+column; changing it recalculates the shared analysis period. The outcome Date
+column is beside Outcome metric and starts with the saved selection. Business impact
+analysis uses automatic history and grouping, displayed read-only rather than under
+editable Analysis settings. Dimension filters do not invent missing matching records.
 Decision assessment controls are in Business Analysis, not Weekly Reports. Weekly monitoring
 has its own dataset date and dimension selectors and automatic weekly dates and grouping.
 

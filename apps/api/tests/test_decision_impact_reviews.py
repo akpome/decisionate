@@ -114,7 +114,7 @@ class DecisionImpactReviewTests(unittest.TestCase):
 
     def test_prefill_uses_the_decisions_saved_evidence_period_and_date_column_without_scanning_sources(self):
         evidence = {"evidence_kind": "business_report", "definition": {"date_range": {"start": "2024-01-01", "end": "2025-12-28"},
-                    "metrics": [{"dataset_id": 1, "metric_key": "orders", "date_column": "sale_date"}]}}
+                    "grain": "monthly", "metrics": [{"dataset_id": 1, "metric_key": "orders", "date_column": "sale_date"}]}}
         with self.Session() as db:
             db.get(Decision, self.decision_id).recommendation_context = json.dumps(evidence)
             db.commit()
@@ -123,6 +123,11 @@ class DecisionImpactReviewTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["decision_period"], evidence["definition"]["date_range"])
         self.assertEqual(response.json()["outcome_date_column"], "sale_date")
+        self.assertEqual(response.json()["decision_grain"], "monthly")
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+        from app.modules.correlation.catalog import reporting_timezone
+        self.assertEqual(response.json()["available_through"], str(datetime.now(ZoneInfo(reporting_timezone())).date() - timedelta(days=1)))
 
     def test_invalid_or_unrelated_evidence_cannot_invent_a_decision_period(self):
         from app.modules.reports.decision_reviews import decision_data_period
@@ -131,10 +136,26 @@ class DecisionImpactReviewTests(unittest.TestCase):
         outcome = {"dataset_id": 1, "metric_key": "orders"}
         for value in ("bad-json", "[]", '{"evidence_kind":"other"}', json.dumps({"evidence_kind": "business_report",
                 "definition": {"metrics": [{"dataset_id": 2, "metric_key": "orders"}], "date_range": {"start": "2024-01-01", "end": "2025-01-01"}}})):
-            self.assertEqual(decision_data_period(SimpleNamespace(recommendation_context=value), outcome), (None, None))
+            self.assertEqual(decision_data_period(SimpleNamespace(recommendation_context=value), outcome), (None, None, None))
         evidence = {"evidence_kind": "business_report", "definition": {"metrics": [{**outcome, "date_column": "date"}],
                     "date_range": {"start": "not-a-date", "end": "2025-01-01"}}}
-        self.assertEqual(decision_data_period(SimpleNamespace(recommendation_context=json.dumps(evidence)), outcome), (None, "date"))
+        self.assertEqual(decision_data_period(SimpleNamespace(recommendation_context=json.dumps(evidence)), outcome), (None, "date", None))
+        for grain in ("daily", "weekly", "monthly", "quarterly", "unknown", None, []):
+            evidence["definition"]["grain"] = grain
+            expected = grain if grain in ("daily", "weekly", "monthly", "quarterly") else None
+            self.assertEqual(decision_data_period(SimpleNamespace(recommendation_context=json.dumps(evidence)), outcome)[2], expected)
+
+    def test_automatic_history_cutoff_uses_the_reporting_timezone_not_the_browser_day(self):
+        from datetime import datetime, timezone
+
+        instant = datetime(2026, 10, 31, 1, 0, tzinfo=timezone.utc)
+        with patch("app.modules.reports.decision_reviews.datetime") as clock:
+            clock.now.side_effect = lambda zone: instant.astimezone(zone)
+            for zone, expected in (("UTC", "2026-10-30"), ("America/Halifax", "2026-10-29")):
+                with patch("app.modules.correlation.catalog.reporting_timezone", return_value=zone):
+                    response = self.client.get(f"/api/v2/business-reports/review-decisions/{self.decision_id}")
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(response.json()["available_through"], expected)
 
     def test_one_idempotent_assessment_updates_the_same_decision_without_replacing_its_outcome_or_reasoning(self):
         with self.Session() as db:

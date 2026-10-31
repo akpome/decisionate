@@ -15,16 +15,17 @@ import type { WeeklySettings } from "./weekly-settings"
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 
 export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekly, weeklySettings, decisionPicker, actions,
-  loading, catalogError, retryingDataset, footer, onChange, onStudyChange, onRetry, onRetryDataset }: {
+  loading, catalogError, retryingDataset, footer, periodIssue, onRetryPeriod, onChange, onStudyChange, onRetry, onRetryDataset }: {
   definition: ReportDefinition; datasets: CatalogDataset[]; userId: string; workspaceId?: string
   weekly: boolean; weeklySettings: WeeklySettings | null; decisionPicker: ReactNode; actions: ReactNode
   loading: boolean; catalogError: boolean; retryingDataset?: number | null; footer: ReactNode
+  periodIssue?: string; onRetryPeriod?: () => void
   onChange: (patch: Partial<ReportDefinition>) => void; onStudyChange: (patch: Partial<ImpactStudy>) => void
   onRetry: () => void; onRetryDataset: (dataset: CatalogDataset) => void
 }) {
   const study = definition.impact
   if (!study) return null
-  const issue = impactSetupIssue(definition, datasets)
+  const issue = periodIssue || impactSetupIssue(definition, datasets)
   const timing = study.timing_evidence
   const timingNote = !timing || timing.status === "unavailable" ? "A supported timing pattern from before the action is required for an impact estimate."
     : timing.status === "choose_relationship" && !timing.choices?.some(item => item.finding_id === study.timing_finding_id)
@@ -43,7 +44,7 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
         <div className="min-w-0 flex-1">{decisionPicker}</div>
         {study.decision_id && <Link href={`/dashboard/decisions/${study.decision_id}#decision-title`} aria-label="Edit decision" title="Edit decision" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"><Pencil size={16} aria-hidden="true" /></Link>}
       </div>
-      {study.decision_id && !weekly && <p aria-label="Decision data period" className="text-sm text-gray-600">Analysis period: {definition.date_range.start && definition.date_range.end ? `${definition.date_range.start} to ${definition.date_range.end}` : "Not available"}.</p>}
+      {study.decision_id && !weekly && <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600"><p aria-label="Decision data period">{periodIssue || `Analysis period: ${!study.comparison ? "Awaiting comparison" : definition.date_range.start && definition.date_range.end && definition.date_range.start <= definition.date_range.end ? `${definition.date_range.start} to ${definition.date_range.end}` : "No shared period available"}`}</p>{onRetryPeriod && <button type="button" className="inline-flex min-h-10 items-center gap-2 text-blue-700 underline" onClick={onRetryPeriod}><RefreshCw size={16} />Retry analysis period</button>}</div>}
       {study.decision_id && <ImpactChange study={study} datasets={datasets} onChange={onStudyChange}
         outcomeDate={study.outcome && (outcomeSource ? <label className="min-w-0 text-xs font-medium text-gray-600">Date column<select aria-label="Outcome date column" className={input} required value={outcomeColumn} onChange={event => onChange({ metrics: definition.metrics.map(metric => metric.dataset_id === outcomeSource.dataset_id ? { ...metric, date_column: event.target.value } : metric) })}>
           {!outcomeSource.date_columns.includes(outcomeColumn) && <option value={outcomeColumn} disabled>Selected date unavailable</option>}
@@ -70,13 +71,6 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
       <h2 id="impact-history-heading" className="text-base font-semibold">3. Check the analysis</h2>
       {weekly ? <div className="space-y-2 text-sm"><p>Report week: {weeklySettings?.window.start} to {weeklySettings?.window.end}</p><p className="text-gray-600">Impact history: {weeklySettings?.history_window.start} to {weeklySettings?.window.end}, compared week by week.</p></div> : <p className="text-sm text-gray-600">Compared {definition.grain === "daily" ? "day by day" : definition.grain === "weekly" ? "week by week" : "month by month"}.</p>}
       <p className="text-sm text-gray-600">Expected result without the action: estimated from earlier records and the comparison&apos;s movement.</p>
-      {!weekly && <details className="min-w-0 border-t border-gray-100 pt-3"><summary className="cursor-pointer text-sm font-medium">Analysis settings</summary>
-          <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-3">
-            <label className="min-w-0 text-sm font-medium">History starts<input className={input} required type="date" max={study.change_date || definition.date_range.end || undefined} value={definition.date_range.start} onChange={event => onChange({ date_range: { ...definition.date_range, start: event.target.value } })} /></label>
-            <label className="min-w-0 text-sm font-medium">History ends<input className={input} required type="date" min={study.change_date || definition.date_range.start || undefined} value={definition.date_range.end} onChange={event => onChange({ date_range: { ...definition.date_range, end: event.target.value } })} /></label>
-            <label className="min-w-0 text-sm font-medium">Compare results by<select className={input} value={definition.grain} onChange={event => onChange({ grain: event.target.value })}><option value="daily">Day</option><option value="weekly">Week</option><option value="monthly">Month</option></select></label>
-          </div>
-      </details>}
       <details className="min-w-0 border-t border-gray-100 pt-3"><summary className="cursor-pointer text-sm font-medium">Improvement target (optional){study.worthwhile_change != null ? " (set)" : ""}</summary><label className="mt-3 block max-w-md text-sm font-medium">Minimum worthwhile improvement<input className={input} type="number" min={0} max={1e15} step="any" value={study.worthwhile_change ?? ""} onChange={event => onStudyChange({ worthwhile_change: event.target.value === "" ? null : Number(event.target.value) })} /><span className="mt-1 block text-xs font-normal leading-5 text-gray-600">In the outcome metric&apos;s units. A total for values that can be added, such as orders; an average per period for rates or balances. Costs and profit are not calculated.</span></label></details>
     </section>}
     {extras.length > 0 && <details className="min-w-0 border-t border-gray-200 pt-4"><summary className="cursor-pointer text-sm font-medium">Other selected results ({extras.length})</summary><ul className="mt-3 divide-y divide-gray-100">{extras.map(metric => {

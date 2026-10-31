@@ -30,7 +30,7 @@ import { ImpactBuilder } from "./impact-builder"
 import { impactSetupIssue } from "./impact-builder-state"
 import { ImpactResult } from "./impact-result"
 import { weeklyDefinition, weeklyDeliveryIssue, type WeeklySettings } from "./weekly-settings"
-import { decisionReviewDefinition, decisionReviewDetails, type DecisionReviewContext } from "./decision-review"
+import { automaticImpactDefinition, decisionReviewDefinition, decisionReviewDetails, type DecisionReviewContext } from "./decision-review"
 import { ImpactDecisionPicker } from "./impact-decision-picker"
 import { WeeklyAssessmentSetup, WeeklyDecisionUpdate } from "./weekly-decision-update"
 
@@ -97,9 +97,17 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [weeklySettings, setWeeklySettings] = useState<WeeklySettings | null>(null)
   const [weeklyDirty, setWeeklyDirty] = useState(false)
   const [saved, setSaved] = useState<SavedReport[]>([])
-  const [definition, setDefinition] = useState<ReportDefinition>(() => weekly ? weeklyDefinition({}) : editableDefinition({ scope: initialScope }))
+  const [draftDefinition, setDefinition] = useState<ReportDefinition>(() => weekly ? weeklyDefinition({}) : editableDefinition({ scope: initialScope }))
   const [report, setReport] = useState<BusinessReport | null>(null)
   const [view, setView] = useState<"explore" | "report">("explore")
+  const [impactContext, setImpactContext] = useState<{ key: string; value: DecisionReviewContext | null; error: boolean } | null>(null)
+  const [impactContextReload, setImpactContextReload] = useState(0)
+  const reviewDecisionId = !weekly && view === "explore" ? draftDefinition.impact?.decision_id : null
+  const impactContextKey = JSON.stringify([userId, workspaceId, reviewDecisionId, impactContextReload])
+  const currentImpactContext = impactContext?.key === impactContextKey ? impactContext.value : null
+  const impactContextError = impactContext?.key === impactContextKey && impactContext.error
+  const definition = currentImpactContext ? automaticImpactDefinition(draftDefinition, currentImpactContext, datasets) : draftDefinition
+  const periodIssue = reviewDecisionId && !currentImpactContext ? impactContextError ? "The decision's analysis period could not be loaded." : "Loading the decision's analysis period..." : ""
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [analysisJob, setAnalysisJob] = useState<AnalysisJob | null>(null)
@@ -117,7 +125,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const previewLabel = weekly ? "Report preview" : "Analysis preview"
   const taskCount = definition.impact ? 0 : reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs)
   const showPairDirections = definition.pair_directions.length > 0
-  const previewDisabled = datasetCount < (single ? 1 : 2) || single && (!singleDataset || singleDataset.catalog_status === "pending" || Boolean(singleDataset.error_code)) || !impactReady(definition.impact, definition.metrics) || Boolean(impactSetupIssue(definition, datasets)) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
+  const previewDisabled = Boolean(periodIssue) || datasetCount < (single ? 1 : 2) || single && (!singleDataset || singleDataset.catalog_status === "pending" || Boolean(singleDataset.error_code)) || !impactReady(definition.impact, definition.metrics) || Boolean(impactSetupIssue(definition, datasets)) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
   const weeklySendIssue = weekly && !weeklyDirty ? weeklyDeliveryIssue(report, weeklySettings?.window) : ""
   const uncertainDelivery = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && !analysisJob.retry_safe
   const deliveryNotStarted = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && analysisJob.retry_safe === true
@@ -131,6 +139,15 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     const timer = window.setTimeout(() => setMessage(current => current === message ? "" : current), 5000)
     return () => window.clearTimeout(timer)
   }, [message])
+
+  useEffect(() => {
+    if (!reviewDecisionId) return
+    const controller = new AbortController()
+    void correlationRequest<DecisionReviewContext>(userId, `/business-reports/review-decisions/${reviewDecisionId}`, { signal: controller.signal }, workspaceId)
+      .then(context => { if (!controller.signal.aborted) setImpactContext({ key: impactContextKey, value: context, error: false }) })
+      .catch(() => { if (!controller.signal.aborted) setImpactContext({ key: impactContextKey, value: null, error: true }) })
+    return () => controller.abort()
+  }, [reviewDecisionId, userId, workspaceId, impactContextKey])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -417,7 +434,9 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       const payload = { ...(weekly ? weeklyDefinition(definition, weeklySettings?.history_window) : definition), dimension_filters: selectedReportDimensionFilters(definition), included_findings: null }
       if (!weekly && payload.impact?.decision_id) {
         const context = await request<DecisionReviewContext>(`/review-decisions/${payload.impact.decision_id}`, { signal })
-        Object.assign(payload, decisionReviewDetails(context.decision))
+        Object.assign(payload, automaticImpactDefinition(payload, context, datasets), decisionReviewDetails(context.decision))
+        const issue = impactSetupIssue(payload, datasets)
+        if (issue) throw new Error(issue)
       }
       signal?.throwIfAborted()
       const job = await request<AnalysisJob>(weekly ? canManage ? "/weekly-preview-jobs" : "/weekly-jobs?include_ai_analysis=true" : "/jobs", { method: "POST", signal, headers: { "Idempotency-Key": crypto.randomUUID() }, ...(!weekly || canManage ? { body: JSON.stringify(payload) } : {}) })
@@ -633,6 +652,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           {definition.impact && weekly ? <WeeklyAssessmentSetup definition={definition} issue={impactSetupIssue(definition, datasets)} preview={canManage ? previewButton : null} onSwitch={canManage ? () => {
             if (window.confirm("Switch this weekly setup to metric monitoring? The current setup is replaced only after you preview and save. Saved decision assessments and historical reports are kept.")) edit({ impact: null })
           } : undefined} /> : definition.impact && !weekly ? <ImpactBuilder definition={definition} datasets={datasets} userId={userId} workspaceId={workspaceId} weekly={false} weeklySettings={null}
+            periodIssue={periodIssue} onRetryPeriod={impactContextError ? () => setImpactContextReload(value => value + 1) : undefined}
             decisionPicker={<ImpactDecisionPicker key={JSON.stringify([userId, workspaceId])} userId={userId} workspaceId={workspaceId} decisionId={definition.impact.decision_id} disabled={!canEditDecisions || busy} onChoose={identity => void chooseReviewDecision(identity)} />}
             actions={previewButton} loading={catalogBusy} catalogError={catalogError} retryingDataset={retryingDataset} footer={catalogFooter}
             onChange={edit} onStudyChange={editImpact} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} /> : <>

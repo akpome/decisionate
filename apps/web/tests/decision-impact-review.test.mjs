@@ -16,7 +16,8 @@ function load(path, imports = {}) {
 const impact = load("../features/reports/impact-types.ts")
 const types = load("../features/reports/types.ts", { "./pair-directions": load("../features/reports/pair-directions.ts"),
   "@/features/relationships/defaults": load("../features/relationships/defaults.ts") })
-const { decisionReviewDefinition, decisionReviewDetails } = load("../features/reports/decision-review.ts", { "./impact-types": impact, "./types": types })
+const state = load("../features/reports/impact-builder-state.ts")
+const { decisionReviewDefinition, decisionReviewDetails, automaticImpactDefinition } = load("../features/reports/decision-review.ts", { "./impact-types": impact, "./types": types, "./impact-builder-state": state })
 const context = { decision: { id: 7, title: "Improve staffing", action: "Add one employee to the store", created_at: "2025-01-01" },
   outcome: { dataset_id: 1, metric_key: "orders" }, decision_revision: "current-revision", latest_review: null }
 const source = { dataset_id: 1, dataset_label: "Store A", date_columns: ["sale_date"],
@@ -87,7 +88,8 @@ test("the default period and outcome date column come from decision evidence rat
   const period = { start: "2024-01-01", end: "2025-12-31" }
   const value = decisionReviewDefinition(types.editableDefinition({ date_range: { start: "2000-01-01", end: "2000-12-31" } }),
     { ...context, decision_period: period, outcome_date_column: "paid_date" }, { ...source, date_columns: ["sale_date", "paid_date"], availability: { ...source.availability, paid_date: source.availability.sale_date } })
-  assert.deepEqual(value.date_range, period)
+  assert.deepEqual(JSON.parse(JSON.stringify(value.date_range)), period)
+  assert.notEqual(value.date_range, period)
   assert.equal(value.metrics[0].date_column, "paid_date")
   assert.equal(value.impact.change_date, "")
   const missing = decisionReviewDefinition(types.editableDefinition({ date_range: period }), context, { ...source, availability: {} })
@@ -143,7 +145,78 @@ test("decision detail and the report builder share the linked review entry and e
   const calculate = workspace.slice(workspace.indexOf("async function calculate()"), workspace.indexOf("async function saveSnapshot()"))
   assert.match(calculate, /if \(!weekly && payload.impact\?\.decision_id\)/)
   assert.match(calculate, /\/review-decisions\/\$\{payload.impact.decision_id\}/)
-  assert.match(calculate, /Object.assign\(payload, decisionReviewDetails\(context.decision\)\)/)
+  assert.match(calculate, /Object.assign\(payload, automaticImpactDefinition\(payload, context, datasets\), decisionReviewDetails\(context.decision\)\)/)
   assert.doesNotMatch(calculate, /saveSnapshot\(|\/save|\/decisions\/from-report/)
   assert.doesNotMatch(workspace, /reportDetails=|Check this decision|Checking decision/)
+})
+
+const comparison = { ...source, dataset_id: 2, availability: { sale_date: { start: "2023-03-01", end: "2026-09-30" } } }
+const assessment = () => {
+  const value = decisionReviewDefinition(types.editableDefinition({}), context, source)
+  return { ...value, metrics: [...value.metrics, { ...value.metrics[0], dataset_id: 2 }],
+    date_range: { start: "2025-01-01", end: "2025-12-31" },
+    impact: { ...value.impact, change_date: "2025-02-01", comparison: { dataset_id: 2, metric_key: "orders" }, comparison_reason: "An unchanged store", comparison_unaffected: true } }
+}
+const automaticContext = { ...context, decision_period: { start: "2024-01-01", end: "2024-12-31" }, decision_grain: "weekly", available_through: "2026-10-30" }
+
+test("new calculations use source history and grouping and extend through the latest shared data without changing snapshots or timing", () => {
+  const saved = assessment(), before = JSON.stringify(saved)
+  const value = automaticImpactDefinition(saved, automaticContext, [source, comparison])
+  assert.deepEqual(JSON.parse(JSON.stringify(value.date_range)), { start: "2024-01-01", end: "2026-09-30" })
+  assert.equal(value.grain, "weekly")
+  assert.equal(value.impact, saved.impact)
+  assert.equal(value.metrics, saved.metrics)
+  assert.equal(JSON.stringify(saved), before)
+  assert.equal(state.impactSetupIssue(value, [source, comparison]), "")
+})
+
+test("automatic history is capped by the server's completed-day cutoff, not future source dates", () => {
+  const value = automaticImpactDefinition(assessment(), { ...automaticContext, available_through: "2026-08-20" }, [source, comparison])
+  assert.equal(value.date_range.end, "2026-08-20")
+  assert.equal(value.impact.change_date, "2025-02-01")
+})
+
+test("extending an old source period cannot exceed the API's ten-year history limit", () => {
+  const sources = [source, comparison].map(dataset => ({ ...dataset, availability: { sale_date: { start: "2000-01-01", end: "2026-10-30" } } }))
+  const value = automaticImpactDefinition(assessment(), { ...automaticContext, decision_period: { start: "2000-01-01", end: "2005-12-31" } }, sources)
+  assert.equal(value.date_range.end, "2026-10-30")
+  assert.equal((Date.parse(value.date_range.end) - Date.parse(value.date_range.start)) / 86400000, 3653)
+  assert.equal(value.impact.change_date, "2025-02-01")
+})
+
+test("comparison and date-column changes align both series but do not permanently discard the original history start", () => {
+  const later = { ...comparison, availability: { sale_date: { start: "2024-06-01", end: "2026-01-31" }, paid_date: { start: "2024-09-01", end: "2026-02-28" } } }
+  const first = automaticImpactDefinition(assessment(), automaticContext, [source, later])
+  assert.equal(first.date_range.start, "2024-06-01")
+  assert.equal(first.date_range.end, "2026-01-31")
+  const paid = automaticImpactDefinition({ ...first, metrics: first.metrics.map(metric => metric.dataset_id === 2 ? { ...metric, date_column: "paid_date" } : metric) }, automaticContext, [source, later])
+  assert.equal(paid.date_range.start, "2024-09-01")
+  assert.equal(paid.date_range.end, "2026-02-28")
+  const restored = automaticImpactDefinition(first, automaticContext, [source, comparison])
+  assert.equal(restored.date_range.start, "2024-01-01")
+})
+
+test("missing data and missing before or after history cannot be bypassed by automatic dates", () => {
+  const saved = assessment()
+  const pending = automaticImpactDefinition(saved, automaticContext, [source])
+  assert.equal(pending.date_range.end, "")
+  assert.match(state.impactSetupIssue(pending, [source]), /Waiting/)
+  for (const [range, message] of [
+    [{ start: "2020-01-01", end: "2020-12-31" }, /no overlapping dates/],
+    [{ start: "2025-06-01", end: "2026-01-31" }, /history before/],
+    [{ start: "2023-03-01", end: "2025-01-31" }, /No matching results.*after/],
+  ]) {
+    const sources = [source, { ...comparison, availability: { sale_date: range } }]
+    assert.match(state.impactSetupIssue(automaticImpactDefinition(saved, automaticContext, sources), sources), message)
+  }
+})
+
+test("automatic grouping does not inherit unrelated controls or reinterpret source lag units", () => {
+  const saved = { ...assessment(), grain: "monthly", impact: { ...assessment().impact, timing_evidence: { grain: "quarterly", lag: 1 } } }
+  assert.equal(automaticImpactDefinition(saved, context, [source, comparison]).grain, "daily")
+  const quarterly = automaticImpactDefinition(saved, { ...automaticContext, decision_grain: "quarterly" }, [source, comparison])
+  assert.equal(quarterly.grain, "weekly")
+  assert.equal(quarterly.impact.timing_evidence.grain, "quarterly")
+  assert.equal(quarterly.impact.timing_evidence.lag, 1)
+  assert.equal(automaticImpactDefinition(saved, { ...context, decision: { ...context.decision, id: 9 } }, [source, comparison]), saved)
 })

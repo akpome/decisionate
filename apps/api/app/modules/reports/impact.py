@@ -144,7 +144,7 @@ def evaluate_impact(series, definition, metadata):
         return stop("We need an unaffected comparison and no known competing change before estimating the effect.",
                     "Check whether the change also affected the comparison, and whether a promotion, price change or other event happened at the same time.")
     if grain not in MINIMUM_BEFORE or outcome is None or comparison is None or outcome_id not in series or comparison_id not in series:
-        return stop("The result or comparison is unavailable for this analysis.", "Choose available metrics from different datasets, grouped by day, week or month.")
+        return stop("The result or comparison is unavailable for this analysis.", "Check the selected metrics and date columns, or choose another comparison dataset.")
     if outcome.get("currency_unresolved") or comparison.get("currency_unresolved"):
         return stop("One of the selected money amounts contains mixed or unknown currencies.", "Filter each dataset to one known currency before measuring the change. Currencies are not converted automatically.")
     timing = None
@@ -192,13 +192,13 @@ def evaluate_impact(series, definition, metadata):
                         "Keep collecting results. Early observations are retained, but have not been judged as a success or failure.")
     if before.sum() < MINIMUM_BEFORE[grain] or after.sum() < MINIMUM_AFTER[grain]:
         return stop(f"This comparison needs at least {MINIMUM_BEFORE[grain]} complete {grain} periods before the change and {MINIMUM_AFTER[grain]} after it. We have {int(before.sum())} before and {int(after.sum())} after.",
-                    "Include more history before the change, and allow enough time after it. Partial weeks or months do not count.")
+                    "Add earlier records to both datasets, and allow enough time after the change. Partial weeks or months do not count.")
     joined = pd.DataFrame({key: points.set_index("period")["value"].reindex(periods) for key, points in series.items() if key in {outcome_id, comparison_id}})
     covered = np.isfinite(joined.to_numpy(dtype=float)).all()
     check("shared_dates", covered, "Both datasets cover every complete comparison period." if covered else "Some comparison periods are missing from one or both datasets.")
     if not covered:
         return stop("We cannot reliably measure the change because some dates are missing. Missing values have not been filled with zero.",
-                    "Complete the missing history in both datasets or choose a fully covered date range.")
+                    "Complete the missing history in both datasets or choose a comparison that covers this period.")
     values, control = joined[outcome_id].to_numpy(dtype=float), joined[comparison_id].to_numpy(dtype=float)
     if float(np.std(control[before])) <= max(1e-10, abs(float(np.mean(control[before]))) * 1e-10) or float(np.std(values[before])) < 1e-10:
         return stop("There is not enough earlier variation to check whether this comparison is useful.", "Choose a comparison with a meaningful, changing history before the business change.")
@@ -271,9 +271,9 @@ def evaluate_impact(series, definition, metadata):
             return stop("The estimated effect depends too heavily on which earlier dates we use. We are withholding the estimate.",
                         "Review earlier business changes and try a more stable comparison.")
     except ImpactUnavailable as error:
-        return stop(str(error), "Try a different unaffected comparison or a longer, fully covered date range.")
+        return stop(str(error), "Try a different unaffected comparison or add more matching history to both datasets.")
     except (ValueError, np.linalg.LinAlgError):
-        return stop("The available history does not support a stable calculation.", "Try a different unaffected comparison or a longer, fully covered date range.")
+        return stop("The available history does not support a stable calculation.", "Try a different unaffected comparison or add more matching history to both datasets.")
     if not all(math.isfinite(value) for value in (effect, lower, upper)):
         return stop("The available history does not support a stable estimate.", "Try a different unaffected comparison.")
     actual_mean = float(np.mean(values[after]))

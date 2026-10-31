@@ -1,6 +1,7 @@
 import type { CatalogDataset } from "@/features/relationships/types"
 import type { ImpactAnalysis, ImpactTimingEvidence } from "./impact-types"
 import { newImpactStudy } from "./impact-types"
+import { impactHistoryWindow } from "./impact-builder-state"
 import { editableDefinition, type ReportDecision, type ReportDefinition } from "./types"
 
 export type DecisionImpactReview = {
@@ -11,7 +12,27 @@ export type DecisionReviewContext = {
   decision: ReportDecision; outcome: { dataset_id: number; metric_key: string } | null
   decision_revision: string; latest_review: DecisionImpactReview | null
   decision_period?: { start: string; end: string } | null; outcome_date_column?: string | null
+  decision_grain?: string | null; available_through?: string
   timing_evidence?: ImpactTimingEvidence | null
+}
+
+export function automaticImpactDefinition(definition: ReportDefinition, context: DecisionReviewContext, datasets: CatalogDataset[]): ReportDefinition {
+  if (!definition.impact?.decision_id || definition.impact.decision_id !== context.decision.id) return definition
+  const outcome = definition.metrics.find(metric => metric.dataset_id === definition.impact?.outcome?.dataset_id && metric.metric_key === definition.impact.outcome.metric_key)
+  const availability = outcome && datasets.find(dataset => dataset.dataset_id === outcome.dataset_id)?.availability[outcome.date_column]
+  const shared = definition.impact.comparison ? impactHistoryWindow(definition, datasets) : availability
+  const previous = context.latest_review?.matches_current_decision ? context.latest_review.definition : null
+  const start = context.decision_period?.start || previous?.date_range.start || availability?.start || definition.date_range.start
+  const grain = context.decision_grain || context.timing_evidence?.grain || previous?.grain || "daily"
+  let dateRange = { start, end: "" }
+  if (shared) {
+    const end = context.available_through && context.available_through < shared.end ? context.available_through : shared.end
+    // Match the API's ten-year DateRange limit while retaining the latest results.
+    const earliest = new Date(`${end}T00:00:00Z`)
+    earliest.setUTCDate(earliest.getUTCDate() - 3653)
+    dateRange = { start: [start, shared.start, earliest.toISOString().slice(0, 10)].sort().at(-1)!, end }
+  }
+  return { ...definition, grain: grain === "quarterly" ? "weekly" : grain, date_range: dateRange }
 }
 
 export function decisionReviewDetails(decision: Pick<ReportDecision, "id" | "title">) {
@@ -34,7 +55,7 @@ export function decisionReviewDefinition(current: ReportDefinition, context: Dec
   const availability = dateColumn && source?.availability[dateColumn]
   return editableDefinition({ ...base, ...decisionReviewDetails(context.decision), scope: "multi", included_findings: null, source_run_id: null,
     metrics, grain: base.grain === "quarterly" ? "weekly" : base.grain,
-    date_range: previous?.date_range || context.decision_period || availability || { start: "", end: "" },
+    date_range: { ...(previous?.date_range || context.decision_period || availability || { start: "", end: "" }) },
     impact: { ...newImpactStudy(), ...(previous?.impact || {}), decision_id: context.decision.id, decision_revision: context.decision_revision,
       change: context.decision.action || "", outcome, comparison_unaffected: false, other_changes: "not_sure",
       timing_evidence: context.timing_evidence || null,
