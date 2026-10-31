@@ -57,6 +57,48 @@ class WeeklyReportSettingsTests(unittest.TestCase):
         unsaved_send = self.client.post(f"/api/v2/business-reports/weekly-owner-jobs?preview_job_id={identity}")
         self.assertEqual(unsaved_send.status_code, 409, unsaved_send.text)
 
+    def test_weekly_preview_save_and_future_delivery_use_recognizable_default_name(self):
+        generated = "Report (034a3449-983d-4130-8cb4-c6d870713c06)"
+        identity, result = self.draft_preview(name=generated)
+        self.assertEqual(result["definition"]["name"], "Weekly Business Report")
+        self.assertEqual(result["result"]["name"], "Weekly Business Report")
+        saved = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(saved.status_code, 201, saved.text)
+        self.assertEqual(saved.json()["report"]["name"], "Weekly Business Report")
+        with self.Session() as db:
+            preference = db.query(WeeklyReportPreference).one()
+            self.assertEqual(json.loads(preference.weekly_report_definition)["name"], "Weekly Business Report")
+            self.assertEqual(jobs.weekly_configuration(db, preference, "owner")["template"]["name"], "Weekly Business Report")
+
+    def test_legacy_generated_name_keeps_current_report_accessible_without_rewriting_evidence(self):
+        identity, _ = self.save_preview()
+        evidence = self.client.post(f"/api/v2/business-reports/weekly-current/evidence?preview_job_id={identity}").json()
+        generated = "Weekly Report (034a3449-983d-4130-8cb4-c6d870713c06)"
+        with self.Session() as db:
+            preference = db.query(WeeklyReportPreference).one()
+            current = db.query(CurrentWeeklyReport).one()
+            archive = db.get(BusinessReport, evidence["report_id"])
+            for record, field in ((preference, "weekly_report_definition"), (current, "definition"), (archive, "definition")):
+                setattr(record, field, json.dumps({**json.loads(getattr(record, field)), "name": generated}))
+            snapshot = json.loads(current.snapshot)
+            snapshot["name"] = snapshot["definition"]["name"] = generated
+            current.snapshot = archive.snapshot = json.dumps(snapshot)
+            archive.name = generated
+            db.commit()
+            original = (preference.weekly_report_definition, current.definition, current.snapshot, archive.snapshot)
+        settings = self.client.get("/api/v2/business-reports/weekly-settings").json()
+        self.assertEqual(settings["definition"]["name"], "Weekly Business Report")
+        self.assertEqual(settings["current_report"]["analysis_job_id"], identity)
+        self.assertEqual(settings["current_report"]["name"], "Weekly Business Report")
+        self.assertEqual(settings["current_report"]["definition"]["name"], "Weekly Business Report")
+        self.assertEqual(self.client.get(f"/api/v2/business-reports/{evidence['report_id']}").json()["name"], generated)
+        with self.Session() as db:
+            preference = db.query(WeeklyReportPreference).one()
+            current = db.query(CurrentWeeklyReport).one()
+            archive = db.get(BusinessReport, evidence["report_id"])
+            self.assertEqual(jobs.weekly_configuration(db, preference, "owner")["template"]["name"], "Weekly Business Report")
+            self.assertEqual((preference.weekly_report_definition, current.definition, current.snapshot, archive.snapshot), original)
+
     def test_preview_uses_draft_without_replacing_live_configuration_then_saves_both_once(self):
         self.put(name="Existing weekly settings")
         with self.Session() as db:

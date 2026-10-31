@@ -182,7 +182,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           setDefinition(selected)
           if (weeklyContext.definition) void addSelectedDatasets(selected)
         }
-        if (!params.get("report") && !params.get("weekly")) {
+        if (!weekly && !params.get("report") && !params.get("weekly")) {
           if (!draftName.current) draftName.current = reportDraftName()
           setDefinition(current => ({ ...current, name: current.name || draftName.current }))
         }
@@ -261,7 +261,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           const identity = Number(params.get("decision"))
           if (!Number.isSafeInteger(identity) || identity < 1) throw new Error("Choose a valid existing decision.")
           const chosen = await loadDecisionDefinition(userId, workspaceId,
-            weekly ? weeklyDefinition({ ...weeklyContext?.definition, name: weeklyContext?.definition?.name || draftName.current }) : editableDefinition({ scope: "multi", name: draftName.current }), identity, controller.signal)
+            weekly ? weeklyDefinition(weeklyContext?.definition || {}) : editableDefinition({ scope: "multi", name: draftName.current }), identity, controller.signal)
           if (!current) return
           const selected = weekly ? weeklyDefinition(chosen.definition, weeklyContext?.history_window) : chosen.definition
           setDefinition(selected); setDatasets(existing => mergeCatalog(existing, chosen.datasets))
@@ -337,7 +337,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     if (weekly && !canManage) return
     if (weekly) setWeeklyDirty(true)
     const analysisChanged = ["metrics", "dimension_filters", "date_range", "grain", "method", "filters", "lag", "pair_directions", "excluded_pairs", "seasonal_business", "impact"].some(key => key in patch)
-    const nextName = report?.report_id && !("name" in patch) && isDefaultReportName(definition.name) ? defaultReportName() : null
+    const nextName = !weekly && report?.report_id && !("name" in patch) && isDefaultReportName(definition.name) ? defaultReportName() : null
     setDefinition(current => {
       const next = { ...current, ...(nextName ? { name: nextName } : {}), ...patch, ...(analysisChanged ? { included_findings: null } : {}) }
       return { ...next, impact: retainedImpactStudy(next.impact, next.metrics, "metrics" in patch || "dimension_filters" in patch), pair_directions: reportPairDirections(next.metrics, next.pair_directions), excluded_pairs: reportExcludedPairs(next.metrics, next.excluded_pairs) }
@@ -523,7 +523,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       await execute(async () => {
         const result = await request<WeeklySettings>("/weekly-settings", { method: "DELETE" })
         setWeeklySettings(result); setWeeklyDirty(false)
-        setDefinition(weeklyDefinition({ name: defaultReportName() }, result.history_window))
+        setDefinition(weeklyDefinition({}, result.history_window))
         setReport(null); setAnalysisJob(null); setView("explore")
         window.history.replaceState(null, "", pagePath)
         setMessage("Weekly settings removed and delivery paused. Saved snapshots and linked decisions were kept.")

@@ -174,10 +174,13 @@ class WeeklyReportSettings(ReportDefinition):
     @classmethod
     def automatic_window(cls, value):
         from .weekly import weekly_context
+        from .names import weekly_report_name
 
         if isinstance(value, dict):
             value = {**value, "date_range": weekly_context()["history_window"], "included_findings": None,
                      "source_run_id": None, "pair_directions": value.get("pair_directions") or []}
+            if value.get("name") is None or isinstance(value["name"], str):
+                value["name"] = weekly_report_name(value.get("name"))
         return value
 
 

@@ -790,6 +790,7 @@ def build_weekly_report_digest(
 
 
 def build_weekly_cross_dataset_report(frames, preference, template=None, unavailable=None, relationships=None, *, analysis_date=None):
+    from app.modules.reports.names import DEFAULT_WEEKLY_REPORT_NAME
     from app.modules.reports.weekly import weekly_settings_copy
 
     template = weekly_settings_copy(template) if template else None
@@ -837,7 +838,7 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
         valid_references.append(reference)
     references = valid_references
     lag = (template or {}).get("lag", {"enabled": False, "minimum": 0, "maximum": 0, "direction": "a_leads_b"})
-    definition = {**(template or {}), "scope": "multi", "name": (template or {}).get("name", "Weekly cross-dataset review"),
+    definition = {**(template or {}), "scope": "multi", "name": (template or {}).get("name", DEFAULT_WEEKLY_REPORT_NAME),
                   "dimension_filters": [item for item in (template or {}).get("dimension_filters", [])
                                         if item["dataset_id"] in {reference["dataset_id"] for reference in references}],
                   "seasonal_business": (template or {}).get("seasonal_business", False),

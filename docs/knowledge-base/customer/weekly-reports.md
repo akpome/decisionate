@@ -15,6 +15,10 @@ Previewing calculates the draft without changing the saved weekly setup or sendi
 After a successful preview, choose Save changes. Each workspace has one current
 weekly report. Saving replaces that report and its setup for future weeks,
 even if you change its name; it does not create another active report.
+The default name is Weekly Business Report, not a random identifier. You can
+use a custom name; it stays the same when the report is updated. Existing
+generated names are replaced in the current setup and future reports, while
+historical reports and decision evidence keep their original names.
 There is no separate Save snapshot or Save weekly settings action on this page.
 Changing the setup requires another preview before saving. A failed preview or
 save leaves the previously saved setup unchanged. If the reporting week, source

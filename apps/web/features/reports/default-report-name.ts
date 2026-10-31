@@ -1,4 +1,9 @@
 const draftIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const generatedWeeklyNamePattern = /^(?:Weekly )*Report \([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\)$/i
+
+export function weeklyReportName(name?: string | null) {
+  return !name?.trim() || generatedWeeklyNamePattern.test(name.trim()) ? "Weekly Business Report" : name
+}
 
 export function defaultReportName(identity: string = crypto.randomUUID()) {
   return `Report (${identity})`

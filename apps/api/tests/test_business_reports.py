@@ -253,6 +253,7 @@ class BusinessReportEngineTests(unittest.TestCase):
             digest = build_weekly_report_digest(preference, [item for item, _ in self.frames.values()], include_ai_analysis=False)
         self.assertEqual(digest.metrics[0].total, sum(range(82, 89)))
         self.assertEqual(digest.cross_dataset_report["dataset_count"], 2)
+        self.assertEqual(digest.cross_dataset_report["name"], "Weekly Business Report")
         validate_weekly_report_digest_for_delivery(digest)
         digest.cross_dataset_report["business_question"] = "<script>unsafe</script>"
         markup = build_weekly_report_email_html(digest)

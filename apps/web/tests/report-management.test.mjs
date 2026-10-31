@@ -21,13 +21,13 @@ function management(name, overrides = {}) {
   const managementAction = { current: false }, deletedReports = { current: new Set() }
   const handler = vm.runInNewContext(ts.transpileModule(`${functions.get(name)}\n${name}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
     canManage: true, busy: false, weekly: true, pagePath: "/dashboard/reports", report: state.report, managementAction, deletedReports,
-    t: value => value, encodeURIComponent, defaultReportName: () => "New report", weeklyDefinition: value => value,
+    t: value => value, encodeURIComponent, weeklyDefinition: value => ({ name: "Weekly Business Report", ...value }),
     window: { confirm: () => true, history: { replaceState: (...args) => calls.push(["history", ...args]) } },
     execute: async action => { try { await action() } catch (error) { errors.push(error.message) } },
     request: async (path, init) => { calls.push([path, init.method]); return name === "deleteSavedReport" ? { weekly_template_removed: false } : { definition: null, enabled: false, history_window: {} } },
     setSaved: update => { state.saved = update(state.saved) }, setReport: value => { state.report = value },
     setView: value => { state.view = value }, setWeeklySettings: value => { state.weekly = value },
-    setWeeklyDirty: value => { state.dirty = value }, setDefinition: () => {}, setAnalysisJob: value => { state.analysisJob = value },
+    setWeeklyDirty: value => { state.dirty = value }, setDefinition: value => { state.definition = value }, setAnalysisJob: value => { state.analysisJob = value },
     setMessage: value => { state.message = value }, ...overrides,
   })
   return { handler, calls, errors, state, managementAction, deletedReports }
@@ -59,6 +59,7 @@ test("removing weekly settings pauses delivery but does not delete snapshots", a
   assert.equal(state.weekly.definition, null)
   assert.equal(state.weekly.enabled, false)
   assert.equal(state.dirty, false)
+  assert.equal(state.definition.name, "Weekly Business Report")
   assert.equal(managementAction.current, false)
 })
 

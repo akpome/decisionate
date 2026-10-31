@@ -471,7 +471,7 @@ const referenceChapters: ReferenceChapter[] = [
         steps: [
           "Open Analysis in the sidebar and configure the selected datasets and metrics in Build analysis.",
           "Rename the report to suit your analysis, enter a business question, and preview the findings. Save snapshot stores the generated report; reopening a snapshot preserves its analysis.",
-          "Generated report names are unique starting labels, not descriptions of the business question. Edit them before saving so saved reports are easy to distinguish.",
+          "Analysis report names are unique starting labels, not descriptions of the business question. Weekly reports default to Weekly Business Report. Custom names are kept; edit a report name to describe its purpose.",
           "Changing metric, date, dimension, seasonal, or timing settings requires a fresh preview before saving the changed analysis.",
           "Use the report as a review package. Reports are not a replacement for recording the business decision and expected outcome.",
         ],

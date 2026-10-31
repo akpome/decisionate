@@ -37,6 +37,17 @@ test("new reports receive random unique names within the report name limit", () 
   }
 })
 
+test("weekly reports use a recognizable name, including legacy generated names", () => {
+  const { weeklyReportName, defaultReportName } = draft()
+  const generated = defaultReportName()
+  for (const name of [undefined, null, "", "  ", generated, `Weekly ${generated}`, `Weekly Weekly ${generated}`, generated.toUpperCase()]) {
+    assert.equal(weeklyReportName(name), "Weekly Business Report")
+  }
+  for (const name of ["Weekly Business Report", "Sales and advertising", "Weekly Report (Canada)", `Sales ${generated}`]) {
+    assert.equal(weeklyReportName(name), name)
+  }
+})
+
 test("draft reloads preserve the generated name and source navigation parameters", () => {
   for (const query of ["?dataset=39&metric=ad_spend", "?run=analysis-42", ""]) {
     const form = draft(`https://decisionate.test/dashboard/reports${query}#analysis`)
@@ -116,12 +127,14 @@ test("deliberate names and explicit renames are preserved when editing any analy
   assert.equal(state.definition.name, "An explicit saved-report rename")
 })
 
-test("random names are generated after mount while saved report names remain unchanged", () => {
-  assert.match(workspace, /if \(!params\.get\("report"\) && !params\.get\("weekly"\)\)/)
+test("random names are generated after mount only for one-off analysis", () => {
+  assert.match(workspace, /if \(!weekly && !params\.get\("report"\) && !params\.get\("weekly"\)\)/)
   assert.match(workspace, /if \(!draftName\.current\) draftName\.current = reportDraftName\(\)/)
   assert.match(workspace, /editableDefinition\(\{ \.\.\.result, name: draftName\.current \}\)/)
   assert.match(workspace, /setDefinition\(current => editableDefinition\(\{ \.\.\.current, metrics:/)
   assert.doesNotMatch(workspace, /useState[^\n]*(?:reportDraftName|defaultReportName|randomUUID)/)
+  assert.match(workspace, /const nextName = !weekly && report\?\.report_id/)
+  assert.match(workspace, /setDefinition\(weeklyDefinition\(\{\}, result.history_window\)\)/)
 })
 
 test("report and decision name fields clearly explain renaming and associate their hints accessibly", () => {

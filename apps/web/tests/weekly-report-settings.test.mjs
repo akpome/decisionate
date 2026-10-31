@@ -15,17 +15,29 @@ function load(path, imports = {}) {
 const defaults = load("../features/relationships/defaults.ts")
 const pairs = load("../features/reports/pair-directions.ts")
 const types = load("../features/reports/types.ts", { "./pair-directions": pairs, "@/features/relationships/defaults": defaults })
-const { weeklyDefinition } = load("../features/reports/weekly-settings.ts", { "./types": types })
+const names = load("../features/reports/default-report-name.ts")
+const { weeklyDefinition } = load("../features/reports/weekly-settings.ts", { "./types": types, "./default-report-name": names })
 const metrics = [{ dataset_id: 1, metric_key: "spend", date_column: "date", aggregation: "sum" }, { dataset_id: 2, metric_key: "orders", date_column: "created", aggregation: "sum" }]
 const direction = { metric_a: metrics[0], metric_b: metrics[1], direction: "a_leads_b" }
 
 test("new weekly settings have weekly units and independent same-period defaults", () => {
   const value = weeklyDefinition({ metrics })
+  assert.equal(value.name, "Weekly Business Report")
   assert.equal(value.grain, "weekly")
   assert.equal(value.filters.minimum_observations, 52)
   assert.equal(value.lag.maximum, 12)
   assert.equal(value.pair_directions[0].direction, "same_period")
   assert.equal(types.editableDefinition({}).grain, "daily")
+})
+
+test("weekly copies and reopened settings replace only generated names without changing the source", () => {
+  const generated = "Report (034a3449-983d-4130-8cb4-c6d870713c06)"
+  for (const name of [generated, `Weekly ${generated}`, "Regional sales report"]) {
+    const source = { name, metrics, grain: "weekly" }
+    const value = weeklyDefinition(source)
+    assert.equal(value.name, name === "Regional sales report" ? name : "Weekly Business Report")
+    assert.equal(source.name, name)
+  }
 })
 
 test("copying nonweekly analysis preserves selected evidence but resets timing", () => {
@@ -67,7 +79,7 @@ test("opening a decision directly gives an unsaved weekly report a name and pres
   for (const definition of [null, { name: "", metrics }, { name: "My weekly review", metrics }]) {
     const value = vm.runInNewContext(`(${expression})`, { weekly: true, weeklyDefinition,
       weeklyContext: { definition }, draftName: { current: "Report (unique-test-id)" } })
-    assert.equal(value.name, definition?.name || "Report (unique-test-id)")
+    assert.equal(value.name, definition?.name || "Weekly Business Report")
     assert.equal(value.grain, "weekly")
     if (definition) assert.equal(value.metrics, metrics)
   }
