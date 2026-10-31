@@ -107,8 +107,12 @@ the decision's creation date is never used as its data period or action date.
 The comparison's date column is preselected, but choosing a comparison or a date
 column does not silently replace the decision's period.
 The action's start date is the only date input visible in the main setup.
-Analysis settings contains the outcome date-column override, one shared history
-range and grouping. The comparison date column remains beside its dimension filter.
+The outcome Date column is beside Outcome metric and starts with the decision's
+saved selection. The comparison date column remains beside its dimension filter.
+In Analysis, Analysis settings contains only the shared history range and grouping.
+Weekly Reports has no Analysis settings section in Assess a decision: its report
+week, history window and weekly grouping are automatic. Minimum history requirements
+appear beside the assessment readiness message, outside the settings disclosures.
 Datasets with no overlapping dates are blocked with an explicit message; a wider
 date range cannot invent overlap. Comparisons outside the selected decision period
 are also blocked. Saved snapshots keep their stored date choices.

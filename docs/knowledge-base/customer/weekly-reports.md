@@ -111,6 +111,11 @@ three-year cutoff and ending with the latest completed week. It needs at least
 52 complete weeks before the change and 8 after, plus the other comparison checks.
 This is separate from the email's seven-day KPI totals; it does not attempt to
 estimate a business impact from seven days alone.
+The outcome Date column is beside Outcome metric, preselected from the decision's
+saved evidence. The comparison date column stays beside its dimension filter.
+There is no Analysis settings section in the weekly decision assessment: the week,
+history window and grouping are automatic. Minimum history requirements appear
+beside assessment readiness rather than inside a settings disclosure.
 An impact report keeps its own comparison checks and anomaly detection, but
 does not also run an exploratory correlation or include Relationship findings
 in its preview or email. Choose Explore relationships for those relationships.

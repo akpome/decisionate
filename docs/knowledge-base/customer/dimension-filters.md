@@ -24,8 +24,10 @@ dropdown. Type to filter choices, then select one; search alone does not change
 the selected value. Selecting a different value replaces the current comparison
 value. The decision supplies the outcome; any saved outcome segment is shown
 read-only with a clear control. The comparison's Date column is beside Dimension
-column; changing it preserves the decision's analysis period. Outcome date
-overrides and a deliberate history-range change are under Analysis settings.
+column; changing it preserves the decision's analysis period. The outcome Date
+column is beside Outcome metric and starts with the saved selection. In Analysis,
+deliberate history-range and grouping changes remain under Analysis settings.
+Weekly Reports keeps its dates and weekly grouping automatic, without that section.
 
 ## Empty results and missing values
 

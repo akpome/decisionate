@@ -25,7 +25,11 @@ const definition = {
 const datasets = [1, 2, 3].map(dataset_id => ({ dataset_id, dataset_label: `Store ${dataset_id}`, connector: "csv",
   metrics: [{ metric_key: "orders", label: "Orders", aggregation: "sum" }, { metric_key: "visits", label: "Visits", aggregation: "sum" }],
   date_columns: ["date"], availability: { date: definition.date_range } }))
-const imports = { "./report-metric-picker": { reportDateColumn: source => source.date_columns[0] || "" },
+const picker = load("../features/reports/report-metric-picker.tsx", {
+  "@/app/use-decisionate-language": {}, "@/features/relationships/types": {},
+  "@/features/datasets/components/dimension-filter": {}, "@/components/searchable-select": {},
+})
+const imports = { "./report-metric-picker": picker,
   "./impact-timing": load("../features/reports/impact-timing.tsx") }
 const dimensionProps = new Map()
 const { ImpactBuilder } = load("../features/reports/impact-builder.tsx", {
@@ -98,8 +102,9 @@ test("the impact builder keeps the comparison date column beside its one dimensi
   assert.equal(dimensionProps.get(2).singleValue, true)
   const settings = html.match(/<details[^>]*><summary[^>]*>Analysis settings<\/summary>[\s\S]*?<\/details>/)?.[0]
   assert.match(settings, /History starts/)
-  assert.match(settings, /Store 1 \/ Date column/)
-  assert.doesNotMatch(settings, /Store 2 \/ Date column/)
+  assert.doesNotMatch(settings, /Date column|Minimum history/)
+  const decisionSection = html.match(/<section aria-labelledby="impact-decision-heading"[\s\S]*?<\/section>/)?.[0]
+  assert.match(decisionSection, /Outcome metric[\s\S]*aria-label="Outcome date column"/)
   assert.doesNotMatch(settings, /^<details[^>]*\sopen/)
   const main = html.replace(/<details[\s\S]*?<\/details>/g, "")
   assert.equal((main.match(/type="date"/g) || []).length, 1)
@@ -114,7 +119,7 @@ test("the impact builder keeps the comparison date column beside its one dimensi
 test("the first view starts with one decision choice and does not ask for a comparison prematurely", () => {
   const html = render({ definition: { ...definition, metrics: [], impact: { ...definition.impact, decision_id: null, comparison: null, outcome: null } } })
   assert.match(html, /Which decision are you checking/)
-  assert.doesNotMatch(html, /Comparison dataset|History starts|Other selected results|Date columns and dimension filters/)
+  assert.doesNotMatch(html, /Comparison dataset|History starts|Other selected results|Date column|Minimum history/)
   assert.equal(dimensionProps.size, 0)
   assert.match(html, /Choose the decision you want to check/)
 })
@@ -123,7 +128,8 @@ test("the decision fixes the outcome without adding a second dataset filter pick
   const html = render({ definition: { ...definition, metrics: [outcome], impact: { ...definition.impact, comparison: null } } })
   assert.match(html, /Outcome metric/)
   assert.match(html, /aria-label="Decision data period"/)
-  assert.doesNotMatch(html, /Dimension filter|Date column|3\. Check the analysis/)
+  assert.match(html, /aria-label="Outcome date column"/)
+  assert.doesNotMatch(html, /Dimension filter|3\. Check the analysis/)
   assert.equal(dimensionProps.size, 0)
 })
 
@@ -152,9 +158,56 @@ test("weekly impact setup keeps automatic weekly history and never exposes manua
   assert.match(html, /Report week: 2025-12-22 to 2025-12-28/)
   assert.match(html, /compared week by week/)
   assert.deepEqual([...dimensionProps.keys()], [2])
-  assert.doesNotMatch(html, /History starts|History ends|Compare results by/)
+  assert.doesNotMatch(html, /Analysis settings|History starts|History ends|Compare results by/)
+  assert.equal((html.match(/aria-label="Outcome date column"/g) || []).length, 1)
+  assert.match(html, /role="status"[\s\S]*Minimum history: 52 full weeks before the change and 8 weeks after/)
+  assert.doesNotMatch(html.match(/<section aria-labelledby="impact-history-heading"[\s\S]*?<\/section>/)?.[0], /Minimum history/)
   assert.equal((html.match(/Check this decision/g) || []).length, 1)
   assert.doesNotMatch(html, /Save weekly settings|Save and preview|Save weekly report|Save snapshot/)
+})
+
+test("outcome date restores the saved column beside the metric and changes only that dataset's references", () => {
+  const sources = [{ ...datasets[0], date_columns: ["date", "paid_date"], availability: { date: definition.date_range, paid_date: definition.date_range } }, datasets[1]]
+  const original = { ...definition, metrics: [{ ...outcome, date_column: "paid_date" }, reference(1, "visits"), comparison],
+    dimension_filters: [{ dataset_id: 1, column: "region", values: ["East"] }] }
+  const before = structuredClone(original)
+  const html = render({ definition: original, datasets: sources })
+  assert.match(html, /aria-label="Outcome date column"[\s\S]*?<option value="paid_date" selected="">paid_date/)
+  let patch
+  const tree = ImpactBuilder({ definition: original, datasets: sources, onChange: value => { patch = value } })
+  const find = (node, predicate) => {
+    if (!node || typeof node !== "object") return undefined
+    if (predicate(node)) return node
+    for (const child of React.Children.toArray(node.props?.children)) {
+      const match = find(child, predicate)
+      if (match) return match
+    }
+  }
+  const change = find(tree, node => node.props?.outcomeDate)
+  const select = find(change.props.outcomeDate, node => node.props?.["aria-label"] === "Outcome date column")
+  assert.equal(select.props.value, "paid_date")
+  select.props.onChange({ target: { value: "date" } })
+  assert.deepEqual(Object.keys(patch), ["metrics"])
+  assert.deepEqual(Array.from(patch.metrics, metric => metric.date_column), ["date", "date", "date"])
+  assert.equal(patch.metrics[2], comparison)
+  assert.deepEqual(original, before)
+})
+
+test("unavailable saved outcome dates and sources remain explicit instead of silently selecting another column", () => {
+  const html = render({ definition: { ...definition, metrics: [{ ...outcome, date_column: "removed_date" }, comparison] } })
+  assert.match(html, /aria-label="Outcome date column"[\s\S]*?<option value="removed_date" disabled="" selected="">Selected date unavailable/)
+  const missing = render({ datasets: [datasets[1]] })
+  assert.match(missing, /Dataset 1 is not available yet/)
+  assert.doesNotMatch(missing, /aria-label="Outcome date column"/)
+})
+
+test("history requirements remain visible beside readiness for every analysis grouping", () => {
+  for (const [grain, requirement] of [["daily", "90 days before the change and 28 days after"], ["weekly", "52 full weeks before the change and 8 weeks after"], ["monthly", "24 full months before the change and 6 months after"]]) {
+    const html = render({ definition: { ...definition, grain } }).replace(/<details[\s\S]*?<\/details>/g, "")
+    assert.ok(html.includes(requirement))
+    assert.match(html, /role="status"[\s\S]*Minimum history/)
+    assert.match(html, /The required later periods start after the timing reference date/)
+  }
 })
 
 test("comparison changes preserve the decision period while checking overlap separately", () => {

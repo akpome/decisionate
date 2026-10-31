@@ -340,6 +340,8 @@
         "apps/web/features/datasets/components/dimension-filter.tsx",
         "apps/web/components/searchable-select.tsx",
         "apps/web/features/reports/report-metric-picker.tsx",
+        "apps/web/features/reports/impact-builder.tsx",
+        "apps/web/features/reports/impact-setup.tsx",
         "apps/web/app/dashboard/help/page.tsx"
       ],
       "related": [
@@ -673,6 +675,8 @@
         "apps/api/app/modules/reports/router.py",
         "apps/api/app/modules/reports/weekly.py",
         "apps/web/features/reports/weekly-settings.ts",
+        "apps/web/features/reports/impact-builder.tsx",
+        "apps/web/features/reports/impact-setup.tsx",
         "apps/web/app/dashboard/reports/weekly/page.tsx",
         "apps/api/app/infrastructure/analysis_worker.py"
       ],

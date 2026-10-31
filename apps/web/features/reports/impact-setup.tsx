@@ -9,16 +9,19 @@ import { reportDateColumn } from "./report-metric-picker"
 import { ImpactTiming } from "./impact-timing"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
-export function ImpactChange({ study, datasets, onChange }: {
-  study: ImpactStudy; datasets: CatalogDataset[]; onChange: (patch: Partial<ImpactStudy>) => void
+export function ImpactChange({ study, datasets, onChange, outcomeDate }: {
+  study: ImpactStudy; datasets: CatalogDataset[]; onChange: (patch: Partial<ImpactStudy>) => void; outcomeDate?: ReactNode
 }) {
   const source = datasets.find(dataset => dataset.dataset_id === study.outcome?.dataset_id)
   const metric = source?.metrics.find(metric => metric.metric_key === study.outcome?.metric_key)
   return <div className="min-w-0 space-y-4">
-    <dl className="grid min-w-0 gap-4 bg-gray-50 px-4 py-3 sm:grid-cols-2">
-      <div className="min-w-0"><dt className="text-xs text-gray-600">Recorded action</dt><dd className="mt-1 break-words text-sm font-medium">{study.change || "No action recorded."}</dd></div>
-      <div className="min-w-0"><dt className="text-xs text-gray-600">Outcome metric</dt><dd className="mt-1 break-words text-sm font-medium">{metric?.label || study.outcome?.metric_key || "No result chosen."}</dd>{source && <p className="mt-1 break-words text-xs text-gray-500">{source.dataset_label}</p>}</div>
-    </dl>
+    <div className="grid min-w-0 gap-4 bg-gray-50 px-4 py-3 sm:grid-cols-2">
+      <dl className="min-w-0"><dt className="text-xs text-gray-600">Recorded action</dt><dd className="mt-1 break-words text-sm font-medium">{study.change || "No action recorded."}</dd></dl>
+      <div className={`grid min-w-0 gap-4 ${outcomeDate ? "md:grid-cols-2" : ""}`}>
+        <dl className="min-w-0"><dt className="text-xs text-gray-600">Outcome metric</dt><dd className="mt-1 break-words text-sm font-medium">{metric?.label || study.outcome?.metric_key || "No result chosen."}</dd>{source && <dd className="mt-1 break-words text-xs text-gray-500">{source.dataset_label}</dd>}</dl>
+        {outcomeDate}
+      </div>
+    </div>
     {study.decision_id && <Link className="inline-flex min-h-10 items-center text-sm text-blue-700 underline" href={`/dashboard/decisions/${study.decision_id}#decision-title`}>Edit the action or result in Decision Details</Link>}
     <div className="grid min-w-0 gap-4 sm:grid-cols-2">
       <label className="min-w-0 text-sm font-medium">When did you implement the change?<input className={input} required type="date" value={study.change_date} onChange={event => onChange({ change_date: event.target.value })} /></label>
