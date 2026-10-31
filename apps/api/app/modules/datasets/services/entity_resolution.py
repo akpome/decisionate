@@ -3,18 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import unicodedata
 from collections import defaultdict
 
 import pandas as pd
-
-from app.modules.datasets.services.numeric import (
-    coerce_numeric_series,
-    get_numeric_columns,
-    is_identifier_column,
-)
 
 
 ENTITY_FIELD_DEFINITIONS = {
@@ -156,6 +149,7 @@ def build_entity_resolution(
     dataset_frames: list[tuple[object, pd.DataFrame]],
     entity_type: str,
     key_columns: dict[str, list[str]] | None = None,
+    approved_match_keys: list[str] | None = None,
 ) -> dict:
     """Build deterministic exact-match groups without calling an LLM."""
     records = []
@@ -205,26 +199,43 @@ def build_entity_resolution(
             index = parent[index]
         return index
 
-    def union(left: int, right: int) -> None:
+    strengths = [1.0] * len(records)
+
+    def union(left: int, right: int, strength: float) -> None:
         left_root = find(left)
         right_root = find(right)
         if left_root != right_root:
             parent[right_root] = left_root
+            strengths[left_root] = min(strengths[left_root], strengths[right_root], strength)
 
-    first_by_key: dict[str, int] = {}
+    by_key: defaultdict[str, list[int]] = defaultdict(list)
     for index, record in enumerate(records):
         for key in record["keys"]:
-            previous = first_by_key.get(key)
-            if previous is None:
-                first_by_key[key] = index
-            else:
-                union(index, previous)
+            by_key[key].append(index)
+    # Strong shared keys join first. A name bridge must not inherit the
+    # confidence of an unrelated email or a source-local customer ID.
+    def key_strength(key):
+        kind = key.split(":", 1)[0]
+        return 0.8 if kind == "identifier" else FIELD_WEIGHTS[kind][1]
+
+    for key in sorted(by_key, key=lambda key: (-key_strength(key), key)):
+        indexes = by_key[key]
+        for index in indexes[1:]:
+            local_identifier = key.startswith("identifier:") and records[indexes[0]]["dataset_id"] == records[index]["dataset_id"]
+            union(indexes[0], index, 1.0 if local_identifier else key_strength(key))
 
     grouped: defaultdict[int, list[dict]] = defaultdict(list)
+    record_indexes = {}
     for index, record in enumerate(records):
         grouped[find(index)].append(record)
+        record_indexes[(record["dataset_id"], record["row_number"])] = index
 
     entities = []
+    def identity_key(members):
+        values = sorted({key for member in members for key in member["keys"]})
+        values += sorted({f"source:{member['dataset_id']}" for member in members})
+        return f"{entity_type}:" + hashlib.sha256("|".join(values).encode()).hexdigest()[:24]
+
     for members in sorted(
         grouped.values(),
         key=lambda group: (
@@ -234,7 +245,8 @@ def build_entity_resolution(
         ),
     ):
         keys = sorted({key for member in members for key in member["keys"]})
-        digest = hashlib.sha256("|".join(keys).encode("utf-8")).hexdigest()[:24]
+        signature = "|".join(keys + sorted(f"{m['dataset_id']}:{m['source_row_key']}" for m in members))
+        digest = hashlib.sha256(signature.encode("utf-8")).hexdigest()[:24]
         primary = max(
             members,
             key=lambda member: (
@@ -242,12 +254,10 @@ def build_entity_resolution(
                 -int(member["dataset_id"]),
             ),
         )
-        confidence = min(
-            FIELD_WEIGHTS[member["primary"]["kind"]][1]
-            for member in members
-        )
+        confidence = strengths[find(record_indexes[(members[0]["dataset_id"], members[0]["row_number"])])]
         entities.append({
-            "canonical_key": f"{entity_type}:{digest}",
+            "canonical_key": identity_key(members),
+            "review_key": digest,
             "display_name": primary["display_name"],
             "keys": keys,
             "confidence": confidence,
@@ -255,6 +265,45 @@ def build_entity_resolution(
             "match_count": len(members),
             "records": members,
         })
+
+    review_groups = [entity for entity in entities if entity["match_count"] > 1 and entity["confidence"] < 0.99]
+    if approved_match_keys is not None:
+        approved = set(approved_match_keys).intersection(entity["review_key"] for entity in review_groups[:100] if entity["match_count"] <= 20)
+        review_keys = {entity["canonical_key"] for entity in review_groups}
+        resolved = []
+        for entity in entities:
+            if entity["canonical_key"] not in review_keys or entity["review_key"] in approved:
+                entity["confirmed"] = entity["review_key"] in approved
+                resolved.append(entity)
+                continue
+            # Remove weak bridges, preserving independently verified links.
+            indexes = [record_indexes[(member["dataset_id"], member["row_number"])] for member in entity["records"]]
+            for index in indexes:
+                parent[index], strengths[index] = index, 1.0
+            safe_keys = {}
+            for index in indexes:
+                member = records[index]
+                for key in member["keys"]:
+                    kind = key.split(":", 1)[0]
+                    scoped_key = f"{member['dataset_id']}:{key}" if kind == "identifier" else key
+                    if kind not in {"email", "sku", "identifier"}:
+                        continue
+                    if scoped_key in safe_keys:
+                        union(index, safe_keys[scoped_key], 1.0)
+                    else:
+                        safe_keys[scoped_key] = index
+            safe_groups: defaultdict[int, list[dict]] = defaultdict(list)
+            for member in entity["records"]:
+                safe_groups[find(record_indexes[(member["dataset_id"], member["row_number"])])].append(member)
+            for members in safe_groups.values():
+                key = identity_key(members)
+                if len(members) == 1:
+                    key += f":row:{members[0]['row_number']}"
+                resolved.append({**entity, "canonical_key": key, "confirmed": False,
+                                 "keys": sorted({value for member in members for value in member["keys"]}),
+                                 "display_name": members[0]["display_name"], "confidence": 1.0 if len(members) > 1 else 0.0,
+                                 "records": members, "source_count": len({member["dataset_id"] for member in members}), "match_count": len(members)})
+        entities = resolved
 
     matched_row_count = sum(
         entity["match_count"]
@@ -274,6 +323,12 @@ def build_entity_resolution(
             total_candidate_rows - matched_row_count,
         ),
         "entities": entities,
+        "review_groups": [{"canonical_key": entity["canonical_key"], "review_key": entity["review_key"], "display_name": entity["display_name"],
+                           "confidence": entity["confidence"], "match_count": entity["match_count"],
+                           "sources": [{"dataset_id": member["dataset_id"], "file_name": member["file_name"],
+                                        "row": member["row_number"] + 1, "keys": member["keys"]}
+                                       for member in entity["records"][:20]]} for entity in review_groups[:100]],
+        "review_group_count": len(review_groups),
     }
 
 
@@ -283,176 +338,3 @@ def confidence_bucket(value: float) -> str:
     if value >= 0.9:
         return "medium"
     return "review"
-
-
-def build_unified_entity_dataframe(
-    dataset_frames: list[tuple[object, pd.DataFrame]],
-    resolution: dict,
-    canonical_entity_ids: dict[str, int] | None = None,
-    metric_columns_by_dataset: dict[str, list[str]] | None = None,
-) -> pd.DataFrame:
-    """Build one persistent analytical row for each resolved entity.
-
-    Source rows are grouped by canonical identity. Numeric non-identifier
-    fields are summed across sources, while descriptive fields retain the
-    first available value. Source lineage remains available in the output and
-    the full row-level mapping remains in ``EntityIdentity``.
-    """
-    frames_by_dataset_id = {
-        int(dataset.id): (dataset, dataframe)
-        for dataset, dataframe in dataset_frames
-    }
-    source_columns: list[str] = []
-    numeric_series_by_dataset: dict[int, dict[str, pd.Series]] = {}
-    selected_columns_by_dataset: dict[int, list[tuple[object, str]]] = {}
-
-    for dataset, dataframe in dataset_frames:
-        dataset_key = str(dataset.id)
-        requested_columns = (
-            metric_columns_by_dataset[dataset_key]
-            if metric_columns_by_dataset is not None
-            and dataset_key in metric_columns_by_dataset
-            else None
-        )
-        column_lookup = {
-            str(column): column
-            for column in dataframe.columns
-        }
-        if requested_columns is None:
-            selected_columns = [
-                (column, str(column))
-                for column, _series in get_numeric_columns(dataframe)
-                if not is_identifier_column(column)
-            ]
-        else:
-            selected_columns = []
-            for requested in requested_columns:
-                actual = column_lookup.get(str(requested))
-                if actual is None:
-                    continue
-                if all(
-                    str(actual) != selected_name
-                    for _selected, selected_name in selected_columns
-                ):
-                    selected_columns.append((actual, str(actual)))
-
-        selected_columns_by_dataset[int(dataset.id)] = selected_columns
-        for _column, column_name in selected_columns:
-            if column_name not in source_columns:
-                source_columns.append(column_name)
-
-        numeric_series: dict[str, pd.Series] = {}
-        numeric_columns = {
-            str(column): series
-            for column, series in get_numeric_columns(dataframe)
-        }
-        for _column, column_name in selected_columns:
-            series = numeric_columns.get(column_name)
-            if series is None:
-                continue
-            if is_identifier_column(column_name):
-                continue
-            numeric_series[column_name] = coerce_numeric_series(series)
-        numeric_series_by_dataset[int(dataset.id)] = numeric_series
-
-    metadata_columns = {
-        "canonical_entity_id",
-        "canonical_entity_key",
-        "entity_type",
-        "canonical_name",
-        "match_confidence",
-        "source_count",
-        "source_record_count",
-        "source_dataset_ids",
-        "source_datasets",
-        "source_types",
-        "source_records",
-    }
-    source_column_aliases = {
-        column: (
-            f"source_{column}"
-            if column in metadata_columns
-            else column
-        )
-        for column in source_columns
-    }
-
-    rows: list[dict] = []
-    id_lookup = canonical_entity_ids or {}
-    for entity in resolution.get("entities", []):
-        members = entity.get("records") or []
-        source_dataset_ids = sorted({
-            int(member["dataset_id"])
-            for member in members
-            if member.get("dataset_id") is not None
-        })
-        source_datasets = []
-        source_types = []
-        source_records = []
-        first_values: dict[str, object] = {}
-        numeric_totals: dict[str, float] = {}
-
-        for member in members:
-            dataset_id = int(member["dataset_id"])
-            dataset_entry = frames_by_dataset_id.get(dataset_id)
-            if not dataset_entry:
-                continue
-            dataset, dataframe = dataset_entry
-            row_number = int(member["row_number"])
-            if row_number < 0 or row_number >= len(dataframe):
-                continue
-
-            source_type = str(dataset.source_type or "csv")
-            source_datasets.append(str(dataset.file_name))
-            source_types.append(source_type)
-            if len(source_records) < 100:
-                source_records.append({
-                    "dataset_id": dataset_id,
-                    "file_name": str(dataset.file_name),
-                    "source_type": source_type,
-                    "row": row_number + 1,
-                    "source_row_key": str(member.get("source_row_key") or row_number),
-                })
-
-            row = dataframe.iloc[row_number]
-            numeric_series = numeric_series_by_dataset.get(dataset_id, {})
-            for column, column_name in selected_columns_by_dataset.get(
-                dataset_id,
-                [],
-            ):
-                output_column = source_column_aliases[column_name]
-                if column_name in numeric_series:
-                    value = numeric_series[column_name].iloc[row_number]
-                    if pd.notna(value):
-                        numeric_totals[output_column] = (
-                            numeric_totals.get(output_column, 0.0)
-                            + float(value)
-                        )
-                    continue
-                if output_column in first_values:
-                    continue
-                value = row.get(column)
-                if value is None or pd.isna(value):
-                    continue
-                if not str(value).strip():
-                    continue
-                first_values[output_column] = value
-
-        row = {
-            "canonical_entity_id": id_lookup.get(entity["canonical_key"]),
-            "canonical_entity_key": entity["canonical_key"],
-            "entity_type": resolution.get("entity_type"),
-            "canonical_name": entity.get("display_name"),
-            "match_confidence": entity.get("confidence"),
-            "source_count": len(source_dataset_ids),
-            "source_record_count": len(members),
-            "source_dataset_ids": json.dumps(source_dataset_ids),
-            "source_datasets": ", ".join(sorted(set(source_datasets))),
-            "source_types": ", ".join(sorted(set(source_types))),
-            "source_records": json.dumps(source_records, sort_keys=True),
-        }
-        row.update(first_values)
-        row.update(numeric_totals)
-        rows.append(row)
-
-    return pd.DataFrame(rows)

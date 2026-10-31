@@ -52,6 +52,10 @@ def _weighted_state(dataframe, entry):
 
 
 def aggregate_metric(dataframe, entry):
+    if entry.get("source_dataset_id") and "source_dataset_id" in dataframe:
+        dataframe = dataframe.loc[dataframe["source_dataset_id"].eq(entry["source_dataset_id"])]
+        if dataframe.empty:
+            return None
     operation = entry.get("operation")
     if operation == "count_distinct":
         return float(len(_members(dataframe, entry)))
@@ -69,6 +73,12 @@ def aggregate_metric(dataframe, entry):
     if entry["aggregation"] == "AVG":
         count = sum(state["count"] for state in states)
         return sum(state["sum"] for state in states) / count if count else None
+    if entry["aggregation"] == "MIN":
+        return min(state["min"] for state in states)
+    if entry["aggregation"] == "MAX":
+        return max(state["max"] for state in states)
+    if entry["aggregation"] == "COUNT":
+        return sum(state["count"] for state in states)
     return sum(state["sum"] for state in states)
 
 

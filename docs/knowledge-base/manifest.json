@@ -953,6 +953,7 @@
         "apps/web/app/dashboard/help/page.tsx",
         "apps/api/app/modules/datasets/services/joins.py",
         "apps/api/app/modules/datasets/services/entity_resolution.py",
+        "apps/api/app/modules/datasets/services/entity_history.py",
         "apps/web/app/dashboard/entity-matching/page.tsx"
       ],
       "related": [

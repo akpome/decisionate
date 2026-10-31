@@ -52,8 +52,11 @@ def load_dataframe_from_dataset(
     dataset,
     apply_metric_selection: bool = True,
 ):
+    config = parse_dataset_source_config(dataset)
+    if apply_metric_selection and getattr(dataset, "source_type", None) == "entity_matching" and not config.get("entity_history"):
+        from app.modules.datasets.services.entity_history import LEGACY_SUMMARY_MESSAGE
+        raise HTTPException(status_code=422, detail=LEGACY_SUMMARY_MESSAGE)
     try:
-        config = parse_dataset_source_config(dataset)
         source_type = str(getattr(dataset, "source_type", "") or "").strip().lower()
         if apply_metric_selection and receipt_metric_columns(source_type, config, ()) is not None:
             dataframe = load_dataset_dataframe(
@@ -68,6 +71,10 @@ def load_dataframe_from_dataset(
                 dataframe, source_type, config.get("resource") or config.get("resource_type"),
             )
             dataframe = normalize_connector_dataframe_dates(dataframe)
+        if source_type == "entity_matching" and config.get("entity_history"):
+            from copy import deepcopy
+            from app.modules.datasets.services.metric_policy import FRAME_POLICY_KEY
+            dataframe.attrs[FRAME_POLICY_KEY] = deepcopy(config["entity_history"]["policy"])
         if apply_metric_selection:
             return filter_dataframe_to_selected_metrics(
                 dataset,

@@ -103,6 +103,7 @@ def build_dataset_source_metadata(
             if entity_type == "product"
             else "Unified entities"
         )
+        source_label = source_label.replace("Unified", "Linked") if source_config.get("entity_history") else f"{source_label} (legacy summary; rebuild for analysis)"
     elif source_type == "joined":
         source_label = "Joined dataset"
 

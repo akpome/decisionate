@@ -277,6 +277,9 @@ export type EntityMatchingPayload = {
   entity_type: EntityType
   key_columns?: Record<string, string[]>
   metric_columns?: Record<string, string[]>
+  date_columns?: Record<string, string>
+  approved_match_keys?: string[]
+  include_summary?: boolean
   replace_existing?: boolean
 }
 
@@ -287,6 +290,8 @@ export type EntityMatchingDatasetMetadata = {
   default_key_columns: string[]
   metric_columns: string[]
   default_metric_columns: string[]
+  date_columns: string[]
+  default_date_column: string | null
 }
 
 export type EntityMatchingMetadata = {
@@ -295,6 +300,7 @@ export type EntityMatchingMetadata = {
 }
 
 export type EntityMatchingPreview = {
+  output_format: "linked_history"
   entity_type: EntityType
   datasets: Array<{
     dataset_id: number
@@ -307,6 +313,15 @@ export type EntityMatchingPreview = {
   matched_group_count: number
   matched_row_count: number
   unmatched_row_count: number
+  review_group_count: number
+  review_groups: Array<{
+    canonical_key: string
+    review_key: string
+    display_name: string
+    confidence: number
+    match_count: number
+    sources: Array<{ dataset_id: number; file_name: string; row: number; keys: string[] }>
+  }>
 }
 
 export type EntityMatchingRun = {
@@ -320,6 +335,10 @@ export type EntityMatchingRun = {
   unified_dataset_id?: number
   unified_dataset_name?: string
   unified_dataset_row_count?: number
+  warnings: string[]
+  summary: Array<{ canonical_key: string; name: string; metrics: Array<{
+    label: string; value: number; aggregation: string; unit: string; currency: string | null
+  }> }>
   entities: Array<{
     id: number
     canonical_key: string
@@ -327,6 +346,7 @@ export type EntityMatchingRun = {
     confidence: number
     source_count: number
     match_count: number
+    confirmed?: boolean
     sources: Array<{
       dataset_id: number
       file_name: string

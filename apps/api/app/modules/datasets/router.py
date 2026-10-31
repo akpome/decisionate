@@ -117,6 +117,7 @@ from app.modules.datasets.services.numeric import (
     is_identifier_column,
 )
 from app.modules.datasets.services.metric_selection import (
+    parse_dataset_source_config,
     DATASET_METRIC_DECISIONS_KEY,
     DATASET_METRIC_OBJECTIVE_KEY,
     DATASET_SELECTED_METRICS_KEY,
@@ -190,10 +191,10 @@ from app.modules.datasets.services.multi_metric_analysis import (
 )
 from app.modules.datasets.services.entity_resolution import (
     build_entity_resolution,
-    build_unified_entity_dataframe,
     confidence_bucket,
     infer_entity_columns,
 )
+from app.modules.datasets.services.entity_history import build_linked_entity_history, summarize_linked_entities
 from app.modules.datasets.services.source_metadata import (
     build_connector_dataset_filename,
     build_dataset_source_metadata,
@@ -1294,6 +1295,16 @@ def cleanup_deleted_entity_matching_records(
     entity_type = source_config.get("entity_type")
     if entity_type not in {"customer", "product"}:
         return
+
+    # Multiple linked snapshots can share identities. Deleting an old summary
+    # must not remove the identities used by another retained dataset.
+    for remaining in db.query(Dataset).filter(
+        Dataset.workspace_id == dataset.workspace_id,
+        Dataset.source_type == "entity_matching",
+        Dataset.id != dataset.id,
+    ).all():
+        if parse_dataset_source_config(remaining).get("entity_type") == entity_type:
+            return
 
     db.query(EntityIdentity).filter(
         EntityIdentity.workspace_id == dataset.workspace_id,
@@ -4046,12 +4057,9 @@ def _load_entity_matching_frames(
 ):
     frames = []
     for dataset_id in list(dict.fromkeys(dataset_ids)):
-        dataset, dataframe = load_dataframe(
-            db,
-            dataset_id,
-            apply_metric_selection=False,
-        )
+        dataset = load_dataset(db, dataset_id)
         verify_dataset_owner(dataset, user_id, workspace_id)
+        dataframe = load_dataframe_from_dataset(dataset, apply_metric_selection=False)
         if dataset.source_type == "entity_matching":
             raise ValueError(
                 "Unified entity datasets cannot be used as matching inputs"
@@ -4064,6 +4072,7 @@ def _find_entity_matching_dataset(
     db,
     workspace_id: str,
     entity_type: str,
+    dataset_ids: list[int],
 ):
     candidates = (
         db.query(Dataset)
@@ -4079,7 +4088,8 @@ def _find_entity_matching_dataset(
             source_config = json.loads(dataset.source_config or "{}")
         except (TypeError, json.JSONDecodeError):
             source_config = {}
-        if source_config.get("entity_type") == entity_type:
+        if (source_config.get("entity_type") == entity_type and source_config.get("entity_history")
+                and set(source_config.get("derived_from_dataset_ids", [])) == set(dataset_ids)):
             return dataset
     return None
 
@@ -4193,12 +4203,9 @@ async def get_entity_matching_metadata(
     try:
         metadata = []
         for dataset_id in clean_dataset_ids:
-            dataset, dataframe = load_dataframe(
-                db,
-                dataset_id,
-                apply_metric_selection=False,
-            )
+            dataset = load_dataset(db, dataset_id)
             verify_dataset_owner(dataset, user_id, workspace_id)
+            dataframe = load_dataframe_from_dataset(dataset, apply_metric_selection=False)
             if dataset.source_type == "entity_matching":
                 raise HTTPException(
                     status_code=400,
@@ -4208,6 +4215,8 @@ async def get_entity_matching_metadata(
                 dataframe,
                 entity_type,
             )
+            profile = build_metric_selection_profile(dataset, dataframe)
+            date_columns = [field["column"] for field in profile["fields"] if field["role"] == "time"]
             default_key_columns = [
                 field["column"]
                 for field in default_fields
@@ -4232,6 +4241,8 @@ async def get_entity_matching_metadata(
                 "default_key_columns": default_key_columns,
                 "metric_columns": available_metric_columns,
                 "default_metric_columns": default_metric_columns,
+                "date_columns": date_columns,
+                "default_date_column": next(iter(date_columns), None),
             })
 
         return {
@@ -4329,12 +4340,14 @@ async def run_entity_matching(
             frames,
             payload.entity_type,
             resolved_key_columns,
+            payload.approved_match_keys,
         )
         existing_unified_dataset = (
             _find_entity_matching_dataset(
                 db,
                 workspace_id,
                 payload.entity_type,
+                payload.dataset_ids,
             )
             if payload.replace_existing
             else None
@@ -4345,21 +4358,21 @@ async def run_entity_matching(
             else None
         )
 
-        if payload.replace_existing:
-            db.query(EntityIdentity).filter(
-                EntityIdentity.workspace_id == workspace_id,
-                EntityIdentity.entity_type == payload.entity_type,
-            ).delete(synchronize_session=False)
-            db.query(CanonicalEntity).filter(
-                CanonicalEntity.workspace_id == workspace_id,
-                CanonicalEntity.entity_type == payload.entity_type,
-            ).delete(synchronize_session=False)
+        db.query(EntityIdentity).filter(
+            EntityIdentity.workspace_id == workspace_id,
+            EntityIdentity.entity_type == payload.entity_type,
+            EntityIdentity.dataset_id.in_(payload.dataset_ids),
+        ).delete(synchronize_session=False)
+        existing_entities = {entity.canonical_key: entity for entity in db.query(CanonicalEntity).filter(
+            CanonicalEntity.workspace_id == workspace_id,
+            CanonicalEntity.entity_type == payload.entity_type,
+        ).all()}
 
         confidence_breakdown = {"high": 0, "medium": 0, "review": 0}
         response_entities = []
         canonical_entity_ids = {}
         for entity in result["entities"]:
-            canonical = CanonicalEntity(
+            canonical = existing_entities.get(entity["canonical_key"]) or CanonicalEntity(
                 workspace_id=workspace_id,
                 user_id=user_id,
                 entity_type=payload.entity_type,
@@ -4373,6 +4386,10 @@ async def run_entity_matching(
                 updated_at=utc_now(),
             )
             db.add(canonical)
+            canonical.source_count = entity["source_count"]
+            canonical.match_count = entity["match_count"]
+            canonical.confidence = entity["confidence"]
+            canonical.updated_at = utc_now()
             db.flush()
             canonical_entity_ids[entity["canonical_key"]] = canonical.id
             confidence_breakdown[confidence_bucket(entity["confidence"])] += 1
@@ -4392,7 +4409,7 @@ async def run_entity_matching(
                     source_value=primary["value"],
                     match_method=primary["kind"],
                     confidence=entity["confidence"],
-                    reviewed=False,
+                    reviewed=entity.get("confirmed", False),
                     created_at=utc_now(),
                 ))
                 source_rows.append({
@@ -4411,16 +4428,19 @@ async def run_entity_matching(
                 "confidence": entity["confidence"],
                 "source_count": entity["source_count"],
                 "match_count": entity["match_count"],
+                "confirmed": entity.get("confirmed", False),
                 "sources": source_rows[:10],
             })
 
-        unified_dataframe = await asyncio.to_thread(
-            build_unified_entity_dataframe,
+        unified_dataframe, history_contract, warnings = await asyncio.to_thread(
+            build_linked_entity_history,
             frames,
             result,
             canonical_entity_ids,
             resolved_metric_columns,
+            payload.date_columns,
         )
+        summary = await asyncio.to_thread(summarize_linked_entities, unified_dataframe) if payload.include_summary else []
         (
             stored_file_path,
             storage_provider,
@@ -4437,6 +4457,9 @@ async def run_entity_matching(
                 "derived_from_dataset_ids": payload.dataset_ids,
                 "key_columns": resolved_key_columns,
                 "metric_columns": resolved_metric_columns,
+                "date_columns": history_contract["date_columns"],
+                "entity_history": history_contract,
+                "selected_metric_columns": history_contract["policy"]["selected"],
                 "canonical_entity_count": len(response_entities),
                 "matched_row_count": result["matched_row_count"],
                 "unmatched_row_count": result["unmatched_row_count"],
@@ -4445,9 +4468,10 @@ async def run_entity_matching(
             },
             sort_keys=True,
         )
+        linked_file_name = f"linked-{payload.entity_type}s-{'-'.join(str(value) for value in sorted(payload.dataset_ids))}.parquet"
         if existing_unified_dataset:
             unified_dataset = existing_unified_dataset
-            unified_dataset.file_name = f"unified-{payload.entity_type}s.parquet"
+            unified_dataset.file_name = linked_file_name
             unified_dataset.file_path = stored_file_path
             unified_dataset.storage_provider = storage_provider
             unified_dataset.source_config = unified_source_config
@@ -4459,7 +4483,7 @@ async def run_entity_matching(
                 workspace_id=workspace_id,
                 source_type="entity_matching",
                 source_config=unified_source_config,
-                file_name=f"unified-{payload.entity_type}s.parquet",
+                file_name=linked_file_name,
                 file_path=stored_file_path,
                 storage_provider=storage_provider,
                 row_count=len(unified_dataframe),
@@ -4481,7 +4505,7 @@ async def run_entity_matching(
             "entity_type": payload.entity_type,
             "dataset_count": len(frames),
             "source_row_count": sum(
-                int(dataset.row_count or 0) for dataset, _ in frames
+                len(frame) for _, frame in frames
             ),
             "matched_row_count": result["matched_row_count"],
             "unmatched_row_count": result["unmatched_row_count"],
@@ -4491,6 +4515,8 @@ async def run_entity_matching(
             "unified_dataset_id": unified_dataset.id,
             "unified_dataset_name": unified_dataset.file_name,
             "unified_dataset_row_count": unified_dataset.row_count,
+            "summary": summary,
+            "warnings": warnings,
         }
     except ValueError as error:
         db.rollback()

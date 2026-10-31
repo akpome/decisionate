@@ -206,6 +206,9 @@ class EntityMatchingRequest(BaseModel):
     entity_type: EntityType
     key_columns: Dict[str, List[str]] = Field(default_factory=dict)
     metric_columns: Dict[str, List[str]] = Field(default_factory=dict)
+    date_columns: Dict[str, str] = Field(default_factory=dict)
+    approved_match_keys: List[str] = Field(default_factory=list, max_length=100)
+    include_summary: bool = False
     replace_existing: bool = True
 
 
@@ -216,6 +219,8 @@ class EntityMatchingDatasetMetadata(BaseModel):
     default_key_columns: List[str]
     metric_columns: List[str]
     default_metric_columns: List[str]
+    date_columns: List[str] = Field(default_factory=list)
+    default_date_column: str | None = None
 
 
 class EntityMatchingMetadataResponse(BaseModel):
@@ -224,12 +229,15 @@ class EntityMatchingMetadataResponse(BaseModel):
 
 
 class EntityMatchingPreviewResponse(BaseModel):
+    output_format: Literal["linked_history"] = "linked_history"
     entity_type: EntityType
     datasets: list[dict]
     candidate_row_count: int
     matched_group_count: int
     matched_row_count: int
     unmatched_row_count: int
+    review_groups: list[dict] = Field(default_factory=list)
+    review_group_count: int = 0
 
 
 class EntityMatchingRunResponse(BaseModel):
@@ -244,6 +252,8 @@ class EntityMatchingRunResponse(BaseModel):
     unified_dataset_name: str | None = None
     unified_dataset_row_count: int | None = None
     entities: list[dict]
+    summary: list[dict] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class DataSourceConnectionCreate(BaseModel):

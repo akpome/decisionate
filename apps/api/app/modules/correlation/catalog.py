@@ -23,6 +23,12 @@ def reporting_timezone():
 
 
 def metric_catalog(dataset, frame):
+    if dataset.source_type == "entity_matching" and not config_for(dataset).get("entity_history"):
+        from app.modules.datasets.services.entity_history import LEGACY_SUMMARY_MESSAGE
+        return {"dataset_id": dataset.id, "dataset_label": dataset.file_name, "connector": dataset.source_type,
+                "date_columns": [], "availability": {}, "metrics": [],
+                "metric_issues": [{"code": "entity_history_required", "message": LEGACY_SUMMARY_MESSAGE}],
+                "freshness": None, "timezone": reporting_timezone()}
     profile = build_metric_selection_profile(dataset, frame)
     dates = [field["column"] for field in profile["fields"] if field["role"] == "time" and field["column"] in frame]
     saved_selection = get_dataset_selected_metric_columns(dataset)
@@ -75,7 +81,7 @@ def metric_catalog(dataset, frame):
             issues.append({"metric_key": key, "code": "insufficient_values"})
             continue
         metrics.append({
-            "dataset_id": dataset.id, "metric_key": key, "label": key.replace("_", " "),
+            "dataset_id": dataset.id, "metric_key": key, "label": descriptor.get("label", key.replace("_", " ")) if descriptor else key.replace("_", " "),
             "aggregation": aggregation, "unit": unit, "currency": currency,
             "components": components, "definition": field["reason"], "native_grain": "monthly" if is_summary_dataframe(frame) else "daily",
             "missing_fraction": float(values.isna().mean()), "constant": values.nunique() < 2,

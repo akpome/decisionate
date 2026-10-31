@@ -275,6 +275,9 @@ def build_metric_selection_profile(
     )
     source_type = _dataset_source_type(dataset)
     source_config = parse_dataset_source_config(dataset)
+    if source_type == "entity_matching" and source_config.get("entity_history"):
+        from app.modules.datasets.services.entity_history import entity_history_profile
+        return entity_history_profile(dataframe, source_config["entity_history"])
     saved_decisions = _saved_metric_decisions(dataset)
     row_count = len(dataframe)
     is_small_dataset = (
@@ -874,6 +877,22 @@ def filter_dataframe_to_selected_metrics(
 ) -> pd.DataFrame:
     if not isinstance(dataframe, pd.DataFrame):
         return dataframe
+
+    config = parse_dataset_source_config(dataset)
+    if _dataset_source_type(dataset) == "entity_matching" and config.get("entity_history"):
+        from copy import deepcopy
+        from app.modules.datasets.services.metric_policy import FRAME_POLICY_KEY
+        policy = deepcopy(config["entity_history"]["policy"])
+        requested = get_dataset_selected_metric_columns(dataset)
+        policy["selected"] = [key for key in policy["selected"] if requested is None or key in requested]
+        required = set(policy["selected"])
+        for key in policy["selected"]:
+            required.update(policy["descriptors"][key].get("components", []))
+        dimensions = {field["column"] for field in config["entity_history"]["fields"]
+                      if field["role"] in {"time", "dimension", "identifier"}}
+        result = dataframe.loc[:, [column for column in dataframe if column in required | dimensions]].copy()
+        result.attrs[FRAME_POLICY_KEY] = policy
+        return result
 
     if uses_curated_selection(dataset):
         from app.modules.datasets.services.curated_metric_analytics import prepare_curated_dataframe

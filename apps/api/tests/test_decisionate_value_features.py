@@ -11,8 +11,8 @@ from app.modules.datasets.services.deduplication import (
 )
 from app.modules.datasets.services.entity_resolution import (
     build_entity_resolution,
-    build_unified_entity_dataframe,
 )
+from app.modules.datasets.services.entity_history import build_linked_entity_history
 from app.modules.decisions.outcome_measurement import measure_decision_metric
 
 
@@ -71,7 +71,7 @@ class DecisionateValueFeatureTests(unittest.TestCase):
         self.assertEqual(result["matched_group_count"], 1)
         self.assertEqual(result["entities"][0]["source_count"], 2)
 
-    def test_entity_matches_create_unified_rows_with_aggregated_metrics(self):
+    def test_entity_matches_preserve_separate_source_rows(self):
         first = SimpleNamespace(
             id=1,
             source_type="square",
@@ -101,21 +101,19 @@ class DecisionateValueFeatureTests(unittest.TestCase):
         result = build_entity_resolution(frames, "customer")
         entity_id = 42
 
-        unified = build_unified_entity_dataframe(
+        unified, _, _ = build_linked_entity_history(
             frames,
             result,
             {result["entities"][0]["canonical_key"]: entity_id},
+            {"1": ["total_amount"], "2": ["total_amount"]},
+            {},
         )
 
-        self.assertEqual(len(unified), 1)
-        self.assertEqual(unified.loc[0, "canonical_entity_id"], entity_id)
-        self.assertEqual(unified.loc[0, "source_count"], 2)
-        self.assertEqual(unified.loc[0, "source_record_count"], 2)
-        self.assertEqual(unified.loc[0, "total_amount"], 20.0)
-        self.assertEqual(
-            unified.loc[0, "source_datasets"],
-            "shopify-orders.parquet, square-orders.parquet",
-        )
+        self.assertEqual(len(unified), 2)
+        self.assertEqual(unified.loc[0, "canonical_entity_id"], str(entity_id))
+        self.assertEqual(unified.loc[0, "source_1__total_amount"], 12.5)
+        self.assertEqual(unified.loc[1, "source_2__total_amount"], 7.5)
+        self.assertNotIn("total_amount", unified)
 
     def test_recommendations_are_prioritized_and_explained(self):
         ranked = prioritize_recommendations(

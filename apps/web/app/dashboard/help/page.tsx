@@ -79,6 +79,11 @@ const gettingStartedItems = [
 
 const faqItems = [
   {
+    question: "Does Entity Matching create an analysis dataset?",
+    answer:
+      "Yes. Preview matches, confirm uncertain links, then Save linked history. Each source row and its date are retained, including unmatched rows, and source metrics remain separate. Original datasets are unchanged. The output is a snapshot; rerun matching for updated source data. Include entity summary by source adds an optional summary without replacing history. Older unified datasets are legacy summaries and must be rebuilt from original records before analysis. Matching is optional and does not prove causation or remove duplicate transactions across systems.",
+  },
+  {
     question: "What is Decisionate for?",
     answer:
       "Decisionate brings evidence from different business datasets together to support decisions, outcomes, and lessons learned. Use cross-dataset reports to explore how activity in one source relates to results in another; dashboards provide supporting KPIs and charts.",
