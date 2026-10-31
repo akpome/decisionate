@@ -1,8 +1,10 @@
 import Link from "next/link"
-import { ArrowUpRight } from "lucide-react"
+import { ArrowUpRight, Plus } from "lucide-react"
 import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
 import { decisionEvidenceHref } from "@/features/decisions/lib/report-metric-scope"
 import type { BusinessReport, ReportDecision, ReportFinding } from "./types"
+
+const decisionAction = "inline-flex min-h-10 max-w-full items-center justify-center gap-2 rounded-md border border-blue-700 bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 print:hidden"
 
 export function ReportRelationshipFindings({ report }: { report: BusinessReport }) {
   if (report.definition?.impact || report.impact_analysis) return null
@@ -42,6 +44,8 @@ export function ReportDecisions({ report, onOpenDraft, busy = false }: {
     new Set(decision.evidence_dataset_ids).size === datasetIds.size &&
     decision.evidence_dataset_ids?.every(identity => datasetIds.has(identity))
   ) : undefined
+  const coverageIssue = report.status === "ready" ? "" : `Decision evidence unavailable: ${report.definition?.scope === "single" ? "the selected dataset has no usable values" : "fewer than two datasets have usable values"} ${report.window ? `for ${report.window.start} to ${report.window.end}` : "in this report's dates"}.`
+  const blockedReason = draft?.report_id ? "" : coverageIssue
   return <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Decisions and outcomes">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h3 className="text-lg font-semibold">Decisions and outcomes</h3>
@@ -50,13 +54,14 @@ export function ReportDecisions({ report, onOpenDraft, busy = false }: {
     {active.length > 0 ? active.map(decision => <DecisionRow key={decision.id} decision={decision} report={report} />)
       : draft ? <div className="min-w-0 border-b border-gray-100 pb-3" aria-label="Existing decision draft">
         <p className="mb-1 text-xs font-medium text-amber-800">Earlier draft for these datasets</p>
-        {onOpenDraft ? <button type="button" disabled={busy} onClick={() => void onOpenDraft(draft.id)} className="inline-flex min-h-10 items-center gap-1 font-medium text-blue-700 underline disabled:opacity-50"><ArrowUpRight size={16} aria-hidden="true" />Decision draft</button>
-          : <Link className="break-words font-medium text-blue-700 underline" href={decisionEvidenceHref(draft.id, report.definition.metrics)}>Decision draft</Link>}
+        {onOpenDraft ? <button type="button" disabled={busy || Boolean(blockedReason)} aria-describedby={blockedReason ? "report-decision-unavailable" : undefined} onClick={() => void onOpenDraft(draft.id)} className={decisionAction}><ArrowUpRight size={16} aria-hidden="true" />Continue decision</button>
+          : <Link className="break-words font-medium text-blue-700 underline" href={decisionEvidenceHref(draft.id, report.definition.metrics)}>Continue decision</Link>}
         <p className="mt-1 text-sm text-gray-600">Action not recorded.</p>
+        {onOpenDraft && blockedReason && <p id="report-decision-unavailable" role="status" className="mt-2 text-sm text-amber-800">{blockedReason}</p>}
       </div>
-        : onOpenDraft ? <div className="min-w-0 border-b border-gray-100 pb-3" aria-label="Decision draft">
-          <button type="button" disabled={busy || report.status !== "ready"} onClick={() => void onOpenDraft()} title={report.status !== "ready" ? "Resolve report coverage before opening a decision draft" : "Open decision draft"} className="inline-flex min-h-10 items-center gap-1 font-medium text-blue-700 underline disabled:opacity-50"><ArrowUpRight size={16} aria-hidden="true" />Decision draft</button>
-          <p className="mt-1 text-sm text-gray-600">Action not recorded.</p>
+        : onOpenDraft ? <div className="min-w-0 border-b border-gray-100 pb-3">
+          <button type="button" disabled={busy || Boolean(blockedReason)} aria-describedby={blockedReason ? "report-decision-unavailable" : undefined} onClick={() => void onOpenDraft()} className={decisionAction}><Plus size={16} aria-hidden="true" />Create decision</button>
+          {blockedReason && <p id="report-decision-unavailable" role="status" className="mt-2 text-sm text-amber-800">{blockedReason}</p>}
         </div> : <p className="text-sm text-gray-500">No active decisions linked to this report.</p>}
     {archived.length > 0 && <details className="min-w-0 border-t border-gray-100 pt-3 text-sm">
       <summary className="cursor-pointer text-gray-600">Archived decisions ({archived.length})</summary>

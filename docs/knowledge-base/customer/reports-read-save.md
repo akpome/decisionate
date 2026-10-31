@@ -36,6 +36,12 @@ also omit their old relationship findings when displayed, without changing the
 stored snapshot. These results support the main answer rather than replacing
 it. Decisions and outcomes remains the place to open the central
 decision workflow with this report's evidence.
+Create decision opens the central decision form; it does not record a decision
+until that form is submitted. Continue decision opens an existing unfinished
+decision instead of creating another. The action is a highlighted button when
+available. If report coverage is incomplete, the disabled action states which
+dates lack usable dataset values. Saving a report does not make missing data
+usable; a strong correlation or previous-period baseline is not required.
 
 Read the metric movements, unusual changes, impact checks, follow-up
 actions and limitations together. In Explore relationships, read the relationship

@@ -44,7 +44,7 @@ const renderFindings = (patch = {}) => renderToStaticMarkup(React.createElement(
   findings: [finding], included_findings: [finding.id], ...patch,
 } }))
 const renderDecisions = (patch = {}) => renderToStaticMarkup(React.createElement(ReportDecisions, { report: {
-  report_id: "report-1", definition: { metrics: [{ dataset_id: 1, metric_key: "spend" }, { dataset_id: 2, metric_key: "orders" }] }, decisions: [], ...patch,
+  report_id: "report-1", status: "ready", definition: { metrics: [{ dataset_id: 1, metric_key: "spend" }, { dataset_id: 2, metric_key: "orders" }] }, decisions: [], ...patch,
 } }))
 const decisionLinks = html => html.match(/href="\/dashboard\/decisions\/\d+(?:\?[^"]*)?"/g) || []
 
@@ -183,8 +183,8 @@ test("one existing active source draft remains editable without inventing an act
   const html = renderDecisions({ report_id: undefined, decision_drafts: drafts })
   assert.equal(decisionLinks(html).length, 1)
   assert.match(html, /Earlier draft for these datasets/)
-  assert.match(html, /href="\/dashboard\/decisions\/1\?evidence_metrics=[^"]+">Decision draft/)
-  const href = html.match(/href="([^\"]+)">Decision draft/)?.[1]
+  assert.match(html, /href="\/dashboard\/decisions\/1\?evidence_metrics=[^"]+">Continue decision/)
+  const href = html.match(/href="([^\"]+)">Continue decision/)?.[1]
   assert.deepEqual(JSON.parse(new URL(href, "https://decisionate.test").searchParams.get("evidence_metrics")), [[1, "spend"], [2, "orders"]])
   assert.match(html, /Action not recorded/)
   assert.doesNotMatch(html, /Review joined|Actual:|Expected:|No active decisions/)
@@ -192,7 +192,7 @@ test("one existing active source draft remains editable without inventing an act
 
 test("editable draft navigation uses the evidence-saving handoff and blocks repeated clicks while busy", () => {
   const opened = []
-  const props = { report: { report_id: "report-1", decisions: [],
+  const props = { report: { status: "ready", report_id: "report-1", decisions: [],
     definition: { metrics: [{ dataset_id: 1, metric_key: "spend" }, { dataset_id: 2, metric_key: "orders" }] },
     decision_drafts: [{ ...legacy[0], evidence_dataset_ids: [1, 2] }],
   }, onOpenDraft: async id => { opened.push(id) } }
@@ -215,13 +215,14 @@ test("a current report-linked decision suppresses the older source-only draft", 
   const html = renderDecisions({ decisions: [realDecision], decision_drafts: [{ ...legacy[0], evidence_dataset_ids: [1, 2] }] })
   assert.equal(decisionLinks(html).length, 1)
   assert.match(html, /Move 10% of the campaign budget/)
-  assert.doesNotMatch(html, /Decision draft|Earlier draft/)
+  assert.doesNotMatch(html, /Continue decision|Create decision|Earlier draft/)
 })
 
 test("renaming a report draft does not hide it or show it as a completed action", () => {
   const html = renderDecisions({ decision_drafts: [{ ...legacy[0], title: "Decision (random-id)", is_draft: true, report_id: "report-1", evidence_dataset_ids: [1, 2] }] })
   assert.equal(decisionLinks(html).length, 1)
-  assert.match(html, /Decision draft/)
+  assert.match(html, /Continue decision/)
+  assert.doesNotMatch(html, /Create decision/)
   assert.doesNotMatch(html, /No active decisions|Expected:|Actual:/)
 })
 
@@ -229,8 +230,10 @@ test("an owner without an existing draft gets one central-form handoff and no in
   const opened = []
   const props = { report: { status: "ready", report_id: "report-1", definition: { metrics: [] }, decisions: [] }, onOpenDraft: async id => { opened.push(id) } }
   const html = renderToStaticMarkup(React.createElement(ReportDecisions, props))
-  assert.match(html, /Decision draft/)
-  assert.doesNotMatch(html, /No active decisions|Expected:|Actual:|Create decision/)
+  assert.match(html, /Create decision/)
+  assert.match(html, /bg-blue-700[^\"]*text-white/)
+  assert.match(html, /lucide-plus/)
+  assert.doesNotMatch(html, /disabled=""|Decision draft|Action not recorded|No active decisions|Expected:|Actual:/)
   const buttons = []
   function visit(node) {
     if (!node || typeof node !== "object") return
@@ -243,7 +246,39 @@ test("an owner without an existing draft gets one central-form handoff and no in
   assert.deepEqual(opened, [undefined])
   assert.equal(decisionLinks(html).length, 0)
   assert.match(renderToStaticMarkup(React.createElement(ReportDecisions, { ...props, report: { ...props.report, status: "insufficient" } })), /<button[^>]*disabled=""/)
-  assert.doesNotMatch(renderToStaticMarkup(React.createElement(ReportDecisions, { report: props.report })), /<button|Decision draft/)
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(ReportDecisions, { report: props.report })), /<button|Create decision/)
+})
+
+test("saving a weekly report does not bypass missing coverage and the reason names the actual week", () => {
+  for (const scope of ["single", "multi"]) {
+    const report = { weekly_report: true, weekly_current: true, analysis_job_id: "saved-preview", status: "limited_coverage",
+      window: { start: "2026-10-19", end: "2026-10-25" }, definition: { scope, metrics: [] }, decisions: [] }
+    const html = renderToStaticMarkup(React.createElement(ReportDecisions, { report, onOpenDraft: async () => {} }))
+    assert.match(html, /Create decision/)
+    assert.match(html, /<button[^>]*disabled=""[^>]*aria-describedby="report-decision-unavailable"/)
+    assert.match(html, /id="report-decision-unavailable" role="status"/)
+    assert.match(html, /2026-10-19 to 2026-10-25/)
+    assert.ok(html.includes(scope === "single" ? "selected dataset has no usable values" : "fewer than two datasets have usable values"))
+    const ready = renderToStaticMarkup(React.createElement(ReportDecisions, { report: { ...report, status: "ready",
+      findings: [{ eligible: false, coefficient: null }], warnings: ["Previous-period baseline unavailable"] }, onOpenDraft: async () => {} }))
+    assert.doesNotMatch(ready, /disabled=""|Decision evidence unavailable/)
+    const busy = renderToStaticMarkup(React.createElement(ReportDecisions, { report: { ...report, status: "ready" }, busy: true, onOpenDraft: async () => {} }))
+    assert.match(busy, /disabled=""/)
+    assert.doesNotMatch(busy, /Decision evidence unavailable/)
+  }
+})
+
+test("a legacy draft needs current coverage only when it has no previously linked report", () => {
+  for (const report_id of [null, "report-1"]) {
+    const report = { report_id: "report-1", status: "limited_coverage", decisions: [],
+      definition: { metrics: [{ dataset_id: 1, metric_key: "spend" }, { dataset_id: 2, metric_key: "orders" }] },
+      decision_drafts: [{ ...legacy[0], report_id, evidence_dataset_ids: [1, 2] }] }
+    const html = renderToStaticMarkup(React.createElement(ReportDecisions, { report, onOpenDraft: async () => {} }))
+    assert.match(html, /Continue decision/)
+    assert.doesNotMatch(html, /Create decision/)
+    assert.equal(html.includes('disabled=""'), !report_id)
+    assert.equal(html.includes("Decision evidence unavailable"), !report_id)
+  }
 })
 
 test("archived, unrelated and unscoped legacy drafts cannot reappear in a report", () => {
@@ -257,7 +292,7 @@ test("archived, unrelated and unscoped legacy drafts cannot reappear in a report
   const html = renderDecisions({ decision_drafts: drafts })
   assert.equal(decisionLinks(html).length, 0)
   assert.match(html, /No active decisions linked/)
-  assert.doesNotMatch(html, /Decision draft/)
+  assert.doesNotMatch(html, /Continue decision|Create decision/)
 })
 
 test("frontend deployments use the hosting commit id for version skew protection", () => {

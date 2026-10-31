@@ -1036,6 +1036,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "Manage decisions": "Gérer les décisions",
   "Earlier draft for these datasets": "Brouillon antérieur pour ces jeux de données",
   "Decision draft": "Brouillon de décision",
+  "Continue decision": "Continuer la décision",
   "Action not recorded.": "Action non renseignée.",
   "No relationship findings included in this report.": "Aucun résultat d'analyse des relations n'est inclus dans ce rapport.",
   "Legacy evidence placeholder. No decision action was recorded.": "Ancienne entrée provisoire fondée sur des données. Aucune action de décision n'a été renseignée.",

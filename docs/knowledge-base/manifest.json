@@ -464,6 +464,7 @@
         "apps/web/features/reports/impact-trends.ts",
         "apps/web/features/reports/impact-chart.tsx",
         "apps/web/features/reports/impact-result.tsx",
+        "apps/web/features/reports/report-evidence-sections.tsx",
         "apps/web/features/reports/report-workspace.tsx",
         "apps/web/features/reports/analysis-jobs.ts",
         "apps/api/app/modules/reports/router.py",

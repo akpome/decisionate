@@ -218,7 +218,7 @@ test("the sole direct decision handler checks decision permissions", () => {
   assert.ok(permissionChecks.length > 0)
 })
 
-test("no analysis surface or help shortcut offers decision creation", () => {
+test("analysis and help surfaces do not submit decisions or embed the central creation form", () => {
   function inspect(directory) {
     for (const entry of readdirSync(path.join(webRoot, directory), { withFileTypes: true })) {
       const relativePath = `${directory}/${entry.name}`
