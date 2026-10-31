@@ -79,6 +79,10 @@ const gettingStartedItems = [
 
 const faqItems = [
   {
+    question: "How can I compare where to spend my budget?",
+    answer: "Open Budget Planner under Analysis. Choose a result, spending options, total budget and planning weeks. Options can come from different datasets or different dimension values in one dataset. Preview first: the planner needs at least 104 complete matching weeks and recent data, and withholds allocations when the evidence is weak. Supported previews compare the same budget using the recent mix and a suggested test. Save the plan before creating a decision. These are model-based estimates, not proven causal effects or automatic spending changes.",
+  },
+  {
     question: "Does Entity Matching create an analysis dataset?",
     answer:
       "Yes. Preview matches, confirm uncertain links, then Save linked history. Each source row and its date are retained, including unmatched rows, and source metrics remain separate. Original datasets are unchanged. The output is a snapshot; rerun matching for updated source data. Include entity summary by source adds an optional summary without replacing history. Older unified datasets are legacy summaries and must be rebuilt from original records before analysis. Matching is optional and does not prove causation or remove duplicate transactions across systems.",

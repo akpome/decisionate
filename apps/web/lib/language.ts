@@ -534,6 +534,7 @@ const frenchLandingTranslations: Record<string, string> = {
   Reports: "Rapports",
   "Analysis": "Analyse",
   "Business Analysis": "Analyse commerciale",
+  "Budget Planner": "Planificateur de budget",
   "Weekly Reports": "Rapports hebdomadaires",
   "Explore relationships": "Explorer les relations",
   "Business impact analysis": "Analyse de l'impact commercial",

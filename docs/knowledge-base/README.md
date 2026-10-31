@@ -53,6 +53,7 @@ that model selection or documentation can never be mistaken.
 | Saved two-metric monitors | [Relationships page](customer/relationship-monitors.md) |
 | MAD, seasonality and unusual changes | [Anomaly detection](customer/anomalies-seasonality.md) |
 | Future estimates and validation | [Forecasts](customer/forecasts.md) |
+| Spending allocation and channel mix | [Budget Planner](customer/budget-planner.md) |
 | Weekly templates and delivery | [Weekly reports](customer/weekly-reports.md) |
 | Email contents, sender and logo | [Report email format and branding](customer/email-branding.md) |
 | Creating, updating and reviewing actions | [Decisions and outcomes](customer/decisions-outcomes.md) |

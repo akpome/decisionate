@@ -28,6 +28,7 @@ import {
   UsersRound,
   X,
   Wrench,
+  Wallet,
 } from "lucide-react"
 import {
   useEffect,
@@ -170,6 +171,11 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/dashboard/reports",
         label: "Business Analysis",
         icon: <FileText size={18} />,
+      },
+      {
+        href: "/dashboard/budget-planner",
+        label: "Budget Planner",
+        icon: <Wallet size={18} />,
       },
       {
         href: "/dashboard/reports/weekly",

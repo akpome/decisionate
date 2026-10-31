@@ -10,6 +10,8 @@ Weekly Reports has Report setup and Report preview.
 Business Analysis uses approved
 dataset metrics, date policies, anomaly detection and report snapshots.
 
+## Where did correlation settings go? Is Reports a decision review?
+
 New multi dataset reports open with **Explore relationships**. The correlation
 method, minimum matching periods, timing and metric-pair settings
 are available under the expanded Relationship analysis section. Under Analysis

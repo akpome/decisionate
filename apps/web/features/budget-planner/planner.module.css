@@ -1,0 +1,20 @@
+.planner { width: 100%; min-width: 0; color: #17201d; letter-spacing: 0; }
+.planner h1 { font-size: 24px; font-weight: 650; }
+.planner h2 { font-size: 18px; font-weight: 650; margin-bottom: 16px; }
+.planner h3 { font-size: 15px; font-weight: 650; margin-bottom: 6px; }
+.planner label { display: block; font-size: 13px; color: #45514d; min-width: 0; }
+.planner label > input:not([type=checkbox]), .planner select, .planner textarea { display: block; width: 100%; min-width: 0; margin-top: 6px; min-height: 40px; padding: 8px 10px; border: 1px solid #cbd2ce; border-radius: 6px; background: white; color: #17201d; font-size: 14px; }
+.planner textarea { min-height: 80px; }
+.planner button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 12px; border: 1px solid #cbd2ce; border-radius: 6px; font-size: 14px; background: white; }
+.planner button:disabled { opacity: .5; cursor: not-allowed; }
+.planner button:not(:disabled) { cursor: pointer; }
+.planner button:hover:not(:disabled) { background: #edf4ef; }
+.planner button.primary { background: #176343; color: white; border-color: #176343; }
+.planner button.primary:hover:not(:disabled) { background: #124f35; }
+.planner [aria-current=step] { border-color: #176343; color: #176343; background: #edf4ef; }
+.planner :focus-visible { outline: 2px solid #2368ce; outline-offset: 2px; }
+.planner .check { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; }
+.check input { margin-top: 4px; width: 16px; height: 16px; flex-shrink: 0; }
+.planner p, .planner li, .planner h1, .planner h2, .planner h3 { overflow-wrap: anywhere; }
+.planner a { color: #245fc0; text-decoration: underline; }
+.planner summary { cursor: pointer; }

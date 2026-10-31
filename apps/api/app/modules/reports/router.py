@@ -219,6 +219,7 @@ def active_jobs(request: Request, db=Depends(database)):
     result = []
     saved_reports = db.query(BusinessReport.id).filter_by(workspace_id=workspace)
     jobs = db.query(ReportAnalysisJob).filter_by(workspace_id=workspace, user_id=user).filter(
+        ReportAnalysisJob.kind != "budget_plan",
         ReportAnalysisJob.saved_report_id.is_(None) | ReportAnalysisJob.saved_report_id.in_(saved_reports))
     for job in jobs.order_by(ReportAnalysisJob.created_at.desc()).limit(10):
         try:

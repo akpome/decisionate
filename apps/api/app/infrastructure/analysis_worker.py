@@ -183,6 +183,13 @@ def execute_job(identity):
                 check_inputs(db, job)
             elif job.kind in {"weekly_preview", "weekly_send", "weekly_owner_send"}:
                 result = run_weekly(db, job, definition)
+            elif job.kind == "budget_plan":
+                from app.modules.budget_planner.schemas import BudgetDefinition
+                from app.modules.budget_planner.service import generate as generate_budget
+                payload = {key: value for key, value in definition.items() if key != "reporting_timezone"}
+                result = generate_budget(db, BudgetDefinition.model_validate(payload), job.user_id, job.workspace_id,
+                                         progress=lambda phase: set_phase(db, job, phase))
+                check_inputs(db, job)
             elif job.kind == "dataset_anomalies":
                 from app.modules.reports.router import calculate_dataset_anomalies
                 set_phase(db, job, "computing")

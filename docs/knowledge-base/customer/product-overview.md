@@ -17,6 +17,9 @@ an impact estimate depends on the comparison and stated business assumptions.
   performance reviews and email delivery. Navigate between the workflows in the
   sidebar, not a shared page tab bar.
 - Forecasts estimates future values and presents validation information.
+- Budget Planner compares spending allocations toward one measurable result,
+  and withholds suggestions when its evidence checks fail. Save a supported
+  preview before creating a decision; no spending is changed automatically.
 - Relationships maintains saved two-metric, cross-source monitors.
 - Decisions is the central place to create and track accountable actions.
 - Action Needed organizes follow-up for existing decisions.

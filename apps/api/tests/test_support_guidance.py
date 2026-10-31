@@ -42,6 +42,12 @@ def configured(key="test-key"):
 
 
 class GuidanceTests(unittest.TestCase):
+    def test_budget_question_retrieves_workflow_instead_of_connector_inventory(self):
+        question = "how do i get recommendation on what i should spend money on meta ads or google ads with respect to my shopify store"
+        records = knowledge.retrieve(question)
+        self.assertEqual(records[0]["article_id"], "budget-planner")
+        self.assertIn("Preview budget", records[0]["content"])
+
     def setUp(self):
         self.payload = GuidanceRequest(question="How do I build a report across datasets?")
         self.records = knowledge.retrieve(self.payload.question)

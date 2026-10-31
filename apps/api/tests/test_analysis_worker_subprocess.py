@@ -34,6 +34,45 @@ def worker_environment(url):
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "The isolated worker uses Linux process protection")
 class AnalysisWorkerSubprocessTests(unittest.TestCase):
+    def test_real_child_completes_budget_plan_without_api_process_or_ai(self):
+        from tests.test_budget_planner import observations, definition
+        from datetime import date, timedelta
+
+        with tempfile.TemporaryDirectory() as directory:
+            url = "sqlite:///" + str(Path(directory) / "budget.db")
+            engine = create_engine(url)
+            self.addCleanup(engine.dispose)
+            Decision.metadata.create_all(engine)
+            sessions = sessionmaker(bind=engine)
+            today = date.today()
+            monday = today - timedelta(days=today.weekday())
+            dates = pd.date_range(end=monday - timedelta(days=7), periods=156, freq="W-MON")
+            spend, outcome = observations()
+            payload = definition(start_date=monday if monday == today else monday + timedelta(days=7))
+            with sessions() as db:
+                sources = {}
+                for identity, metric, values in ((1, "revenue", outcome), (2, "spend", spend[:, 0]), (3, "spend", spend[:, 1])):
+                    path = Path(directory) / f"budget-{identity}.csv"
+                    pd.DataFrame({"date": dates, metric: values}).to_csv(path, index=False)
+                    dataset = Dataset(id=identity, user_id="smoke-owner", workspace_id="smoke-owner", file_name=path.name,
+                        file_path=str(path), source_type="csv", source_config=json.dumps({"selected_metric_columns": [metric]}),
+                        row_count=156, column_count=2)
+                    db.add(dataset)
+                    sources[identity] = dataset
+                job = ReportAnalysisJob(user_id="smoke-owner", workspace_id="smoke-owner", kind="budget_plan", request_key="budget-smoke",
+                                        definition=encode(payload.model_dump(mode="json")), sources=encode(snapshot(sources)))
+                db.add(job); db.commit(); identity = job.id
+            result = subprocess.run([sys.executable, "-B", "scripts/run_analysis_worker.py", "--job-id", identity,
+                "--parent-pid", str(os.getpid())], cwd=API_ROOT, env=worker_environment(url), capture_output=True, text=True, timeout=180)
+            self.assertEqual(result.returncode, 0, result.stderr[-6000:])
+            with sessions() as db:
+                job = db.get(ReportAnalysisJob, identity)
+                self.assertEqual(job.status, "succeeded", job.error)
+                calculated = json.loads(job.result)
+                self.assertEqual(calculated["status"], "ready", calculated)
+                self.assertEqual(len(calculated["allocations"]), 2)
+                self.assertEqual(db.query(Decision).count(), 0)
+
     @unittest.skipUnless(shutil.which("gcc"), "Native TLS regression probe requires a C compiler")
     def test_real_child_allows_native_tls_with_large_virtual_reservations_and_low_resident_usage(self):
         with tempfile.TemporaryDirectory() as directory:

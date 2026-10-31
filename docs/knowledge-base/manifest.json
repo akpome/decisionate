@@ -7,6 +7,42 @@
   "default_export_audience": "customer",
   "articles": [
     {
+      "id": "budget-planner",
+      "title": "Budget Planner: where to spend for better results",
+      "path": "customer/budget-planner.md",
+      "audience": "customer",
+      "topics": [
+        "budget",
+        "allocation",
+        "channel",
+        "spend",
+        "advertising",
+        "recommendation"
+      ],
+      "questions": [
+        "Where should I spend money for better results?",
+        "Should I spend more on Meta Ads or Google Ads for my Shopify store?",
+        "Can I compare spending options from any dataset?"
+      ],
+      "routes": [
+        "/dashboard/budget-planner"
+      ],
+      "sources": [
+        "apps/api/app/modules/budget_planner/engine.py",
+        "apps/api/app/modules/budget_planner/schemas.py",
+        "apps/api/app/modules/budget_planner/service.py",
+        "apps/api/app/modules/budget_planner/router.py",
+        "apps/web/features/budget-planner/budget-planner.tsx",
+        "apps/web/features/budget-planner/source-picker.tsx"
+      ],
+      "related": [
+        "metric-selection",
+        "dimension-filters",
+        "decisions-outcomes",
+        "relationship-evidence"
+      ]
+    },
+    {
       "id": "product-overview",
       "title": "What Decisionate does",
       "path": "customer/product-overview.md",

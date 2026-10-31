@@ -5,6 +5,7 @@ import json
 from sqlalchemy import inspect
 
 from app.db.models import WeeklyReportPreference
+from app.modules.budget_planner.models import BudgetPlan
 from .models import BusinessReport, CurrentWeeklyReport, DecisionImpactReview, ReportAnalysisJob
 
 
@@ -21,6 +22,12 @@ def delete_reports(db, identities):
 
 
 def cleanup_source(db, dataset_id):
+    if inspect(db.connection()).has_table(BudgetPlan.__tablename__):
+        for plan in db.query(BudgetPlan):
+            definition = json.loads(plan.definition)
+            selections = [definition["outcome"], *definition["options"], *definition.get("controls", [])]
+            if any(item["dataset_id"] == dataset_id for item in selections):
+                db.delete(plan)
     if inspect(db.connection()).has_table(CurrentWeeklyReport.__tablename__):
         for current in db.query(CurrentWeeklyReport):
             if any(item["dataset_id"] == dataset_id for item in json.loads(current.definition)["metrics"]):
@@ -53,6 +60,8 @@ def cleanup_source(db, dataset_id):
 
 
 def cleanup_workspace(db, workspace_id):
+    if inspect(db.connection()).has_table(BudgetPlan.__tablename__):
+        db.query(BudgetPlan).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(CurrentWeeklyReport.__tablename__):
         db.query(CurrentWeeklyReport).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(DecisionImpactReview.__tablename__):

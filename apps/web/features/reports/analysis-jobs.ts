@@ -1,7 +1,7 @@
 import type { BusinessReport, ReportDefinition } from "./types"
 
 export type AnalysisJob<T = BusinessReport> = {
-  job_id: string; kind: "report" | "weekly_preview" | "weekly_send" | "weekly_owner_send"
+  job_id: string; kind: "report" | "weekly_preview" | "weekly_send" | "weekly_owner_send" | "budget_plan"
   status: "queued" | "running" | "succeeded" | "failed" | "cancelled"
   phase: string; error: string | null; result: T | null
   definition?: ReportDefinition | null
